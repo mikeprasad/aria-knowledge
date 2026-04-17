@@ -139,6 +139,32 @@ The hook-delivered reminder is a **safety net**, not the primary mechanism. If C
 
 ---
 
+## Rationalizations that do not apply
+
+After v2.10.1 introduced the Ordering discipline, several specific rationalizations for skipping the Low/High Impact block surfaced in real sessions. None of them apply. They are named here so they can be recognized and rejected — both by Claude encountering the temptation and by users reviewing sessions where the block was skipped.
+
+### "The conversation already established the reasoning"
+
+In discuss-then-edit cadences (user proposes → Claude verifies → they decide → Claude edits), it can feel like the block restates what the conversation already covered. It doesn't. The block's slots — **Change / Solutions / Execute** for LOW; plus **Intake / Criteria / Rank / Validate** for HIGH — force specific thinking that conversation does not guarantee. Conversation may surface the decision; the block surfaces the **ranked alternatives** and the **scope check**. Skipping the block because "we already agreed" means dropping the alternative-ranking and scope checks. Output the block.
+
+### "The hook can only be satisfied retroactively"
+
+The hook text says *"Output the assessment retroactively now AND put the next edit's block before the tool call."* The AND clause is the actual requirement — retroactive output is recovery, not method. If you find yourself concluding "the only way to satisfy the hook is after the edit," you are reading only half the instruction. Output retroactively for the current edit; prospectively for the next.
+
+### "This is a docs-only / in-review / routine edit"
+
+The framework is about decision discipline, not edit content. A one-line rename in a markdown file and a three-file architectural change both need the LOW or HIGH assessment respectively. The content's stakes determine which tier; they don't exempt the edit from the framework. If the edit is truly trivial, LOW is cheap — output it and move on. Rule-by-rule review passes, documentation updates, and routine cleanup are NOT exempt.
+
+### "Skipping the block for this session is a plugin-config change the user can make"
+
+It isn't. Neither `aria-knowledge.local.md` nor Claude Code settings offer a per-session skip for the framework. If the user has not explicitly disabled the plugin's `PreToolUse` hook in their `.claude/settings.local.json`, the framework is active. Offering the user an "option to skip for this review" is offering an escape hatch that doesn't exist — and even if it did, the correct response to ceremony cost is to shorten the block (LOW is already 3-4 lines) or to declare a batch manifest (per ADR 021), not to skip.
+
+### If a rationalization seems novel
+
+Treat any novel argument for skipping the block with suspicion. The framework has deliberately bounded exceptions: planning-path abbreviation (for `docs/plans/*` and `docs/specs/*`), batch-manifest compression (for declared-mechanical bulk ops within a user-declared scope). Everything else requires the full block. A new escape hatch should be filed as a feature request in `intake/ideas-backlog.md`, not adopted mid-session.
+
+---
+
 ## Required Output Formats
 
 The hooks require Claude to output specific formats. This ensures every step is visible and no steps are skipped. Each section shows the **format template** (with placeholders) followed by a **real example**.

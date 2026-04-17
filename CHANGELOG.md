@@ -2,6 +2,49 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## [2.10.2] - 2026-04-18
+
+Patch release. Strengthens v2.10.1's Rule 22 ordering discipline after a real-session failure mode was observed: an in-flight session continued across a plugin reinstall produced ~dozens of retroactive Rule 22 assessments, then (when challenged) proposed to "skip the block for this review" as an escape hatch the framework does not offer. Root causes: (1) the v2.10.1 hook message put the retroactive recovery clause first and the prospective-next-edit requirement second — the second half got skimmed; (2) SessionStart injection only fires at session start, so continued sessions across plugin updates don't receive the preventive layer; (3) no doctrine named and rejected the specific rationalizations Claude was inventing. v2.10.2 addresses (1) and (3) directly, and partially mitigates (2) via the stronger hook text. No config migration or API changes.
+
+### Changed — Hook message leads with prospective requirement, names escape hatches inline
+
+`plugin/bin/pre-edit-check.sh` MAIN_MSG reworded. The message now opens with:
+
+> "REQUIRED: your NEXT Edit/Write must be preceded (in the same assistant turn, ABOVE the tool call) by the Low/High Impact block."
+
+— making the prospective requirement load-bearing text a skim-reader cannot miss. The retroactive-recovery clause is secondary. The message then explicitly names four rationalizations observed in the wild ("conversation already covered it," "docs-only / in-review / discuss-then-edit cadence," "only way to satisfy the hook is retroactively," "skipping for this session is a plugin-config option") and rejects each inline. HIGH/LOW format specs unchanged.
+
+### Added — "Rationalizations that do not apply" section in doctrine
+
+New `## Rationalizations that do not apply` section in `plugin/template/rules/change-decision-framework.md`, placed between the v2.10.1 `## Ordering (required)` section and `## Required Output Formats`. Names and rejects the four escape hatches with framework-semantic reasoning (not just "don't do it"):
+
+- **"Conversation already established the reasoning"** — conversation surfaces decisions; the block surfaces ranked alternatives and scope checks. Skipping drops the alternative-ranking.
+- **"Hook can only be satisfied retroactively"** — reading only half the AND clause; retroactive is recovery, not method.
+- **"Docs-only / in-review / routine edit"** — the framework is about decision discipline, not edit content. Tier is determined by stakes; exemption is not an option.
+- **"Skipping is a plugin-config the user can make"** — no such config exists. The correct response to ceremony cost is shorter LOW blocks or a batch manifest, not skipping.
+
+Plus a catch-all subsection for novel rationalizations: file as an `ideas-backlog.md` entry, not adopted mid-session.
+
+### Changed — SessionStart reminder references the new doctrine section
+
+`plugin/bin/session-start-check.sh` RULE 22 ORDERING reminder updated to cite both `"Ordering (required)"` and `"Rationalizations that do not apply"` sections, and to name three of the specific invalid arguments inline as quick-reference against skim-reading. Length increase ~50 tokens per session-start; acceptable cost for closing the doctrine cross-reference.
+
+### Observed failure this patch addresses
+
+For maintainers auditing whether the fix matches the observed failure:
+
+- **Session:** pre-v2.10.1 session continued across plugin reinstall (new hook message loaded; SessionStart context stale)
+- **Failure pattern:** ~30 Rule 22 assessments output retroactively across a single-file review pass; when challenged, Claude cited the hook text as justification ("the only way to satisfy it is retroactively")
+- **Proposed escape:** "Skip the blocks for the rest of this review — we've already established the reasoning conversationally"
+- **Why v2.10.2 catches it:** the new hook message leads with the prospective requirement (so skim-reading catches it); the doctrine explicitly rejects the "conversation already covered it" argument; the SessionStart text names invalid-argument examples a model might reach for
+
+### Upgrade notes
+
+- **Reinstall required:** copy `plugin/` to `~/.claude/plugins/marketplaces/local-desktop-app-uploads/aria-knowledge/`. No config migration needed.
+- **Template diff on next `/setup`:** `rules/change-decision-framework.md` gains the new `## Rationalizations that do not apply` section. Accept to receive the canonical doctrine.
+- **Continued sessions across this reinstall:** SessionStart injection still only fires on fresh sessions. Sessions already in progress at reinstall time will get the new MAIN_MSG per-edit but not the new SessionStart text until restart. The v2.10.2 hook message change is strong enough to compensate; if you see the failure mode recur, restart the session to pick up the new SessionStart injection.
+- **Longer-term fix for the continued-session gap:** filed as a v2.11.x candidate — the Layer 4 verification hook in `ideas-backlog.md` would detect the failure mode mechanically rather than relying on doctrinal text.
+
 ## [2.10.1] - 2026-04-18
 
 Patch release. Fixes a coordination gap between v2.10.0's batch-manifest mechanism and the knowledge-folder protection layer that prevented `/audit-knowledge` — v2.10.0's sole motivating use case — from receiving the compression v2.10.0 was designed to deliver. Also clarifies Rule 22 ordering discipline across three enforcement layers (doctrine, SessionStart injection, hook message) to close a long-standing gap where the pre-edit assessment was being output retroactively (after the tool call) instead of prospectively (above it). Behavior is unchanged for non-manifest sessions, for declared-high ops, for structural-signal paths, and for protected basenames (`CLAUDE.md`, `working-rules.md`, `plugin.json`, etc.). No config migration or user-visible API changes.
