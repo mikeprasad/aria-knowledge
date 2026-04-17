@@ -4,3 +4,6 @@
 *.log
 node_modules/
 plugin/.claude/
+
+# Release artifacts built by release.sh — distribute via GitHub Releases, not git.
+aria-knowledge-*.zip
