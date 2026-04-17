@@ -3,6 +3,9 @@ Last updated: 2026-04-15
 tags: [knowledge-structure]
 ---
 
+<!-- plugin-managed: /setup diffs this file on plugin updates (only when the project tier is enabled). Per-project READMEs under `projects/{tag}/` are user-owned and never diffed. Customize this overview doc freely — your edits appear as diff prompts on future `/setup` runs. See OVERVIEW.md "Plugin-Managed vs User-Owned Files" for details. -->
+
+
 # Project-Specific Knowledge
 
 Durable architecture decisions, patterns, and insights that are valuable to preserve but **specific to one project** — not yet validated across multiple projects. Sits between ephemeral memory files (status tracking) and cross-project knowledge in the top-level folders (`approaches/`, `decisions/`, `rules/`).

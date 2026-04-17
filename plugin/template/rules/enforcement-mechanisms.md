@@ -1,3 +1,5 @@
+<!-- plugin-managed: /setup diffs this file on plugin updates. Customize it freely — your edits appear as diff prompts on future `/setup` runs (this is how you receive plugin improvements). For customizations you want ARIA to leave alone, use `rules/user-rules.md` or `LOCAL.md` (both user-owned, never diffed). See OVERVIEW.md "Plugin-Managed vs User-Owned Files" for details. -->
+
 # Claude Code Enforcement Mechanisms
 
 How to ensure Claude follows a process, rule, or constraint. Ranked from softest to hardest enforcement.
@@ -30,6 +32,8 @@ The hook prompt specifies an exact output format with labeled fields that Claude
 **Best for:** Multi-step decision processes where skipping a step causes errors. The change decision framework (Rule 22) uses this approach.
 
 **Key insight:** If Claude isn't required to output its reasoning, steps may be skipped. The output IS the enforcement mechanism — not just a record of it.
+
+**Why the full format fires on every edit (not compressed after the first):** Context compaction erases earlier conversation — including any prior hook injection that contained the full template. A "full on first edit, short thereafter" model would work within a single pre-compaction window, then silently degrade after compaction when Claude loses the reference. ARIA's change decision framework trades ~11K tokens/session of overhead for reliability that survives compaction. The full format is not redundancy — it's the only way to guarantee the framework still applies to edit #40 after compaction happened at edit #25.
 
 ---
 

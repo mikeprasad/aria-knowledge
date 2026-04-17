@@ -82,8 +82,6 @@ tags: [tag1, tag2]
 - Cross-project ADRs in `decisions/` use `YYYY-NNN-` prefix (e.g., `2026-001-auth-strategy.md`) — self-dating, resets per year.
 - Project-level ADRs in `projects/{tag}/decisions/` use sequential `NNN-` per project (e.g., `001-app-router-as-spa.md`) — each project is its own namespace.
 
-**Provenance (for cross-project promotions):** When `/audit-knowledge` Step 5e promotes a project-specific ADR or pattern to the cross-project tree, the new file gets an `originally_at:` YAML frontmatter field documenting the source(s). Greppable consolidation history.
-
 ### Guides (`guides/`)
 
 ```markdown
@@ -103,6 +101,26 @@ tags: [tag1, tag2]
 ## Related
 [Links to related guides, approaches, or references]
 ```
+
+### Provenance — `originally_at` (any promoted file)
+
+When `/audit-knowledge` Step 5e promotes a project-specific file to the cross-project tree — whether a decision, approach, pattern, or guide — the new file gains an `originally_at:` YAML frontmatter field documenting the source(s) and move context. This creates a greppable consolidation history that survives git history truncation (shallow clones, squashed merges) and doesn't depend on git's rename-detection heuristics.
+
+```yaml
+---
+Last updated: YYYY-MM-DD
+tags: [tag1, tag2]
+originally_at: projects/cs-builder/decisions/004-uuid-auth.md (moved 2026-04-15 during cross-project promotion)
+---
+```
+
+To enumerate every migrated file in your knowledge folder:
+
+```bash
+grep -rn "^originally_at:" knowledge/
+```
+
+Seeing `originally_at:` on a promoted file isn't an error — it's the provenance pointer back to the source. Combined with the stub-and-reference disposition at the source path, you get forward-linking provenance (this file) plus backward-linking redirect (the stub).
 
 ## What Belongs Where
 

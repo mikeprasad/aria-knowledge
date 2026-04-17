@@ -1,3 +1,5 @@
+<!-- plugin-managed: /setup diffs this file on plugin updates. Customize it freely — your edits appear as diff prompts on future `/setup` runs (this is how you receive plugin improvements). For customizations you want ARIA to leave alone, use `rules/user-rules.md` or `LOCAL.md` (both user-owned, never diffed). See OVERVIEW.md "Plugin-Managed vs User-Owned Files" for details. -->
+
 # Knowledge Repository
 
 Durable knowledge, validated approaches, and architectural decisions — organized for execution, not just reference.

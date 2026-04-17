@@ -2,6 +2,55 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## [2.9.1] - 2026-04-17
+
+Documentation patch with small ergonomic additions. No changes to existing hook or skill logic. README, `/help`, and shipped plugin surfaces (OVERVIEW, skill docs, template files, `/setup` first-run note) gain positioning, usage guidance, and rationale surfaced from internal ADRs. Adds two delegate slash-command aliases (`/knowledge-audit`, `/config-audit`) for users who prefer inverted phrasing. Users will see diff prompts for `OVERVIEW.md`, `README.md`, `rules/change-decision-framework.md`, `rules/enforcement-mechanisms.md`, `rules/working-rules.md`, `rules/user-rules.md`, `LOCAL.md`, and `projects/README.md` on their next `/setup` — this is expected and correct behavior under ADR 011's diffability model; reconcile by keeping your version, adopting plugin version, or merging as appropriate.
+
+### Added — Model Recommendations (README + /help)
+
+New "Model Recommendations" section in README.md and as a second section in `/help` output (commands table surfaces first; recommendations second). Documents per-skill model tiers: **Opus 4.7, high effort** for judgment-heavy skills (`/extract`, `/audit-knowledge`, `/audit-config`); **Opus 4.6 (1M context) minimum** for `/codemap create` (full-repo traversal needs the large context window to avoid mid-generation truncation); **Sonnet 4.6** for structured and lightweight skills (`/codemap update/section`, `/wrapup`, `/intake`, `/distill`, `/stitch`, `/index`, `/stats`, `/backlog`, `/rules`, `/context`, `/clip`, `/help`, `/setup`). Haiku is not recommended for any ARIA skill — judgment and cross-reference demands exceed its strengths. Guidance only — ARIA does not force a model via frontmatter; users switch per session via `/model`.
+
+### Added — Staleness & Freshness section (README)
+
+New README section surfacing how ARIA handles knowledge staleness as a first-class concern: `Last updated` frontmatter on every knowledge file, configurable thresholds (`ideas_staleness_threshold_days` default 21, `staleness_threshold_months` for promoted files), audit cadences with SessionStart prompts when review is overdue, stale-first surfacing in `/audit-knowledge` Step 2c2 with asymmetric Accept/Reject/Defer/Reclassify disposition, and drift detection across `/audit-config`, `/audit-knowledge` Step 5b3, `/codemap update`, `/index`, plus Rule 22 edit-level enforcement preventing silent drift. Addresses the common first-impression question from users coming from graph-DB memory systems ("how do you handle staleness in markdown?").
+
+### Added — ARIA vs Other Memory Architectures section (README)
+
+New README positioning section contrasting ARIA against two alternative memory architectures: Karpathy-style LLM-compiled markdown wikis and graph-DB memory systems (mem0, Graphiti). Three-column comparison table across storage, curation authority, auditability, freshness mechanism, process discipline, failure mode, and ideal scale. Frames Karpathy's model as well-suited for **automated research compilation** (LLM authorial speed is the point; occasional drift acceptable because the artifact isn't load-bearing on daily decisions) and ARIA as tuned for **operationally applied decision-making** (working rules, architecture decisions, team conventions acted on every day, where LLM-promoted wrong rules cascade across references and degrade real output). Graph-DB memory positioned as complementary for retrieval-heavy workloads — can be layered below ARIA as a retrieval surface for promoted markdown. Grounded in ADR 010 ("LLM captures, human promotes").
+
+### Added — ADR-grounded documentation in plugin surfaces
+
+Surfaces the *why* behind several internal architecture decisions into user-visible plugin files. Each incorporation lands at the point where the corresponding behavior or convention is visible, so users encounter rationale at the surface instead of discovering it by reading internal ADRs.
+
+- **ADR 018** (`/context` project-scoping) — `plugin/skills/context/SKILL.md` Step 5 gains a "Why project-scoped only" blockquote explaining why ideas surface on project-tagged queries but not topic-only queries (capture-vs-track boundary; retrieval-intent protection).
+- **ADR 020** (behavioral vs feature routing) — `plugin/template/rules/user-rules.md` gains a "What Belongs Here vs ideas-backlog.md" subsection with examples, clarifying that behavioral observations about Claude's drift patterns go in `user-rules.md` while feature proposals, bug reports, and design ideas route to `intake/ideas-backlog.md` for external-tracker scheduling.
+- **ADR 012** (`originally_at` provenance) — `plugin/template/LOCAL.md` generalizes the `originally_at` frontmatter note from a Decisions-template-only mention to a dedicated "Provenance — `originally_at` (any promoted file)" subsection with greppable enumeration command and the full frontmatter example.
+- **ADR 006** (full Rule 22 format every edit) — `plugin/template/rules/enforcement-mechanisms.md` section 3 ("Required Output Format") gains a "Why the full format fires on every edit" paragraph explaining the post-compaction-safety rationale for the ~11K tokens/session overhead.
+- **ADR 019** (stale-ideas asymmetric disposition) — README Staleness & Freshness section's "Stale-first surfacing" bullet gains a closing clause naming the accumulation failure mode that implicit Defer prevents.
+- **ADR 011** (plugin-managed vs user-owned files) — triple surface:
+  - `plugin/template/OVERVIEW.md` gains a new "Plugin-Managed vs User-Owned Files" section between "The Plugin" and "Design Principles," teaching the two-class model, listing files in each class, and stating the rule of thumb for customization routing.
+  - Every plugin-managed template file (`OVERVIEW.md`, `README.md`, `rules/working-rules.md`, `rules/change-decision-framework.md`, `rules/enforcement-mechanisms.md`, `projects/README.md`) gains an HTML comment header at the top signaling its class at the point of customization. HTML comments are invisible in rendered markdown but visible in raw view, flagging the file class when users open it to edit.
+  - `plugin/skills/setup/SKILL.md` Step 3 create mode gains a one-time first-install educational note enumerating both classes so new users encounter the split at their first `/setup`.
+
+### Added — Public positioning (ADR 022)
+
+New ADR `knowledge/projects/aria/decisions/022-public-positioning-operational-decisionmaking.md` (in the private knowledge repo, not shipped with the plugin) grounds the v2.9.1 README positioning claims in internal design rationale. Documents that ARIA's public stance — operational decision-making tool, markdown for auditability, human-promotion as load-bearing discipline — is a deliberate mirror of ADR 010's internal boundary, creating a public-facing commitment that future plugin features must remain compatible with.
+
+### Added — Slash command aliases
+
+Two new delegate alias skills accommodate the inverted "subject-audit" phrasing some users prefer:
+
+- `plugin/skills/knowledge-audit/SKILL.md` — alias for `/audit-knowledge`. Invoking `/knowledge-audit` produces identical behavior.
+- `plugin/skills/config-audit/SKILL.md` — alias for `/audit-config`. Invoking `/config-audit` produces identical behavior.
+
+Both aliases are delegate stubs — they instruct Claude to read and execute the canonical SKILL.md rather than duplicating content. Canonical changes automatically apply to the alias; no drift risk. Frontmatter descriptions are deliberately non-competing with the canonical skills' natural-language trigger phrases, so natural-language dispatch ("run a knowledge audit") continues to route to the canonical skill; aliases are primarily for explicit slash-command invocation.
+
+The `/help` commands table shows the alias form on the relevant rows: `/audit-knowledge (alias: /knowledge-audit)` and `/audit-config (alias: /config-audit)`.
+
+### Changed
+
+- `plugin/.claude-plugin/plugin.json` — version bumped to 2.9.1.
+
 ## [2.9.0] - 2026-04-17
 
 Major release absorbing design imports from the `nrek/aria-ex1` fork (execution-first variant by Enrique Gutierrez). ARIA's knowledge lifecycle stays intact; additions are `/distill` spec shaping, `/stitch` cross-repo binding, structural signal surfacing in hooks, and rule-sub-structure extensions. Zero breaking changes; all new features are opt-in or additive.

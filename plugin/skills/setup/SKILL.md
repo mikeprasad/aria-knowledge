@@ -41,7 +41,16 @@ Read the expected structure from `${CLAUDE_PLUGIN_ROOT}/template/`.
 
 **User-owned files (created once from template, never overwritten or diffed):** `LOCAL.md` (project-specific guide), `rules/user-rules.md` (your custom rules — ARIA never touches this file), `guides/README.md`, `approaches/README.md`, `decisions/README.md`, `references/README.md`, `archive/README.md` (directory stubs users may customize).
 
-**In create mode:** Create all directories and copy all template files.
+**In create mode:** Create all directories and copy all template files. After creation, display a **one-time educational note** about the file-class model (this note is only shown on fresh installs — in update/existing mode, skip it):
+
+> **First-setup note: Plugin-Managed vs User-Owned Files**
+>
+> Your knowledge folder now contains two classes of template files:
+>
+> - **Plugin-managed** — `README.md`, `OVERVIEW.md`, `rules/working-rules.md`, `rules/change-decision-framework.md`, `rules/enforcement-mechanisms.md` (and `projects/README.md` when the project tier is enabled). These are diffed on every `/setup` run. Customize them freely — your edits will appear as diff prompts when plugin updates ship. That's how you receive improvements without silent overwrites. Each managed file also carries a `<!-- plugin-managed: -->` comment header so you can spot them at edit time.
+> - **User-owned** — `LOCAL.md`, `rules/user-rules.md`, intake backlogs (`insights`, `decisions`, `extraction`, `ideas`), audit logs under `logs/`, directory README stubs (`guides/`, `approaches/`, `decisions/`, `references/`, `archive/`), and per-project READMEs under `projects/{tag}/`. ARIA never diffs or overwrites these. Your customizations live here safely.
+>
+> See `OVERVIEW.md` "Plugin-Managed vs User-Owned Files" for details. This note appears only on first setup.
 
 **In existing mode:** Scan what's present vs missing.
 - For missing **directories**: create them silently.

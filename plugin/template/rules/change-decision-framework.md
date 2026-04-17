@@ -1,3 +1,5 @@
+<!-- plugin-managed: /setup diffs this file on plugin updates. Customize it freely — your edits appear as diff prompts on future `/setup` runs (this is how you receive plugin improvements). For customizations you want ARIA to leave alone, use `rules/user-rules.md` or `LOCAL.md` (both user-owned, never diffed). See OVERVIEW.md "Plugin-Managed vs User-Owned Files" for details. -->
+
 # Change Decision Framework
 
 A process discipline system for Claude Code that enforces structured decision-making before code changes and scope verification after. Implemented via hooks in `.claude/settings.local.json`.

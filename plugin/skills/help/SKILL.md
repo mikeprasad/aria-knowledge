@@ -17,8 +17,8 @@ Print the command reference table. No config or file access needed.
 |---------|-------------|
 | /setup | Configure knowledge folder, audit cadences, and plugin settings |
 | /extract | Capture insights, decisions, and feedback from the current conversation |
-| /audit-knowledge | Review backlogs, promote to knowledge files, rebuild index |
-| /audit-config | Check project configs and docs for drift and broken references |
+| /audit-knowledge (alias: /knowledge-audit) | Review backlogs, promote to knowledge files, rebuild index |
+| /audit-config (alias: /config-audit) | Check project configs and docs for drift and broken references |
 | /context [tags] | Load relevant knowledge files by topic (supports AND/OR, project expansion) |
 | /index | Rebuild the tag-based knowledge index with cross-references |
 | /rules [number] | Look up a working rule by number or keyword |
@@ -32,4 +32,22 @@ Print the command reference table. No config or file access needed.
 | /help | This command reference |
 
 Run /setup to configure. See QUICKSTART.md for a walkthrough of your first 3 sessions.
+
+## Model Recommendations
+
+These are recommendations only — ARIA does not force a model. Switch per session via `/model` based on the skill you're about to run.
+
+| Skill | Recommended Model | Why |
+|-------|-------------------|-----|
+| /extract | Opus 4.7, high effort | Judgment-heavy: distinguishing reusable signal from ephemeral noise, writing non-obvious Why/How-to-apply lines. |
+| /audit-knowledge | Opus 4.7, high effort | Cross-references backlogs against the promoted index, decides promotion vs. discard, detects emerging themes. |
+| /audit-config | Opus 4.7, medium–high effort | Reads across CLAUDE.md files and configs to detect drift and broken references. |
+| /ask | Opus 4.7, high (ambiguous topics) or Sonnet 4.6 (scoped lookups) | Research + draft + categorize. Drop to Sonnet when the question is narrow. |
+| /codemap create | Opus 4.6 (1M context) minimum | Full-repo traversal needs the large context window so sections aren't truncated mid-generation. |
+| /codemap update, /codemap section, /wrapup, /intake, /distill, /stitch | Sonnet 4.6, medium effort | Structured work with clear prescribed output. |
+| /index, /stats, /backlog, /rules, /context, /clip, /help, /setup | Sonnet 4.6, low effort | Mechanical or retrieval-only — higher models add no measurable lift. |
+
+Haiku is not recommended for any ARIA skill — the judgment/cross-reference demands exceed its strengths.
+
+The honest test: will a stronger model change what ends up in the knowledge base? For `/extract` and `/audit-knowledge`, yes, measurably. For `/index` and `/stats`, no.
 ```

@@ -129,7 +129,10 @@ Load which files? (all / numbers / none)
 
 Do NOT pad results with empty folder notes for project tags that weren't queried.
 
-**Pending Ideas surfacing:** if the query includes a configured project tag AND `{knowledge_folder}/intake/ideas-backlog.md` exists, scan the file for entries whose header project field matches (or includes) the query's project tag. Present matches as a compact informational section after the file list, before the "Load which files?" prompt:
+**Pending Ideas surfacing:** if the query includes a configured project tag AND `{knowledge_folder}/intake/ideas-backlog.md` exists, scan the file for entries whose header project field matches (or includes) the query's project tag. Present matches as a compact informational section after the file list, before the "Load which files?" prompt.
+
+> **Why project-scoped only:** `/context` loads knowledge for retrieval; ideas are staging for external-tracker routing, not retrieval. Surfacing ideas on topic-only queries (`/context api`, `/context architecture`) would pollute the retrieval intent and blur ARIA's capture-vs-track boundary. Project-tagged queries get ideas as ambient project context; topic-only queries stay clean. See the capture-vs-track architecture in `intake/ideas-backlog.md`.
+
 
 ```
 ## Pending Ideas for cs-builder (3)

@@ -1,3 +1,5 @@
+<!-- plugin-managed: /setup diffs this file on plugin updates. Customize it freely — your edits appear as diff prompts on future `/setup` runs (this is how you receive plugin improvements). For custom team/personal rules that ARIA should leave alone, use `rules/user-rules.md` (user-owned, never diffed). See OVERVIEW.md "Plugin-Managed vs User-Owned Files" for details. -->
+
 # Working Rules
 
 **Last updated:** 2026-04-15

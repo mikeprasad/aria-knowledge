@@ -1,3 +1,5 @@
+<!-- plugin-managed: /setup diffs this file on plugin updates. Customize it freely — your edits appear as diff prompts on future `/setup` runs (this is how you receive plugin improvements). For customizations you want ARIA to leave alone, use `rules/user-rules.md` or `LOCAL.md` (both user-owned, never diffed). See the "Plugin-Managed vs User-Owned Files" section below for details. -->
+
 # ARIA Knowledge
 
 **Anchored Reasoning and Insight Architecture**
@@ -135,6 +137,18 @@ The plugin uses a layered enforcement model, from softest to hardest:
 4. **Permission deny lists** — hard blocks for operations that should never happen
 
 Most enforcement lives at layers 2-3. The goal isn't to prevent mistakes through restriction — it's to make the decision process visible so mistakes are caught before they're committed.
+
+## Plugin-Managed vs User-Owned Files
+
+ARIA template files fall into two classes with different update behavior on `/setup`. Understanding the split prevents surprise when the plugin ships updates and your customized files appear in diff prompts.
+
+**Plugin-managed files** are authored by the plugin and kept current via `/setup` diffs. When a plugin update ships a new version of a managed file, `/setup` shows you the diff and lets you keep your version, adopt the plugin version, or review the full change. If you customize a managed file (e.g., add a custom rule directly into `working-rules.md`), your edits appear as diff prompts on every future `/setup` until reconciled. This is intentional — it's how you receive plugin improvements without silent overwrites. Managed files include `README.md`, `OVERVIEW.md` (this file), `rules/working-rules.md`, `rules/change-decision-framework.md`, `rules/enforcement-mechanisms.md`, and `projects/README.md` (when the project tier is enabled).
+
+**User-owned files** are yours entirely. `/setup` creates them once from a template on first install, then never touches them again — no diffs, no overwrites, no merges. Use these for customizations you want the plugin to stay out of. Key user-owned files include `LOCAL.md` (your local guide), `rules/user-rules.md` (your custom rules), the intake backlogs (`intake/insights-backlog.md`, `decisions-backlog.md`, `extraction-backlog.md`, `ideas-backlog.md`), audit logs under `logs/`, directory README stubs (`guides/README.md`, `approaches/README.md`, `decisions/README.md`, `references/README.md`, `archive/README.md`), and per-project READMEs under `projects/{tag}/`.
+
+The authoritative classification lives in `plugin/skills/setup/SKILL.md` (Step 3 lists user-owned files; Step 4 lists managed files). Managed files also carry an HTML comment header at the top of the raw markdown signaling their class at the point of customization, and on first-setup the `/setup` skill surfaces a one-time educational note about the split.
+
+**Rule of thumb:** if your customization is content-specific to your project or team (custom rules, per-project READMEs, local conventions, session captures), put it in a user-owned file. If you want to modify plugin-shipped core guidance (working rules, change-decision framework, enforcement mechanisms, top-level README/OVERVIEW), expect diff prompts on updates and reconcile during `/setup`.
 
 ## Design Principles
 
