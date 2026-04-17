@@ -6,7 +6,7 @@
 
 ARIA is a Claude Code plugin that gives AI coding sessions persistent memory and structured discipline. It manages a complete knowledge lifecycle — capturing insights, decisions, and feedback during sessions, staging them in backlogs for human review, and promoting what matters into a searchable, tag-indexed knowledge base. Session hooks prevent knowledge loss during context compaction, surface relevant knowledge when tasks are created, and enforce a change decision framework at every file edit, requiring visible impact assessment and scope verification before and after changes. The result is that each session builds on the last instead of starting from scratch.
 
-Beyond knowledge capture, ARIA provides active tooling for codebase understanding and session workflow. `/codemap` generates feature-organized maps that trace full-stack flows across entire repositories. `/ask` researches questions and saves answers directly as knowledge docs. `/intake` bulk-imports from files, URLs, or directories. `/audit-config` and `/audit-knowledge` detect drift, staleness, and gaps on configurable cadences. `/wrapup` handles end-of-session handoff — updating progress files, prompting for commits, and ensuring the next session can pick up cleanly. An optional project-specific knowledge tier (v2.8.0+) organizes architecture decisions and patterns by project, with automatic cross-project promotion detection when patterns validate across multiple projects. Everything is plain markdown, works as an Obsidian vault, and follows a core philosophy: the AI captures, the human promotes.
+Beyond knowledge capture, ARIA provides active tooling for codebase & task mapping and session workflow. `/codemap` generates feature-organized maps that trace full-stack flows across entire repositories; `/stitch` builds cross-repo binding tables (auth paths, endpoint stitch, drift logs) for product groups spanning a backend and one or more frontends; `/distill` turns raw ticket text into tiered executable task specs that cite real files via optional CODEMAP + STITCH context. `/ask` researches questions and saves answers directly as knowledge docs. `/intake` bulk-imports from files, URLs, or directories. `/audit-config` and `/audit-knowledge` detect drift, staleness, and gaps on configurable cadences. `/wrapup` handles end-of-session handoff — updating progress files, prompting for commits, and ensuring the next session can pick up cleanly. An optional project-specific knowledge tier (v2.8.0+) organizes architecture decisions and patterns by project, with automatic cross-project promotion detection when patterns validate across multiple projects. Everything is plain markdown, works as an Obsidian vault, and follows a core philosophy: the AI captures, the human promotes.
 
 ## How It Works
 
@@ -22,7 +22,7 @@ Knowledge moves through a pipeline: **Capture → Review → Promote.**
 - `/audit-knowledge` — Review backlogs and memory for promotable knowledge. Detects emerging themes across entries. Checks codemap staleness.
 - `/index` — Rebuild the tag index. Normalizes tags, flags untagged files, suggests cross-references, updates project mappings.
 - `/context` — Load relevant knowledge by topic using the tag index with project expansion. When a project tier is configured, `/context {project-tag}` also loads project-specific files from `projects/{tag}/**`, grouped separately from cross-project results.
-- `/rules` — Quick lookup into the 29 working rules by number or keyword.
+- `/rules` — Quick lookup into the 31 working rules by number or keyword.
 - `/stats` — Knowledge base health dashboard — file counts, backlog depth, audit status, tag coverage, gaps.
 
 ### Decision Discipline
@@ -31,17 +31,19 @@ A change decision framework (Rule 22) is enforced at every Edit/Write via hooks.
 
 - **PreToolUse hook** — Before every file edit: assess impact (HIGH/LOW), state alternatives considered, define scope.
 - **PostToolUse hook** — After every edit: verify scope wasn't exceeded, check for secondary impact on parents/siblings/dependents.
+- **Structural signal surfacing** — edits touching auth, migrations, models/schemas, routing, or external-service integrations get advisory labels on the hook output so risk signals are visible even when the content classifies as Low impact.
+- **Batch-manifest ceremony reduction** — skills (or manual plan execution) driving declared-scope multi-file work can write a batch manifest that compresses Rule 22 ceremony for low-impact ops in-scope. Protected paths, declared-high ops, structural signals, and out-of-scope drift all still get the full assessment. Requires `jq`. `/audit-knowledge` uses this to run 15–30-edit promotion passes without per-edit ceremony.
 - Configurable critical paths that always require full impact assessment.
-- Ships 29 working rules, a 7-step change decision framework with real examples, and enforcement mechanisms documentation.
+- Ships 31 working rules, a 7-step change decision framework with real examples, and enforcement mechanisms documentation.
 
-### Codebase Understanding
+### Codebase & Task Mapping
 
-`/codemap` generates feature-organized reference documents from any repository.
+Skills that turn ambiguous surface area — a repo, a set of repos, a raw ticket — into structured artifacts Claude can ground decisions against. All three produce a navigable map of something that was previously tribal knowledge.
 
-- Scans repos, detects frameworks, traces full-stack flows (routes → hooks → state → views → models → integrations).
-- Four modes: `create` (full generation), `inventory` (quick index), `update` (incremental via git diff), `section` (rebuild one section).
-- Produces navigable CODEMAP.md with a directory table for selective section loading.
-- **PreToolUse hook** on Glob/Grep — Reminds to check CODEMAP.md before exploring a codebase directly.
+- `/codemap` — Feature-organized reference document for any repository. Scans repos, detects frameworks, traces full-stack flows (routes → hooks → state → views → models → integrations). Four modes: `create` (full generation), `inventory` (quick index), `update` (incremental via git diff), `section` (rebuild one section). Produces navigable CODEMAP.md with a directory table for selective section loading. Stack-aware cross-cutting candidates (URLConf tree, signal registry, env matrix, route tree) surface as explicit gap prompts during generation — feature-organized codemaps systematically under-document these because they span all features rather than attaching to one.
+- `/stitch` — Cross-repo binding artifact for product groups (backend + one or more frontends). Produces STITCH.md with tables for group identity, auth path, endpoint stitch, entity stitch, integration stitch, and a drift log. Modes: `create`, `verify`, `diff`, `section`. Drift detection follows a precedence ladder: user-supplied analyze-stitch script → CODEMAP-based endpoint diff → explicit prompt when CODEMAPs lack endpoint sections → opt-in grep fallback. Output labels its drift source so you can trust or distrust accordingly.
+- `/distill` — Turns raw ticket text into an executable task spec following a `TASK.schema.md` contract. Auto-tiers by complexity (micro / standard / full) via a point system; explicit `--tier` overrides. Conditional layers (Frontend / Backend / Database) appear only when the task touches them. Optional `--group` flag loads CODEMAP + STITCH context for cited-path specs so the distilled spec references real files instead of speculating.
+- **PreToolUse hook** on Glob/Grep — Reminds to read CODEMAP.md (and sibling STITCH.md when present) before exploring a codebase directly. Fires once per project per session.
 
 ### Session Workflow
 

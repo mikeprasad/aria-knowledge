@@ -4,7 +4,7 @@
 
 **Anchored Reasoning and Insight Architecture**
 
-An active knowledge and development discipline system for AI-assisted development. Built for developers and teams using Claude Code who want each session to build on the last — capturing knowledge, enforcing structured decisions, and mapping codebases so context compounds instead of disappearing.
+An active knowledge and development discipline system for AI-assisted development. Built for developers and teams using Claude Code who want each session to build on the last — capturing knowledge, enforcing structured decisions, and mapping codebases and tasks so context compounds instead of disappearing.
 
 ## The Problem
 
@@ -104,6 +104,8 @@ Knowledge Repository is powered by **aria-knowledge**, a Claude Code plugin that
 | `/context [tags]` | Load relevant knowledge by topic with project tag expansion |
 | `/index` | Rebuild tag index with cross-references, entity detection, and skill-knowledge connections |
 | `/codemap [mode]` | Generate feature-organized codebase maps (create/inventory/update/section) |
+| `/stitch <mode> <group>` | Cross-repo binding artifact (auth/endpoints/entities/drift) for a product group |
+| `/distill [text or path]` | Turn raw task text into a tiered executable spec (micro/standard/full); optional --group loads CODEMAP + STITCH context |
 | `/ask [question]` | Research a question, check existing knowledge, save answer directly |
 | `/intake [path/url]` | Bulk import knowledge from files, directories, or URLs |
 | `/clip [url/text]` | Quick-save a URL or snippet to intake |
