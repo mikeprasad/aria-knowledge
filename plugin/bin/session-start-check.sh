@@ -129,6 +129,12 @@ if [ -n "$LAST_SETUP_DATE" ]; then
   fi
 fi
 
+# Rule 22 ordering — preventive reminder so the rule is in context before the first edit.
+# The PreToolUse hook fires alongside the tool result and cannot block the edit, so ordering
+# discipline is Claude-side. This line states the rule once, up front, so proactive output
+# becomes the default rather than retroactive hook-driven correction.
+MESSAGES="${MESSAGES}RULE 22 ORDERING — The Low/High Impact block must appear ABOVE the Edit/Write tool call in the same assistant turn, never below. The PreToolUse hook cannot enforce this; discipline is Claude-side. See rules/change-decision-framework.md \"Ordering (required)\" section for examples. "
+
 # Knowledge surfacing — prompt Claude to suggest /context after user states task
 INDEX_FILE="$KT_KNOWLEDGE_FOLDER/index.md"
 if [ -f "$INDEX_FILE" ]; then

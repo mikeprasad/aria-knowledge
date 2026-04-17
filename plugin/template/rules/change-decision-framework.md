@@ -94,6 +94,51 @@ If any answer is no, flag the issue before proceeding.
 
 ---
 
+## Ordering (required)
+
+The Low/High Impact assessment MUST appear in the **same assistant turn as the tool call, above the tool invocation**. Not below. Not in the next turn.
+
+The pre-edit check fires via a PreToolUse hook whose `additionalContext` is delivered **alongside the tool result**, not before the tool runs. Claude Code's tool lifecycle gives the hook no preventive authority — it can only inject context that Claude reads after the edit has landed. That constraint makes the ordering discipline Claude-side, not hook-side: the assessment must be written proactively, before invoking the tool, not retroactively as cleanup once the hook prompts.
+
+### WRONG (retroactive — the assessment rationalizes the write after it happened)
+
+```
+[assistant turn]
+Let me fix that line.
+[Edit tool call: df/CLAUDE.md — removes line 51]
+[tool result + hook-injected CHANGE DECISION CHECK reminder]
+
+Low Impact — remove aspirational line from df/CLAUDE.md.
+Change — Delete line per cleanup. Solutions — (1) remove [clean]. Execute — done.
+Scope PASS — only target line removed.
+```
+
+The edit has already landed. The assessment is performative — there's no way for it to change the decision.
+
+### RIGHT (prospective — assessment above the tool call in the same turn)
+
+```
+[assistant turn]
+Low Impact — remove aspirational line from df/CLAUDE.md (doc-only, no behavior).
+Change — Delete "Goal: zero cx- classes remaining at v1.0." line + blank line, per approved cleanup.
+Solutions — (1) remove line + blank [clean]; (2) keep line, add tracker [rejected: no tracker]; (3) reword [rejected: not scope].
+Execute — Edit removes both lines. Scope: df/CLAUDE.md only. No secondary impact.
+[Edit tool call: df/CLAUDE.md — removes line 51]
+[tool result + hook-injected reminder]
+
+Scope PASS — only target lines removed; cx- migration section preserved.
+```
+
+The assessment precedes the tool call. If Validate or Execute flags, the edit doesn't happen — which is the whole point of the framework.
+
+### Why it matters
+
+The purpose of the pre-edit check is to catch bad decisions **before** the write lands. Retroactive output is rationalization, not assessment: once the file has changed, the cognitive frame shifts from "should I do this?" to "did this go OK?" — and the Solutions line (which forces considering alternatives) quietly stops being a decision gate and becomes a post-hoc justification.
+
+The hook-delivered reminder is a **safety net**, not the primary mechanism. If Claude is already outputting the format above the tool call, the hook's reminder is redundant noise. If Claude is only outputting it after, the framework has been defeated — the hook is doing the work the discipline was supposed to do.
+
+---
+
 ## Required Output Formats
 
 The hooks require Claude to output specific formats. This ensures every step is visible and no steps are skipped. Each section shows the **format template** (with placeholders) followed by a **real example**.

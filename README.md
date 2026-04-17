@@ -154,4 +154,4 @@ Haiku is not recommended for any ARIA skill. See `/help` for the full table.
 
 ## Support
 
-If ARIA is useful to you, consider buying me a coffee via PayPal (mikeprasad@gmail.com) or [Venmo](https://venmo.com/mikeprasad).
+If ARIA is useful to you, consider buying me Claude credits via [PayPal](https://www.paypal.biz/prasadmike) or [Venmo](https://venmo.com/mikeprasad).

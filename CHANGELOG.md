@@ -2,6 +2,60 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## [2.10.1] - 2026-04-18
+
+Patch release. Fixes a coordination gap between v2.10.0's batch-manifest mechanism and the knowledge-folder protection layer that prevented `/audit-knowledge` — v2.10.0's sole motivating use case — from receiving the compression v2.10.0 was designed to deliver. Also clarifies Rule 22 ordering discipline across three enforcement layers (doctrine, SessionStart injection, hook message) to close a long-standing gap where the pre-edit assessment was being output retroactively (after the tool call) instead of prospectively (above it). Behavior is unchanged for non-manifest sessions, for declared-high ops, for structural-signal paths, and for protected basenames (`CLAUDE.md`, `working-rules.md`, `plugin.json`, etc.). No config migration or user-visible API changes.
+
+### Fixed — Knowledge-folder protection now respects batch-manifest declarations (ADR 035)
+
+In v2.10.0, `pre-edit-check.sh` marked every file inside `KT_KNOWLEDGE_FOLDER` as `IS_PROTECTED=true` unconditionally, which pre-empted the layer 3a compression check. Since `/audit-knowledge`'s entire workload lives inside the knowledge folder, ADR 021's compression never activated for the workload that motivated it.
+
+v2.10.1 reorders the hook so `SIGNALS` and `BATCH_MATCH` are computed before knowledge-folder protection, then gates knowledge-folder protection on batch state:
+
+- **No manifest (or file not matched):** knowledge folder stays protected — full Rule 22 (unchanged from v2.10.0).
+- **Declared-low + matched + no structural signals:** knowledge folder protection is lifted for this file only; layer 3a compression activates.
+- **Declared-high + matched:** full Rule 22 with `BATCH DECLARED-HIGH` prefix (unchanged).
+- **Declared-low + matched + signals fire:** full Rule 22 with `BATCH SIGNAL OVERRIDE` prefix (unchanged).
+- **Protected basename (`CLAUDE.md`, `working-rules.md`, `plugin.json`, etc.):** full Rule 22 regardless of manifest — protected basenames are stricter than knowledge-folder blanket.
+- **User `critical_paths` protection:** unchanged by this patch — critical paths represent explicit user intent to always scrutinize and are NOT overridden by batch manifest.
+
+### Verified — Six-scenario hook regression matrix
+
+This fix was validated against six enforcement scenarios before shipping:
+
+1. **No manifest** → full Rule 22 ✓
+2. **Declared-low + matched + no signals** → compressed directive ✓
+3. **Declared-low + matched + signals fire** → `BATCH SIGNAL OVERRIDE` + full Rule 22 ✓
+4. **Declared-high + matched** → `BATCH DECLARED-HIGH` + full Rule 22 ✓
+5. **Protected basename (`plugin.json`) + declared-low matched** → full Rule 22 (protection wins) ✓
+6. **Manifest active, file NOT matched** → full Rule 22 (scope-drift detection) ✓
+
+Documented in ADR 035 as candidate test cases for future hook refactors.
+
+### Changed — `pre-edit-check.sh` decision hierarchy comment updated
+
+Header comment block in `plugin/bin/pre-edit-check.sh` now documents the v2.10.1 conditional-protection semantics inline, with explicit `v2.10.1:` markers at the two logic sites for future maintainability.
+
+### Clarified — Rule 22 ordering discipline (three-layer fix)
+
+Prior versions had a latent gap: the PreToolUse hook fires alongside the tool result (not before the tool runs), so Claude was reading the CHANGE DECISION CHECK reminder AFTER each Edit/Write landed, then outputting the Low/High Impact block retroactively. The hook's wording ("Output this REQUIRED format before proceeding... STOP and do so before proceeding.") implied preventive behavior that Claude Code's tool lifecycle can't actually provide. v2.10.1 adds three coordinated layers so the ordering discipline shifts from hook-driven correction to Claude-side proactive output.
+
+**Layer 1 — Doctrine:** New `## Ordering (required)` section in `plugin/template/rules/change-decision-framework.md` states the rule explicitly, with WRONG/RIGHT examples and the reasoning that the hook is a safety net, not a primary mechanism. Plugin-managed file — users will see this as a `/setup` diff on next update.
+
+**Layer 2 — SessionStart injection:** `plugin/bin/session-start-check.sh` now emits a `RULE 22 ORDERING` reminder on every non-first-run session start, so the ordering rule is in Claude's foreground context before the first edit of the session, not after. This is the preventive layer — the only one that fires before any Edit/Write.
+
+**Layer 3 — Hook message rewrite:** `plugin/bin/pre-edit-check.sh` MAIN_MSG reworded. Removed the deceptive "before proceeding" / "STOP and do so before proceeding" phrasing (which implied preventive timing the hook doesn't have). Replaced with honest framing: the hook fires with the tool result, so if Claude is reading the message the edit has already landed. Dual-action recovery: output retroactively now AND put the next edit's block above the tool call. HIGH/LOW format specs preserved verbatim — only the framing around them changed. Batch-mode (BATCH_MSG) variant unchanged since its timing framing is already honest.
+
+**Why three layers, not one:** the PreToolUse hook cannot technically prevent the ordering violation (it fires too late). Rewriting its wording alone would have improved honesty but not the failure rate. The SessionStart injection is the only preventive layer — without it, the doctrine and hook rewrite stay corrective. All three are complementary: doctrine is canonical reference, SessionStart puts the rule in foreground before first edit, hook rewrite is the per-edit safety net when discipline slips.
+
+**Post-edit hook unchanged:** the POST-EDIT SCOPE CHECK fires after the edit by design (that's when scope verification makes sense), so its timing framing ("Output this REQUIRED format after edit") was already honest. No change needed.
+
+### Upgrade notes
+
+- **Reinstall required:** copy `plugin/` to `~/.claude/plugins/marketplaces/local-desktop-app-uploads/aria-knowledge/` as per `CLAUDE.md`. No config migration needed.
+- **Template diff on next `/setup`:** the new Ordering section in `rules/change-decision-framework.md` is plugin-managed, so `/setup` will surface it as a diff prompt. Accept to receive the canonical ordering rule; if you've customized the file locally, the diff will let you merge selectively.
+- **No CHANGELOG rollback needed for v2.10.0** — the v2.10.0 entry correctly describes the designed mechanism; v2.10.1 is the implementation correction that makes v2.10.0's design operational for its motivating case.
+
 ## [2.10.0] - 2026-04-17
 
 Ceremony-reduction release. Implements ADR 021 Plan A's bundled Upgrades 1+2 — the batch-manifest mechanism that compresses Rule 22 ceremony for declared-mechanical bulk operations while preserving full CHANGE DECISION CHECK for high-impact edits. Requires `jq` on PATH (graceful degradation to full Rule 22 if jq missing). No breaking changes to existing skills; hook behavior is unchanged for edits with no active manifest.
