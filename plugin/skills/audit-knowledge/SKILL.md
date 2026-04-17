@@ -187,6 +187,19 @@ Check for:
 
 Note all findings for presentation in Step 6 under the new "Integrity Issues" section.
 
+## Step 5b3: Check Cross-Skill Shared-Block Drift
+
+Some skills inline shared logic (e.g., the group-loader block shared between `/distill` and `/stitch`). Drift between inlined copies is a latent bug — users would see different behavior in each skill.
+
+1. Grep all files under `${CLAUDE_PLUGIN_ROOT}/skills/**/SKILL.md` for `<!-- shared-block: NAME -->` markers.
+2. For each unique block `NAME`, collect the content between `<!-- shared-block: NAME -->` and `<!-- /shared-block: NAME -->` in every skill that contains it.
+3. Normalize whitespace (collapse multiple spaces and blank lines to single).
+4. If collected contents differ across skills for the same block name, flag as drift.
+
+Note findings for presentation in Step 6 under a "Shared-Block Drift" section.
+
+**Do not auto-fix drift** — only surface the finding. The resolution is a deliberate choice: update one skill to match the other, or intentionally diverge (in which case rename the block in one skill — e.g., `group-loader-distill` — so it no longer shares the name with the other).
+
 ## Step 5c: Cross-Reference Backlog Against Promoted Docs
 
 For each pending backlog entry (from Steps 2, 2b, 2c), check whether it overlaps with existing promoted knowledge files.
@@ -231,6 +244,22 @@ For each CODEMAP.md found:
 Note findings for presentation in Step 6 under a "Codemap Staleness" section.
 
 **Do not run `/codemap update` automatically** — it consumes significant tokens. Only present the finding and let the user decide.
+
+## Step 5d2: Check Codemap Stack-Concern Coverage
+
+For each CODEMAP.md found in Step 5d, verify stack-level cross-cutting concerns are captured. Feature-organized codemaps systematically under-document cross-cutting framework layers (signals, migrations, URLConfs, env matrices) because those don't attach to any single feature.
+
+1. **Detect the stack** from the codemap (grep the first ~50 lines for `Django`, `Next.js`, `Laravel`, `Expo`, or the `Stack:` header).
+2. **Grep the full codemap** for expected stack-concern keywords:
+   - **Django:** `URLConf tree`, `Signal registry|post_save|pre_save`, `Migration state|latest migration`, `Env matrix|env var table`
+   - **Next.js / React:** `Route tree|Route overview`, `API client|interceptor`, `Env matrix`
+   - **Laravel:** `Route file|routes/web.php`, `Job registry|queue`, `Service provider`, `Env matrix`
+   - **Expo / React Native:** `Screen tree|Navigation config`, `API client`, `Env matrix`
+3. **Flag any concern with 0 hits** as a coverage gap.
+
+Note findings for presentation in Step 6 under a "Codemap Coverage" section.
+
+**Do not auto-add missing sections** — only surface the finding. Same deferral as Step 5d: section additions consume significant tokens and should be run as focused `/codemap section <name>` tasks in a separate session.
 
 ## Step 5e: Cross-Project Pattern Detection
 
@@ -472,6 +501,44 @@ Note: codemap updates involve significant codebase scanning and may consume subs
 ```
 
 If no CODEMAP.md files found: omit this section silently.
+
+### Codemap Coverage (from Step 5d2)
+
+If any codemap is missing stack-level cross-cutting sections, present the gap:
+
+```
+## Codemap Coverage Gaps
+
+{codemap path} ({stack}): missing stack-level cross-cutting sections:
+  - URLConf tree overview
+  - Signal registry
+  - Migration state
+  - Env matrix
+
+Add each via `/codemap section <name>` in a focused session. Feature-organized codemaps tend to miss these because they span all features rather than attaching to one.
+```
+
+If all codemaps have full stack-concern coverage: omit this section silently.
+
+### Shared-Block Drift (from Step 5b3)
+
+If any shared block has drifted across skills, present the divergence:
+
+```
+## Shared-Block Drift
+
+`group-loader` differs between:
+  - plugin/skills/distill/SKILL.md
+  - plugin/skills/stitch/SKILL.md
+
+Diff: (show the key differing lines — first ~5 differences with line context)
+
+Resolve by:
+  (a) update one skill to match the other (canonical version is the most recent intended change), or
+  (b) rename the block in one skill (e.g., `group-loader-distill`) if the divergence is intentional
+```
+
+If all shared blocks are consistent across skills: omit this section silently.
 
 ### Cross-Reference Findings (from Step 5c)
 

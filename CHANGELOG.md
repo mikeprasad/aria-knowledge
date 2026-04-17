@@ -2,6 +2,118 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## [2.9.0] - 2026-04-17
+
+Major release absorbing design imports from the `nrek/aria-ex1` fork (execution-first variant by Enrique Gutierrez). ARIA's knowledge lifecycle stays intact; additions are `/distill` spec shaping, `/stitch` cross-repo binding, structural signal surfacing in hooks, and rule-sub-structure extensions. Zero breaking changes; all new features are opt-in or additive.
+
+### Added — /distill skill
+
+Tiered task spec generator. Transforms raw ticket text into an executable spec following `TASK.schema.md`. Always emits Objective, Scope, Dependencies & API Requirements, QA, and Definition of Done; conditionally adds Frontend/Backend/Database layers only when the task touches them; `full` tier adds Non-Goals; `standard` and `full` add Assumptions and Edge Cases when non-empty.
+
+- **Complexity scoring** — auto-tiers via point system (>1 layer +2, new endpoint/route/model +2, external service +2, auth/security +2, input >150 words +1, names >3 files +1, single-sentence trivial −3). Score ≤ 0 → `micro`; 1–3 → `standard`; ≥ 4 → `full`. Explicit `--tier` flag overrides.
+- **Inputs** — inline string, file path, or prompt-to-paste when no argument provided.
+- **Auto-archive on overwrite** — existing `TASK.md` moved to `.aria-distill/archive/TASK-YYYY-MM-DD-HHMMSS.md` before fresh write. First-run notice explains once; subsequent runs silent. Flags: `--append` (new entry below with separator), `--out=<path>`, `--no-archive` (destructive opt-in).
+- **Advisory vocabulary** — `TASK.schema.md` flags 8 watered-down phrases (`flexible`, `extensible`, `scalable framework`, `we could also`, `alternatively`, `one option`, `potentially`, `might want to`) as soft warnings during validation. Not hard rejections.
+- **`--group=<tag>` flag** — optional CODEMAP + STITCH context loading when the group is registered in `projects_groups`. Auto-propose bootstrap handles first-time groups.
+
+### Added — /stitch skill
+
+Cross-repo binding artifact generator for product groups (backend + one or more frontends). Produces `STITCH.md` with 6 sections: Group identity, Auth stitch, Endpoint stitch, Entity stitch, Integration stitch, Drift log.
+
+- **Modes** — `create`, `verify`, `diff`, `section <n>`.
+- **Drift detection precedence** — user-provided `analyze-stitch.sh|.py` script → CODEMAP-based endpoint diff (default) → explicit user prompt when CODEMAPs lack endpoint sections → opt-in grep fallback. Output always labels source ("Drift source: CODEMAPs" / "user script" / "fallback grep").
+- **Output location** — workspace root (`<project_root>/STITCH.md`), adjacent to CODEMAP.md. Per-group override via optional `stitch_path` field. Distinct from fork's backend-root default — STITCH represents the contract between repos, not a backend-owned artifact.
+- **Auto-archive** — same pattern as `/distill`; existing `STITCH.md` moved to `.aria-stitch/archive/` before write.
+- **Pluggable script contract** — `analyze-stitch.sh|.py` at workspace root receives JSON stdin (`backend_root`, `frontend_roots[]`, `group`), returns JSON stdout (`fe_orphans[]`, `be_orphans[]`). Documented in `STITCH.template.md`.
+
+### Added — projects_groups config (YAML block)
+
+New multi-line YAML frontmatter field in `~/.claude/aria-knowledge.local.md` for multi-repo group metadata. First departure from the "every field is sed-parseable flat string" convention — `projects_groups` is consumed only by skills (Claude parses YAML natively), not by bash hooks, so the constraint doesn't apply.
+
+```yaml
+projects_groups:
+  cs:
+    backend: commonspace-app
+    web: commonspace-ui-v3
+    mobile: commonspace-mobile-ui
+  ss:
+    backend: seersite-server
+    web: seersite-frontend
+```
+
+- **Sparse entries** — only multi-repo projects appear; single-repo projects (e.g., `aria`, `df`, `cs-builder`) omit entries.
+- **Auto-propose bootstrap** — `/distill --group=<tag>` or `/stitch <mode> <tag>` with a missing entry scans `<project_root>` for repo markers (`manage.py` → backend, `next.config.*` → web, `app.json` + `expo` → mobile, etc.), proposes structured YAML with diff preview, writes on user approval. Eliminates the "register-first-and-retry" friction round-trip.
+- **Optional `stitch_path` field** — per-group override for STITCH.md output location.
+
+### Added — Shared-block marker convention + drift audit
+
+New skill-development pattern: skills that inline shared logic use `<!-- shared-block: NAME -->` / `<!-- /shared-block: NAME -->` HTML comments to delimit duplicated content. `/audit-knowledge` Step 5b3 detects drift by normalizing whitespace and comparing contents across all skills with the same block `NAME`. First use: `group-loader` shared between `/distill` and `/stitch` for config-resolution + auto-propose bootstrap logic. Intentional divergence handled by renaming the block (e.g., `group-loader-distill`) so audit flags are a choice, not a noise.
+
+### Added — Signal-surfacing advisory in pre-edit hook
+
+`pre-edit-check.sh` now prepends structural signal labels to the CHANGE DECISION CHECK injection when detected. New `kt_detect_signals()` helper in `config.sh` matches:
+
+- `auth` — paths containing `/auth/`, `/permissions/`, `/security/`, `/jwt/`, `/login/`
+- `migration` — paths containing `/migrations/` or `/migrate/`
+- `model` — filename `models.py`, `schema.ts`, `schema.prisma`, or `*.prisma`
+- `routing` — filename `urls.py`, `routes.ts`, `route.ts`, `middleware.ts`
+- `external-service` — filename contains `stripe`, `twilio`, `sendgrid`, `algolia`, `openai`, `vercel`, `supabase`, `auth0`, `firebase`, `segment`
+
+Advisory only — Claude still classifies HIGH/LOW qualitatively. Zero user setup; patterns hardcoded in helper. Planning-path branch unchanged. Output format identical on non-matching files.
+
+### Added — STITCH sibling surfacing in pre-explore hook
+
+`pre-explore-codemap-check.sh` now checks for sibling `STITCH.md` next to discovered `CODEMAP.md`. When present, the cooldown reminder message extends to mention STITCH: *"STITCH.md also present at {path} (endpoint / entity / drift tables for cross-repo reasoning)."* Fires once per project per session, same cooldown as existing CODEMAP reminder.
+
+### Added — Stack-aware cross-cutting candidates in /codemap
+
+`/codemap` Step 3 now proposes stack-specific cross-cutting sections as candidates during feature-list generation:
+
+- **Django** — URLConf tree overview, Signal registry (`post_save`/`pre_save` handlers), Migration state (latest per app), Env matrix (grouped env var names)
+- **Next.js / React** — Route tree overview, API client & interceptors configuration, Env matrix
+- **Laravel** — Route file overview, Job/queue registry, Service providers, Env matrix
+- **Expo / React Native** — Screen tree overview, Navigation config, API client, Env matrix
+
+Feature-organized codemaps systematically under-document these because they span all features rather than attaching to one. Explicit candidates surface the gap. User accepts/declines each; no force-insert.
+
+### Added — /audit-knowledge Step 5d2 codemap coverage check
+
+After Step 5d (codemap staleness), new Step 5d2 verifies each CODEMAP has the expected stack-level cross-cutting sections for its detected stack. Grep-based section-name matching with per-stack keyword lists. Surfaces missing sections in Step 6 output under "Codemap Coverage Gaps" with recommended `/codemap section <name>` command per gap. Does not auto-add — same deferral pattern as the staleness check.
+
+### Changed — Hook text decoupled from Rule 22 number
+
+`pre-edit-check.sh` comment + two hook message strings now reference the framework by filename (`change-decision-framework.md`) instead of by rule number (`Rule 22`). Survives future rule renumbering without hook patches. Rule file itself keeps Rule 22 as its stable identifier.
+
+### Changed — Flattened + hardened critical_paths iteration in both edit hooks
+
+- `pre-edit-check.sh` critical_paths iteration moved out of the knowledge-folder nested IF into a sibling check (matches `config.sh` invariant that `KT_CONFIGURED=true` guarantees `KT_KNOWLEDGE_FOLDER` is set, per validation at lines 50-62).
+- `post-edit-check.sh` gains the same critical_paths block. Previously only in pre-edit — user-configured `critical_paths` protected pre-edit but not post-edit (asymmetry fixed).
+- Both now include parser hardening: whitespace trim (`sed 's/^[[:space:]]*//;s/[[:space:]]*$//'`), empty-guard (`[ -z "$PREFIX" ] && continue`), and quoted case-pattern expansion (`*/"$PREFIX"/*` instead of `*/$PREFIX/*` — literal match, not glob).
+
+### Changed — Rule 18 gains "Specific cases:" subsection
+
+New sub-structure in `working-rules.md` Rule 18 ("Prefer foundational design over patching"). First specific case added:
+
+- **Producer–consumer ordering** — when a schema, config field, or interface exists primarily to serve a specific consumer, design them together. Don't ship the schema alone against a speculative consumer (creates two migrations when the real consumer lands) or a consumer against a placeholder schema (creates fragile coupling). Watch for: *"I'll ship the schema now and use it properly when the consumer lands."*
+
+Establishes "Specific cases:" as a precedent for future concrete applications under existing rules, rather than creating new rule numbers for each specific case.
+
+### Changed — Rule 22 Step 6 gains principle-consistency cross-check
+
+`change-decision-framework.md` Step 6 (Validate Decision) extended with one sentence: *"Also cross-check against principles invoked in recent adjacent decisions — principles applied once can silently erode across a long decision chain, so re-test rather than assuming earlier reasoning still applies."* Catches the "invoked a principle then violated it one decision later" failure mode that emerges in multi-hour design sessions.
+
+### Changed — Help updates
+
+- `/help` command reference now lists `/distill` and `/stitch` with brief descriptions.
+
+### Backward Compatibility
+
+- Existing `~/.claude/aria-knowledge.local.md` configs continue to work unchanged. `projects_groups` is optional; users without multi-repo groups see no behavior change.
+- Existing CODEMAPs continue to work; Step 3 candidates extension is advisory and only appears on new-codemap generation or during audit coverage check.
+- Hook behavior preserved — existing classification, planning-path abbreviation, knowledge-folder protection, and critical_paths protection all intact. Structural signal advisory emits no prefix on non-matching files (identical JSON output to v2.8.4).
+- New skills `/distill` and `/stitch` are opt-in; they only fire when explicitly invoked.
+- Rule extensions are additive — existing Rule 18 body text and Rule 22 Step 6 questions are preserved verbatim.
+
 ## [2.8.4] - 2026-04-15
 
 ### Added — Ideas Backlog (capture/track boundary)

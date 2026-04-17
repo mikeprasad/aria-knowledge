@@ -146,3 +146,52 @@ kt_project_for_path() {
   done
   IFS="$_kt_old_ifs"
 }
+
+# kt_detect_signals FILE_PATH
+# Detect structural signals from an edit's file path. Echoes comma-separated
+# advisory labels to stdout. Empty string if no signals match. Used by
+# pre-edit-check.sh to surface structural risk hints before the Rule 22
+# HIGH/LOW classification — advisory only, never a classification override.
+kt_detect_signals() {
+  _kt_sp="$1"
+  [ -z "$_kt_sp" ] && return
+  _kt_sig=""
+  _kt_bn=$(basename "$_kt_sp" 2>/dev/null)
+  _kt_bnlow=$(printf '%s' "$_kt_bn" | tr '[:upper:]' '[:lower:]')
+
+  _kt_append_signal() {
+    if [ -z "$_kt_sig" ]; then
+      _kt_sig="$1"
+    else
+      _kt_sig="${_kt_sig}, $1"
+    fi
+  }
+
+  # Path-based: auth/permissions/security files
+  case "$_kt_sp" in
+    */auth/*|*/permissions/*|*/security/*|*/jwt/*|*/login/*) _kt_append_signal "auth" ;;
+  esac
+
+  # Path-based: data migrations
+  case "$_kt_sp" in
+    */migrations/*|*/migrate/*) _kt_append_signal "migration" ;;
+  esac
+
+  # Filename: data models / schemas
+  case "$_kt_bn" in
+    models.py|schema.ts|schema.prisma|*.prisma) _kt_append_signal "model" ;;
+  esac
+
+  # Filename: routing / middleware
+  case "$_kt_bn" in
+    urls.py|routes.ts|route.ts|middleware.ts) _kt_append_signal "routing" ;;
+  esac
+
+  # Filename: external-service integration (lowercased match)
+  case "$_kt_bnlow" in
+    *stripe*|*twilio*|*sendgrid*|*algolia*|*openai*|*vercel*|*supabase*|*auth0*|*firebase*|*segment*)
+      _kt_append_signal "external-service" ;;
+  esac
+
+  printf '%s' "$_kt_sig"
+}

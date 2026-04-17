@@ -164,6 +164,15 @@ Using the indexed files from Step 2, identify features by clustering related fil
    - Data flow (request lifecycle) → standalone section
    - Shared patterns (conventions that repeat everywhere) → standalone section
 
+**Stack-aware cross-cutting candidates:** Before presenting the feature list, include these stack-level concerns as candidate cross-cutting sections. They tend to be under-documented in feature organization because they span all features. Offer each as proposed; user accepts/declines per item.
+
+- **Django detected:** URLConf tree overview, Signal registry (`post_save`/`pre_save` handlers), Migration state (latest migration per app), Env matrix (grouped env var names, no values)
+- **Next.js / React detected:** Route tree overview, API client & interceptors configuration, Env matrix
+- **Laravel detected:** Route file overview, Job/queue registry, Service providers, Env matrix
+- **Expo / React Native detected:** Screen tree overview, Navigation config, API client, Env matrix
+
+Add these to the `Cn.` cross-cutting block. E.g., `C6. URLConf Tree`, `C7. Signal Registry`, `C8. Env Matrix`.
+
 **Present proposed feature list to user:**
 
 ```

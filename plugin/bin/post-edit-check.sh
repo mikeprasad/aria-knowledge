@@ -29,6 +29,21 @@ if [ "$KT_CONFIGURED" = "true" ] && [ -n "$KT_KNOWLEDGE_FOLDER" ]; then
   esac
 fi
 
+# Check user-configured critical paths (comma-separated path fragments)
+if [ "$KT_CONFIGURED" = "true" ] && [ -n "$KT_CRITICAL_PATHS" ] && [ "$IS_PROTECTED" = "false" ]; then
+  OLD_IFS="$IFS"
+  IFS=','
+  for PATTERN in $KT_CRITICAL_PATHS; do
+    # Strip trailing /* or *, then trim surrounding whitespace
+    PREFIX=$(echo "$PATTERN" | sed 's|/\*$||;s|\*$||;s/^[[:space:]]*//;s/[[:space:]]*$//')
+    [ -z "$PREFIX" ] && continue
+    case "$FILE_PATH" in
+      */"$PREFIX"/*) IS_PROTECTED=true; break ;;
+    esac
+  done
+  IFS="$OLD_IFS"
+fi
+
 if [ "$IS_PLANNING" = "true" ] && [ "$IS_PROTECTED" = "false" ]; then
   echo '{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"PLANNING PATH — abbreviated scope check. Output: Scope OK — planning doc."}}'
 else

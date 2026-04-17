@@ -44,7 +44,7 @@ Identify ALL ways to achieve the outcome and satisfy the criteria. Be specific. 
 Given context, scope, and details from previous steps, which solution is the best fit and why? If multiple are close, would additional information objectively help elevate one to a clear winner? If so, gather it before committing.
 
 ### 6. Validate Decision
-Does the chosen decision logically hold up? Does it contradict anything known? Is there a resource requirement that might cause reconsideration? Refer back to determinations from earlier steps.
+Does the chosen decision logically hold up? Does it contradict anything known? Is there a resource requirement that might cause reconsideration? Refer back to determinations from earlier steps. Also cross-check against principles invoked in recent adjacent decisions — principles applied once can silently erode across a long decision chain, so re-test rather than assuming earlier reasoning still applies.
 
 ### 7. Execute Precisely
 Only touch what the chosen solution requires, nothing more, and only within the determined scope.

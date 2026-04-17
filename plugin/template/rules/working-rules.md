@@ -89,6 +89,10 @@ Every external call, user input, and state transition should have explicit error
 
 Ask whether better upfront design would eliminate a problem rather than bolting on fixes. Hard-coded solutions often lack flexibility, requiring add-ons. A single purposeful abstraction layer adds resilience, but too many create new problems. Find the right foundational level that minimizes future patching without over-engineering.
 
+**Specific cases:**
+
+- **Producer–consumer ordering.** When a schema, config field, or interface exists primarily to serve a specific consumer, design them together — don't ship the schema alone against a speculative consumer (creates two migrations when the real consumer lands) or a consumer against a placeholder schema (creates fragile coupling). Watch for: *"I'll ship the schema now and use it properly when the consumer lands."* That's the two-migration trap. The consumer's actual needs are the shape the schema should take — designing without them is speculation.
+
 -----
 
 ## Process Rules

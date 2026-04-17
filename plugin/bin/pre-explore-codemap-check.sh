@@ -71,5 +71,13 @@ DISPLAY_PATH=$(echo "$CODEMAP_PATH" | sed "s|$PWD/||")
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$SCRIPT_DIR/config.sh"
 
-MSG=$(kt_json_escape "CODEMAP exists at ${DISPLAY_PATH} — Read Directory section before exploring further. This fires once per project per session.")
+# Check for sibling STITCH.md (cross-repo stitch artifact)
+STITCH_SIBLING="$(dirname "$CODEMAP_PATH")/STITCH.md"
+STITCH_EXTRA=""
+if [ -f "$STITCH_SIBLING" ]; then
+  STITCH_DISP=$(echo "$STITCH_SIBLING" | sed "s|$PWD/||")
+  STITCH_EXTRA=" STITCH.md also present at ${STITCH_DISP} (endpoint / entity / drift tables for cross-repo reasoning)."
+fi
+
+MSG=$(kt_json_escape "CODEMAP exists at ${DISPLAY_PATH} — Read Directory section before exploring further.${STITCH_EXTRA} This fires once per project per session.")
 echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","additionalContext":"'"$MSG"'"}}'
