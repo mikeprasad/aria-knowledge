@@ -65,13 +65,13 @@ Scan the project root for framework indicators:
 ```
 ## Project Detection
 
-Root: /Users/.../ss
+Root: /path/to/your-project
 Structure: Multi-repo (2 repos)
 
 | Repo | Framework | Version | Language |
 |------|-----------|---------|----------|
-| seersite-frontend/ | Next.js (App Router) | 13.5.2 | TypeScript |
-| seersite-server/ | Django + DRF | 4.2.22 | Python |
+| frontend/ | Next.js (App Router) | 13.x | TypeScript |
+| backend/ | Django + DRF | 4.2.x | Python |
 
 Confirm or correct?
 ```
@@ -129,18 +129,18 @@ Group discovered apps into tiers:
 ```
 ## Inventory Summary
 
-### seersite-server/ (Django 4.2)
-Core Domain: user (30+ models), booking (12+ models), interview (7 models), project, company, payment_gateway, meeting
-Reference: expertise, industry, market, school, degree, job_title, megatrends
-Support: event_code, fee, blocks, issue, notation_notes, link_redirect, transcript_download, news_updates, notification, algolia, rating
+### backend/ (Django 4.2)
+Core Domain: user (30+ models), booking (12+ models), interview, project, company, payment_gateway, meeting
+Reference: expertise, industry, market, school, degree, job_title
+Support: event_code, fee, blocks, issue, link_redirect, notification, rating
 
-### seersite-frontend/ (Next.js 13)
-Pages: ~137 page.tsx files across /admin, /client, /dashboard, /expert, /auth, /profile, /works, /knowledge
+### frontend/ (Next.js 13)
+Pages: ~137 page.tsx files across /admin, /client, /dashboard, /auth, /profile
 Hooks: ~58 custom hooks
 Components: ~243 .tsx files in 18 areas
 Redux: 14 slices + RTK Query
 
-Total: 10 core apps, 7 taxonomy apps, 11 support apps, 137 pages, 58 hooks
+Total: 7 core apps, 6 taxonomy apps, 7 support apps, 137 pages, 58 hooks
 ```
 
 In `inventory` mode, **stop here** and output the report. Do not write any files.

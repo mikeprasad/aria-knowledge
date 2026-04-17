@@ -173,9 +173,9 @@ For each project (from either source):
 
 Build a mapping:
 ```
-cs — Commonspace: api, django, react, react-native, css, tailwind, stripe, supabase, database, deployment
-ss — Seersite: api, django, nextjs, stripe, supabase, database, deployment
-df — Designframe: css, tailwind, accessibility
+proj-a — Project A: api, django, react, react-native, css, tailwind, stripe, supabase, database, deployment
+proj-b — Project B: api, django, nextjs, stripe, supabase, database, deployment
+proj-c — Project C: css, tailwind, accessibility
 aria — ARIA: claude-code, process, decision-framework, enforcement
 ```
 
@@ -184,8 +184,8 @@ Compare against existing mappings (from Step 2). If any changed:
 ```
 ## Project Mapping Updates
 
-- cs: added `supabase` (found in cs/CLAUDE.md tech stack)
-- ss: no changes
+- proj-a: added `supabase` (found in proj-a/CLAUDE.md tech stack)
+- proj-b: no changes
 ```
 
 If this is the first run (no existing mappings), present the full initial mapping for confirmation.

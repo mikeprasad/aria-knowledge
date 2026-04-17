@@ -127,8 +127,8 @@ Record the values. If the user doesn't ask about advanced options during initial
 
 If the user enables (or keeps enabled) the project-specific knowledge tier in Advanced Options, ask four follow-up questions. In **update mode** where values already exist in the config, show the current value for each question and let the user keep it (press enter) or enter a new value — this is the discoverable path for toggling `auto_load_project_context` on a re-run when the tier was previously enabled:
 
-1. **Project list** — "Comma-separated `tag:relative-path` pairs (e.g., `cs-builder:cs/cs-space-builder,df:df,ss:ss`). Paths are relative to the parent of your knowledge folder (typically `~/Projects/`). Press enter to defer adding projects:"
-2. **Project remotes (optional)** — "Optional git-remote URL patterns for fallback project detection when CWD doesn't match a configured path. Comma-separated `tag:url-substring` pairs (e.g., `cs-builder:craftxlogic/cs-space-builder`). Press enter to skip:"
+1. **Project list** — "Comma-separated `tag:relative-path` pairs (e.g., `proj-a:path/to/proj-a,proj-b:proj-b,lib:shared-lib`). Paths are relative to the parent of your knowledge folder (typically `~/Projects/`). Press enter to defer adding projects:"
+2. **Project remotes (optional)** — "Optional git-remote URL patterns for fallback project detection when CWD doesn't match a configured path. Comma-separated `tag:url-substring` pairs (e.g., `proj-a:myorg/proj-a-repo`). Press enter to skip:"
 3. **Promotion threshold** — "Minimum number of projects that must share a similar pattern before `/audit-knowledge` suggests cross-project promotion (default 2):"
 4. **Auto-load project context on session start** — "When your CWD matches a configured project, should SessionStart automatically suggest `/context {tag}`? This is a runtime convenience — the project tier works fine without it, and you can change this later by editing `auto_load_project_context` in `~/.claude/aria-knowledge.local.md`. (y/n, default n):"
 

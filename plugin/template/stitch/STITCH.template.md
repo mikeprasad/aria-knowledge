@@ -104,11 +104,11 @@ For sharper drift detection, place `analyze-stitch.sh` or `analyze-stitch.py` at
 ```json
 {
   "fe_orphans": [
-    {"call": "/api/v1/users", "file": "cs/commonspace-ui-v3/src/hooks/use-users.ts"},
+    {"call": "/api/v1/users", "file": "web/src/hooks/use-users.ts"},
     ...
   ],
   "be_orphans": [
-    {"route": "/api/v1/legacy", "file": "cs/commonspace-app/user/urls.py"},
+    {"route": "/api/v1/legacy", "file": "backend/user/urls.py"},
     ...
   ]
 }
