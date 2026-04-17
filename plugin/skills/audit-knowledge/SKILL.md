@@ -554,6 +554,39 @@ For each cross-reference found:
 
 Present Category C items, pending insights, and pending decisions. Ask the user which ones to extract/promote. Only proceed after explicit approval.
 
+### Step 7a: Declare Batch Manifest (v2.10.0+)
+
+After user approval and *before* executing any promotions, declare a batch manifest to enable Rule 22 ceremony compression on mechanical promotions while preserving full Rule 22 scrutiny on high-impact items. See `OVERVIEW.md` "Batch Manifests for Ceremony Reduction" for the full mechanism.
+
+**Classify each approved op as `low` or `high` impact:**
+
+| Impact | Typical ops | Treatment |
+|--------|-------------|-----------|
+| **low** (compressed directive) | Stubs from Step 5e, cross-reference additions, backlog clears, log appends, new files under `approaches/`, `guides/`, `references/` | Hook emits short acknowledgment-only directive |
+| **high** (full Rule 22 fires) | New `decisions/` ADRs (new architectural commitments), new or modified `rules/` entries, promotions that change guidance/recommendations, cross-project consolidations that create new authoritative files | Full CHANGE DECISION CHECK per edit |
+
+**Safety floor stays active regardless of manifest declaration:** (a) edits to protected paths (`CLAUDE.md`, `working-rules.md`, knowledge folder itself, user critical paths) always get full Rule 22; (b) structural signals (`auth/`, `migrations/`, `models.py`, `routes.ts`, external services like `stripe`) on a declared-low op escalate to full Rule 22; (c) any edit to a file not matched by the manifest triggers full Rule 22 as scope-drift detection.
+
+**When in doubt about an op's impact, declare `high`** — full Rule 22 is always the safe choice.
+
+**Write the manifest** via Bash before executing promotions:
+
+```bash
+. ${CLAUDE_PLUGIN_ROOT}/bin/config.sh
+kt_batch_begin "audit-knowledge" "Audit promotion: N items per approved plan" '[
+  {"file_path_pattern": "/abs/path/to/knowledge/approaches/*.md", "operation_type": "create", "impact": "low", "justification": "New approach files per approved Step 7 plan"},
+  {"file_path_pattern": "/abs/path/to/knowledge/decisions/*.md", "operation_type": "create", "impact": "high", "justification": "New ADR — architectural commitment requires full scrutiny"},
+  {"file_path_pattern": "/abs/path/to/knowledge/intake/*-backlog.md", "operation_type": "update", "impact": "low", "justification": "Clear promoted entries per approved plan"},
+  {"file_path_pattern": "/abs/path/to/knowledge/projects/*/patterns/*.md", "operation_type": "update", "impact": "low", "justification": "Stub-and-reference after cross-project promotion"}
+]'
+```
+
+Substitute `/abs/path/to/knowledge/` with the actual `knowledge_folder` from Step 0 and adjust patterns to match the specific approved items (only include patterns for op types actually approved — don't list phantom patterns).
+
+**If `kt_batch_begin` fails** (jq missing, validation error, permission issue) — the command prints a diagnostic to stderr and returns non-zero. Proceed with the audit regardless: full Rule 22 fires on every edit as before. The manifest is a ceremony-reduction optimization, not a requirement. Don't block the audit on batch-manifest failure.
+
+Then execute approved promotions below:
+
 - Approved insights → move to the appropriate knowledge file, clear from backlog
 - Approved decisions → create full ADR in `{knowledge_folder}/decisions/`, clear from backlog
 - Approved project-tier promotions (only if `projects_enabled: true`) → before writing, validate the target project subfolder exists. If `projects/{tag}/` is not in the user's knowledge folder, prompt: *"Project '{tag}' is not in your config (`projects_list`). Add it now? (yes adds the tag to projects_list, creates `projects/{tag}/{decisions,patterns}/` with a per-project README, then writes the file)."* If the user says yes, edit `~/.claude/aria-knowledge.local.md` to append the tag to `projects_list` (preserving existing entries), create the directory structure (mirror `/setup` Step 3's project tier scaffolding), then write the promoted file. If the user says no, fall back to the cross-project location (`approaches/` or `decisions/`) and warn that the project context is being lost.
@@ -652,6 +685,17 @@ Use the **structured format** below — it keeps audit logs scannable over many 
 - Notes is the escape hatch for things that don't fit — but cap at a few sentences. If the Notes section balloons past that, the audit produced enough content to deserve a dedicated summary doc, not a bloated log entry.
 
 Also demote the previous "Last Audit" entry to the "## Previous Audits" section. If multiple audits happened in a single day (continuation passes like Pass 2 or tenth-pass), nest them under a single date header rather than creating sibling "Date: YYYY-MM-DD" entries.
+
+## Step 8b: Clear Batch Manifest (v2.10.0+)
+
+After the audit log is written, clear the batch manifest to unblock default Rule 22 behavior for any edits later in the session:
+
+```bash
+. ${CLAUDE_PLUGIN_ROOT}/bin/config.sh
+kt_batch_end
+```
+
+Safe to call even if Step 7a's `kt_batch_begin` didn't succeed (e.g., jq missing) — the function just removes the manifest file if it exists. If the audit errors out before reaching Step 8b, `session-start-check.sh`'s stale-manifest auto-clear (30-minute threshold) recovers on the next session start so stale manifests don't silently suppress Rule 22 on unrelated edits.
 
 ## Rules
 

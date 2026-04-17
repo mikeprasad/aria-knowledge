@@ -150,6 +150,85 @@ The authoritative classification lives in `plugin/skills/setup/SKILL.md` (Step 3
 
 **Rule of thumb:** if your customization is content-specific to your project or team (custom rules, per-project READMEs, local conventions, session captures), put it in a user-owned file. If you want to modify plugin-shipped core guidance (working rules, change-decision framework, enforcement mechanisms, top-level README/OVERVIEW), expect diff prompts on updates and reconcile during `/setup`.
 
+## Batch Manifests for Ceremony Reduction
+
+Rule 22 (change decision framework) fires full CHANGE DECISION CHECK on every Edit/Write by default — this is load-bearing for safety (ADR 006: full format every edit, post-compaction safe) but non-linear in ceremony cost for bulk operations. A single audit that promotes 30 files produces ~30 near-identical "Low Impact — new doc, no dependents" assessments; the one edit that mattered (an integrity fix) is visually indistinguishable from the noise.
+
+v2.10.0 adds **batch manifests** as a narrow, file-based exception that compresses ceremony for declared-mechanical operations while preserving full scrutiny for genuinely high-impact work.
+
+### Mechanism
+
+A batch manifest is a JSON file at `~/.claude/active-batch.json` declaring expected operations for a bulk task. The `pre-edit-check.sh` hook reads it and emits a compressed directive for declared-low-impact matches; everything else falls through to the full CHANGE DECISION CHECK.
+
+```json
+{
+  "batch_id": "batch-20260417-120000-12345",
+  "skill_name": "audit-knowledge",
+  "plan_summary": "Eleventh-pass audit promotion: 4 approaches + 2 decisions + backlog clears",
+  "started_at": "2026-04-17T12:00:00Z",
+  "expected_operations": [
+    {"file_path_pattern": "/abs/knowledge/approaches/*.md", "operation_type": "create", "impact": "low", "justification": "New approach files per approved Step 7 plan"},
+    {"file_path_pattern": "/abs/knowledge/decisions/*.md", "operation_type": "create", "impact": "high", "justification": "New ADRs — architectural commitments require full scrutiny"},
+    {"file_path_pattern": "/abs/knowledge/intake/*-backlog.md", "operation_type": "update", "impact": "low", "justification": "Clear promoted entries"}
+  ]
+}
+```
+
+### Safety floor (multi-layer defense)
+
+The manifest compresses ceremony **only** when every safety layer clears:
+
+1. **Protected paths always win** — `CLAUDE.md`, `working-rules.md`, `change-decision-framework.md`, `enforcement-mechanisms.md`, `settings.local.json`, `plugin.json`, the knowledge folder itself, and user-configured critical paths always get full Rule 22 regardless of manifest declaration.
+2. **Structural signals override declared-low** — if the file has auth, migration, model, routing, or external-service signals detected by `kt_detect_signals`, the hook escalates a declared-low op to full Rule 22 with a `BATCH SIGNAL OVERRIDE` prefix. Signals are ground truth from the filesystem; they can't be self-declared away.
+3. **Declared-high ops always get full Rule 22** — `impact: high` in the manifest fires the full format with a `BATCH DECLARED-HIGH` prefix, preserving scrutiny for architecturally-load-bearing edits within a batch.
+4. **Scope-drift detection** — any edit to a file not matched by any manifest op gets full Rule 22. The manifest is both a compression signal and a declared-scope boundary; wandering outside that boundary fires the full format automatically.
+5. **Post-edit scope check unchanged** — every edit still runs `post-edit-check.sh` for "did you stay in scope? any secondary impact?" — aggregate-drift detection (many individually-small edits that collectively constitute an architectural change) surfaces here.
+6. **Justification validation** — manifest entries with empty `justification` fall back to full Rule 22 (enforces articulated intent, not just silent compression).
+7. **Stale-manifest auto-clear** — `session-start-check.sh` removes manifests older than 30 minutes, recovering from crashed sessions that didn't reach their `kt_batch_end`.
+
+**Residual risk** — a HIGH-impact edit with no structural signal, mis-declared as LOW, inside a declared-scope pattern. Layers 1-4 don't catch this because signal detection doesn't cover all HIGH cases (e.g., a business-logic change to non-auth non-routing code). Only layer 5 (post-edit scope check) provides backstop. **Guidance: when in doubt about impact classification, declare HIGH — full Rule 22 is always the safe choice for an individual op inside a batch.**
+
+### Who writes the manifest
+
+Two consumers:
+
+**(a) Skills with structured bulk flows.** `/audit-knowledge` writes a manifest after user approval of its promotion plan (Step 7a) and clears it after the audit log is written (Step 8b). The skill's instructions tell Claude how to classify each approved op. This is the primary v2.10.0 consumer. Future releases may extend `/wrapup` and `/extract` as ideas-backlog entries indicate demand.
+
+**(b) Claude executing a user plan.** When Claude is about to perform a declared multi-file task (e.g., user shares `docs/plans/feature-x.md` listing 10 files to create + modify), Claude can write the manifest itself before starting:
+
+```bash
+. ${CLAUDE_PLUGIN_ROOT}/bin/config.sh
+kt_batch_begin "manual-plan-execution" "Implement feature X per docs/plans/feature-x.md" '[
+  {"file_path_pattern": "src/feature-x/**/*.ts", "operation_type": "create", "impact": "low", "justification": "New module files per plan Section 2 — mechanical scaffolding"},
+  {"file_path_pattern": "src/routing/routes.ts", "operation_type": "update", "impact": "high", "justification": "Add new route handler — routing signal, full assessment required"},
+  {"file_path_pattern": "tests/feature-x/**/*.ts", "operation_type": "create", "impact": "low", "justification": "Test files per plan Section 4"}
+]'
+```
+
+After the plan executes, clear the manifest:
+
+```bash
+kt_batch_end
+```
+
+The hook doesn't care who wrote the manifest — mechanisms are identical. Use (b) whenever a declared multi-file task would otherwise produce many similar Rule 22 assessments that a reader would recognize as ceremony rather than substance.
+
+### Three-tier ceremony calibration
+
+With v2.10.0 the framework has three ceremony tiers, each triggered by a file-based signal:
+
+| Tier | Trigger | Output |
+|------|---------|--------|
+| **Planning** | Edit to `*/docs/plans/*` or `*/docs/specs/*` | Abbreviated ("Planning edit — [filename]") |
+| **Batch declared-low** | Edit matches manifest op + impact:low + no signals + not protected | Compressed directive (acknowledge-only) |
+| **Default** | Everything else (no batch; batch-declared-high; signal override; scope drift; protected) | Full CHANGE DECISION CHECK |
+
+All three tiers use file-based signals (path patterns, manifest matching) — no session-history-based self-judgment. Post-compaction safe because the hook re-derives the tier from filesystem state on every fire.
+
+### Dependencies
+
+The batch mechanism requires `jq` on the system PATH for JSON parsing. Without jq, the hook gracefully degrades to full Rule 22 format — batch compression is never a correctness requirement. Install with `brew install jq` (macOS) or your package manager.
+
 ## Design Principles
 
 ### Opinionated defaults, easy customization

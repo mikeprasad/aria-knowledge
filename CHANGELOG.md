@@ -2,6 +2,97 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## [2.10.0] - 2026-04-17
+
+Ceremony-reduction release. Implements ADR 021 Plan A's bundled Upgrades 1+2 — the batch-manifest mechanism that compresses Rule 22 ceremony for declared-mechanical bulk operations while preserving full CHANGE DECISION CHECK for high-impact edits. Requires `jq` on PATH (graceful degradation to full Rule 22 if jq missing). No breaking changes to existing skills; hook behavior is unchanged for edits with no active manifest.
+
+### Added — Batch-manifest mechanism (core infrastructure)
+
+Skills and manual plan-execution can declare an active batch by writing `~/.claude/active-batch.json`. The `pre-edit-check.sh` hook detects the manifest and, for matching low-impact ops with no structural signals and no protected-path conflict, emits a compressed directive ("BATCH OPERATION (N/M) — declared scope: ...") instead of the full CHANGE DECISION CHECK template. Out-of-scope edits, declared-high ops, signal-triggering files, and protected paths all continue to get full format.
+
+**Manifest schema** (validated by `kt_batch_begin`):
+
+```json
+{
+  "batch_id": "unique-identifier",
+  "skill_name": "invoking-skill or 'manual-plan-execution'",
+  "plan_summary": "one-line description",
+  "started_at": "ISO-8601 UTC timestamp",
+  "expected_operations": [
+    {
+      "file_path_pattern": "glob pattern",
+      "operation_type": "create|update|delete",
+      "impact": "high|low",
+      "justification": "non-empty string"
+    }
+  ]
+}
+```
+
+**New helpers in `plugin/bin/config.sh`:**
+- `kt_batch_begin SKILL_NAME PLAN_SUMMARY OPS_JSON` — validates the ops array (each op must have non-empty `file_path_pattern`, `impact` in {high, low}, and non-empty `justification`) and writes the manifest
+- `kt_batch_end` — removes the active manifest (safe no-op if none exists)
+- `kt_batch_find_match FILE_PATH` — used by the hook to check if an edit matches an expected op
+- `kt_batch_clear_stale [MAX_AGE_SECONDS]` — removes stale manifests (default 30 minutes) to recover from crashed sessions
+
+### Added — Safety floor (multi-layer defense)
+
+The batch mechanism compresses ceremony only when every safety layer clears. Any layer firing degrades to full Rule 22:
+
+1. **Protected paths always win** — `CLAUDE.md`, `working-rules.md`, `change-decision-framework.md`, `enforcement-mechanisms.md`, `settings.local.json`, `plugin.json`, the knowledge folder itself, and user `critical_paths` always get full assessment regardless of manifest declaration.
+2. **Structural signal override** — if `kt_detect_signals` detects auth, migration, model, routing, or external-service signals on a declared-low op, the hook escalates to full Rule 22 with a `BATCH SIGNAL OVERRIDE` prefix. Signals are ground truth from the filesystem; cannot be self-declared away. This promotes `kt_detect_signals` from advisory-only (v2.9.0) to having override authority when a batch manifest is active.
+3. **Declared-high fires full format** — `impact: high` in the manifest always gets the full CHANGE DECISION CHECK with a `BATCH DECLARED-HIGH` prefix.
+4. **Scope-drift detection** — edits to files not matched by any manifest op get full Rule 22. The manifest is both compression signal and declared-scope boundary; the hook catches wandering automatically.
+5. **Post-edit scope check unchanged** — `post-edit-check.sh` ceremony is not compressed; aggregate drift detection (many individually-small edits collectively constituting an architectural change) surfaces there.
+6. **Justification validation** — manifest entries with empty or missing `justification` fall back to full Rule 22 for that op (enforces articulated intent).
+7. **Stale-manifest auto-clear** — `session-start-check.sh` removes manifests older than 30 minutes so crashed sessions don't silently suppress Rule 22 on later unrelated edits.
+
+### Added — Three-tier ceremony calibration
+
+With v2.10.0 the framework has three ceremony tiers, each triggered by a file-based signal:
+
+| Tier | Trigger | Output |
+|------|---------|--------|
+| Planning | Edit to `*/docs/plans/*` or `*/docs/specs/*` | Abbreviated ("Planning edit — [filename]") |
+| Batch declared-low | Edit matches manifest op + impact:low + no signals + not protected | Compressed directive (single-line acknowledgment) |
+| Default | Everything else (no batch; declared-high; signal override; scope drift; protected) | Full CHANGE DECISION CHECK |
+
+All three tiers use file-based signals — post-compaction safe per ADR 006 because the hook re-derives the tier from filesystem state on every fire.
+
+### Added — `/audit-knowledge` batch integration
+
+`/audit-knowledge` gains Step 7a (after user-approved promotion plan, before executing promotions) that constructs and writes a batch manifest classifying each approved op as high/low impact. Step 8b (after audit log is updated) clears the manifest. The audit's 15-30 edits per pass was the primary cost center that motivated ADR 021; this integration delivers the compression value for exactly that case.
+
+**Classification guidance documented in Step 7a:** stub-and-reference, backlog clears, log appends, and new `approaches/`/`guides/`/`references/` files are typically declared `low`; new `decisions/` ADRs, new/modified `rules/` entries, and cross-project consolidations that create new authoritative files are typically declared `high`. "When in doubt, declare high — full Rule 22 is always the safe choice."
+
+### Added — Manual plan-execution use case (general-purpose mechanism)
+
+The batch manifest is **skill-agnostic by design**. When Claude is executing a user-supplied multi-file plan (e.g., implementing `docs/plans/feature-x.md`), Claude can write the manifest itself using the same helpers — no skill wrapper required. Documented in the new OVERVIEW.md "Batch Manifests for Ceremony Reduction" section with example. This generalization makes the mechanism useful for any declared-scope multi-edit operation, not just built-in skills.
+
+### Deferred to follow-up releases
+
+- **`/wrapup` manifest integration** (v2.10.1 candidate) — typical wrapup edit volume (2-4 files) is below the ceremony-reduction value threshold; filed for future evaluation.
+- **`/extract` manifest integration** (v2.10.1 candidate) — /extract's dynamic-scope capture pattern doesn't pre-declare cleanly; filed for future design work on loose-pattern manifests.
+- **post-edit-check.sh manifest symmetry** (v2.10.x) — ideas-backlog entry for symmetric post-edit compression on declared-low ops.
+- **Bash-write-matcher extension** (v2.10.x) — widen hook matcher to catch `cat >>`, `sed -i`, shell redirect patterns that currently bypass Rule 22 (filed as separate ideas-backlog entry from v2.9.0).
+
+### Changed
+
+- `plugin/.claude-plugin/plugin.json` — version bumped to 2.10.0.
+- `plugin/bin/pre-edit-check.sh` — rewritten with safety-floor decision hierarchy (planning → protected → batch compression → full with contextual prefixes). Backward-compatible for all no-batch edits.
+- `plugin/bin/session-start-check.sh` — added `kt_batch_clear_stale 1800` early in the hook.
+- `plugin/template/OVERVIEW.md` — new "Batch Manifests for Ceremony Reduction" section (between "Plugin-Managed vs User-Owned Files" and "Design Principles").
+- `plugin/skills/audit-knowledge/SKILL.md` — added Step 7a (declare manifest) and Step 8b (clear manifest).
+
+### Dependencies
+
+- **Requires `jq` on PATH.** Install via `brew install jq` (macOS) or your package manager. Graceful degradation: if jq is missing, the hook falls back to full Rule 22 format for all edits — batch compression is lost but correctness is preserved.
+
+### Related ADRs
+
+- `knowledge/projects/aria/decisions/021-rule22-ceremony-plan-a.md` — updated to "Implemented in v2.10.0" with implementation notes (split-calibration field, signal-override promotion, justification validation).
+- `knowledge/projects/aria/decisions/006-full-rule22-format-every-edit.md` — unchanged. Batch manifest is a narrow file-based exception structurally equivalent to the planning-path exception; ADR 006's core principle (no session-history-based self-judgment; file-based signals only) remains load-bearing.
+
 ## [2.9.1] - 2026-04-17
 
 Documentation patch with small ergonomic additions. No changes to existing hook or skill logic. README, `/help`, and shipped plugin surfaces (OVERVIEW, skill docs, template files, `/setup` first-run note) gain positioning, usage guidance, and rationale surfaced from internal ADRs. Adds two delegate slash-command aliases (`/knowledge-audit`, `/config-audit`) for users who prefer inverted phrasing. Users will see diff prompts for `OVERVIEW.md`, `README.md`, `rules/change-decision-framework.md`, `rules/enforcement-mechanisms.md`, `rules/working-rules.md`, `rules/user-rules.md`, `LOCAL.md`, and `projects/README.md` on their next `/setup` — this is expected and correct behavior under ADR 011's diffability model; reconcile by keeping your version, adopting plugin version, or merging as appropriate.

@@ -195,3 +195,191 @@ kt_detect_signals() {
 
   printf '%s' "$_kt_sig"
 }
+
+# Batch-manifest support (v2.10.0)
+# Per ADR 021 Plan A (Upgrades 1+2 bundled): skills and manual plan-execution
+# declare an active batch by writing ~/.claude/active-batch.json. The pre-edit
+# hook detects the manifest and, for matching low-impact ops, emits a compressed
+# directive instead of the full Rule 22 format. Out-of-scope edits, high-impact
+# declared ops, protected paths, and structural-signal-triggering files all
+# still get full format — the safety floor.
+#
+# Manifest schema:
+#   {
+#     "batch_id": "unique-id",
+#     "skill_name": "invoking-skill or 'manual-plan-execution'",
+#     "plan_summary": "one-line description",
+#     "started_at": "ISO-8601 UTC timestamp",
+#     "expected_operations": [
+#       { "file_path_pattern": "glob",
+#         "operation_type": "create|update|delete",
+#         "impact": "high|low",
+#         "justification": "non-empty string" }
+#     ]
+#   }
+
+KT_BATCH_MANIFEST="$HOME/.claude/active-batch.json"
+
+# kt_batch_find_match FILE_PATH
+# Check if file path matches an op in the active batch manifest.
+# Stdout: pipe-separated "impact|justification|plan_summary|op_idx|op_total" on match.
+# Stdout: empty if no active batch, no match, missing jq, or malformed manifest.
+# Never fails or returns non-zero — callers interpret empty output as "no match."
+kt_batch_find_match() {
+  _kt_fp="$1"
+  [ -z "$_kt_fp" ] && return
+
+  # jq required for manifest parsing; graceful fallback if missing
+  command -v jq >/dev/null 2>&1 || return
+
+  [ -f "$KT_BATCH_MANIFEST" ] || return
+
+  # Validate JSON parseable — malformed manifest falls back to full format
+  jq empty "$KT_BATCH_MANIFEST" >/dev/null 2>&1 || return
+
+  _kt_total=$(jq -r '.expected_operations | length' "$KT_BATCH_MANIFEST" 2>/dev/null)
+  [ -z "$_kt_total" ] && return
+  [ "$_kt_total" = "0" ] && return
+  [ "$_kt_total" = "null" ] && return
+
+  _kt_plan=$(jq -r '.plan_summary // ""' "$KT_BATCH_MANIFEST" 2>/dev/null)
+  # Sanitize pipes in plan summary (would break output format)
+  _kt_plan=$(printf '%s' "$_kt_plan" | tr '|' '_' | tr '\n' ' ')
+
+  # Extract ops as one-per-line pipe-separated: pattern|impact|justification
+  _kt_ops=$(jq -r '.expected_operations[] | "\(.file_path_pattern // "")\u00fe\(.impact // "")\u00fe\(.justification // "")"' "$KT_BATCH_MANIFEST" 2>/dev/null)
+
+  _kt_idx=0
+  _kt_old_ifs="$IFS"
+  IFS='
+'
+  for _kt_line in $_kt_ops; do
+    _kt_idx=$((_kt_idx + 1))
+    # Use thorn (U+00FE) as delimiter — unlikely in paths/justifications
+    _kt_pat="${_kt_line%%þ*}"
+    _kt_rest="${_kt_line#*þ}"
+    _kt_imp="${_kt_rest%%þ*}"
+    _kt_just="${_kt_rest#*þ}"
+
+    # Validation: all three required fields must be non-empty.
+    # (b) — empty justification means the manifest author didn't articulate the
+    # op's rationale; we fall back to full format by skipping this op.
+    [ -z "$_kt_pat" ] && continue
+    [ -z "$_kt_imp" ] && continue
+    [ -z "$_kt_just" ] && continue
+    # Impact must be literally "high" or "low" — anything else is invalid
+    case "$_kt_imp" in
+      high|low) ;;
+      *) continue ;;
+    esac
+
+    # Glob match against file path — case pattern expansion uses unquoted $_kt_pat
+    case "$_kt_fp" in
+      $_kt_pat)
+        IFS="$_kt_old_ifs"
+        # Sanitize pipes in justification (would break output format)
+        _kt_just_safe=$(printf '%s' "$_kt_just" | tr '|' '_' | tr '\n' ' ')
+        printf '%s|%s|%s|%s|%s' "$_kt_imp" "$_kt_just_safe" "$_kt_plan" "$_kt_idx" "$_kt_total"
+        return
+        ;;
+    esac
+  done
+  IFS="$_kt_old_ifs"
+}
+
+# kt_batch_begin SKILL_NAME PLAN_SUMMARY OPS_JSON
+# Write active batch manifest. OPS_JSON must be a JSON array string where each
+# element has file_path_pattern, operation_type, impact (high|low), and
+# justification (all required, non-empty for declared-low ops).
+# Returns non-zero and prints error to stderr on validation failure.
+kt_batch_begin() {
+  _kt_skill="$1"
+  _kt_plan="$2"
+  _kt_ops="$3"
+
+  if ! command -v jq >/dev/null 2>&1; then
+    echo "kt_batch_begin: jq is required for batch manifests. Install via 'brew install jq' (macOS) or your package manager. Falling back to no batch." >&2
+    return 1
+  fi
+
+  [ -z "$_kt_skill" ] && { echo "kt_batch_begin: skill_name required" >&2; return 1; }
+  [ -z "$_kt_plan" ] && { echo "kt_batch_begin: plan_summary required" >&2; return 1; }
+  [ -z "$_kt_ops" ] && { echo "kt_batch_begin: expected_operations JSON array required" >&2; return 1; }
+
+  # Validate ops JSON is a non-empty array with valid structure on each entry
+  _kt_validation=$(printf '%s' "$_kt_ops" | jq -e '
+    if type != "array" then error("expected_operations must be an array") else . end
+    | if length == 0 then error("expected_operations must be non-empty") else . end
+    | all(
+        (.file_path_pattern | type == "string" and length > 0) and
+        (.impact | (. == "high" or . == "low")) and
+        (.justification | type == "string" and length > 0)
+      )
+  ' 2>&1)
+  if [ "$_kt_validation" != "true" ]; then
+    echo "kt_batch_begin: expected_operations validation failed — each op needs non-empty file_path_pattern, impact in {high,low}, and non-empty justification. Error: $_kt_validation" >&2
+    return 1
+  fi
+
+  _kt_batch_id="batch-$(date +%Y%m%d-%H%M%S)-$$"
+  _kt_now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+  mkdir -p "$HOME/.claude" 2>/dev/null
+
+  jq -n \
+    --arg batch_id "$_kt_batch_id" \
+    --arg skill_name "$_kt_skill" \
+    --arg plan_summary "$_kt_plan" \
+    --arg started_at "$_kt_now" \
+    --argjson expected_operations "$_kt_ops" \
+    '{batch_id: $batch_id, skill_name: $skill_name, plan_summary: $plan_summary, started_at: $started_at, expected_operations: $expected_operations}' \
+    > "$KT_BATCH_MANIFEST" 2>/dev/null
+
+  if [ ! -f "$KT_BATCH_MANIFEST" ]; then
+    echo "kt_batch_begin: failed to write manifest at $KT_BATCH_MANIFEST" >&2
+    return 1
+  fi
+
+  printf '%s\n' "$_kt_batch_id"
+}
+
+# kt_batch_end
+# Remove the active batch manifest. Safe to call even if no manifest exists.
+kt_batch_end() {
+  [ -f "$KT_BATCH_MANIFEST" ] && rm -f "$KT_BATCH_MANIFEST"
+  return 0
+}
+
+# kt_batch_clear_stale [MAX_AGE_SECONDS]
+# Remove the active batch manifest if older than MAX_AGE_SECONDS (default 1800 = 30 min).
+# Called from session-start-check.sh to clean up after crashed sessions that didn't
+# reach their kt_batch_end call.
+kt_batch_clear_stale() {
+  _kt_max="${1:-1800}"
+  [ -f "$KT_BATCH_MANIFEST" ] || return
+
+  # Prefer started_at from manifest; fall back to file mtime if jq unavailable or field missing
+  _kt_started_epoch=""
+  if command -v jq >/dev/null 2>&1 && jq empty "$KT_BATCH_MANIFEST" >/dev/null 2>&1; then
+    _kt_started=$(jq -r '.started_at // ""' "$KT_BATCH_MANIFEST" 2>/dev/null)
+    if [ -n "$_kt_started" ] && [ "$_kt_started" != "null" ]; then
+      # Parse ISO-8601 UTC timestamp to epoch — platform-dependent
+      if date -j -u -f "%Y-%m-%dT%H:%M:%SZ" "$_kt_started" +%s >/dev/null 2>&1; then
+        _kt_started_epoch=$(date -j -u -f "%Y-%m-%dT%H:%M:%SZ" "$_kt_started" +%s)
+      elif date -d "$_kt_started" +%s >/dev/null 2>&1; then
+        _kt_started_epoch=$(date -d "$_kt_started" +%s)
+      fi
+    fi
+  fi
+
+  # Fallback: file mtime
+  if [ -z "$_kt_started_epoch" ]; then
+    _kt_started_epoch=$(stat -f %m "$KT_BATCH_MANIFEST" 2>/dev/null || stat -c %Y "$KT_BATCH_MANIFEST" 2>/dev/null)
+  fi
+
+  [ -z "$_kt_started_epoch" ] && return
+
+  _kt_now=$(date +%s)
+  _kt_age=$((_kt_now - _kt_started_epoch))
+  [ "$_kt_age" -gt "$_kt_max" ] && rm -f "$KT_BATCH_MANIFEST"
+}

@@ -5,6 +5,11 @@
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$SCRIPT_DIR/config.sh"
 
+# Clear stale batch manifest (>30 min old) left over from crashed sessions.
+# Prevents stale manifests from silently suppressing Rule 22 on subsequent
+# unrelated edits. Safe no-op if no manifest exists or jq is unavailable.
+kt_batch_clear_stale 1800
+
 # If config file exists but failed validation, report the specific error
 if [ -n "$KT_CONFIG_ERROR" ]; then
   MSG=$(kt_json_escape "aria-knowledge: $KT_CONFIG_ERROR Run /setup to reconfigure.")
