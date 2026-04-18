@@ -69,17 +69,44 @@ if [ "$IS_FIRST_RUN" = "true" ]; then
   exit 0
 fi
 
-# Check knowledge audit cadence
+# Check knowledge audit cadence — OR-logic: entry-count threshold OR elapsed days.
+# Entry count is the primary activity-driven signal; elapsed days is the safety net
+# for low-activity weeks. Counts ^### entries across insights + decisions + extraction
+# backlogs. Ideas-backlog is deliberately excluded — ideas route out, counting them
+# would conflate staging with action.
 KA_DUE=false
+BACKLOG_COUNT=0
+for _kt_bl in "$KT_KNOWLEDGE_FOLDER/intake/insights-backlog.md" \
+              "$KT_KNOWLEDGE_FOLDER/intake/decisions-backlog.md" \
+              "$KT_KNOWLEDGE_FOLDER/intake/extraction-backlog.md"; do
+  if [ -f "$_kt_bl" ]; then
+    # Count ^### entries below the first --- separator. Matches the counting
+    # convention used by /stats and /backlog skills (entries live after the
+    # frontmatter/intro separator). awk's `print c+0` always emits a single
+    # numeric value (0 if no matches) and exits 0 — avoids the grep -c pitfall
+    # where zero-match exit-1 combined with `|| echo 0` produced two-line output
+    # and crashed arithmetic expansion.
+    _kt_n=$(awk '/^---$/{sep++; next} sep>=1 && /^### /{c++} END{print c+0}' "$_kt_bl" 2>/dev/null)
+    case "$_kt_n" in
+      ''|*[!0-9]*) _kt_n=0 ;;
+    esac
+    BACKLOG_COUNT=$((BACKLOG_COUNT + _kt_n))
+  fi
+done
+
+# Tier boundaries (derived from threshold via fixed +15/+30 offsets). Matches capacity
+# regimes observed empirically: comfortable (<T), workable (T to T+14), cliff (T+15
+# to T+29), must-split (T+30+). Default threshold 20 → 20/35/50.
+KA_TIER_RECOMMENDED=$((KT_AUDIT_TRIGGER_THRESHOLD + 15))
+KA_TIER_OVERDUE=$((KT_AUDIT_TRIGGER_THRESHOLD + 30))
+
+DAYS_SINCE_KA=""
 if [ -f "$KNOWLEDGE_LOG" ]; then
   LAST_KA_DATE=$(grep '^\- \*\*Date:\*\*' "$KNOWLEDGE_LOG" | head -1 | sed 's/.*\*\*Date:\*\* //' | sed 's/ .*//')
   if [ -n "$LAST_KA_DATE" ] && echo "$LAST_KA_DATE" | grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'; then
     LAST_KA_EPOCH=$(date_to_epoch "$LAST_KA_DATE")
     if [ -n "$LAST_KA_EPOCH" ]; then
       DAYS_SINCE_KA=$(( (TODAY_EPOCH - LAST_KA_EPOCH) / 86400 ))
-      if [ "$DAYS_SINCE_KA" -ge "$KT_CADENCE_KNOWLEDGE" ]; then
-        MESSAGES="${MESSAGES}Knowledge audit due (${DAYS_SINCE_KA} days). Run /audit-knowledge? "
-      fi
     else
       KA_DUE=true
     fi
@@ -89,6 +116,35 @@ if [ -f "$KNOWLEDGE_LOG" ]; then
 else
   KA_DUE=true
 fi
+
+# Entry-count tier (primary trigger)
+KA_COUNT_MSG=""
+if [ "$BACKLOG_COUNT" -ge "$KA_TIER_OVERDUE" ]; then
+  KA_COUNT_MSG="Knowledge audit overdue — ${BACKLOG_COUNT} entries, plan for multi-pass. "
+elif [ "$BACKLOG_COUNT" -ge "$KA_TIER_RECOMMENDED" ]; then
+  KA_COUNT_MSG="Knowledge audit recommended — ${BACKLOG_COUNT} entries, near one-pass ceiling. "
+elif [ "$BACKLOG_COUNT" -ge "$KT_AUDIT_TRIGGER_THRESHOLD" ]; then
+  KA_COUNT_MSG="Knowledge audit suggested — ${BACKLOG_COUNT} entries ready for review. "
+fi
+
+# Day-based safety net
+KA_DAYS_FIRED=false
+if [ -n "$DAYS_SINCE_KA" ] && [ "$DAYS_SINCE_KA" -ge "$KT_CADENCE_KNOWLEDGE" ]; then
+  KA_DAYS_FIRED=true
+fi
+
+# Compose prompt — entry-tier message takes precedence; day-context appended if both fired.
+# Trigger hint (count/threshold/days) is embedded so audit-log Step 1 can record it for tuning.
+if [ -n "$KA_COUNT_MSG" ]; then
+  if [ "$KA_DAYS_FIRED" = "true" ]; then
+    MESSAGES="${MESSAGES}${KA_COUNT_MSG}(trigger: count=${BACKLOG_COUNT} threshold=${KT_AUDIT_TRIGGER_THRESHOLD}; also ${DAYS_SINCE_KA}d since last audit) Run /audit-knowledge? "
+  else
+    MESSAGES="${MESSAGES}${KA_COUNT_MSG}(trigger: count=${BACKLOG_COUNT} threshold=${KT_AUDIT_TRIGGER_THRESHOLD}) Run /audit-knowledge? "
+  fi
+elif [ "$KA_DAYS_FIRED" = "true" ]; then
+  MESSAGES="${MESSAGES}Knowledge audit due — ${DAYS_SINCE_KA} days since last audit. (trigger: days=${DAYS_SINCE_KA} threshold=${KT_CADENCE_KNOWLEDGE}; backlog=${BACKLOG_COUNT}) Run /audit-knowledge? "
+fi
+
 if [ "$KA_DUE" = "true" ]; then
   MESSAGES="${MESSAGES}No previous Knowledge Audit found. Run /audit-knowledge? "
 fi

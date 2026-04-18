@@ -2,6 +2,40 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## [2.10.3] - 2026-04-18
+
+Patch release. Replaces the day-only `/audit-knowledge` trigger with activity-driven OR-logic and tiered messaging. The prior 3-day cadence mis-fired in both directions — prompting on empty backlogs during low-activity weeks, and staying silent through high-activity days where backlogs had already crossed the reviewable ceiling. This release makes backlog-entry count the primary trigger and keeps elapsed-days as a safety net for silent-drift periods. No breaking changes: existing configs keep working; the new field takes its default (20) when absent.
+
+### Added — `audit_trigger_threshold` config field (default 20)
+
+New YAML frontmatter key in `~/.claude/aria-knowledge.local.md` counted via `^### ` headers across `intake/insights-backlog.md`, `intake/decisions-backlog.md`, and `intake/extraction-backlog.md`. `ideas-backlog.md` is deliberately excluded — ideas route out rather than promoting, so counting them would conflate staging with action. Parsing and numeric-validation plumbed through `plugin/bin/config.sh` alongside existing cadence fields.
+
+### Changed — Tiered SessionStart prompt messaging
+
+`plugin/bin/session-start-check.sh` now composes one of three prompt tiers based on backlog size (tier boundaries derived from `audit_trigger_threshold` via fixed `+15` / `+30` offsets):
+
+- `count ≥ threshold` → *"Knowledge audit suggested — N entries ready for review."*
+- `count ≥ threshold + 15` → *"Knowledge audit recommended — N entries, near one-pass ceiling."*
+- `count ≥ threshold + 30` → *"Knowledge audit overdue — N entries, plan for multi-pass."*
+
+If both entry-count and elapsed-days triggers fire, the entry-tier message wins and the day-count is appended as context. Every prompt embeds a `(trigger: count=N threshold=T days=D)` hint — both for user clarity and for greppable post-ship tuning. The day-only prompt (fired when count tier doesn't trigger but cadence has) is reformatted to *"Knowledge audit due — N days since last audit. (trigger: days=N threshold=C; backlog=M) Run /audit-knowledge?"* — same firing conditions as before, with the trigger hint appended so the audit log can capture it.
+
+### Changed — `audit_cadence_knowledge` default 3 → 7 days
+
+Bumped throughout: `plugin/bin/config.sh` default + fallback, `plugin/skills/setup/SKILL.md` prompt prose + Step 7 config template, `plugin/QUICKSTART.md` documented default. Rationale: once activity-count is the primary signal, the day-based check becomes the safety net for "did anything drift silently while I wasn't writing" — weekly cadence matches that intent better than the original 3 days, which was calibrated for day-only triggering.
+
+### Added — `Trigger:` subfield in audit-log entries
+
+`plugin/skills/audit-knowledge/SKILL.md` Step 8 audit-log template (both promoted-items and empty-audit variants) now records `Trigger: count=N threshold=T days=D cadence=C — (which fired)`. This makes trigger distribution greppable across audits, enabling data-driven tuning once 3-4 entries accumulate. Applied to both promoted and yield-zero audits — the yield-zero cases are the most important tuning signal since they indicate the threshold fired but nothing promoted.
+
+### Skill updates
+
+`plugin/skills/audit-knowledge/SKILL.md` Step 0 reads `audit_trigger_threshold`; Step 1 computes current backlog count and enumerates tier-message semantics so user-invoked runs see the same state as hook-triggered prompts.
+
+### No migration required
+
+Existing configs lacking `audit_trigger_threshold` automatically use the default (20). Existing configs with `audit_cadence_knowledge: 3` continue working unchanged; only the default for fresh installs changes. No schema breakage, no hook-timing change, no API change.
+
 ## [2.10.2] - 2026-04-18
 
 Patch release. Strengthens v2.10.1's Rule 22 ordering discipline after a real-session failure mode was observed: an in-flight session continued across a plugin reinstall produced ~dozens of retroactive Rule 22 assessments, then (when challenged) proposed to "skip the block for this review" as an escape hatch the framework does not offer. Root causes: (1) the v2.10.1 hook message put the retroactive recovery clause first and the prospective-next-edit requirement second — the second half got skimmed; (2) SessionStart injection only fires at session start, so continued sessions across plugin updates don't receive the preventive layer; (3) no doctrine named and rejected the specific rationalizations Claude was inventing. v2.10.2 addresses (1) and (3) directly, and partially mitigates (2) via the stronger hook text. No config migration or API changes.

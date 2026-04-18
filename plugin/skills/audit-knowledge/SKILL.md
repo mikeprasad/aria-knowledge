@@ -12,7 +12,8 @@ Scan `~/.claude/` memory and plan files, compare against what's already in the k
 
 Read `~/.claude/aria-knowledge.local.md` and extract:
 - `knowledge_folder` — required base path
-- `audit_cadence_knowledge` — required cadence in days
+- `audit_cadence_knowledge` — cadence in days (default 7); safety-net trigger for low-activity periods
+- `audit_trigger_threshold` — backlog-entry count (default 20); primary activity-driven trigger. Tier boundaries derived via fixed offsets: `threshold` (suggested), `threshold + 15` (recommended), `threshold + 30` (overdue)
 - `projects_enabled` — default `false`; controls whether project tier is audited (Step 5e)
 - `projects_list` — default empty; comma-separated `tag:path` pairs; only relevant if `projects_enabled: true`
 - `projects_promotion_threshold` — default `2`; minimum projects sharing a similar pattern before Step 5e suggests cross-project promotion
@@ -27,12 +28,28 @@ Read `{knowledge_folder}/logs/knowledge-audit-log.md`.
 
 Note the "Last Audit" date and calculate days since.
 
+**Compute the current trigger state** by counting `^### ` entries across the three action-eligible backlogs (insights, decisions, extraction — exclude ideas-backlog, which routes out rather than promoting). Count only entries **below the first `---` separator** per file, matching the convention used by `/stats` and `/backlog`:
+
+```bash
+for f in {knowledge_folder}/intake/insights-backlog.md \
+         {knowledge_folder}/intake/decisions-backlog.md \
+         {knowledge_folder}/intake/extraction-backlog.md; do
+  [ -f "$f" ] && awk '/^---$/{sep++; next} sep>=1 && /^### /{c++} END{print c+0}' "$f"
+done | awk '{s+=$1} END{print s+0}'
+```
+
+Record the count — it feeds both the prompt message and Step 8's `Trigger:` audit-log subfield.
+
 **Determine how this skill was invoked:**
 
 - **User-requested** (user said `/audit-knowledge`, "audit knowledge", "scan memory", etc.): **Always run the full audit**, regardless of how recently the last audit was. Skip directly to Step 2.
-- **Session-start check** (triggered by the SessionStart hook): Check if the configured cadence has been exceeded.
-  - If **cadence exceeded**: Prompt the user — *"It's been N days since the last knowledge audit. Want me to scan for extractable knowledge?"* If they agree, proceed to Step 2. If not, stop.
-  - If **within cadence**: Report the last audit date and stop. *"Last knowledge audit was N day(s) ago (YYYY-MM-DD). Next check due in M days."*
+- **Session-start check** (triggered by the SessionStart hook): Check whether either trigger fired.
+  - **Entry-count trigger** (primary): if `backlog_count >= audit_trigger_threshold`, prompt per tier:
+    - `count ≥ threshold + 30` → *"Knowledge audit overdue — N entries, plan for multi-pass. Run /audit-knowledge?"*
+    - `count ≥ threshold + 15` → *"Knowledge audit recommended — N entries, near one-pass ceiling. Run /audit-knowledge?"*
+    - `count ≥ threshold` → *"Knowledge audit suggested — N entries ready for review. Run /audit-knowledge?"*
+  - **Elapsed-days trigger** (safety net): if no entry-count tier fired AND `days_since >= audit_cadence_knowledge`, prompt: *"Knowledge audit due — N days since last audit. Run /audit-knowledge?"*
+  - **Neither fired**: report the last audit date + current backlog count + days-since, then stop. *"Last knowledge audit was N day(s) ago (YYYY-MM-DD). Backlog at M entries (threshold T). Next trigger at M=T entries or N=C days."*
 
 ## Step 1b: Check Index Freshness
 
@@ -659,6 +676,7 @@ Use the **structured format** below — it keeps audit logs scannable over many 
 ```markdown
 ## Last Audit
 - **Date:** YYYY-MM-DD (Nth pass — short label: "routine check", "v2.8.0 continuation", "post-restructure", etc.)
+- **Trigger:** count=N threshold=T days=D cadence=C — (which fired: count-tier|days|user-invoked)
 - **Counts:** X insights, Y decisions, Z extractions reviewed
 - **Ideas disposition:** W reviewed — A accepted → tracker, B rejected, C deferred, D reclassified (omit field entirely if no ideas were in the audit)
 - **New files:** N total — [breakdown: K approaches, L ADRs (split by tier), M patterns, etc.]
@@ -674,6 +692,7 @@ Use the **structured format** below — it keeps audit logs scannable over many 
 ```markdown
 ## Last Audit
 - **Date:** YYYY-MM-DD (Nth pass — "no new items" or short label)
+- **Trigger:** count=N threshold=T days=D cadence=C — (which fired: count-tier|days|user-invoked)
 - **Result:** No new items — [X memory files all Category A, Y plan files Category B, backlogs empty OR K entries all cleared as already-captured/stale]
 - **Ideas disposition:** [optional — omit if no ideas were in the audit, else: W reviewed — A accepted → tracker, B rejected, C deferred, D reclassified]
 - **Notes:** [optional — anything worth flagging even though nothing was promoted, e.g. "clusters forming around theme X but below threshold"]

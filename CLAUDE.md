@@ -53,11 +53,11 @@ Project-specific architecture decisions live in `~/Projects/knowledge/projects/a
 - `decisions/008-skill-knowledge-connections.md` — skill-knowledge connection discovery + drift detection
 
 Cross-project knowledge that applies to ARIA:
-- `knowledge/rules/working-rules.md` — the 27 universal rules (ARIA's source of truth ships in plugin/template)
+- `knowledge/rules/working-rules.md` — the 31 universal rules (ARIA's source of truth ships in plugin/template)
 - `knowledge/rules/change-decision-framework.md` — Rule 22 framework
 - `knowledge/rules/enforcement-mechanisms.md` — enforcement tier model
 - `knowledge/guides/claude/plugin-development.md` — Claude Code plugin patterns
 
-Pre-staged for next audit (in decisions-backlog.md): three-pillar architecture, LLM-captures-human-promotes philosophy, auto_capture toggle, audit cadence with first-run detection, plugin/installed-copy diffability, backlog deduplication, hook exit-code pattern.
+Pre-staged ADR candidates live in `~/Projects/knowledge/intake/decisions-backlog.md` — check there for what's currently queued for next `/audit-knowledge`. Themes queued here historically drift as ADRs promote; the live backlog is the source of truth.
 
 Use `/context aria` to load relevant knowledge by project tag.

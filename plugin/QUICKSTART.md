@@ -59,7 +59,8 @@ With an index built, ARIA surfaces relevant knowledge automatically:
 All settings are in `~/.claude/aria-knowledge.local.md`. Run `/setup` to change them, or edit directly.
 
 **Key settings:**
-- `audit_cadence_knowledge` — days between knowledge audit prompts (default: 3)
+- `audit_trigger_threshold` — backlog entry count that triggers the knowledge audit prompt (default: 20). Primary activity-driven signal. Tier messaging: 20+ suggested, 35+ recommended, 50+ overdue.
+- `audit_cadence_knowledge` — days between knowledge audit prompts when the entry-count trigger hasn't fired (default: 7). Safety net for low-activity weeks.
 - `audit_cadence_config` — days between config audit prompts (default: 14)
 - `auto_capture` — auto-capture insights at task boundaries and save transcript snapshots before compaction (default: true)
 - `critical_paths` — file patterns that always require full impact assessment (default: empty)

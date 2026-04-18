@@ -31,9 +31,10 @@ if [ -f "$KT_CONFIG" ]; then
   KT_PROJECTS_PROMOTION_THRESHOLD=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^projects_promotion_threshold:' | sed 's/^projects_promotion_threshold: *//')
   KT_AUTO_LOAD_PROJECT_CONTEXT=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^auto_load_project_context:' | sed 's/^auto_load_project_context: *//')
   KT_IDEAS_STALENESS_DAYS=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^ideas_staleness_threshold_days:' | sed 's/^ideas_staleness_threshold_days: *//')
+  KT_AUDIT_TRIGGER_THRESHOLD=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^audit_trigger_threshold:' | sed 's/^audit_trigger_threshold: *//')
 
   # Defaults if not set
-  KT_CADENCE_KNOWLEDGE=${KT_CADENCE_KNOWLEDGE:-3}
+  KT_CADENCE_KNOWLEDGE=${KT_CADENCE_KNOWLEDGE:-7}
   KT_CADENCE_CONFIG=${KT_CADENCE_CONFIG:-14}
   KT_EXPLANATORY=${KT_EXPLANATORY:-false}
   KT_FREEFORM_THRESHOLD=${KT_FREEFORM_THRESHOLD:-3}
@@ -44,6 +45,7 @@ if [ -f "$KT_CONFIG" ]; then
   KT_PROJECTS_PROMOTION_THRESHOLD=${KT_PROJECTS_PROMOTION_THRESHOLD:-2}
   KT_AUTO_LOAD_PROJECT_CONTEXT=${KT_AUTO_LOAD_PROJECT_CONTEXT:-false}
   KT_IDEAS_STALENESS_DAYS=${KT_IDEAS_STALENESS_DAYS:-21}
+  KT_AUDIT_TRIGGER_THRESHOLD=${KT_AUDIT_TRIGGER_THRESHOLD:-20}
   # KT_CRITICAL_PATHS intentionally has no default — empty means no critical paths
   # KT_PROJECTS_LIST and KT_PROJECTS_REMOTES intentionally have no defaults — empty means "no projects configured"
 
@@ -63,7 +65,7 @@ if [ -f "$KT_CONFIG" ]; then
 
   # Validate cadence values are numeric, reset to defaults if not
   case "$KT_CADENCE_KNOWLEDGE" in
-    ''|*[!0-9]*) KT_CADENCE_KNOWLEDGE=3 ;;
+    ''|*[!0-9]*) KT_CADENCE_KNOWLEDGE=7 ;;
   esac
   case "$KT_CADENCE_CONFIG" in
     ''|*[!0-9]*) KT_CADENCE_CONFIG=14 ;;
@@ -94,6 +96,9 @@ if [ -f "$KT_CONFIG" ]; then
   esac
   case "$KT_IDEAS_STALENESS_DAYS" in
     ''|*[!0-9]*) KT_IDEAS_STALENESS_DAYS=21 ;;
+  esac
+  case "$KT_AUDIT_TRIGGER_THRESHOLD" in
+    ''|*[!0-9]*) KT_AUDIT_TRIGGER_THRESHOLD=20 ;;
   esac
 fi
 

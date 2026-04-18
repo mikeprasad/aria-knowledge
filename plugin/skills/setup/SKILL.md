@@ -99,11 +99,11 @@ Record the result as `true` or `false`.
 
 Present current or default cadences:
 > "Audit cadences control how often you're prompted to review knowledge:
-> - **Knowledge audit:** every 3 days (scans memory/plans for extractable knowledge)
+> - **Knowledge audit:** triggers when either (a) backlog accumulates 20+ entries (primary, activity-driven) or (b) 7 days have elapsed since the last audit (safety net for low-activity weeks). Tier messages differ by size: 20+ "suggested", 35+ "recommended", 50+ "overdue — multi-pass".
 > - **Config audit:** every 14 days (checks configs and docs for drift)
 > - **Update check:** every 30 days (prompts to run /setup for plugin template updates)
 >
-> Want to change any cadence? (Enter new values or press enter to keep defaults)"
+> Want to change any? (Enter new values or press enter to keep defaults. Knowledge audit has two knobs: `audit_trigger_threshold` (entries, default 20) and `audit_cadence_knowledge` (days, default 7).)"
 
 Record the values.
 
@@ -155,7 +155,8 @@ Write `~/.claude/aria-knowledge.local.md` with the collected settings:
 ```yaml
 ---
 knowledge_folder: [path from Step 2]
-audit_cadence_knowledge: [value from Step 6]
+audit_cadence_knowledge: [value from Step 6, default 7]
+audit_trigger_threshold: [value from Step 6, default 20]
 audit_cadence_config: [value from Step 6]
 explanatory_plugin: [true/false from Step 5]
 audit_cadence_update: [value from Step 6, default 30]
@@ -207,6 +208,7 @@ After writing the config file, read it back and verify that each value can be ex
 3. For each key, verify the value matches what was intended:
    - `knowledge_folder` — grep for `^knowledge_folder:` and confirm the extracted path matches Step 2's value
    - `audit_cadence_knowledge` — confirm it's the integer from Step 6
+   - `audit_trigger_threshold` — confirm it's the integer from Step 6 (default 20)
    - `audit_cadence_config` — confirm it's the integer from Step 6
    - `explanatory_plugin` — confirm it's `true` or `false`
    - `audit_cadence_update` — confirm it's the integer from Step 6
