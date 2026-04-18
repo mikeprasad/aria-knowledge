@@ -2,6 +2,57 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## [2.10.4] - 2026-04-18
+
+Patch release. Applies Opus 4.7 best-practices guidance to ARIA's bulk-scan and bulk-output skills. Two distinct changes landed: (1) explicit parallel-Read directives in skills that read multiple files per step — 4.7's less-eager tool use would otherwise serialize these under the new defaults, doubling per-step I/O latency and token consumption; (2) top-level output policy guards + per-section zero-state rules in skills producing structured reports — 4.7's adaptive response-length behavior would otherwise silently collapse empty sections that are actually informational signals ("0 integrity issues detected" confirms the audit ran the check). All edits are skill-markdown directives; no behavior/schema/hook/API changes. No config migration required.
+
+### Changed — Parallel-Read directives in bulk-scan skills (Change 1)
+
+Added explicit "issue Read calls in a single parallel tool-use block" guidance to steps that read multiple files of the same kind for the same purpose. Under 4.6 defaults the model tended to parallelize implicitly; under 4.7's less-eager tool use, these serialize unless told. Scope kept strictly within-step to protect each skill's cross-step sequencing and user-approval checkpoints.
+
+- `plugin/skills/audit-knowledge/SKILL.md` — Step 3 (memory files), Step 4 (plan files), Step 5 (knowledge-folder dedup — feeds 5b/5c without re-reads), Step 5b ("do not re-read" reinforcement at the highest-risk re-read site)
+- `plugin/skills/audit-config/SKILL.md` — Step 3 (CLAUDE.md scan), Step 4 (knowledge-folder verify), Step 5 (PROGRESS.md scan)
+- `plugin/skills/intake/SKILL.md` — Step 2 (source-file reads, with explicit URL/WebFetch exception), Step 4 (dedup reads)
+
+### Changed — Output policy guards in bulk-output skills (Change 2)
+
+Added top-level "emit every section defined below" directives to skills producing structured comprehensive reports, plus per-section zero-state rules where empty-state behavior was previously ambiguous. Guards against 4.7 adaptively collapsing dashboards into prose or silently omitting zero-finding sections that carry informational signal. The pattern that emerged: **top-level output policy directive placed between the "Output in this format:" / "Present ... in this format:" opener and the fenced code-block template.**
+
+- `plugin/skills/audit-knowledge/SKILL.md` — Step 6 top-level output policy directive + per-section zero-state rules for four previously-ambiguous subsections (Pending Insights, Pending Decisions, Category C Items, Cross-Reference Findings). Four other subsections already had explicit conditional-on-feature-presence omission rules and were left unchanged.
+- `plugin/skills/audit-config/SKILL.md` — Step 6 top-level output policy directive only (existing `[list items or "None"]` template was already prescriptive per-section; gap was the whole-report-is-None collapse case).
+- `plugin/skills/stats/SKILL.md` — Step 6 top-level output policy directive only (existing dashboard template was already prescriptive; gap was potential misreading of Rules section's "Fast — just counting and date parsing, no heavy analysis" as "keep output short" rather than as an implementation-effort directive).
+
+### Declined / Deferred — Intentional no-change decisions
+
+Per-skill Change 1 and Change 2 assessments identified 5 skills where no edit was warranted, with rationale documented for durable scope-memory:
+
+- **`/codemap` Change 1 (declined)** — Step 4's "process one feature at a time to manage context" is a deliberate sequentialization discipline. A parallel-Read directive would pressure the model against the explicit serialization instruction. Step 2 indexing uses Grep/Glob rather than Read, so parallelism has low payoff anyway.
+- **`/stitch` Change 1 (deferred)** — the relevant read logic lives in the `group-loader` shared-block, which is duplicated verbatim in `/distill`. Editing one copy without the other triggers `/audit-knowledge` Step 5b3 shared-block drift detection. Modest gain (2–4 CODEMAPs per load) doesn't justify the coordinated-edit ceremony. Revisit when the shared block is touched for other reasons.
+- **`/backlog` Change 2 (no-edit)** — content-proportional by design across all three modes (overview dashboard, detail view, interactive clear flow). No structured comprehensive output to guard.
+- **`/context` Change 2 (no-edit)** — adaptive-by-design. Skill purpose is targeted retrieval with deliberate section omission; has 6 existing explicit omission rules throughout Step 5. Adding an emit-all directive would actively fight the skill's intent.
+- **`/codemap` Change 2 (no-edit)** — already rigorously guarded. Every user-facing output has forcing confirmation prompts or explicit format templates; CODEMAP.md section content has explicit required elements per feature.
+
+Full scope records with per-skill revisit triggers captured in `knowledge/intake/ideas-backlog.md` (2026-04-18 entries: "Change 1 propagation scope" and "Change 2 sweep").
+
+### Deferred — Rule 22 hook text strengthening (v2.11.x candidate)
+
+Considered and deferred: reinforcing language in `plugin/bin/pre-edit-check.sh` rejecting "extensive prose reasoning = compliant" readings under 4.7's adaptive thinking. The framework mechanism is correct (adaptive thinking expands *quantity* of reasoning, not *shape* — Rule 22's slots force the shape). Current hook text fires cleanly in real sessions; no observed drift tied to 4.7. **Revisit after 2-3 weeks of 4.7 usage if drift emerges** where the block "technically fires" but named slots are under-addressed. Candidate phrasing captured in `knowledge/intake/ideas-backlog.md` (2026-04-18 entry: "Strengthen Rule 22 hook text against 4.7 adaptive-thinking drift").
+
+### Shared-pattern opportunity — not acted on
+
+The top-level output policy directive across `/audit-knowledge`, `/audit-config`, and `/stats` is near-identical. Could become a shared-block like `group-loader` in `/distill` and `/stitch`. **Deferred** — 3 instances is near the shared-block amortization threshold but not clearly over it. Revisit if a 4th skill needs the same directive.
+
+### No migration required
+
+All edits are additive skill-markdown directives. No schema change, no hook change, no config change, no API change. Existing sessions pick up new behavior on next skill invocation. Reinstall `plugin/` to `~/.claude/plugins/marketplaces/local-desktop-app-uploads/aria-knowledge/` per usual; no config migration needed.
+
+### Upgrade notes
+
+- **Reinstall required:** copy `plugin/` to `~/.claude/plugins/marketplaces/local-desktop-app-uploads/aria-knowledge/` to pick up the skill changes.
+- **No template diff on `/setup`:** the edits are skill-internal; `plugin/template/` is unchanged.
+- **No Rule 22 hook change:** the v2.10.3 hook text is unchanged. The v2.11.x candidate strengthening (captured in `ideas-backlog.md`) is future work.
+- **Empty-state output verification:** next run of `/audit-knowledge`, `/audit-config`, or `/stats` on a clean baseline should emit zero-state lines/counts explicitly — if you see collapsed or prose-style summaries instead, the skill didn't reload.
+
 ## [2.10.3] - 2026-04-18
 
 Patch release. Replaces the day-only `/audit-knowledge` trigger with activity-driven OR-logic and tiered messaging. The prior 3-day cadence mis-fired in both directions — prompting on empty backlogs during low-activity weeks, and staying silent through high-activity days where backlogs had already crossed the reviewable ceiling. This release makes backlog-entry count the primary trigger and keeps elapsed-days as a safety net for silent-drift periods. No breaking changes: existing configs keep working; the new field takes its default (20) when absent.

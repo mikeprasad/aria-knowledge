@@ -53,6 +53,8 @@ Check `.claude/*.local.md` files:
 
 Find all CLAUDE.md files recursively in the current working directory.
 
+Expand via Glob first, then issue Read calls for all found CLAUDE.md files in a single parallel tool-use block. Validation checks run in the main thread after reads complete.
+
 For each file, check:
 - **File references** — do referenced files/paths actually exist?
 - **Cross-references** — do pointers to other CLAUDE.md files resolve?
@@ -71,7 +73,11 @@ Read the `{knowledge_folder}` directory structure and verify:
 - `{knowledge_folder}/decisions/` — check if pending decisions in backlog have been waiting more than 2 audit cycles
 - `{knowledge_folder}/guides/` — verify subdirectory READMEs exist if subdirectories are present
 
+Resolve the knowledge-folder glob patterns via Glob first, then issue Read calls for all resolved files in a single parallel tool-use block. Structural verification runs in the main thread after reads complete.
+
 ## Step 5: Check PROGRESS.md Files
+
+Glob for PROGRESS.md files first, then Read all found files in a single parallel tool-use block.
 
 For each PROGRESS.md file found in the current working directory:
 - Note the date of the last session entry
@@ -81,6 +87,8 @@ For each PROGRESS.md file found in the current working directory:
 ## Step 6: Present Findings
 
 Present results organized by severity:
+
+**Output policy:** emit every severity section defined in the format below, even when all sections resolve to "None". Zero-finding audits are informational signals that the audit actually ran the checks — do not collapse the structured report into a one-line "no issues" summary. "Healthy (no issues)" should always list the areas that passed cleanly, not be omitted even when all four severity sections are empty.
 
 ```
 ## Config & Docs Audit Results (YYYY-MM-DD)

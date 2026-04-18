@@ -150,6 +150,8 @@ After the user reviews findings in Step 7:
 
 Read all `.md` files in `~/.claude/projects/` memory directories for the current project (excluding `MEMORY.md` itself).
 
+Issue Read calls for all matching files in a single parallel tool-use block. A/B/C categorization runs in the main thread after all reads complete — do not categorize file-by-file serially.
+
 **If the directory does not exist or contains no `.md` files:** report "No memory files found for the current project" in the Step 6 summary and skip to Step 4. Do not silently omit this section.
 
 For each file, categorize:
@@ -160,6 +162,8 @@ For each file, categorize:
 ## Step 4: Scan Plan Files
 
 Read all files in `~/.claude/plans/`.
+
+Issue Read calls for all plan files in a single parallel tool-use block. Categorization runs in the main thread after reads complete.
 
 **If the directory does not exist or contains no files:** report "No plan files found" in the Step 6 summary and skip to Step 5. Do not silently omit this section.
 
@@ -172,6 +176,8 @@ Apply the same A/B/C categorization. Most plans are Category B (implementation-s
 ## Step 5: Cross-Reference with Knowledge Repository
 
 Read the existing knowledge files to avoid duplicates:
+
+Expand the glob patterns first (via Glob), then issue Read calls for all resolved files in a single parallel tool-use block. These file contents feed Steps 5b (integrity lint) and 5c (cross-reference) — do not re-read in those steps.
 
 ```
 {knowledge_folder}/README.md
@@ -186,7 +192,7 @@ Also check project-level CLAUDE.md and docs files in the current working directo
 
 ## Step 5b: Lint Knowledge Integrity
 
-Using the knowledge files already read in Step 5, scan for internal problems across the existing knowledge base. This is not about what's missing — it's about what's broken or disconnected in what we already have.
+Using the knowledge files already read in Step 5 (do not re-read), scan for internal problems across the existing knowledge base. This is not about what's missing — it's about what's broken or disconnected in what we already have.
 
 Check for:
 
@@ -348,6 +354,8 @@ If candidates are detected but the user declines all promotions, note in Step 8'
 
 Present a table with ALL files scanned and their category. Only show details for Category C items.
 
+**Output policy:** emit every subsection defined below. Subsections with no findings must emit an explicit zero-state line (e.g., "**Pending Insights:** 0 — none pending.") rather than being omitted. The four subsections that explicitly permit silent omission (Pre-Compact Captures, Codemap Staleness, Codemap Coverage, Shared-Block Drift) are conditional-on-feature-presence — they omit when the feature doesn't apply to this project, not when findings are empty. Do not collapse or shorten the structured report in pursuit of brevity — empty sections with zero-count confirmations are informational signals that the audit ran the check.
+
 Format:
 
 ```
@@ -367,6 +375,8 @@ For each insight entry:
 - **Date / Project / Context:** from the entry header
 - **Insight:** the bullet points
 - **Suggested location:** where in the knowledge folder it should go (or "clear" if not worth keeping)
+
+If none: emit "**Pending Insights:** 0 — none pending."
 
 ### Pending Ideas (from ideas-backlog.md)
 
@@ -408,6 +418,8 @@ For each decision entry:
 - **Decision:** what was decided and why
 - **Recommendation:** promote to ADR in `{knowledge_folder}/decisions/` (with suggested filename) or "clear" if already captured elsewhere
 
+If none: emit "**Pending Decisions:** 0 — none pending."
+
 ### Pre-Compact Captures (from intake/pre-compact-captures/)
 
 For each snapshot with extractable content:
@@ -438,6 +450,8 @@ Before defaulting to cross-project locations, check the item's tags or content f
 3. If neither tag nor content indicates a specific project, default to the cross-project tree (`approaches/`, `decisions/`, etc.) as before.
 
 This biases new promotions toward project subfolders when the evidence is single-project, leaving the cross-project tree for genuinely cross-cutting knowledge.
+
+If none: emit "**Category C Items:** 0 — all scanned files were Category A or B."
 
 ### Integrity Issues (from Step 5b)
 
@@ -564,6 +578,8 @@ For each cross-reference found:
 - **Backlog entry:** which entry triggered the match
 - **Existing file:** which promoted doc it overlaps with
 - **Recommendation:** update existing, create new alongside, or review existing for staleness
+
+If none: emit "**Cross-Reference Findings:** 0 — no overlaps detected against promoted docs."
 
 ## Step 7: Wait for User Review
 

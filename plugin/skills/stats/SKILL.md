@@ -72,6 +72,8 @@ These suggest areas where knowledge capture hasn't started yet.
 
 Output in this format:
 
+**Output policy:** emit every section defined in the format below with all fields, even when counts are zero. Zero counts are meaningful data points — "Pending insights: 0" confirms the backlog is clear, "Stale files: 0" confirms the index is current. Do not collapse the dashboard into prose or shorten sections for brevity — the structured format is the skill's value, enabling trend comparison across runs. The Index Health and Coverage Gaps sections have explicit conditional branches embedded in the template; all other sections are always-emit.
+
 ```
 ## Knowledge Stats
 

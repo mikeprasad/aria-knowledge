@@ -43,6 +43,8 @@ For each source file or URL:
 
 For directories, process files in alphabetical order.
 
+For multi-file sources (directory or glob), issue Read calls for all files in a single parallel tool-use block. Content scanning in Step 3 runs in the main thread after reads complete. Exception: URL sources are fetched individually via WebFetch since each request is a network operation.
+
 ## Step 3: Scan for Knowledge
 
 Review each source for the same five categories as `/extract`:
@@ -75,6 +77,8 @@ Review each source for the same five categories as `/extract`:
 **Be selective** — not every paragraph is knowledge. Focus on content that would help future sessions: patterns, decisions, constraints, and non-obvious information. Skip boilerplate, auto-generated content, and implementation details that are better found by reading the code directly.
 
 ## Step 4: Deduplicate
+
+Issue Read calls for the three backlog files AND `{knowledge_folder}` scan targets in a single parallel tool-use block. Dedup comparison runs in the main thread after reads complete.
 
 For each finding, check against:
 1. Existing entries in `{knowledge_folder}/intake/insights-backlog.md`
