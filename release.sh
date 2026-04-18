@@ -73,7 +73,7 @@ rsync -a \
     "$STAGING/$PLUGIN_NAME/"
 
 # --- zip --------------------------------------------------------------------
-ZIP_PATH="$REPO_ROOT/$PLUGIN_NAME-$PLUGIN_VERSION.zip"
+ZIP_PATH="$REPO_ROOT/$PLUGIN_NAME-plugin-$PLUGIN_VERSION.zip"
 [[ -f "$ZIP_PATH" ]] && warn "overwriting existing $ZIP_PATH"
 
 log "zipping: $(basename "$ZIP_PATH")"
