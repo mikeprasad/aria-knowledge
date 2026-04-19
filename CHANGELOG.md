@@ -2,6 +2,46 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## [2.10.5] - 2026-04-20
+
+Patch release. Replaces instructional Rule 22 enforcement with compliance-detecting mechanism. The v2.10.1 PreToolUse hook emitted "output retroactively AND prospectively" as an unconditional directive because the hook text claimed the platform gave hooks "no preventive authority." This claim was incorrect — PreToolUse hooks can return `permissionDecision: "deny"` to block the tool call. Under Claude 4.7's literal reading of ambiguous instructions, the "AND" clause was applied unconditionally, causing duplicate block emission per edit (one prospective above, one retroactive after, one prospective for next). Diagnosed in a live 4.7 session on 2026-04-20 after ~15 edits accrued ~3-6k wasted tokens. This release makes the retroactive path unreachable by construction: the PreToolUse hook now parses the current assistant turn's transcript, looks for a `[Rule 22]` marker, and denies with recovery instructions if absent. There is no code path in which compliance is satisfied after the edit lands, so the instruction ambiguity that drove duplication no longer exists.
+
+### Changed — `plugin/bin/pre-edit-check.sh` rewrite
+
+Full rewrite. Preserves all v2.10.x path-classification logic (planning path, protected basenames, knowledge-folder conditional protection, critical paths, batch-manifest layers 3a/3b/3c/4/5). Adds compliance detection: parses `transcript_path` for the assistant message containing the current `tool_use_id`, scans text blocks preceding the tool_use for regex `\[Rule 22(\s·\s[^\]]+)?\]`. On match, exits silently (no `additionalContext` emission — compliant path is now zero-noise). On miss, emits `permissionDecision: "deny"` with a concise recovery message naming the expected format for the matched variant (planning / batch / full). Fail-open on every detector error path: unreadable transcript, malformed JSONL, missing `tool_use_id`, or python exception all fall through to allow rather than block.
+
+### Changed — `plugin/bin/post-edit-check.sh` scope marker
+
+Scope-check output format updated to `[Rule 22 · Scope] PASS — ...`, `[Rule 22 · Scope] PASS CONDITIONAL — ...`, `[Rule 22 · Scope] FAIL — ...` (planning branch: `[Rule 22 · Scope] OK — planning doc.`). Marker is symmetric with pre-edit compliance blocks — same regex, same readability. Hook logic (path classification, protection detection) unchanged.
+
+### Changed — `plugin/template/rules/change-decision-framework.md` harmonization
+
+Three classes of edit: (1) "Ordering (required)" opening paragraphs rewritten — the "hook has no preventive authority" claim is replaced with the accurate v2.10.5 mechanism description including marker format + `permissionDecision: "deny"` behavior; (2) "The hook can only be satisfied retroactively" rationalization subsection marked historical — retained per Rule 6 archive principle (the rationalization was real in v2.10.1–v2.10.4 sessions; naming it preserves institutional memory for future instruction-design patches); (3) marker convention note added to "Required Output Formats" section; all format templates and examples (Impact headers + Scope pass/fail lines) prefixed with `[Rule 22]` / `[Rule 22 · Scope]` so doc and hook teach the same format.
+
+### New — marker convention
+
+Every Rule 22 compliance block starts with `[Rule 22]` or `[Rule 22 · <variant>]` on its header line:
+
+- `[Rule 22] Low Impact — ...` (full low-impact block)
+- `[Rule 22] High Impact — ...` (full high-impact 7-step block)
+- `[Rule 22 · Planning] <file>` (planning-path abbreviated)
+- `[Rule 22 · Batch N/M] <file> per declared scope.` (batch-manifest compressed)
+- `[Rule 22 · Scope] PASS | PASS CONDITIONAL | FAIL — ...` (post-edit scope check)
+
+The marker serves two purposes: (1) unambiguously signals the block as a compliance artifact so the hook's detector has zero false positives / negatives in prose that mentions Rule 22; (2) gives readers a greppable anchor when auditing sessions for compliance history.
+
+### Resolved from v2.10.4 deferrals
+
+The v2.10.4 CHANGELOG deferred "Rule 22 hook text strengthening (v2.11.x candidate)" pending observed drift. Drift emerged in a 2026-04-20 session where 4.7 emitted the retroactive block unconditionally. The structural fix shipping here supersedes the instruction-wording strengthening originally sketched in `knowledge/intake/ideas-backlog.md` — rather than reinforcing language in the instruction, the mechanism is changed so the ambiguous instruction is no longer reachable. That ideas-backlog entry can be closed on next `/audit-knowledge`.
+
+### Upgrade notes
+
+- **Reinstall required:** copy `plugin/` to `~/.claude/plugins/marketplaces/local-desktop-app-uploads/aria-knowledge/` to pick up the hook rewrite. Sessions running the pre-v2.10.5 hook continue to behave as before (retroactive-AND-prospective instruction fires, duplicate blocks possible); only reinstalled sessions get the deny-on-miss mechanism.
+- **No config migration:** no new fields in `~/.claude/aria-knowledge.local.md`. Existing configs continue to work unchanged.
+- **First-edit teaching moment for Claude-in-flight:** immediately after reinstall, the first Edit/Write in any session will be denied if Claude hasn't yet emitted a `[Rule 22]` marker. The deny message includes the expected format template; Claude self-recovers within one retry. No user action required.
+- **Template diff on `/setup`:** `plugin/template/rules/change-decision-framework.md` changed; `/setup` will present a diff prompt on next run. Accept to take the v2.10.5 teaching content; decline to keep a customized local copy (and note that the marker convention applies regardless of which version of the doc is loaded — enforcement is hook-side, not doc-side).
+- **Examples now use the marker:** if you had copied an older example block as a snippet or template, update the first line to include `[Rule 22]` before re-using it.
+
 ## [2.10.4] - 2026-04-18
 
 Patch release. Applies Opus 4.7 best-practices guidance to ARIA's bulk-scan and bulk-output skills. Two distinct changes landed: (1) explicit parallel-Read directives in skills that read multiple files per step — 4.7's less-eager tool use would otherwise serialize these under the new defaults, doubling per-step I/O latency and token consumption; (2) top-level output policy guards + per-section zero-state rules in skills producing structured reports — 4.7's adaptive response-length behavior would otherwise silently collapse empty sections that are actually informational signals ("0 integrity issues detected" confirms the audit ran the check). All edits are skill-markdown directives; no behavior/schema/hook/API changes. No config migration required.

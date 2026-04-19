@@ -98,7 +98,9 @@ If any answer is no, flag the issue before proceeding.
 
 The Low/High Impact assessment MUST appear in the **same assistant turn as the tool call, above the tool invocation**. Not below. Not in the next turn.
 
-The pre-edit check fires via a PreToolUse hook whose `additionalContext` is delivered **alongside the tool result**, not before the tool runs. Claude Code's tool lifecycle gives the hook no preventive authority — it can only inject context that Claude reads after the edit has landed. That constraint makes the ordering discipline Claude-side, not hook-side: the assessment must be written proactively, before invoking the tool, not retroactively as cleanup once the hook prompts.
+Every compliance block is marked with a `[Rule 22]` prefix on its header line — `[Rule 22] Low Impact —`, `[Rule 22] High Impact —`, `[Rule 22 · Planning] <file>`, or `[Rule 22 · Batch N/M] <file>`. The marker unambiguously identifies the block as a compliance artifact (not prose about Rule 22) and is the detection target for the PreToolUse hook.
+
+As of v2.10.5, the PreToolUse hook enforces ordering structurally. It parses the current assistant turn's transcript for the `[Rule 22...]` marker in text blocks preceding the Edit/Write tool_use. If the marker is present, the hook allows silently. If absent, the hook returns `permissionDecision: "deny"` with a recovery message naming the expected format, and Claude must retry — this time emitting the block first. The retroactive output path is **unreachable by design** — there is no code path in which Rule 22 compliance is satisfied after the edit lands. The discipline is mechanism-enforced, not Claude-side.
 
 ### WRONG (retroactive — the assessment rationalizes the write after it happened)
 
@@ -108,9 +110,9 @@ Let me fix that line.
 [Edit tool call: df/CLAUDE.md — removes line 51]
 [tool result + hook-injected CHANGE DECISION CHECK reminder]
 
-Low Impact — remove aspirational line from df/CLAUDE.md.
+[Rule 22] Low Impact — remove aspirational line from df/CLAUDE.md.
 Change — Delete line per cleanup. Solutions — (1) remove [clean]. Execute — done.
-Scope PASS — only target line removed.
+[Rule 22 · Scope] PASS — only target line removed.
 ```
 
 The edit has already landed. The assessment is performative — there's no way for it to change the decision.
@@ -119,14 +121,14 @@ The edit has already landed. The assessment is performative — there's no way f
 
 ```
 [assistant turn]
-Low Impact — remove aspirational line from df/CLAUDE.md (doc-only, no behavior).
+[Rule 22] Low Impact — remove aspirational line from df/CLAUDE.md (doc-only, no behavior).
 Change — Delete "Goal: zero cx- classes remaining at v1.0." line + blank line, per approved cleanup.
 Solutions — (1) remove line + blank [clean]; (2) keep line, add tracker [rejected: no tracker]; (3) reword [rejected: not scope].
 Execute — Edit removes both lines. Scope: df/CLAUDE.md only. No secondary impact.
 [Edit tool call: df/CLAUDE.md — removes line 51]
 [tool result + hook-injected reminder]
 
-Scope PASS — only target lines removed; cx- migration section preserved.
+[Rule 22 · Scope] PASS — only target lines removed; cx- migration section preserved.
 ```
 
 The assessment precedes the tool call. If Validate or Execute flags, the edit doesn't happen — which is the whole point of the framework.
@@ -149,7 +151,7 @@ In discuss-then-edit cadences (user proposes → Claude verifies → they decide
 
 ### "The hook can only be satisfied retroactively"
 
-The hook text says *"Output the assessment retroactively now AND put the next edit's block before the tool call."* The AND clause is the actual requirement — retroactive output is recovery, not method. If you find yourself concluding "the only way to satisfy the hook is after the edit," you are reading only half the instruction. Output retroactively for the current edit; prospectively for the next.
+Historical — no longer possible as of v2.10.5. The PreToolUse hook now denies the Edit/Write with `permissionDecision: "deny"` when the `[Rule 22]` marker is missing, so the edit has not yet landed when Claude receives feedback. The only valid path is prospective: emit the block, then invoke the tool. This subsection is retained because the rationalization surfaced repeatedly in v2.10.1–v2.10.4 sessions under Claude 4.7 (the "retroactive AND prospective" instruction was read as unconditional, causing duplicate blocks per edit) — naming it here lets the memory survive the mechanism change, so future instruction-design patches can check against this failure mode.
 
 ### "This is a docs-only / in-review / routine edit"
 
@@ -171,13 +173,15 @@ The hooks require Claude to output specific formats. This ensures every step is 
 
 > The examples below are from a real CSS framework project. Replace file names and scenarios with your own — the format and reasoning structure are what matter.
 
+> **Marker convention (v2.10.5+):** every compliance block starts with `[Rule 22]` or `[Rule 22 · <variant>]` on its header line. Variants: `[Rule 22] Low Impact —`, `[Rule 22] High Impact —`, `[Rule 22 · Planning] <file>`, `[Rule 22 · Batch N/M] <file>`. Post-edit scope lines use `[Rule 22 · Scope] PASS/CONDITIONAL/FAIL — ...`. The PreToolUse hook detects this marker via regex; omitting it causes `permissionDecision: "deny"` on the Edit/Write and forces a retry with the block emitted first. The marker is additive — the rest of the format (Change / Solutions / Execute, etc.) is unchanged. Templates and examples below show the marker inline.
+
 ---
 
 ### High Impact — Pre-Edit
 
 **Format (pass):**
 ```
-High Impact — [description of change] ([reason classified as high impact])
+[Rule 22] High Impact — [description of change] ([reason classified as high impact])
 Change — [what is being changed + relevant context]
 Intake — [information gathered to inform the decision]
 Criteria — [objective basis for evaluating solutions]
@@ -189,7 +193,7 @@ Execute — [precise scope of what will be touched, nothing more]
 
 **Format (flag):**
 ```
-High Impact — [description of change] ([reason classified as high impact])
+[Rule 22] High Impact — [description of change] ([reason classified as high impact])
 Change — [what is being changed + relevant context]
 Intake — [information gathered to inform the decision]
 Criteria — [objective basis for evaluating solutions]
@@ -206,7 +210,7 @@ Question: [specific clarification needed before proceeding]
 
 **Example (pass):**
 ```
-High Impact — modifying settings.local.json (sensitive)
+[Rule 22] High Impact — modifying settings.local.json (sensitive)
 Change — lighter check missing secondary impact step
 Intake — current hook text has 3 steps, framework doc has 4
 Criteria — concise, fits hook prompt, consistent with framework doc
@@ -218,7 +222,7 @@ Execute — one edit, append "→ does it affect parents/siblings/dependents?"
 
 **Example (flag):**
 ```
-High Impact — modifying df-input.css base .avatar class
+[Rule 22] High Impact — modifying df-input.css base .avatar class
 Change — need transparent variant for image avatars
 Intake — avatar uses bg-key + p-border-button, combo pattern uses separate modifiers
 Criteria — must not break existing avatar usage, follow combo class pattern
@@ -235,37 +239,37 @@ Proposed: use (b) add .avatar.bordered and .avatar.basic as separate modifier ru
 
 **Format (pass):**
 ```
-Scope Pass — [what was done + why it passes, including secondary status]
+[Rule 22 · Scope] PASS — [what was done + why it passes, including secondary status]
 ```
 
 **Format (pass with secondary):**
 ```
-Scope Pass — [what was done as planned]
+[Rule 22 · Scope] PASS — [what was done as planned]
 Secondary: [what needs attention or review]
 Proposed: [recommended action]
 ```
 
 **Format (fail):**
 ```
-Scope FAIL — [what failed, which check question, what was affected]
+[Rule 22 · Scope] FAIL — [what failed, which check question, what was affected]
 Proposed: [concrete next step to fix]
 ```
 
 **Example (pass):**
 ```
-Scope Pass — appended secondary impact step to lighter check text (no structural changes, takes effect next edit)
+[Rule 22 · Scope] PASS — appended secondary impact step to lighter check text (no structural changes, takes effect next edit)
 ```
 
 **Example (pass with secondary):**
 ```
-Scope Pass — added layout-split rules to df-input.css as planned.
+[Rule 22 · Scope] PASS — added layout-split rules to df-input.css as planned.
 Secondary: docs pages still reference old main.sidebar pattern. ~30 files need migration.
 Proposed: batch migrate docs pages as next step.
 ```
 
 **Example (fail):**
 ```
-Scope FAIL — rewrote base .avatar definition (question 3). Decision was to add modifiers only. All existing avatar usage affected.
+[Rule 22 · Scope] FAIL — rewrote base .avatar definition (question 3). Decision was to add modifiers only. All existing avatar usage affected.
 Proposed: revert base .avatar, add .avatar.bordered and .avatar.basic as separate modifier rules in the combo class section.
 ```
 
@@ -275,7 +279,7 @@ Proposed: revert base .avatar, add .avatar.bordered and .avatar.basic as separat
 
 **Format (pass):**
 ```
-Low Impact — [description of change] ([reason classified as low impact])
+[Rule 22] Low Impact — [description of change] ([reason classified as low impact])
 Change — [what is being changed + intake context + criteria. Does not affect X.]
 Solutions — (a) [best option], (b) [other option]
 Execute — [chosen option]; [scope check, secondary impact check, functional impact]
@@ -283,7 +287,7 @@ Execute — [chosen option]; [scope check, secondary impact check, functional im
 
 **Format (flag):**
 ```
-Low Impact — [description of change] ([reason classified as low impact])
+[Rule 22] Low Impact — [description of change] ([reason classified as low impact])
 Change — [what is being changed + context that raises concern]
 Solutions — (a) [option], (b) [option]
 Execute — FLAG — [what needs verification or clarification before proceeding]
@@ -292,7 +296,7 @@ Question: [specific question to resolve before choosing a solution]
 
 **Example (pass):**
 ```
-Low Impact — adding alias note to buildguide stack table (additive with no dependents)
+[Rule 22] Low Impact — adding alias note to buildguide stack table (additive with no dependents)
 Change — document .stack as alias for .stack-col. No other related classes found. Does not affect existing classes.
 Solutions — (a) modify existing row description, (b) add new row
 Execute — (a); in scope, no secondary impact, no modification of class function.
@@ -300,7 +304,7 @@ Execute — (a); in scope, no secondary impact, no modification of class functio
 
 **Example (flag):**
 ```
-Low Impact — removing Custom/Other card from cs-builder preview section (content removal)
+[Rule 22] Low Impact — removing Custom/Other card from cs-builder preview section (content removal)
 Change — remove card article element. Parent stack-col wrapper has 3 children, will have 2.
 Solutions — (a) remove card only, (b) remove card and simplify parent if no longer needed
 Execute — FLAG — need to verify parent wrapper is still needed with 2 children before deciding (a) vs (b).
@@ -313,37 +317,37 @@ Question: should the parent stack-col wrapper remain as-is, or be simplified now
 
 **Format (pass):**
 ```
-Scope Pass — [what was done + why it passes, including secondary status]
+[Rule 22 · Scope] PASS — [what was done + why it passes, including secondary status]
 ```
 
 **Format (pass with secondary):**
 ```
-Scope Pass — [what was done as planned]
+[Rule 22 · Scope] PASS — [what was done as planned]
 Secondary: [what needs attention or review]
 Proposed: [recommended action]
 ```
 
 **Format (fail):**
 ```
-Scope FAIL — [what failed, which check question, what was affected]
+[Rule 22 · Scope] FAIL — [what failed, which check question, what was affected]
 Proposed: [concrete next step to fix]
 ```
 
 **Example (pass):**
 ```
-Scope Pass — added alias note to one table row (no external effects)
+[Rule 22 · Scope] PASS — added alias note to one table row (no external effects)
 ```
 
 **Example (pass with secondary):**
 ```
-Scope Pass — removed Custom/Other card from preview section as decided.
+[Rule 22 · Scope] PASS — removed Custom/Other card from preview section as decided.
 Secondary: parent stack-col wrapper now has 2 children instead of 3. Wrapper still provides gap and content constraint.
 Proposed: keep wrapper as-is — still serves its purpose.
 ```
 
 **Example (fail):**
 ```
-Scope FAIL — also modified the parent wrapper classes while removing the card (question 2). Decision was to remove card only.
+[Rule 22 · Scope] FAIL — also modified the parent wrapper classes while removing the card (question 2). Decision was to remove card only.
 Proposed: revert parent wrapper changes, keep only the card removal.
 ```
 
