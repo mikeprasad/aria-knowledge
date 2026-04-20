@@ -2,6 +2,50 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## [2.10.6] - 2026-04-20
+
+Patch release. Resolves a structural deadlock introduced in v2.10.5 under Claude Opus 4.7: the PreToolUse compliance scanner assumed text and tool_use blocks co-locate in a single assistant message, but 4.7's harness splits them into separate messages, causing every Edit/Write to deny. Diagnosed in a 2026-04-20 session via statistical tally of 51 assistant messages (zero text+tool_use co-location). v2.10.6 replaces same-message scan with turn-scoped walk-back bounded by the previous Edit/Write tool_use or user message — preserves per-edit marker requirement, aligns implementation with the framework doc's "same assistant turn" language. Also bundles four supporting fixes, a new rule (32), and the first test infrastructure for hook contracts.
+
+### Changed â `plugin/bin/pre-edit-check.sh` turn-scoped scanner
+
+The embedded python scanner now walks backward through assistant messages, collecting text blocks until encountering either a previous Edit/Write tool_use (which caps the walk and clears collected blocks from before that cap) or a user message (turn boundary). The walk also handles a prior Edit/Write in the target tool_use's own message by resetting the collection mid-message. Marker regex unchanged; fail-open paths unchanged; deny REASON wording updated to clarify "text output (not thinking)" and "between the previous Edit/Write (if any) and this one" — closing the thinking-block loophole and making the per-edit scope explicit. Verified via three test fixtures (see `tests/`).
+
+### Changed â `plugin/bin/session-start-check.sh` accuracy + guardrails
+
+The RULE 22 ORDERING text at line 192 previously claimed "the PreToolUse hook cannot enforce this; discipline is Claude-side." v2.10.5's `permissionDecision: deny` mechanism made that statement false, and under 4.7's literal reading the contradiction was an active compliance hazard. Rewritten to accurately describe the deny behavior, the per-edit scope ("between the previous Edit/Write and this one"), and four common rationalizations (added "too trivial" to the existing three). Also adds two new guardrails: **TASK BUDGET** (prompts Claude to surface strain symptoms — cut-short responses, deep sessions, compaction warnings — to the user for decision, since Claude Code's UI exposes actual usage to the user but not to the model; explicitly forbids self-defeating `/extract` during strain since the raw transcript persists via PreCompact anyway) and **MEMORY PATHWAY** (routes 4.7's enhanced file-system memory through ARIA's `/clip`, `/extract`, `/intake`, `/audit-knowledge` flow so the knowledge tree stays curated rather than fragmenting into ad-hoc notes).
+
+### Changed â `plugin/bin/post-edit-check.sh` prose trimmed
+
+Non-planning-path `additionalContext` reduced from ~580 to ~515 characters. All five verification questions (scope held, nothing extra touched, no unnecessary rewrites, matches decision, secondary impact) preserved. All three output formats (PASS, PASS CONDITIONAL, FAIL) preserved with full markers. Only redundant prose removed. Saves ~65 chars per edit; scales favorably under 4.7's 1.0â1.35Ã tokenizer inflation.
+
+### Changed â `plugin/bin/task-context-check.sh` case normalization
+
+Index tag extraction now pipes through `tr '[:upper:]' '[:lower:]'` so mixed-case tags in `index.md` (e.g., `### TypeScript`, `### React`) match against task words (which were already lowercased). Prior to this fix, any mixed-case tag was silently never-matched, suppressing context suggestions. Single-pipeline change; no other behavior affected.
+
+### New â Rule 32: Halt on direct contradiction with a written directive
+
+Added to `plugin/template/rules/working-rules.md` (and mirrored in `knowledge/rules/working-rules.md` for this install). If a user request directly contradicts a written directive (rule in `rules/working-rules.md`, instruction in the currently-invoked skill's prompt, or recorded decision under `decisions/` or `projects/{tag}/decisions/`), halt before any tool call, name the contradiction verbatim, and ask for explicit override. Trigger is literal textual contradiction only â perceived expectations and inferred intent don't trigger (handled by Rule 7); scope-creep concerns remain governed by Rule 22. Motivated by 4.7's literal instruction-following: silent resolution of a contradiction masks a disagreement the user may not know exists.
+
+### New â `tests/` directory with hook regression protection
+
+First-ever test infrastructure for ARIA hook contracts. Three fixtures under `tests/fixtures/` capture the 4.7 split-message transcript shape in three scenarios (compliant, non-compliant, second-edit-without-fresh-marker). A repro script at `tests/repros/4-7-split-message.sh` invokes `pre-edit-check.sh` with each fixture and asserts the expected allow/deny outcome. A minimal runner at `tests/run.sh` executes all repros and reports pass/fail. The absence of this infrastructure was identified as the root cause of the v2.10.5 regression (mechanism-shift release without replay validation); future hook changes should add or update fixtures as appropriate.
+
+### Retracted â v2.10.5 "self-recovers within one retry" claim
+
+The v2.10.5 CHANGELOG stated that Claude "self-recovers within one retry" when the deny fires on a missing marker. That claim did not hold under 4.7 â the split-message architecture made every retry produce the same deny outcome, creating an unbounded deny loop. v2.10.6's turn-scoped scan makes the original self-recovery semantic work as intended. The claim is retracted in this release rather than silently corrected, so users reviewing the version history understand why the bug presented differently than the v2.10.5 notes suggested.
+
+### Explicitly rejected â softening LOW-impact post-edit scope check
+
+An external analysis suggested that 4.7's native self-verification makes the post-edit scope check redundant for LOW-impact edits and recommended dropping the required output on that path. This was considered and rejected. Native self-verification is internal reasoning; Rule 22's scope check is an external audit artifact â a grep-able, user-reviewable compliance record. Dropping the LOW-path output would eliminate the audit trail for ~80%+ of edits, defeating Rule 24's process-steps-define-done semantics. The token savings pursued in v2.10.6 come from trimming redundant prose (`post-edit-check.sh` above), not from dropping enforcement surface. Decision captured as ADR 039 at `knowledge/projects/aria/decisions/039-preserve-post-edit-scope-check.md`.
+
+### Upgrade notes
+
+- **Reinstall required:** copy `plugin/` to `~/.claude/plugins/marketplaces/local-desktop-app-uploads/aria-knowledge/` to pick up the hook changes. Sessions running the pre-v2.10.6 hook continue to deadlock under 4.7 until reinstalled.
+- **Template diffs on `/setup`:** `plugin/template/rules/working-rules.md` has a new Rule 32. `/setup` will present a diff prompt on next run. Accept to take Rule 32; decline to keep your customized local copy (and note that Rule 32 applies regardless of which version of the doc is loaded when the user opts to adopt it).
+- **Regression protection:** run `sh tests/run.sh` at `Projects/aria/` to verify the hook scanner behavior on the 4.7 split-message shape. All three cases should pass.
+- **Related references:** `knowledge/projects/aria/references/opus-4-7-aria-compatibility.md` documents the verified 4.7 behaviors this release is designed around and serves as the canonical ARIAâ4.7 design reference.
+- **Deferred to v2.11.x:** `config.sh` sed batching (CPU, not 4.7-specific), usage-monitor hook (automatic token-usage observation via transcript sum), post-edit scope-check structural enforcement (Scenario E gap), Bash-write detection (Scenario C gap).
+
 ## [2.10.5] - 2026-04-20
 
 Patch release. Replaces instructional Rule 22 enforcement with compliance-detecting mechanism. The v2.10.1 PreToolUse hook emitted "output retroactively AND prospectively" as an unconditional directive because the hook text claimed the platform gave hooks "no preventive authority." This claim was incorrect — PreToolUse hooks can return `permissionDecision: "deny"` to block the tool call. Under Claude 4.7's literal reading of ambiguous instructions, the "AND" clause was applied unconditionally, causing duplicate block emission per edit (one prospective above, one retroactive after, one prospective for next). Diagnosed in a live 4.7 session on 2026-04-20 after ~15 edits accrued ~3-6k wasted tokens. This release makes the retroactive path unreachable by construction: the PreToolUse hook now parses the current assistant turn's transcript, looks for a `[Rule 22]` marker, and denies with recovery instructions if absent. There is no code path in which compliance is satisfied after the edit lands, so the instruction ambiguity that drove duplication no longer exists.

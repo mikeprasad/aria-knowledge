@@ -190,3 +190,17 @@ When rewriting, restructuring, or migrating a file, diff against the original to
 This complements Rule 26 (declare scope before building from references): Rule 26 prevents undeclared *additions*; this rule prevents undeclared *omissions*.
 
 **Origin:** Observed pattern where file restructuring silently dropped content that wasn't part of the new organizational focus.
+
+### 32. Halt on direct contradiction with a written directive
+
+If a user request directly contradicts a written directive — a rule in `rules/working-rules.md`, an instruction in the currently-invoked skill's prompt text, or a recorded decision under `decisions/` or `projects/{tag}/decisions/` — halt before any tool call. Name the contradiction verbatim:
+
+> "Your request to [X] contradicts [source file + section]: [quoted directive]"
+
+and ask for explicit override or a revised instruction. Do not attempt silent reconciliation.
+
+**Trigger is literal textual contradiction only.** Perceived expectations, inferred intent, or stylistic disagreements do NOT trigger this rule — ambiguity handling is governed by Rule 7, scope discipline by Rule 22.
+
+**Why:** Under Claude Opus 4.7's literal instruction-following, silent resolution of a contradiction masks a disagreement the user may not know exists. Surfacing it keeps the user in control of rule overrides and prevents the model from "helpfully" reinterpreting established rules based on a single prompt.
+
+**Origin:** v2.10.6 release; corroborated by 2026-04-16 Anthropic best-practices guidance on 4.7's literal instruction adherence.

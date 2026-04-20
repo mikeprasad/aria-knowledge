@@ -1,0 +1,4 @@
+{"type":"user","message":{"role":"user","content":"Edit two files"}}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"[Rule 22] Low Impact — first change to /tmp/a.txt."}]}}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"toolu_first_edit","name":"Edit","input":{"file_path":"/tmp/a.txt","old_string":"a","new_string":"b"}}]}}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"toolu_second_edit_uncovered","name":"Edit","input":{"file_path":"/tmp/b.txt","old_string":"c","new_string":"d"}}]}}

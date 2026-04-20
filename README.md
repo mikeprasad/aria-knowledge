@@ -138,11 +138,18 @@ Pick the tool that matches the actual pain:
 
 ARIA skills vary in how much they benefit from stronger models. These are recommendations only — nothing is enforced. Switch per session via `/model` before running a skill.
 
-- **Opus 4.7, high effort** — `/extract`, `/audit-knowledge`, `/audit-config`. Judgment-heavy: deciding what's load-bearing vs. noise, cross-referencing backlogs against the promoted index, detecting drift across configs. A weaker model over-captures (backlog noise) or under-captures (misses non-obvious feedback).
+- **Opus 4.7, xhigh effort** — `/extract`, `/audit-knowledge`, `/audit-config`. Judgment-heavy: deciding what's load-bearing vs. noise, cross-referencing backlogs against the promoted index, detecting drift across configs. A weaker model over-captures (backlog noise) or under-captures (misses non-obvious feedback). Per Anthropic's 4.7 best-practices, `xhigh` is the recommended default for Claude Code coding work under 4.7; ARIA's compliance discipline benefits from the extra reasoning budget (more reliable Low/High assessments, less tool-call skipping on audit skills).
 - **Opus 4.6 (1M context) minimum** — `/codemap create`. Full-repo traversal needs the large context window so sections aren't truncated mid-generation.
 - **Sonnet 4.6** — `/codemap update/section`, `/wrapup`, `/intake`, `/ask` (scoped lookups), `/distill`, `/stitch`, and all lightweight skills (`/index`, `/stats`, `/backlog`, `/rules`, `/context`, `/clip`, `/help`, `/setup`). Structured or retrieval-only work — higher models add no measurable lift.
 
 Haiku is not recommended for any ARIA skill. See `/help` for the full table.
+
+### Opus 4.7: batch manifests for multi-file work
+
+Under Opus 4.7's tokenizer (1.0–1.35× inflation vs 4.6) and adaptive thinking token budgets, multi-file refactors benefit from declaring a **batch manifest** via `/distill` with the group loader. A batch manifest compresses each in-scope file's Rule 22 assessment to the `[Rule 22 · Batch N/M]` marker, preserving enforcement while significantly reducing per-edit token cost. Structural signals (auth, migration, model, routing, external-service paths) still override the batch low-impact declaration automatically. For 3+ file refactors, declare a batch manifest before starting edits.
+
+See `knowledge/projects/aria/references/opus-4-7-aria-compatibility.md` for the full list of verified 4.7 behaviors ARIA is designed around.
+
 
 ## Known Issues
 

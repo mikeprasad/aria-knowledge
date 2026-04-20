@@ -61,7 +61,7 @@ fi
 
 # Extract tag headers from the Tag Index section of index.md
 # Tags appear as "### tagname" lines after "## Tag Index"
-TAG_SECTION=$(sed -n '/^## Tag Index$/,/^## /p' "$INDEX_FILE" | grep '^### ' | sed 's/^### //')
+TAG_SECTION=$(sed -n '/^## Tag Index$/,/^## /p' "$INDEX_FILE" | grep '^### ' | sed 's/^### //' | tr '[:upper:]' '[:lower:]')
 
 if [ -z "$TAG_SECTION" ]; then
   exit 0

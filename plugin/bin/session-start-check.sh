@@ -1,6 +1,13 @@
 #!/bin/sh
 # session-start-check.sh — SessionStart hook for aria-knowledge
-# Checks audit cadences and prompts when audits are due
+# Checks audit cadences and prompts when audits are due.
+#
+# v2.10.6: RULE 22 ORDERING text rewritten to describe v2.10.5+ deny mechanism
+# accurately (the v2.10.5 wording claimed "hook cannot enforce" which
+# contradicted the new structural enforcement). Added TASK BUDGET guardrail
+# (prompts Claude to surface strain symptoms to the user who has UI-side
+# visibility) and MEMORY PATHWAY guardrail (routes 4.7's enhanced
+# file-system memory through ARIA's intake/extract/clip flow).
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$SCRIPT_DIR/config.sh"
@@ -80,12 +87,6 @@ for _kt_bl in "$KT_KNOWLEDGE_FOLDER/intake/insights-backlog.md" \
               "$KT_KNOWLEDGE_FOLDER/intake/decisions-backlog.md" \
               "$KT_KNOWLEDGE_FOLDER/intake/extraction-backlog.md"; do
   if [ -f "$_kt_bl" ]; then
-    # Count ^### entries below the first --- separator. Matches the counting
-    # convention used by /stats and /backlog skills (entries live after the
-    # frontmatter/intro separator). awk's `print c+0` always emits a single
-    # numeric value (0 if no matches) and exits 0 — avoids the grep -c pitfall
-    # where zero-match exit-1 combined with `|| echo 0` produced two-line output
-    # and crashed arithmetic expansion.
     _kt_n=$(awk '/^---$/{sep++; next} sep>=1 && /^### /{c++} END{print c+0}' "$_kt_bl" 2>/dev/null)
     case "$_kt_n" in
       ''|*[!0-9]*) _kt_n=0 ;;
@@ -94,9 +95,7 @@ for _kt_bl in "$KT_KNOWLEDGE_FOLDER/intake/insights-backlog.md" \
   fi
 done
 
-# Tier boundaries (derived from threshold via fixed +15/+30 offsets). Matches capacity
-# regimes observed empirically: comfortable (<T), workable (T to T+14), cliff (T+15
-# to T+29), must-split (T+30+). Default threshold 20 → 20/35/50.
+# Tier boundaries (derived from threshold via fixed +15/+30 offsets).
 KA_TIER_RECOMMENDED=$((KT_AUDIT_TRIGGER_THRESHOLD + 15))
 KA_TIER_OVERDUE=$((KT_AUDIT_TRIGGER_THRESHOLD + 30))
 
@@ -134,7 +133,6 @@ if [ -n "$DAYS_SINCE_KA" ] && [ "$DAYS_SINCE_KA" -ge "$KT_CADENCE_KNOWLEDGE" ]; 
 fi
 
 # Compose prompt — entry-tier message takes precedence; day-context appended if both fired.
-# Trigger hint (count/threshold/days) is embedded so audit-log Step 1 can record it for tuning.
 if [ -n "$KA_COUNT_MSG" ]; then
   if [ "$KA_DAYS_FIRED" = "true" ]; then
     MESSAGES="${MESSAGES}${KA_COUNT_MSG}(trigger: count=${BACKLOG_COUNT} threshold=${KT_AUDIT_TRIGGER_THRESHOLD}; also ${DAYS_SINCE_KA}d since last audit) Run /audit-knowledge? "
@@ -185,11 +183,18 @@ if [ -n "$LAST_SETUP_DATE" ]; then
   fi
 fi
 
-# Rule 22 ordering — preventive reminder so the rule is in context before the first edit.
-# The PreToolUse hook fires alongside the tool result and cannot block the edit, so ordering
-# discipline is Claude-side. This line states the rule once, up front, so proactive output
-# becomes the default rather than retroactive hook-driven correction.
-MESSAGES="${MESSAGES}RULE 22 ORDERING — The Low/High Impact block must appear ABOVE the Edit/Write tool call in the same assistant turn, never below. The PreToolUse hook cannot enforce this; discipline is Claude-side. Arguments for skipping the block (\"conversation already covered it\", \"docs-only edit\", \"only way to satisfy hook is retroactively\") are all invalid — see rules/change-decision-framework.md sections \"Ordering (required)\" and \"Rationalizations that do not apply\". "
+# Rule 22 ordering — describes v2.10.6 structural enforcement accurately.
+# Replaces the v2.10.4 text that claimed "hook cannot enforce" (historical
+# artifact that contradicted the v2.10.5+ mechanism and misled Opus 4.7's
+# literal reading, per the v2.10.6 change notes).
+MESSAGES="${MESSAGES}RULE 22 ORDERING — The Low/High Impact block must appear ABOVE the Edit/Write tool call in the same assistant turn, never below. As of v2.10.5, the PreToolUse hook structurally enforces this: if the [Rule 22] marker is absent from a text block between the previous Edit/Write and this one, the hook returns permissionDecision: deny and blocks the tool call. Retrying without the marker will deny again. Emit the block prospectively, not retroactively — the only valid path is marker-then-edit. Arguments for skipping ('conversation already covered it', 'docs-only edit', 'routine change', 'too trivial') are all invalid — see rules/change-decision-framework.md 'Ordering (required)' and 'Rationalizations that do not apply'. "
+
+# Task budget awareness (v2.10.6). Claude lacks direct visibility into the
+# thinking token budget or context-window usage; the user sees both in Claude
+# Code's UI. Prompt to surface strain and let the user decide rather than
+# Claude wrapping up autonomously (avoids self-defeating /extract during
+# depletion — raw transcript persists via PreCompact anyway).
+MESSAGES="${MESSAGES}TASK BUDGET — Claude Code's UI shows the user actual token usage and context limits; Claude does not see these directly. If strain symptoms appear (responses cutting short, deep session length, compaction warnings), pause and surface them — offer options (finish the current atomic task, call /aria-knowledge:extract, trigger compaction, or continue) and let the user decide based on what they can see. Don't assume depletion or wrap up autonomously. "
 
 # Knowledge surfacing — prompt Claude to suggest /context after user states task
 INDEX_FILE="$KT_KNOWLEDGE_FOLDER/index.md"
@@ -207,8 +212,13 @@ fi
 
 # Per-task insight batch capture — gated by auto_capture
 if [ "$KT_AUTO_CAPTURE" != "false" ]; then
-  MESSAGES="${MESSAGES}INSIGHT CAPTURE — After completing discrete tasks, batch-append any uncaptured ★ Insight blocks to ${KT_KNOWLEDGE_FOLDER}/intake/insights-backlog.md. Do not capture mid-task — only at task completion boundaries. "
+  MESSAGES="${MESSAGES}INSIGHT CAPTURE — After completing discrete tasks, batch-append any uncaptured \xe2\x98\x85 Insight blocks to ${KT_KNOWLEDGE_FOLDER}/intake/insights-backlog.md. Do not capture mid-task — only at task completion boundaries. "
 fi
+
+# Memory pathway guardrail (v2.10.6). Claude Opus 4.7 has enhanced
+# file-system memory; route that capability through ARIA's pathways so
+# the knowledge tree stays curated rather than fragmenting into ad-hoc notes.
+MESSAGES="${MESSAGES}MEMORY PATHWAY — ARIA is the structured memory pathway for this session. For notes, use /clip (URLs/snippets), /extract (session insights), /intake (bulk imports), /audit-knowledge (promotion). File-system memory is enhanced in 4.7; route it through ARIA to keep the knowledge tree curated. "
 
 # CODEMAP detection — find codemaps in project directories
 CODEMAPS=$(find "$PWD" -maxdepth 2 -name "CODEMAP.md" 2>/dev/null | head -5)

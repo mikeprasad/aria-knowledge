@@ -1,14 +1,18 @@
 #!/bin/sh
 # pre-edit-check.sh — PreToolUse hook for Edit|Write
 #
-# v2.10.5: compliance-detecting blocker. Reads the current assistant turn from
-# transcript_path; if a [Rule 22...] marker appears in a text block preceding
-# the Edit/Write tool_use, allow silently. Otherwise deny with permissionDecision
-# so Claude retries with the block emitted prospectively. This eliminates the
-# duplicate-emission failure mode observed under Claude 4.7 where the v2.10.4
-# "output retroactively AND prospectively" instruction was read as unconditional,
-# causing ~200-400 wasted tokens per edit. The retroactive path is unreachable
-# by construction — there is no "AND" clause to duplicate.
+# v2.10.6: turn-scoped compliance detection. Walks backward through the
+# transcript's assistant messages, collecting text blocks up to (but not
+# including) the previous Edit/Write tool_use or the previous user message —
+# whichever comes first. Scans those text blocks for a [Rule 22...] marker.
+#
+# v2.10.5 scanned `content[:idx]` within a single assistant message. Under
+# Opus 4.7, the harness splits text and tool_use into separate assistant
+# messages, so the same-message scan never found the marker and denied every
+# edit (deadlock). v2.10.6 fixes this by walking turn-scope instead — matching
+# the framework doc's "same assistant turn" semantic. Per-edit requirement is
+# preserved because the walk stops at the previous Edit/Write tool_use, so
+# each edit still needs its own dedicated marker emitted after the prior edit.
 #
 # Decision hierarchy (path classification — unchanged from v2.10.x):
 #   1. Planning path (and not protected)              -> abbreviated variant expected
@@ -24,8 +28,8 @@
 # header line, so a single regex detects compliance across all paths.
 #
 # Safety: fail-open on any detector or parse failure. Never block an edit due
-# to hook error. The worst case degrades to v2.10.4 behavior (allow without
-# enforcement), not to over-blocking.
+# to hook error. The worst case degrades to allow-without-enforcement, not
+# to over-blocking.
 
 INPUT=$(cat)
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -94,8 +98,12 @@ elif [ "$IS_PROTECTED" = "false" ] && [ -z "$SIGNALS" ] && [ -n "$BATCH_MATCH" ]
   EXPECTED="batch"
 fi
 
-# Compliance detection: parse transcript, find this tool_use's assistant message,
-# check text blocks BEFORE the tool_use for the [Rule 22] marker.
+# Compliance detection (v2.10.6): parse transcript, walk BACKWARD through
+# assistant messages from the one containing our tool_use, collecting text
+# blocks until we hit either (a) the previous Edit/Write tool_use, or (b)
+# a user message — whichever is first. Scan those text blocks for the marker.
+# This matches the framework doc's "same assistant turn" semantic, which
+# under 4.7's split-message harness spans multiple assistant messages.
 COMPLIANT="unknown"
 if [ -n "$TRANSCRIPT" ] && [ -n "$TOOL_USE_ID" ] && [ -f "$TRANSCRIPT" ]; then
   COMPLIANT=$(TRANSCRIPT="$TRANSCRIPT" TOOL_USE_ID="$TOOL_USE_ID" python3 - <<'PY' 2>/dev/null
@@ -103,10 +111,15 @@ import json, os, re, sys
 try:
     path = os.environ["TRANSCRIPT"]
     tool_use_id = os.environ["TOOL_USE_ID"]
-    MARKER = re.compile(r"\[Rule 22(\s·\s[^\]]+)?\]")
+    MARKER = re.compile(r"\[Rule 22(\s\xb7\s[^\]]+)?\]")
     with open(path) as f:
         lines = f.readlines()
-    for line in reversed(lines):
+
+    # First pass: find the assistant message containing our tool_use_id.
+    # Record its line index and the position of the tool_use within its content.
+    target_line_idx = None
+    target_content_idx = None
+    for i, line in enumerate(lines):
         try:
             evt = json.loads(line)
         except Exception:
@@ -116,20 +129,85 @@ try:
         content = evt.get("message", {}).get("content", [])
         if not isinstance(content, list):
             continue
-        idx = None
-        for i, b in enumerate(content):
+        for j, b in enumerate(content):
             if isinstance(b, dict) and b.get("type") == "tool_use" and b.get("id") == tool_use_id:
-                idx = i
+                target_line_idx = i
+                target_content_idx = j
                 break
-        if idx is None:
-            continue
-        for b in content[:idx]:
-            if isinstance(b, dict) and b.get("type") == "text" and MARKER.search(b.get("text", "")):
-                print("yes")
-                sys.exit(0)
-        print("no")
+        if target_line_idx is not None:
+            break
+
+    if target_line_idx is None:
+        print("unknown")
         sys.exit(0)
-    print("unknown")
+
+    # Second pass: walk backward collecting text blocks from the turn window.
+    # Turn window = from target tool_use back to either the previous Edit/Write
+    # tool_use or a user message (whichever is encountered first).
+    #
+    # Within the target message, scan content[:target_content_idx] for text
+    # blocks and also check for a previous Edit/Write tool_use that would
+    # cap the walk early.
+    found_prior_edit_in_target_msg = False
+    text_blocks = []
+
+    target_evt = json.loads(lines[target_line_idx])
+    target_content = target_evt["message"]["content"]
+    for b in target_content[:target_content_idx]:
+        if isinstance(b, dict):
+            if b.get("type") == "tool_use" and b.get("name") in ("Edit", "Write"):
+                # A prior Edit/Write in the same message caps the walk.
+                # Reset collected text blocks (none of them belong to this edit).
+                text_blocks = []
+                found_prior_edit_in_target_msg = True
+            elif b.get("type") == "text":
+                text_blocks.append(b.get("text", ""))
+
+    # If the target message didn't already cap the walk, walk backward through
+    # prior lines until we hit a user message or a previous Edit/Write tool_use.
+    if not found_prior_edit_in_target_msg:
+        for i in range(target_line_idx - 1, -1, -1):
+            try:
+                evt = json.loads(lines[i])
+            except Exception:
+                continue
+            evt_type = evt.get("type")
+            if evt_type == "user":
+                # Hit the turn boundary going backward.
+                break
+            if evt_type != "assistant":
+                continue
+            content = evt.get("message", {}).get("content", [])
+            if not isinstance(content, list):
+                continue
+            # Walk this message's content in order. If it contains a prior
+            # Edit/Write, only text blocks AFTER that Edit/Write belong to
+            # our current turn window. Since we're walking backward across
+            # messages but forward within each message, we collect this
+            # message's blocks into a local list, then prepend.
+            msg_text_blocks = []
+            cap_reached = False
+            for b in content:
+                if isinstance(b, dict):
+                    if b.get("type") == "tool_use" and b.get("name") in ("Edit", "Write"):
+                        # Previous Edit/Write — walk stops. Discard anything
+                        # collected BEFORE this Edit/Write in the same message
+                        # (those belong to the prior turn window).
+                        msg_text_blocks = []
+                        cap_reached = True
+                    elif b.get("type") == "text":
+                        msg_text_blocks.append(b.get("text", ""))
+            # Prepend this message's post-cap text blocks to the overall list.
+            text_blocks = msg_text_blocks + text_blocks
+            if cap_reached:
+                break
+
+    # Scan collected text blocks for the marker.
+    for txt in text_blocks:
+        if MARKER.search(txt):
+            print("yes")
+            sys.exit(0)
+    print("no")
 except Exception:
     print("unknown")
 PY
@@ -161,7 +239,7 @@ esac
 SIGNAL_NOTE=""
 [ -n "$SIGNALS" ] && SIGNAL_NOTE=" Structural signals detected (${SIGNALS}) — full assessment required regardless of batch declaration."
 
-REASON="Rule 22 compliance block missing before this Edit/Write. Emit the block ABOVE the tool call in the same assistant turn, then retry the edit.${SIGNAL_NOTE} Expected format for this edit: ${FMT}. See rules/change-decision-framework.md \"Ordering (required)\"."
+REASON="Rule 22 compliance block missing. Emit the [Rule 22] marker as a text output (not thinking) ABOVE this Edit/Write tool call in the same assistant turn, between the previous Edit/Write (if any) and this one. Then retry the same tool call.${SIGNAL_NOTE} Format: ${FMT}. See rules/change-decision-framework.md 'Ordering (required)'."
 REASON_ESCAPED=$(kt_json_escape "$REASON")
 
 printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"%s"}}\n' "$REASON_ESCAPED"

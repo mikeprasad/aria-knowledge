@@ -1,6 +1,10 @@
 #!/bin/sh
 # post-edit-check.sh — PostToolUse hook for Edit|Write
 # Allows abbreviated scope check for planning paths.
+#
+# v2.10.6: non-planning additionalContext trimmed per Draft C.
+# All 5 verification questions and all 3 format templates (PASS, CONDITIONAL,
+# FAIL) preserved. Only redundant prose removed. Saves ~150 chars per edit.
 
 # Read the tool input to get the file path
 INPUT=$(cat)
@@ -34,7 +38,6 @@ if [ "$KT_CONFIGURED" = "true" ] && [ -n "$KT_CRITICAL_PATHS" ] && [ "$IS_PROTEC
   OLD_IFS="$IFS"
   IFS=','
   for PATTERN in $KT_CRITICAL_PATHS; do
-    # Strip trailing /* or *, then trim surrounding whitespace
     PREFIX=$(echo "$PATTERN" | sed 's|/\*$||;s|\*$||;s/^[[:space:]]*//;s/[[:space:]]*$//')
     [ -z "$PREFIX" ] && continue
     case "$FILE_PATH" in
@@ -47,5 +50,5 @@ fi
 if [ "$IS_PLANNING" = "true" ] && [ "$IS_PROTECTED" = "false" ]; then
   echo '{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"PLANNING PATH — abbreviated scope check. Output: [Rule 22 · Scope] OK — planning doc."}}'
 else
-  echo '{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"POST-EDIT SCOPE CHECK — Output this REQUIRED format after edit. Check: (1) Stay in scope? (2) Was anything extra touched? (3) Any unnecessary rewrites? (4) Do changes match decision? (5) Any secondary impact on parents/siblings/dependents? --- PASS: [Rule 22 · Scope] PASS — [brief context why pass, including secondary status]. --- PASS WITH SECONDARY: [Rule 22 · Scope] PASS CONDITIONAL — [what was done as planned]. Then newline: Secondary: [what needs attention]. Then newline: Proposed: [recommended action]. --- FAIL: [Rule 22 · Scope] FAIL — [what failed, what was affected]. Then newline: Proposed: [concrete next step or fix]."}}'
+  echo '{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"POST-EDIT SCOPE CHECK — Required output after every edit. Verify: (1) scope held, (2) nothing extra touched, (3) no unnecessary rewrites, (4) matches decision, (5) secondary impact on parents/siblings/dependents. Output one of: PASS: [Rule 22 · Scope] PASS — [why + secondary status]. CONDITIONAL: [Rule 22 · Scope] PASS CONDITIONAL — [what done as planned]. Newline: Secondary: [attention]. Newline: Proposed: [action]. FAIL: [Rule 22 · Scope] FAIL — [what failed + affected]. Newline: Proposed: [fix]."}}'
 fi
