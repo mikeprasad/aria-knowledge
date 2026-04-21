@@ -138,7 +138,7 @@ Pick the tool that matches the actual pain:
 
 ARIA skills vary in how much they benefit from stronger models. These are recommendations only — nothing is enforced. Switch per session via `/model` before running a skill.
 
-- **Opus 4.7, xhigh effort** — `/extract`, `/audit-knowledge`, `/audit-config`. Judgment-heavy: deciding what's load-bearing vs. noise, cross-referencing backlogs against the promoted index, detecting drift across configs. A weaker model over-captures (backlog noise) or under-captures (misses non-obvious feedback). Per Anthropic's 4.7 best-practices, `xhigh` is the recommended default for Claude Code coding work under 4.7; ARIA's compliance discipline benefits from the extra reasoning budget (more reliable Low/High assessments, less tool-call skipping on audit skills).
+- **Opus 4.6 (1M context), medium-to-high effort** — `/extract`, `/audit-knowledge`, `/audit-config`. Judgment-heavy: deciding what's load-bearing vs. noise, cross-referencing backlogs against the promoted index, detecting drift across configs. A weaker model over-captures (backlog noise) or under-captures (misses non-obvious feedback). ARIA's compliance discipline benefits from the extra reasoning budget (more reliable Low/High assessments, less tool-call skipping on audit skills).
 - **Opus 4.6 (1M context) minimum** — `/codemap create`. Full-repo traversal needs the large context window so sections aren't truncated mid-generation.
 - **Sonnet 4.6** — `/codemap update/section`, `/wrapup`, `/intake`, `/ask` (scoped lookups), `/distill`, `/stitch`, and all lightweight skills (`/index`, `/stats`, `/backlog`, `/rules`, `/context`, `/clip`, `/help`, `/setup`). Structured or retrieval-only work — higher models add no measurable lift.
 
