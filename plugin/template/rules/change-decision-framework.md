@@ -210,27 +210,27 @@ Question: [specific clarification needed before proceeding]
 
 **Example (pass):**
 ```
-[Rule 22] High Impact — modifying settings.local.json (sensitive)
-Change — lighter check missing secondary impact step
-Intake — current hook text has 3 steps, framework doc has 4
-Criteria — concise, fits hook prompt, consistent with framework doc
-Solutions — (a) append to existing text, (b) rewrite full lighter check, (c) add as separate sentence
-Rank — (a) is clear winner; minimal change, stays consistent
-Validate — appending doesn't break existing behavior, matches framework doc
-Execute — one edit, append "→ does it affect parents/siblings/dependents?"
+[Rule 22] High Impact — modify settings.local.json (sensitive file)
+Change — lighter check missing secondary-impact step
+Intake — hook text has 3 steps, framework doc has 4
+Criteria — concise, fits hook prompt, consistent with doc
+Solutions — (a) append, (b) rewrite lighter check, (c) add separate sentence
+Rank — (a); minimal change, stays consistent
+Validate — holds; matches framework doc
+Execute — append "→ parents/siblings/dependents?" to lighter check
 ```
 
 **Example (flag):**
 ```
-[Rule 22] High Impact — modifying df-input.css base .avatar class
+[Rule 22] High Impact — modify df-input.css base .avatar class
 Change — need transparent variant for image avatars
-Intake — avatar uses bg-key + p-border-button, combo pattern uses separate modifiers
-Criteria — must not break existing avatar usage, follow combo class pattern
-Solutions — (a) rewrite base .avatar, (b) add .avatar.bordered modifier, (c) inline override
-Rank — (a) rewrite base to remove bg-key default
-Validate — FLAG — rewriting base breaks all existing avatar usage. Contradicts combo pattern.
-Execute — FLAG — More information or alternatives needed.
-Proposed: use (b) add .avatar.bordered and .avatar.basic as separate modifier rules, keeping base .avatar intact.
+Intake — avatar uses bg-key + p-border-button; combo pattern uses separate modifiers
+Criteria — no break of existing usage, follow combo class pattern
+Solutions — (a) rewrite base, (b) add .avatar.bordered modifier, (c) inline override
+Rank — (a); remove bg-key default
+Validate — FLAG — (a) breaks existing usage, contradicts combo pattern
+Execute — FLAG — needs alternative
+Proposed: (b) .avatar.bordered + .avatar.basic as separate modifiers; keep base intact
 ```
 
 ---
@@ -239,7 +239,7 @@ Proposed: use (b) add .avatar.bordered and .avatar.basic as separate modifier ru
 
 **Format (pass):**
 ```
-[Rule 22 · Scope] PASS — [what was done + why it passes, including secondary status]
+[Rule 22 · Scope] PASS — [secondary status: none / what was reviewed]
 ```
 
 **Format (pass with secondary):**
@@ -257,20 +257,20 @@ Proposed: [concrete next step to fix]
 
 **Example (pass):**
 ```
-[Rule 22 · Scope] PASS — appended secondary impact step to lighter check text (no structural changes, takes effect next edit)
+[Rule 22 · Scope] PASS — no structural changes
 ```
 
 **Example (pass with secondary):**
 ```
-[Rule 22 · Scope] PASS — added layout-split rules to df-input.css as planned.
-Secondary: docs pages still reference old main.sidebar pattern. ~30 files need migration.
-Proposed: batch migrate docs pages as next step.
+[Rule 22 · Scope] PASS — added layout-split rules as planned
+Secondary: ~30 docs pages reference old main.sidebar pattern
+Proposed: batch-migrate docs pages next
 ```
 
 **Example (fail):**
 ```
-[Rule 22 · Scope] FAIL — rewrote base .avatar definition (question 3). Decision was to add modifiers only. All existing avatar usage affected.
-Proposed: revert base .avatar, add .avatar.bordered and .avatar.basic as separate modifier rules in the combo class section.
+[Rule 22 · Scope] FAIL — rewrote base .avatar (Q3); decision was modifiers only; all avatar usage affected
+Proposed: revert base; add .avatar.bordered + .avatar.basic as separate modifiers
 ```
 
 ---
@@ -296,19 +296,19 @@ Question: [specific question to resolve before choosing a solution]
 
 **Example (pass):**
 ```
-[Rule 22] Low Impact — adding alias note to buildguide stack table (additive with no dependents)
-Change — document .stack as alias for .stack-col. No other related classes found. Does not affect existing classes.
-Solutions — (a) modify existing row description, (b) add new row
-Execute — (a); in scope, no secondary impact, no modification of class function.
+[Rule 22] Low Impact — add alias note to stack table (additive, no dependents)
+Change — document .stack as alias for .stack-col; no related classes; no effect on existing
+Solutions — (a) modify existing row, (b) add new row
+Execute — (a); in scope, no secondary, no function change
 ```
 
 **Example (flag):**
 ```
-[Rule 22] Low Impact — removing Custom/Other card from cs-builder preview section (content removal)
-Change — remove card article element. Parent stack-col wrapper has 3 children, will have 2.
-Solutions — (a) remove card only, (b) remove card and simplify parent if no longer needed
-Execute — FLAG — need to verify parent wrapper is still needed with 2 children before deciding (a) vs (b).
-Question: should the parent stack-col wrapper remain as-is, or be simplified now that it has fewer children?
+[Rule 22] Low Impact — remove Custom/Other card from cs-builder preview (content removal)
+Change — remove card article; parent stack-col goes 3 children → 2
+Solutions — (a) remove card only, (b) remove card + simplify parent
+Execute — FLAG — parent wrapper need unclear with 2 children
+Question: keep parent stack-col as-is, or simplify?
 ```
 
 ---
@@ -317,7 +317,7 @@ Question: should the parent stack-col wrapper remain as-is, or be simplified now
 
 **Format (pass):**
 ```
-[Rule 22 · Scope] PASS — [what was done + why it passes, including secondary status]
+[Rule 22 · Scope] PASS — [secondary status: none / what was reviewed]
 ```
 
 **Format (pass with secondary):**
@@ -335,20 +335,20 @@ Proposed: [concrete next step to fix]
 
 **Example (pass):**
 ```
-[Rule 22 · Scope] PASS — added alias note to one table row (no external effects)
+[Rule 22 · Scope] PASS — no external effects
 ```
 
 **Example (pass with secondary):**
 ```
-[Rule 22 · Scope] PASS — removed Custom/Other card from preview section as decided.
-Secondary: parent stack-col wrapper now has 2 children instead of 3. Wrapper still provides gap and content constraint.
-Proposed: keep wrapper as-is — still serves its purpose.
+[Rule 22 · Scope] PASS — removed Custom/Other card as decided
+Secondary: parent stack-col now has 2 children; still provides gap + constraint
+Proposed: keep wrapper as-is
 ```
 
 **Example (fail):**
 ```
-[Rule 22 · Scope] FAIL — also modified the parent wrapper classes while removing the card (question 2). Decision was to remove card only.
-Proposed: revert parent wrapper changes, keep only the card removal.
+[Rule 22 · Scope] FAIL — also modified parent wrapper classes (Q2); decision was remove card only
+Proposed: revert wrapper changes; keep card removal
 ```
 
 ---

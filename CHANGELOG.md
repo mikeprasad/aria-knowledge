@@ -2,6 +2,32 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## [2.11.1] - 2026-04-24
+
+Patch release. Reduces Rule 22 compliance-block verbosity under Claude Opus 4.7 without weakening the forcing function. Driven by observation that 4.7 fills open-ended slot placeholders more expansively than 4.5/4.6 did, multiplied by ARIA's per-edit emission frequency. No hook, regex, doctrine, or enforcement-mechanism changes — the shift is entirely in the template examples and in a single template slot that was duplicating work the pre-edit block already performed.
+
+### Changed — Post-Edit PASS templates collapse to secondary-status clause
+
+Both tiers (High Impact and Low Impact) now use `[Rule 22 · Scope] PASS — [secondary status: none / what was reviewed]` as the pass-format template. Previously the placeholder was `[what was done + why it passes, including secondary status]` — which invited Claude to restate the plan that the pre-edit block had already established. The revised slot keeps the Q5 secondary-impact check visible (which is the post-edit hook's primary discipline) while dropping the "what was done" restatement. This is the biggest per-session saver because post-edit PASS fires on the majority of successful edits. The `pass with secondary` and `fail` templates are unchanged.
+
+### Changed — 10 examples tightened to one-clause grain
+
+All 10 worked examples in `rules/change-decision-framework.md` rewritten to one-clause slot fills. Slot structure, marker format, and decision sequence are unchanged — only the prose inside each slot is compressed. 4.7 length-matches example grain aggressively, so tightening the examples is the lowest-risk behavioral lever: no doctrine added, no placeholder syntax changed, no hook logic touched. Worked examples affected: High pre-edit pass/flag, High post-edit pass/pass-with-secondary/fail, Low pre-edit pass/flag, Low post-edit pass/pass-with-secondary/fail.
+
+### Mechanism preserved
+
+- Marker regex `\[Rule 22(\s·\s[^\]]+)?\]` unchanged — legacy longer blocks from in-flight sessions still validate.
+- Slot structure (Change/Intake/Criteria/Solutions/Rank/Validate/Execute for High; Change/Solutions/Execute for Low) unchanged.
+- Ordering discipline, Rationalizations-that-do-not-apply doctrine, batch-manifest variants, Planning variant, Reference-Based Builds — all unchanged.
+- Post-edit 5-question scope check unchanged; the compressed PASS template surfaces Q5's result inline rather than restating Q1-Q4.
+
+### Upgrade notes
+
+- **Reinstall required:** copy `plugin/` to `~/.claude/plugins/marketplaces/local-desktop-app-uploads/aria-knowledge/` to pick up the framework-doc changes.
+- **Template diff on `/setup`:** `rules/change-decision-framework.md` has example-grain changes and two template-slot changes. Accept to adopt the tighter grain; decline to keep your customized local copy.
+- **No config migration.** No hook changes. No behavior changes beyond what Claude emits in Rule 22 blocks.
+- **Backward compatible:** older sessions mid-way through longer emissions continue to pass the marker regex unchanged.
+
 ## [2.11.0] - 2026-04-21
 
 Minor release. Splits the ideas backlog from a single `intake/ideas-backlog.md` file to per-file storage under `intake/ideas/`. Driven by three observed pain points in the single-file design: (a) `ideas-backlog.md` crossed the Read tool's 25k-token context limit (~1200 lines in production), forcing offset/limit workarounds during audits; (b) "Pattern 21" drift between audit passes — entries logically cleared but physically still in place — was a recurring hygiene burden that only existed because of single-file semantics; (c) HTML-comment cleared-history markers accrued metadata in the content layer that already lived in `logs/knowledge-audit-log.md`. This release moves ideas to one markdown file per idea with YAML frontmatter, glob-driven reads, and delete-on-disposition semantics. Single-file format is retained for `insights-backlog.md`, `decisions-backlog.md`, and `extraction-backlog.md` — those backlogs stay under the threshold because they're cleared every 3-day audit cycle.
