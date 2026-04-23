@@ -4,14 +4,14 @@
 
 This file is for **your** custom rules — project-team conventions, personal working preferences, domain-specific guidelines. ARIA ships and maintains the core plugin rules in `working-rules.md`; this file is yours to own. ARIA never overwrites it, never diffs it, never touches it on `/setup` updates.
 
-## What Belongs Here vs ideas-backlog.md
+## What Belongs Here vs `intake/ideas/`
 
-ARIA captures two kinds of "what should be different" signals during sessions — they route to different files:
+ARIA captures two kinds of "what should be different" signals during sessions — they route to different places:
 
 - **Behavioral observations → HERE.** Patterns Claude has drifted into that you want to prevent in future sessions. *Examples:* "Claude keeps inventing framework labels like 'Batched'", "Claude skips post-edit scope checks on Bash appends", "Claude paraphrases my instructions when executing." These stay resident in ARIA, loaded as session-shaping context indefinitely.
-- **Feature proposals / bug reports / design ideas → `intake/ideas-backlog.md`.** Code, skill, or template changes you want to schedule. *Examples:* "`/setup` should distinguish user-ahead from user-diverged", "Hook matcher should cover Bash file-edit patterns", "Add `additional_signal_patterns` config field." These route out of ARIA to your external tracker (Linear, GitHub Issues, Jira) when ready to ship.
+- **Feature proposals / bug reports / design ideas → `intake/ideas/` (one file per idea).** Code, skill, or template changes you want to schedule. *Examples:* "`/setup` should distinguish user-ahead from user-diverged", "Hook matcher should cover Bash file-edit patterns", "Add `additional_signal_patterns` config field." These route out of ARIA to your external tracker (Linear, GitHub Issues, Jira) when ready to ship.
 
-`/extract` auto-routes based on language signals — behavioral drift verbs ("invented", "spontaneously", "keeps doing") → here; feature-change verbs ("should", "could be better if", "missing handling") → ideas-backlog. If you're filing by hand, follow the same split. For ambiguous cases (an observation that is both a behavioral pattern *and* a code-change proposal), file in both with cross-references.
+`/extract` auto-routes based on language signals — behavioral drift verbs ("invented", "spontaneously", "keeps doing") → here; feature-change verbs ("should", "could be better if", "missing handling") → a new file in `intake/ideas/`. If you're filing by hand, follow the same split. For ambiguous cases (an observation that is both a behavioral pattern *and* a code-change proposal), file in both with cross-references.
 
 ## Why a separate file?
 

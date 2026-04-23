@@ -44,7 +44,7 @@ The timestamp is tracked as the last entry date in the backlogs from this sessio
 - `{knowledge_folder}/intake/insights-backlog.md`
 - `{knowledge_folder}/intake/decisions-backlog.md`
 - `{knowledge_folder}/intake/extraction-backlog.md`
-- `{knowledge_folder}/intake/ideas-backlog.md`
+- `{knowledge_folder}/intake/ideas/` — use the `YYYY-MM-DD` prefix of the most recent `*.md` file (via `ls -1 intake/ideas/*.md | sort -r | head -1`)
 
 If no entries exist from today's date, treat the entire conversation as unscanned.
 
@@ -87,7 +87,7 @@ Review the conversation and categorize findings into six buckets. The first five
 - Design ideas or refactoring proposals not yet scoped for implementation
 - Workflow improvements ("it would help if the tool did X")
 - **Classification signal:** phrases like "should", "could be", "missing handling for", "UX gap", "would help if", "this is broken" typically indicate an idea rather than an observation
-- **Soft routing:** classification is a suggestion, not a hard rule. An item can legitimately be both observation and proposal — if so, put the observation in its appropriate bucket (insights/decisions/etc.) AND a separate entry in ideas-backlog covering just the proposal. The audit step can refine routing if needed.
+- **Soft routing:** classification is a suggestion, not a hard rule. An item can legitimately be both observation and proposal — if so, put the observation in its appropriate bucket (insights/decisions/etc.) AND a separate file in `intake/ideas/` covering just the proposal. The audit step can refine routing if needed.
 
 ## Step 3: Deduplicate
 
@@ -95,7 +95,7 @@ For each finding, check against:
 1. Existing entries in `{knowledge_folder}/intake/insights-backlog.md`
 2. Existing entries in `{knowledge_folder}/intake/decisions-backlog.md`
 3. Existing entries in `{knowledge_folder}/intake/extraction-backlog.md`
-4. Existing entries in `{knowledge_folder}/intake/ideas-backlog.md`
+4. Existing files in `{knowledge_folder}/intake/ideas/*.md` (glob the directory; read frontmatter + body of each to compare)
 5. CLAUDE.md files in the current working directory (root and project-level)
 6. Memory files in `~/.claude/projects/` for the current project
 7. Knowledge files in `{knowledge_folder}/`
@@ -151,23 +151,51 @@ Use this format:
 **Source:** Where in the conversation this came from (brief description)
 ```
 
-### Ideas → `{knowledge_folder}/intake/ideas-backlog.md`
+### Ideas → `{knowledge_folder}/intake/ideas/{YYYY-MM-DD}-{project}-{slug}.md` (one file per idea)
 
-Use this format:
+Ideas use **per-file storage**, not a single append-only backlog. Write one new markdown file per idea under `intake/ideas/`.
+
+**Filename pattern:**
+
+```
+{YYYY-MM-DD}-{project}-{slug}.md
+```
+
+- `YYYY-MM-DD` — today's date (from the conversation's current date, not the OS clock; convert relative dates per Rules)
+- `{project}` — the project tag from Step 0's `current_project`, or an explicit project attribution from the finding, or `cross` for cross-project, or `no-project` if unattributed
+- `{slug}` — kebab-cased short title derived from the idea: lowercase, alphanumerics + hyphens only, truncated to ~60 chars, strip trailing hyphens
+- **On collision** (same date + project + slug already exists): append `-2`, `-3`, etc. to the slug until unique. Check via `ls intake/ideas/` before writing.
+
+Examples:
+- `2026-04-21-aria-force-interactive-index-steps.md`
+- `2026-04-21-cs-builder-extract-shared-postcard.md`
+- `2026-04-21-cross-generalize-build-playbook.md`
+
+**File format (YAML frontmatter + body):**
+
 ```markdown
-### YYYY-MM-DD — [project] — [short title]
-**Type:** feature | bug | design | refactor | workflow
-**Proposal:** What change is being proposed
-**Motivation:** Why it would help (what gap or friction it addresses)
-**Source:** Where in the conversation it came up (brief description)
+---
+date: YYYY-MM-DD
+project: project-tag-or-cross
+type: feature | bug | design | refactor | workflow
+title: Short title matching the filename slug
+---
+
+**Proposal:** What change is being proposed.
+
+**Motivation:** Why it would help (what gap or friction it addresses).
+
+**Source:** Where in the conversation it came up (brief description).
 ```
 
 Ideas do NOT promote to knowledge files — they route out of ARIA to the user's external tracker (Linear, GitHub Issues, Jira, etc.) during audit review.
 
-### Before appending:
-- Remove the "(No pending ...)" placeholder if it exists — replace with the new entries
-- If entries already exist, append below them with a blank line separator
-- **If a backlog file is missing:** do not create it from scratch. Stop and tell the user: "Backlog file [name] is missing. Run /setup to repair the knowledge folder structure."
+### Before writing:
+- For the three single-file backlogs (insights, decisions, extraction): remove any "(No pending ...)" placeholder, then append new entries below existing ones with a blank line separator.
+- For ideas (per-file): write a new file per the filename pattern above; there is no placeholder to remove.
+- **If a single-file backlog is missing:** do not create it from scratch. Stop and tell the user: "Backlog file [name] is missing. Run /setup to repair the knowledge folder structure."
+- **If the `intake/ideas/` directory is missing:** do not create it. Stop and tell the user: "Ideas directory `intake/ideas/` is missing. Run /setup to repair the knowledge folder structure."
+- **Legacy-file detection (one-time):** if `{knowledge_folder}/intake/ideas-backlog.md` exists alongside `intake/ideas/`, surface a one-line note in Step 5's report: "Legacy `ideas-backlog.md` detected — run `/setup` or `bash ${CLAUDE_PLUGIN_ROOT}/bin/migrate-ideas-backlog.sh` to migrate pre-2.11 entries." Do not attempt the migration from within `/extract`.
 
 ## Step 5: Report
 
@@ -181,7 +209,7 @@ After appending, output a brief summary:
 - **Feedback:** N new (appended to extraction-backlog.md)
 - **Project context:** N new (appended to extraction-backlog.md)
 - **References:** N new (appended to extraction-backlog.md)
-- **Ideas:** N new (appended to ideas-backlog.md — route to tracker, not knowledge)
+- **Ideas:** N new (written to intake/ideas/ — one file per idea; route to tracker, not knowledge)
 - **Skipped:** N duplicates
 
 Knowledge staged in backlogs for next audit to review and promote. Ideas staged for routing out to your external tracker.

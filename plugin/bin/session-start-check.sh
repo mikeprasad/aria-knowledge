@@ -79,8 +79,8 @@ fi
 # Check knowledge audit cadence — OR-logic: entry-count threshold OR elapsed days.
 # Entry count is the primary activity-driven signal; elapsed days is the safety net
 # for low-activity weeks. Counts ^### entries across insights + decisions + extraction
-# backlogs. Ideas-backlog is deliberately excluded — ideas route out, counting them
-# would conflate staging with action.
+# backlogs. intake/ideas/ (per-file since v2.11) is deliberately excluded — ideas route
+# out, counting them would conflate staging with action.
 KA_DUE=false
 BACKLOG_COUNT=0
 for _kt_bl in "$KT_KNOWLEDGE_FOLDER/intake/insights-backlog.md" \

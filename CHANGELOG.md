@@ -2,6 +2,59 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## [2.11.0] - 2026-04-21
+
+Minor release. Splits the ideas backlog from a single `intake/ideas-backlog.md` file to per-file storage under `intake/ideas/`. Driven by three observed pain points in the single-file design: (a) `ideas-backlog.md` crossed the Read tool's 25k-token context limit (~1200 lines in production), forcing offset/limit workarounds during audits; (b) "Pattern 21" drift between audit passes — entries logically cleared but physically still in place — was a recurring hygiene burden that only existed because of single-file semantics; (c) HTML-comment cleared-history markers accrued metadata in the content layer that already lived in `logs/knowledge-audit-log.md`. This release moves ideas to one markdown file per idea with YAML frontmatter, glob-driven reads, and delete-on-disposition semantics. Single-file format is retained for `insights-backlog.md`, `decisions-backlog.md`, and `extraction-backlog.md` — those backlogs stay under the threshold because they're cleared every 3-day audit cycle.
+
+### New — `intake/ideas/` directory with per-file storage
+
+Ideas now live as individual markdown files under `intake/ideas/` with the naming pattern `{YYYY-MM-DD}-{project}-{slug}.md`. Each file has YAML frontmatter (`date`, `project`, `type`, `title`) followed by the body (`**Proposal:**`, `**Motivation:**`, `**Source:**`). Filename collisions are handled by appending `-2`, `-3`, etc. The new `template/intake/ideas/README.md` documents the format, disposition flow (Accept/Reject/Defer/Reclassify with file-delete semantics), and migration path from pre-2.11 installations.
+
+### Changed — `/extract` writes new files instead of appending
+
+Step 4's "Ideas" section now writes one file per idea to `intake/ideas/` with frontmatter-first format. Step 1's timestamp-detection uses the date prefix of the most recent `*.md` file in the directory; Step 3's dedup loop globs `intake/ideas/*.md`. Step 5's summary line updated from "appended to ideas-backlog.md" to "written to intake/ideas/". If a legacy `ideas-backlog.md` is detected alongside the new directory, Step 5 surfaces a one-line migration pointer (but never attempts the migration from within `/extract` — that's `/setup`'s job).
+
+### Changed — `/audit-knowledge` globs the directory
+
+Step 2c2 "Review Ideas Directory" replaces "Review Ideas Backlog": globs `intake/ideas/*.md`, reads frontmatter for staleness computation (falls back to filename date prefix if frontmatter is missing), and surfaces Accept/Reject/Reclassify as file-delete operations. Git history becomes the audit trail — disposition notes still go to `knowledge-audit-log.md`, but the HTML-comment cleared-history pattern in the content file is retired. Legacy-file detection added: if `intake/ideas-backlog.md` exists alongside `intake/ideas/`, surface a "Legacy Ideas Backlog" finding in Step 6 with a migration pointer.
+
+### Changed — `/context` reads frontmatter for project-scoped ideas
+
+The "Pending Ideas surfacing" block in Step 5 now globs `intake/ideas/*.md` and filters by the frontmatter `project:` field rather than parsing entry headers from a single file. Staleness uses frontmatter `date:` with filename-prefix fallback. Multi-project entries (`project: aria,cross`) appear under each matching project query. Legacy-file detection surfaces a one-line informational note.
+
+### New — `/setup` Step 3b: Legacy `ideas-backlog.md` Detection
+
+Inserted between Step 3 (structure validation) and Step 4 (file diffing). Counts active entries in any legacy `ideas-backlog.md` and prompts the user with three options: migrate now (runs `bin/migrate-ideas-backlog.sh`), skip for this run (prompts again next time), or never migrate (writes a `.legacy-skipped` sentinel that suppresses future prompts). Empty legacy files are handled separately (offer to delete). This is the catch-net that ensures upgrading users see the migration path on their first post-upgrade `/setup` without an active prompt on every `/extract`.
+
+### New — `bin/migrate-ideas-backlog.sh` one-shot migration script
+
+Takes an optional knowledge-folder argument (falls back to config lookup). Parses `intake/ideas-backlog.md`, strips HTML comment blocks (cleared-history markers — information already lives in `logs/knowledge-audit-log.md`), splits on `^### YYYY-MM-DD — ` headers, emits one file per entry with generated frontmatter. Title extracted from header; `type` extracted from `**Type:**` body line (normalized to one of `feature|bug|design|refactor|workflow`, defaults to `feature` on missing/unparseable). Filename collisions resolved with `-2`, `-3`, ... up to 99. On success, renames the original to `ideas-backlog.md.pre-2.11-migration` (preserves rollback). Bash wrapper around embedded python3 heredoc, matching the `pre-edit-check.sh` pattern.
+
+### Changed — template and doc updates
+
+- `template/README.md` tree diagram: `ideas-backlog.md` line replaced with `ideas/` directory line.
+- `template/OVERVIEW.md`: three references updated — the "Ideas Backlog" flow description (with migration pointer), the user-owned files paragraph, and the Batch Manifests future-consumer mention.
+- `template/rules/user-rules.md`: "What Belongs Here vs ideas-backlog.md" section heading, feature-proposal bullet, and auto-routing paragraph all updated to reference `intake/ideas/`.
+- `template/rules/change-decision-framework.md`: "If a rationalization seems novel" paragraph updated to file new escape-hatch requests in `intake/ideas/`.
+- `template/intake/ideas-backlog.md` deleted from the shipped template; `template/intake/ideas/README.md` added.
+- `bin/session-start-check.sh`: comment at line 82 updated to reference `intake/ideas/` terminology; shell logic unchanged (ideas were already excluded from the audit-eligible count).
+
+### Retained — single-file format for other backlogs
+
+`insights-backlog.md`, `decisions-backlog.md`, and `extraction-backlog.md` remain single-file. These are promotion-eligible and cleared on every 3-day audit cycle, so they stay under the size threshold where single-file semantics are fine. Only `ideas-backlog.md` had the retention profile (longest shelf life + largest entries + external-tracker destination rather than in-tree promotion) that crossed the threshold. If any of the other backlogs cross the threshold later, the same per-file split is available as a precedent.
+
+### Fixed — `/help` commands table now lists `/codemap` and `/wrapup`
+
+Both skills were referenced in the Model Recommendations table below but absent from the Commands table — an internal inconsistency within `/help`'s own output. Added `/codemap [mode]` grouped with the other mapping skills (`/distill`, `/stitch`) and `/wrapup` immediately before `/help` as the session-end meta. No behavior change; reference-doc sync only.
+
+### Upgrade notes
+
+- **Reinstall required:** copy `plugin/` to `~/.claude/plugins/marketplaces/local-desktop-app-uploads/aria-knowledge/` to pick up the skill and template changes.
+- **Migration:** run `bash ${CLAUDE_PLUGIN_ROOT}/bin/migrate-ideas-backlog.sh` or re-run `/setup` (Step 3b will prompt). Migration preserves the original file as `ideas-backlog.md.pre-2.11-migration` — nothing is deleted.
+- **Template diffs on `/setup`:** the plugin-managed template files (`README.md`, `OVERVIEW.md`, `rules/change-decision-framework.md`) have minor wording updates for the new terminology. Accept to take the v2.11 language; decline to keep customized local copies.
+- **User-owned additions:** `intake/ideas/README.md` is classified user-owned (consistent with other directory README stubs) and will not diff on future `/setup` runs. Customize freely.
+- **No action needed if your backlog was empty:** fresh installs create `intake/ideas/` directly; no legacy file to migrate.
+
 ## [2.10.6] - 2026-04-20
 
 Patch release. Resolves a structural deadlock introduced in v2.10.5 under Claude Opus 4.7: the PreToolUse compliance scanner assumed text and tool_use blocks co-locate in a single assistant message, but 4.7's harness splits them into separate messages, causing every Edit/Write to deny. Diagnosed in a 2026-04-20 session via statistical tally of 51 assistant messages (zero text+tool_use co-location). v2.10.6 replaces same-message scan with turn-scoped walk-back bounded by the previous Edit/Write tool_use or user message — preserves per-edit marker requirement, aligns implementation with the framework doc's "same assistant turn" language. Also bundles four supporting fixes, a new rule (32), and the first test infrastructure for hook contracts.

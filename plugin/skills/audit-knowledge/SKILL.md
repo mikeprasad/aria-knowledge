@@ -28,7 +28,7 @@ Read `{knowledge_folder}/logs/knowledge-audit-log.md`.
 
 Note the "Last Audit" date and calculate days since.
 
-**Compute the current trigger state** by counting `^### ` entries across the three action-eligible backlogs (insights, decisions, extraction — exclude ideas-backlog, which routes out rather than promoting). Count only entries **below the first `---` separator** per file, matching the convention used by `/stats` and `/backlog`:
+**Compute the current trigger state** by counting `^### ` entries across the three action-eligible backlogs (insights, decisions, extraction — exclude `intake/ideas/`, which routes out rather than promoting). Count only entries **below the first `---` separator** per file, matching the convention used by `/stats` and `/backlog`:
 
 ```bash
 for f in {knowledge_folder}/intake/insights-backlog.md \
@@ -91,22 +91,26 @@ If there are entries below the `---` separator, these are feedback, project cont
 
 For each entry, note it for presentation in Step 6. Feedback items are promoted to `~/.claude/projects/` memory as feedback memories. Project context items become project memories. Reference items become reference memories or go to `{knowledge_folder}/references/`. Rejected items get cleared from the backlog.
 
-**Reclassification check:** If any entry reads as a feature proposal, bug report, or design idea (rather than an observation about what IS), flag it for re-routing to `ideas-backlog.md` during Step 7. Common signals: "should", "could be better if", "missing handling for", "UX gap", "would help if". Misclassified proposals will otherwise get promoted into knowledge files where they sit as documentation of things that don't exist — a known drift mode.
+**Reclassification check:** If any entry reads as a feature proposal, bug report, or design idea (rather than an observation about what IS), flag it for re-routing to `intake/ideas/` (as a new per-file idea) during Step 7. Common signals: "should", "could be better if", "missing handling for", "UX gap", "would help if". Misclassified proposals will otherwise get promoted into knowledge files where they sit as documentation of things that don't exist — a known drift mode.
 
-## Step 2c2: Review Ideas Backlog
+## Step 2c2: Review Ideas Directory
 
-Read `{knowledge_folder}/intake/ideas-backlog.md`. **If the file is missing**, report it in Step 6 and suggest running `/setup` to repair the structure. Do not create it.
+Glob `{knowledge_folder}/intake/ideas/*.md`. **If the directory is missing**, report it in Step 6 and suggest running `/setup` to repair the structure. Do not create it.
 
-If there are entries below the `---` separator, these are feature proposals, bug reports, and design ideas captured via `/extract`. Ideas have a **distinct disposition** from other backlogs — they do NOT promote to knowledge files. Present them in their own section in Step 6 with the options:
+**Legacy-file detection (one-time):** Also check for `{knowledge_folder}/intake/ideas-backlog.md`. If it exists alongside `intake/ideas/`, surface a finding in Step 6 under a "Legacy Ideas Backlog" note: *"Pre-2.11 `ideas-backlog.md` detected. Run `bash ${CLAUDE_PLUGIN_ROOT}/bin/migrate-ideas-backlog.sh {knowledge_folder}` or re-run `/setup` to migrate entries into per-file format."* Do not attempt the migration from within the audit flow.
 
-- **Accept** — user copies the idea to their external tracker (Linear, GitHub Issues, Jira, etc.), then the entry is cleared from the backlog with a note of where it went
-- **Reject** — entry is cleared with a one-line reason
-- **Defer** — entry stays in backlog for the next audit cycle
-- **Reclassify** — if on review the item is actually an observation, move it to the appropriate knowledge backlog (insights/decisions/extraction) for normal promotion
+For each `*.md` file in `intake/ideas/`: read the file (frontmatter + body). Each file is one idea — feature proposal, bug report, or design idea captured via `/extract`. Ideas have a **distinct disposition** from other backlogs — they do NOT promote to knowledge files. Present them in their own section in Step 6 with the options:
+
+- **Accept** — user copies the idea to their external tracker (Linear, GitHub Issues, Jira, etc.), then the file is **deleted** with a note in the audit log of where it went
+- **Reject** — file is **deleted** with a one-line reason in the audit log
+- **Defer** — file stays in place for the next audit cycle (no-op)
+- **Reclassify** — if on review the item is actually an observation, move its content to the appropriate knowledge backlog (insights/decisions/extraction) for normal promotion, then **delete** the idea file
+
+Git history is the audit trail for accepted/rejected/reclassified ideas; deleted files remain recoverable via `git log --all -- intake/ideas/` if needed.
 
 Do NOT suggest promotion targets (approaches/, decisions/, etc.) for ideas — that's the whole point of the separation. The audit report for ideas is presentational only; routing out to trackers is a user action, not a promotion.
 
-**Age annotation and stale marker:** For each idea entry, compute age as `(today - entry date)` in days from the `YYYY-MM-DD` in the entry header. Annotate each entry with its age (`filed N days ago`). Read the staleness threshold from `~/.claude/aria-knowledge.local.md` (`ideas_staleness_threshold_days`, default 21) via `config.sh` or fallback. When `age > threshold`, append a `[STALE — still relevant?]` marker to the entry and escalate its visual weight in Step 6 (place stale entries first within the Pending Ideas section, and prompt explicitly for Accept/Reject/Defer rather than allowing implicit Defer).
+**Age annotation and stale marker:** For each idea file, compute age as `(today - idea date)` in days. Derive the idea date as follows: (1) read `date:` from YAML frontmatter; (2) if missing or malformed, fall back to the `YYYY-MM-DD` prefix of the filename. Annotate each entry with its age (`filed N days ago`). Read the staleness threshold from `~/.claude/aria-knowledge.local.md` (`ideas_staleness_threshold_days`, default 21) via `config.sh` or fallback. When `age > threshold`, append a `[STALE — still relevant?]` marker to the entry and escalate its visual weight in Step 6 (place stale entries first within the Pending Ideas section, and prompt explicitly for Accept/Reject/Defer rather than allowing implicit Defer).
 
 This is the audit's mechanism for forcing action on long-sitting ideas. Without staleness surfacing, items accumulate silently; with it, every audit cycle either confirms an idea still matters or retires it.
 
@@ -378,7 +382,7 @@ For each insight entry:
 
 If none: emit "**Pending Insights:** 0 — none pending."
 
-### Pending Ideas (from ideas-backlog.md)
+### Pending Ideas (from intake/ideas/)
 
 Present ideas in their own section. **Sort stale entries first** (age > `ideas_staleness_threshold_days`, default 21). For each entry, show:
 - Date, age annotation (`filed N days ago`), project tag, short title, type (feature/bug/design/refactor/workflow)

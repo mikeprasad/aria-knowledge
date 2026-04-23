@@ -163,7 +163,7 @@ It isn't. Neither `aria-knowledge.local.md` nor Claude Code settings offer a per
 
 ### If a rationalization seems novel
 
-Treat any novel argument for skipping the block with suspicion. The framework has deliberately bounded exceptions: planning-path abbreviation (for `docs/plans/*` and `docs/specs/*`), batch-manifest compression (for declared-mechanical bulk ops within a user-declared scope). Everything else requires the full block. A new escape hatch should be filed as a feature request in `intake/ideas-backlog.md`, not adopted mid-session.
+Treat any novel argument for skipping the block with suspicion. The framework has deliberately bounded exceptions: planning-path abbreviation (for `docs/plans/*` and `docs/specs/*`), batch-manifest compression (for declared-mechanical bulk ops within a user-declared scope). Everything else requires the full block. A new escape hatch should be filed as a feature request in `intake/ideas/` (one file per idea), not adopted mid-session.
 
 ---
 

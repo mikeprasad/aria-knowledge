@@ -58,7 +58,7 @@ This taxonomy is complete — every type of reusable knowledge fits into exactly
 
 ARIA captures observations about **what IS** (knowledge) and stages proposals about **what SHOULD BE different** (ideas). The five knowledge types above are observations; ideas are a separate bucket with a distinct disposition.
 
-Feature proposals, bug reports, and design ideas all flow into `intake/ideas-backlog.md` during `/extract`. The audit surfaces them in their own section without suggesting promotion targets — ideas never promote to knowledge files. Instead, they route out of ARIA to your external tracker (Linear, GitHub Issues, Jira, etc.) when ready to schedule, or get discarded if rejected.
+Feature proposals, bug reports, and design ideas all flow into `intake/ideas/` during `/extract` — one markdown file per idea, since v2.11 (prior versions used a single `intake/ideas-backlog.md`; see `intake/ideas/README.md` for the migration path if you're upgrading). The audit surfaces them in their own section without suggesting promotion targets — ideas never promote to knowledge files. Instead, they route out of ARIA to your external tracker (Linear, GitHub Issues, Jira, etc.) when ready to schedule, or get discarded if rejected.
 
 **ARIA captures; your tracker schedules.** This boundary keeps ARIA tool-agnostic and prevents a common drift mode where proposals get misfiled as documentation of features that don't exist yet.
 
@@ -146,7 +146,7 @@ ARIA template files fall into two classes with different update behavior on `/se
 
 **Plugin-managed files** are authored by the plugin and kept current via `/setup` diffs. When a plugin update ships a new version of a managed file, `/setup` shows you the diff and lets you keep your version, adopt the plugin version, or review the full change. If you customize a managed file (e.g., add a custom rule directly into `working-rules.md`), your edits appear as diff prompts on every future `/setup` until reconciled. This is intentional — it's how you receive plugin improvements without silent overwrites. Managed files include `README.md`, `OVERVIEW.md` (this file), `rules/working-rules.md`, `rules/change-decision-framework.md`, `rules/enforcement-mechanisms.md`, and `projects/README.md` (when the project tier is enabled).
 
-**User-owned files** are yours entirely. `/setup` creates them once from a template on first install, then never touches them again — no diffs, no overwrites, no merges. Use these for customizations you want the plugin to stay out of. Key user-owned files include `LOCAL.md` (your local guide), `rules/user-rules.md` (your custom rules), the intake backlogs (`intake/insights-backlog.md`, `decisions-backlog.md`, `extraction-backlog.md`, `ideas-backlog.md`), audit logs under `logs/`, directory README stubs (`guides/README.md`, `approaches/README.md`, `decisions/README.md`, `references/README.md`, `archive/README.md`), and per-project READMEs under `projects/{tag}/`.
+**User-owned files** are yours entirely. `/setup` creates them once from a template on first install, then never touches them again — no diffs, no overwrites, no merges. Use these for customizations you want the plugin to stay out of. Key user-owned files include `LOCAL.md` (your local guide), `rules/user-rules.md` (your custom rules), the intake backlogs (`intake/insights-backlog.md`, `decisions-backlog.md`, `extraction-backlog.md`) and the `intake/ideas/` directory (per-file ideas since v2.11, plus the directory's `README.md`), audit logs under `logs/`, directory README stubs (`guides/README.md`, `approaches/README.md`, `decisions/README.md`, `references/README.md`, `archive/README.md`), and per-project READMEs under `projects/{tag}/`.
 
 The authoritative classification lives in `plugin/skills/setup/SKILL.md` (Step 3 lists user-owned files; Step 4 lists managed files). Managed files also carry an HTML comment header at the top of the raw markdown signaling their class at the point of customization, and on first-setup the `/setup` skill surfaces a one-time educational note about the split.
 
@@ -194,7 +194,7 @@ The manifest compresses ceremony **only** when every safety layer clears:
 
 Two consumers:
 
-**(a) Skills with structured bulk flows.** `/audit-knowledge` writes a manifest after user approval of its promotion plan (Step 7a) and clears it after the audit log is written (Step 8b). The skill's instructions tell Claude how to classify each approved op. This is the primary v2.10.0 consumer. Future releases may extend `/wrapup` and `/extract` as ideas-backlog entries indicate demand.
+**(a) Skills with structured bulk flows.** `/audit-knowledge` writes a manifest after user approval of its promotion plan (Step 7a) and clears it after the audit log is written (Step 8b). The skill's instructions tell Claude how to classify each approved op. This is the primary v2.10.0 consumer. Future releases may extend `/wrapup` and `/extract` as `intake/ideas/` entries indicate demand.
 
 **(b) Claude executing a user plan.** When Claude is about to perform a declared multi-file task (e.g., user shares `docs/plans/feature-x.md` listing 10 files to create + modify), Claude can write the manifest itself before starting:
 

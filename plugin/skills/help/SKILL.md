@@ -27,8 +27,10 @@ Print the command reference table. No config or file access needed.
 | /ask [question] | Research a question, check existing knowledge, save answer as a knowledge doc |
 | /clip [url or text] | Quick-save a URL or text snippet to intake for later review |
 | /intake [path or url] | Bulk import knowledge from files, directories, or URLs |
+| /codemap [mode] | Feature-organized CODEMAP.md for any codebase (create/inventory/update/section) |
 | /distill [text or path] | Tiered task spec from raw text; optional --group for CODEMAP-loaded context |
 | /stitch <mode> <group> | Cross-repo binding (auth/endpoints/entities/drift) for a product group |
+| /wrapup | End-of-session handoff — update PROGRESS/CLAUDE.md, prompt for commit, verify continuity |
 | /help | This command reference |
 
 Run /setup to configure. See QUICKSTART.md for a walkthrough of your first 3 sessions.

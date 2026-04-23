@@ -17,7 +17,7 @@ knowledge/
 │   ├── insights-backlog.md
 │   ├── decisions-backlog.md
 │   ├── extraction-backlog.md
-│   ├── ideas-backlog.md     # Feature/bug proposals — routes out to tracker, never promotes to knowledge
+│   ├── ideas/               # Feature/bug proposals (one file per idea) — routes out to tracker, never promotes to knowledge
 │   ├── notes/               # Your own notes and rough drafts
 │   ├── attachments/         # Files from elsewhere (screenshots, PDFs)
 │   ├── clippings/           # Saved external content

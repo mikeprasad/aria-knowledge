@@ -129,9 +129,9 @@ Load which files? (all / numbers / none)
 
 Do NOT pad results with empty folder notes for project tags that weren't queried.
 
-**Pending Ideas surfacing:** if the query includes a configured project tag AND `{knowledge_folder}/intake/ideas-backlog.md` exists, scan the file for entries whose header project field matches (or includes) the query's project tag. Present matches as a compact informational section after the file list, before the "Load which files?" prompt.
+**Pending Ideas surfacing:** if the query includes a configured project tag AND `{knowledge_folder}/intake/ideas/` exists, glob `intake/ideas/*.md`, read YAML frontmatter from each, and collect files whose `project:` field matches (or includes) the query's project tag. Present matches as a compact informational section after the file list, before the "Load which files?" prompt.
 
-> **Why project-scoped only:** `/context` loads knowledge for retrieval; ideas are staging for external-tracker routing, not retrieval. Surfacing ideas on topic-only queries (`/context api`, `/context architecture`) would pollute the retrieval intent and blur ARIA's capture-vs-track boundary. Project-tagged queries get ideas as ambient project context; topic-only queries stay clean. See the capture-vs-track architecture in `intake/ideas-backlog.md`.
+> **Why project-scoped only:** `/context` loads knowledge for retrieval; ideas are staging for external-tracker routing, not retrieval. Surfacing ideas on topic-only queries (`/context api`, `/context architecture`) would pollute the retrieval intent and blur ARIA's capture-vs-track boundary. Project-tagged queries get ideas as ambient project context; topic-only queries stay clean. See the capture-vs-track architecture in `intake/ideas/README.md`.
 
 
 ```
@@ -142,12 +142,13 @@ Do NOT pad results with empty folder notes for project tags that weren't queried
 ```
 
 Details:
-- **Age computation:** `(today - entry date)` in days; show as "(N day ago)" or "(N days ago)".
+- **Age computation:** `(today - idea date)` in days; show as "(N day ago)" or "(N days ago)". Derive the idea date from YAML frontmatter `date:` field; fall back to the `YYYY-MM-DD` prefix of the filename if frontmatter is missing or malformed.
 - **Stale marker:** append ` [STALE — still relevant?]` when age > `KT_IDEAS_STALENESS_DAYS` (default 21). Read the threshold from `~/.claude/aria-knowledge.local.md` via `config.sh` or fall back to 21.
-- **Multi-project entries:** if the entry header has comma-separated project tags (e.g., `cs,ss`), include it for each matching project query.
-- **Not selectable:** ideas are informational. They do NOT appear in the numbered file list and are not loadable via "all" or numbers. To triage them, use `/audit-knowledge` (structured disposition flow) or edit `intake/ideas-backlog.md` directly.
+- **Multi-project entries:** if the frontmatter `project:` field has comma-separated project tags (e.g., `cs,ss`), include the file for each matching project query.
+- **Not selectable:** ideas are informational. They do NOT appear in the numbered file list and are not loadable via "all" or numbers. To triage them, use `/audit-knowledge` (structured disposition flow) or edit the files in `intake/ideas/` directly.
 - **Omission:** if no ideas match, omit the section entirely (do not show an empty "Pending Ideas" heading).
 - **Non-project queries:** skip this section entirely when the query is topic-only (e.g., `/context api` or `/context architecture`). Ideas surfacing is project-scoped; cross-project ideas reach the user through `/audit-knowledge`, not `/context`.
+- **Legacy-file handling:** if `intake/ideas-backlog.md` exists alongside `intake/ideas/`, do NOT parse it here. Surface a one-line informational note at the end of the Pending Ideas block: "(Legacy `ideas-backlog.md` detected — run `/setup` to migrate pre-2.11 entries into this view.)"
 
 Show the file's tags in brackets after the description so the user can see why each file matched.
 
