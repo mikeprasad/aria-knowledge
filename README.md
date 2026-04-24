@@ -50,6 +50,7 @@ Skills that turn ambiguous surface area — a repo, a set of repos, a raw ticket
 Hooks and skills that keep sessions continuous across compaction and between conversations.
 
 - `/wrapup` — End-of-session handoff: reviews work, updates PROGRESS.md/CLAUDE.md/memory, prompts for commit and `/extract`, verifies the next session can pick up.
+- `/snapshot` — On-demand raw transcript archive. Same artifact the PreCompact hook produces, but invoked explicitly — for before switching context, before a risky operation, or any time you want the full conversation preserved.
 - `/setup` — Configure knowledge folder, validate structure, diff managed files against plugin version, detect companion plugins.
 - `/audit-config` — Scan CLAUDE.md files, configs, and docs for drift, broken references, and staleness.
 - `/help` — Quick command reference.
@@ -140,7 +141,7 @@ ARIA skills vary in how much they benefit from stronger models. These are recomm
 
 - **Opus 4.6 (1M context), medium-to-high effort** — `/extract`, `/audit-knowledge`, `/audit-config`. Judgment-heavy: deciding what's load-bearing vs. noise, cross-referencing backlogs against the promoted index, detecting drift across configs. A weaker model over-captures (backlog noise) or under-captures (misses non-obvious feedback). ARIA's compliance discipline benefits from the extra reasoning budget (more reliable Low/High assessments, less tool-call skipping on audit skills).
 - **Opus 4.6 (1M context) minimum** — `/codemap create`. Full-repo traversal needs the large context window so sections aren't truncated mid-generation.
-- **Sonnet 4.6** — `/codemap update/section`, `/wrapup`, `/intake`, `/ask` (scoped lookups), `/distill`, `/stitch`, and all lightweight skills (`/index`, `/stats`, `/backlog`, `/rules`, `/context`, `/clip`, `/help`, `/setup`). Structured or retrieval-only work — higher models add no measurable lift.
+- **Sonnet 4.6** — `/codemap update/section`, `/wrapup`, `/intake`, `/ask` (scoped lookups), `/distill`, `/stitch`, and all lightweight skills (`/index`, `/stats`, `/backlog`, `/rules`, `/context`, `/clip`, `/snapshot`, `/help`, `/setup`). Structured or retrieval-only work — higher models add no measurable lift.
 
 Haiku is not recommended for any ARIA skill. See `/help` for the full table.
 

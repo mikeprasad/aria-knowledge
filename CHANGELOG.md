@@ -2,6 +2,52 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## [2.11.2] - 2026-04-24
+
+Patch release. Adds `/snapshot`, an on-demand equivalent of the pre-compact transcript capture hook. Until now the only way to archive a raw session transcript was to wait for Claude Code's PreCompact event — a useful safety net, but not a control the user can reach for mid-session before switching context or kicking off a risky operation. `/snapshot` closes that gap by reusing the hook's archival contract under explicit user invocation.
+
+### New — `/snapshot` skill
+
+`plugin/skills/snapshot/SKILL.md` registers the command. The skill is a thin wrapper: it delegates to `bin/save-transcript.sh` and relays the output verbatim. Description triggers include `/snapshot`, "snapshot the session", "save this conversation", "archive this session", and explicitly contrasts with `/extract` (knowledge synthesis) and `/clip` (URL or snippet capture) so the LLM routes cleanly between the three. `allowed-tools: Bash`.
+
+Also registered in `/help`: row added to the commands table and to the Sonnet-low-effort row of the model-recommendations table. `/snapshot` is mechanical (bash-script-driven), so Sonnet is the right default — no judgment lift from a larger model.
+
+### New — `bin/save-transcript.sh` helper
+
+Mirrors the archival logic of `pre-compact-check.sh` with three differences driven by the on-demand context:
+
+- **Bypasses `KT_AUTO_CAPTURE`.** The config key's name scopes it to hook-driven auto capture; explicit `/snapshot` always runs. Honoring the gate would silently refuse an explicit command, which is worse UX than violating the (auto-scoped) flag.
+- **Discovers the transcript instead of receiving it.** The hook gets `session_id` and `transcript_path` via stdin JSON. A skill-invoked shell has neither. The script finds the current session's transcript by picking the most recently modified `*.jsonl` under `~/.claude/projects` using fractional-second mtime (`stat -f "%Fm"`), which disambiguates concurrent Claude Code windows that `ls -t`'s second granularity cannot.
+- **Writes to the same captures directory.** Snapshots land in `intake/pre-compact-captures/{YYYY-MM-DD}_{sid8}.md` — same filename convention and same folder as the hook, so `/extract` and audit review pick them up without change.
+
+Same-session repeats overwrite (matches hook behavior — filename is determined by date + session-id-short).
+
+### Changed — SessionStart hook surfaces codemap staleness
+
+`bin/session-start-check.sh` now annotates each `CODEMAP.md` found under cwd with age, git-activity count, and staleness classification (current / possibly stale / stale) — previously it only listed the paths. Classification mirrors `/audit-knowledge` Step 5d exactly:
+
+- **Stale** — `>30 days` since last update AND `>0` files changed
+- **Possibly stale** — `>14 days` since last update AND `>20` files changed
+- **Current** — otherwise
+
+Header parse looks for `> Last updated: YYYY-MM-DD | …`; falls back to file mtime when the header is missing. Activity count runs `git log --name-only --since="$CM_DATE"` from the codemap's directory — multi-repo parent folders (where the parent dir isn't itself a git repo) report 0 files changed, matching the same limitation as `/audit-knowledge` Step 5d. Guarded on `command -v git` so the hook degrades gracefully when git isn't installed. Head-5 cap on codemap count preserved. Bash-side cost is well under the hook's 10s timeout.
+
+The goal is cheap visibility: users now see staleness classifications at session start without having to run a full `/audit-knowledge`. The audit remains the canonical classifier — session-start just mirrors its logic so the two surfaces agree.
+
+### Changed — `/stats` dashboard adds Codemap Status section
+
+`skills/stats/SKILL.md` gains a new Step 3a that globs for `CODEMAP.md` files under cwd (depth 0-2), parses the `Last updated` header, and reports date + days-since per codemap. The new `### Codemap Status` section renders between `### Audit Status` and `### Index Health` in the dashboard output. Frontmatter description updated to include "codemap dates" in the metric list.
+
+Presentation-only: `/stats` reports the raw date; classification and git-activity checks remain with `/audit-knowledge` Step 5d. This keeps `/stats`'s read-only posture and its "fast — just counting and date parsing, no heavy analysis" rule intact — no Bash added to allowed-tools.
+
+### Upgrade notes
+
+- **Reinstall required:** copy `plugin/` to `~/.claude/plugins/marketplaces/local-desktop-app-uploads/aria-knowledge/` to pick up the new skill, helper script, and hook changes.
+- **No config migration.** No hook contract changes. No behavior changes for existing skills beyond the additive surfaces.
+- **macOS-only.** Three BSD-specific constructs: `stat -f "%Fm"` (save-transcript.sh fractional mtime), `stat -f "%Sm" -t "%Y-%m-%d"` (session-start codemap mtime fallback), and `date -j -f "%Y-%m-%d"` (session-start epoch math). A Linux port would need `stat -c "%.Y"`, `date -r $(stat -c %Y …) +%Y-%m-%d`, and `date -d "$date" +%s` respectively. Matches the rest of the shipped hooks.
+- **Concurrent-session disclaimer (snapshot).** If two or more Claude Code windows are active on the same machine, `/snapshot` picks the most-recently-written transcript, which is usually but not always the invoking window. The source path is shown in the output so users can verify at a glance.
+- **Multi-repo codemap limitation (session-start).** Codemaps at the root of a parent folder that contains sub-repos but isn't itself a git repo report 0 files changed — `git log` runs from the codemap's directory and returns empty for non-git paths. Classification will read as "current" regardless of sub-repo activity. Same limitation as `/audit-knowledge` Step 5d today; a future enhancement could recurse into sub-repos.
+
 ## [2.11.1] - 2026-04-24
 
 Patch release. Reduces Rule 22 compliance-block verbosity under Claude Opus 4.7 without weakening the forcing function. Driven by observation that 4.7 fills open-ended slot placeholders more expansively than 4.5/4.6 did, multiplied by ARIA's per-edit emission frequency. No hook, regex, doctrine, or enforcement-mechanism changes — the shift is entirely in the template examples and in a single template slot that was duplicating work the pre-edit block already performed.

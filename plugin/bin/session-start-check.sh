@@ -220,11 +220,66 @@ fi
 # the knowledge tree stays curated rather than fragmenting into ad-hoc notes.
 MESSAGES="${MESSAGES}MEMORY PATHWAY — ARIA is the structured memory pathway for this session. For notes, use /clip (URLs/snippets), /extract (session insights), /intake (bulk imports), /audit-knowledge (promotion). File-system memory is enhanced in 4.7; route it through ARIA to keep the knowledge tree curated. "
 
-# CODEMAP detection — find codemaps in project directories
+# CODEMAP detection — find codemaps in project directories, annotate with
+# staleness per /audit-knowledge Step 5d criteria so stale maps are visible
+# at session start without running a full audit. Graceful on missing git,
+# missing Last-updated header, or non-git paths — falls back to mtime and
+# zero-files-changed respectively; worst case shows "(no date)".
 CODEMAPS=$(find "$PWD" -maxdepth 2 -name "CODEMAP.md" 2>/dev/null | head -5)
 if [ -n "$CODEMAPS" ]; then
-  CODEMAP_LIST=$(echo "$CODEMAPS" | sed "s|$PWD/||g" | tr '\n' ', ' | sed 's/, $//' | sed 's/,$//')
-  MESSAGES="${MESSAGES}CODEMAP Found: ${CODEMAP_LIST}. Before exploring a project's codebase, read its CODEMAP Directory section first. "
+  CM_MSG=""
+  CM_TODAY_EPOCH=$(date +%s)
+  _cm_old_ifs="$IFS"
+  IFS='
+'
+  for cm in $CODEMAPS; do
+    CM_REL=$(echo "$cm" | sed "s|$PWD/||")
+
+    # Parse "> Last updated: YYYY-MM-DD" from CODEMAP header; fall back to mtime
+    CM_DATE=$(grep -m1 -E '^> Last updated: [0-9]{4}-[0-9]{2}-[0-9]{2}' "$cm" 2>/dev/null \
+      | sed -E 's/^> Last updated: ([0-9]{4}-[0-9]{2}-[0-9]{2}).*/\1/')
+    if [ -z "$CM_DATE" ]; then
+      CM_DATE=$(stat -f "%Sm" -t "%Y-%m-%d" "$cm" 2>/dev/null)
+    fi
+
+    if [ -z "$CM_DATE" ]; then
+      CM_ENTRY="$CM_REL (no date)"
+    else
+      CM_EPOCH=$(date -j -f "%Y-%m-%d" "$CM_DATE" +%s 2>/dev/null)
+      if [ -z "$CM_EPOCH" ]; then
+        CM_ENTRY="$CM_REL (unparseable date: $CM_DATE)"
+      else
+        CM_DAYS=$(( (CM_TODAY_EPOCH - CM_EPOCH) / 86400 ))
+
+        # Count files changed in the codemap's directory since its last-updated date
+        CM_FILES=0
+        if command -v git >/dev/null 2>&1; then
+          CM_DIR=$(dirname "$cm")
+          CM_FILES=$(cd "$CM_DIR" 2>/dev/null && git log --name-only --since="$CM_DATE" --pretty=format:"" 2>/dev/null \
+            | grep -v '^$' | sort -u | wc -l | tr -d ' ')
+          [ -z "$CM_FILES" ] && CM_FILES=0
+        fi
+
+        # Classification matches /audit-knowledge Step 5d exactly
+        if [ "$CM_DAYS" -gt 30 ] && [ "$CM_FILES" -gt 0 ]; then
+          CM_CLASS="stale"
+        elif [ "$CM_DAYS" -gt 14 ] && [ "$CM_FILES" -gt 20 ]; then
+          CM_CLASS="possibly stale"
+        else
+          CM_CLASS="current"
+        fi
+
+        CM_ENTRY="$CM_REL (updated ${CM_DAYS}d ago, ${CM_FILES} files changed — ${CM_CLASS})"
+      fi
+    fi
+
+    [ -z "$CM_MSG" ] && CM_MSG="$CM_ENTRY" || CM_MSG="$CM_MSG, $CM_ENTRY"
+  done
+  IFS="$_cm_old_ifs"
+
+  if [ -n "$CM_MSG" ]; then
+    MESSAGES="${MESSAGES}CODEMAP Found: ${CM_MSG}. Before exploring a project's codebase, read its CODEMAP Directory section first. "
+  fi
 fi
 
 # Output only if there are messages

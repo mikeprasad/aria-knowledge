@@ -31,6 +31,7 @@ Print the command reference table. No config or file access needed.
 | /distill [text or path] | Tiered task spec from raw text; optional --group for CODEMAP-loaded context |
 | /stitch <mode> <group> | Cross-repo binding (auth/endpoints/entities/drift) for a product group |
 | /wrapup | End-of-session handoff — update PROGRESS/CLAUDE.md, prompt for commit, verify continuity |
+| /snapshot | Save the current session transcript to intake/pre-compact-captures/ on demand |
 | /help | This command reference |
 
 Run /setup to configure. See QUICKSTART.md for a walkthrough of your first 3 sessions.
@@ -47,7 +48,7 @@ These are recommendations only — ARIA does not force a model. Switch per sessi
 | /ask | Opus 4.6 (1M context), medium-to-high effort (ambiguous topics) or Sonnet 4.6 (scoped lookups) | Research + draft + categorize. Drop to Sonnet when the question is narrow. |
 | /codemap create | Opus 4.6 (1M context) minimum | Full-repo traversal needs the large context window so sections aren't truncated mid-generation. |
 | /codemap update, /codemap section, /wrapup, /intake, /distill, /stitch | Sonnet 4.6, medium effort | Structured work with clear prescribed output. |
-| /index, /stats, /backlog, /rules, /context, /clip, /help, /setup | Sonnet 4.6, low effort | Mechanical or retrieval-only — higher models add no measurable lift. |
+| /index, /stats, /backlog, /rules, /context, /clip, /snapshot, /help, /setup | Sonnet 4.6, low effort | Mechanical or retrieval-only — higher models add no measurable lift. |
 
 Haiku is not recommended for any ARIA skill — the judgment/cross-reference demands exceed its strengths.
 

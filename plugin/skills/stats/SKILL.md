@@ -1,5 +1,5 @@
 ---
-description: "Show knowledge base health metrics — file counts, backlog depth, audit status, tag stats, and coverage gaps. Use when user says '/stats', 'knowledge stats', 'how is my knowledge base', 'show stats', 'knowledge health', 'dashboard'."
+description: "Show knowledge base health metrics — file counts, backlog depth, audit status, codemap dates, tag stats, and coverage gaps. Use when user says '/stats', 'knowledge stats', 'how is my knowledge base', 'show stats', 'knowledge health', 'dashboard'."
 argument-hint: ""
 allowed-tools: Read, Glob, Grep
 ---
@@ -47,6 +47,24 @@ Extract the `**Date:**` from:
 - The `/setup on` date from `~/.claude/aria-knowledge.local.md`
 
 Calculate days since each. If a date is "(no audits yet)" or missing, note "never."
+
+## Step 3a: Check Codemap Dates
+
+Use Glob to find CODEMAP.md files under cwd (up to 2 levels deep). Try these patterns:
+- `CODEMAP.md` (depth 0)
+- `*/CODEMAP.md` (depth 1)
+- `*/*/CODEMAP.md` (depth 2)
+
+For each file found:
+1. Read the first 10 lines
+2. Parse the `Last updated` date from the header. Expected pattern: `> Last updated: YYYY-MM-DD | Sections: N | Features: M`
+3. Calculate days-since from today's date
+
+If the header is missing or unparseable, show `(no date)` for that entry.
+
+If no CODEMAP.md files are found under cwd, the section still renders with a single line noting absence.
+
+**Presentation-only.** This step does not classify stale/current or run git-activity checks. Staleness classification with file-change detection belongs to `/audit-knowledge` Step 5d — `/stats` just surfaces the raw date so the user can decide whether to run the audit.
 
 ## Step 4: Index Health (if index.md exists)
 
@@ -97,6 +115,12 @@ Output in this format:
 - Knowledge audit: [YYYY-MM-DD (N days ago) | never]
 - Config audit: [YYYY-MM-DD (N days ago) | never]
 - Last /setup: [YYYY-MM-DD (N days ago)]
+
+### Codemap Status
+[If codemaps exist, one line per file:]
+- <relative-path>: updated YYYY-MM-DD (N days ago)
+[If no codemaps found:]
+- No CODEMAP.md found under cwd
 
 ### Index Health
 [If index exists:]
