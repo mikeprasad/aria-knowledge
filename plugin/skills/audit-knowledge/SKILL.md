@@ -119,15 +119,34 @@ For each `*.md` file in `intake/ideas/`: read the file (frontmatter + body). Eac
 | `bundle` | Merge 2+ related ideas into a single file, then sub-prompt for one of the destinations above. Source idea files are **all deleted** after the merged file lands. | offered when audit detects clusters (see "Bundle clustering" below) |
 | `rule` | Append idea body to `intake/rules-backlog.md` as a new `### YYYY-MM-DD — {title}` entry. Reviewed during next audit alongside other rule candidates; promoted entries land in user memory as `feedback_*.md` records or in a project-local `working-rules.md`. | always available |
 
-**Project-root detection:** for `roadmap`, `todo`, and `plan` paths, "project root" means the closest ancestor directory of the idea's project that contains either a `.git/` directory or a `CLAUDE.md` file. Probe both that directory and its `docs/` subdirectory for the relevant filename. If neither exists, omit the destination from the submenu offered for that idea.
+**Project-root detection:** for `roadmap`, `todo`, and `plan` paths, the audit needs to resolve the idea's `project` tag to a filesystem path before probing for files. Resolution rules (in priority order):
+
+1. **Tag in `projects_list`** — if `projects_enabled: true` AND the idea's `project` tag matches a `tag:path` pair in `projects_list`, resolve to that path. Paths in `projects_list` are relative to the parent directory of the knowledge folder (typically `~/Projects/`); the audit converts to absolute by prepending that parent.
+2. **CWD fallback** — if the tag isn't resolvable via `projects_list` (projects tier disabled, tag missing from list, or idea's `project` is `cross` / `no-project`), fall back to the current working directory. Probe the closest ancestor of CWD containing either `.git/` or `CLAUDE.md`.
+3. **No resolution possible** — if neither path strategy yields a valid directory (e.g., projects tier disabled AND CWD has no git/CLAUDE.md ancestor), omit `roadmap`, `todo`, and `plan` from the submenu and append a one-line note to that idea's audit entry: *"roadmap/todo/plan not offered: project path unresolved (project tag not in projects_list, no .git/ or CLAUDE.md ancestor of CWD)."* This makes the gap visible rather than silently shrinking the submenu.
+
+Once the project root is resolved, probe for the relevant file in two locations in this order: (1) project root, (2) `docs/` subdirectory of the project root. **Tie-break when both exist:** route to the project root copy; the `docs/` copy is treated as secondary and not modified. Document the chosen path in the audit log entry so users can trace where each idea landed.
 
 **Ticketing plugin lookup:** read `ticketing_plugins` from `~/.claude/aria-knowledge.local.md` (format: comma-separated `tag:plugin-command` pairs, e.g., `proj-a:foo-ticket,proj-b:bar-ticket`). If the idea's `project` matches a mapped tag, append a hint line under the tracker option: *"Use `/{plugin-command}` to draft this as a ticket."* Never invoke the other plugin's skill from inside this audit — the hint is informational; the user invokes manually.
 
+**No installed-plugin probe.** The audit does **not** verify that `{plugin-command}` is actually installed on the user's system before printing the hint. This is intentional: enumerating installed plugins from inside a skill couples ARIA to Claude Code internals that could change. If the user has `ticketing_plugins: cs:foo-ticket` set but `/foo-ticket` is uninstalled, the hint still prints; the user discovers via "command not found" on invocation. Loud-fail at invocation is preferred over a silent absent hint.
+
 **Bundle clustering** — auto-detected at audit time. Group pending idea files where:
 1. `project` frontmatter matches across 2+ files, AND
-2. Titles share ≥2 significant words (excluding stop words: a, an, and, the, to, for, of, in, on, with, from, by, is, be).
+2. Titles share ≥2 significant words after tokenization (see below).
+
+**Tokenization rules** (applied to the `title:` frontmatter field — fall back to the slug portion of the filename if `title:` is missing):
+- Split on whitespace AND on hyphens (kebab-case + spaces both produce tokens).
+- Lowercase all tokens.
+- Strip leading/trailing ASCII punctuation from each token.
+- A token is **significant** if its length ≥ 3 chars AND it is not in the stop-words list: a, an, and, the, to, for, of, in, on, with, from, by, is, be, or, but, not, no, do, did, has, had, will, can.
+- Word match is exact (case-insensitive after normalization). No stemming, no fuzzy matching — keeps clustering deterministic across audit runs.
+
+**Lead entry of a cluster:** the oldest idea by the `date:` frontmatter field; if `date:` is missing or malformed, fall back to the `YYYY-MM-DD` filename prefix. Tie-break: alphabetical by full filename. The lead entry is where the audit surfaces the `bundle` option in Step 6; the other cluster members reference back to the lead.
 
 For each detected cluster, surface a `bundle` option once in the cluster's lead entry in Step 6 (with a list of cluster members). The user chooses bundle (then picks merged-file destination + writes a one-line cluster summary) OR disposes each idea individually.
+
+**Bundle sub-prompt destinations:** when a bundle is accepted, the sub-prompt offers `tracker | roadmap | todo | adr | plan` (the same conditional availability rules as a single idea's submenu). **Excluded from bundle sub-prompts:** `bundle` (would recurse) and `rule` (rule candidates are intentionally one-rule-per-entry — bundling rule candidates obscures their individual review under audit Step 2c3, which expects one rule per `### YYYY-MM-DD — {title}` block).
 
 Git history is the audit trail for accepted/rejected/reclassified ideas; deleted files remain recoverable via `git log --all -- intake/ideas/` if needed.
 
@@ -143,11 +162,12 @@ Read `{knowledge_folder}/intake/rules-backlog.md`. **If the file is missing**, r
 
 If there are entries below the `---` separator, these are rule candidates — observations or proposals about *how to work* (rather than *what is*) — staged via the `Accept → rule` path on prior idea audits, or appended directly when feedback in conversation matches a "rule of thumb" shape.
 
-For each entry, note it for presentation in Step 6 alongside other backlogs. Rule candidates have two valid promotion targets:
-- **User memory `feedback_*.md`** — when the rule is personal/working-style and applies across projects (matches the existing feedback memory pattern in `~/.claude/projects/`)
-- **Project-local `rules/working-rules.md`** — when the rule is project-scoped and codifies a repeating discipline for that codebase
+For each entry, note it for presentation in Step 6 alongside other backlogs. Rule candidates have three valid promotion targets, all inside the user memory directory or `{knowledge_folder}` (ARIA never writes to project source):
+- **User memory `feedback_*.md`** — for personal/working-style rules that span projects (matches the existing feedback-memory pattern under the active project's `~/.claude/projects/{cwd-encoded}/memory/` directory)
+- **Cross-project `{knowledge_folder}/rules/user-rules.md`** — for ARIA-behavior rules that should apply consistently across all the user's work (the user-owned counterpart to plugin-managed `working-rules.md`)
+- **Project-tier `{knowledge_folder}/projects/{tag}/rules/working-rules.md`** — only when `projects_enabled: true` and the entry's `project` tag matches `projects_list`; for project-scoped discipline that doesn't generalize cross-project. Setup's Step 7c scaffolds the parent `rules/` subdirectory so this destination is always available when the projects tier is on.
 
-Rejected entries get cleared from the backlog. Both promotion targets are reviewed at user approval time in Step 7 — do not auto-promote.
+Rejected entries get cleared from the backlog. All three promotion targets are reviewed at user approval time in Step 7 — do not auto-promote.
 
 **Reclassification check:** if any entry reads as a feature proposal or bug report (rather than a "how to work" rule), flag it for re-routing to `intake/ideas/` during Step 7. Common signals indicating misclassification: "should add", "should fix", "would be nice if X existed". Rules describe behavior; ideas describe missing features.
 
@@ -460,6 +480,16 @@ Example output:
 
 When the user picks `Accept`, prompt: *"Destination? [tracker | roadmap | todo | adr | plan | bundle | rule]"* (showing only the items in that idea's available submenu). Then route per the Step 2c2 specification.
 
+**Submenu validation:** if the user names a destination that is **not** in this idea's available submenu (e.g., picks `roadmap` when ROADMAP.md doesn't exist for this project, or picks `bundle` on a non-clustered idea), do **not** auto-route to a fallback. Instead, re-prompt with a one-line explanation:
+
+> *"`{destination}` is not available for this idea — {reason}. Pick from: [{available submenu}]."*
+
+Reasons by destination:
+- `roadmap` / `todo`: *"ROADMAP.md / TODO.md not found at {resolved project root} or its docs/ subdirectory"* (or *"project path unresolved"* per Step 2c2 resolution rules).
+- `bundle`: *"this idea is not part of a detected cluster — file matches no other pending idea on project + ≥2 significant title words"*.
+
+This makes the gap visible and forces an informed re-pick rather than silently routing to a destination the user didn't ask for.
+
 **Between audits:** remind the user that `/context {project}` also surfaces pending ideas scoped to that project (informational, non-selectable) — for keeping the staged list visible between audit cycles without running a full review. Audit-time is for disposition; `/context` is for awareness.
 
 If no ideas exist: emit "**Pending Ideas:** 0 — none pending."
@@ -478,7 +508,7 @@ If none: emit "**Pending Decisions:** 0 — none pending."
 For each rule entry:
 - **Date / Project(s) / Context:** from the entry header
 - **Rule:** the proposed rule statement (and the "why" / "how to apply" lines if present)
-- **Recommendation:** suggested promotion target — (a) **user memory** (`feedback_*.md` under `~/.claude/projects/{project}/memory/`) for personal/working-style rules that span projects, or (b) **project-local working rules** (`{project_path}/working-rules.md` or `projects/{tag}/rules/working-rules.md` if the project tier is enabled) for project-scoped discipline. Or "clear" if already captured elsewhere.
+- **Recommendation:** suggested promotion target — (a) **user memory** (`feedback_*.md` under the active project's `~/.claude/projects/{cwd-encoded}/memory/`) for personal/working-style rules that span projects; (b) **cross-project ARIA rule** (`{knowledge_folder}/rules/user-rules.md`) for ARIA-behavior rules that apply across all work; (c) **project-tier working rule** (`{knowledge_folder}/projects/{tag}/rules/working-rules.md` — projects tier only) for project-scoped discipline. Or "clear" if already captured elsewhere.
 
 If none: emit "**Pending Rules:** 0 — none pending."
 
@@ -684,7 +714,7 @@ Then execute approved promotions below:
 
 - Approved insights → move to the appropriate knowledge file, clear from backlog
 - Approved decisions → create full ADR in `{knowledge_folder}/decisions/`, clear from backlog
-- Approved rules → for each entry, prompt the user to pick the promotion target: (a) **user memory** — write a `feedback_*.md` file under `~/.claude/projects/{project}/memory/` and add a one-line index entry to `MEMORY.md` (mirrors how feedback memories already get written manually); (b) **project-local working rules** — append the rule to `{project_path}/working-rules.md` (or to `{knowledge_folder}/projects/{tag}/rules/working-rules.md` if the project tier is enabled and a per-project rules folder exists), creating the file from template if missing. Clear from backlog after writing.
+- Approved rules → for each entry, prompt the user to pick the promotion target: (a) **user memory** — write a `feedback_*.md` file under the active project's Claude Code memory directory (typically `~/.claude/projects/{cwd-encoded}/memory/`, the same location existing `feedback_*.md` files live in) and add a one-line index entry to `MEMORY.md` in that same directory. Mirrors how feedback memories are written manually today; (b) **cross-project knowledge rule** — append to `{knowledge_folder}/rules/user-rules.md` (the user-owned rules file that ARIA never overwrites). Use this when the rule is for ARIA's own behavior across projects rather than personal/working-style; (c) **project-tier working rule** — only available when `projects_enabled: true` AND the idea has a `project` tag matching `projects_list`. Append to `{knowledge_folder}/projects/{tag}/rules/working-rules.md`; if the file or its parent `rules/` directory doesn't exist, create them from the template (see Step 7c of `/setup` for the scaffolding contract). Clear the entry from `intake/rules-backlog.md` after writing. **Never** write to paths outside `{knowledge_folder}` or the user memory directory — destinations like `{project_path}/working-rules.md` (the codebase itself) are out of scope for ARIA promotion since ARIA does not modify project source.
 - Approved project-tier promotions (only if `projects_enabled: true`) → before writing, validate the target project subfolder exists. If `projects/{tag}/` is not in the user's knowledge folder, prompt: *"Project '{tag}' is not in your config (`projects_list`). Add it now? (yes adds the tag to projects_list, creates `projects/{tag}/{decisions,patterns}/` with a per-project README, then writes the file)."* If the user says yes, edit `~/.claude/aria-knowledge.local.md` to append the tag to `projects_list` (preserving existing entries), create the directory structure (mirror `/setup` Step 3's project tier scaffolding), then write the promoted file. If the user says no, fall back to the cross-project location (`approaches/` or `decisions/`) and warn that the project context is being lost.
 - Approved cross-project promotion candidates from Step 5e → already handled inline in Step 5e (synthesis + `originally_at` + source disposition). No additional action here.
 - Approved synthesis drafts → create the new file in the appropriate category, clear source entries from backlogs

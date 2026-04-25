@@ -23,10 +23,11 @@ Routing behavior per destination is documented in the SKILL Step 2c2 table and m
 
 ### New — `intake/rules-backlog.md` artifact
 
-Mirrors the shape of `decisions-backlog.md` but for rule candidates — observations or proposals about *how to work* (rather than *what is*). Populated three ways: via the `Accept → rule` path during idea audits, via `/extract` when conversation surfaces a repeating discipline, or by manual append. Reviewed in `/audit-knowledge` Step 2c3 with two valid promotion targets:
+Mirrors the shape of `decisions-backlog.md` but for rule candidates — observations or proposals about *how to work* (rather than *what is*). Populated three ways: via the `Accept → rule` path during idea audits, via `/extract` when conversation surfaces a repeating discipline, or by manual append. Reviewed in `/audit-knowledge` Step 2c3 with three valid promotion targets — all inside the user memory directory or `{knowledge_folder}` (ARIA never writes to project source):
 
-- **User memory** — write `feedback_*.md` under `~/.claude/projects/{project}/memory/` (matches existing feedback-memory pattern).
-- **Project-local working rules** — append to `{project_path}/working-rules.md` or `projects/{tag}/rules/working-rules.md` if the project tier is enabled.
+- **User memory** — write `feedback_*.md` under the active project's `~/.claude/projects/{cwd-encoded}/memory/` directory (matches existing feedback-memory pattern).
+- **Cross-project ARIA rule** — append to `{knowledge_folder}/rules/user-rules.md` (user-owned counterpart to plugin-managed `working-rules.md`).
+- **Project-tier working rule** (projects tier only) — append to `{knowledge_folder}/projects/{tag}/rules/working-rules.md`. Setup's Step 7c scaffolds the parent `rules/` subdirectory under each configured project so this destination is always available when the projects tier is enabled.
 
 Rejected entries clear from the backlog. The new file is registered in `setup` SKILL Step 3 expected-files list and Step 4 never-diff list (user-owned).
 

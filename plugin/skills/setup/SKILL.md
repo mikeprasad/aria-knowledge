@@ -265,7 +265,7 @@ Scaffold the project tier using the final config values:
 2. **Copy `${CLAUDE_PLUGIN_ROOT}/template/projects/README.md` to `projects/README.md`** if missing (plugin-managed; will be diffed on future `/setup` runs).
 3. **For each entry in `projects_list` (parsed as `tag:path` pairs):**
    - Create `projects/{tag}/` if missing.
-   - Create `projects/{tag}/decisions/` and `projects/{tag}/patterns/` if missing.
+   - Create `projects/{tag}/decisions/`, `projects/{tag}/patterns/`, and `projects/{tag}/rules/` if missing. The `rules/` subdir is the destination for `/audit-knowledge` Step 7's project-tier rule promotion (`{knowledge_folder}/projects/{tag}/rules/working-rules.md`); it stays empty until the first rule is promoted.
    - If `projects/{tag}/README.md` does not exist, generate it from this per-project template:
      ```markdown
      ---
@@ -281,6 +281,7 @@ Scaffold the project tier using the final config values:
 
      - `decisions/` — Architecture Decision Records (ADRs) — numbered sequentially per project (001, 002, ...)
      - `patterns/` — Reusable patterns specific to this project
+     - `rules/` — Project-specific working rules promoted from `intake/rules-backlog.md`; lands `working-rules.md` here
      - `guides/` (optional) — Operational knowledge specific to this project; create on demand
      - `references/` (optional) — External resources specific to this project; create on demand
 
