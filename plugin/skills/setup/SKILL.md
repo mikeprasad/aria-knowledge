@@ -37,7 +37,7 @@ Read the expected structure from `${CLAUDE_PLUGIN_ROOT}/template/`.
 
 **Expected directories:** `intake/`, `intake/notes/`, `intake/attachments/`, `intake/clippings/`, `intake/pre-compact-captures/`, `intake/ideas/`, `logs/`, `rules/`, `approaches/`, `decisions/`, `guides/`, `references/`, `archive/`
 
-**Expected files:** `README.md`, `OVERVIEW.md`, `LOCAL.md`, `intake/insights-backlog.md`, `intake/decisions-backlog.md`, `intake/extraction-backlog.md`, `intake/ideas/README.md`, `logs/knowledge-audit-log.md`, `logs/config-audit-log.md`, `rules/working-rules.md`, `rules/user-rules.md`, `rules/change-decision-framework.md`, `rules/enforcement-mechanisms.md`, `guides/README.md`, `approaches/README.md`, `decisions/README.md`, `references/README.md`, `archive/README.md`
+**Expected files:** `README.md`, `OVERVIEW.md`, `LOCAL.md`, `intake/insights-backlog.md`, `intake/decisions-backlog.md`, `intake/extraction-backlog.md`, `intake/rules-backlog.md`, `intake/ideas/README.md`, `logs/knowledge-audit-log.md`, `logs/config-audit-log.md`, `rules/working-rules.md`, `rules/user-rules.md`, `rules/change-decision-framework.md`, `rules/enforcement-mechanisms.md`, `guides/README.md`, `approaches/README.md`, `decisions/README.md`, `references/README.md`, `archive/README.md`
 
 **User-owned files (created once from template, never overwritten or diffed):** `LOCAL.md` (project-specific guide), `rules/user-rules.md` (your custom rules — ARIA never touches this file), `guides/README.md`, `approaches/README.md`, `decisions/README.md`, `references/README.md`, `archive/README.md` (directory stubs users may customize).
 
@@ -48,7 +48,7 @@ Read the expected structure from `${CLAUDE_PLUGIN_ROOT}/template/`.
 > Your knowledge folder now contains two classes of template files:
 >
 > - **Plugin-managed** — `README.md`, `OVERVIEW.md`, `rules/working-rules.md`, `rules/change-decision-framework.md`, `rules/enforcement-mechanisms.md` (and `projects/README.md` when the project tier is enabled). These are diffed on every `/setup` run. Customize them freely — your edits will appear as diff prompts when plugin updates ship. That's how you receive improvements without silent overwrites. Each managed file also carries a `<!-- plugin-managed: -->` comment header so you can spot them at edit time.
-> - **User-owned** — `LOCAL.md`, `rules/user-rules.md`, intake backlogs (`insights-backlog.md`, `decisions-backlog.md`, `extraction-backlog.md`) and the `intake/ideas/` directory (one file per idea since v2.11), audit logs under `logs/`, directory README stubs (`guides/`, `approaches/`, `decisions/`, `references/`, `archive/`), and per-project READMEs under `projects/{tag}/`. ARIA never diffs or overwrites these. Your customizations live here safely.
+> - **User-owned** — `LOCAL.md`, `rules/user-rules.md`, intake backlogs (`insights-backlog.md`, `decisions-backlog.md`, `extraction-backlog.md`, `rules-backlog.md`) and the `intake/ideas/` directory (one file per idea since v2.11), audit logs under `logs/`, directory README stubs (`guides/`, `approaches/`, `decisions/`, `references/`, `archive/`), and per-project READMEs under `projects/{tag}/`. ARIA never diffs or overwrites these. Your customizations live here safely.
 >
 > See `OVERVIEW.md` "Plugin-Managed vs User-Owned Files" for details. This note appears only on first setup.
 
@@ -89,7 +89,7 @@ For each templated file that already exists in the user's folder, compare agains
 
 **Files to diff:** `rules/working-rules.md`, `rules/change-decision-framework.md`, `rules/enforcement-mechanisms.md`, `README.md`, `OVERVIEW.md`, `projects/README.md` (plugin-managed if present)
 
-**Never diff:** `LOCAL.md` (user-owned), `rules/user-rules.md` (user-owned — your custom rules), directory README stubs (`guides/README.md`, `approaches/README.md`, `decisions/README.md`, `references/README.md`, `archive/README.md`), backlog files (`intake/insights-backlog.md`, `intake/decisions-backlog.md`, `intake/extraction-backlog.md`) and the `intake/ideas/` directory (`intake/ideas/README.md` and all per-file ideas under `intake/ideas/**`), audit log files (`logs/knowledge-audit-log.md`, `logs/config-audit-log.md`), and per-project READMEs (`projects/{tag}/README.md` and any other content under `projects/{tag}/**`) — these contain user data or user-customizable content.
+**Never diff:** `LOCAL.md` (user-owned), `rules/user-rules.md` (user-owned — your custom rules), directory README stubs (`guides/README.md`, `approaches/README.md`, `decisions/README.md`, `references/README.md`, `archive/README.md`), backlog files (`intake/insights-backlog.md`, `intake/decisions-backlog.md`, `intake/extraction-backlog.md`, `intake/rules-backlog.md`) and the `intake/ideas/` directory (`intake/ideas/README.md` and all per-file ideas under `intake/ideas/**`), audit log files (`logs/knowledge-audit-log.md`, `logs/config-audit-log.md`), and per-project READMEs (`projects/{tag}/README.md` and any other content under `projects/{tag}/**`) — these contain user data or user-customizable content.
 
 For each file with differences:
 1. Notify: "[filename] differs from the plugin version."
@@ -140,6 +140,7 @@ If the user asks about advanced options or re-runs setup with existing config, a
 > - **Ideas staleness threshold:** 21 days (during `/audit-knowledge`, mark idea files in `intake/ideas/` older than this with `[STALE — still relevant?]` to prompt Accept/Reject/Defer decisions)
 > - **Auto-capture on compaction:** true (save transcript snapshot before context compaction)
 > - **Critical paths:** (empty) comma-separated path patterns that always require HIGH impact assessment (e.g., auth/*,payments/*,migrations/*)
+> - **Ticketing plugins:** (empty) comma-separated `tag:plugin-command` pairs mapping a project tag to its ticket-drafting plugin (e.g., `proj-a:foo-ticket,proj-b:bar-ticket`). When set, `/audit-knowledge` prints a hint to use that plugin's command when an idea's project matches a mapped tag during the `Accept → tracker` disposition. Hint only — never auto-invokes. Leave empty if you don't use a ticketing plugin or prefer to copy ideas into your tracker manually.
 > - **Project-specific knowledge tier:** disabled (creates `projects/{tag}/` subdirectories for project-specific decisions and patterns; opt in if you want to organize knowledge by project alongside the cross-project tree. If enabled, you'll be asked an inline follow-up about auto-loading project context on session start.)
 >
 > Want to change any? (Enter new values or press enter to keep defaults)"
@@ -188,6 +189,7 @@ staleness_threshold_months: [value from Step 6, default 6]
 ideas_staleness_threshold_days: [value from Step 6, default 21]
 auto_capture: [true/false from Step 6, default true]
 critical_paths: [comma-separated patterns from Step 6, default empty]
+ticketing_plugins: [comma-separated tag:plugin-command pairs from Step 6, default empty]
 projects_enabled: [true/false from Step 6, default false]
 projects_list: [comma-separated tag:path pairs from Step 6, default empty]
 projects_remotes: [comma-separated tag:url-pattern pairs from Step 6, default empty]
@@ -215,8 +217,9 @@ In **update mode:** preserve any user-added content in the markdown body below t
 - `knowledge_folder` must be an absolute path (starts with `/`) and must not contain `..`
 - Cadence values must be plain integers (no units, no quotes)
 - `projects_enabled` must be exactly `true` or `false` (not `True`, `yes`, `1`, etc.)
-- `projects_list` and `projects_remotes`: comma-separated `tag:value` pairs, no spaces around the colon or comma (e.g., `cs-builder:cs/cs-space-builder,df:df`)
-- Project tags cannot contain colons or commas (the parser splits on these)
+- `projects_list`, `projects_remotes`, and `ticketing_plugins`: comma-separated `tag:value` pairs, no spaces around the colon or comma (e.g., `proj-a:path/to/proj-a,proj-b:proj-b` for paths; `proj-a:foo-ticket,proj-b:bar-ticket` for plugin commands)
+- Project tags (used in `projects_list`, `projects_remotes`, `ticketing_plugins`) cannot contain colons or commas (the parser splits on these)
+- `ticketing_plugins` plugin-command values are bare command names without the leading `/` (e.g., `foo-ticket`, not `/foo-ticket`) — `/audit-knowledge` prepends the slash when printing the hint
 - `projects_promotion_threshold` must be a plain integer ≥ 1 (no units, no quotes)
 - `auto_load_project_context` must be exactly `true` or `false` (not `True`, `yes`, `1`, etc.)
 - No blank lines between frontmatter entries
@@ -240,12 +243,13 @@ After writing the config file, read it back and verify that each value can be ex
    - `ideas_staleness_threshold_days` — confirm it's the integer from Step 6
    - `auto_capture` — confirm it's `true` or `false`
    - `critical_paths` — confirm it's a comma-separated string of path patterns (or empty)
+   - `ticketing_plugins` — confirm it's a comma-separated string of `tag:plugin-command` pairs (or empty); validate no project tag contains `:` or `,`; validate plugin-command values do not start with `/`
    - `projects_enabled` — confirm it's `true` or `false`
    - `projects_list` — confirm it's a comma-separated string of `tag:path` pairs (or empty); validate no project tag contains `:` or `,`
    - `projects_remotes` — confirm it's a comma-separated string of `tag:url-pattern` pairs (or empty); validate no project tag contains `:` or `,`
    - `projects_promotion_threshold` — confirm it's a plain integer ≥ 1 (matches Step 6 input)
    - `auto_load_project_context` — confirm it's `true` or `false`
-   - **Empty-sentinel check** — for string-valued keys with an empty default (`critical_paths`, `projects_list`, `projects_remotes`): confirm the raw extracted value is not the literal string `null`, `""`, `none`, or `[]`. If the key is intended to be empty, the value after the colon must be truly empty (nothing or a single trailing space). Rewrite the key as `key:` and re-verify.
+   - **Empty-sentinel check** — for string-valued keys with an empty default (`critical_paths`, `ticketing_plugins`, `projects_list`, `projects_remotes`): confirm the raw extracted value is not the literal string `null`, `""`, `none`, or `[]`. If the key is intended to be empty, the value after the colon must be truly empty (nothing or a single trailing space). Rewrite the key as `key:` and re-verify.
 
 **If any check fails:** rewrite the file with corrected formatting and verify again. Report which value failed and what was fixed.
 

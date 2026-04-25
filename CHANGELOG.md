@@ -2,6 +2,59 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## [2.12.0] - 2026-04-26
+
+Minor release. Expands the idea-disposition vocabulary in `/audit-knowledge` from a single Accept verb (which previously only meant "copy to external tracker") to a seven-destination submenu: `tracker | roadmap | todo | adr | plan | bundle | rule`. Adds a new `intake/rules-backlog.md` artifact to receive the `rule` path. Adds a `ticketing_plugins` config key so the audit can hint at user-installed ticket-drafting plugins per project tag without coupling ARIA to any specific plugin name. Adds detection probes that surface `roadmap` / `todo` only when the relevant file exists at the project root or under `docs/`. Adds bundle auto-clustering when the audit detects 2+ ideas sharing project tag and ≥2 significant title words. No behavior changes for existing knowledge backlogs (insights/decisions/extraction); existing single-Accept disposition still works as `Accept → tracker` (the new default).
+
+### Why this matters
+
+The single-Accept-to-tracker model assumed every actionable idea belonged in an external issue tracker. In practice many ideas are too small for tickets (TODO line), too coarse for tickets (roadmap entry), too principled for tickets (working-rule), or actually decisions in disguise (ADR candidate). The new submenu lets each idea route to the surface that fits its weight, while preserving the routes-out-not-promotes invariant — `adr` and `rule` paths land in their respective backlogs for normal audit-cycle review, not directly in `decisions/` or `rules/`.
+
+### New — Accept submenu in `/audit-knowledge`
+
+Step 2c2 expanded with the seven-destination spec. Step 6 Pending Ideas presentation now uses a two-step prompt (top-level Accept/Reject/Defer/Reclassify; Accept submenu computed per idea). Submenu items are conditional:
+
+- `tracker | adr | plan | rule` — always available.
+- `roadmap` — only if `ROADMAP.md` exists at the idea's project root (closest ancestor with `.git/` or `CLAUDE.md`) or under that root's `docs/`.
+- `todo` — same probe pattern for `TODO.md`.
+- `bundle` — only when the audit detects a cluster (same project tag + ≥2 shared significant title words across 2+ pending ideas).
+
+Routing behavior per destination is documented in the SKILL Step 2c2 table and mirrored in `intake/ideas/README.md`.
+
+### New — `intake/rules-backlog.md` artifact
+
+Mirrors the shape of `decisions-backlog.md` but for rule candidates — observations or proposals about *how to work* (rather than *what is*). Populated three ways: via the `Accept → rule` path during idea audits, via `/extract` when conversation surfaces a repeating discipline, or by manual append. Reviewed in `/audit-knowledge` Step 2c3 with two valid promotion targets:
+
+- **User memory** — write `feedback_*.md` under `~/.claude/projects/{project}/memory/` (matches existing feedback-memory pattern).
+- **Project-local working rules** — append to `{project_path}/working-rules.md` or `projects/{tag}/rules/working-rules.md` if the project tier is enabled.
+
+Rejected entries clear from the backlog. The new file is registered in `setup` SKILL Step 3 expected-files list and Step 4 never-diff list (user-owned).
+
+### New — `ticketing_plugins` config key
+
+User-declared registry mapping project tags to ticket-drafting plugin commands (e.g., `proj-a:foo-ticket,proj-b:bar-ticket`). Format mirrors `projects_list` so the existing pure-grep/sed config parser handles it without `bin/config.sh` changes. When set, `/audit-knowledge` prints a one-line hint during `Accept → tracker` disposition (e.g., *"Use `/foo-ticket` to draft this as a ticket"*) for ideas whose project matches a mapped tag. Hint only — never auto-invokes the other plugin's skill (preserves consent and avoids cross-plugin coupling). Empty default; users who don't use a ticketing plugin or prefer manual tracker copy-paste leave it empty.
+
+`setup` SKILL extended at four surfaces: Step 6 advanced-options prompt, Step 7 frontmatter write, Step 7 formatting rules, Step 7b round-trip + empty-sentinel verification. Plugin tags follow the same `:`/`,` exclusion as `projects_list`; plugin-command values must be bare command names without leading `/` (the audit prepends the slash when printing the hint).
+
+### Changed — `/stats` and `/backlog` now read four backlogs
+
+Both skills updated to include `intake/rules-backlog.md` alongside insights/decisions/extraction:
+
+- `/stats` Intake section gains a `Pending rules: N` line.
+- `/backlog` overview emits a Rules row; `/backlog rules` opens the detail view; `/backlog clear rules YYYY-MM-DD` clears entries by date.
+- `/audit-knowledge` Step 1 backlog-count loop includes rules-backlog so the entry-count trigger threshold (default 20) accounts for rule candidates too.
+
+Audit-log fields in Step 8 now break out per-destination counts (`accepted: A1 tracker / A2 roadmap / ... / A7 rule`) and add `R rules reviewed` to the Counts line. Zero-valued sub-counts are omitted to keep entries readable.
+
+### Upgrade notes
+
+- **Reinstall required:** copy `plugin/` to `~/.claude/plugins/marketplaces/local-desktop-app-uploads/aria-knowledge/` to pick up the SKILL changes, the new template artifact, and the version bump.
+- **Run `/setup` to land `intake/rules-backlog.md`** in your knowledge folder. Existing folders won't get the file automatically — `/setup` adds missing files in update mode without overwriting anything else. Until then, `/audit-knowledge` will report the missing file with a "run /setup to repair" note.
+- **Optional `/setup` re-run for `ticketing_plugins`.** The key has an empty default; existing configs work unchanged. Re-run `/setup` and step through advanced options to populate the registry. Plugin-command values are bare names (e.g., `foo-ticket`, not `/foo-ticket`).
+- **No behavior change for existing dispositions.** A user choosing `Accept` and not picking a submenu destination receives a follow-up prompt — there's no implicit default. Older `Accept → tracker` muscle memory still works since it remains an explicit option.
+- **Public-repo discipline preserved.** No project-specific plugin names ship in templates, SKILLs, or the manifest. Examples in docs use generic placeholders (`proj-a:foo-ticket`).
+- **Backward compatible audit-log entries.** Pre-2.12.0 entries kept the old four-option Ideas-disposition shape (`A accepted → tracker, B rejected, C deferred, D reclassified`); these remain valid and don't need rewriting. New entries use the seven-destination breakdown.
+
 ## [2.11.2] - 2026-04-24
 
 Patch release. Adds `/snapshot`, an on-demand equivalent of the pre-compact transcript capture hook. Until now the only way to archive a raw session transcript was to wait for Claude Code's PreCompact event — a useful safety net, but not a control the user can reach for mid-session before switching context or kicking off a risky operation. `/snapshot` closes that gap by reusing the hook's archival contract under explicit user invocation.

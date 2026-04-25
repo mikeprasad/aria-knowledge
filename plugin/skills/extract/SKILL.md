@@ -50,7 +50,7 @@ If no entries exist from today's date, treat the entire conversation as unscanne
 
 ## Step 2: Scan Conversation for Uncaptured Knowledge
 
-Review the conversation and categorize findings into six buckets. The first five (insights, decisions, feedback, project context, references) capture **observations about what IS** — they promote to knowledge during audit. The sixth bucket (ideas) captures **proposals about what SHOULD BE different** — these route out to your external tracker, not into knowledge files.
+Review the conversation and categorize findings into six buckets. The first five (insights, decisions, feedback, project context, references) capture **observations about what IS** — they promote to knowledge during audit. The sixth bucket (ideas) captures **proposals about what SHOULD BE different** — these route via the audit's Accept submenu (tracker / roadmap / todo / adr / plan / bundle / rule) rather than promoting directly into knowledge files.
 
 ### Insights
 - Insight blocks that were output but NOT yet appended to `insights-backlog.md` (per-task capture may have already appended some — Step 3 dedup handles this)
@@ -188,7 +188,7 @@ title: Short title matching the filename slug
 **Source:** Where in the conversation it came up (brief description).
 ```
 
-Ideas do NOT promote to knowledge files — they route out of ARIA to the user's external tracker (Linear, GitHub Issues, Jira, etc.) during audit review.
+Ideas do NOT promote to knowledge files directly — during audit review the user picks a destination from the Accept submenu: external tracker (Linear, GitHub Issues, Jira, etc.), project `ROADMAP.md` or `TODO.md` (when present), the decisions backlog (for ADR review), a `plans/{slug}.md` stub, a bundled merge of related ideas, or the rules backlog (for working-rule review).
 
 ### Before writing:
 - For the three single-file backlogs (insights, decisions, extraction): remove any "(No pending ...)" placeholder, then append new entries below existing ones with a blank line separator.
@@ -209,10 +209,10 @@ After appending, output a brief summary:
 - **Feedback:** N new (appended to extraction-backlog.md)
 - **Project context:** N new (appended to extraction-backlog.md)
 - **References:** N new (appended to extraction-backlog.md)
-- **Ideas:** N new (written to intake/ideas/ — one file per idea; route to tracker, not knowledge)
+- **Ideas:** N new (written to intake/ideas/ — one file per idea; routed at audit time to tracker / roadmap / todo / adr / plan / bundle / rule)
 - **Skipped:** N duplicates
 
-Knowledge staged in backlogs for next audit to review and promote. Ideas staged for routing out to your external tracker.
+Knowledge staged in backlogs for next audit to review and promote. Ideas staged for the Accept submenu — pick destination per idea at next `/audit-knowledge`.
 ```
 
 If nothing was found:

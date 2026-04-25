@@ -34,6 +34,7 @@ For each backlog file, count the number of `### ` (h3) entries below the `---` s
 - `{knowledge_folder}/intake/insights-backlog.md`
 - `{knowledge_folder}/intake/decisions-backlog.md`
 - `{knowledge_folder}/intake/extraction-backlog.md`
+- `{knowledge_folder}/intake/rules-backlog.md`
 
 Also count `.md` files in `{knowledge_folder}/intake/pre-compact-captures/`.
 
@@ -108,6 +109,7 @@ Output in this format:
 - Pending insights: N
 - Pending decisions: N
 - Pending extractions: N
+- Pending rules: N
 - Unreviewed clippings: N
 - Pre-compact captures: N
 

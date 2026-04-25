@@ -28,12 +28,13 @@ Read `{knowledge_folder}/logs/knowledge-audit-log.md`.
 
 Note the "Last Audit" date and calculate days since.
 
-**Compute the current trigger state** by counting `^### ` entries across the three action-eligible backlogs (insights, decisions, extraction — exclude `intake/ideas/`, which routes out rather than promoting). Count only entries **below the first `---` separator** per file, matching the convention used by `/stats` and `/backlog`:
+**Compute the current trigger state** by counting `^### ` entries across the four action-eligible backlogs (insights, decisions, extraction, rules — exclude `intake/ideas/`, which routes out via the Accept submenu rather than promoting directly). Count only entries **below the first `---` separator** per file, matching the convention used by `/stats` and `/backlog`:
 
 ```bash
 for f in {knowledge_folder}/intake/insights-backlog.md \
          {knowledge_folder}/intake/decisions-backlog.md \
-         {knowledge_folder}/intake/extraction-backlog.md; do
+         {knowledge_folder}/intake/extraction-backlog.md \
+         {knowledge_folder}/intake/rules-backlog.md; do
   [ -f "$f" ] && awk '/^---$/{sep++; next} sep>=1 && /^### /{c++} END{print c+0}' "$f"
 done | awk '{s+=$1} END{print s+0}'
 ```
@@ -99,20 +100,56 @@ Glob `{knowledge_folder}/intake/ideas/*.md`. **If the directory is missing**, re
 
 **Legacy-file detection (one-time):** Also check for `{knowledge_folder}/intake/ideas-backlog.md`. If it exists alongside `intake/ideas/`, surface a finding in Step 6 under a "Legacy Ideas Backlog" note: *"Pre-2.11 `ideas-backlog.md` detected. Run `bash ${CLAUDE_PLUGIN_ROOT}/bin/migrate-ideas-backlog.sh {knowledge_folder}` or re-run `/setup` to migrate entries into per-file format."* Do not attempt the migration from within the audit flow.
 
-For each `*.md` file in `intake/ideas/`: read the file (frontmatter + body). Each file is one idea — feature proposal, bug report, or design idea captured via `/extract`. Ideas have a **distinct disposition** from other backlogs — they do NOT promote to knowledge files. Present them in their own section in Step 6 with the options:
+For each `*.md` file in `intake/ideas/`: read the file (frontmatter + body). Each file is one idea — feature proposal, bug report, or design idea captured via `/extract`. Ideas have a **distinct disposition** from other backlogs — they do NOT promote to knowledge files directly. Present them in their own section in Step 6 with the options:
 
-- **Accept** — user copies the idea to their external tracker (Linear, GitHub Issues, Jira, etc.), then the file is **deleted** with a note in the audit log of where it went
+- **Accept** — pick a destination from the submenu below; the idea file is **deleted** after routing, with a note in the audit log of where it went
 - **Reject** — file is **deleted** with a one-line reason in the audit log
 - **Defer** — file stays in place for the next audit cycle (no-op)
 - **Reclassify** — if on review the item is actually an observation, move its content to the appropriate knowledge backlog (insights/decisions/extraction) for normal promotion, then **delete** the idea file
 
+**Accept submenu** — destinations:
+
+| Destination | What happens | Detection / availability |
+|-------------|--------------|--------------------------|
+| `tracker` | User copies to external tracker (Linear / GitHub Issues / Jira / etc.). If `ticketing_plugins` config maps the idea's `project` tag to a plugin command, also print a one-line hint (e.g., *"Use `/foo-ticket` to draft this"*). Hint only — never auto-invoke. | always available |
+| `roadmap` | Append idea body as a new entry to project-root `ROADMAP.md` (or `docs/ROADMAP.md`). Entry includes date prefix + Proposal/Motivation. | only if `ROADMAP.md` exists at project root or under `docs/` |
+| `todo` | Append a single-line entry to project-root `TODO.md` (or `docs/TODO.md`). Format: `- [YYYY-MM-DD] {title} — {one-line proposal}`. | only if `TODO.md` exists at project root or under `docs/` |
+| `adr` | Copy idea body into `intake/decisions-backlog.md` as a new `### YYYY-MM-DD — {title}` entry below the `---` separator. Reviewed as a decision in next audit. | always available |
+| `plan` | Write `plans/{slug}.md` (or `PLAN.md` if no `plans/` directory exists) seeded with Proposal as `## Goal`, Motivation as `## Why`. | always available; chooses dir vs file based on what's present |
+| `bundle` | Merge 2+ related ideas into a single file, then sub-prompt for one of the destinations above. Source idea files are **all deleted** after the merged file lands. | offered when audit detects clusters (see "Bundle clustering" below) |
+| `rule` | Append idea body to `intake/rules-backlog.md` as a new `### YYYY-MM-DD — {title}` entry. Reviewed during next audit alongside other rule candidates; promoted entries land in user memory as `feedback_*.md` records or in a project-local `working-rules.md`. | always available |
+
+**Project-root detection:** for `roadmap`, `todo`, and `plan` paths, "project root" means the closest ancestor directory of the idea's project that contains either a `.git/` directory or a `CLAUDE.md` file. Probe both that directory and its `docs/` subdirectory for the relevant filename. If neither exists, omit the destination from the submenu offered for that idea.
+
+**Ticketing plugin lookup:** read `ticketing_plugins` from `~/.claude/aria-knowledge.local.md` (format: comma-separated `tag:plugin-command` pairs, e.g., `proj-a:foo-ticket,proj-b:bar-ticket`). If the idea's `project` matches a mapped tag, append a hint line under the tracker option: *"Use `/{plugin-command}` to draft this as a ticket."* Never invoke the other plugin's skill from inside this audit — the hint is informational; the user invokes manually.
+
+**Bundle clustering** — auto-detected at audit time. Group pending idea files where:
+1. `project` frontmatter matches across 2+ files, AND
+2. Titles share ≥2 significant words (excluding stop words: a, an, and, the, to, for, of, in, on, with, from, by, is, be).
+
+For each detected cluster, surface a `bundle` option once in the cluster's lead entry in Step 6 (with a list of cluster members). The user chooses bundle (then picks merged-file destination + writes a one-line cluster summary) OR disposes each idea individually.
+
 Git history is the audit trail for accepted/rejected/reclassified ideas; deleted files remain recoverable via `git log --all -- intake/ideas/` if needed.
 
-Do NOT suggest promotion targets (approaches/, decisions/, etc.) for ideas — that's the whole point of the separation. The audit report for ideas is presentational only; routing out to trackers is a user action, not a promotion.
+Ideas never promote to `approaches/`, `decisions/`, or `rules/` directly via Accept — those land in their respective backlogs (`adr` → `decisions-backlog.md`, `rule` → `rules-backlog.md`) for normal audit-cycle review. The audit report for ideas presents the submenu inline; routing is a user action invoked by their disposition choice.
 
 **Age annotation and stale marker:** For each idea file, compute age as `(today - idea date)` in days. Derive the idea date as follows: (1) read `date:` from YAML frontmatter; (2) if missing or malformed, fall back to the `YYYY-MM-DD` prefix of the filename. Annotate each entry with its age (`filed N days ago`). Read the staleness threshold from `~/.claude/aria-knowledge.local.md` (`ideas_staleness_threshold_days`, default 21) via `config.sh` or fallback. When `age > threshold`, append a `[STALE — still relevant?]` marker to the entry and escalate its visual weight in Step 6 (place stale entries first within the Pending Ideas section, and prompt explicitly for Accept/Reject/Defer rather than allowing implicit Defer).
 
 This is the audit's mechanism for forcing action on long-sitting ideas. Without staleness surfacing, items accumulate silently; with it, every audit cycle either confirms an idea still matters or retires it.
+
+## Step 2c3: Review Rules Backlog
+
+Read `{knowledge_folder}/intake/rules-backlog.md`. **If the file is missing**, report it in Step 6 and suggest running `/setup` to repair the structure. Do not create it.
+
+If there are entries below the `---` separator, these are rule candidates — observations or proposals about *how to work* (rather than *what is*) — staged via the `Accept → rule` path on prior idea audits, or appended directly when feedback in conversation matches a "rule of thumb" shape.
+
+For each entry, note it for presentation in Step 6 alongside other backlogs. Rule candidates have two valid promotion targets:
+- **User memory `feedback_*.md`** — when the rule is personal/working-style and applies across projects (matches the existing feedback memory pattern in `~/.claude/projects/`)
+- **Project-local `rules/working-rules.md`** — when the rule is project-scoped and codifies a repeating discipline for that codebase
+
+Rejected entries get cleared from the backlog. Both promotion targets are reviewed at user approval time in Step 7 — do not auto-promote.
+
+**Reclassification check:** if any entry reads as a feature proposal or bug report (rather than a "how to work" rule), flag it for re-routing to `intake/ideas/` during Step 7. Common signals indicating misclassification: "should add", "should fix", "would be nice if X existed". Rules describe behavior; ideas describe missing features.
 
 ## Step 2d: Review Pre-Compact Captures
 
@@ -388,32 +425,44 @@ Present ideas in their own section. **Sort stale entries first** (age > `ideas_s
 - Date, age annotation (`filed N days ago`), project tag, short title, type (feature/bug/design/refactor/workflow)
 - Stale marker `[STALE — still relevant?]` appended when age > threshold
 - Proposal and motivation (one-line summary if long)
-- **Disposition options (no promotion targets):** Accept → copy to tracker | Reject → clear with reason | Defer → keep in backlog | Reclassify → move to appropriate knowledge backlog if this is actually an observation
+- **Disposition prompt:** two-step format — top-level choice + Accept submenu
 
-For stale entries, prompt explicitly for a disposition choice (don't allow implicit Defer). For non-stale entries, Defer is fine as a no-op.
+**Top-level options (always shown):**
+- `Accept → [submenu]` — pick a destination from the per-idea submenu (computed per Step 2c2 detection probes)
+- `Reject` — clear with one-line reason
+- `Defer` — keep in place for next audit (disallowed implicitly for stale entries)
+- `Reclassify` — move to insights/decisions/extraction backlog as observation
 
-Example:
+**Accept submenu (computed per idea):** always include `tracker | adr | plan | rule`. Conditionally include `roadmap` if `ROADMAP.md` exists at the idea's project root or under `docs/`; `todo` if `TODO.md` exists similarly; `bundle` only on the lead entry of a detected cluster (and list cluster members inline).
+
+For stale entries, prompt explicitly (don't allow implicit Defer). For non-stale entries, Defer is fine as a no-op.
+
+Example output:
 ```
 ### Pending Ideas (3)
 
 - 2026-03-12 (35 days ago) — aria — refactor — simplify blueprint merge logic [STALE — still relevant?]
   Proposal: ...
-  Accept / Reject / Defer / Reclassify?
+  Accept → [tracker | adr | plan | rule] / Reject / Defer / Reclassify?
+  (no roadmap/todo: ROADMAP.md and TODO.md not found at aria project root or docs/)
 
 - 2026-03-22 (25 days ago) — cs-builder — bug — theme tokens missing from blueprint XYZ [STALE — still relevant?]
   Proposal: ...
-  Accept / Reject / Defer / Reclassify?
+  Accept → [tracker | roadmap | adr | plan | rule] / Reject / Defer / Reclassify?
+  (no todo: TODO.md not found)
+  Hint: Use /foo-ticket to draft this as a ticket. (ticketing_plugins maps this project tag → foo-ticket)
 
 - 2026-04-15 (1 day ago) — aria — feature — /setup diff prompts ahead vs diverged
+  Cluster: bundle option available — also see "/setup state-aware second run" (2026-04-15) and "/setup test-mode skip re-decided" (2026-04-15) under aria project.
   Proposal: ...
-  Accept / Reject / Defer / Reclassify?
+  Accept → [tracker | adr | plan | rule | bundle] / Reject / Defer / Reclassify?
 ```
 
-Do NOT suggest promotion to approaches/decisions/rules/etc. Ideas route out to external trackers; ARIA is staging only.
+When the user picks `Accept`, prompt: *"Destination? [tracker | roadmap | todo | adr | plan | bundle | rule]"* (showing only the items in that idea's available submenu). Then route per the Step 2c2 specification.
 
 **Between audits:** remind the user that `/context {project}` also surfaces pending ideas scoped to that project (informational, non-selectable) — for keeping the staged list visible between audit cycles without running a full review. Audit-time is for disposition; `/context` is for awareness.
 
-If no ideas exist: omit this section.
+If no ideas exist: emit "**Pending Ideas:** 0 — none pending."
 
 ### Pending Decisions (from decisions-backlog.md)
 
@@ -423,6 +472,15 @@ For each decision entry:
 - **Recommendation:** promote to ADR in `{knowledge_folder}/decisions/` (with suggested filename) or "clear" if already captured elsewhere
 
 If none: emit "**Pending Decisions:** 0 — none pending."
+
+### Pending Rules (from rules-backlog.md)
+
+For each rule entry:
+- **Date / Project(s) / Context:** from the entry header
+- **Rule:** the proposed rule statement (and the "why" / "how to apply" lines if present)
+- **Recommendation:** suggested promotion target — (a) **user memory** (`feedback_*.md` under `~/.claude/projects/{project}/memory/`) for personal/working-style rules that span projects, or (b) **project-local working rules** (`{project_path}/working-rules.md` or `projects/{tag}/rules/working-rules.md` if the project tier is enabled) for project-scoped discipline. Or "clear" if already captured elsewhere.
+
+If none: emit "**Pending Rules:** 0 — none pending."
 
 ### Pre-Compact Captures (from intake/pre-compact-captures/)
 
@@ -626,6 +684,7 @@ Then execute approved promotions below:
 
 - Approved insights → move to the appropriate knowledge file, clear from backlog
 - Approved decisions → create full ADR in `{knowledge_folder}/decisions/`, clear from backlog
+- Approved rules → for each entry, prompt the user to pick the promotion target: (a) **user memory** — write a `feedback_*.md` file under `~/.claude/projects/{project}/memory/` and add a one-line index entry to `MEMORY.md` (mirrors how feedback memories already get written manually); (b) **project-local working rules** — append the rule to `{project_path}/working-rules.md` (or to `{knowledge_folder}/projects/{tag}/rules/working-rules.md` if the project tier is enabled and a per-project rules folder exists), creating the file from template if missing. Clear from backlog after writing.
 - Approved project-tier promotions (only if `projects_enabled: true`) → before writing, validate the target project subfolder exists. If `projects/{tag}/` is not in the user's knowledge folder, prompt: *"Project '{tag}' is not in your config (`projects_list`). Add it now? (yes adds the tag to projects_list, creates `projects/{tag}/{decisions,patterns}/` with a per-project README, then writes the file)."* If the user says yes, edit `~/.claude/aria-knowledge.local.md` to append the tag to `projects_list` (preserving existing entries), create the directory structure (mirror `/setup` Step 3's project tier scaffolding), then write the promoted file. If the user says no, fall back to the cross-project location (`approaches/` or `decisions/`) and warn that the project context is being lost.
 - Approved cross-project promotion candidates from Step 5e → already handled inline in Step 5e (synthesis + `originally_at` + source disposition). No additional action here.
 - Approved synthesis drafts → create the new file in the appropriate category, clear source entries from backlogs
@@ -697,8 +756,8 @@ Use the **structured format** below — it keeps audit logs scannable over many 
 ## Last Audit
 - **Date:** YYYY-MM-DD (Nth pass — short label: "routine check", "v2.8.0 continuation", "post-restructure", etc.)
 - **Trigger:** count=N threshold=T days=D cadence=C — (which fired: count-tier|days|user-invoked)
-- **Counts:** X insights, Y decisions, Z extractions reviewed
-- **Ideas disposition:** W reviewed — A accepted → tracker, B rejected, C deferred, D reclassified (omit field entirely if no ideas were in the audit)
+- **Counts:** X insights, Y decisions, Z extractions, R rules reviewed
+- **Ideas disposition:** W reviewed — accepted: A1 tracker / A2 roadmap / A3 todo / A4 adr / A5 plan / A6 bundle / A7 rule (sum = A); B rejected; C deferred; D reclassified (omit field entirely if no ideas were in the audit; omit any zero-valued sub-counts)
 - **New files:** N total — [breakdown: K approaches, L ADRs (split by tier), M patterns, etc.]
 - **Extended files:** P total — [list filename: brief change, e.g. "css-gotchas.md +2 gotchas"]
 - **Memory:** A new feedback, B new project, C new reference, D updates
@@ -714,7 +773,7 @@ Use the **structured format** below — it keeps audit logs scannable over many 
 - **Date:** YYYY-MM-DD (Nth pass — "no new items" or short label)
 - **Trigger:** count=N threshold=T days=D cadence=C — (which fired: count-tier|days|user-invoked)
 - **Result:** No new items — [X memory files all Category A, Y plan files Category B, backlogs empty OR K entries all cleared as already-captured/stale]
-- **Ideas disposition:** [optional — omit if no ideas were in the audit, else: W reviewed — A accepted → tracker, B rejected, C deferred, D reclassified]
+- **Ideas disposition:** [optional — omit if no ideas were in the audit, else: W reviewed — accepted: A1 tracker / A2 roadmap / A3 todo / A4 adr / A5 plan / A6 bundle / A7 rule (sum = A); B rejected; C deferred; D reclassified — omit any zero-valued sub-counts]
 - **Notes:** [optional — anything worth flagging even though nothing was promoted, e.g. "clusters forming around theme X but below threshold"]
 ```
 

@@ -4,9 +4,9 @@ Feature proposals, bug reports, and design ideas captured during Claude Code ses
 
 ## Purpose
 
-ARIA captures observations about **what IS** (knowledge) and stages proposals about **what SHOULD BE different** (ideas). Observations promote into knowledge files; proposals route out to your external tracker (Linear, GitHub Issues, Jira, etc.).
+ARIA captures observations about **what IS** (knowledge) and stages proposals about **what SHOULD BE different** (ideas). Observations promote into knowledge files; proposals route to whichever destination fits — your external tracker, a project roadmap, a quick TODO line, an ADR draft, a plan stub, a bundled spec, or a rule candidate.
 
-**ARIA captures; your tracker schedules.** This directory is staging only — ARIA does not replace your issue tracker.
+**ARIA captures; you choose where each proposal lives.** This directory is staging only — ARIA does not replace your issue tracker. The Accept submenu lets you route each idea to the right surface for its weight.
 
 ## File naming
 
@@ -47,14 +47,29 @@ title: Short title matching the filename slug
 
 ## Disposition (during `/audit-knowledge`)
 
-Ideas are surfaced in their own section without promotion suggestions. For each idea:
+Each idea is surfaced with a two-step prompt: a top-level choice (Accept / Reject / Defer / Reclassify) plus an Accept submenu of destinations.
 
-- **Accept** — copy the idea to your external tracker, then the file is deleted
-- **Reject** — delete the file with a disposition note recorded in the audit log
-- **Defer** — leave the file in place for a future audit cycle
+**Top-level options:**
+- **Accept** — pick a destination from the submenu below; the idea file is deleted after routing
+- **Reject** — delete the file with a one-line disposition note in the audit log
+- **Defer** — leave the file in place for a future audit cycle (disallowed implicitly when stale)
 - **Reclassify** — if on review the item is actually an observation, move content to the appropriate knowledge backlog (insights / decisions / extraction) for normal promotion, then delete the idea file
 
-Unlike the knowledge backlogs, ideas **never promote to knowledge files** — they leave ARIA entirely (to a tracker) or get discarded. Git history is the audit trail; deleted files remain recoverable via `git log --all -- intake/ideas/`.
+**Accept submenu** — per-idea destinations:
+
+| Destination | Where it goes | When offered |
+|-------------|---------------|--------------|
+| `tracker` | External tracker (Linear / GitHub Issues / Jira). If `ticketing_plugins` config maps the idea's project to a plugin command, audit prints a one-line hint to use that plugin's draft skill. | always |
+| `roadmap` | Append to project-root `ROADMAP.md` (or `docs/ROADMAP.md`) as a dated entry | only if the file exists |
+| `todo` | Append a single-line entry to project-root `TODO.md` (or `docs/TODO.md`) | only if the file exists |
+| `adr` | Copy into `intake/decisions-backlog.md` for normal decision-audit review | always |
+| `plan` | Write `plans/{slug}.md` (or `PLAN.md` if no `plans/` dir) seeded with Proposal/Motivation | always |
+| `bundle` | Merge 2+ related ideas into one file, then sub-prompt for tracker/roadmap/todo/adr/plan | only when audit detects a cluster (same project + ≥2 shared title words) |
+| `rule` | Append to `intake/rules-backlog.md` for next audit's rule review (promotes to user memory `feedback_*.md` or project-local `working-rules.md`) | always |
+
+**Routing for "always" destinations** is unconditional. **Routing for `roadmap`/`todo`** depends on detection: ARIA probes the idea's project root (closest ancestor with `.git/` or `CLAUDE.md`) and that root's `docs/` subdirectory for the relevant filename, and only offers the destination when found.
+
+Unlike the knowledge backlogs, ideas **never promote directly into `approaches/`, `decisions/`, or `rules/` knowledge files** — `adr` and `rule` paths route through their respective backlogs first, where they get the same review discipline as natively-staged decisions/rules. Git history is the audit trail; deleted files remain recoverable via `git log --all -- intake/ideas/`.
 
 ## Staleness
 
