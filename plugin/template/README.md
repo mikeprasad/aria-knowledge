@@ -18,7 +18,8 @@ knowledge/
 │   ├── insights-backlog.md
 │   ├── decisions-backlog.md
 │   ├── extraction-backlog.md
-│   ├── ideas/               # Feature/bug proposals (one file per idea) — routes out to tracker, never promotes to knowledge
+│   ├── rules-backlog.md     # Rule candidates (since v2.12) — promotes to user memory or rules/user-rules.md
+│   ├── ideas/               # Feature/bug proposals (one file per idea) — Accept submenu routes to tracker/roadmap/todo/adr/plan/bundle/rule
 │   ├── notes/               # Your own notes and rough drafts
 │   ├── attachments/         # Files from elsewhere (screenshots, PDFs)
 │   ├── clippings/           # Saved external content

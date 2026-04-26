@@ -18,7 +18,7 @@ Knowledge moves through a pipeline: **Capture → Review → Promote.**
 - `/clip` — Quick-save URLs or text snippets to intake without leaving the session.
 - `/ask` — Research a question, check existing knowledge first, save the answer directly as a knowledge doc.
 - `/intake` — Bulk import from files, directories, or URLs with preview before staging.
-- `/backlog` — View and manage pending items across all three backlogs.
+- `/backlog` — View and manage pending items across all four backlogs (insights, decisions, extraction, rules).
 - `/audit-knowledge` — Review backlogs and memory for promotable knowledge. Detects emerging themes across entries. Checks codemap staleness.
 - `/index` — Rebuild the tag index. Normalizes tags, flags untagged files, suggests cross-references, updates project mappings.
 - `/context` — Load relevant knowledge by topic using the tag index with project expansion. When a project tier is configured, `/context {project-tag}` also loads project-specific files from `projects/{tag}/**`, grouped separately from cross-project results.
@@ -65,9 +65,9 @@ Hooks and skills that keep sessions continuous across compaction and between con
 Knowledge bases rot when nothing forces a review. ARIA treats freshness as a first-class concern and solves it through **process**, not storage format.
 
 - **`Last updated` frontmatter on every knowledge file** enables mechanical staleness checks.
-- **Configurable staleness thresholds** — `ideas_staleness_threshold_days` (default 21) for ideas-backlog entries; `staleness_threshold_months` for promoted knowledge files. Tune per install in `~/.claude/aria-knowledge.local.md`.
+- **Configurable staleness thresholds** — `ideas_staleness_threshold_days` (default 7) for `intake/ideas/` entries; `staleness_threshold_months` for promoted knowledge files. Tune per install in `~/.claude/aria-knowledge.local.md`.
 - **Audit cadences** enforce periodic review. SessionStart hook prompts when `/audit-knowledge` or `/audit-config` is overdue.
-- **Stale-first surfacing** — `/audit-knowledge` sorts stale ideas above fresh ones and demands explicit Accept/Reject/Defer/Reclassify disposition. Fresh items pass through informationally, so ceremony cost tracks urgency. The asymmetry prevents the accumulation failure mode where implicit Defer silently buries items that have survived a full review cycle without action.
+- **Stale-first surfacing** — `/audit-knowledge` sorts stale ideas above fresh ones and demands explicit Accept/Reject/Defer/Reclassify disposition. Accept further routes the idea via a submenu — `tracker | roadmap | todo | adr | plan | bundle | rule` — picking only the destinations available for that project (e.g., `roadmap` only when `ROADMAP.md` exists). Fresh items pass through informationally, so ceremony cost tracks urgency. The asymmetry prevents the accumulation failure mode where implicit Defer silently buries items that have survived a full review cycle without action.
 - **Drift detection** — `/audit-config` scans CLAUDE.md files and configs for broken references; `/audit-knowledge` Step 5b3 checks skill-knowledge connections; `/codemap update` refreshes incrementally via git diff; `/index` flags untagged or stale files and suggests cross-references.
 - **Rule 22 enforcement** — every Edit/Write requires a visible impact assessment and post-edit scope check. No silent drift because no silent edits.
 

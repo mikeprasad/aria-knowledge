@@ -191,7 +191,7 @@ title: Short title matching the filename slug
 Ideas do NOT promote to knowledge files directly — during audit review the user picks a destination from the Accept submenu: external tracker (Linear, GitHub Issues, Jira, etc.), project `ROADMAP.md` or `TODO.md` (when present), the decisions backlog (for ADR review), a `plans/{slug}.md` stub, a bundled merge of related ideas, or the rules backlog (for working-rule review).
 
 ### Before writing:
-- For the three single-file backlogs (insights, decisions, extraction): remove any "(No pending ...)" placeholder, then append new entries below existing ones with a blank line separator.
+- For the four single-file backlogs (insights, decisions, extraction, rules): remove any "(No pending ...)" placeholder, then append new entries below existing ones with a blank line separator.
 - For ideas (per-file): write a new file per the filename pattern above; there is no placeholder to remove.
 - **If a single-file backlog is missing:** do not create it from scratch. Stop and tell the user: "Backlog file [name] is missing. Run /setup to repair the knowledge folder structure."
 - **If the `intake/ideas/` directory is missing:** do not create it. Stop and tell the user: "Ideas directory `intake/ideas/` is missing. Run /setup to repair the knowledge folder structure."
