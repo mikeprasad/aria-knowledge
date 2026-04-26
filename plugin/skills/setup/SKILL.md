@@ -137,7 +137,7 @@ If the user asks about advanced options or re-runs setup with existing config, a
 > "Advanced settings (defaults are fine for most users):
 > - **Freeform tag promotion threshold:** 3 (suggest promoting a freeform tag to known after it appears on this many files)
 > - **Staleness threshold:** 6 months (flag knowledge files not updated within this period)
-> - **Ideas staleness threshold:** 21 days (during `/audit-knowledge`, mark idea files in `intake/ideas/` older than this with `[STALE — still relevant?]` to prompt Accept/Reject/Defer decisions)
+> - **Ideas staleness threshold:** 7 days (during `/audit-knowledge`, mark idea files in `intake/ideas/` older than this with `[STALE — still relevant?]` to prompt Accept/Reject/Defer decisions)
 > - **Auto-capture on compaction:** true (save transcript snapshot before context compaction)
 > - **Critical paths:** (empty) comma-separated path patterns that always require HIGH impact assessment (e.g., auth/*,payments/*,migrations/*)
 > - **Ticketing plugins:** (empty) comma-separated `tag:plugin-command` pairs mapping a project tag to its ticket-drafting plugin (e.g., `proj-a:foo-ticket,proj-b:bar-ticket`). When set, `/audit-knowledge` prints a hint to use that plugin's command when an idea's project matches a mapped tag during the `Accept → tracker` disposition. Hint only — never auto-invokes. Leave empty if you don't use a ticketing plugin or prefer to copy ideas into your tracker manually.
@@ -226,7 +226,7 @@ explanatory_plugin: [true/false from Step 5]
 audit_cadence_update: [value from Step 6, default 30]
 freeform_promotion_threshold: [value from Step 6, default 3]
 staleness_threshold_months: [value from Step 6, default 6]
-ideas_staleness_threshold_days: [value from Step 6, default 21]
+ideas_staleness_threshold_days: [value from Step 6, default 7]
 auto_capture: [true/false from Step 6, default true]
 critical_paths: [comma-separated patterns from Step 6, default empty]
 ticketing_plugins: [comma-separated tag:plugin-command pairs from Step 6, default empty]

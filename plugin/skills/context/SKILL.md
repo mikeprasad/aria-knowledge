@@ -143,7 +143,7 @@ Do NOT pad results with empty folder notes for project tags that weren't queried
 
 Details:
 - **Age computation:** `(today - idea date)` in days; show as "(N day ago)" or "(N days ago)". Derive the idea date from YAML frontmatter `date:` field; fall back to the `YYYY-MM-DD` prefix of the filename if frontmatter is missing or malformed.
-- **Stale marker:** append ` [STALE — still relevant?]` when age > `KT_IDEAS_STALENESS_DAYS` (default 21). Read the threshold from `~/.claude/aria-knowledge.local.md` via `config.sh` or fall back to 21.
+- **Stale marker:** append ` [STALE — still relevant?]` when age > `KT_IDEAS_STALENESS_DAYS` (default 7). Read the threshold from `~/.claude/aria-knowledge.local.md` via `config.sh` or fall back to 7.
 - **Multi-project entries:** if the frontmatter `project:` field has comma-separated project tags (e.g., `cs,ss`), include the file for each matching project query.
 - **Not selectable:** ideas are informational. They do NOT appear in the numbered file list and are not loadable via "all" or numbers. To triage them, use `/audit-knowledge` (structured disposition flow) or edit the files in `intake/ideas/` directly.
 - **Omission:** if no ideas match, omit the section entirely (do not show an empty "Pending Ideas" heading).

@@ -47,6 +47,12 @@ Both skills updated to include `intake/rules-backlog.md` alongside insights/deci
 
 Audit-log fields in Step 8 now break out per-destination counts (`accepted: A1 tracker / A2 roadmap / ... / A7 rule`) and add `R rules reviewed` to the Counts line. Zero-valued sub-counts are omitted to keep entries readable.
 
+### Changed — `ideas_staleness_threshold_days` default lowered 21 → 7
+
+Pending ideas under the staleness threshold auto-defer (no per-entry prompt) per Step 6's existing rule. At the 21-day default, modest-volume idea capture from `/extract` could silently accumulate for three weeks before any forced engagement, and high-volume capture (the migration brought 188 entries onto a single user's machine in this release) compounds that. Lowering the default to 7 days aligns staleness pressure with the existing knowledge audit cadence (`audit_cadence_knowledge: 7` default) — every safety-net audit cycle now finds at least one tier of ideas eligible for forced disposition. Trade-off: fresh ideas captured today get nagged within a week. For users who prefer the old behavior, set `ideas_staleness_threshold_days: 21` (or any other integer) in `~/.claude/aria-knowledge.local.md`.
+
+Surfaces touched: `setup` SKILL Step 6 advanced-options prompt + Step 7 frontmatter default; `audit-knowledge` SKILL Step 2c2 + Step 6 default-mentions; `context` SKILL `KT_IDEAS_STALENESS_DAYS` default and fallback; `intake/ideas/README.md` staleness paragraph. Existing user configs retain whatever value they had — the source default change only affects new installs that use empty advanced-options answers.
+
 ### Upgrade notes
 
 - **Reinstall required:** copy `plugin/` to `~/.claude/plugins/marketplaces/local-desktop-app-uploads/aria-knowledge/` to pick up the SKILL changes, the new template artifact, and the version bump.

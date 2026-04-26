@@ -73,7 +73,7 @@ Unlike the knowledge backlogs, ideas **never promote directly into `approaches/`
 
 ## Staleness
 
-During `/audit-knowledge`, idea files older than `ideas_staleness_threshold_days` (default 21, configurable in `~/.claude/aria-knowledge.local.md`) are tagged `[STALE — still relevant?]` and require an explicit Accept / Reject / Defer decision — you can't implicitly defer a stale idea.
+During `/audit-knowledge`, idea files older than `ideas_staleness_threshold_days` (default 7, configurable in `~/.claude/aria-knowledge.local.md`) are tagged `[STALE — still relevant?]` and require an explicit Accept / Reject / Defer decision — you can't implicitly defer a stale idea.
 
 Staleness is computed from the `date:` field in the frontmatter, falling back to the `YYYY-MM-DD` prefix in the filename if frontmatter is missing or malformed.
 

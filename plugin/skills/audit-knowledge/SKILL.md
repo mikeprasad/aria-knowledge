@@ -152,7 +152,7 @@ Git history is the audit trail for accepted/rejected/reclassified ideas; deleted
 
 Ideas never promote to `approaches/`, `decisions/`, or `rules/` directly via Accept — those land in their respective backlogs (`adr` → `decisions-backlog.md`, `rule` → `rules-backlog.md`) for normal audit-cycle review. The audit report for ideas presents the submenu inline; routing is a user action invoked by their disposition choice.
 
-**Age annotation and stale marker:** For each idea file, compute age as `(today - idea date)` in days. Derive the idea date as follows: (1) read `date:` from YAML frontmatter; (2) if missing or malformed, fall back to the `YYYY-MM-DD` prefix of the filename. Annotate each entry with its age (`filed N days ago`). Read the staleness threshold from `~/.claude/aria-knowledge.local.md` (`ideas_staleness_threshold_days`, default 21) via `config.sh` or fallback. When `age > threshold`, append a `[STALE — still relevant?]` marker to the entry and escalate its visual weight in Step 6 (place stale entries first within the Pending Ideas section, and prompt explicitly for Accept/Reject/Defer rather than allowing implicit Defer).
+**Age annotation and stale marker:** For each idea file, compute age as `(today - idea date)` in days. Derive the idea date as follows: (1) read `date:` from YAML frontmatter; (2) if missing or malformed, fall back to the `YYYY-MM-DD` prefix of the filename. Annotate each entry with its age (`filed N days ago`). Read the staleness threshold from `~/.claude/aria-knowledge.local.md` (`ideas_staleness_threshold_days`, default 7) via `config.sh` or fallback. When `age > threshold`, append a `[STALE — still relevant?]` marker to the entry and escalate its visual weight in Step 6 (place stale entries first within the Pending Ideas section, and prompt explicitly for Accept/Reject/Defer rather than allowing implicit Defer).
 
 This is the audit's mechanism for forcing action on long-sitting ideas. Without staleness surfacing, items accumulate silently; with it, every audit cycle either confirms an idea still matters or retires it.
 
@@ -441,7 +441,7 @@ If none: emit "**Pending Insights:** 0 — none pending."
 
 ### Pending Ideas (from intake/ideas/)
 
-Present ideas in their own section. **Sort stale entries first** (age > `ideas_staleness_threshold_days`, default 21). For each entry, show:
+Present ideas in their own section. **Sort stale entries first** (age > `ideas_staleness_threshold_days`, default 7). For each entry, show:
 - Date, age annotation (`filed N days ago`), project tag, short title, type (feature/bug/design/refactor/workflow)
 - Stale marker `[STALE — still relevant?]` appended when age > threshold
 - Proposal and motivation (one-line summary if long)
