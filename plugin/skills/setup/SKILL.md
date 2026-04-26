@@ -132,7 +132,13 @@ Record the values.
 
 ### Advanced Options
 
-If the user asks about advanced options or re-runs setup with existing config, also offer:
+**Always offer** the advanced-settings review on every `/setup` run — both fresh installs and re-runs. New users need to see what's tunable up front rather than discovering it later; returning users need to surface and adjust values they may not have configured initially (e.g., keys added by plugin updates since their last `/setup`). Auto-mode users still see the bundle; pressing enter to accept defaults is an explicit no-op rather than a silent skip.
+
+**Highlight new-since-last-setup keys (re-runs only):** before showing the bundle below, compare each Advanced Option key against the existing config from Step 1. For any key that exists in this spec but is **not** present in the user's current config (the upgrade case — a plugin update added the key after the user's last `/setup`), append `[NEW]` to that bullet's title in the bundle and prepend a one-line note above the bundle:
+
+> *"Some settings are new since your last `/setup` run — `[NEW]` markers below indicate keys added by plugin updates that aren't yet in your config. Consider whether to set them now."*
+
+Detection is a per-key `grep -q '^{key}:' ~/.claude/aria-knowledge.local.md`; non-zero exit means the key is missing → flag with `[NEW]`. For fresh installs there is no prior config to compare against, so no `[NEW]` markers appear and no preamble note is shown — the bundle just renders defaults.
 
 > "Advanced settings (defaults are fine for most users):
 > - **Freeform tag promotion threshold:** 3 (suggest promoting a freeform tag to known after it appears on this many files)
@@ -140,12 +146,12 @@ If the user asks about advanced options or re-runs setup with existing config, a
 > - **Ideas staleness threshold:** 7 days (during `/audit-knowledge`, mark idea files in `intake/ideas/` older than this with `[STALE — still relevant?]` to prompt Accept/Reject/Defer decisions)
 > - **Auto-capture on compaction:** true (save transcript snapshot before context compaction)
 > - **Critical paths:** (empty) comma-separated path patterns that always require HIGH impact assessment (e.g., auth/*,payments/*,migrations/*)
-> - **Ticketing plugins:** (empty) comma-separated `tag:plugin-command` pairs mapping a project tag to its ticket-drafting plugin (e.g., `proj-a:foo-ticket,proj-b:bar-ticket`). When set, `/audit-knowledge` prints a hint to use that plugin's command when an idea's project matches a mapped tag during the `Accept → tracker` disposition. Hint only — never auto-invokes. Leave empty if you don't use a ticketing plugin or prefer to copy ideas into your tracker manually.
+> - **Ticketing plugins:** (empty) comma-separated `tag:plugin-command` pairs mapping a project tag to its ticket-drafting plugin (e.g., `proj-a:foo-ticket,proj-b:bar-ticket`). When set, `/audit-knowledge` prints a hint to use that plugin's command when an idea's project matches a mapped tag during the `Accept → tracker` disposition. Hint only — never auto-invokes. Leave empty if you don't use a ticketing plugin or prefer to copy ideas into your tracker manually. Plugin commands are bare names — no leading `/`. Validate input: each pair must contain exactly one `:` separating tag from command; project tags cannot contain `:` or `,`; plugin commands cannot start with `/` (strip leading `/` and warn if found).
 > - **Project-specific knowledge tier:** disabled (creates `projects/{tag}/` subdirectories for project-specific decisions and patterns; opt in if you want to organize knowledge by project alongside the cross-project tree. If enabled, you'll be asked an inline follow-up about auto-loading project context on session start.)
 >
 > Want to change any? (Enter new values or press enter to keep defaults)"
 
-Record the values. If the user doesn't ask about advanced options during initial setup, use the defaults silently.
+Record the values.
 
 ### Project Setup (only if user enables the project-specific knowledge tier)
 
@@ -171,46 +177,6 @@ Before prompting, scan the user's knowledge folder for an existing `projects/` s
 - **If found AND `projects_enabled: true`:** Verify each detected subdirectory is in `projects_list`; prompt to add any missing ones. Then surface the current `auto_load_project_context` value as a status check: "Auto-load project context on session start is currently [on/off]. Change? (y/n, default n — keep current)." — this is the re-run discoverability path for toggling the flag when the tier was previously enabled.
 
 **Never auto-delete or auto-rewrite existing `projects/` content.**
-
-## Step 6b: Ticketing Plugin Configuration
-
-ARIA v2.12.0 added `ticketing_plugins` — a per-project mapping that lets `/audit-knowledge` Step 2c2 print a hint to use a ticket-drafting plugin when an idea routes to `Accept → tracker`. Hint only — never auto-invokes. Because this is a new feature whose value depends on the user's plugin landscape (ARIA can't pick a sensible default for someone else's stack), it gets a focused one-question prompt at first install or first post-upgrade `/setup` run rather than living silently in Advanced Options.
-
-**When this step fires:**
-
-1. **Fresh install** (no existing `~/.claude/aria-knowledge.local.md`) → run the prompt.
-2. **Upgrade from <2.12.0** (existing config exists but is missing the `ticketing_plugins:` key) → run the prompt. Detect via:
-
-   ```bash
-   grep -q '^ticketing_plugins:' ~/.claude/aria-knowledge.local.md
-   ```
-
-   Non-zero exit means the key is missing → run the prompt.
-
-3. **Already configured** (key present, regardless of value — empty counts as a deliberate skip) → **skip silently**. Returning users who declined or already set a value should not see this prompt again on routine re-runs. The Advanced Options bullet in Step 6 remains the path for changing the value later.
-
-**Prompt (when fired):**
-
-> "ARIA can hint at ticket-drafting plugins per project tag during `/audit-knowledge`'s `Accept → tracker` disposition. When `ticketing_plugins` is set, an idea whose `project` tag matches a mapped tag triggers a one-line hint to use that plugin's command. Hint only — never auto-invokes.
->
-> Configure now? (y/n, default n — you can set or change this later by re-running `/setup` and asking for advanced options.)"
-
-**If user answers `n` or presses enter:** record `ticketing_plugins` as empty. The empty value still gets written to the config (Step 7), which means future `/setup` runs will see the key present and skip this step — exactly what you want for "I considered it and chose to skip" semantics. Note in Step 8 summary: *"Ticketing plugins: not configured (empty default — re-run /setup advanced options to add later)"*.
-
-**If user answers `y`:** ask for the mapping:
-
-> "Enter comma-separated `tag:plugin-command` pairs mapping each project tag to its ticket-drafting plugin (e.g., `proj-a:foo-ticket,proj-b:bar-ticket`). Plugin commands are bare names — do not include the leading `/`. Press enter to skip after all:"
-
-**Validate the mapping:**
-
-- Each pair must contain exactly one `:` separating tag from command. If a pair is malformed (no colon, multiple colons, empty tag, or empty command), show the offending pair and re-prompt the whole input.
-- Project tags cannot contain `:` or `,` (parser delimiters). If invalid, show the offending tag and re-prompt.
-- Plugin commands cannot start with `/`. If a value starts with `/`, strip the leading slash and warn: *"Stripped leading `/` from `{value}` — plugin commands are bare names; the audit prepends `/` when printing the hint."*
-- Empty input (just enter) is valid — sets empty string and proceeds the same as the `n` answer above.
-
-Record the validated mapping for Step 7's config write.
-
-**Why a separate step instead of folding into Advanced Options:** Advanced Options is gated behind explicit user request or bundled re-run prompts that auto-mode tends to default-accept. A dormant feature that requires user landscape knowledge is a poor fit for silent defaults — the user has to be asked at least once. Step 6b mirrors Step 3b's legacy-detection pattern: fire once on the upgrade or first-install path, then never again unless the user re-runs and hits Advanced Options deliberately.
 
 ## Step 7: Write Config
 
@@ -349,7 +315,7 @@ Setup complete!
 - Update check: every [N] days
 - Insight capture: [enabled/disabled]
 - Auto-capture on compaction: [enabled/disabled]
-- Ticketing plugins: [N mappings configured | not configured (empty — re-run /setup advanced options to add later) | not prompted (already configured in prior run)]
+- Ticketing plugins: [N mappings configured | not configured (empty — change anytime by re-running /setup; the advanced-options bundle always shows the current value)]
 - Files added: [N]
 - Files updated: [N]
 - Files kept (user version): [N]
