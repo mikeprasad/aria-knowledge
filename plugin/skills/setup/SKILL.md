@@ -172,6 +172,46 @@ Before prompting, scan the user's knowledge folder for an existing `projects/` s
 
 **Never auto-delete or auto-rewrite existing `projects/` content.**
 
+## Step 6b: Ticketing Plugin Configuration
+
+ARIA v2.12.0 added `ticketing_plugins` — a per-project mapping that lets `/audit-knowledge` Step 2c2 print a hint to use a ticket-drafting plugin when an idea routes to `Accept → tracker`. Hint only — never auto-invokes. Because this is a new feature whose value depends on the user's plugin landscape (ARIA can't pick a sensible default for someone else's stack), it gets a focused one-question prompt at first install or first post-upgrade `/setup` run rather than living silently in Advanced Options.
+
+**When this step fires:**
+
+1. **Fresh install** (no existing `~/.claude/aria-knowledge.local.md`) → run the prompt.
+2. **Upgrade from <2.12.0** (existing config exists but is missing the `ticketing_plugins:` key) → run the prompt. Detect via:
+
+   ```bash
+   grep -q '^ticketing_plugins:' ~/.claude/aria-knowledge.local.md
+   ```
+
+   Non-zero exit means the key is missing → run the prompt.
+
+3. **Already configured** (key present, regardless of value — empty counts as a deliberate skip) → **skip silently**. Returning users who declined or already set a value should not see this prompt again on routine re-runs. The Advanced Options bullet in Step 6 remains the path for changing the value later.
+
+**Prompt (when fired):**
+
+> "ARIA can hint at ticket-drafting plugins per project tag during `/audit-knowledge`'s `Accept → tracker` disposition. When `ticketing_plugins` is set, an idea whose `project` tag matches a mapped tag triggers a one-line hint to use that plugin's command. Hint only — never auto-invokes.
+>
+> Configure now? (y/n, default n — you can set or change this later by re-running `/setup` and asking for advanced options.)"
+
+**If user answers `n` or presses enter:** record `ticketing_plugins` as empty. The empty value still gets written to the config (Step 7), which means future `/setup` runs will see the key present and skip this step — exactly what you want for "I considered it and chose to skip" semantics. Note in Step 8 summary: *"Ticketing plugins: not configured (empty default — re-run /setup advanced options to add later)"*.
+
+**If user answers `y`:** ask for the mapping:
+
+> "Enter comma-separated `tag:plugin-command` pairs mapping each project tag to its ticket-drafting plugin (e.g., `proj-a:foo-ticket,proj-b:bar-ticket`). Plugin commands are bare names — do not include the leading `/`. Press enter to skip after all:"
+
+**Validate the mapping:**
+
+- Each pair must contain exactly one `:` separating tag from command. If a pair is malformed (no colon, multiple colons, empty tag, or empty command), show the offending pair and re-prompt the whole input.
+- Project tags cannot contain `:` or `,` (parser delimiters). If invalid, show the offending tag and re-prompt.
+- Plugin commands cannot start with `/`. If a value starts with `/`, strip the leading slash and warn: *"Stripped leading `/` from `{value}` — plugin commands are bare names; the audit prepends `/` when printing the hint."*
+- Empty input (just enter) is valid — sets empty string and proceeds the same as the `n` answer above.
+
+Record the validated mapping for Step 7's config write.
+
+**Why a separate step instead of folding into Advanced Options:** Advanced Options is gated behind explicit user request or bundled re-run prompts that auto-mode tends to default-accept. A dormant feature that requires user landscape knowledge is a poor fit for silent defaults — the user has to be asked at least once. Step 6b mirrors Step 3b's legacy-detection pattern: fire once on the upgrade or first-install path, then never again unless the user re-runs and hits Advanced Options deliberately.
+
 ## Step 7: Write Config
 
 Write `~/.claude/aria-knowledge.local.md` with the collected settings:
@@ -309,6 +349,7 @@ Setup complete!
 - Update check: every [N] days
 - Insight capture: [enabled/disabled]
 - Auto-capture on compaction: [enabled/disabled]
+- Ticketing plugins: [N mappings configured | not configured (empty — re-run /setup advanced options to add later) | not prompted (already configured in prior run)]
 - Files added: [N]
 - Files updated: [N]
 - Files kept (user version): [N]
