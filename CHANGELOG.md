@@ -2,6 +2,43 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## [2.12.1] - 2026-04-26
+
+Patch release. Closes a version-awareness gap: existing users who upgrade ARIA between 30-day setup-cadence windows currently see no prompt to re-run `/setup`, so template diffs and any new config keys land silently until either the cadence fires or the user notices independently. v2.12.1 adds an immediate version-mismatch prompt at session start and surfaces the running ARIA version inside `/setup` itself so users always know which version configured their knowledge folder.
+
+### New — `last_setup_version` config field
+
+`/setup` now records the plugin version active at the time of the run as a YAML frontmatter field in `~/.claude/aria-knowledge.local.md`:
+
+```yaml
+last_setup_version: 2.12.1
+```
+
+Read at Step 1 from `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` via the same grep+sed pattern as every other config field (no jq dependency added). Written at Step 7 alongside the other config keys. Verified at Step 7b for semver shape and round-trip match against the Step 1 capture. Format rules: bare digits-and-dots, no `v` prefix, no quotes — matches the parser invariant for the rest of the frontmatter.
+
+### New — version-mismatch prompt at session start
+
+`bin/session-start-check.sh` now compares the installed plugin version against `last_setup_version` from config. When they differ:
+
+> *"ARIA was updated (last /setup ran on v{old}, plugin is now v{new}). Run /setup to apply template diffs and surface any new config keys?"*
+
+Three guards keep the prompt silent in non-upgrade cases: installed version must be parseable from `plugin.json`, `last_setup_version` must be present in config (so fresh installs and pre-2.12.1 users don't trigger), and the two strings must differ. The existing 30-day cadence prompt becomes the fallback — it only fires when the version-mismatch prompt did not, so users never see two competing update prompts in one session.
+
+### Changed — `/setup` displays the ARIA version
+
+Three surfaces in `setup` SKILL now show the version:
+
+- **Step 1 announcement:** *"aria-knowledge v{version} is already configured"* (existing config) or *"Let's set up aria-knowledge v{version}"* (fresh install). When the recorded `last_setup_version` differs from the installed version, an additional line surfaces: *"Plugin upgraded from v{X} → v{Y} since last setup. Diff prompts and any new config keys will surface in the steps below."*
+- **Step 8 summary:** the `Setup complete!` header becomes `Setup complete for ARIA v{version}.` so users see what they configured.
+- **Step 7 frontmatter write:** `last_setup_version` is recorded so the next session-start hook has the data it needs to detect the next upgrade.
+
+### Upgrade notes
+
+- **Reinstall required:** copy `plugin/` to `~/.claude/plugins/marketplaces/local-desktop-app-uploads/aria-knowledge/` (or unzip the v2.12.1 release zip into that directory).
+- **Run `/setup` once after upgrade.** This populates `last_setup_version` in your config so the next plugin upgrade triggers the new prompt. Until then, existing v2.12.0 users still see the time-based cadence prompt as before — the version-mismatch prompt is silent without `last_setup_version` in config.
+- **No breaking changes.** The session-start hook's existing 30-day cadence check is preserved as a fallback for users who haven't yet recorded `last_setup_version`. No existing config keys changed shape; no existing skills changed behavior beyond `setup`.
+- **No config migration required.** Existing configs work unchanged. The new key is added on the next `/setup` run.
+
 ## [2.12.0] - 2026-04-26
 
 Minor release. Expands the idea-disposition vocabulary in `/audit-knowledge` from a single Accept verb (which previously only meant "copy to external tracker") to a seven-destination submenu: `tracker | roadmap | todo | adr | plan | bundle | rule`. Adds a new `intake/rules-backlog.md` artifact to receive the `rule` path. Adds a `ticketing_plugins` config key so the audit can hint at user-installed ticket-drafting plugins per project tag without coupling ARIA to any specific plugin name. Adds detection probes that surface `roadmap` / `todo` only when the relevant file exists at the project root or under `docs/`. Adds bundle auto-clustering when the audit detects 2+ ideas sharing project tag and ≥2 significant title words. No behavior changes for existing knowledge backlogs (insights/decisions/extraction); existing single-Accept disposition still works as `Accept → tracker` (the new default).

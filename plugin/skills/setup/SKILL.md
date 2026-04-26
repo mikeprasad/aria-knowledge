@@ -10,10 +10,16 @@ Walk the user through configuring their knowledge folder and plugin settings. Sa
 
 ## Step 1: Check for Existing Config
 
-Read `~/.claude/aria-knowledge.local.md`.
+**Read the installed plugin version first.** Parse `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` and extract the `version` field. Hold it as `INSTALLED_VERSION` for use in Step 7 (config write), Step 8 (summary), and the announcement below. Use grep + sed to stay consistent with the no-jq invariant the hook scripts follow:
 
-- **If it exists:** show current settings and say "aria-knowledge is already configured. I'll check for updates." Then proceed to Step 2 in **update mode** — scan for missing structure, re-diff templated files, check dependencies.
-- **If it doesn't exist:** say "Let's set up aria-knowledge. This will configure your knowledge folder and preferences." Proceed to Step 2 in **fresh mode**.
+```bash
+INSTALLED_VERSION=$(grep '"version"' "${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json" | head -1 | sed 's/.*"version": *"\([^"]*\)".*/\1/')
+```
+
+Then read `~/.claude/aria-knowledge.local.md`.
+
+- **If it exists:** show current settings and say *"aria-knowledge v{INSTALLED_VERSION} is already configured. I'll check for updates."* If the existing config has `last_setup_version: X` and X differs from `INSTALLED_VERSION`, also note: *"Plugin upgraded from v{X} → v{INSTALLED_VERSION} since last setup. Diff prompts and any new config keys will surface in the steps below."* Then proceed to Step 2 in **update mode** — scan for missing structure, re-diff templated files, check dependencies.
+- **If it doesn't exist:** say *"Let's set up aria-knowledge v{INSTALLED_VERSION}. This will configure your knowledge folder and preferences."* Proceed to Step 2 in **fresh mode**.
 
 ## Step 2: Knowledge Folder Location
 
@@ -190,6 +196,7 @@ audit_trigger_threshold: [value from Step 6, default 20]
 audit_cadence_config: [value from Step 6]
 explanatory_plugin: [true/false from Step 5]
 audit_cadence_update: [value from Step 6, default 30]
+last_setup_version: [INSTALLED_VERSION from Step 1 — the plugin version active when this /setup ran]
 freeform_promotion_threshold: [value from Step 6, default 3]
 staleness_threshold_months: [value from Step 6, default 6]
 ideas_staleness_threshold_days: [value from Step 6, default 7]
@@ -226,6 +233,7 @@ In **update mode:** preserve any user-added content in the markdown body below t
 - `projects_list`, `projects_remotes`, and `ticketing_plugins`: comma-separated `tag:value` pairs, no spaces around the colon or comma (e.g., `proj-a:path/to/proj-a,proj-b:proj-b` for paths; `proj-a:foo-ticket,proj-b:bar-ticket` for plugin commands)
 - Project tags (used in `projects_list`, `projects_remotes`, `ticketing_plugins`) cannot contain colons or commas (the parser splits on these)
 - `ticketing_plugins` plugin-command values are bare command names without the leading `/` (e.g., `foo-ticket`, not `/foo-ticket`) — `/audit-knowledge` prepends the slash when printing the hint
+- `last_setup_version` is a semver string read from `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` at Step 1 — write it as bare digits-and-dots (e.g., `2.12.1`), not quoted, not prefixed with `v`. The session-start hook compares this against the installed plugin version to detect upgrades since the user's last `/setup`
 - `projects_promotion_threshold` must be a plain integer ≥ 1 (no units, no quotes)
 - `auto_load_project_context` must be exactly `true` or `false` (not `True`, `yes`, `1`, etc.)
 - No blank lines between frontmatter entries
@@ -250,6 +258,7 @@ After writing the config file, read it back and verify that each value can be ex
    - `auto_capture` — confirm it's `true` or `false`
    - `critical_paths` — confirm it's a comma-separated string of path patterns (or empty)
    - `ticketing_plugins` — confirm it's a comma-separated string of `tag:plugin-command` pairs (or empty); validate no project tag contains `:` or `,`; validate plugin-command values do not start with `/`
+   - `last_setup_version` — confirm it matches `INSTALLED_VERSION` captured in Step 1 (this run's plugin version); validate it's a semver-shaped string of digits and dots (no `v` prefix, no quotes, no trailing whitespace). If it's missing or doesn't match, rewrite the line and re-verify
    - `projects_enabled` — confirm it's `true` or `false`
    - `projects_list` — confirm it's a comma-separated string of `tag:path` pairs (or empty); validate no project tag contains `:` or `,`
    - `projects_remotes` — confirm it's a comma-separated string of `tag:url-pattern` pairs (or empty); validate no project tag contains `:` or `,`
@@ -308,7 +317,7 @@ Scaffold the project tier using the final config values:
 Output a summary:
 
 ```
-Setup complete!
+Setup complete for ARIA v[INSTALLED_VERSION].
 - Knowledge folder: [path]
 - Knowledge audit: every [N] days
 - Config audit: every [N] days

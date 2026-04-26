@@ -32,6 +32,7 @@ if [ -f "$KT_CONFIG" ]; then
   KT_AUTO_LOAD_PROJECT_CONTEXT=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^auto_load_project_context:' | sed 's/^auto_load_project_context: *//')
   KT_IDEAS_STALENESS_DAYS=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^ideas_staleness_threshold_days:' | sed 's/^ideas_staleness_threshold_days: *//')
   KT_AUDIT_TRIGGER_THRESHOLD=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^audit_trigger_threshold:' | sed 's/^audit_trigger_threshold: *//')
+  KT_LAST_SETUP_VERSION=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^last_setup_version:' | sed 's/^last_setup_version: *//')
 
   # Defaults if not set
   KT_CADENCE_KNOWLEDGE=${KT_CADENCE_KNOWLEDGE:-7}

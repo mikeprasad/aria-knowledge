@@ -171,14 +171,34 @@ if [ "$CA_DUE" = "true" ]; then
   MESSAGES="${MESSAGES}No previous Config Audit found. Run /audit-config? "
 fi
 
-# Check update cadence — parse last /setup date from config file
-LAST_SETUP_DATE=$(grep '/setup on ' "$KT_CONFIG" | tail -1 | sed 's|.*/setup on ||' | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}')
-if [ -n "$LAST_SETUP_DATE" ]; then
-  LAST_SETUP_EPOCH=$(date_to_epoch "$LAST_SETUP_DATE")
-  if [ -n "$LAST_SETUP_EPOCH" ]; then
-    DAYS_SINCE_SETUP=$(( (TODAY_EPOCH - LAST_SETUP_EPOCH) / 86400 ))
-    if [ "$DAYS_SINCE_SETUP" -ge "$KT_CADENCE_UPDATE" ]; then
-      MESSAGES="${MESSAGES}ARIA Update check due (${DAYS_SINCE_SETUP} days). Run /setup? "
+# Check for plugin version upgrade — version-mismatch takes precedence over cadence.
+# Read installed plugin version from the manifest and compare against the version
+# recorded in config the last time /setup ran. Mismatch means the user upgraded the
+# plugin (or downgraded) without re-running /setup, so template diffs and any new
+# config keys haven't been applied yet.
+INSTALLED_VERSION=""
+if [ -f "${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json" ]; then
+  INSTALLED_VERSION=$(grep '"version"' "${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json" | head -1 | sed 's/.*"version": *"\([^"]*\)".*/\1/')
+fi
+
+VERSION_PROMPTED=false
+if [ -n "$INSTALLED_VERSION" ] && [ -n "$KT_LAST_SETUP_VERSION" ] && [ "$INSTALLED_VERSION" != "$KT_LAST_SETUP_VERSION" ]; then
+  MESSAGES="${MESSAGES}ARIA was updated (last /setup ran on v${KT_LAST_SETUP_VERSION}, plugin is now v${INSTALLED_VERSION}). Run /setup to apply template diffs and surface any new config keys? "
+  VERSION_PROMPTED=true
+fi
+
+# Check update cadence — parse last /setup date from config file.
+# Only fires if the version-mismatch prompt above did not fire (mismatch is the
+# stronger signal; cadence is the safety-net for users who don't upgrade often).
+if [ "$VERSION_PROMPTED" = "false" ]; then
+  LAST_SETUP_DATE=$(grep '/setup on ' "$KT_CONFIG" | tail -1 | sed 's|.*/setup on ||' | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}')
+  if [ -n "$LAST_SETUP_DATE" ]; then
+    LAST_SETUP_EPOCH=$(date_to_epoch "$LAST_SETUP_DATE")
+    if [ -n "$LAST_SETUP_EPOCH" ]; then
+      DAYS_SINCE_SETUP=$(( (TODAY_EPOCH - LAST_SETUP_EPOCH) / 86400 ))
+      if [ "$DAYS_SINCE_SETUP" -ge "$KT_CADENCE_UPDATE" ]; then
+        MESSAGES="${MESSAGES}ARIA Update check due (${DAYS_SINCE_SETUP} days). Run /setup? "
+      fi
     fi
   fi
 fi
