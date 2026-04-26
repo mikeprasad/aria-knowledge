@@ -2,6 +2,41 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## [2.12.2] - 2026-04-26
+
+Patch release. Closes a long-standing documentation gap around `projects_groups`, the multi-line YAML field consumed by `/distill` and `/stitch` for multi-repo group mapping. Until now the field was documented only inline in the two consuming skills' shared-block, with no single-page schema reference and no `/setup` awareness — users running `/setup` got no signal that the field existed in their config, and users hand-editing `~/.claude/aria-knowledge.local.md` had no canonical place to look for the schema. v2.12.2 adds a dedicated `CONFIG.md` reference covering all 18 frontmatter fields plus the skill-only tier, and extends `/setup` with read-only awareness so re-runs surface existing groups and link to the schema.
+
+### New — `plugin/CONFIG.md` configuration schema reference
+
+A single-page reference documenting every field in `~/.claude/aria-knowledge.local.md`:
+
+- **Two parser tiers** — explicit framing of the hook-parsed (column-1, grep+sed-safe) versus skill-only (multi-line YAML, parsed by Claude in skill context) split per ADR 028. Helps users understand why some fields fit the `/setup` advanced-options bundle and others don't.
+- **Hook-parsed table** — all 18 single-line fields with type, default, and which hook or skill reads them.
+- **Skill-only schema** — `projects_groups` block structure with standard role names (`backend`, `web`, `mobile`), custom-role conventions, and the optional `stitch_path` sub-field per ADR 034.
+- **Format rules and hand-editing checklist** — the same parser invariants that have been embedded in the `/setup` SKILL Step 7 formatting block, surfaced here for users who edit the config directly without running `/setup`.
+
+Cross-linked from `QUICKSTART.md`, `setup` SKILL Step 6, and the `<!-- shared-block: group-loader -->` opening line in both `distill` and `stitch` SKILL.md.
+
+### Changed — `/setup` awareness for skill-only fields
+
+Four touch-points in `setup` SKILL extended to surface `projects_groups` without trying to flatten or interactively edit it:
+
+- **Step 1** — when an existing config is detected, also detect the `projects_groups` block and report current group count alongside the standard "already configured" announcement. Uses an awk pattern bounded by the closing frontmatter delimiter so it can't escape the block.
+- **Step 6** — new "Skill-only fields (read-only awareness)" subsection below the advanced-options bundle. Restates the current group count if Step 1 detected it, or describes how `/distill --group=<tag>` and `/stitch create <tag>` auto-populate the field via their existing bootstrap (ADR 032). Explicit that `/setup` never writes new entries here.
+- **Step 7** — two new formatting rules: skill-only multi-line YAML blocks must sit at the end of the frontmatter (after every column-1 hook-parsed key), and the block must be preserved verbatim in update mode (no reformatting, no reordering, no sub-entry stripping).
+- **Step 7b** — three structural validation checks for `projects_groups`: block placement (must be last), indentation shape (2-space tag, 4-space role), and tag cross-check against `projects_list` (warn, do not fail — staging tags before path-mapping is a legitimate pattern).
+
+### Changed — `distill` and `stitch` shared-block cite `CONFIG.md`
+
+The opening line of the `<!-- shared-block: group-loader -->` block in both `distill/SKILL.md` and `stitch/SKILL.md` now references `CONFIG.md` "Skill-only fields" as the canonical schema reference, including the optional `stitch_path` sub-field and custom-role conventions. The shared-block remains the operational specification (what the skill does at runtime); `CONFIG.md` is the schema reference (what valid input looks like).
+
+### Upgrade notes
+
+- **Reinstall required:** copy `plugin/` to `~/.claude/plugins/marketplaces/local-desktop-app-uploads/aria-knowledge/` (or unzip the v2.12.2 release zip into that directory).
+- **Run `/setup` after upgrade** to record `last_setup_version: 2.12.2` and surface the new Step 1 group-count detection if you have `projects_groups` configured.
+- **No breaking changes.** `projects_groups` schema is unchanged from prior versions; the auto-propose bootstrap in `/distill` and `/stitch` continues to work identically. No new config keys; no existing config keys changed shape; no skill behaviors changed beyond `setup` awareness.
+- **No config migration required.** Existing configs (with or without `projects_groups`) work unchanged.
+
 ## [2.12.1] - 2026-04-26
 
 Patch release. Closes a version-awareness gap: existing users who upgrade ARIA between 30-day setup-cadence windows currently see no prompt to re-run `/setup`, so template diffs and any new config keys land silently until either the cadence fires or the user notices independently. v2.12.1 adds an immediate version-mismatch prompt at session start and surfaces the running ARIA version inside `/setup` itself so users always know which version configured their knowledge folder.

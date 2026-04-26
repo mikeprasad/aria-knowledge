@@ -61,7 +61,7 @@ With an index built, ARIA surfaces trusted knowledge automatically and the refre
 
 ## Configuration
 
-All settings are in `~/.claude/aria-knowledge.local.md`. Run `/setup` to change them, or edit directly.
+All settings are in `~/.claude/aria-knowledge.local.md`. Run `/setup` to change them interactively, or edit directly using the schema in [CONFIG.md](CONFIG.md) — every field's type, default, and reader, plus the rules for hand-editing.
 
 **Key settings:**
 - `audit_trigger_threshold` — backlog entry count that triggers the knowledge audit prompt (default: 20). Primary activity-driven signal. Tier messaging: 20+ suggested, 35+ recommended, 50+ overdue.
@@ -70,4 +70,4 @@ All settings are in `~/.claude/aria-knowledge.local.md`. Run `/setup` to change 
 - `auto_capture` — auto-capture insights at task boundaries and save transcript snapshots before compaction (default: true)
 - `critical_paths` — file patterns that always require full impact assessment (default: empty)
 
-See [OVERVIEW.md](template/OVERVIEW.md) for the full design philosophy and detailed documentation.
+See [OVERVIEW.md](template/OVERVIEW.md) for the full design philosophy and [CONFIG.md](CONFIG.md) for the configuration schema reference.

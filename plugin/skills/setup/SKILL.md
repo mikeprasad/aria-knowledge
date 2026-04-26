@@ -21,6 +21,15 @@ Then read `~/.claude/aria-knowledge.local.md`.
 - **If it exists:** show current settings and say *"aria-knowledge v{INSTALLED_VERSION} is already configured. I'll check for updates."* If the existing config has `last_setup_version: X` and X differs from `INSTALLED_VERSION`, also note: *"Plugin upgraded from v{X} → v{INSTALLED_VERSION} since last setup. Diff prompts and any new config keys will surface in the steps below."* Then proceed to Step 2 in **update mode** — scan for missing structure, re-diff templated files, check dependencies.
 - **If it doesn't exist:** say *"Let's set up aria-knowledge v{INSTALLED_VERSION}. This will configure your knowledge folder and preferences."* Proceed to Step 2 in **fresh mode**.
 
+**Detect skill-only fields** (update mode only). After parsing the standard hook-parsed keys, also scan for the `projects_groups` multi-line YAML block — a skill-only field consumed by `/distill` and `/stitch` (see `CONFIG.md` for schema). It's **not** in the advanced-options bundle because it's not bash-parsed; surface its presence here so users get awareness without /setup trying to flatten it.
+
+```bash
+GROUPS_PRESENT=$(grep -c '^projects_groups:$' ~/.claude/aria-knowledge.local.md || true)
+GROUPS_COUNT=$(awk '/^projects_groups:$/{in_block=1; next} in_block && /^---$/{exit} in_block && /^[^[:space:]]/{exit} in_block && /^  [^[:space:]].*:$/{c++} END{print c+0}' ~/.claude/aria-knowledge.local.md)
+```
+
+If `GROUPS_PRESENT > 0`, add to the announcement: *"Detected `projects_groups` skill-only field with {GROUPS_COUNT} group(s) configured. Preserved as-is (consumed by `/distill` and `/stitch`; see `CONFIG.md` for the schema)."* If `GROUPS_PRESENT == 0`, say nothing — the field is opt-in and most users without multi-repo projects won't have it.
+
 ## Step 2: Knowledge Folder Location
 
 Ask the user:
@@ -159,6 +168,18 @@ Detection is a per-key `grep -q '^{key}:' ~/.claude/aria-knowledge.local.md`; no
 
 Record the values.
 
+### Skill-only fields (read-only awareness)
+
+Some configuration is consumed by skills (which parse YAML natively in Claude's context) rather than by bash hooks. These fields use multi-line nested YAML blocks that don't fit the single-line bundle prompt above and are **not** offered for interactive editing here — they're either populated by their consuming skill's auto-propose bootstrap (e.g., `/distill --group=<tag>`, `/stitch create <tag>`) or hand-edited per the schema in `CONFIG.md`.
+
+Currently in this category:
+
+- **`projects_groups`** — multi-repo group mapping (backend/web/mobile sub-folder layout per project tag). Read by `/distill` and `/stitch`. Auto-populated on first multi-repo skill invocation; hand-editable per `CONFIG.md` "Skill-only fields" section.
+
+If Step 1 detected this field, restate its current group count here for confirmation: *"Skill-only fields preserved: `projects_groups` ({N} groups). Edit via `CONFIG.md` schema or let `/distill`/`/stitch` auto-propose new groups on first use."* If absent, say: *"No skill-only fields configured. `/distill --group=<tag>` and `/stitch create <tag>` will auto-propose `projects_groups` entries on first use for any multi-repo project."*
+
+This block is read-only — `/setup` never writes new entries here. See **Step 7 / Step 7b** for how the existing block is preserved and validated.
+
 ### Project Setup (only if user enables the project-specific knowledge tier)
 
 If the user enables (or keeps enabled) the project-specific knowledge tier in Advanced Options, ask four follow-up questions. In **update mode** where values already exist in the config, show the current value for each question and let the user keep it (press enter) or enter a new value — this is the discoverable path for toggling `auto_load_project_context` on a re-run when the tier was previously enabled:
@@ -237,6 +258,8 @@ In **update mode:** preserve any user-added content in the markdown body below t
 - `projects_promotion_threshold` must be a plain integer ≥ 1 (no units, no quotes)
 - `auto_load_project_context` must be exactly `true` or `false` (not `True`, `yes`, `1`, etc.)
 - No blank lines between frontmatter entries
+- **Skill-only multi-line YAML blocks** (currently `projects_groups`; see `CONFIG.md`) must sit at the **end** of the frontmatter, after every column-1 hook-parsed key. Their indented sub-keys must use 2-space indents for tags and 4-space indents for role values. The blank-line-free rule applies inside the block too — no blank lines between sub-entries.
+- **In update mode, preserve every skill-only multi-line YAML block verbatim.** Do not reformat, reorder, or strip sub-entries. The block was either written by an auto-propose bootstrap (`/distill`, `/stitch`) or hand-edited per `CONFIG.md`; `/setup` is read-only for these. If a block exists in the input config, copy it byte-for-byte to the output config; if absent, write nothing for that field.
 
 ## Step 7b: Verify Config Round-Trip
 
@@ -265,6 +288,16 @@ After writing the config file, read it back and verify that each value can be ex
    - `projects_promotion_threshold` — confirm it's a plain integer ≥ 1 (matches Step 6 input)
    - `auto_load_project_context` — confirm it's `true` or `false`
    - **Empty-sentinel check** — for string-valued keys with an empty default (`critical_paths`, `ticketing_plugins`, `projects_list`, `projects_remotes`): confirm the raw extracted value is not the literal string `null`, `""`, `none`, or `[]`. If the key is intended to be empty, the value after the colon must be truly empty (nothing or a single trailing space). Rewrite the key as `key:` and re-verify.
+
+**Skill-only field validation (`projects_groups`)** — if the field is present in the config, run structural-only checks. Do not attempt to flatten or rewrite this field; it's parsed by skills, not bash, so the verification mirrors that consumer.
+
+1. **Block placement** — `projects_groups:` must sit **after** every hook-parsed key. If a column-1 hook-parsed key appears below the block (between it and the closing `---`), the parser scope is at risk. Move the block to the end of the frontmatter and re-verify.
+2. **Indentation shape** — sub-tags use 2-space indents; role values use 4-space indents; no blank lines inside the block. Use this awk pattern to extract the block and inspect:
+   ```bash
+   awk '/^projects_groups:$/{in_block=1; next} in_block && /^---$/{exit} in_block && /^[^[:space:]]/{exit} in_block{print}' ~/.claude/aria-knowledge.local.md
+   ```
+   Reject the block if any line inside the block fails to match `^  [^[:space:]].*:$` (tag header) or `^    [^[:space:]].*: .+$` (role value). Report the offending line and stop — do not auto-rewrite (the user may have a custom role layout the skills support but the regex doesn't predict).
+3. **Tag cross-check (warn, do not fail)** — every tag inside `projects_groups` should also appear in `projects_list` so `/distill` and `/stitch` can resolve `<project_root>`. If a `projects_groups` tag is not in `projects_list`, emit a warning: *"Warning: `projects_groups` tag `{tag}` is not declared in `projects_list`. `/distill --group={tag}` and `/stitch create {tag}` will fail until `{tag}` is added to `projects_list`. (This may be intentional if you're staging a project not yet path-mapped.)"* Do not block setup.
 
 **If any check fails:** rewrite the file with corrected formatting and verify again. Report which value failed and what was fixed.
 

@@ -11,7 +11,7 @@ Generate a cross-repo binding artifact (`STITCH.md`) for a product group (backen
 ## Step 0: Load config
 
 <!-- shared-block: group-loader -->
-Read `~/.claude/aria-knowledge.local.md`. Parse YAML frontmatter `projects_groups` (multi-line YAML block).
+Read `~/.claude/aria-knowledge.local.md`. Parse YAML frontmatter `projects_groups` (multi-line YAML block — see `CONFIG.md` "Skill-only fields" for canonical schema, including the optional `stitch_path` sub-field and custom-role conventions).
 
 Look up `<tag>` in `projects_list` (get `project_root`) and `projects_groups` (get role → folder dict).
 
