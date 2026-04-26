@@ -39,9 +39,13 @@ See [QUICKSTART.md](QUICKSTART.md) for a detailed walkthrough of your first 3 se
 
 ## How It Works
 
-**Capture** — Session hooks and `/extract` catch insights, decisions, and feedback as they happen.
-**Review** — Configurable audit cadences surface what's worth keeping.
-**Promote** — You decide what becomes canonical. Nothing is auto-promoted.
+Five-phase knowledge lifecycle: **Capture → Govern → Promote → Apply → Refresh.**
+
+**Capture** — Session hooks and `/extract` catch insights, decisions, feedback, references, and ideas as they happen.
+**Govern** — Configurable audit cadences surface what's worth keeping. Backlogs hold candidates until reviewed.
+**Promote** — You decide what becomes canonical. Nothing is auto-promoted; every promotion is a human decision.
+**Apply** — Trusted knowledge actively shapes work via Rule 22 edit-time discipline, `/context`, `/rules`, `/codemap`, `/stitch`, and `/distill`.
+**Refresh** — Audit cadences, staleness thresholds, and drift detection keep the knowledge base from quietly rotting.
 
 ## License
 

@@ -2,7 +2,7 @@
 
 ## What This Is
 
-ARIA (Applied Reasoning and Insight Architecture) — an active knowledge and development discipline plugin for Claude Code. Three pillars: knowledge lifecycle (capture → review → promote), decision discipline (Rule 22 enforcement at every edit), and codebase & task mapping (/codemap for repo traces, /stitch for cross-repo contract binding, /distill for task spec shaping).
+ARIA (Applied Reasoning and Insight Architecture) — an active knowledge and development discipline plugin for Claude Code. Three pillars: a five-phase knowledge lifecycle (capture → govern → promote → apply → refresh), decision discipline (Rule 22 enforcement at every edit), and codebase & task mapping (/codemap for repo traces, /stitch for cross-repo contract binding, /distill for task spec shaping). The "Applied" framing emphasizes the apply phase: trusted knowledge actively shapes the next decision via /context, /rules, /codemap, /stitch, /distill, and Rule 22 — not just stored and recalled.
 
 **Repository:** GitHub (`mikeprasad/aria-knowledge`) — **public repo**
 

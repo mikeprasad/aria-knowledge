@@ -12,11 +12,11 @@ Every time an AI session ends, context disappears. Your insights, decisions, and
 
 Over time, valuable knowledge accumulates in scattered places: CLAUDE.md files, auto-memory, session plans, Slack threads, mental notes. Some of it contradicts other parts of it. None of it gets reviewed. The knowledge that matters most — the hard-won lessons from debugging, the architectural decisions made under pressure, the feedback you gave three sessions ago — has no durable home.
 
-This isn't a tooling problem. It's a knowledge lifecycle problem. You need a system that captures knowledge when it's fresh, stages it for review, and promotes the good stuff into durable, findable documents — while letting the rest fade naturally.
+This isn't a tooling problem. It's a knowledge lifecycle problem. You need a system that captures knowledge when it's fresh, stages it for governance review, promotes the good stuff into durable findable documents, applies trusted knowledge back into future work, and refreshes the base before staleness rots its value — while letting the rest fade naturally.
 
 ## The Approach
 
-Knowledge Repository treats knowledge like code: it moves through a pipeline with clear stages, review gates, and promotion criteria.
+Knowledge Repository treats knowledge like code: it moves through a pipeline with clear stages, review gates, promotion criteria, application paths, and freshness checks. Five phases: **Capture → Govern → Promote → Apply → Refresh.** The "Applied" in ARIA's acronym lives in phase four — trusted knowledge actively shapes the next decision rather than just sitting in storage.
 
 ### Capture
 
@@ -28,7 +28,7 @@ During work sessions, knowledge is captured automatically and on-demand:
 
 Nothing captured at this stage is canonical. It's raw signal waiting for review.
 
-### Review
+### Govern
 
 On a configurable cadence, the knowledge audit (`/audit-knowledge`) scans your backlogs, memory files, and plans. It categorizes everything it finds:
 
@@ -38,7 +38,7 @@ On a configurable cadence, the knowledge audit (`/audit-knowledge`) scans your b
 
 The audit also detects **emerging themes** — clusters of related insights that individually don't justify a knowledge file but together reveal a pattern worth documenting. This is how the knowledge base grows organically rather than through forced curation.
 
-Nothing gets promoted without your explicit approval.
+Nothing gets promoted without your explicit approval. Govern is the trust gate: confident-wrong knowledge cannot quietly become permanent.
 
 ### Promote
 
@@ -53,6 +53,33 @@ Approved knowledge moves to its permanent home based on what type it is. Each ty
 | **References** | External research, evaluations, and bookmarked resources | "Stripe vs Paddle comparison" |
 
 This taxonomy is complete — every type of reusable knowledge fits into exactly one category. If it doesn't fit any of them, it's either ephemeral (belongs in session notes) or not yet validated (stays in the backlog until it is).
+
+### Apply
+
+A knowledge base only matters if it shapes future work. Apply is where ARIA's "Applied" framing earns its name — promoted knowledge actively guides reasoning, planning, and code changes rather than just being stored.
+
+- **Rule 22 — change decision framework** enforced at every Edit/Write via PreToolUse + PostToolUse hooks. Pre-edit: assess impact (HIGH/LOW), state alternatives, define scope. Post-edit: verify scope wasn't exceeded, check secondary impact on parents/siblings/dependents.
+- **`/context`** loads relevant knowledge by topic using the tag index, with project expansion (`/context {project-tag}` adds project-tier files).
+- **`/rules`** surfaces working rules by number or keyword during reasoning.
+- **`/codemap`** turns a repository into a feature-organized reference; `/stitch` builds cross-repo binding tables for product groups; `/distill` turns raw ticket text into tiered executable task specs that cite real files via optional CODEMAP/STITCH context.
+- **TaskCreated hook** surfaces relevant knowledge files when tasks are created (tag index matching).
+- **PreCompact / PostCompact hooks** preserve transcripts before context compaction and prompt to review snapshots after.
+
+This phase is what separates ARIA from passive memory systems. Storage answers "what did we learn?" Apply answers "which trusted knowledge applies to this task, this edit, this decision — right now."
+
+### Refresh
+
+Knowledge bases rot when nothing forces a review. Refresh keeps the base from quietly going stale.
+
+- **`Last updated` frontmatter on every knowledge file** enables mechanical staleness checks.
+- **Configurable thresholds** — `ideas_staleness_threshold_days` (default 7) for `intake/ideas/` entries; `staleness_threshold_months` for promoted knowledge files.
+- **Audit cadences** — SessionStart hook prompts when `/audit-knowledge` or `/audit-config` is overdue.
+- **Stale-first surfacing** during audits — stale items sort above fresh ones and demand explicit disposition; fresh items pass through informationally.
+- **Drift detection** — `/audit-config` scans CLAUDE.md files and configs for broken references; `/audit-knowledge` Step 5b3 checks skill-knowledge connections; `/codemap update` refreshes incrementally via git diff; `/index` flags untagged or stale files and suggests cross-references.
+- **Rule 22 enforcement** — every Edit/Write requires a visible impact assessment and post-edit scope check. No silent drift because no silent edits.
+- **`/stats`** dashboard surfaces backlog depth, audit status, codemap dates, tag coverage, and gaps at a glance.
+
+Format determines auditability; process determines freshness. Plain markdown for auditability + layered review cadences for freshness + humans in the promotion loop so wrong knowledge doesn't accumulate silently.
 
 ### Ideas Backlog (capture vs. track boundary)
 
@@ -90,7 +117,7 @@ This tier is fully opt-in — `projects_enabled: false` by default. Existing use
 
 ## The Plugin
 
-Knowledge Repository is powered by **aria-knowledge**, a Claude Code plugin that automates the capture-review-promote lifecycle.
+Knowledge Repository is powered by **aria-knowledge**, a Claude Code plugin that automates the capture–govern–promote–apply–refresh lifecycle.
 
 ### Skills
 
