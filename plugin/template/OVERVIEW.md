@@ -2,7 +2,7 @@
 
 # ARIA Knowledge
 
-**Anchored Reasoning and Insight Architecture**
+**Applied Reasoning and Insight Architecture**
 
 An active knowledge and development discipline system for AI-assisted development. Built for developers and teams using Claude Code who want each session to build on the last — capturing knowledge, enforcing structured decisions, and mapping codebases and tasks so context compounds instead of disappearing.
 

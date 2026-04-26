@@ -2,76 +2,111 @@
   <img src="aria-icon-rounded.png" width="120" alt="ARIA">
 </p>
 
-# ARIA — Anchored Reasoning and Insight Architecture
+# ARIA — Applied Reasoning and Insight Architecture
 
-ARIA is a Claude Code plugin that gives AI coding sessions persistent memory and structured discipline. It manages a complete knowledge lifecycle — capturing insights, decisions, and feedback during sessions, staging them in backlogs for human review, and promoting what matters into a searchable, tag-indexed knowledge base. Session hooks prevent knowledge loss during context compaction, surface relevant knowledge when tasks are created, and enforce a change decision framework at every file edit, requiring visible impact assessment and scope verification before and after changes. The result is that each session builds on the last instead of starting from scratch.
+**The AI captures. The human promotes. Trusted knowledge acts.**
 
-Beyond knowledge capture, ARIA provides active tooling for codebase & task mapping and session workflow. `/codemap` generates feature-organized maps that trace full-stack flows across entire repositories; `/stitch` builds cross-repo binding tables (auth paths, endpoint stitch, drift logs) for product groups spanning a backend and one or more frontends; `/distill` turns raw ticket text into tiered executable task specs that cite real files via optional CODEMAP + STITCH context. `/ask` researches questions and saves answers directly as knowledge docs. `/intake` bulk-imports from files, URLs, or directories. `/audit-config` and `/audit-knowledge` detect drift, staleness, and gaps on configurable cadences. `/wrapup` handles end-of-session handoff — updating progress files, prompting for commits, and ensuring the next session can pick up cleanly. An optional project-specific knowledge tier (v2.8.0+) organizes architecture decisions and patterns by project, with automatic cross-project promotion detection when patterns validate across multiple projects. Everything is plain markdown, works as an Obsidian vault, and follows a core philosophy: the AI captures, the human promotes.
+ARIA is a Claude Code plugin that gives AI coding sessions persistent memory and structured discipline. It manages a complete knowledge lifecycle — capturing insights, decisions, and feedback during sessions, staging them in backlogs for human review, and promoting what matters into a searchable, tag-indexed knowledge base. Session hooks prevent knowledge loss during context compaction, surface relevant knowledge when tasks are created, and enforce a change decision framework at every file edit, requiring visible impact assessment and scope verification before and after changes. Each session builds on the last instead of starting from scratch.
+
+Beyond capture, ARIA provides active tooling: `/codemap` generates feature-organized maps that trace full-stack flows; `/stitch` builds cross-repo binding tables for product groups; `/distill` turns raw ticket text into tiered executable task specs that cite real files. `/ask` researches questions and saves answers as knowledge docs. `/intake` bulk-imports from files, URLs, or directories. `/audit-config` and `/audit-knowledge` detect drift, staleness, and gaps on configurable cadences. `/wrapup` handles end-of-session handoff. An optional project-specific tier (v2.8.0+) organizes architecture decisions and patterns by project, with cross-project promotion when patterns validate across multiple projects. Everything is plain markdown, works as an Obsidian vault, and follows the core philosophy: **the AI captures, the human promotes, trusted knowledge acts.**
+
+## The problem
+
+AI coding sessions generate valuable knowledge every day. Architecture decisions. Debugging discoveries. Product constraints. Team conventions. Reviewer feedback. Lessons learned the hard way.
+
+Then the session ends. Context gets compacted. Decisions disappear into transcripts. The next session repeats old questions, misses known constraints, or reopens choices already settled.
+
+Most memory tools solve this by helping the assistant remember more. ARIA goes further: it asks **what knowledge is worth trusting**, **how should it be reviewed**, and **how should that trusted knowledge actively shape the next decision, task, and code change.** That is the difference between passive memory and applied operational knowledge.
 
 ## How It Works
 
-### Knowledge Lifecycle
+Knowledge moves through a five-phase lifecycle: **Capture → Govern → Promote → Apply → Refresh.**
 
-Knowledge moves through a pipeline: **Capture → Review → Promote.**
+### Capture
 
-- `/extract` — Scan conversations for uncaptured insights, decisions, feedback, and references. Deduplicates against existing entries.
+Preserve session knowledge before context evaporates.
+
+- `/extract` — Scan conversations for uncaptured insights, decisions, feedback, references, and ideas. Deduplicates against existing entries.
 - `/clip` — Quick-save URLs or text snippets to intake without leaving the session.
 - `/ask` — Research a question, check existing knowledge first, save the answer directly as a knowledge doc.
 - `/intake` — Bulk import from files, directories, or URLs with preview before staging.
+- `/snapshot` — On-demand raw transcript archive. Same artifact the PreCompact hook produces, invoked explicitly.
+- `/wrapup` — End-of-session handoff: reviews work, updates PROGRESS.md/CLAUDE.md/memory, prompts for commit and `/extract`, verifies the next session can pick up.
+
+### Govern
+
+Decide what's worth keeping. Captured knowledge enters backlogs, not the canonical knowledge base.
+
 - `/backlog` — View and manage pending items across all four backlogs (insights, decisions, extraction, rules).
-- `/audit-knowledge` — Review backlogs and memory for promotable knowledge. Detects emerging themes across entries. Checks codemap staleness.
+- `/audit-knowledge` — Review backlogs and memory for promotable knowledge. Detects emerging themes across entries. Checks codemap staleness. The trust layer that prevents memory drift.
+
+This phase is what separates ARIA from systems that auto-canonicalize: confident-wrong knowledge cannot quietly become permanent. Humans are the gate.
+
+### Promote
+
+Approved knowledge becomes durable markdown — rules, approaches, decisions, guides, references. Each promotion is a human decision, traceable through git history.
+
 - `/index` — Rebuild the tag index. Normalizes tags, flags untagged files, suggests cross-references, updates project mappings.
-- `/context` — Load relevant knowledge by topic using the tag index with project expansion. When a project tier is configured, `/context {project-tag}` also loads project-specific files from `projects/{tag}/**`, grouped separately from cross-project results.
-- `/rules` — Quick lookup into the 31 working rules by number or keyword.
-- `/stats` — Knowledge base health dashboard — file counts, backlog depth, audit status, tag coverage, gaps.
+- An optional **project-specific tier** (v2.8.0+) organizes architecture decisions and patterns by project under `projects/{tag}/`. Cross-project promotion fires when patterns validate across multiple projects.
 
-### Decision Discipline
+### Apply
 
-A change decision framework (Rule 22) is enforced at every Edit/Write via hooks.
+A trusted knowledge base only matters if it shapes future work. ARIA's "Applied" framing lives here — promoted knowledge actively guides reasoning, planning, and code changes.
+
+**Rule 22 — change decision framework enforced at every Edit/Write via hooks.**
 
 - **PreToolUse hook** — Before every file edit: assess impact (HIGH/LOW), state alternatives considered, define scope.
 - **PostToolUse hook** — After every edit: verify scope wasn't exceeded, check for secondary impact on parents/siblings/dependents.
-- **Structural signal surfacing** — edits touching auth, migrations, models/schemas, routing, or external-service integrations get advisory labels on the hook output so risk signals are visible even when the content classifies as Low impact.
-- **Batch-manifest ceremony reduction** — skills (or manual plan execution) driving declared-scope multi-file work can write a batch manifest that compresses Rule 22 ceremony for low-impact ops in-scope. Protected paths, declared-high ops, structural signals, and out-of-scope drift all still get the full assessment. Requires `jq`. `/audit-knowledge` uses this to run 15–30-edit promotion passes without per-edit ceremony.
+- **Structural signal surfacing** — edits touching auth, migrations, models/schemas, routing, or external-service integrations get advisory labels even when the content classifies as Low impact.
+- **Batch-manifest ceremony reduction** — declared-scope multi-file work compresses Rule 22 ceremony for low-impact ops in-scope. Protected paths, declared-high ops, structural signals, and out-of-scope drift still get the full assessment. Requires `jq`.
 - Configurable critical paths that always require full impact assessment.
-- Ships 31 working rules, a 7-step change decision framework with real examples, and enforcement mechanisms documentation.
+- Ships 31 working rules, a 7-step change decision framework with worked examples, and enforcement mechanisms documentation.
 
-### Codebase & Task Mapping
+**Knowledge surfaces during work.**
 
-Skills that turn ambiguous surface area — a repo, a set of repos, a raw ticket — into structured artifacts Claude can ground decisions against. All three produce a navigable map of something that was previously tribal knowledge.
+- `/context` — Load relevant knowledge by topic using the tag index, with project expansion. `/context {project-tag}` also loads project-specific files from `projects/{tag}/**`, grouped separately from cross-project results.
+- `/rules` — Quick lookup into the 31 working rules by number or keyword.
 
-- `/codemap` — Feature-organized reference document for any repository. Scans repos, detects frameworks, traces full-stack flows (routes → hooks → state → views → models → integrations). Four modes: `create` (full generation), `inventory` (quick index), `update` (incremental via git diff), `section` (rebuild one section). Produces navigable CODEMAP.md with a directory table for selective section loading. Stack-aware cross-cutting candidates (URLConf tree, signal registry, env matrix, route tree) surface as explicit gap prompts during generation — feature-organized codemaps systematically under-document these because they span all features rather than attaching to one.
-- `/stitch` — Cross-repo binding artifact for product groups (backend + one or more frontends). Produces STITCH.md with tables for group identity, auth path, endpoint stitch, entity stitch, integration stitch, and a drift log. Modes: `create`, `verify`, `diff`, `section`. Drift detection follows a precedence ladder: user-supplied analyze-stitch script → CODEMAP-based endpoint diff → explicit prompt when CODEMAPs lack endpoint sections → opt-in grep fallback. Output labels its drift source so you can trust or distrust accordingly.
-- `/distill` — Turns raw ticket text into an executable task spec following a `TASK.schema.md` contract. Auto-tiers by complexity (micro / standard / full) via a point system; explicit `--tier` overrides. Conditional layers (Frontend / Backend / Database) appear only when the task touches them. Optional `--group` flag loads CODEMAP + STITCH context for cited-path specs so the distilled spec references real files instead of speculating.
-- **PreToolUse hook** on Glob/Grep — Reminds to read CODEMAP.md (and sibling STITCH.md when present) before exploring a codebase directly. Fires once per project per session.
+**Codebase and task mapping turn ambiguous surface area into structured artifacts Claude can ground decisions against.**
 
-### Session Workflow
+- `/codemap` — Feature-organized reference for any repository. Scans repos, detects frameworks, traces full-stack flows (routes → hooks → state → views → models → integrations). Four modes: `create` (full generation), `inventory` (quick index), `update` (incremental via git diff), `section` (rebuild one section). Stack-aware cross-cutting candidates (URLConf tree, signal registry, env matrix, route tree) surface as explicit gap prompts during generation.
+- `/stitch` — Cross-repo binding artifact for product groups (backend + frontends). Tables for group identity, auth path, endpoint stitch, entity stitch, integration stitch, and a drift log. Modes: `create`, `verify`, `diff`, `section`. Drift detection follows a precedence ladder; output labels its drift source so you can trust or distrust accordingly.
+- `/distill` — Turns raw ticket text into an executable task spec following a `TASK.schema.md` contract. Auto-tiers by complexity (micro / standard / full). Conditional layers (Frontend / Backend / Database) appear only when the task touches them. Optional `--group` flag loads CODEMAP + STITCH context for cited-path specs.
 
-Hooks and skills that keep sessions continuous across compaction and between conversations.
+**Hooks make application continuous in the background.**
 
-- `/wrapup` — End-of-session handoff: reviews work, updates PROGRESS.md/CLAUDE.md/memory, prompts for commit and `/extract`, verifies the next session can pick up.
-- `/snapshot` — On-demand raw transcript archive. Same artifact the PreCompact hook produces, but invoked explicitly — for before switching context, before a risky operation, or any time you want the full conversation preserved.
-- `/setup` — Configure knowledge folder, validate structure, diff managed files against plugin version, detect companion plugins.
-- `/audit-config` — Scan CLAUDE.md files, configs, and docs for drift, broken references, and staleness.
-- `/help` — Quick command reference.
-- **SessionStart hook** — Checks audit cadences, prompts when review is overdue. First-run welcome for new users. Periodic update check.
+- **PreToolUse hook on Glob/Grep** — Reminds to read CODEMAP.md (and sibling STITCH.md when present) before exploring a codebase directly. Fires once per project per session.
+- **TaskCreated hook** — Surfaces relevant knowledge files when tasks are created (tag index matching).
 - **PreCompact hook** — Saves transcript snapshot before context compaction.
 - **PostCompact hook** — Prompts to review captured snapshot after compaction.
-- **TaskCreated hook** — Surfaces relevant knowledge files when tasks are created (tag index matching).
 - `auto_capture` toggle gates all automatic features.
 
-## Staleness & Freshness
+### Refresh
 
 Knowledge bases rot when nothing forces a review. ARIA treats freshness as a first-class concern and solves it through **process**, not storage format.
 
 - **`Last updated` frontmatter on every knowledge file** enables mechanical staleness checks.
 - **Configurable staleness thresholds** — `ideas_staleness_threshold_days` (default 7) for `intake/ideas/` entries; `staleness_threshold_months` for promoted knowledge files. Tune per install in `~/.claude/aria-knowledge.local.md`.
 - **Audit cadences** enforce periodic review. SessionStart hook prompts when `/audit-knowledge` or `/audit-config` is overdue.
-- **Stale-first surfacing** — `/audit-knowledge` sorts stale ideas above fresh ones and demands explicit Accept/Reject/Defer/Reclassify disposition. Accept further routes the idea via a submenu — `tracker | roadmap | todo | adr | plan | bundle | rule` — picking only the destinations available for that project (e.g., `roadmap` only when `ROADMAP.md` exists). Fresh items pass through informationally, so ceremony cost tracks urgency. The asymmetry prevents the accumulation failure mode where implicit Defer silently buries items that have survived a full review cycle without action.
+- **Stale-first surfacing** — `/audit-knowledge` sorts stale items above fresh ones and demands explicit disposition.
 - **Drift detection** — `/audit-config` scans CLAUDE.md files and configs for broken references; `/audit-knowledge` Step 5b3 checks skill-knowledge connections; `/codemap update` refreshes incrementally via git diff; `/index` flags untagged or stale files and suggests cross-references.
 - **Rule 22 enforcement** — every Edit/Write requires a visible impact assessment and post-edit scope check. No silent drift because no silent edits.
+- `/stats` — Knowledge base health dashboard — file counts, backlog depth, audit status, tag coverage, gaps.
 
 Format determines auditability; process determines freshness. ARIA's answer is plain markdown for auditability + layered review cadences for freshness + humans in the promotion loop so wrong knowledge doesn't accumulate silently.
+
+## Ideas lifecycle (since v2.12)
+
+Ideas — feature proposals, bug reports, design suggestions — flow into `intake/ideas/` during `/extract`. They have a distinct lifecycle from the four knowledge backlogs because they describe **what should be different**, not **what is**.
+
+1. **Capture** — `/extract` writes one file per idea to `intake/ideas/`, with YAML frontmatter (date, project, type, title) and a Proposal/Motivation/Source body.
+2. **Stale-first surfacing** — `/audit-knowledge` sorts stale ideas above fresh ones (default 7 days) and forces explicit disposition on stale entries. Fresh ideas auto-defer; stale ideas can't.
+3. **Seven-destination Accept submenu** — each accepted idea routes to one of: `tracker | roadmap | todo | adr | plan | bundle | rule`.
+4. **Detection-aware routing** — `roadmap` and `todo` only appear when `ROADMAP.md` / `TODO.md` exists at the project root or under `docs/`. The submenu shrinks per idea so users can't pick a destination that doesn't fit.
+5. **Bundle clustering** — when 2+ ideas in the same project share ≥2 significant title words, the audit offers to merge them into one disposition with a sub-prompt for the merged file's destination.
+6. **`ticketing_plugins` config** — declare your ticket-drafting plugin per project tag (e.g., `proj-a:foo-ticket`) and `/audit-knowledge` prints a one-line hint at `Accept → tracker` time. Hint only — never auto-invokes another plugin.
+
+Ideas never promote directly into `approaches/`, `decisions/`, or `rules/`. The `adr` and `rule` destinations route through their respective backlogs (`decisions-backlog.md`, `rules-backlog.md`) for normal audit-cycle review. Rejected ideas are deleted (git history is the audit trail); deferred ideas stay in `intake/ideas/` until they age into stale.
 
 ## Key Habits
 
@@ -103,15 +138,36 @@ See [OVERVIEW.md](plugin/template/OVERVIEW.md) for the full explanation of why t
 
 The knowledge folder is plain markdown — it works great as an Obsidian vault. We recommend using [Obsidian Web Clipper](https://obsidian.md/clipper) to save articles and references directly into `intake/clippings/`, where ARIA's audit process can review and promote them.
 
+## Privacy-first by design
+
+ARIA runs locally. It does not collect analytics, send telemetry, make network requests, use cookies, connect to external services, or share your knowledge base with the plugin author or third parties. Knowledge files, backlogs, indexes, config, transcript-derived artifacts, and project context all stay on your filesystem.
+
+Audit logs and disposition history live alongside your knowledge folder under git, so every promotion and rejection is traceable in your own repo — not a vendor's database.
+
+## Who ARIA is for
+
+ARIA is for developers and teams using Claude Code who want:
+
+- Persistent memory across sessions instead of starting from scratch
+- Human-reviewed knowledge instead of automatic memory drift
+- A structured way to capture decisions, lessons, and project context
+- Safer AI-assisted code changes via edit-time decision discipline
+- Better handoff after compaction or long sessions
+- Codebase maps that reduce rediscovery
+- Task specs grounded in real repository context
+- Markdown knowledge that remains readable, portable, diffable, and versionable
+
+It's especially useful when AI is not just answering questions but actively shaping code, architecture, tasks, and product decisions.
+
 ## Philosophy
 
-ARIA takes the position that **the LLM captures, the human promotes.** AI is excellent at noticing and structuring knowledge during sessions. But deciding what's load-bearing vs. noise requires human judgment.
+ARIA takes the position that **the LLM captures, the human promotes, trusted knowledge acts.** AI is excellent at noticing and structuring knowledge during sessions. Deciding what's load-bearing vs. noise requires human judgment. And once trusted, that knowledge is most useful when it actively shapes the next decision — through context loading, rules surfacing, codebase mapping, task distillation, and Rule 22 edit-time discipline.
 
 See [plugin/template/OVERVIEW.md](plugin/template/OVERVIEW.md) for the full design rationale.
 
 ## ARIA vs Other Memory Architectures
 
-ARIA, Karpathy-style markdown wikis, and graph-DB memory systems (mem0, Graphiti) all solve "give the LLM persistent memory" — but they optimize different things. Understanding the axes helps you pick correctly.
+ARIA, Karpathy-style markdown wikis, graph-DB memory systems (mem0, Graphiti, Zep), Basic Memory, and MCP memory servers all solve "give the LLM persistent memory" — but they optimize different things. Understanding the axes helps you pick correctly.
 
 | Axis | ARIA | Karpathy Wiki | Graph DB Memory |
 |------|------|---------------|-----------------|
@@ -120,6 +176,7 @@ ARIA, Karpathy-style markdown wikis, and graph-DB memory systems (mem0, Graphiti
 | **Auditability** | High — diffable git history, every promotion is a human decision | High — files are source of truth, but LLM authorship obscures intent | Low — embedding space is opaque |
 | **Freshness mechanism** | Audit cadences + staleness thresholds + Rule 22 edits | LLM linting passes ("self-healing") | Automatic updates on new inputs |
 | **Process discipline** | Rule 22 change decision framework enforced at every edit | None formalized | None formalized |
+| **Active application** | Rule 22 edits, /context, /rules, /codemap, /stitch, /distill | Wiki retrieval | Vector + graph retrieval |
 | **Failure mode** | Slower curation (humans are the rate-limit) | Confident-wrong LLM rewrites compound silently across backlinks | Hallucinated updates cascade; can't trace back to source |
 | **Ideal scale** | 100–1000 high-signal docs; operational knowledge | 100–10000 docs; personal research | Millions of docs; retrieval-heavy agent workloads |
 
@@ -129,11 +186,28 @@ This reflects a domain difference, not a quality judgment. **Karpathy's model is
 
 Graph-DB memory systems win on retrieval quality — vector search + graph traversal beats grep at scale. They lose on provenance and curation discipline. If retrieval recall is your bottleneck, ARIA and graph DB aren't mutually exclusive: use ARIA as the capture and curation layer, pipe promoted markdown into a graph DB for retrieval.
 
+**Basic Memory + MCP memory servers** give assistants persistent memory across sessions, often as entities/relations or local markdown notes. They optimize for general-purpose recall and broad compatibility. ARIA is more opinionated and developer-workflow specific: structured backlogs, promotion workflows, audits, codebase maps, cross-repo stitching, task distillation, and Rule 22 edit-time discipline. They can sit alongside ARIA — ARIA curates the trusted-decision tier, generic memory layers handle general recall.
+
 Pick the tool that matches the actual pain:
 
-- **Operational knowledge that drives decisions and code → ARIA.** Human gate prevents auto-accumulation of confident errors. Rule 22 prevents silent drift.
+- **Operational knowledge that drives decisions and code → ARIA.** Human gate prevents auto-accumulation of confident errors. Rule 22 prevents silent drift. Active application via /context, /rules, /codemap, /stitch, /distill.
 - **Slow retrieval across thousands of docs → Graph DB.** Vector search solves what grep doesn't.
 - **Automated research compilation and evolving personal wikis → Karpathy wiki.** LLM-authored synthesis is the strength; great when the artifact is read, not acted on.
+- **General-purpose persistent memory for any assistant → Basic Memory or MCP memory servers.** Lower opinionation, broader compatibility, simpler scope.
+
+## Context efficiency over time
+
+ARIA is designed to improve context efficiency over time, not guarantee lower token usage in any single session. It adds structure in the moment — Rule 22 checks, hooks, extraction, audits, and context surfacing all consume tokens. For a one-off task, that overhead may exceed working without a knowledge system.
+
+The benefit appears across repeated work. ARIA reduces context waste by replacing repeated rediscovery with compact, reviewed, task-relevant knowledge:
+
+- Promoted rules instead of repeated explanations
+- Decisions and guides instead of long chat history
+- CODEMAP and STITCH files instead of repeated repository exploration
+- `/context` and `/rules` instead of dumping broad documentation into every session
+- `/extract` and `/audit-knowledge` instead of reviewing raw transcript snapshots later
+
+The goal is not fewer tokens overall — it's fewer tokens spent re-learning the same things, and more tokens applying trusted knowledge to the next task, decision, and code change.
 
 ## Model Recommendations
 
@@ -151,7 +225,6 @@ Under Opus 4.7's tokenizer (1.0–1.35× inflation vs 4.6) and adaptive thinking
 
 See `knowledge/projects/aria/references/opus-4-7-aria-compatibility.md` for the full list of verified 4.7 behaviors ARIA is designed around.
 
-
 ## Known Issues
 
 - **"hook error" label on Pre/PostToolUse hooks** — Claude Code displays "hook error" next to every tool call that triggers a hook, even when the hook exits successfully (exit code 0) with valid JSON output. This is a [known Claude Code UI bug](https://github.com/anthropics/claude-code/issues/17088) — the Rule 22 enforcement hooks are working correctly. The label is cosmetic and does not indicate a problem with ARIA.
@@ -163,3 +236,9 @@ See `knowledge/projects/aria/references/opus-4-7-aria-compatibility.md` for the 
 ## Support
 
 If ARIA is useful to you, consider buying me Claude credits via [PayPal](https://www.paypal.biz/prasadmike) or [Venmo](https://venmo.com/mikeprasad).
+
+## Try it
+
+Install ARIA, run `/setup`, work normally. Rule 22 is active immediately. Run `/extract` before ending sessions. Run `/audit-knowledge` when prompted. Each session builds on the last.
+
+**Memory is not enough. Trusted application is the goal.**
