@@ -63,7 +63,7 @@ Each idea is surfaced with a two-step prompt: a top-level choice (Accept / Rejec
 | `roadmap` | Append to project-root `ROADMAP.md` (or `docs/ROADMAP.md`) as a dated entry | only if the file exists |
 | `todo` | Append a single-line entry to project-root `TODO.md` (or `docs/TODO.md`) | only if the file exists |
 | `adr` | Copy into `intake/decisions-backlog.md` for normal decision-audit review | always |
-| `backlog` | Append idea body to `IDEAS-BACKLOG.md` at the project-root path (per `projects_list` resolution). Create with a header if missing. | always |
+| `backlog` | Append idea body to `IDEAS-BACKLOG.md` at the project-root path (per `projects_list` resolution). Create with a header if missing. **Location depends on `projects_shared_knowledge`:** disabled (default) → `<project-root>/IDEAS-BACKLOG.md`; enabled → `<project-root>/_project-knowledge/IDEAS-BACKLOG.md` (team-visible). | always |
 | `bundle` | Merge 2+ related ideas into one file, then sub-prompt for tracker/roadmap/todo/adr/backlog | only when audit detects a cluster (same project + ≥2 shared title words) |
 | `rule` | Append to `intake/rules-backlog.md` for next audit's rule review (promotes to user memory `feedback_*.md` or project-local `working-rules.md`) | always |
 

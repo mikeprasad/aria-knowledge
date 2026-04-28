@@ -115,6 +115,31 @@ The promotion ladder extends to three tiers: **project pattern → cross-project
 
 This tier is fully opt-in — `projects_enabled: false` by default. Existing users see no behavior change unless they explicitly enable it. New users can opt in during `/setup` Advanced Options.
 
+### Shared Knowledge Tier (opt-in, since v2.13.0)
+
+Personal knowledge captures stay on one developer's laptop. The Shared Knowledge tier closes that loop: selected personal knowledge can be **promoted to a per-repo team-visible folder** so teammates working in the same code repo can find and read what you've learned.
+
+When `projects_shared_knowledge: true` is set in config (alongside `projects_enabled: true`), each project repo gains a conventional folder:
+
+```
+<project-root>/
+└── _project-knowledge/
+    ├── README.md                                    (auto-created on first share — convention explainer for non-ARIA teammates)
+    ├── IDEAS-BACKLOG.md                             (the project's idea queue moves here; routed via /audit-knowledge → Accept→backlog)
+    ├── {YYYY-MM-DD}-{author}-{slug}.md              (repo-scoped insights, decisions, approaches, rules)
+    └── cross/
+        ├── IDEAS-BACKLOG.md                         (cross-repo idea queue)
+        └── {YYYY-MM-DD}-{author}-{slug}.md          (cross-cutting items)
+```
+
+The new `/audit-share` skill (alias `/share-audit`) is the batch-review surface for promotion. Walk personal knowledge folders, review recommendations grouped by destination, approve all/numbers/modify/skip per item. Personal copies stay in your knowledge folder; team copies are independent records committed through normal git/PR review. Files in both places carry frontmatter back-pointers (`shared:` on personal copies, `origin:`/`shared_by:`/`shared_at:` on team copies) for provenance.
+
+Read-side: `/index` (Phase 5) scans `_project-knowledge/` folders into the tag index; `/context` surfaces team-shared files as a third grouping in query results (above project-specific and cross-project). Tag-based discovery works seamlessly across all three tiers.
+
+Cross-cutting knowledge that applies across multiple repos in the same product group lands in any one repo's `_project-knowledge/cross/` (federated; aggregation handled at read time via the index).
+
+This tier is fully opt-in — `projects_shared_knowledge: false` by default. It requires `projects_enabled: true` to take effect. Existing users see no behavior change unless they explicitly enable it; new users can opt in during `/setup`.
+
 ## The Plugin
 
 Knowledge Repository is powered by **aria-knowledge**, a Claude Code plugin that automates the capture–govern–promote–apply–refresh lifecycle.

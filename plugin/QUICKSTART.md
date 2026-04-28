@@ -48,7 +48,8 @@ With an index built, ARIA surfaces trusted knowledge automatically and the refre
 | `/extract` | Capture knowledge from current conversation |
 | `/audit-knowledge` | Review backlogs and promote to knowledge files |
 | `/audit-config` | Check project configs and docs for drift |
-| `/context [tags]` | Load relevant knowledge by topic |
+| `/audit-share` (or `/share-audit`) | Batch-review personal knowledge for promotion to per-repo `_project-knowledge/` (opt-in via `projects_shared_knowledge`) |
+| `/context [tags]` | Load relevant knowledge by topic — surfaces team-shared files alongside personal/project tiers when shared knowledge is enabled |
 | `/index` | Rebuild the tag-based knowledge index |
 | `/rules [number]` | Look up a working rule |
 | `/backlog` | View pending intake items |

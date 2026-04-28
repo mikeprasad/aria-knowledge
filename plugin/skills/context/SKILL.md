@@ -14,6 +14,7 @@ Read `~/.claude/aria-knowledge.local.md` and extract:
 - `knowledge_folder` — required
 - `projects_enabled` — default `false`
 - `projects_list` — default empty (only relevant if `projects_enabled: true`)
+- `projects_shared_knowledge` — default `false`; when `true`, also surface team-shared files indexed under `## Team-Shared Tag Index`
 
 Parse `projects_list` into a tag→path map. The format is comma-separated `tag:path` pairs (e.g., `cs-builder:cs/cs-space-builder,df:df`). Tags are used to identify project-specific files; paths are not used by `/context` (they're for CWD detection in other skills).
 
@@ -30,6 +31,7 @@ Parse the index to extract:
 - `## Known Tags` section — the canonical tag list
 - `## Tag Index` section — tag → file mappings for known tags
 - `## Other Tags` section — tag → file mappings for freeform tags
+- `## Team-Shared Tag Index` section — tag → team-shared file mappings (only when `projects_shared_knowledge: true`); paths are absolute-from-home (`~/Projects/...`) and entries carry a `[project: ..., scope: ...]` annotation. Section may be absent if no team-shared files exist or feature is disabled.
 
 ## Step 2: Parse Query
 
@@ -65,7 +67,7 @@ Project expansion only applies in union (OR) mode. In AND mode, project tags are
 
 ## Step 4: Match Files
 
-File discovery has two sources: the index (cross-project tagged files) and the filesystem (project-specific files under `projects/{tag}/**`). Both contribute to the result set; results are categorized so Step 5 can present them grouped.
+File discovery has three sources: the index `## Tag Index` and `## Other Tags` sections (cross-project tagged files), the filesystem (project-specific files under `projects/{tag}/**`), and the index `## Team-Shared Tag Index` section (team-shared files in code repos under `_project-knowledge/`). All three contribute to the result set; results are categorized so Step 5 can present them grouped.
 
 ### Step 4a: Index-driven matches (cross-project)
 
@@ -100,26 +102,53 @@ For each query tag that matches a configured project tag (i.e., is a key in the 
 
 **Deduplication:** Cross-source duplication is prevented by Step 4a's `projects/**` path exclusion — project-tier files are always routed through Step 4b, never through the index-driven Step 4a. Within each sub-step, deduplicate by path as before (a file matching multiple tags in Step 4a, or a file found multiple times within Step 4b's Glob, appears only once).
 
+### Step 4c: Index-driven matches (team-shared)
+
+Skip this sub-step entirely if `projects_shared_knowledge: false` or the index lacks a `## Team-Shared Tag Index` section.
+
+Scan the `## Team-Shared Tag Index` section for entries matching the query tags. The section's entries are tag headers (`### tag`) followed by bulleted file paths in the form:
+
+```
+- ~/Projects/<path>/_project-knowledge/2026-04-28-init-foo.md — Description [project: proj-a, scope: repo]
+```
+
+**Union mode (OR):** Collect files appearing under any query tag. Deduplicate by path (a file matching multiple tags appears once).
+
+**Intersection mode (AND):** Collect files appearing under ALL query tags.
+
+**Project-tag interaction:** if a query tag matches a configured project tag, also include team-shared files annotated with `project: <that-tag>` (path-derived project tag from `_project-knowledge/` directly under the project root). Cross-cutting items (`project: cross`) match the query tag `cross` AND surface for any project-tag query when the query mode is OR (cross knowledge is relevant to all projects).
+
+For each matching file, collect:
+- File path (absolute-from-home, kept as-is from the index)
+- Description (from the index entry)
+- Tags the file carries (from the index annotation and any other tag sections it appears under)
+- Project metadata (`project: <tag>` and `scope: repo|cross` from the index entry's annotation)
+- Category: `team-shared`
+
 ## Step 5: Present Summary
 
-If matches found, group results by category — **Project-specific first, Cross-project second**. Use a single continuous numbering across both groups so the user can select by number across categories.
+If matches found, group results by category — **Team-shared first, Project-specific second, Cross-project third**. Use a single continuous numbering across all groups so the user can select by number across categories.
 
 ```
 Found N files matching: [tags] ([OR|AND])
 
+## Team-shared (T files)
+1. ~/Projects/<path>/_project-knowledge/2026-04-28-init-foo.md — Description [project: proj-a, scope: repo, tags: api, pagination]
+2. ~/Projects/<path>/_project-knowledge/cross/2026-04-28-init-bar.md — Description [project: cross, scope: cross, tags: api]
+
 ## Project-specific (M files)
-1. projects/cs-builder/decisions/004-state-sync.md — State sync between AI and wizard [cs-builder, state-management]
-2. projects/cs-builder/patterns/internal-patterns.md — Reusable patterns within cs-builder [cs-builder, patterns]
+3. projects/proj-a/decisions/004-state-sync.md — State sync between AI and wizard [proj-a, state-management]
+4. projects/proj-a/patterns/internal-patterns.md — Reusable patterns [proj-a, patterns]
 
 ## Cross-project (K files)
-3. approaches/api-pagination.md — Cursor-based pagination patterns [api, pagination, stripe]
-4. decisions/003-cursor-vs-offset.md — Why we chose cursor pagination [api, stripe]
-5. references/stripe-webhook-patterns.md — Webhook signature verification [stripe, webhooks]
+5. approaches/api-pagination.md — Cursor-based pagination patterns [api, pagination, stripe]
+6. decisions/003-cursor-vs-offset.md — Why we chose cursor pagination [api, stripe]
+7. references/stripe-webhook-patterns.md — Webhook signature verification [stripe, webhooks]
 
 Load which files? (all / numbers / none)
 ```
 
-**Section omission:** if a section has zero results, omit its heading entirely. If only project-specific results exist, show only the "Project-specific" section. If only cross-project results exist, show only the "Cross-project" section (and you can omit the heading since the categorization is moot — match the original flat presentation in that case).
+**Section omission:** if a section has zero results, omit its heading entirely. If only one section has results, omit the heading (categorization is moot — match the original flat presentation in that case).
 
 **Empty project-folder note (Decision #8):** if Step 4b recorded a "no project-specific files yet" note for any configured project tag in the query, append a single line after the result list (before the prompt):
 
