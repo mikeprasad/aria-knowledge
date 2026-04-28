@@ -26,7 +26,7 @@ Run **`/audit-knowledge`** to govern (review) what's been captured, then promote
 - Reject items to clear them from backlogs
 - Defer or reclassify items that aren't ready
 - Themes across multiple entries get flagged for synthesis
-- Pending ideas route through the Accept submenu (`tracker | roadmap | todo | adr | plan | bundle | rule`) per project's available destinations
+- Pending ideas route through the Accept submenu (`tracker | roadmap | todo | adr | backlog | bundle | rule`) per project's available destinations
 
 Run **`/index`** to build a tag-based index of your knowledge files.
 

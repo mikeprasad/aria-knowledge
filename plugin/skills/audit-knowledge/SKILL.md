@@ -115,15 +115,15 @@ For each `*.md` file in `intake/ideas/`: read the file (frontmatter + body). Eac
 | `roadmap` | Append idea body as a new entry to project-root `ROADMAP.md` (or `docs/ROADMAP.md`). Entry includes date prefix + Proposal/Motivation. | only if `ROADMAP.md` exists at project root or under `docs/` |
 | `todo` | Append a single-line entry to project-root `TODO.md` (or `docs/TODO.md`). Format: `- [YYYY-MM-DD] {title} — {one-line proposal}`. | only if `TODO.md` exists at project root or under `docs/` |
 | `adr` | Copy idea body into `intake/decisions-backlog.md` as a new `### YYYY-MM-DD — {title}` entry below the `---` separator. Reviewed as a decision in next audit. | always available |
-| `plan` | Write `plans/{slug}.md` (or `PLAN.md` if no `plans/` directory exists) seeded with Proposal as `## Goal`, Motivation as `## Why`. | always available; chooses dir vs file based on what's present |
+| `backlog` | Append idea body to `IDEAS-BACKLOG.md` at the project-root path (per `projects_list` resolution; see "Project-root detection" below) as a new `### YYYY-MM-DD — {title}` entry with Proposal/Motivation/Source. Create the file with a header if it doesn't exist. The user controls whether the project-root path is a parent container or a specific code repo via their `projects_list` config (e.g., `aria:aria` resolves to the container; `cs-builder:cs/cs-space-builder` resolves to the parent of the code repo). | always available |
 | `bundle` | Merge 2+ related ideas into a single file, then sub-prompt for one of the destinations above. Source idea files are **all deleted** after the merged file lands. | offered when audit detects clusters (see "Bundle clustering" below) |
 | `rule` | Append idea body to `intake/rules-backlog.md` as a new `### YYYY-MM-DD — {title}` entry. Reviewed during next audit alongside other rule candidates; promoted entries land in user memory as `feedback_*.md` records or in a project-local `working-rules.md`. | always available |
 
-**Project-root detection:** for `roadmap`, `todo`, and `plan` paths, the audit needs to resolve the idea's `project` tag to a filesystem path before probing for files. Resolution rules (in priority order):
+**Project-root detection:** for `roadmap`, `todo`, and `backlog` paths, the audit needs to resolve the idea's `project` tag to a filesystem path before probing for files. Resolution rules (in priority order):
 
 1. **Tag in `projects_list`** — if `projects_enabled: true` AND the idea's `project` tag matches a `tag:path` pair in `projects_list`, resolve to that path. Paths in `projects_list` are relative to the parent directory of the knowledge folder (typically `~/Projects/`); the audit converts to absolute by prepending that parent.
 2. **CWD fallback** — if the tag isn't resolvable via `projects_list` (projects tier disabled, tag missing from list, or idea's `project` is `cross` / `no-project`), fall back to the current working directory. Probe the closest ancestor of CWD containing either `.git/` or `CLAUDE.md`.
-3. **No resolution possible** — if neither path strategy yields a valid directory (e.g., projects tier disabled AND CWD has no git/CLAUDE.md ancestor), omit `roadmap`, `todo`, and `plan` from the submenu and append a one-line note to that idea's audit entry: *"roadmap/todo/plan not offered: project path unresolved (project tag not in projects_list, no .git/ or CLAUDE.md ancestor of CWD)."* This makes the gap visible rather than silently shrinking the submenu.
+3. **No resolution possible** — if neither path strategy yields a valid directory (e.g., projects tier disabled AND CWD has no git/CLAUDE.md ancestor), omit `roadmap`, `todo`, and `backlog` from the submenu and append a one-line note to that idea's audit entry: *"roadmap/todo/backlog not offered: project path unresolved (project tag not in projects_list, no .git/ or CLAUDE.md ancestor of CWD)."* This makes the gap visible rather than silently shrinking the submenu.
 
 Once the project root is resolved, probe for the relevant file in two locations in this order: (1) project root, (2) `docs/` subdirectory of the project root. **Tie-break when both exist:** route to the project root copy; the `docs/` copy is treated as secondary and not modified. Document the chosen path in the audit log entry so users can trace where each idea landed.
 
@@ -146,7 +146,7 @@ Once the project root is resolved, probe for the relevant file in two locations 
 
 For each detected cluster, surface a `bundle` option once in the cluster's lead entry in Step 6 (with a list of cluster members). The user chooses bundle (then picks merged-file destination + writes a one-line cluster summary) OR disposes each idea individually.
 
-**Bundle sub-prompt destinations:** when a bundle is accepted, the sub-prompt offers `tracker | roadmap | todo | adr | plan` (the same conditional availability rules as a single idea's submenu). **Excluded from bundle sub-prompts:** `bundle` (would recurse) and `rule` (rule candidates are intentionally one-rule-per-entry — bundling rule candidates obscures their individual review under audit Step 2c3, which expects one rule per `### YYYY-MM-DD — {title}` block).
+**Bundle sub-prompt destinations:** when a bundle is accepted, the sub-prompt offers `tracker | roadmap | todo | adr | backlog` (the same conditional availability rules as a single idea's submenu). **Excluded from bundle sub-prompts:** `bundle` (would recurse) and `rule` (rule candidates are intentionally one-rule-per-entry — bundling rule candidates obscures their individual review under audit Step 2c3, which expects one rule per `### YYYY-MM-DD — {title}` block).
 
 Git history is the audit trail for accepted/rejected/reclassified ideas; deleted files remain recoverable via `git log --all -- intake/ideas/` if needed.
 
@@ -453,7 +453,7 @@ Present ideas in their own section. **Sort stale entries first** (age > `ideas_s
 - `Defer` — keep in place for next audit (disallowed implicitly for stale entries)
 - `Reclassify` — move to insights/decisions/extraction backlog as observation
 
-**Accept submenu (computed per idea):** always include `tracker | adr | plan | rule`. Conditionally include `roadmap` if `ROADMAP.md` exists at the idea's project root or under `docs/`; `todo` if `TODO.md` exists similarly; `bundle` only on the lead entry of a detected cluster (and list cluster members inline).
+**Accept submenu (computed per idea):** always include `tracker | adr | backlog | rule`. Conditionally include `roadmap` if `ROADMAP.md` exists at the idea's project root or under `docs/`; `todo` if `TODO.md` exists similarly; `bundle` only on the lead entry of a detected cluster (and list cluster members inline).
 
 For stale entries, prompt explicitly (don't allow implicit Defer). For non-stale entries, Defer is fine as a no-op.
 
@@ -463,22 +463,22 @@ Example output:
 
 - 2026-03-12 (35 days ago) — aria — refactor — simplify blueprint merge logic [STALE — still relevant?]
   Proposal: ...
-  Accept → [tracker | adr | plan | rule] / Reject / Defer / Reclassify?
+  Accept → [tracker | adr | backlog | rule] / Reject / Defer / Reclassify?
   (no roadmap/todo: ROADMAP.md and TODO.md not found at aria project root or docs/)
 
 - 2026-03-22 (25 days ago) — cs-builder — bug — theme tokens missing from blueprint XYZ [STALE — still relevant?]
   Proposal: ...
-  Accept → [tracker | roadmap | adr | plan | rule] / Reject / Defer / Reclassify?
+  Accept → [tracker | roadmap | adr | backlog | rule] / Reject / Defer / Reclassify?
   (no todo: TODO.md not found)
   Hint: Use /foo-ticket to draft this as a ticket. (ticketing_plugins maps this project tag → foo-ticket)
 
 - 2026-04-15 (1 day ago) — aria — feature — /setup diff prompts ahead vs diverged
   Cluster: bundle option available — also see "/setup state-aware second run" (2026-04-15) and "/setup test-mode skip re-decided" (2026-04-15) under aria project.
   Proposal: ...
-  Accept → [tracker | adr | plan | rule | bundle] / Reject / Defer / Reclassify?
+  Accept → [tracker | adr | backlog | rule | bundle] / Reject / Defer / Reclassify?
 ```
 
-When the user picks `Accept`, prompt: *"Destination? [tracker | roadmap | todo | adr | plan | bundle | rule]"* (showing only the items in that idea's available submenu). Then route per the Step 2c2 specification.
+When the user picks `Accept`, prompt: *"Destination? [tracker | roadmap | todo | adr | backlog | bundle | rule]"* (showing only the items in that idea's available submenu). Then route per the Step 2c2 specification.
 
 **Submenu validation:** if the user names a destination that is **not** in this idea's available submenu (e.g., picks `roadmap` when ROADMAP.md doesn't exist for this project, or picks `bundle` on a non-clustered idea), do **not** auto-route to a fallback. Instead, re-prompt with a one-line explanation:
 
@@ -787,7 +787,7 @@ Use the **structured format** below — it keeps audit logs scannable over many 
 - **Date:** YYYY-MM-DD (Nth pass — short label: "routine check", "v2.8.0 continuation", "post-restructure", etc.)
 - **Trigger:** count=N threshold=T days=D cadence=C — (which fired: count-tier|days|user-invoked)
 - **Counts:** X insights, Y decisions, Z extractions, R rules reviewed
-- **Ideas disposition:** W reviewed — accepted: A1 tracker / A2 roadmap / A3 todo / A4 adr / A5 plan / A6 bundle / A7 rule (sum = A); B rejected; C deferred; D reclassified (omit field entirely if no ideas were in the audit; omit any zero-valued sub-counts)
+- **Ideas disposition:** W reviewed — accepted: A1 tracker / A2 roadmap / A3 todo / A4 adr / A5 backlog / A6 bundle / A7 rule (sum = A); B rejected; C deferred; D reclassified (omit field entirely if no ideas were in the audit; omit any zero-valued sub-counts)
 - **New files:** N total — [breakdown: K approaches, L ADRs (split by tier), M patterns, etc.]
 - **Extended files:** P total — [list filename: brief change, e.g. "css-gotchas.md +2 gotchas"]
 - **Memory:** A new feedback, B new project, C new reference, D updates
@@ -803,7 +803,7 @@ Use the **structured format** below — it keeps audit logs scannable over many 
 - **Date:** YYYY-MM-DD (Nth pass — "no new items" or short label)
 - **Trigger:** count=N threshold=T days=D cadence=C — (which fired: count-tier|days|user-invoked)
 - **Result:** No new items — [X memory files all Category A, Y plan files Category B, backlogs empty OR K entries all cleared as already-captured/stale]
-- **Ideas disposition:** [optional — omit if no ideas were in the audit, else: W reviewed — accepted: A1 tracker / A2 roadmap / A3 todo / A4 adr / A5 plan / A6 bundle / A7 rule (sum = A); B rejected; C deferred; D reclassified — omit any zero-valued sub-counts]
+- **Ideas disposition:** [optional — omit if no ideas were in the audit, else: W reviewed — accepted: A1 tracker / A2 roadmap / A3 todo / A4 adr / A5 backlog / A6 bundle / A7 rule (sum = A); B rejected; C deferred; D reclassified — omit any zero-valued sub-counts]
 - **Notes:** [optional — anything worth flagging even though nothing was promoted, e.g. "clusters forming around theme X but below threshold"]
 ```
 

@@ -4,7 +4,7 @@ Feature proposals, bug reports, and design ideas captured during Claude Code ses
 
 ## Purpose
 
-ARIA captures observations about **what IS** (knowledge) and stages proposals about **what SHOULD BE different** (ideas). Observations promote into knowledge files; proposals route to whichever destination fits — your external tracker, a project roadmap, a quick TODO line, an ADR draft, a plan stub, a bundled spec, or a rule candidate.
+ARIA captures observations about **what IS** (knowledge) and stages proposals about **what SHOULD BE different** (ideas). Observations promote into knowledge files; proposals route to whichever destination fits — your external tracker, a project roadmap, a quick TODO line, an ADR draft, an IDEAS-BACKLOG.md entry, a bundled spec, or a rule candidate.
 
 **ARIA captures; you choose where each proposal lives.** This directory is staging only — ARIA does not replace your issue tracker. The Accept submenu lets you route each idea to the right surface for its weight.
 
@@ -63,8 +63,8 @@ Each idea is surfaced with a two-step prompt: a top-level choice (Accept / Rejec
 | `roadmap` | Append to project-root `ROADMAP.md` (or `docs/ROADMAP.md`) as a dated entry | only if the file exists |
 | `todo` | Append a single-line entry to project-root `TODO.md` (or `docs/TODO.md`) | only if the file exists |
 | `adr` | Copy into `intake/decisions-backlog.md` for normal decision-audit review | always |
-| `plan` | Write `plans/{slug}.md` (or `PLAN.md` if no `plans/` dir) seeded with Proposal/Motivation | always |
-| `bundle` | Merge 2+ related ideas into one file, then sub-prompt for tracker/roadmap/todo/adr/plan | only when audit detects a cluster (same project + ≥2 shared title words) |
+| `backlog` | Append idea body to `IDEAS-BACKLOG.md` at the project-root path (per `projects_list` resolution). Create with a header if missing. | always |
+| `bundle` | Merge 2+ related ideas into one file, then sub-prompt for tracker/roadmap/todo/adr/backlog | only when audit detects a cluster (same project + ≥2 shared title words) |
 | `rule` | Append to `intake/rules-backlog.md` for next audit's rule review (promotes to user memory `feedback_*.md` or project-local `working-rules.md`) | always |
 
 **Routing for "always" destinations** is unconditional. **Routing for `roadmap`/`todo`** depends on detection: ARIA probes the idea's project root (closest ancestor with `.git/` or `CLAUDE.md`) and that root's `docs/` subdirectory for the relevant filename, and only offers the destination when found.

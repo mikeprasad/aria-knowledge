@@ -82,7 +82,7 @@ Glob for PROGRESS.md files first, then Read all found files in a single parallel
 For each PROGRESS.md file found in the current working directory:
 - Note the date of the last session entry
 - Flag if no updates in 7+ days (for active projects)
-- Check if PLAN.md and PROGRESS.md are aligned (if both exist)
+- Check if IDEAS-BACKLOG.md exists and has dated entries (if present)
 
 ## Step 6: Present Findings
 
