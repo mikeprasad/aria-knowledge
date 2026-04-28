@@ -53,7 +53,9 @@ After Project Setup completes, `/setup` asks two follow-up questions when projec
 1. *"Enable shared knowledge feature?"* — sets `projects_shared_knowledge: true|false`
 2. *"Author tag for shared-knowledge filenames?"* — sets `author_tag: <string>` (falls back to deriving from `git config user.name`)
 
-Followed by an optional offer to add `_project-knowledge/` references to each project's CLAUDE.md (helps non-ARIA teammates discover the convention) and an offer to invoke `/audit-share` inline as the cold-start sweep.
+Followed by an offer to invoke `/audit-share` inline as the cold-start sweep.
+
+The CLAUDE.md reference offer (a 5-line "Team-Shared Knowledge" section pointing teammates at the convention) lives inside `/audit-share` Step 6.5 rather than at setup time. It fires the first time `audit-share` actually writes to a repo's `_project-knowledge/` folder — at that moment the folder + README exist (no aspirational forward reference), the user has just made an active sharing decision, and the prompt can carry per-repo confirmation with git-tracked detection and three warning tiers (public remote / private remote / unknown). Default is `N` regardless of tier; idempotency check skips the prompt on subsequent shares to repos that already have the reference.
 
 ### Changed — `/audit-knowledge` Accept submenu disposition `plan` → `backlog`
 

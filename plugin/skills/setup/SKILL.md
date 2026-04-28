@@ -218,23 +218,7 @@ After Project Setup completes (questions 1-4), if `projects_enabled: true` AND `
 - Q6 author_tag must be 1-12 characters, alphanumerics + hyphens only (the value will appear in filenames). If invalid, show offending characters and re-prompt.
 - If the user enables Q5 but provides an empty Q6 AND no derivable git user.name exists, warn: *"Author tag is required for shared knowledge. You can set `author_tag` later in `~/.claude/aria-knowledge.local.md`, but `/audit-share` will refuse to run until it's set."* Continue setup with `author_tag:` empty.
 
-**`_project-knowledge/` reference offer (post-prompts, only if Q5=y):**
-
-After Q5/Q6 are answered with the feature enabled, offer to add a one-line `_project-knowledge/` pointer to each project's CLAUDE.md so non-ARIA teammates can discover the convention:
-
-> *"Add `_project-knowledge/` references to your project CLAUDE.md files? This adds a 1-2 line note explaining where team-shared knowledge lives, so teammates not using ARIA can find and read it. (Y/n, default y):"*
-
-If yes: for each tag in `projects_list`, probe `<project-root>/CLAUDE.md`. If found, append (or insert near the top, after the title) a markdown block:
-
-```markdown
-## Team-Shared Knowledge
-
-Team-shared knowledge for this repo lives in `_project-knowledge/` (committed). Files follow `{YYYY-MM-DD}-{author}-{slug}.md` naming with frontmatter origin pointers. Cross-cutting items live in `_project-knowledge/cross/`. See `_project-knowledge/README.md` for the convention (auto-created on first share via the [ARIA plugin](https://github.com/mikeprasad/aria-knowledge)).
-```
-
-If `<project-root>/CLAUDE.md` doesn't exist, skip silently (don't auto-create CLAUDE.md). Report which projects got the reference and which were skipped.
-
-If no: skip; user can add manually later.
+**CLAUDE.md reference handling deferred to first-write.** Earlier drafts of this spec offered to append `_project-knowledge/` references to project CLAUDE.md files at setup time. That has been removed: documenting a convention before the folder exists is aspirational, batch-applying across all projects loses per-repo nuance (different repos may have different teams / visibility), and a default-`y` prompt for a teammate-affecting change is more aggressive than ARIA's normal posture. The CLAUDE.md reference offer now happens inside `/audit-share` Step 6 the first time a file is actually written to a repo's `_project-knowledge/` folder — at that moment the folder + README exist, the user has just made an active sharing decision, and per-repo confirmation with git-tracked detection can be presented in context.
 
 **Existing `_project-knowledge/` folder detection:**
 

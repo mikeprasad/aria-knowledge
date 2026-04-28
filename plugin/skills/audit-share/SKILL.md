@@ -171,6 +171,40 @@ This folder holds team-shared project knowledge promoted from individual develop
 - Direct edits to files in this folder are fine; commit through normal PR review.
 ```
 
+## Step 6.5: CLAUDE.md Reference Offer (First-Write Hook, Per Repo)
+
+The first time `audit-share` writes to a repo's `_project-knowledge/` folder (same trigger as Step 6's README auto-create), offer to add a `_project-knowledge/` reference to that repo's `CLAUDE.md` so non-ARIA teammates can discover the convention. This used to be a setup-time batch prompt; it was deferred here so the documentation appears alongside the first real share rather than as an aspirational forward reference.
+
+Per-repo, gated by these conditions in order:
+
+1. **Probe** for `<repo-root>/CLAUDE.md`. If absent, skip silently (don't auto-create).
+2. **Probe** for an existing `## Team-Shared Knowledge` heading inside the CLAUDE.md (or a previous reference to `_project-knowledge/`). If present, skip silently (already documented; don't append again on re-shares).
+3. **Detect git tracking** via `git -C <repo-root> ls-files --error-unmatch CLAUDE.md` (exit 0 = tracked, non-zero = untracked or no git). Cache result for the session.
+4. **Detect remote visibility** if tracked: `gh repo view --json visibility 2>/dev/null` (cache per repo for the session). If `gh` is unavailable, treat as "unknown remote."
+
+**Prompt user with the appropriate warning tier:**
+
+| Tracking state | Prompt form |
+|----------------|-------------|
+| Untracked or no git | `Add a _project-knowledge/ reference to <repo-root>/CLAUDE.md? This is a 5-line section explaining the convention to teammates not using ARIA. (y/N)` |
+| Tracked, public remote | `⚠️ <repo-root>/CLAUDE.md is committed to a PUBLIC remote — this edit will be visible to anyone on push. Add a _project-knowledge/ reference? (y/N)` |
+| Tracked, private remote | `<repo-root>/CLAUDE.md is committed to a remote — teammates will see this edit on next push. Add a _project-knowledge/ reference? (y/N)` |
+| Tracked, unknown remote (gh missing or repo not on GitHub) | `<repo-root>/CLAUDE.md is git-tracked — committing this edit will broadcast it to anyone with the remote. Add a _project-knowledge/ reference? (y/N)` |
+
+**Default is N** for all four tiers. Per-repo confirmation matches the cadence of `/setup`'s file-diff prompts.
+
+**On `y`:** append the following block to `<repo-root>/CLAUDE.md` (insert after the title H1 if one exists, otherwise append at end). `git add` the change but do NOT commit.
+
+```markdown
+## Team-Shared Knowledge
+
+Team-shared knowledge for this repo lives in `_project-knowledge/` (committed). Files follow `{YYYY-MM-DD}-{author}-{slug}.md` naming with frontmatter origin pointers. Cross-cutting items live in `_project-knowledge/cross/`. See `_project-knowledge/README.md` for the convention.
+```
+
+**On `N` or empty input:** skip; record the decision in the Step 8 report ("CLAUDE.md reference declined for `<repo-root>`"). User can add manually later or accept on a future first-write to a different repo.
+
+**Idempotency:** the existing-heading probe in step 2 above prevents duplicate sections if the user accepts on a first share, then later runs `audit-share` again with new content into the same repo. The "first-write hook" trigger only fires when `_project-knowledge/` is newly created OR when CLAUDE.md still lacks the reference.
+
 ## Step 7: IDEAS-BACKLOG.md Migration (One-Time Per Repo)
 
 For each project root touched in Step 5, check if migration is needed:
