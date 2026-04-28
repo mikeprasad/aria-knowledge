@@ -777,16 +777,16 @@ New multi-line YAML frontmatter field in `~/.claude/aria-knowledge.local.md` for
 
 ```yaml
 projects_groups:
-  cs:
-    backend: commonspace-app
-    web: commonspace-ui-v3
-    mobile: commonspace-mobile-ui
-  ss:
-    backend: seersite-server
-    web: seersite-frontend
+  proj-a:
+    backend: proj-a-backend
+    web: proj-a-web
+    mobile: proj-a-mobile
+  proj-b:
+    backend: proj-b-backend
+    web: proj-b-frontend
 ```
 
-- **Sparse entries** — only multi-repo projects appear; single-repo projects (e.g., `aria`, `df`, `cs-builder`) omit entries.
+- **Sparse entries** — only multi-repo projects appear; single-repo projects (e.g., `proj-c`, `proj-d`) omit entries.
 - **Auto-propose bootstrap** — `/distill --group=<tag>` or `/stitch <mode> <tag>` with a missing entry scans `<project_root>` for repo markers (`manage.py` → backend, `next.config.*` → web, `app.json` + `expo` → mobile, etc.), proposes structured YAML with diff preview, writes on user approval. Eliminates the "register-first-and-retry" friction round-trip.
 - **Optional `stitch_path` field** — per-group override for STITCH.md output location.
 
@@ -970,7 +970,7 @@ A new `projects/` tier in the knowledge folder for project-specific architecture
 
 **Extract skill (`/extract`)** — Step 0 detects current project from CWD via `kt_project_for_path` helper; Step 4 auto-prepends the project tag to backlog entry headers when CWD matches a configured project. Auto-tagging is a default, not an override (explicit project attribution from conversation context wins).
 
-**Index skill (`/index`)** — Step 1 scans `projects/{tag}/**` in addition to cross-project tree; path-derived tag union (Decision #9 — files under `projects/cs-builder/` automatically carry the `cs-builder` tag even if not in YAML frontmatter); new Step 8d detects cross-project promotion candidates using filename/tag/title similarity heuristics; Step 9 enriches the Projects section with file counts, last-update dates, and promotion candidates list.
+**Index skill (`/index`)** — Step 1 scans `projects/{tag}/**` in addition to cross-project tree; path-derived tag union (Decision #9 — files under `projects/proj-a/` automatically carry the `proj-a` tag even if not in YAML frontmatter); new Step 8d detects cross-project promotion candidates using filename/tag/title similarity heuristics; Step 9 enriches the Projects section with file counts, last-update dates, and promotion candidates list.
 
 **Audit skill (`/audit-knowledge`)** — new Step 5e (Cross-Project Pattern Detection) mirrors `/index` Step 8d but runs an interactive promotion workflow: detects candidates, presents to user, synthesizes content from project-specific sources, writes the new cross-project file with `originally_at:` provenance frontmatter, and offers source-file disposition (default: stub-and-reference). Step 6 Category C routing biases toward project subfolders when item tags match configured projects. Step 7 validates the project subfolder exists in config when promoting; offers to add new projects on the fly.
 
@@ -1064,7 +1064,7 @@ A new `projects/` tier in the knowledge folder for project-specific architecture
 ### Fixed
 - Register Stop hook in plugin.json — `session-stop-check.sh` was never executing (dead code)
 - Guard empty `SESSION_ID` in task-context-check to prevent cooldown file collision across sessions
-- Remove hardcoded `/Users/mikeprasad/Projects/CLAUDE.md` path from `/index` skill
+- Remove hardcoded user-specific Projects path from `/index` skill
 - Fix `allowed-tools` frontmatter in `/help` skill (quoted empty string → bare empty)
 - Use `mktemp` for temp files in task-context-check instead of predictable `$$` PID names
 - Document intentional no-default for `KT_CRITICAL_PATHS` in config.sh

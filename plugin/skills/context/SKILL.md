@@ -16,7 +16,7 @@ Read `~/.claude/aria-knowledge.local.md` and extract:
 - `projects_list` — default empty (only relevant if `projects_enabled: true`)
 - `projects_shared_knowledge` — default `false`; when `true`, also surface team-shared files indexed under `## Team-Shared Tag Index`
 
-Parse `projects_list` into a tag→path map. The format is comma-separated `tag:path` pairs (e.g., `cs-builder:cs/cs-space-builder,df:df`). Tags are used to identify project-specific files; paths are not used by `/context` (they're for CWD detection in other skills).
+Parse `projects_list` into a tag→path map. The format is comma-separated `tag:path` pairs (e.g., `proj-a:path/to/proj-a,proj-b:proj-b`). Tags are used to identify project-specific files; paths are not used by `/context` (they're for CWD detection in other skills).
 
 If the config file doesn't exist, stop: "aria-knowledge is not configured. Run /setup to get started."
 
@@ -153,7 +153,7 @@ Load which files? (all / numbers / none)
 **Empty project-folder note (Decision #8):** if Step 4b recorded a "no project-specific files yet" note for any configured project tag in the query, append a single line after the result list (before the prompt):
 
 ```
-(No files yet in projects/cs-builder/ — folder is configured but empty.)
+(No files yet in projects/proj-a/ — folder is configured but empty.)
 ```
 
 Do NOT pad results with empty folder notes for project tags that weren't queried.
@@ -164,7 +164,7 @@ Do NOT pad results with empty folder notes for project tags that weren't queried
 
 
 ```
-## Pending Ideas for cs-builder (3)
+## Pending Ideas for proj-a (3)
 - 2026-04-15 (1 day ago) — feature — /setup diff prompts ahead vs diverged
 - 2026-03-22 (25 days ago) — bug — theme tokens missing from blueprint XYZ [STALE — still relevant?]
 - 2026-03-12 (35 days ago) — refactor — simplify blueprint merge logic [STALE — still relevant?]
@@ -193,9 +193,9 @@ Run `/index` to rebuild if you've recently added files.
 If the query included a project tag and that project's folder was empty, mention it here too:
 
 ```
-No files match tag(s): [cs-builder]
+No files match tag(s): [proj-a]
 
-(projects/cs-builder/ exists but is empty — populate it via /extract or by creating files manually.)
+(projects/proj-a/ exists but is empty — populate it via /extract or by creating files manually.)
 Known tags: api, architecture, ...
 ```
 

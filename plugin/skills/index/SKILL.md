@@ -90,7 +90,7 @@ Extract:
 If `index.md` doesn't exist (first run), use the seeded known tags:
 
 ```
-api, architecture, css, database, deployment, django, react, nextjs, react-native, tailwind, testing, infrastructure, performance, security, accessibility, stripe, linear, supabase, figma, claude-code, process, decision-framework, enforcement, cs, ss, df, aria
+api, architecture, css, database, deployment, django, react, nextjs, react-native, tailwind, testing, infrastructure, performance, security, accessibility, stripe, linear, supabase, figma, claude-code, process, decision-framework, enforcement, aria
 ```
 
 And leave the Projects section empty (will be populated in Step 6).
@@ -336,7 +336,7 @@ Scan files indexed under the project tier (from Step 1's project tier scan) for 
 
 **Detection heuristics** (compute pairwise across all project-tier files):
 
-1. **Filename similarity:** Files with similar kebab-case names (e.g., `state-management-patterns.md` in `projects/cs-builder/patterns/` AND `projects/ss/patterns/`). Use case-insensitive equality of stem (filename without `.md`) as the primary match; allow minor variants (`-patterns` vs `-pattern`, plural vs singular).
+1. **Filename similarity:** Files with similar kebab-case names (e.g., `state-management-patterns.md` in `projects/proj-a/patterns/` AND `projects/proj-b/patterns/`). Use case-insensitive equality of stem (filename without `.md`) as the primary match; allow minor variants (`-patterns` vs `-pattern`, plural vs singular).
 2. **Tag overlap:** Files sharing 3+ tags (excluding the project tags themselves, which are auto-derived from path).
 3. **Title/H1 similarity:** Files whose H1 (first `#` heading) shares 3+ significant terms (excluding stop words and project names).
 

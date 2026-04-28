@@ -21,7 +21,7 @@ YYYY-MM-DD-{project}-{slug}.md
 
 Examples:
 - `2026-04-21-aria-force-interactive-index-steps.md`
-- `2026-04-21-cs-builder-extract-shared-postcard.md`
+- `2026-04-21-proj-a-extract-shared-postcard.md`
 - `2026-04-21-cross-generalize-build-playbook.md`
 
 ## File format

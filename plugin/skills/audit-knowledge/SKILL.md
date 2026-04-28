@@ -365,8 +365,8 @@ For each candidate group, present to the user:
 ## Cross-Project Promotion Candidates
 
 1. Pattern: "state-sync between AI and wizard"
-   - projects/cs-builder/patterns/state-sync.md (Last updated: 2026-04-12)
-   - projects/ss/patterns/state-sync.md (Last updated: 2026-04-14)
+   - projects/proj-a/patterns/state-sync.md (Last updated: 2026-04-12)
+   - projects/proj-b/patterns/state-sync.md (Last updated: 2026-04-14)
    - Shared tags: state-management, agentic-ui
    - Suggested cross-project location: approaches/state-sync-between-ai-and-ui.md
 
@@ -387,7 +387,7 @@ If the user approves promotion:
 ---
 Last updated: YYYY-MM-DD
 tags: [tag1, tag2, ...]
-originally_at: projects/cs-builder/patterns/state-sync.md (merged with projects/ss/patterns/state-sync.md on YYYY-MM-DD during cross-project promotion)
+originally_at: projects/proj-a/patterns/state-sync.md (merged with projects/proj-b/patterns/state-sync.md on YYYY-MM-DD during cross-project promotion)
 ---
 ```
 
@@ -466,7 +466,7 @@ Example output:
   Accept → [tracker | adr | backlog | rule] / Reject / Defer / Reclassify?
   (no roadmap/todo: ROADMAP.md and TODO.md not found at aria project root or docs/)
 
-- 2026-03-22 (25 days ago) — cs-builder — bug — theme tokens missing from blueprint XYZ [STALE — still relevant?]
+- 2026-03-22 (25 days ago) — proj-a — bug — theme tokens missing from blueprint XYZ [STALE — still relevant?]
   Proposal: ...
   Accept → [tracker | roadmap | adr | backlog | rule] / Reject / Defer / Reclassify?
   (no todo: TODO.md not found)
@@ -538,7 +538,7 @@ Before defaulting to cross-project locations, check the item's tags or content f
    - Reusable patterns → `projects/{tag}/patterns/`
    - Operational guides specific to the project → `projects/{tag}/guides/` (will be created on first promotion)
    - Project-specific external references → `projects/{tag}/references/` (will be created on first promotion)
-2. If the item's content clearly references a project by name (e.g., mentions cs-builder, ss, df) but lacks the explicit tag, prompt the user to confirm the project tag before suggesting the location.
+2. If the item's content clearly references a project by name (e.g., mentions proj-a, proj-b, proj-c) but lacks the explicit tag, prompt the user to confirm the project tag before suggesting the location.
 3. If neither tag nor content indicates a specific project, default to the cross-project tree (`approaches/`, `decisions/`, etc.) as before.
 
 This biases new promotions toward project subfolders when the evidence is single-project, leaving the cross-project tree for genuinely cross-cutting knowledge.

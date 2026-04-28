@@ -23,7 +23,7 @@ Use `{knowledge_folder}` as the base path for all file operations in subsequent 
 
 Determine the current working directory and check if it matches a configured project path:
 
-1. Get the current working directory (typically the user's primary working directory, e.g., `~/Projects/cs/cs-space-builder`).
+1. Get the current working directory (typically the user's primary working directory, e.g., `~/Projects/path/to/proj-a`).
 2. Parse `projects_list` into `tag:path` pairs.
 3. For each pair, check if the CWD contains the configured path as a substring. If so, set `current_project` to that tag and stop iterating (first match wins).
 4. If no path-based match is found AND `projects_remotes` is configured AND git is available, fall back to git-remote matching: run `git config --get remote.origin.url` from the CWD; for each `tag:url-pattern` pair in `projects_remotes`, check if the remote URL contains the pattern; if so, set `current_project` to that tag.
@@ -112,14 +112,14 @@ Route each finding to the appropriate backlog file. Do NOT ask for confirmation 
 
 If `current_project` was set in Step 0:
 - For findings that don't already have a project attribution, use `current_project` as the `[project]` value in the entry header.
-- For findings that already have an explicit project attribution that conflicts (e.g., user said "this is a cross-project pattern" while CWD is `cs/cs-space-builder`), preserve the explicit attribution — don't override it.
+- For findings that already have an explicit project attribution that conflicts (e.g., user said "this is a cross-project pattern" while CWD is `path/to/proj-a`), preserve the explicit attribution — don't override it.
 - The auto-tag is a default, not a forced override. The audit process will refine it during promotion.
 
 If `current_project` is unset, use the existing rules: tag with the project (or "cross") when identifiable from conversation context; otherwise omit `[project]` from the header (use `[no-project]` or just the context label).
 
 Examples:
-- CWD inside cs-builder, finding doesn't mention a project → `### 2026-04-15 — cs-builder — feedback — [context]`
-- CWD inside cs-builder, finding explicitly says "this is cross-project" → `### 2026-04-15 — cross — decision — [context]`
+- CWD inside proj-a, finding doesn't mention a project → `### 2026-04-15 — proj-a — feedback — [context]`
+- CWD inside proj-a, finding explicitly says "this is cross-project" → `### 2026-04-15 — cross — decision — [context]`
 - CWD outside any configured project, finding mentions df → `### 2026-04-15 — df — insight — [context]`
 - CWD outside any configured project, finding has no clear project → `### 2026-04-15 — [no-project] — reference — [context]`
 
@@ -168,7 +168,7 @@ Ideas use **per-file storage**, not a single append-only backlog. Write one new 
 
 Examples:
 - `2026-04-21-aria-force-interactive-index-steps.md`
-- `2026-04-21-cs-builder-extract-shared-postcard.md`
+- `2026-04-21-proj-a-extract-shared-postcard.md`
 - `2026-04-21-cross-generalize-build-playbook.md`
 
 **File format (YAML frontmatter + body):**

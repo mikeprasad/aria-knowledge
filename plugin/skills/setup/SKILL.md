@@ -384,7 +384,7 @@ Scaffold the project tier using the final config values:
      - [../README.md](../README.md) — projects/ tier overview
      - [../../index.md](../../index.md) — tag index
      ```
-     - **Project Display Name** is derived from the tag with hyphens converted to spaces and title-cased (e.g., `cs-builder` → `Cs Builder`). If the tag doesn't produce a sensible display name, use the tag as-is and prompt the user to edit the README header.
+     - **Project Display Name** is derived from the tag with hyphens converted to spaces and title-cased (e.g., `proj-a` → `Proj A`). If the tag doesn't produce a sensible display name, use the tag as-is and prompt the user to edit the README header.
 4. **Never overwrite** existing per-project READMEs or content under `projects/{tag}/` — these are user-owned.
 5. **Report** what was scaffolded: "Project tier: created N directories, N per-project READMEs."
 

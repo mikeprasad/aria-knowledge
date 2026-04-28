@@ -110,7 +110,7 @@ When `/audit-knowledge` Step 5e promotes a project-specific file to the cross-pr
 ---
 Last updated: YYYY-MM-DD
 tags: [tag1, tag2]
-originally_at: projects/cs-builder/decisions/004-uuid-auth.md (moved 2026-04-15 during cross-project promotion)
+originally_at: projects/proj-a/decisions/004-uuid-auth.md (moved 2026-04-15 during cross-project promotion)
 ---
 ```
 

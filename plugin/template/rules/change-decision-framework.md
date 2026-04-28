@@ -304,7 +304,7 @@ Execute — (a); in scope, no secondary, no function change
 
 **Example (flag):**
 ```
-[Rule 22] Low Impact — remove Custom/Other card from cs-builder preview (content removal)
+[Rule 22] Low Impact — remove Custom/Other card from proj-a preview (content removal)
 Change — remove card article; parent stack-col goes 3 children → 2
 Solutions — (a) remove card only, (b) remove card + simplify parent
 Execute — FLAG — parent wrapper need unclear with 2 children
