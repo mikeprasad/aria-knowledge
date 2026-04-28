@@ -205,6 +205,47 @@ Team-shared knowledge for this repo lives in `_project-knowledge/` (committed). 
 
 **Idempotency:** the existing-heading probe in step 2 above prevents duplicate sections if the user accepts on a first share, then later runs `audit-share` again with new content into the same repo. The "first-write hook" trigger only fires when `_project-knowledge/` is newly created OR when CLAUDE.md still lacks the reference.
 
+## Step 6.5b: Container CLAUDE.md Offer (Multi-Repo Group Awareness)
+
+Single-repo projects are fully covered by Step 6.5a above — `<repo-root>/CLAUDE.md` is the only relevant CLAUDE.md, and the canned single-repo text accurately describes that repo's `_project-knowledge/` folder.
+
+Multi-repo projects (those with a `projects_groups` entry) have a second CLAUDE.md worth pointing at: the **container** that holds the sub-repos. Teammates navigating at the container level (above any one sub-repo) benefit from a group-level pointer that names each sub-repo's `_project-knowledge/`. The single-repo canned text is structurally wrong for the container — the container has no `_project-knowledge/` of its own — so this step uses a different text variant.
+
+Run this step after Step 6.5a, gated by these conditions in order:
+
+1. **Detect group membership.** Parse the `projects_groups` block from `~/.claude/aria-knowledge.local.md`. For each group tag, walk the role-value pairs (e.g., `backend:`, `web:`, `mobile:`, plus any custom roles); if any role-value resolves to a path equal to the current sub-repo's path, the current sub-repo belongs to that group tag. Record the group tag. If no match, skip Step 6.5b entirely (pure single-repo case).
+2. **Resolve container path.** Look up the matched group tag in `projects_list` to get the container's relative path; the container root is `~/Projects/<that-path>`.
+3. **Session cache check.** If this group tag has already had its container offer made (or skipped) earlier in the current `audit-share` invocation — e.g., user shared to one sub-repo, then later to a sibling sub-repo in the same group — skip silently. The cache prevents re-prompting across sibling shares within one run.
+4. **Probe `<container-root>/CLAUDE.md`.** If absent, skip silently (don't auto-create) and record group as "container CLAUDE.md absent" in the session cache.
+5. **Idempotency probe.** Search the container CLAUDE.md for an existing `## Team-Shared Knowledge` heading OR any reference to `_project-knowledge/`. If present, skip silently and record group in the session cache as "container CLAUDE.md already has reference."
+6. **Detect git tracking** for the container CLAUDE.md via `git -C <container-root> ls-files --error-unmatch CLAUDE.md`. Cache result.
+7. **Detect remote visibility** if tracked: `gh repo view --json visibility 2>/dev/null` (cache per container for the session). If `gh` is unavailable, treat as "unknown remote."
+
+**Prompt user with the appropriate warning tier** (same three-tier shape as Step 6.5a, retargeted at the container path):
+
+| Tracking state | Prompt form |
+|----------------|-------------|
+| Untracked or no git | `Add a group-level _project-knowledge/ reference to <container-root>/CLAUDE.md? This points teammates at each sub-repo's _project-knowledge/ folder. (y/N)` |
+| Tracked, public remote | `⚠️ <container-root>/CLAUDE.md is committed to a PUBLIC remote — this edit will be visible to anyone on push. Add a group-level _project-knowledge/ reference? (y/N)` |
+| Tracked, private remote | `<container-root>/CLAUDE.md is committed to a remote — teammates will see this edit on next push. Add a group-level _project-knowledge/ reference? (y/N)` |
+| Tracked, unknown remote | `<container-root>/CLAUDE.md is git-tracked — committing this edit will broadcast it to anyone with the remote. Add a group-level _project-knowledge/ reference? (y/N)` |
+
+**Default is N** for all four tiers, matching Step 6.5a's posture.
+
+**On `y`:** append the **group-aware variant** to `<container-root>/CLAUDE.md` (insert after the title H1 if one exists, otherwise append at end). `git add` the change but do NOT commit. Variant text:
+
+```markdown
+## Team-Shared Knowledge
+
+Team-shared knowledge for repos in this group lives in each sub-repo's `_project-knowledge/` folder (committed per repo: `{sub1}/_project-knowledge/`, `{sub2}/_project-knowledge/`, ...). Files follow `{YYYY-MM-DD}-{author}-{slug}.md` naming with frontmatter origin pointers. Cross-cutting items live in `_project-knowledge/cross/` in any one repo. See any sub-repo's `_project-knowledge/README.md` for the convention (auto-created on first share via the ARIA plugin).
+```
+
+Substitute `{sub1}`, `{sub2}`, etc., with the relative paths of each sub-repo from the matched group entry (preserve role ordering: backend → web → mobile → custom roles in declaration order).
+
+**On `N` or empty input:** skip; record in session cache and Step 8 report. User can add manually later or accept on a future share that triggers a fresh first-write to this group (i.e., the group's container offer fires again on the next `audit-share` invocation if still not satisfied).
+
+**Why session cache, not persistent cache:** the container offer should re-fire across sessions because the user may have changed their mind, the CLAUDE.md may have been edited externally, or sub-repos may have been added/removed. Within a single `audit-share` invocation, sibling sub-repo shares share the cache so the container offer fires at most once per run.
+
 ## Step 7: IDEAS-BACKLOG.md Migration (One-Time Per Repo)
 
 For each project root touched in Step 5, check if migration is needed:
