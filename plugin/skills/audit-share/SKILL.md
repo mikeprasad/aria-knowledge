@@ -15,12 +15,12 @@ Read `~/.claude/aria-knowledge.local.md` and extract:
 - `knowledge_folder` — required
 - `projects_enabled` — required (must be `true`)
 - `projects_list` — required (parsed into tag→path map)
-- `projects_shared_knowledge` — required (must be `true`)
+- `projects_shared_knowledge` — required (comma-separated tag list; non-empty list of tags from `projects_list`); each tag in the list is a project enabled for shared knowledge
 - `author_tag` — required (non-empty); fall back to deriving from `git config user.name` (first 2 chars of first + first 2 chars of last) if missing
 
 If the config file doesn't exist: *"aria-knowledge is not configured. Run /setup to get started."*
 
-If `projects_shared_knowledge: false` or missing: *"Shared knowledge is not enabled. Run /setup and choose 'Enable shared knowledge feature?' to opt in."*
+If `projects_shared_knowledge` is empty/missing (or the legacy literal `true`): *"Shared knowledge has no projects enabled. Run /setup and pick which projects to enable in the 'Which projects do you want to enable shared knowledge for?' prompt."*
 
 If `projects_enabled: false` or `projects_list` empty: *"Shared knowledge requires the project tier. Run /setup to enable projects and configure your project list."*
 
@@ -34,11 +34,11 @@ Walk these directories under `{knowledge_folder}/`:
 - `decisions/`
 - `approaches/`
 - `rules/`
-- `projects/<tag>/` for each tag in `projects_list`
+- `projects/<tag>/` for each tag in `projects_shared_knowledge` (the per-project opt-in list — projects not in this list stay personal-tier and are skipped here)
 
 Plus IDEAS-BACKLOG.md entries from each project root:
 
-- For each tag in `projects_list`, resolve to project root via `~/Projects/<path>` (where `<path>` is the projects_list value).
+- For each tag in `projects_shared_knowledge`, resolve to project root via `~/Projects/<path>` (where `<path>` is the corresponding `projects_list` value).
 - Probe `<project-root>/_project-knowledge/IDEAS-BACKLOG.md` first (post-feature location).
 - Fall back to `<project-root>/IDEAS-BACKLOG.md` (pre-feature location, will trigger Step 7 migration on first execute).
 - Parse the file by `### YYYY-MM-DD — {title}` headers; treat each section as a candidate "entry."
@@ -54,8 +54,9 @@ For each candidate, determine:
 
 1. **Project tag** — from frontmatter `project:` field. Multi-value tags (e.g., `proj-a, proj-b`) are split and each tag triggers a separate share recommendation.
 2. **Recommended action**:
-   - `project: cross` → recommend **share-to-cross** (will need user to pick destination repo at execute time, since cross items can land in any repo's `cross/` subfolder).
-   - Project tag matches a configured `projects_list` entry → recommend **share-to-{project}**.
+   - `project: cross` → recommend **share-to-cross** (will need user to pick destination repo at execute time, since cross items can land in any repo's `cross/` subfolder; cross destinations may be any tag from `projects_shared_knowledge`).
+   - Project tag matches a tag in `projects_shared_knowledge` → recommend **share-to-{project}**.
+   - Project tag exists in `projects_list` but is NOT in `projects_shared_knowledge` → recommend **skip** with reason "project not enabled for shared knowledge (use `/setup` to enable)".
    - Otherwise (no project tag, or tag not in projects_list) → recommend **skip**.
 3. **Target path** — compute as:
    - Repo-scoped: `<project-root>/_project-knowledge/<YYYY-MM-DD>-<author_tag>-<slug>.md`

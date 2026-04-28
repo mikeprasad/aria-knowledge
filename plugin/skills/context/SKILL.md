@@ -14,7 +14,7 @@ Read `~/.claude/aria-knowledge.local.md` and extract:
 - `knowledge_folder` — required
 - `projects_enabled` — default `false`
 - `projects_list` — default empty (only relevant if `projects_enabled: true`)
-- `projects_shared_knowledge` — default `false`; when `true`, also surface team-shared files indexed under `## Team-Shared Tag Index`
+- `projects_shared_knowledge` — default empty; comma-separated list of project tags enabled for shared knowledge. When non-empty, also surface team-shared files indexed under `## Team-Shared Tag Index`. Tags not in this list are not surfaced even if they appear in the index.
 
 Parse `projects_list` into a tag→path map. The format is comma-separated `tag:path` pairs (e.g., `proj-a:path/to/proj-a,proj-b:proj-b`). Tags are used to identify project-specific files; paths are not used by `/context` (they're for CWD detection in other skills).
 
@@ -31,7 +31,7 @@ Parse the index to extract:
 - `## Known Tags` section — the canonical tag list
 - `## Tag Index` section — tag → file mappings for known tags
 - `## Other Tags` section — tag → file mappings for freeform tags
-- `## Team-Shared Tag Index` section — tag → team-shared file mappings (only when `projects_shared_knowledge: true`); paths are absolute-from-home (`~/Projects/...`) and entries carry a `[project: ..., scope: ...]` annotation. Section may be absent if no team-shared files exist or feature is disabled.
+- `## Team-Shared Tag Index` section — tag → team-shared file mappings (only when `projects_shared_knowledge` is a non-empty list); paths are absolute-from-home (`~/Projects/...`) and entries carry a `[project: ..., scope: ...]` annotation. Section may be absent if no team-shared files exist or the list is empty.
 
 ## Step 2: Parse Query
 
@@ -104,7 +104,9 @@ For each query tag that matches a configured project tag (i.e., is a key in the 
 
 ### Step 4c: Index-driven matches (team-shared)
 
-Skip this sub-step entirely if `projects_shared_knowledge: false` or the index lacks a `## Team-Shared Tag Index` section.
+Skip this sub-step entirely if `projects_shared_knowledge` is empty/missing or the index lacks a `## Team-Shared Tag Index` section.
+
+**Per-tag membership filter:** even when the section exists, only surface entries whose `[project: <tag>, ...]` annotation has a `<tag>` that appears in `projects_shared_knowledge` (or is `cross`). This is a defensive guard for the case where `/index` was run while a tag was enabled, the user later disabled that tag via `/setup`, but `/index` hasn't been re-run yet — entries from now-disabled projects shouldn't surface. Cross-cutting items (`project: cross`) always surface as long as `projects_shared_knowledge` is non-empty.
 
 Scan the `## Team-Shared Tag Index` section for entries matching the query tags. The section's entries are tag headers (`### tag`) followed by bulleted file paths in the form:
 

@@ -17,7 +17,7 @@ Read `~/.claude/aria-knowledge.local.md` and extract:
 - `projects_enabled` — default `false`; controls whether project tier is scanned and indexed
 - `projects_list` — default empty; comma-separated `tag:path` pairs; only relevant if `projects_enabled: true`
 - `projects_promotion_threshold` — default `2`; minimum projects sharing a similar pattern to surface as a cross-project promotion candidate
-- `projects_shared_knowledge` — default `false`; when `true`, also scan each project's `_project-knowledge/` folder for team-shared knowledge
+- `projects_shared_knowledge` — default empty; comma-separated list of project tags enabled for shared knowledge. When non-empty, scan each listed project's `_project-knowledge/` folder for team-shared knowledge. Tags not in this list are skipped (their `_project-knowledge/` folders, if any exist on disk, are NOT indexed).
 
 If the config file doesn't exist, stop: "aria-knowledge is not configured. Run /setup to get started."
 
@@ -58,12 +58,12 @@ Report: "Scanned M files across N project subdirectories: [project tags]."
 
 If `projects_enabled: false` or `projects_list` is empty, skip this sub-step entirely. Project tier files (if any exist on disk) won't be indexed.
 
-### Team-shared scan (only if `projects_shared_knowledge: true`)
+### Team-shared scan (only if `projects_shared_knowledge` list is non-empty)
 
-After the project tier scan, scan each project's `_project-knowledge/` folder if the team-shared feature is enabled.
+After the project tier scan, scan each enabled project's `_project-knowledge/` folder. Only projects whose tags appear in `projects_shared_knowledge` are scanned — non-listed projects are skipped, even if their `_project-knowledge/` folders exist on disk.
 
-For each `tag:path` pair in `projects_list`:
-1. Resolve the project root: `~/Projects/<path>` (where `<path>` is the projects_list value).
+For each tag in `projects_shared_knowledge` (parsed as comma-separated list):
+1. Resolve the project root: look up the tag in `projects_list` to get its path, then resolve to `~/Projects/<path>`. If the tag is not present in `projects_list`, log a warning and skip (config inconsistency — `/setup` validation should catch this, but defensive).
 2. Probe `<project-root>/_project-knowledge/`. If the folder doesn't exist, skip this project (no team-shared knowledge yet).
 3. Glob `<project-root>/_project-knowledge/**/*.md` recursively.
 4. **Exclude** `<project-root>/_project-knowledge/README.md` (auto-generated convention explainer, not knowledge content).
@@ -75,9 +75,9 @@ For each `tag:path` pair in `projects_list`:
 7. **IDEAS-BACKLOG.md handling:** treat `_project-knowledge/IDEAS-BACKLOG.md` and `_project-knowledge/cross/IDEAS-BACKLOG.md` as single files (don't try to split them into entries for indexing). Index them as one file each, tagged with the project tag (or `cross`).
 8. Store: `{path: <absolute-path-from-home>, tags[], description, last_updated, source: "team-shared", project: <tag>, scope: "repo" | "cross"}`.
 
-Report: "Scanned T team-shared files across P projects: [project tags with non-empty `_project-knowledge/` folders]."
+Report: "Scanned T team-shared files across P enabled projects: [project tags from `projects_shared_knowledge` with non-empty `_project-knowledge/` folders]."
 
-If `projects_shared_knowledge: false`, skip this sub-step entirely. Team-shared files (if any exist on disk) won't be indexed.
+If `projects_shared_knowledge` is empty/missing, skip this sub-step entirely. Team-shared files (if any exist on disk) won't be indexed.
 
 ## Step 2: Read Existing Index
 
@@ -396,7 +396,7 @@ tag1, tag2, tag3, tag4, ...
 - ~/Projects/<path>/_project-knowledge/2026-04-28-init-foo.md — File description [project: proj-a, scope: repo]
 - ~/Projects/<path>/_project-knowledge/cross/2026-04-28-init-bar.md — File description [project: cross, scope: cross]
 
-(repeat for each tag matching team-shared files, sorted alphabetically. File paths are absolute-from-home so /context can distinguish them from knowledge-folder-relative paths in the regular Tag Index. The trailing `[project: ..., scope: ...]` annotation lets /context render team-shared results with their origin info. Omit this section entirely if `projects_shared_knowledge: false` or no team-shared files exist.)
+(repeat for each tag matching team-shared files, sorted alphabetically. File paths are absolute-from-home so /context can distinguish them from knowledge-folder-relative paths in the regular Tag Index. The trailing `[project: ..., scope: ...]` annotation lets /context render team-shared results with their origin info. Omit this section entirely if `projects_shared_knowledge` is empty/missing or no team-shared files exist.)
 
 ## Stale Files
 

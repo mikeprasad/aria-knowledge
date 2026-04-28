@@ -4,7 +4,7 @@ All notable changes to ARIA will be documented in this file.
 
 ## [2.13.0] - 2026-04-28
 
-Minor release. Adds a third knowledge tier — **Shared Knowledge** — that lets developers promote selected personal knowledge into per-repo `_project-knowledge/` folders so teammates working in the same code repo can find and read it. The personal knowledge tier (`~/Projects/knowledge/`) and project knowledge tier (`projects/{tag}/`) are unchanged; the new tier composes with both. Fully opt-in, gated by the `projects_shared_knowledge` config flag.
+Minor release. Adds a third knowledge tier — **Shared Knowledge** — that lets developers promote selected personal knowledge into per-repo `_project-knowledge/` folders so teammates working in the same code repo can find and read it. The personal knowledge tier (`~/Projects/knowledge/`) and project knowledge tier (`projects/{tag}/`) are unchanged; the new tier composes with both. Fully opt-in and **per-project**: the `projects_shared_knowledge` config field is a comma-separated tag list (e.g., `cs,ss`) — empty/missing means feature disabled, populated means enabled for those specific projects only. Most users have many repos but only a few with teams to share with; this avoids accidentally exposing solo projects to a non-existent team-share workflow.
 
 The release also renames the `/audit-knowledge` Accept submenu disposition from `plan` to `backlog` (with corresponding rename of the destination file `PLAN.md` → `IDEAS-BACKLOG.md`) — the `plan` term was overloaded with implementation-plan semantics elsewhere (`docs/plans/`, `superpowers:writing-plans`) and consistently produced confusion about what the destination was for.
 
@@ -50,7 +50,7 @@ Tag-based discovery works seamlessly — a query like `/context api` surfaces te
 
 After Project Setup completes, `/setup` asks two follow-up questions when projects tier is enabled:
 
-1. *"Enable shared knowledge feature?"* — sets `projects_shared_knowledge: true|false`
+1. *"Which projects do you want to enable shared knowledge for?"* — sets `projects_shared_knowledge` to a comma-separated tag list (or empty for disabled); each tag must already exist in `projects_list`
 2. *"Author tag for shared-knowledge filenames?"* — sets `author_tag: <string>` (falls back to deriving from `git config user.name`)
 
 Followed by an offer to invoke `/audit-share` inline as the cold-start sweep.
@@ -63,7 +63,7 @@ For multi-repo projects (those with a `projects_groups` entry), Step 6.5b runs a
 
 The previous `plan` disposition wrote to `plans/{slug}.md` (or `PLAN.md`) with `## Goal`/`## Why` headers — overloading the `plan` term with execution-plan semantics that already had separate homes (`docs/plans/`, `superpowers:writing-plans` output). Renamed to `backlog` with destination `IDEAS-BACKLOG.md` at the project-root path; treats the destination as a queue (dated entries) rather than a sequenced execution doc.
 
-When `projects_shared_knowledge: true`, the destination shifts to `<project-root>/_project-knowledge/IDEAS-BACKLOG.md` (team-visible); migration of existing project-root `IDEAS-BACKLOG.md` files happens on first `/audit-share` invocation.
+When the project's tag appears in `projects_shared_knowledge`, the destination shifts to `<project-root>/_project-knowledge/IDEAS-BACKLOG.md` (team-visible); migration of existing project-root `IDEAS-BACKLOG.md` files happens on first `/audit-share` invocation. Projects whose tags are NOT in `projects_shared_knowledge` keep IDEAS-BACKLOG.md at the project root (personal-tier behavior unchanged).
 
 16 surfaces across 7 files updated for terminology consistency: `audit-knowledge/SKILL.md`, `template/intake/ideas/README.md`, `template/OVERVIEW.md`, `template/README.md`, `QUICKSTART.md`, `extract/SKILL.md`, `audit-config/SKILL.md`. The previous `audit-config` Step 5 PLAN.md alignment check (now obsolete under queue semantics) replaced with an IDEAS-BACKLOG.md presence check.
 
@@ -75,7 +75,7 @@ Adds one bullet to the post-setup confirmation: *"Shared knowledge: enabled (aut
 
 - **Reinstall required:** copy `plugin/` to `~/.claude/plugins/marketplaces/local-desktop-app-uploads/aria-knowledge/` (or unzip the v2.13.0 release zip into that directory).
 - **Run `/setup` after upgrade** to record `last_setup_version: 2.13.0` and (optionally) opt into the new Shared Knowledge tier. The two new config fields (`projects_shared_knowledge`, `author_tag`) are introduced as `[NEW]` markers in the advanced-options bundle on re-run.
-- **Backward-compatible defaults.** `projects_shared_knowledge: false` is the default; existing users who don't opt in see no behavior change. The `plan → backlog` disposition rename is also backward-compatible — the new disposition keyword `backlog` is recognized; users with existing IDEAS-BACKLOG.md files at project-root continue to work.
+- **Backward-compatible defaults.** `projects_shared_knowledge` defaults to empty (feature disabled, no projects enabled); existing users who don't opt in see no behavior change. A legacy literal `true` from any pre-publish v2.13.0 stub is treated the same as empty and triggers `/setup` to populate the list properly on next run. The `plan → backlog` disposition rename is also backward-compatible — the new disposition keyword `backlog` is recognized; users with existing IDEAS-BACKLOG.md files at project-root continue to work.
 - **No config migration required.** Existing configs (with or without `projects_groups`, with or without project tier enabled) work unchanged.
 
 ## [2.12.2] - 2026-04-26

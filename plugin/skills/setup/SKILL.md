@@ -209,24 +209,26 @@ Before prompting, scan the user's knowledge folder for an existing `projects/` s
 
 After Project Setup completes (questions 1-4), if `projects_enabled: true` AND `projects_list` is non-empty, ask two follow-up questions about the shared-knowledge feature. In **update mode** where values exist, show current values and let the user keep (press enter) or change.
 
-5. **Enable shared knowledge feature?** — *"This is an opt-in extension that lets you promote selected personal knowledge into per-repo `_project-knowledge/` folders so teammates can see what you've learned. Personal knowledge stays in your own knowledge folder; team copies are independent records committed to your project repos via your normal git workflow. The new `/audit-share` (alias `/share-audit`) skill is the batch-review surface for promoting items. (y/n, default n):"*
+5. **Which projects do you want to enable shared knowledge for?** — *"This is an opt-in extension that lets you promote selected personal knowledge into per-repo `_project-knowledge/` folders so teammates can see what you've learned. Personal knowledge stays in your own knowledge folder; team copies are independent records committed to your project repos via your normal git workflow. Most users have many repos but only a few with teams to share with — pick only the ones with teammates who'd benefit. Your configured projects: {projects_list tag enumeration}. Enter comma-separated tags (default: empty = feature disabled, all projects stay personal-only):"*
 
-6. **Author tag for shared-knowledge filenames** — only ask if Q5 is `y`. *"Shared-knowledge files use `{YYYY-MM-DD}-{author-tag}-{slug}.md` naming. Pick a short author tag (e.g., `init`, or initials, or first2+last2 of your name). Default: derived from `git config user.name` (first 2 chars of first name + first 2 chars of last name) → '{auto-derived}':"*
+6. **Author tag for shared-knowledge filenames** — only ask if Q5 returned a non-empty tag list. *"Shared-knowledge files use `{YYYY-MM-DD}-{author-tag}-{slug}.md` naming. Pick a short author tag (e.g., `init`, or initials, or first2+last2 of your name). Default: derived from `git config user.name` (first 2 chars of first name + first 2 chars of last name) → '{auto-derived}':"*
 
 **Validate input:**
-- Q5 answer must be `y`/`n` (or empty for default). If invalid, re-prompt.
+- Q5 answer is a comma-separated tag list, or empty (= feature disabled). Each tag must already exist in `projects_list`. If a tag is not in `projects_list`, show the offending tag and re-prompt: *"Tag '{tag}' is not in projects_list. Available: {projects_list tags}. Re-enter:"*. Empty input is valid and means feature disabled.
 - Q6 author_tag must be 1-12 characters, alphanumerics + hyphens only (the value will appear in filenames). If invalid, show offending characters and re-prompt.
-- If the user enables Q5 but provides an empty Q6 AND no derivable git user.name exists, warn: *"Author tag is required for shared knowledge. You can set `author_tag` later in `~/.claude/aria-knowledge.local.md`, but `/audit-share` will refuse to run until it's set."* Continue setup with `author_tag:` empty.
+- If Q5 returned a non-empty list but Q6 produces an empty value AND no derivable git user.name exists, warn: *"Author tag is required for shared knowledge. You can set `author_tag` later in `~/.claude/aria-knowledge.local.md`, but `/audit-share` will refuse to run until it's set."* Continue setup with `author_tag:` empty.
 
-**CLAUDE.md reference handling deferred to first-write.** Earlier drafts of this spec offered to append `_project-knowledge/` references to project CLAUDE.md files at setup time. That has been removed: documenting a convention before the folder exists is aspirational, batch-applying across all projects loses per-repo nuance (different repos may have different teams / visibility), and a default-`y` prompt for a teammate-affecting change is more aggressive than ARIA's normal posture. The CLAUDE.md reference offer now happens inside `/audit-share` Step 6 the first time a file is actually written to a repo's `_project-knowledge/` folder — at that moment the folder + README exist, the user has just made an active sharing decision, and per-repo confirmation with git-tracked detection can be presented in context.
+**Schema note:** the config field `projects_shared_knowledge` is itself the comma-separated tag list (the value IS the scope). Empty/missing = feature disabled. There is no separate boolean toggle; the field's presence and content together encode "enabled and for which projects." A legacy value of `true` (from pre-publish v2.13.0 stubs) is treated the same as empty and triggers Q5 to populate the list properly on `/setup` re-run.
+
+**CLAUDE.md reference handling deferred to first-write.** Earlier drafts of this spec offered to append `_project-knowledge/` references to project CLAUDE.md files at setup time. That has been removed: documenting a convention before the folder exists is aspirational, batch-applying across all projects loses per-repo nuance (different repos may have different teams / visibility), and a default-`y` prompt for a teammate-affecting change is more aggressive than ARIA's normal posture. The CLAUDE.md reference offer now happens inside `/audit-share` Step 6.5 the first time a file is actually written to a repo's `_project-knowledge/` folder — at that moment the folder + README exist, the user has just made an active sharing decision, and per-repo confirmation with git-tracked detection can be presented in context. Step 6.5b additionally handles the multi-repo container CLAUDE.md case for tags with `projects_groups` entries.
 
 **Existing `_project-knowledge/` folder detection:**
 
 Before completing this section, scan each project root for an existing `_project-knowledge/` folder:
 
-- **If found AND `projects_shared_knowledge` is unset in config:** Note in verbose output: *"An existing `_project-knowledge/` folder was detected at `<project-root>` but the shared-knowledge feature isn't yet enabled. Enable now to start `/audit-share` discovery? (y/n)"* — if yes, set `projects_shared_knowledge: true` and proceed to Q6.
-- **If found AND `projects_shared_knowledge: true`:** No action; the folder will be picked up by `/index` Phase 5 on next rebuild.
-- **If found AND `projects_shared_knowledge: false` explicitly:** Note: *"An existing `_project-knowledge/` folder was detected at `<project-root>` but the shared-knowledge feature is disabled in config. Folder is preserved; `/index` and `/context` won't surface it until enabled."*
+- **If found AND its tag is NOT in the user's `projects_shared_knowledge` list:** Note in verbose output: *"An existing `_project-knowledge/` folder was detected at `<project-root>` (tag `{tag}`) but `{tag}` is not in your shared-knowledge list. Add `{tag}` to the list now? (y/n)"* — if yes, append the tag to the Q5 answer and continue.
+- **If found AND its tag IS in the list:** No action; the folder will be picked up by `/index` Phase 5 on next rebuild.
+- **If found AND `projects_shared_knowledge` is empty:** Note: *"An existing `_project-knowledge/` folder was detected at `<project-root>` but the shared-knowledge feature is disabled (empty list). Folder is preserved; `/index` and `/context` won't surface it until you enable the feature for tag `{tag}` via `/setup`."*
 
 ## Step 7: Write Config
 
@@ -252,8 +254,8 @@ projects_list: [comma-separated tag:path pairs from Step 6, default empty]
 projects_remotes: [comma-separated tag:url-pattern pairs from Step 6, default empty]
 projects_promotion_threshold: [integer from Step 6, default 2]
 auto_load_project_context: [true/false from Step 6, default false]
-projects_shared_knowledge: [true/false from Shared Knowledge Setup Q5, default false]
-author_tag: [string from Shared Knowledge Setup Q6, default empty when projects_shared_knowledge is false]
+projects_shared_knowledge: [comma-separated tag list from Shared Knowledge Setup Q5, default empty = feature disabled; each tag must exist in projects_list]
+author_tag: [string from Shared Knowledge Setup Q6, default empty when projects_shared_knowledge is empty]
 ---
 ```
 
@@ -276,8 +278,8 @@ In **update mode:** preserve any user-added content in the markdown body below t
 - `knowledge_folder` must be an absolute path (starts with `/`) and must not contain `..`
 - Cadence values must be plain integers (no units, no quotes)
 - `projects_enabled` must be exactly `true` or `false` (not `True`, `yes`, `1`, etc.)
-- `projects_shared_knowledge` must be exactly `true` or `false` (same rule as `projects_enabled`); requires `projects_enabled: true` to take effect
-- `author_tag` is a 1-12 char string of alphanumerics + hyphens (used in shared-knowledge filenames); leave empty if `projects_shared_knowledge: false`
+- `projects_shared_knowledge` is a comma-separated tag list (e.g., `cs,ss`) — empty/missing = feature disabled. Each tag must already exist in `projects_list`. No spaces around commas. Tags cannot contain `:` or `,` (same as `projects_list`). A legacy literal `true` value is treated as empty (triggers `/setup` to repopulate the list properly). Requires `projects_enabled: true` to take effect.
+- `author_tag` is a 1-12 char string of alphanumerics + hyphens (used in shared-knowledge filenames); leave empty if `projects_shared_knowledge` is empty
 - `projects_list`, `projects_remotes`, and `ticketing_plugins`: comma-separated `tag:value` pairs, no spaces around the colon or comma (e.g., `proj-a:path/to/proj-a,proj-b:proj-b` for paths; `proj-a:foo-ticket,proj-b:bar-ticket` for plugin commands)
 - Project tags (used in `projects_list`, `projects_remotes`, `ticketing_plugins`) cannot contain colons or commas (the parser splits on these)
 - `ticketing_plugins` plugin-command values are bare command names without the leading `/` (e.g., `foo-ticket`, not `/foo-ticket`) — `/audit-knowledge` prepends the slash when printing the hint
@@ -374,7 +376,7 @@ Scaffold the project tier using the final config values:
 
 ## Step 7d: Shared Knowledge Initial Sync
 
-Runs only if the config just written has `projects_shared_knowledge: true` AND a non-empty `author_tag`. Skip entirely otherwise — no action, no output.
+Runs only if the config just written has a non-empty `projects_shared_knowledge` tag list AND a non-empty `author_tag`. Skip entirely otherwise — no action, no output.
 
 This step does NOT auto-create `_project-knowledge/` folders in any repo. Folders are created on demand by `/audit-share` Step 5 (when the user actually shares the first file to that repo). This avoids littering empty folders into repos the user may not actively use.
 

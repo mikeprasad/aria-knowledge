@@ -119,7 +119,7 @@ This tier is fully opt-in — `projects_enabled: false` by default. Existing use
 
 Personal knowledge captures stay on one developer's laptop. The Shared Knowledge tier closes that loop: selected personal knowledge can be **promoted to a per-repo team-visible folder** so teammates working in the same code repo can find and read what you've learned.
 
-When `projects_shared_knowledge: true` is set in config (alongside `projects_enabled: true`), each project repo gains a conventional folder:
+When `projects_shared_knowledge` is set to a comma-separated tag list in config (alongside `projects_enabled: true`), each enabled project repo gains a conventional folder:
 
 ```
 <project-root>/
@@ -138,7 +138,7 @@ Read-side: `/index` (Phase 5) scans `_project-knowledge/` folders into the tag i
 
 Cross-cutting knowledge that applies across multiple repos in the same product group lands in any one repo's `_project-knowledge/cross/` (federated; aggregation handled at read time via the index).
 
-This tier is fully opt-in — `projects_shared_knowledge: false` by default. It requires `projects_enabled: true` to take effect. Existing users see no behavior change unless they explicitly enable it; new users can opt in during `/setup`.
+This tier is fully opt-in and **per-project** — `projects_shared_knowledge` defaults to empty (feature disabled, no projects enabled). It requires `projects_enabled: true` to take effect. Users explicitly pick which projects to enable during `/setup` (the field is a comma-separated tag list, e.g., `cs,ss`); projects not in the list stay personal-tier only. Existing users see no behavior change unless they explicitly enable specific projects.
 
 ## The Plugin
 
