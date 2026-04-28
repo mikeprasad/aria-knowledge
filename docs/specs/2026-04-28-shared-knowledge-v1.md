@@ -1,8 +1,8 @@
 # v1 Spec — `projects_shared_knowledge`
 
-**Status:** Approved 2026-04-28, awaiting implementation
-**Target version:** 2.13.0
-**Estimated implementation effort:** 40-55 tool-call rounds + release flow
+**Status:** Shipped 2026-04-29 in v2.13.0
+**Target version:** 2.13.0 — released
+**Implementation notes:** Shipped with three install-session design corrections layered on top of the original spec: (1) CLAUDE.md reference offer deferred from setup-time to `/audit-share` first-write to avoid aspirational forward references and accidental teammate-affecting edits; (2) `projects_groups`-aware container CLAUDE.md offer added as Step 6.5b for multi-repo projects; (3) `projects_shared_knowledge` config field changed from boolean to comma-separated tag list to support per-project opt-in (most users have many repos but only a few with teams). See CHANGELOG `[2.13.0]` entry for the full set of design dimensions.
 
 ## Mental model
 

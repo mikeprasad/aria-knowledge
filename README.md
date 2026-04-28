@@ -101,12 +101,25 @@ Ideas — feature proposals, bug reports, design suggestions — flow into `inta
 
 1. **Capture** — `/extract` writes one file per idea to `intake/ideas/`, with YAML frontmatter (date, project, type, title) and a Proposal/Motivation/Source body.
 2. **Stale-first surfacing** — `/audit-knowledge` sorts stale ideas above fresh ones (default 7 days) and forces explicit disposition on stale entries. Fresh ideas auto-defer; stale ideas can't.
-3. **Seven-destination Accept submenu** — each accepted idea routes to one of: `tracker | roadmap | todo | adr | plan | bundle | rule`.
+3. **Seven-destination Accept submenu** — each accepted idea routes to one of: `tracker | roadmap | todo | adr | backlog | bundle | rule`.
 4. **Detection-aware routing** — `roadmap` and `todo` only appear when `ROADMAP.md` / `TODO.md` exists at the project root or under `docs/`. The submenu shrinks per idea so users can't pick a destination that doesn't fit.
 5. **Bundle clustering** — when 2+ ideas in the same project share ≥2 significant title words, the audit offers to merge them into one disposition with a sub-prompt for the merged file's destination.
 6. **`ticketing_plugins` config** — declare your ticket-drafting plugin per project tag (e.g., `proj-a:foo-ticket`) and `/audit-knowledge` prints a one-line hint at `Accept → tracker` time. Hint only — never auto-invokes another plugin.
 
 Ideas never promote directly into `approaches/`, `decisions/`, or `rules/`. The `adr` and `rule` destinations route through their respective backlogs (`decisions-backlog.md`, `rules-backlog.md`) for normal audit-cycle review. Rejected ideas are deleted (git history is the audit trail); deferred ideas stay in `intake/ideas/` until they age into stale.
+
+## Shared knowledge tier (since v2.13)
+
+Personal knowledge captures stay on one developer's laptop. The Shared Knowledge tier adds a third level alongside personal (`~/Projects/knowledge/`) and project-specific (`projects/{tag}/`): selected items can be promoted to per-repo `_project-knowledge/` folders so teammates working in the same code repo can find and read them. Independent records, not a sync layer — personal copies stay where they are; team copies get committed through normal git/PR review.
+
+1. **Per-project opt-in** — the `projects_shared_knowledge` config field is a comma-separated tag list (e.g., `cs,ss`); empty/missing means feature disabled. Most users have many repos but only a few with teams; opt in for the ones that benefit, leave the rest as personal-only.
+2. **`/audit-share` (alias `/share-audit`)** — batch-review surface. Walks personal knowledge folders + IDEAS-BACKLOG.md entries, filters by enabled-project list, recommends destinations grouped by action, lets the user `all` / specific numbers / `modify N` / `skip`. Public-repo targets get a sanitization warn-prompt before each write.
+3. **Folder + filename convention** — `<project-root>/_project-knowledge/{YYYY-MM-DD}-{author}-{slug}.md`; cross-cutting items live in `_project-knowledge/cross/`. The leading underscore sorts to top of repo listings; tool-agnostic so non-ARIA teammates can read/write the markdown directly.
+4. **Frontmatter back-pointers** — personal copies gain a `shared:` array entry pointing at where each share landed; team copies carry `origin:`, `shared_by:`, `shared_at:` fields. Provenance both directions.
+5. **CLAUDE.md reference offer at first-write** — when `/audit-share` writes the first file to a repo's `_project-knowledge/`, it offers to append a 5-line "Team-Shared Knowledge" section to that repo's `CLAUDE.md` so teammates not using ARIA can discover the convention. Per-repo confirmation, default `N`, three warning tiers based on git-tracked + remote-visibility detection (public / private / unknown / untracked). For multi-repo projects (`projects_groups` configured), an additional offer fires for the container's `CLAUDE.md` with a group-aware text variant naming each sub-repo's `_project-knowledge/`.
+6. **Read-side via `/index` + `/context`** — `/index` Phase 5 scans enabled projects' `_project-knowledge/` folders into the tag index under a new `## Team-Shared Tag Index` section; `/context` adds a "Team-shared" presentation grouping above project-specific and cross-project results. Tag-based discovery composes naturally — `/context api` surfaces team-shared, project, and cross-project files together.
+
+Personal vs team copies are intentionally independent records. They can drift; re-running `/audit-share` after editing a personal file will offer to share again (incrementing the `shared:` array, not overwriting). Solves the "knowledge stays trapped on one laptop" failure mode without violating ARIA's local-first or human-governed-trust principles.
 
 ## Key Habits
 
