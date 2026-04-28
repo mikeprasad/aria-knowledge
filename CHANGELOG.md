@@ -2,6 +2,44 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## [2.13.1] - 2026-04-29
+
+Patch release fixing two real spec gaps surfaced during the first `/audit-share` run on a non-trivial knowledge folder. Both issues caused the v2.13.0 audit-share to silently produce zero shareable candidates on data that should have produced 15+. No config migration; no new fields; backward-compatible with v2.13.0 setups.
+
+### Fixed — Path-derived tag detection (`/audit-share` Step 2)
+
+The v2.13.0 spec required a frontmatter `project:` field for tag detection — but ARIA's actual data model uses `tags:` arrays plus path location under `projects/<tag>/`. `/index` Phase 4 (since v2.8.0) already recognized this via Decision #9 (path-derived tag union); `/audit-share` Step 2 just hadn't picked up the convention.
+
+`/audit-share` Step 2 now derives project tag(s) from three sources, unioned (matches `/index` exactly):
+- **Path-derived:** files under `{knowledge_folder}/projects/<tag>/` carry `<tag>` implicitly.
+- **Frontmatter `project:` field** if present (multi-value comma-split).
+- **Frontmatter `tags:` array:** any tag matching a project in `projects_shared_knowledge` triggers a share recommendation.
+
+Multi-tag files (e.g., a file tagged `[architecture, cs, ss]` with `cs,ss` enabled) generate one share recommendation per matching project — independent destinations per share. This is cross-PROJECT-GROUP relevance, not cross-sub-repo within one group, so it doesn't trigger `cross/` treatment.
+
+### Fixed — Multi-repo destination resolution (`/audit-share` Step 5, `/index` Phase 5, `/setup` folder detection)
+
+The v2.13.0 spec wrote files to `<project-root>/_project-knowledge/` and ran `git add` from that path — assuming `<project-root>` is always a git repo. But `projects_list` paths often resolve to **container directories** that hold multiple sub-repos (e.g., a project group whose sub-repos are `<project-root>/<backend-sub-repo>/`, `<project-root>/<web-sub-repo>/`, `<project-root>/<mobile-sub-repo>/`). When the container isn't a git repo, the v2.13.0 `git add` step silently no-ops; files land in untracked container directories.
+
+`projects_groups` already documents the role:sub-repo mapping per project tag (since v2.9.0, parsed by `/distill` and `/stitch`). v2.13.1 makes `/audit-share`, `/index`, and `/setup` all consult `projects_groups[tag]` when resolving destinations:
+
+- **`/audit-share` Step 2.3 target-path resolution** — single-repo path unchanged. Multi-repo path runs a **role-detection heuristic** on file content + tags (keyword scoring against `backend`, `web`, `mobile`, plus any custom roles): single dominant role → that sub-repo's `_project-knowledge/`; multiple roles or tied scores → **primary sub-repo** (first declared role) `_project-knowledge/cross/`. User can `modify N` in the batch summary to override the recommendation.
+- **`/audit-share` Step 5.8 `git add`** — now uses `git -C <sub-repo-root> add ...` to make the working tree explicit; protects against the silent-no-op trap where `git add` from a non-repo container exits cleanly without staging.
+- **`/audit-share` Step 7 IDEAS-BACKLOG migration** — multi-repo migration target is `<project-root>/<primary-sub-repo>/_project-knowledge/IDEAS-BACKLOG.md` (always primary, since IDEAS-BACKLOG entries are project-wide queue items, not per-role). Filesystem `mv` from the container, then `git -C <primary-sub-repo-root> add` to stage.
+- **`/audit-share` Step 5.5 public-repo flag** — visibility detection scoped per sub-repo (was per-container).
+- **`/index` Phase 5** — single-repo scan unchanged. Multi-repo scan iterates `projects_groups[tag]` role:sub-repo pairs and scans each sub-repo's `_project-knowledge/`. The path stored for each entry is absolute-from-home so `/context` can render it correctly; the `project:` annotation is the parent project tag (not the sub-repo name) so cross-sub-repo discovery within a group still groups by project.
+- **`/setup` existing-folder detection** — same single-vs-multi branch; multi-repo projects probe each sub-repo independently.
+
+### Why fold these patches together
+
+Both fixes are corrections to the same narrow surface (where do we read from / write to for the team-shared tier) that v2.13.0 shipped with overly narrow assumptions. They share the same `projects_groups[tag]` lookup and the same single-vs-multi-repo branch shape, so fixing them in one release keeps the spec internally consistent across audit-share / /index / /setup.
+
+### Upgrade notes
+
+- **Reinstall required:** copy `plugin/` to `~/.claude/plugins/marketplaces/local-desktop-app-uploads/aria-knowledge/` (or unzip the v2.13.1 release zip into that directory).
+- **Run `/setup` after upgrade** to record `last_setup_version: 2.13.1`. No config field changes from v2.13.0 — `projects_shared_knowledge` (comma-separated tag list) and `author_tag` (string) are unchanged in shape.
+- **Backward-compatible with v2.13.0 configs.** Single-repo project setups continue to work identically. Multi-repo project setups (those with `projects_groups[tag]`) now actually function — previously they would silently produce zero shareable candidates and zero indexable team-shared files.
+
 ## [2.13.0] - 2026-04-28
 
 Minor release. Adds a third knowledge tier — **Shared Knowledge** — that lets developers promote selected personal knowledge into per-repo `_project-knowledge/` folders so teammates working in the same code repo can find and read it. The personal knowledge tier (`~/Projects/knowledge/`) and project knowledge tier (`projects/{tag}/`) are unchanged; the new tier composes with both. Fully opt-in and **per-project**: the `projects_shared_knowledge` config field is a comma-separated tag list (e.g., `cs,ss`) — empty/missing means feature disabled, populated means enabled for those specific projects only. Most users have many repos but only a few with teams to share with; this avoids accidentally exposing solo projects to a non-existent team-share workflow.

@@ -224,11 +224,18 @@ After Project Setup completes (questions 1-4), if `projects_enabled: true` AND `
 
 **Existing `_project-knowledge/` folder detection:**
 
-Before completing this section, scan each project root for an existing `_project-knowledge/` folder:
+Before completing this section, scan for existing `_project-knowledge/` folders. Scan locations depend on whether the project is single-repo or multi-repo (matches `/audit-share` Step 2.3 and `/index` Phase 5 conventions):
 
-- **If found AND its tag is NOT in the user's `projects_shared_knowledge` list:** Note in verbose output: *"An existing `_project-knowledge/` folder was detected at `<project-root>` (tag `{tag}`) but `{tag}` is not in your shared-knowledge list. Add `{tag}` to the list now? (y/n)"* — if yes, append the tag to the Q5 answer and continue.
-- **If found AND its tag IS in the list:** No action; the folder will be picked up by `/index` Phase 5 on next rebuild.
-- **If found AND `projects_shared_knowledge` is empty:** Note: *"An existing `_project-knowledge/` folder was detected at `<project-root>` but the shared-knowledge feature is disabled (empty list). Folder is preserved; `/index` and `/context` won't surface it until you enable the feature for tag `{tag}` via `/setup`."*
+- **Single-repo project** (no `projects_groups[tag]` entry): probe `<project-root>/_project-knowledge/`.
+- **Multi-repo project** (`projects_groups[tag]` set): probe each sub-repo declared in the group (`<project-root>/<sub-repo>/_project-knowledge/`), in declaration order. Skip sub-repos whose path doesn't exist on disk.
+
+For each scan location where a `_project-knowledge/` folder is found:
+
+- **If found AND its parent project tag is NOT in the user's `projects_shared_knowledge` list:** Note in verbose output: *"An existing `_project-knowledge/` folder was detected at `<scan-location>` (parent project tag `{tag}`) but `{tag}` is not in your shared-knowledge list. Add `{tag}` to the list now? (y/n)"* — if yes, append the tag to the Q5 answer and continue.
+- **If found AND its parent project tag IS in the list:** No action; the folder will be picked up by `/index` Phase 5 on next rebuild.
+- **If found AND `projects_shared_knowledge` is empty:** Note: *"An existing `_project-knowledge/` folder was detected at `<scan-location>` but the shared-knowledge feature is disabled (empty list). Folder is preserved; `/index` and `/context` won't surface it until you enable the feature for tag `{tag}` via `/setup`."*
+
+For multi-repo projects, all of the project's sub-repos are evaluated independently — finding `_project-knowledge/` in one sub-repo doesn't suppress the scan of others. Each surfaces its own note.
 
 ## Step 7: Write Config
 

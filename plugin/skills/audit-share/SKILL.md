@@ -52,21 +52,40 @@ Plus IDEAS-BACKLOG.md entries from each project root:
 
 For each candidate, determine:
 
-1. **Project tag** — from frontmatter `project:` field. Multi-value tags (e.g., `proj-a, proj-b`) are split and each tag triggers a separate share recommendation.
-2. **Recommended action**:
-   - `project: cross` → recommend **share-to-cross** (will need user to pick destination repo at execute time, since cross items can land in any repo's `cross/` subfolder; cross destinations may be any tag from `projects_shared_knowledge`).
-   - Project tag matches a tag in `projects_shared_knowledge` → recommend **share-to-{project}**.
-   - Project tag exists in `projects_list` but is NOT in `projects_shared_knowledge` → recommend **skip** with reason "project not enabled for shared knowledge (use `/setup` to enable)".
-   - Otherwise (no project tag, or tag not in projects_list) → recommend **skip**.
-3. **Target path** — compute as:
-   - Repo-scoped: `<project-root>/_project-knowledge/<YYYY-MM-DD>-<author_tag>-<slug>.md`
-   - Cross-cutting: `<destination-repo-root>/_project-knowledge/cross/<YYYY-MM-DD>-<author_tag>-<slug>.md`
-   - **Date** is today (the share date), not the original capture date.
-   - **Author** is `author_tag` from config.
-   - **Slug** is derived from the source filename (strip date prefix and extension) or from frontmatter `title:`.
-   - **Collision handling**: if the target path already exists, append `-2`, `-3`, etc. to the slug until unique.
-4. **IDEAS-BACKLOG.md entries** are special-cased: each entry promotes by appending to `<project-root>/_project-knowledge/IDEAS-BACKLOG.md` (or the `cross/IDEAS-BACKLOG.md` for cross items), not by creating a new file.
-5. **Public-repo flag** — for each unique target repo, run `gh repo view --json visibility 2>/dev/null` (cache result for the session). If visibility is `PUBLIC`, mark target as needing sanitization warn-prompt at execute time. If `gh` is unavailable, skip the check (do not block); note in summary as "could not verify repo visibility."
+1. **Project tag(s)** — derived from any of three sources, unioned (matches `/index` Phase 4 Decision #9 path-derived convention so audit-share and /index see the same tag set):
+   - **Path-derived:** if file path is under `{knowledge_folder}/projects/<tag>/`, that `<tag>` is implicit (even if not in YAML frontmatter).
+   - **Frontmatter `project:` field** if present (split on `,` for multi-value).
+   - **Frontmatter `tags:` array:** any tag matching a project in `projects_shared_knowledge` is treated as a share signal. A file tagged `[architecture, cs, ss]` with `cs,ss` in `projects_shared_knowledge` produces TWO share recommendations (one to cs, one to ss) — multi-tag files generate one recommendation per matching project, with independent destinations.
+   - The literal value `cross` (in any source) marks the file as cross-cutting within its product group, not as cross-PROJECT-GROUP. Cross-PROJECT-GROUP relevance is naturally expressed by multi-tag (e.g., `[cs, ss]` = relevant to both cs and ss product groups) and is handled by the multi-tag fan-out above, not by `cross`.
+2. **Recommended action** (per recommendation produced in step 1):
+   - Tag is `cross` → recommend **share-to-cross** (will need user to pick destination repo at execute time, since cross items can land in any repo's `cross/` subfolder; cross destinations may be any tag from `projects_shared_knowledge`).
+   - Tag matches a tag in `projects_shared_knowledge` → recommend **share-to-{project}**.
+   - Tag exists in `projects_list` but is NOT in `projects_shared_knowledge` → recommend **skip** with reason "project not enabled for shared knowledge (use `/setup` to enable)".
+   - Otherwise (no tag detected, or tag not in projects_list) → recommend **skip**.
+3. **Target path** — compute as follows. Multi-repo projects (those with a `projects_groups` entry) require sub-repo selection because the projects_list path resolves to a container, not a git repo:
+   - **Single-repo project** (no `projects_groups[tag]` entry):
+     - Repo-scoped: `<project-root>/_project-knowledge/<YYYY-MM-DD>-<author_tag>-<slug>.md`
+     - Cross-stack: `<destination-repo-root>/_project-knowledge/cross/<YYYY-MM-DD>-<author_tag>-<slug>.md`
+   - **Multi-repo project** (`projects_groups[tag]` is set, listing role:sub-repo pairs like `backend: foo-backend`, `web: foo-web`, `mobile: foo-mobile`):
+     - Run **role-detection heuristic** on file content + frontmatter tags:
+       - **backend keywords:** django, flask, fastapi, server-side, api, endpoint, jwt, oauth, auth, idor, impersonation, sql, database, migration, model, view, serializer, drf, rest, graphql resolver
+       - **web keywords:** nextjs, next.js, react, frontend, client-side, app router, spa, redux, rtk, rtk-query, css, tailwind, ui component, hook, page, route component
+       - **mobile keywords:** ios, android, react native, expo, swift, kotlin, swiftui, jetpack
+       - Plus any **custom roles** defined in `projects_groups[tag]` — match keywords from the role name itself plus inferable tokens.
+       - Score = count of matching keywords per role (case-insensitive whole-word match against body + tags).
+       - **Single dominant role** (one role's score is ≥2× the next, AND ≥3 hits): recommend that role's sub-repo, repo-scoped destination.
+       - **Multiple roles tied or all low scores**: recommend cross-stack → **primary sub-repo's `_project-knowledge/cross/`**.
+       - **Primary sub-repo** = first role declared in `projects_groups[tag]` (declaration order, NOT alphabetical), OR an explicit `primary:` field if user has added one to the group entry. For Mike's example `cs: { backend: commonspace-app, web: commonspace-ui-v3, mobile: commonspace-mobile-ui }`, primary is `commonspace-app`.
+     - Multi-repo paths:
+       - Repo-scoped (dominant role detected): `<project-root>/<role-sub-repo>/_project-knowledge/<YYYY-MM-DD>-<author_tag>-<slug>.md`
+       - Cross-stack (no dominant role): `<project-root>/<primary-sub-repo>/_project-knowledge/cross/<YYYY-MM-DD>-<author_tag>-<slug>.md`
+   - **Common to both shapes:**
+     - **Date** is today (the share date), not the original capture date.
+     - **Author** is `author_tag` from config.
+     - **Slug** is derived from the source filename (strip date prefix and extension) or from frontmatter `title:`.
+     - **Collision handling**: if the target path already exists, append `-2`, `-3`, etc. to the slug until unique.
+4. **IDEAS-BACKLOG.md entries** are special-cased: each entry promotes by appending to the project's IDEAS-BACKLOG.md, not by creating a new file. Path resolution mirrors step 3's single-vs-multi-repo logic — single-repo: `<project-root>/_project-knowledge/IDEAS-BACKLOG.md`; multi-repo: `<project-root>/<primary-sub-repo>/_project-knowledge/IDEAS-BACKLOG.md` (always primary, since IDEAS-BACKLOG entries are project-wide queue items not per-role). Cross-cutting ideas append to `cross/IDEAS-BACKLOG.md` instead.
+5. **Public-repo flag** — for each unique target sub-repo (not container), run `gh repo view --json visibility 2>/dev/null` (cache result for the session). If visibility is `PUBLIC`, mark target as needing sanitization warn-prompt at execute time. If `gh` is unavailable, skip the check (do not block); note in summary as "could not verify repo visibility."
 
 ## Step 3: Present Batch Summary
 
@@ -119,7 +138,7 @@ Wait for user input. Parse:
 
 For each approved item, execute in order:
 
-1. **Resolve cross destination** (only if action is share-to-cross and destination not yet set): prompt *"Pick destination repo for cross item: <list of projects_list entries>"*. Update target path.
+1. **Resolve cross destination** (only if action is share-to-cross and destination not yet set): prompt *"Pick destination repo for cross item: <list of projects_shared_knowledge entries>"*. For multi-repo projects, the cross destination further resolves to that project's primary sub-repo's `_project-knowledge/cross/` folder (not the container). Update target path accordingly.
 2. **Sanitization warn-prompt** (only if target repo is public):
    ```
    ⚠️ Target repo "<repo-name>" is PUBLIC.
@@ -143,7 +162,7 @@ For each approved item, execute in order:
    ```
    If the array doesn't exist, create it. If it exists, append (don't overwrite — supports re-sharing to multiple repos over time).
 7. **Auto-create README.md** if this is the first write to this `_project-knowledge/` folder (folder was empty or didn't exist before). Use the template from Step 6 below.
-8. **`git add`** the new/changed files in the target repo. **Do NOT commit** — user reviews and commits via normal flow.
+8. **`git add`** the new/changed files. The git operation must run **inside the destination sub-repo's working tree** (`<sub-repo-root>` for multi-repo projects, `<project-root>` for single-repo) — running `git add` from a non-repo container directory silently no-ops. Use `git -C <sub-repo-root> add <relative-path>` to make the working-tree explicit. **Do NOT commit** — user reviews and commits via normal flow.
 
 ## Step 6: README Template (Auto-Created on First Write)
 
@@ -247,16 +266,23 @@ Substitute `{sub1}`, `{sub2}`, etc., with the relative paths of each sub-repo fr
 
 **Why session cache, not persistent cache:** the container offer should re-fire across sessions because the user may have changed their mind, the CLAUDE.md may have been edited externally, or sub-repos may have been added/removed. Within a single `audit-share` invocation, sibling sub-repo shares share the cache so the container offer fires at most once per run.
 
-## Step 7: IDEAS-BACKLOG.md Migration (One-Time Per Repo)
+## Step 7: IDEAS-BACKLOG.md Migration (One-Time Per Project)
 
-For each project root touched in Step 5, check if migration is needed:
+For each project touched in Step 5, check if migration is needed. Migration target depends on project shape:
 
-- If `<project-root>/IDEAS-BACKLOG.md` exists AND `<project-root>/_project-knowledge/IDEAS-BACKLOG.md` does NOT:
-  - If the project root is a git repo, use `git mv <project-root>/IDEAS-BACKLOG.md <project-root>/_project-knowledge/IDEAS-BACKLOG.md`.
-  - Otherwise, use filesystem `mv`.
-  - Note migration in the summary report.
-- If both exist, log a warning: *"Both <project-root>/IDEAS-BACKLOG.md and <project-root>/_project-knowledge/IDEAS-BACKLOG.md exist. Manual reconciliation needed."* Skip migration; user resolves.
-- If only the new location exists, no migration needed.
+- **Single-repo project** (no `projects_groups[tag]` entry): migration target is `<project-root>/_project-knowledge/IDEAS-BACKLOG.md`.
+- **Multi-repo project** (`projects_groups[tag]` set): migration target is `<project-root>/<primary-sub-repo>/_project-knowledge/IDEAS-BACKLOG.md` (primary sub-repo = first role in declaration order, matching Step 2.3's resolution).
+
+Migration logic:
+
+- If `<project-root>/IDEAS-BACKLOG.md` exists AND the migration target does NOT:
+  - If the source location is in a git repo (single-repo case, OR rare multi-repo edge case where the container itself is a repo), use `git mv <source> <target>`.
+  - Otherwise, use filesystem `mv` (multi-repo containers are typically untracked; the move crosses from container to sub-repo).
+  - For multi-repo projects, after the filesystem move, run `git -C <primary-sub-repo-root> add _project-knowledge/IDEAS-BACKLOG.md` to stage the new file inside the sub-repo. **Do NOT commit** — user reviews and commits via normal flow.
+  - Note migration in the summary report (include source → target paths so user can verify).
+- If both source and target exist, log a warning: *"Both `<project-root>/IDEAS-BACKLOG.md` and `<migration-target>` exist. Manual reconciliation needed."* Skip migration; user resolves.
+- If only the target exists, no migration needed.
+- If neither exists, no IDEAS-BACKLOG.md is in play for this project (audit-share may still create the target on first IDEAS-BACKLOG entry promotion via Step 2.4).
 
 ## Step 8: Report
 

@@ -64,16 +64,19 @@ After the project tier scan, scan each enabled project's `_project-knowledge/` f
 
 For each tag in `projects_shared_knowledge` (parsed as comma-separated list):
 1. Resolve the project root: look up the tag in `projects_list` to get its path, then resolve to `~/Projects/<path>`. If the tag is not present in `projects_list`, log a warning and skip (config inconsistency — `/setup` validation should catch this, but defensive).
-2. Probe `<project-root>/_project-knowledge/`. If the folder doesn't exist, skip this project (no team-shared knowledge yet).
-3. Glob `<project-root>/_project-knowledge/**/*.md` recursively.
-4. **Exclude** `<project-root>/_project-knowledge/README.md` (auto-generated convention explainer, not knowledge content).
-5. For each file found, perform frontmatter extraction as in the cross-project scan above.
-6. **Path-derived metadata:**
-   - If the file path is at `<project-root>/_project-knowledge/*.md` (top level), categorize as `team-shared` with `project: <tag>`.
-   - If the file path is under `<project-root>/_project-knowledge/cross/*.md`, categorize as `team-shared-cross` with `project: cross`.
+2. **Determine scan locations** based on whether the tag has a `projects_groups` entry (multi-repo project):
+   - **Single-repo project** (no `projects_groups[tag]`): scan `<project-root>/_project-knowledge/` directly.
+   - **Multi-repo project** (`projects_groups[tag]` is set): the project-root is a container, not a repo. Iterate the role:sub-repo pairs in `projects_groups[tag]` (preserving declaration order), and for EACH sub-repo, scan `<project-root>/<sub-repo>/_project-knowledge/`. Skip sub-repos whose path doesn't exist on disk (sub-repo not yet cloned).
+3. For each scan location determined in step 2, probe for `_project-knowledge/`. If the folder doesn't exist, skip that location (no team-shared knowledge yet there). Continue to next location (don't bail on the whole tag — sibling sub-repos may have content).
+4. Glob `<scan-location>/_project-knowledge/**/*.md` recursively.
+5. **Exclude** `<scan-location>/_project-knowledge/README.md` (auto-generated convention explainer, not knowledge content).
+6. For each file found, perform frontmatter extraction as in the cross-project scan above.
+7. **Path-derived metadata:**
+   - If the file path is at `<scan-location>/_project-knowledge/*.md` (top level), categorize as `team-shared` with `project: <tag>` (always the parent project tag from `projects_shared_knowledge`, NOT the sub-repo name — sub-repo identity is captured in the absolute path stored in step 9).
+   - If the file path is under `<scan-location>/_project-knowledge/cross/*.md`, categorize as `team-shared-cross` with `project: cross`.
    - The path-derived project tag is added to the file's tag set even if not in YAML frontmatter (same Decision #9 pattern as project tier).
-7. **IDEAS-BACKLOG.md handling:** treat `_project-knowledge/IDEAS-BACKLOG.md` and `_project-knowledge/cross/IDEAS-BACKLOG.md` as single files (don't try to split them into entries for indexing). Index them as one file each, tagged with the project tag (or `cross`).
-8. Store: `{path: <absolute-path-from-home>, tags[], description, last_updated, source: "team-shared", project: <tag>, scope: "repo" | "cross"}`.
+8. **IDEAS-BACKLOG.md handling:** treat `_project-knowledge/IDEAS-BACKLOG.md` and `_project-knowledge/cross/IDEAS-BACKLOG.md` as single files (don't try to split them into entries for indexing). Index them as one file each, tagged with the project tag (or `cross`).
+9. Store: `{path: <absolute-path-from-home>, tags[], description, last_updated, source: "team-shared", project: <tag>, scope: "repo" | "cross"}`.
 
 Report: "Scanned T team-shared files across P enabled projects: [project tags from `projects_shared_knowledge` with non-empty `_project-knowledge/` folders]."
 
