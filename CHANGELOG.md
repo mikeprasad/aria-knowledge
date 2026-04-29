@@ -2,6 +2,32 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## [2.13.2] - 2026-04-29
+
+Documentation patch release. Adds three Tier-2 docs (public on the GitHub repo, NOT shipped in the plugin zip) that surface positioning, cross-pollination tracking, and release-validation discipline. **No plugin behavior changes** — `plugin/` is unchanged from v2.13.1, so users running v2.13.1 do not need to reinstall.
+
+### Added — `docs/non-goals.md`
+
+Explicit statement of what aria-knowledge does NOT aim to do, separated into permanently out of scope vs deferred. Helps prospective users self-select before installing, especially given the existence of adjacent execution-first plugins. Includes a pointer to [aria-ex1](https://github.com/nrek/aria-ex1) for users whose fit is execution scaffolding without the personal-knowledge-management surface.
+
+### Added — `docs/related-repo-delta-ledger.md`
+
+Append-only ledger of notable changes from related Claude Code plugin repos (currently aria-ex1), classified IMPORT / OPTIONAL / REJECT / N/A per change. Tracks both directions of cross-pollination — changes adopted from related repos AND changes that originated in aria-knowledge and were adopted downstream. Auditable record of design relationships across versions.
+
+### Added — `docs/release-validation.md`
+
+Pre-release checklist walking each skill, hook, and release-artifact step across eight phases (setup, exploration, capture, audit, lookup, hooks, distill, release artifacts). Catches regressions that `tests/run.sh` doesn't surface — drifted skill prose, renamed commands, broken `/setup` flows on existing config. Codifies the two-commit release pattern (source changes commit → `release.sh` → release artifacts commit → push).
+
+### Why these now
+
+aria-knowledge cross-pollinates with [aria-ex1](https://github.com/nrek/aria-ex1) (a leaner fork). Until v2.13.2 the relationship was implicit; the three new docs make it auditable, help users choose between adjacent plugins, and capture release-validation discipline that's been informal until now. All three docs adopt patterns observed in aria-ex1 v0.1.1 with content fully written from aria-knowledge's perspective.
+
+### Upgrade notes
+
+- **No reinstall required** for users on v2.13.1 — the plugin zip's contents are unchanged.
+- **For new installs**, the v2.13.2 zip is functionally identical to v2.13.1's; the version bump exists to give the documentation additions a release reference.
+- **Maintainers:** consult `docs/release-validation.md` before tagging the next release. Consult `docs/related-repo-delta-ledger.md` when reviewing changes from aria-ex1 (or future related repos) for adoption.
+
 ## [2.13.1] - 2026-04-29
 
 Patch release fixing two real spec gaps surfaced during the first `/audit-share` run on a non-trivial knowledge folder. Both issues caused the v2.13.0 audit-share to silently produce zero shareable candidates on data that should have produced 15+. No config migration; no new fields; backward-compatible with v2.13.0 setups.
