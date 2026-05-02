@@ -2,6 +2,31 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## [2.13.3] - 2026-05-02
+
+Patch release adding **Rule 33: Verify third-party surfaces against current docs before use** to the working-rules template. Single isolated rule addition; no skill, hook, or behavior changes.
+
+### Added — Rule 33 in `plugin/template/rules/working-rules.md`
+
+Proactive doc-check rule directing that any third-party API, SDK, library, CLI, or external tool surface be verified against current documentation before the call is written. Defines *current* as fetched-or-read-this-session (not training memory, not analogy, not cached belief). Provides four objective triggers (first-use, version-volatile surfaces, silent-failure-prone calls, project-version-differs-from-training-version), a five-step routing order (local docs → `context7` → official docs → `--help` → ask the user), an explicit out-of-scope clause for language standard library, and a Rule 7 escape hatch when docs are inaccessible.
+
+Composes with **Rule 27** as its proactive counterpart: Rule 27 verifies external identifiers after a failure; Rule 33 verifies before the call.
+
+### Why this rule now
+
+A new scraping API integration in another session produced multiple runtime errors — payload shape, auth, pagination — every one of which was resolved by reading the API documentation after the fact. Reading the docs before writing the integration would have prevented all of them. The rule names this failure mode (trained-knowledge drift + unfamiliar surfaces produce calls that look correct, pass review, and fail at runtime) and routes around it deterministically.
+
+### Upgrade notes
+
+- **Reinstall recommended** to pick up the new rule in `working-rules.md`. Existing rules 1-32 are unchanged.
+- **No config migration.** No new fields, no new hooks, no skill changes.
+- **Rule numbering preserved.** Rule numbers remain permanent IDs per the file's "How to Use" directive.
+
+### Maintainer notes
+
+- README.md and CLAUDE.md rule-count references updated from "31 rules" to "33 rules" (the count had been stale since Rule 32 added in v2.10.6; v2.13.3 corrects both the previous drift and the current addition).
+- Per `feedback_aria_versioning_patch_for_new_skill`: a single isolated rule addition is a patch bump, not a minor.
+
 ## [2.13.2] - 2026-04-29
 
 Documentation patch release. Adds three Tier-2 docs (public on the GitHub repo, NOT shipped in the plugin zip) that surface positioning, cross-pollination tracking, and release-validation discipline. **No plugin behavior changes** — `plugin/` is unchanged from v2.13.1, so users running v2.13.1 do not need to reinstall.

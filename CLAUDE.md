@@ -53,7 +53,7 @@ Project-specific architecture decisions live in `~/Projects/knowledge/projects/a
 - `decisions/008-skill-knowledge-connections.md` — skill-knowledge connection discovery + drift detection
 
 Cross-project knowledge that applies to ARIA:
-- `knowledge/rules/working-rules.md` — the 31 universal rules (ARIA's source of truth ships in plugin/template)
+- `knowledge/rules/working-rules.md` — the 33 universal rules (ARIA's source of truth ships in plugin/template)
 - `knowledge/rules/change-decision-framework.md` — Rule 22 framework
 - `knowledge/rules/enforcement-mechanisms.md` — enforcement tier model
 - `knowledge/guides/claude/plugin-development.md` — Claude Code plugin patterns

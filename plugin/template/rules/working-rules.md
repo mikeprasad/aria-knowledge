@@ -204,3 +204,26 @@ and ask for explicit override or a revised instruction. Do not attempt silent re
 **Why:** Under Claude Opus 4.7's literal instruction-following, silent resolution of a contradiction masks a disagreement the user may not know exists. Surfacing it keeps the user in control of rule overrides and prevents the model from "helpfully" reinterpreting established rules based on a single prompt.
 
 **Origin:** v2.10.6 release; corroborated by 2026-04-16 Anthropic best-practices guidance on 4.7's literal instruction adherence.
+
+### 33. Verify third-party surfaces against current docs before use
+
+Before writing a call to any third-party API, SDK, library, CLI, or external tool, read its current documentation. *Current* means fetched or read this session — not training memory, not analogy from a similar tool, not a cached belief from a prior session.
+
+**Triggers — doc-check required before the call:**
+
+- First use of a surface in this session
+- AI/SDK/cloud/framework surfaces that change between minor versions
+- Any call where a wrong guess returns plausible-but-wrong output rather than failing loudly
+- Any surface whose project version differs from the version in training (`package.json`, `requirements.txt`, model IDs, pinned SDK versions)
+
+**Routing order:** (1) local repo docs and READMEs, (2) `context7` for libraries and frameworks, (3) official docs site, (4) `--help` / `--version` for CLIs, (5) ask the user.
+
+**Out of scope:** language standard library and primitives (`Array.map`, `String.split`, `os.path.join`). When in doubt, check.
+
+**If docs are inaccessible or ambiguous:** flag under Rule 7. Don't proceed on a guess.
+
+**Composes with Rule 27:** Rule 27 verifies after an external failure; this rule verifies before the call.
+
+**Why:** Trained-knowledge drift and unfamiliar API surfaces produce calls that look correct, pass review, and fail at runtime — the highest debugging-cost failure mode. Doc-check is bounded and one-shot per surface per session; the guess cost isn't.
+
+**Origin:** A new scraping API integration produced multiple runtime errors — payload shape, auth, pagination — every one of which was resolved by reading the API documentation after the fact. Reading the docs before writing the integration would have prevented all of them.
