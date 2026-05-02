@@ -2,6 +2,48 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## [2.13.4] - 2026-05-02
+
+Patch release adding **Rule 34: Validate the plan with Rule 22's framework before executing** to the working-rules template, plus supporting cross-references in `change-decision-framework.md` and `enforcement-mechanisms.md`. Rule 33's plan-level counterpart — extends the same framework discipline from per-edit to per-plan scope.
+
+### Added — Rule 34 in `plugin/template/rules/working-rules.md`
+
+Plan-formation discipline rule directing that any qualifying plan be validated with Rule 22's full 7-step framework *before* execution begins. The goal: validate that this is the right plan based on (a) what we know now, (b) what's accessible to know, and (c) the actual goal. A plan can pass per-edit Rule 22 on every edit and still fail systemically if any framework step — Identify, Intake, Criteria, Solutions, Rank, Validate, Execute — was skipped or shortcut at plan-formation time.
+
+**Triggers (plan-level review required):** new features, external surfaces (composes with Rule 33), architecture/structural changes, re-implementations/rewrites/migrations, unfamiliar-domain plans, asymmetric failure cost (irreversible operations, shared state, public-repo content).
+
+**Out of scope:** localized bug fixes, doc-only changes within existing structure, single-edit operations, routine maintenance.
+
+**Marker:** Claude emits a `[Rule 34]` block before the first qualifying edit, formatted the same as Rule 22's per-edit marker but covering the whole plan. Per-edit `[Rule 22]` markers continue to fire after; in-scope edits can briefly reference the plan instead of re-deriving the framework.
+
+### Added — Plan-Level Application section in `change-decision-framework.md`
+
+Documents that Rule 22's framework runs at two scopes: per-edit (hook-enforced via `PreToolUse`/`PostToolUse` on Edit/Write) and per-plan (currently discipline-enforced via Rule 34's `[Rule 34]` marker). Includes plan-level application of all 7 framework steps and clarifies the relationship to ARIA's existing batch-manifest mechanism — batch manifests reduce ceremony *during* execution within a declared scope; Rule 34 validates plan *quality before* execution starts. Distinct axes, complementary in practice.
+
+### Added — Rule 34 enforcement note in `enforcement-mechanisms.md`
+
+Brief paragraph noting Rule 34 currently uses Layer 1 only (CLAUDE.md text + discipline-emitted marker). Hook enforcement deferred pending real-world calibration of trigger heuristics — matches Rule 22's own evolution arc (text first, hooks added once usage data clarified the trigger surface).
+
+### Why this rule now
+
+Same scraping-API origin as Rule 33: an integration was planned, executed cleanly per per-edit Rule 22, and failed on every call due to assumptions that the freely-accessible documentation would have corrected. Rule 33 patches the third-party-API-specific case at the call layer; Rule 34 patches the general plan-formation case at the framework layer. Both Rule 27's model-ID-rename origin and Rule 33's scraping-API origin fit Rule 34's trigger set retroactively, which validated the rule's design before shipping.
+
+### Dogfood note
+
+This release applied Rule 34 to its own creation. The original 8-surface plan (working-rules.md + plugin.json + marketplace.json + CHANGELOG + CLAUDE.md + 2 README refs + Projects/CLAUDE.md) was expanded to 10 surfaces after plan-level intake surfaced two real dependents — `change-decision-framework.md` (cross-reference target of Rule 34's wording) and `enforcement-mechanisms.md` (Rule 34's enforcement state belongs alongside Rule 22's). Without the plan-level review, Rule 34 would have shipped with a silent cross-reference inconsistency to a doc that's per-edit-only. The rule earned its keep on its first run.
+
+### Upgrade notes
+
+- **Reinstall recommended** to pick up Rule 34 in `working-rules.md`, the new section in `change-decision-framework.md`, and the enforcement-mechanisms note. Existing rules 1-33 are unchanged.
+- **No config migration.** No new fields, no new hooks (yet), no skill changes.
+- **Rule numbering preserved.** Rule numbers remain permanent IDs per the file's "How to Use" directive.
+
+### Maintainer notes
+
+- README.md and CLAUDE.md rule-count references updated from "33 rules" to "34 rules".
+- Hook implementation deferred — trigger heuristics need real-world data before mechanism design. Discipline-only ship matches Rule 22's text-first evolution arc.
+- Per `feedback_aria_versioning_patch_for_new_skill`: a single isolated rule addition is a patch bump.
+
 ## [2.13.3] - 2026-05-02
 
 Patch release adding **Rule 33: Verify third-party surfaces against current docs before use** to the working-rules template. Single isolated rule addition; no skill, hook, or behavior changes.

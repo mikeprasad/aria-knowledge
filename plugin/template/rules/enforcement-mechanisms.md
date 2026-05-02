@@ -79,5 +79,7 @@ Mechanisms can and should be layered:
 
 The change decision framework (Rule 22) uses layers 1-3: the rule is in `working-rules.md`, the hooks fire on every edit, and the compact required output format forces every step to be visible.
 
+**Rule 34 (plan-level framework application)** uses Layer 1 only at this stage — the rule text in `working-rules.md` plus discipline-emitted `[Rule 34]` markers when triggers fire. Hook enforcement (Layers 2-3) is deferred pending real-world calibration of trigger heuristics: which triggers fire most, where the rule helps vs annoys, and where the marker is routinely forgotten. Rule 22's own evolution validates this arc — text shipped first, hooks added once usage data clarified the trigger surface. See `change-decision-framework.md` "Plan-Level Application (Rule 34)" for the framework's plan-level application and marker format.
+
 ## Related
 - [change-decision-framework.md](change-decision-framework.md) — the primary consumer of these enforcement patterns (Rule 22 implementation)

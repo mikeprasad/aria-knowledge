@@ -60,12 +60,12 @@ A trusted knowledge base only matters if it shapes future work. ARIA's "Applied"
 - **Structural signal surfacing** — edits touching auth, migrations, models/schemas, routing, or external-service integrations get advisory labels even when the content classifies as Low impact.
 - **Batch-manifest ceremony reduction** — declared-scope multi-file work compresses Rule 22 ceremony for low-impact ops in-scope. Protected paths, declared-high ops, structural signals, and out-of-scope drift still get the full assessment. Requires `jq`.
 - Configurable critical paths that always require full impact assessment.
-- Ships 33 working rules, a 7-step change decision framework with worked examples, and enforcement mechanisms documentation.
+- Ships 34 working rules, a 7-step change decision framework with worked examples, and enforcement mechanisms documentation.
 
 **Knowledge surfaces during work.**
 
 - `/context` — Load relevant knowledge by topic using the tag index, with project expansion. `/context {project-tag}` also loads project-specific files from `projects/{tag}/**`, grouped separately from cross-project results.
-- `/rules` — Quick lookup into the 33 working rules by number or keyword.
+- `/rules` — Quick lookup into the 34 working rules by number or keyword.
 
 **Codebase and task mapping turn ambiguous surface area into structured artifacts Claude can ground decisions against.**
 

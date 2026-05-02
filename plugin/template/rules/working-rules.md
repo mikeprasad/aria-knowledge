@@ -227,3 +227,48 @@ Before writing a call to any third-party API, SDK, library, CLI, or external too
 **Why:** Trained-knowledge drift and unfamiliar API surfaces produce calls that look correct, pass review, and fail at runtime — the highest debugging-cost failure mode. Doc-check is bounded and one-shot per surface per session; the guess cost isn't.
 
 **Origin:** A new scraping API integration produced multiple runtime errors — payload shape, auth, pagination — every one of which was resolved by reading the API documentation after the fact. Reading the docs before writing the integration would have prevented all of them.
+
+### 34. Validate the plan with Rule 22's framework before executing
+
+Before executing a plan that meets the triggers below, apply Rule 22's full 7-step framework to the *plan itself*. The goal: validate that this is the right plan based on **(a) what we know now, (b) what we have accessible to know, and (c) the actual goal**. A plan can pass per-edit Rule 22 on every edit and still fail systemically if any framework step — Identify, Intake, Criteria, Solutions, Rank, Validate, Execute — was skipped or shortcut at plan-formation time.
+
+**Triggers — plan-level review required before the first edit:**
+
+- **New features** — new functionality, files, contracts, or net-new capability
+- **External surfaces** — plans involving any third-party API, SDK, library, CLI, or external service (composes with Rule 33)
+- **Architecture or structural change** — cross-cutting refactors, schema changes, public interface or contract changes
+- **Re-implementations, rewrites, or migrations** — replacing existing structure rather than extending it
+- **Unfamiliar-domain plans** — operating in a domain with no active session memory
+- **Asymmetric failure cost** — irreversible operations, shared state, public-repo content, anything where reversal is costly
+
+**Out of scope** (per-edit Rule 22 alone suffices):
+
+- Localized bug fixes with single-file or single-function scope
+- Doc-only changes within existing structure
+- Single-edit operations
+- Routine maintenance (version bumps, dep updates following established procedure)
+
+**Application — the framework runs on the plan:**
+
+Run all 7 steps of Rule 22 against the plan, not just the edits. Each step at plan level:
+
+1. **Identify** — the plan's actual goal, not the surface ask
+2. **Intake** — *what do we know now, what's accessible to know, what would change the plan if known?* Apply Rule 33 for third-party surfaces. Don't proceed blindly when accessible information would change the plan.
+3. **Criteria** — what does the right plan look like; objective, validatable, grounded in needs/constraints/goals
+4. **Solutions** — at least one alternative considered (rebuild, extend, modify context, combine, defer)
+5. **Rank and decide** — which plan, why, what would change the answer
+6. **Validate** — does the chosen plan logically hold up against everything we just intaked
+7. **Execute** — per-edit Rule 22 takes over from here
+
+**Marker format:** emit `[Rule 34]` block before the first qualifying edit, formatted the same as Rule 22's per-edit marker but covering the whole plan. Per-edit `[Rule 22]` markers continue to fire after; in-scope edits can briefly reference the plan instead of re-deriving the framework.
+
+**Composes with Rule 22, Rule 24, Rule 33, batch manifests:**
+
+- **Rule 22** fires per-edit (hook-enforced); Rule 34 fires per-plan (currently discipline-enforced)
+- **Rule 24** is the plan-exit gate ("process steps define done"); Rule 34 is the plan-entry gate
+- **Rule 33** is the third-party-surfaces instance of Step 2 at plan level — when the trigger is "external surfaces," Rule 33's routing order is the operational definition of "Intake complete" for that trigger
+- **Batch manifests** (see `change-decision-framework.md`) are an *execution-time* ceremony-reduction mechanism within a declared scope; Rule 34 is a *plan-formation* quality gate before execution starts. Distinct axes — batch manifests reduce ceremony, Rule 34 validates plan correctness.
+
+**Why:** A plan formed on incomplete intake, weak criteria, unvalidated assumptions, or unconsidered alternatives produces failures that look like execution problems but are plan problems. Per-edit Rule 22 catches scope drift; it cannot catch a flawed premise. Rule 34 moves the same scrutiny upstream to where it can still change the plan.
+
+**Origin:** A scraping API integration was planned, executed cleanly per per-edit Rule 22, and failed on every call — incorrect payload shape, auth header, pagination assumptions. The API's documentation was freely accessible the whole time. A plan-level Rule 22 review would have flagged the Step 2 (Intake) gap before any code was written. Same incident underwrites Rule 33, which is the third-party-API-specific corollary; Rule 34 is the general plan-formation rule.

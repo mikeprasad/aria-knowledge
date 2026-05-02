@@ -80,6 +80,30 @@ The lighter check:
 
 ---
 
+## Plan-Level Application (Rule 34)
+
+The framework above is enforced per-edit via `PreToolUse`/`PostToolUse` hooks on Edit/Write — that's its primary firing surface. **Rule 34** extends the same framework to the *plan-formation* layer for qualifying plans (new features, external surfaces, architecture/structural changes, re-implementations, unfamiliar-domain plans, asymmetric failure cost — see Rule 34 in `working-rules.md` for the full trigger list and out-of-scope clauses).
+
+**Why this layer exists:** A plan can pass per-edit Rule 22 on every edit and still fail systemically if any framework step was skipped at plan-formation time. Per-edit framework catches scope drift during execution; plan-level framework catches flawed premises, missing intake, weak criteria, and unconsidered alternatives *before* execution starts.
+
+**At plan-formation time, run all 7 steps against the plan itself:**
+
+- **Identify** — the plan's actual goal, not the surface ask
+- **Intake** — what's accessible to know that would change the plan if known: local docs, READMEs, official docs, `context7`, `--help` output, the user (Rule 7). Apply Rule 33 for third-party surfaces.
+- **Criteria** — what does the right plan look like
+- **Solutions** — at least one alternative considered
+- **Rank and decide** — which plan, why
+- **Validate** — does the chosen plan logically hold up against everything we just intaked
+- **Execute** — per-edit Rule 22 takes over from here
+
+**Marker:** emit a `[Rule 34]` block before the first qualifying edit, formatted the same as Rule 22's per-edit marker but covering the whole plan. Per-edit `[Rule 22]` markers continue to fire after; in-scope edits can briefly reference the plan instead of re-deriving the framework.
+
+**Enforcement state:** Currently soft-enforced via the rule text in `working-rules.md` and the discipline of emitting the marker (Layer 1 in `enforcement-mechanisms.md`). Hook enforcement (Layers 2-3) is deferred pending real-world calibration of trigger heuristics — same evolution arc as Rule 22 itself, which shipped as text first and gained hooks once usage data clarified the trigger surface.
+
+**Distinct from batch manifests:** Batch manifests (referenced below in "Rationalizations that do not apply" and ADR 021) are an *execution-time* ceremony-reduction mechanism within a user-declared scope. Rule 34 is a *plan-formation* quality gate before execution starts. Complementary, not overlapping — a typical workflow is: emit `[Rule 34]` plan-level marker → declare batch manifest if the execution will be bulk mechanical → per-edit `[Rule 22]` markers fire (compressed under the manifest where in-scope) → post-edit scope checks fire.
+
+---
+
 ## Post-Edit Scope Check (5 Questions)
 
 After every edit, verify:
