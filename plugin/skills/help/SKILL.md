@@ -19,6 +19,7 @@ Print the command reference table. No config or file access needed.
 | /extract | Capture insights, decisions, and feedback from the current conversation |
 | /audit-knowledge (alias: /knowledge-audit) | Review backlogs, promote to knowledge files, rebuild index |
 | /audit-config (alias: /config-audit) | Check project configs and docs for drift and broken references |
+| /retrospect [--range/--pr/--session/--commit] | Structured retrospective on a shipped commit range — per-fix validation, simpler-alternative discipline, re-diagnosis, action verdicts, failure-mode pattern check |
 | /context [tags] | Load relevant knowledge files by topic (supports AND/OR, project expansion) |
 | /index | Rebuild the tag-based knowledge index with cross-references |
 | /rules [number] | Look up a working rule by number or keyword |
