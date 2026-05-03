@@ -62,7 +62,7 @@ Read the expected structure from `${CLAUDE_PLUGIN_ROOT}/template/`.
 >
 > Your knowledge folder now contains two classes of template files:
 >
-> - **Plugin-managed** — `README.md`, `OVERVIEW.md`, `rules/working-rules.md`, `rules/change-decision-framework.md`, `rules/enforcement-mechanisms.md` (and `projects/README.md` when the project tier is enabled). These are diffed on every `/setup` run. Customize them freely — your edits will appear as diff prompts when plugin updates ship. That's how you receive improvements without silent overwrites. Each managed file also carries a `<!-- plugin-managed: -->` comment header so you can spot them at edit time.
+> - **Plugin-managed** — `README.md`, `OVERVIEW.md`, `rules/working-rules.md`, `rules/change-decision-framework.md`, `rules/enforcement-mechanisms.md`, `rules/retrospect-patterns.md` (and `projects/README.md` when the project tier is enabled). These are diffed on every `/setup` run. Customize them freely — your edits will appear as diff prompts when plugin updates ship. That's how you receive improvements without silent overwrites. Each managed file also carries a `<!-- plugin-managed: -->` comment header so you can spot them at edit time.
 > - **User-owned** — `LOCAL.md`, `rules/user-rules.md`, intake backlogs (`insights-backlog.md`, `decisions-backlog.md`, `extraction-backlog.md`, `rules-backlog.md`) and the `intake/ideas/` directory (one file per idea since v2.11), audit logs under `logs/`, directory README stubs (`guides/`, `approaches/`, `decisions/`, `references/`, `archive/`), and per-project READMEs under `projects/{tag}/`. ARIA never diffs or overwrites these. Your customizations live here safely.
 >
 > See `OVERVIEW.md` "Plugin-Managed vs User-Owned Files" for details. This note appears only on first setup.
@@ -102,7 +102,7 @@ ARIA v2.11 moved the ideas backlog from a single `intake/ideas-backlog.md` file 
 
 For each templated file that already exists in the user's folder, compare against the plugin's shipped version in `${CLAUDE_PLUGIN_ROOT}/template/`.
 
-**Files to diff:** `rules/working-rules.md`, `rules/change-decision-framework.md`, `rules/enforcement-mechanisms.md`, `README.md`, `OVERVIEW.md`, `projects/README.md` (plugin-managed if present)
+**Files to diff:** `rules/working-rules.md`, `rules/change-decision-framework.md`, `rules/enforcement-mechanisms.md`, `rules/retrospect-patterns.md`, `README.md`, `OVERVIEW.md`, `projects/README.md` (plugin-managed if present)
 
 **Never diff:** `LOCAL.md` (user-owned), `rules/user-rules.md` (user-owned — your custom rules), directory README stubs (`guides/README.md`, `approaches/README.md`, `decisions/README.md`, `references/README.md`, `archive/README.md`), backlog files (`intake/insights-backlog.md`, `intake/decisions-backlog.md`, `intake/extraction-backlog.md`, `intake/rules-backlog.md`) and the `intake/ideas/` directory (`intake/ideas/README.md` and all per-file ideas under `intake/ideas/**`), audit log files (`logs/knowledge-audit-log.md`, `logs/config-audit-log.md`), and per-project READMEs (`projects/{tag}/README.md` and any other content under `projects/{tag}/**`) — these contain user data or user-customizable content.
 
