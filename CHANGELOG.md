@@ -2,6 +2,50 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## [2.13.5] - 2026-05-03
+
+Patch release adding the `/retrospect` skill — a structured retrospective tool for shipped commit ranges with per-fix validation enforcement, simpler-alternative discipline, re-diagnosis when fixes failed, and a growing failure-mode pattern library.
+
+### Added — `/retrospect` skill in `plugin/skills/retrospect/SKILL.md`
+
+A new slash command that runs a 10-section retrospective on a shipped commit range, single commit, PR, or current session. The skill enforces a validation discipline: no fix is marked effective without explicit, named evidence (log event, reproduction-then-fix-verified, production instrumentation, or deployed-state check). Unvalidated fixes are flagged 🤷 Bundle-unverified or ❓ Unvalidated and cannot reach a KEEP action. Failed/partial fixes feed back into a re-diagnosis section that names surviving hypotheses and the specific instrumentation needed to discriminate between them — converting failed releases into evidence for the next attempt rather than another speculative fix.
+
+The skill also runs a **failure-mode pattern check** against `rules/retrospect-patterns.md` (canonical) and `projects/<proj>/retrospect-patterns.md` (project-specific when applicable). Pattern hits surface named process failure modes (e.g., `diagnose-from-shape-not-path`, `bundle-unverification`, `speculative-iteration`, `phrase-tell-consistent-with-evidence`) so that recurring discipline gaps are visible across retrospectives. Novel patterns identified during a retrospective can be added to either library on user approval.
+
+### Added — Canonical pattern library at `plugin/template/rules/retrospect-patterns.md`
+
+Seeded with 9 canonical, project-agnostic failure-mode patterns derived from real retrospective evidence. Each entry includes detection cues, why-it's-a-problem, counter-discipline, and a references list. The file is registered as plugin-managed in `plugin/skills/setup/SKILL.md` — user-added patterns appear as diff prompts on plugin upgrades, never silently overwritten.
+
+### Added — Plugin-managed registration in `plugin/skills/setup/SKILL.md`
+
+`rules/retrospect-patterns.md` added to both the educational plugin-managed file list and the diff-loop file list, so `/setup` recognizes the new template.
+
+### Added — `/retrospect` listing in `plugin/skills/help/SKILL.md` and `README.md`
+
+Discoverability via `/help` and the public-facing skill catalog.
+
+### Why this skill now
+
+After shipping releases that produced multi-fix bundles where some fixes were necessary, some addressed misdiagnosed causes, and some over-engineered working code paths, the failure mode was clear: without a structured retrospective, the next instinct after a partial release is another speculative fix, repeating the loop. The `/retrospect` skill makes a structured retrospective the default response to a failed/partial release and treats post-deploy reality (not pre-merge code review) as the primary source of truth. Validation enforcement is the keystone — no fix is marked "shipped" without named evidence — and the failure-mode pattern library makes process learnings reusable across projects rather than re-discovered each retrospective.
+
+### Soft-suggest trigger
+
+The skill instructions include Claude-side judgment for offering `/retrospect` (never auto-executing) when the user's message contains regression cues ("still broken," "didn't fix," "review what you did," sharing test logs that show failure) and the current session has shipped recent fixes. Hook-based auto-trigger is deferred to v2 pending real-world calibration of which release events deserve auto-prompting.
+
+### Out of scope (v1)
+
+- Cross-change pattern *interpretation* (raw counts only)
+- Automated pattern cue matching (judgment-based in v1)
+- Auto-trigger on git push events
+- Linear ticket auto-creation for FOLLOWUP-TICKET actions (drafts only in v1)
+- Multi-bundle/series retrospectives
+
+### Upgrade notes
+
+- **Reinstall recommended** to pick up the new skill, the seeded canonical pattern library, and the setup registration.
+- **No config migration** — no new hooks, no new top-level config keys. (A future `retrospect:` block in `~/.claude/aria-knowledge.local.md` will configure default destinations; v1 uses fixed defaults.)
+- **No existing skill behavior changed** — `/retrospect` is purely additive.
+
 ## [2.13.4] - 2026-05-02
 
 Patch release adding **Rule 34: Validate the plan with Rule 22's framework before executing** to the working-rules template, plus supporting cross-references in `change-decision-framework.md` and `enforcement-mechanisms.md`. Rule 33's plan-level counterpart — extends the same framework discipline from per-edit to per-plan scope.
