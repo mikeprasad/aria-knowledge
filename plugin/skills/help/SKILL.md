@@ -46,6 +46,7 @@ These are recommendations only — ARIA does not force a model. Switch per sessi
 | /extract | Opus 4.6 (1M context), medium-to-high effort | Judgment-heavy: distinguishing reusable signal from ephemeral noise, writing non-obvious Why/How-to-apply lines. |
 | /audit-knowledge | Opus 4.6 (1M context), medium-to-high effort | Cross-references backlogs against the promoted index, decides promotion vs. discard, detects emerging themes. |
 | /audit-config | Opus 4.6 (1M context), medium-to-high effort | Reads across CLAUDE.md files and configs to detect drift and broken references. |
+| /retrospect | Opus 4.6 (1M context), medium-to-high effort | Multi-stage judgment per fix: validation status assignment, simpler-alternative identification, hypothesis generation, failure-mode pattern matching, action verdict synthesis. Highest leverage from stronger models. |
 | /ask | Opus 4.6 (1M context), medium-to-high effort (ambiguous topics) or Sonnet 4.6 (scoped lookups) | Research + draft + categorize. Drop to Sonnet when the question is narrow. |
 | /codemap create | Opus 4.6 (1M context) minimum | Full-repo traversal needs the large context window so sections aren't truncated mid-generation. |
 | /codemap update, /codemap section, /wrapup, /intake, /distill, /stitch | Sonnet 4.6, medium effort | Structured work with clear prescribed output. |
