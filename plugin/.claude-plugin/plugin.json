@@ -1,7 +1,7 @@
 {
   "name": "aria-knowledge",
   "version": "2.13.5",
-  "description": "Knowledge repository management — audit memory/plans, scan configs for drift, extract session knowledge, manage backlogs, look up rules, build tag indexes, load knowledge by topic, clip URLs/snippets, snapshot session transcripts on demand, and view knowledge base health stats. Includes Rule 22 enforcement hooks (with abbreviated mode for planning paths and configurable critical paths), session start audit checks, pre-compaction transcript capture, post-compaction review prompts, and automatic knowledge surfacing when tasks are created. IMPORTANT: All skills except /setup require ~/.claude/aria-knowledge.local.md to exist. If missing when any skill is invoked, stop and tell the user to run /setup.",
+  "description": "ARIA — Applied Reasoning and Insight Architecture. Persistent human-governed knowledge for Claude Code via a five-phase lifecycle: capture → govern → promote → apply → refresh. Stages session insights/decisions/feedback into review backlogs, promotes approved items to a tag-indexed markdown base, and applies them via /context, /rules, /codemap, /stitch, /distill, /retrospect (release retrospectives with per-fix validation), and Rule 22 change-decision hooks on every Edit/Write. Ships 34 working rules + a 7-step framework, audit cadences, ideas-lifecycle routing, drift detection, an optional shared-knowledge tier for team promotions, and structural-signal surfacing on critical paths. IMPORTANT: All skills except /setup require ~/.claude/aria-knowledge.local.md to exist. If missing when any skill is invoked, stop and tell the user to run /setup.",
   "author": {
     "name": "Mike Prasad"
   },
