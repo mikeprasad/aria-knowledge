@@ -47,6 +47,7 @@ This phase is what separates ARIA from systems that auto-canonicalize: confident
 Approved knowledge becomes durable markdown — rules, approaches, decisions, guides, references. Each promotion is a human decision, traceable through git history.
 
 - `/index` — Rebuild the tag index. Normalizes tags, flags untagged files, suggests cross-references, updates project mappings.
+- `/audit-share` (alias `/share-audit`) — Batch-promote personal knowledge to team-visible per-repo `_project-knowledge/` folders when the optional shared-knowledge tier is enabled. Per-item review with sanitization warnings on public-repo targets. See [Shared knowledge tier](#shared-knowledge-tier-since-v213) below.
 - An optional **project-specific tier** (v2.8.0+) organizes architecture decisions and patterns by project under `projects/{tag}/`. Cross-project promotion fires when patterns validate across multiple projects.
 
 ### Apply
@@ -147,6 +148,8 @@ See [OVERVIEW.md](plugin/template/OVERVIEW.md) for the full explanation of why t
 1. Download the latest zip from [Releases](https://github.com/mikeprasad/aria-knowledge/releases)
 2. In Claude Code, go to **Customize > Add Plugin > Local** and select the downloaded zip
 3. Run `/setup` to configure your knowledge folder
+
+After install, run `/help` anytime to see the full command catalog with model recommendations.
 
 ## Works Well With Obsidian
 
