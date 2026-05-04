@@ -4,7 +4,18 @@ All notable changes to ARIA will be documented in this file.
 
 ## [2.13.6] - 2026-05-05
 
-**Documentation patch — surface aria-cowork as a sibling plugin and cross-reference the new Cowork plugin-authoring guide.** Pure CLAUDE.md additions; no plugin behavior, schema, skill, or template content changes.
+**Documentation patch — surface aria-cowork as a sibling plugin, cross-reference the new Cowork plugin-authoring guide, and refine Rule 34's trigger list with an architectural-claims trigger surfaced by a real failure mode.** Pure CLAUDE.md + template/rules/ additions; no plugin behavior, schema, or skill changes.
+
+### Added — Rule 34 trigger refinement in `template/rules/`
+
+A new trigger added to Rule 34's plan-level review list: **"Architectural claims about existing systems"** — asserting how a system's data flow, rendering model, or rule-enforcement layer currently works *or doesn't work*. Single-layer reads frequently produce wrong claims when transformations live upstream; the claim becomes a load-bearing premise for downstream proposals.
+
+- **`template/rules/working-rules.md`** — added the trigger bullet to Rule 34's trigger list, between "Asymmetric failure cost" and the "Out of scope" sub-section.
+- **`template/rules/change-decision-framework.md`** — added the matching "or claims about existing systems" qualifier to the parenthetical trigger summary at the start of "Plan-Level Application (Rule 34)" so the summary stays in sync with the authoritative list.
+
+**Origin:** A multi-turn conversation produced ~6 turns of architectural recommendation about an existing nav-construction layer, based on a single-file render-layer read. The actual rule was already implemented at the data-loader layer, in a commit predating the conversation by 20 days. Audit found this only after explicit pushback. The "currently works or doesn't work" qualifier specifically catches the highest-confidence wrong-claim shape — claims that an existing rule *isn't* enforced when it actually is, where the proposed fix duplicates already-existing logic.
+
+**Cross-plugin parity:** aria-cowork v0.2.4 mirrors this template change in the same patch window — both plugins ship the same Rule 34 trigger list per the cross-plugin compatibility note in their CLAUDE.mds.
 
 ### Added — `CLAUDE.md` updates
 
@@ -18,10 +29,10 @@ aria-cowork v0.1.0–v0.2.3 wrote `captured_via: aria-cowork` to `/ask` and `/cl
 ### Preserved
 
 - All skill behavior unchanged.
-- All template content unchanged.
 - All hook configurations unchanged.
 - aria-config.md schema unchanged.
 - License + repository + keywords + homepage in plugin.json unchanged.
+- All template content outside Rule 34 trigger list unchanged.
 
 ---
 

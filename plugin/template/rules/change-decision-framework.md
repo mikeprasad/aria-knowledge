@@ -82,7 +82,7 @@ The lighter check:
 
 ## Plan-Level Application (Rule 34)
 
-The framework above is enforced per-edit via `PreToolUse`/`PostToolUse` hooks on Edit/Write — that's its primary firing surface. **Rule 34** extends the same framework to the *plan-formation* layer for qualifying plans (new features, external surfaces, architecture/structural changes, re-implementations, unfamiliar-domain plans, asymmetric failure cost — see Rule 34 in `working-rules.md` for the full trigger list and out-of-scope clauses).
+The framework above is enforced per-edit via `PreToolUse`/`PostToolUse` hooks on Edit/Write — that's its primary firing surface. **Rule 34** extends the same framework to the *plan-formation* layer for qualifying plans (new features, external surfaces, architecture/structural changes or claims about existing systems, re-implementations, unfamiliar-domain plans, asymmetric failure cost — see Rule 34 in `working-rules.md` for the full trigger list and out-of-scope clauses).
 
 **Why this layer exists:** A plan can pass per-edit Rule 22 on every edit and still fail systemically if any framework step was skipped at plan-formation time. Per-edit framework catches scope drift during execution; plan-level framework catches flawed premises, missing intake, weak criteria, and unconsidered alternatives *before* execution starts.
 

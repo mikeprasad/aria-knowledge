@@ -240,6 +240,7 @@ Before executing a plan that meets the triggers below, apply Rule 22's full 7-st
 - **Re-implementations, rewrites, or migrations** — replacing existing structure rather than extending it
 - **Unfamiliar-domain plans** — operating in a domain with no active session memory
 - **Asymmetric failure cost** — irreversible operations, shared state, public-repo content, anything where reversal is costly
+- **Architectural claims about existing systems** — asserting how a system's data flow, rendering model, or rule-enforcement layer currently works or doesn't work. Single-layer reads frequently produce wrong claims when transformations live upstream; the claim becomes a load-bearing premise for downstream proposals.
 
 **Out of scope** (per-edit Rule 22 alone suffices):
 
