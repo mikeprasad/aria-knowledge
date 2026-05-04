@@ -6,6 +6,10 @@ ARIA (Applied Reasoning and Insight Architecture) — an active knowledge and de
 
 **Repository:** GitHub (`mikeprasad/aria-knowledge`) — **public repo**
 
+## Sibling Plugin (aria-cowork)
+
+A Cowork-side counterpart lives at `~/Projects/aria/aria-cowork/` (`mikeprasad/aria-cowork`, public). Both plugins share the user's `~/Projects/knowledge/` folder and write to the same canonical config (`aria-config.md`) under an additive-only schema (per ADR-002 in the aria-cowork knowledge folder). Edits to shared surfaces — `aria-config.md` field names, the `template/rules/` content, the `working-rules.md` rule numbering — should preserve cross-plugin compatibility. aria-cowork is at v0.2.4+ and ports 10 of aria-knowledge's 23 skills (with 5 explicitly Code-only excluded per its ADR-005). Cowork-specific authoring constraints documented in `knowledge/guides/claude/cowork-plugin-validation.md`.
+
 ## Project Structure
 
 ```
@@ -57,6 +61,7 @@ Cross-project knowledge that applies to ARIA:
 - `knowledge/rules/change-decision-framework.md` — Rule 22 framework
 - `knowledge/rules/enforcement-mechanisms.md` — enforcement tier model
 - `knowledge/guides/claude/plugin-development.md` — Claude Code plugin patterns
+- `knowledge/guides/claude/cowork-plugin-validation.md` — Claude Cowork plugin patterns (sibling guide; relevant if coordinating with aria-cowork or shipping a Cowork-side plugin)
 
 Pre-staged ADR candidates live in `~/Projects/knowledge/intake/decisions-backlog.md` — check there for what's currently queued for next `/audit-knowledge`. Themes queued here historically drift as ADRs promote; the live backlog is the source of truth.
 

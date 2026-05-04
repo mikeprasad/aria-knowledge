@@ -2,6 +2,29 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## [2.13.6] - 2026-05-05
+
+**Documentation patch — surface aria-cowork as a sibling plugin and cross-reference the new Cowork plugin-authoring guide.** Pure CLAUDE.md additions; no plugin behavior, schema, skill, or template content changes.
+
+### Added — `CLAUDE.md` updates
+
+- **New "Sibling Plugin (aria-cowork)" section** between the intro and Project Structure. Names the sibling repo (`mikeprasad/aria-cowork`, public, at `~/Projects/aria/aria-cowork/`), notes the shared `~/Projects/knowledge/` folder + additive-only `aria-config.md` schema (per aria-cowork's ADR-002), flags shared-surface edit caution (cross-plugin compatibility on field names, template/rules/ content, working-rules.md numbering), summarizes the 10-of-23 skills port + 5 explicit Code-only exclusions per aria-cowork's ADR-005, and forward-points to `knowledge/guides/claude/cowork-plugin-validation.md`.
+- **New cross-project knowledge bullet**: `knowledge/guides/claude/cowork-plugin-validation.md` added to the Knowledge Repository list alongside the existing Code-side `plugin-development.md`. The Cowork guide captures durable findings from the aria-cowork v0.2.0 → v0.2.1 description-length-cap diagnostic — relevant to anyone coordinating with aria-cowork or shipping a Cowork-side plugin.
+
+### Considered and rejected — `captured_via: aria-knowledge` field backport
+
+aria-cowork v0.1.0–v0.2.3 wrote `captured_via: aria-cowork` to `/ask` and `/clip` frontmatter. Backporting a symmetric `captured_via: aria-knowledge` was considered for cross-surface provenance audit. **Rejected** per Rules 13 + 18 (simplest solution wins; foundational design over patching) — per-doc metadata accumulates unbounded cost across 100s of captured docs over months for a hypothetical-only consumer. aria-cowork v0.2.4 also removes the field on the same reasoning, restoring symmetry rather than breaking it. Better alternatives if surface-provenance becomes a real audit need: centralized `logs/capture-log.md` event log, time-correlation against existing surface session logs, or discretionary `tags: [surface:cowork]` on specific captures.
+
+### Preserved
+
+- All skill behavior unchanged.
+- All template content unchanged.
+- All hook configurations unchanged.
+- aria-config.md schema unchanged.
+- License + repository + keywords + homepage in plugin.json unchanged.
+
+---
+
 ## [2.13.5] - 2026-05-03
 
 Patch release adding the `/retrospect` skill — a structured retrospective tool for shipped commit ranges with per-fix validation enforcement, simpler-alternative discipline, re-diagnosis when fixes failed, and a growing failure-mode pattern library.
