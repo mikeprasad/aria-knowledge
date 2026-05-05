@@ -213,3 +213,27 @@ The user is at the keyboard with full access to runtime state. Claude is reading
 
 ### Counter-discipline
 For any non-trivial state bug, before the second fix attempt, ask the user a specific check: "in DevTools, run `<exact code>` and tell me what it returns" or "show me localStorage keys matching `<pattern>`."
+
+---
+
+## architectural-claim-without-source-trace
+
+**Tier:** canonical
+**First identified:** 2026-05-05 in a real-use retrospective (the first instance Rule 34's recognition cues were calibrated against).
+**One-line summary:** Asserting how an existing system currently works (or doesn't work) — especially negative-existence claims like "X doesn't enforce Y" — without reading the enforcement-layer source first.
+
+### Detection cues
+- Conversational turn frames an architectural change as needed because an existing system "doesn't" do something (negative-existence claim — the highest-confidence wrong-claim shape)
+- Architectural proposal landed before any grep/read of the candidate enforcement layer (loader, registry, middleware, validator)
+- Multiple turns spent designing a substitution / append / redesign pattern before the existing implementation is named
+- Same shape on the docs surface: a "STILL OPEN" / "outstanding" claim in a tracker or audit doc that turns out to already be shipped, written without source-trace
+- Phrase fragments: "the loader doesn't enforce…", "we currently don't…", "this isn't validated anywhere…", "X is missing from [layer]"
+
+### Why it's a problem
+Negative-existence claims about your own system survive the highest plausibility bar — the assertion sounds technical and structural, so it isn't challenged. But "X is not enforced" is *exactly* the claim that requires a source-trace, because the cost of being wrong is shipping work that duplicates existing infrastructure (or worse, replaces working code). The first calibration instance was a multi-turn architecture-substitution proposal whose target was already implemented in a 20-day-old commit at the data-loader layer; the same recognition gap also surfaced on the docs surface as a "STILL OPEN" tracker regen that listed already-shipped items.
+
+### Counter-discipline
+Before any architectural claim about how an existing system works (or doesn't work), grep for the candidate enforcement layer and read it. If the claim is negative-existence ("doesn't enforce X"), the source-trace is mandatory — the wrong-claim cost asymmetry is too high. CODEMAP enforcement-point one-liners are the standing defense; absent them, an in-line trace pass before the architectural turn is required. Aligns with Rule 34 (validate plan before executing) — the rule-text catches the trigger prospectively, this pattern catches the failure shape retrospectively.
+
+### References
+- *(seeded — first canonical reference is the 2026-05-05 cs-builder Stage 1 close-out gate retrospective in the plugin author's environment)*

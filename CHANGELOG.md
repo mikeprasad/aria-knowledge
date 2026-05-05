@@ -2,6 +2,31 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## [2.13.8] - 2026-05-05
+
+**New canonical retrospect pattern: `architectural-claim-without-source-trace`.** Adds the failure-mode detection counterpart to v2.13.7's prospective Rule 34 layering. Where v2.13.7 added recognition cues + required marker format to catch the trigger *before* claiming, v2.13.8 adds the post-incident pattern that `/retrospect` runs detect when the trigger fired but wasn't caught — closing the prospective-plus-retrospective discipline pair against the same recognition gap.
+
+### Added — Canonical retrospect pattern (`template/rules/retrospect-patterns.md`)
+
+- **`architectural-claim-without-source-trace`** — new canonical pattern entry following the existing pattern-library format. Detection cues cover both code-side (architectural-substitution proposals before source-trace) and docs-side (stale "STILL OPEN" tracker entries written without source-trace) instances of the same recognition gap. The pattern's *Why it's a problem* names negative-existence claims ("X is not enforced") as the highest-confidence wrong-claim shape — *exactly* the claim that requires a source-trace because the cost of being wrong is shipping work that duplicates existing infrastructure or replaces working code. Counter-discipline cross-references Rule 34, framing the rule-text as the prospective catch and the pattern as the retrospective catch.
+- First identified in a real-use cs-builder retrospective on 2026-05-05 — same incident lineage as v2.13.6's Rule 34 trigger expansion and v2.13.7's enforcement layering. v2.13.8 closes the third leg.
+
+### Origin — Layering map across three same-day releases
+
+| Version | Layer | Surface |
+|---|---|---|
+| v2.13.6 | Rule text | "Architectural claims about existing systems" trigger added to Rule 34 (working-rules.md) |
+| v2.13.7 | Layer 3 enforcement | Recognition cues + required `[Rule 34]` marker format + self-check questions (working-rules.md + change-decision-framework.md) |
+| v2.13.8 | Retrospective detection | `/retrospect` pattern entry for post-incident bundle scans (retrospect-patterns.md) |
+
+The three releases form a complete prospective-plus-retrospective discipline pair against the architectural-claims recognition gap. Rule 34 catches the trigger before the architectural turn happens; the new pattern catches the failure shape when `/retrospect` runs on a bundle where the trigger fired uncaught.
+
+### Preserved
+
+All template content from v2.13.7 unchanged. `retrospect-patterns.md` is purely additive — the 9 prior canonical entries (`diagnose-from-shape-not-path`, `fix-bundling`, `bundle-unverification`, `speculative-iteration`, `judgment-confused-with-evidence`, `phrase-tell-consistent-with-evidence`, `pattern-matched-from-memory`, `pushback-as-cue`, `user-not-recruited`) are byte-identical to v2.13.7.
+
+---
+
 ## [2.13.7] - 2026-05-05
 
 **Rule 34 enforcement layered up to soft Layer 3 (non-hook), plus restoration of `rules/retrospect-patterns.md` references in two user-facing template docs that were inadvertently dropped in v2.13.6.** Adds recognition cues, layer-trace methodology, required `[Rule 34]` marker format, self-check questions, and a CODEMAP-gap conditional clause to Rule 34's enforcement surface — without crossing to Layer 2 (hook). Closes the prevention-work item filed 2026-05-05 from the S62 cs-builder nav-architecture audit.
