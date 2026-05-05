@@ -96,9 +96,43 @@ The framework above is enforced per-edit via `PreToolUse`/`PostToolUse` hooks on
 - **Validate** — does the chosen plan logically hold up against everything we just intaked
 - **Execute** — per-edit Rule 22 takes over from here
 
-**Marker:** emit a `[Rule 34]` block before the first qualifying edit, formatted the same as Rule 22's per-edit marker but covering the whole plan. Per-edit `[Rule 22]` markers continue to fire after; in-scope edits can briefly reference the plan instead of re-deriving the framework.
+**Layer-trace methodology (architectural-claims trigger):**
 
-**Enforcement state:** Currently soft-enforced via the rule text in `working-rules.md` and the discipline of emitting the marker (Layer 1 in `enforcement-mechanisms.md`). Hook enforcement (Layers 2-3) is deferred pending real-world calibration of trigger heuristics — same evolution arc as Rule 22 itself, which shipped as text first and gained hooks once usage data clarified the trigger surface.
+When the trigger is "architectural claims about existing systems," Step 2 (Intake) requires tracing data flow across all relevant layers before claiming. Single-layer reads frequently produce wrong claims when transformations live upstream:
+
+1. **CODEMAP-first** — read the relevant CODEMAP section if one exists. If CODEMAP doesn't surface the layer being claimed about, that's a gap to file separately (see `working-rules.md` Rule 34 "CODEMAP-gap conditional" clause).
+2. **Cross-layer grep** — search for the symbol/rule across data (DB, schema, JSON), transform (loaders, mappers, normalizers), render (components, templates), export (zip, API, serializer), type (TypeScript interfaces, Zod schemas), and validator (form validation, runtime checks) layers.
+3. **`git blame` recent commits** — if the area has recent commits, the rule may already be implemented. Read those commits before claiming it isn't.
+4. **Simulate data flow with current state** — what does the live system actually output for entity X today? Often the cheapest verification.
+5. **Only after layers traced**, make the claim or propose the change.
+
+The trace results populate Step 2 (Intake) and Step 6 (Validate) of the framework — the layers checked become the intake artifacts, and the findings determine whether the original claim survives.
+
+**Required marker format:** when a Rule 34 trigger fires, emit a `[Rule 34]` block before the first qualifying edit. The block mirrors Rule 22's per-edit marker structure but covers the whole plan, with the framework body identical to Rule 22 High Impact format:
+
+```
+[Rule 34] Plan-level review — <plan summary>
+- Identify — <plan's actual goal, not the surface ask>
+- Intake — <what's known + accessible; for architectural-claims trigger, list layers traced and findings>
+- Criteria — <what the right plan looks like>
+- Solutions — <at least one alternative considered>
+- Rank — <chosen plan + why + what would change the answer>
+- Validate — <does the plan hold against intake>
+- Execute — <implementation order; per-edit Rule 22 takes over here>
+```
+
+Each labeled field is a recognition checkpoint. Skipping a field means the framework step it represents was skipped at plan-formation time. Per-edit `[Rule 22]` markers continue to fire after; in-scope edits can briefly reference the plan instead of re-deriving the framework.
+
+**Self-check before claiming:**
+
+Before making any architectural claim or structural-change proposal:
+
+1. Have I read the layer that actually contains this rule's enforcement (not just the layer where I expect to see it)?
+2. Has the area I'm claiming about been recently committed? If so, have I read those commits?
+3. If the project has a CODEMAP, does it surface this layer? If not, file a gap before claiming.
+4. If I'm making a negative-existence claim ("X isn't enforced"), have I grep'd for the actual implementation across all layers? Negative-existence claims are the highest-confidence wrong-claim shape; the proposed fix often duplicates already-existing logic.
+
+**Enforcement state:** Layered up to Layer 3 (required output format) as of v2.13.7. The rule text in `working-rules.md` provides Layer 1 (rule text + recognition cues + CODEMAP-gap conditional). The required `[Rule 34]` marker format above provides Layer 3 (auditable output format that forces visible reasoning at each framework step). Layer 2 (PreToolUse hook injection at plan-formation time) is deferred pending real-world calibration of trigger heuristics — same evolution arc as Rule 22, which shipped as text first and gained hooks once usage data clarified the trigger surface. Self-audit of transcripts for missing `[Rule 34]` blocks where they should appear is the calibration data feeding the eventual hook decision.
 
 **Distinct from batch manifests:** Batch manifests (referenced below in "Rationalizations that do not apply" and ADR 021) are an *execution-time* ceremony-reduction mechanism within a user-declared scope. Rule 34 is a *plan-formation* quality gate before execution starts. Complementary, not overlapping — a typical workflow is: emit `[Rule 34]` plan-level marker → declare batch manifest if the execution will be bulk mechanical → per-edit `[Rule 22]` markers fire (compressed under the manifest where in-scope) → post-edit scope checks fire.
 

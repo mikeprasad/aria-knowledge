@@ -31,7 +31,8 @@ knowledge/
 │   ├── working-rules.md
 │   ├── user-rules.md
 │   ├── change-decision-framework.md
-│   └── enforcement-mechanisms.md
+│   ├── enforcement-mechanisms.md
+│   └── retrospect-patterns.md  # Canonical failure-mode pattern library (powers /retrospect)
 ├── approaches/              # Validated methodologies and patterns
 ├── decisions/               # Cross-project architectural decisions (ADR format)
 ├── guides/                  # Operational knowledge — how things work in your environment

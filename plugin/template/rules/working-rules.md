@@ -242,6 +242,30 @@ Before executing a plan that meets the triggers below, apply Rule 22's full 7-st
 - **Asymmetric failure cost** — irreversible operations, shared state, public-repo content, anything where reversal is costly
 - **Architectural claims about existing systems** — asserting how a system's data flow, rendering model, or rule-enforcement layer currently works or doesn't work. Single-layer reads frequently produce wrong claims when transformations live upstream; the claim becomes a load-bearing premise for downstream proposals.
 
+**Recognition cues for "Architectural claims about existing systems":**
+
+When about to write or read these phrase patterns, that's the cue to apply Rule 34. Phrase-fragments are the gate; single words like "append" or "merge" appear in routine code talk and are too noisy alone.
+
+*Architectural framing (positive assertions about how a system works):*
+
+- "the right model" / "the wrong model"
+- "architectural endpoint"
+- "the data flow should"
+- "this changes how [system] works"
+- "via substitution" / "substitution model" / "append model"
+- "should be [substituting / appending / merging]"
+
+*Negative existence claims (highest-confidence wrong-claim shape — the proposed fix often duplicates already-existing logic):*
+
+- "doesn't enforce" / "isn't implemented" / "isn't handled"
+- "no [rule / check / validation] for this"
+- "this should be enforced but isn't"
+- "X is missing from [layer]"
+
+When you see yourself about to write any of these about an existing system, trace data flow across all relevant layers (data → transform → render → export → type → validator) before making the claim. See `change-decision-framework.md` "Plan-Level Application (Rule 34)" for the full layer-trace methodology and required marker format.
+
+**CODEMAP-gap conditional:** if the project has a CODEMAP and the architectural-claims trigger fires for an area whose CODEMAP doesn't surface the relevant rule-enforcement layer, file a CODEMAP gap before making the claim. CODEMAP-firstness only protects when the CODEMAP actually surfaces the layer being claimed about. If the project doesn't use CODEMAPs, the layer-trace methodology still applies; the gap-filing requirement doesn't.
+
 **Out of scope** (per-edit Rule 22 alone suffices):
 
 - Localized bug fixes with single-file or single-function scope

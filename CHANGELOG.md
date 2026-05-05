@@ -2,6 +2,48 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## [2.13.7] - 2026-05-05
+
+**Rule 34 enforcement layered up to soft Layer 3 (non-hook), plus restoration of `rules/retrospect-patterns.md` references in two user-facing template docs that were inadvertently dropped in v2.13.6.** Adds recognition cues, layer-trace methodology, required `[Rule 34]` marker format, self-check questions, and a CODEMAP-gap conditional clause to Rule 34's enforcement surface — without crossing to Layer 2 (hook). Closes the prevention-work item filed 2026-05-05 from the S62 cs-builder nav-architecture audit.
+
+### Added — Rule 34 enforcement layered to Layer 3 (`template/rules/`)
+
+Per `enforcement-mechanisms.md`, Rule 34 previously sat at Layer 1 (rule text + honor-system marker). The S62 nav-architecture audit (2026-05-04) provided calibration data: ~6 turns of architectural recommendation produced from a single-file render-layer read, when the actual rule was already implemented in a 20-day-old commit at the data-loader layer. **Recognition was the failure mode, not absence of rule text.** This release adds non-hook catches at Layer 3 — required output format that forces visible reasoning — without yet crossing to Layer 2 (hook prompt). Mirrors Rule 22's evolution arc: text first, format spec second, hooks once usage data clarifies trigger surface.
+
+- **`template/rules/working-rules.md`** — under Rule 34's trigger list, added a **"Recognition cues"** sub-section listing two phrase-pattern categories that signal architectural-claims trigger risk:
+  - *Positive architectural framing* — "the right model" / "the wrong model" / "architectural endpoint" / "the data flow should" / "this changes how [system] works" / "via substitution" / "substitution model" / "append model" / "should be [substituting / appending / merging]"
+  - *Negative existence claims* (highest-confidence wrong-claim shape) — "doesn't enforce" / "isn't implemented" / "isn't handled" / "no [rule / check / validation] for this" / "this should be enforced but isn't" / "X is missing from [layer]"
+
+  Phrase fragments give Claude concrete recognition cues, lowering threshold for the gate to fire. Single words like "append" or "merge" appear in routine code talk and are too noisy alone, so the gate is on phrase-fragments only.
+
+  Also added a **"CODEMAP-gap conditional"** clause: if the project has a CODEMAP and the trigger fires for an area whose CODEMAP doesn't surface the rule-enforcement layer, file a gap before claiming. **Conditional on CODEMAP existence** — does not force CODEMAP creation as a Rule 34 prerequisite. If the project doesn't use CODEMAPs, the layer-trace methodology still applies; the gap-filing requirement doesn't.
+
+- **`template/rules/change-decision-framework.md`** — under "Plan-Level Application (Rule 34)":
+  - Added **"Layer-trace methodology (architectural-claims trigger)"** sub-section with the 5-step trace that populates Step 2 (Intake) and Step 6 (Validate) of the 7-step framework when the architectural-claims trigger fires: CODEMAP-first → cross-layer grep across data/transform/render/export/type/validator → `git blame` recent commits → simulate data flow with current state → only then claim.
+  - Expanded the terse "Marker:" paragraph into a full **"Required marker format"** specification with a concrete 7-step body example. Per the 2026-05-02 design decision pinning the marker name (`[Rule 34]`, not `[Plan · Rule 22]`), the block mirrors Rule 22's per-edit marker structure but covers the whole plan, with framework body identical to Rule 22 High Impact format (Identify / Intake / Criteria / Solutions / Rank / Validate / Execute). Each labeled field is a recognition checkpoint; skipping a field means the framework step it represents was skipped at plan-formation time.
+  - Added **"Self-check before claiming"** sub-section with 4 forcing-function questions targeting the highest-value recognition gaps (have I read the layer that actually contains the rule's enforcement; recent commits; CODEMAP coverage; cross-layer grep for negative-existence claims).
+  - Updated **"Enforcement state"** paragraph to reflect Layer 3 status. Self-audit of transcripts for missing `[Rule 34]` blocks where they should appear is named as the calibration data feeding the eventual Layer 2 hook decision.
+
+### Origin — Rule 34 enforcement layering
+
+Surfaced from S62 cs-builder nav-architecture conversation (2026-05-04): ~6 turns of architectural recommendation about a "missing" append model when the append model was already implemented at `cs-builder-working/src/lib/blueprint-loader.ts:645-662`, committed 2026-04-15 (20 days before the conversation). User explicit pushback ("review and validate") triggered the audit that surfaced the gap. The S62 retrospective produced a validated approach (`audit-before-architecture-claims.md`, user-side) and queued plugin-source prevention work as an extraction-backlog item dated 2026-05-05. This release closes that loop. The phrase-pattern categories and methodology shipped in plugin source are abstracted from that approach; concrete project-specific examples, file references, and memory cross-refs stay user-side.
+
+### Considered and rejected — full approach file in plugin source
+
+Considered shipping `template/approaches/audit-before-architecture-claims.md` as a new tier of plugin-managed content. Rejected because (1) plugin design intent (per `setup` SKILL.md) treats `approaches/` as user-curated content with only the README skeleton shipped, (2) the approach was validated 2026-05-05 with one example session — insufficient bake time across diverse projects to generalize, (3) Mike-specific examples (S62 commit hashes, cs-builder file paths, memory cross-refs) are what make it concrete; sanitizing for general use weakens it, and (4) shipping one approach establishes a precedent requiring a generalizability principle for which others ship — better filed as an ADR-class decision than a routine patch. The Layer 3 mechanism shipping here closes most of the gap the approach addresses without changing plugin source's content model.
+
+### Fixed — `template/README.md` rules/ tree
+
+The `rules/` directory tree in the README's "Structure" section now lists `retrospect-patterns.md` alongside the other four rules-tier files. Previously the file shipped at `plugin/template/rules/retrospect-patterns.md` and was referenced by `/retrospect` and `/setup`, but the user-facing tree omitted it — making it undiscoverable to anyone reading the template README to understand what's in their knowledge folder.
+
+### Fixed — `template/OVERVIEW.md` plugin-managed files paragraph
+
+The "Plugin-Managed vs User-Owned Files" section's managed-files list now includes `rules/retrospect-patterns.md` between `rules/enforcement-mechanisms.md` and `projects/README.md`. This brings OVERVIEW.md in sync with `plugin/skills/setup/SKILL.md` (lines 65 and 105), which already listed the file as plugin-managed and in the `/setup` diff loop — the contradiction has now been resolved.
+
+### Origin — README/OVERVIEW docs regression
+
+Surfaced during a `/setup` diff session on a v2.13.6-installed knowledge folder where the user noticed both files were listed as "user ahead, plugin regressed." Cross-checked against the file's actual presence in `plugin/template/rules/` (still shipped) and against `setup/SKILL.md` (still authoritative on managed-file status). Both were correct; the documentation surface was the only point of drift. This patch restores the documentation invariant.
+
 ## [2.13.6] - 2026-05-05
 
 **Documentation patch — surface aria-cowork as a sibling plugin, cross-reference the new Cowork plugin-authoring guide, and refine Rule 34's trigger list with an architectural-claims trigger surfaced by a real failure mode.** Pure CLAUDE.md + template/rules/ additions; no plugin behavior, schema, or skill changes.
