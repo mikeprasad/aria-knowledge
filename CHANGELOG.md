@@ -2,6 +2,118 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## [2.14.1] - 2026-05-06
+
+**New /prospect skill (forward-looking pre-mortems on plans before execution) + active Evidence-Sourcing Pass on both /prospect and /retrospect + new release/deployment scopes for /retrospect with hybrid detection cascade + structured-frontmatter persistent log under `~/knowledge/logs/{prospect,retrospect}/` + /index discoverability for review reports.** /prospect is the forward-looking counterpart to /retrospect — runs a 10-section pre-mortem on a plan before any code is written, with the same per-step validation discipline /retrospect applies after a fix ships. Both skills now run a synchronous Evidence-Sourcing Pass (new procedural Step 3.5) that autonomously sources accessible evidence (codebase reads, public docs, MCP queries) and surfaces user-input asks for anything that requires judgment — converting unsupported assumptions to ✅/❌ before the report finalizes. Patch bump per `feedback_aria_versioning_patch_for_new_skill`: additive new skill + extension to existing skills + index scan extension; no breaking changes.
+
+### Added — /prospect skill (`plugin/skills/prospect/SKILL.md`)
+
+Forward-looking pre-mortem on a plan or approach that has been *created but not yet executed*. Mirror of /retrospect's shape so the same review muscle works in both directions. Six positional scopes plus a no-args default:
+
+| Scope | Plan source |
+|---|---|
+| `plan` (default) | Current conversation's articulated plan — TodoWrite + recent assistant plan + in-session plan files |
+| `session` | Synonym for `plan` |
+| `todos` | Just the active TodoWrite list |
+| `file <path>` | Explicit plan markdown file |
+| `linear <id>` | Linear ticket Technical Intake |
+| `branch <name>` | Uncommitted/unpushed local branch changes |
+
+Backward-compat flag forms (`--plan`, `--linear`, `--branch`, `--todos`, `--session`) accepted indefinitely. Modifier flags: `--linear-post` (post verdict to detected Linear tickets), `--no-source` (skip Step 3.5).
+
+Produces a 10-section markdown report with anchor / plan-specificity gate / per-step verdict / failure-mode pattern check / cross-step tally / frame check / diagnosis confidence / action verdict / process pre-mortem / pre-execution evidence ask. Per-step actions: PROCEED / SHRINK / SPLIT / DEFER / KILL / DEFER-PENDING-DESIGN. Risk-status taxonomy mirrors /retrospect's validation taxonomy in forward form: ✅ Pre-validated / ⚠ Theory-driven / ❌ Falsified / ❓ Unsupported / 🚫 Unverifiable-yet.
+
+Hard rule: a step's Action cannot be PROCEED unless post-Step-3.5 Risk? is ✅ Pre-validated, OR ⚠ Theory-driven WITH explicit "Acceptable risk because: …" appended. The theory-driven carve-out exists because every plan is theory-driven by definition (you're imagining, not measuring) — the carve-out forces the planner to *name the risk* rather than block all forward motion.
+
+### Added — Evidence-Sourcing Pass on both skills (`plugin/skills/{prospect,retrospect}/SKILL.md`)
+
+New procedural Step 3.5 inserted between Step 3 (Enumerate) and Step 4 (Render Report). For each candidate with non-✅ preliminary status, Step 3.5 generates the *single most decisive question* whose answer would upgrade the verdict to ✅ or ❌, categorizes the answer source as AUTO-SOURCEABLE / USER-INPUT / MIXED, then either sources autonomously or surfaces a structured ask to the user.
+
+**Auto-source tools** (allowed-tools extended with `WebFetch` + `WebSearch`):
+- Codebase: Read, Grep, Glob — for file content, references, structure
+- Version control: `git log`, `git diff`, `git show`, `git blame`
+- Public web: WebFetch (specific URL — library docs, official spec) and WebSearch (when URL is unknown). Per Rule 33, prefer official sources; per Rule 27, verify identifiers/versions are still current.
+- Local probes: `curl`, `gh`, log-tail, file-existence checks
+- MCP queries that don't require new credentials and that the user has already authorized in this session
+
+**User-input ask format** (codified inline, respecting 7 prior feedback rules — `ask_with_inline_context`, `numbered_options`, `neutral_option_framing`, `per_question_explicit_pick`, `per_item_review_cadence`, `hold_gate_steps`, `terse_numeric_answers`): one ask at a time, citations inline, four numbered options with the fourth always being "Skip — leave at <preliminary status>; will DEFER in §4.10". Synchronous barrier — the skill holds for response. "Skip" defaults to DEFER per `feedback_no_self_fabricated_go_signals` (the skill never invents a decision the user didn't make).
+
+**Constraints** (apply to both skills): two corroborating sources required for ✅ upgrade (single source upgrades only to ⚠ Theory-driven with sub-tag `single-source-inferred`); one contradicting authoritative source falsifies to ❌; no credential reads without explicit per-session permission (per `feedback_ask_before_credentials`); no destructive probes (read-only commands only); time-box ~5 tool-call rounds per question.
+
+**Skip path:** `--no-source` flag skips the entire pass for quick structural reviews. When skipped, all preliminary statuses pass through unchanged and §4.10 lists every gap as `SKIPPED-BY--no-source`.
+
+/retrospect's Step 3.5 has *two* sub-passes (vs /prospect's single pass) — bundle-marker first (resolves 🤷 by sourcing the deployed bundle and grepping for the in-bundle marker), then outcome (resolves ⚠/❓/🚫 by sourcing post-deploy logs/repros). Bundle-marker pass feeds §4.2's emit value; outcome pass feeds §4.3's emit value.
+
+### Added — `release` and `deployment` scopes for /retrospect (`plugin/skills/retrospect/SKILL.md`)
+
+Two new positional scopes joining the existing `commit`, `range`, `pr`, `session` set:
+
+- **`release`** — `git describe --tags --abbrev=0` to find the most recent semver tag, then `git log <tag>..HEAD`. If no tags, fall back to auto-range with a warning.
+- **`deployment`** — hybrid detection cascade (4 steps): (1) `gh release view --json publishedAt,tagName`, (2) `git tag --sort=-creatordate | head -1` matching `v?\d+\.\d+\.\d+`, (3) last commit on `origin/main` (or `origin/master`), (4) prompt user. First success wins. Print the resolved marker source in §4.1 Anchor so the user can verify what the skill thought "deployment" meant.
+
+Designed to cover the union of CS (semver tags), SS (Bitbucket pipelines without GH releases), and builder repos (semver) deploy conventions without per-project config.
+
+### Added — RESHIP-AND-VERIFY action for /retrospect (`plugin/skills/retrospect/SKILL.md`)
+
+New action introduced when §4.2 emits ❌ Not-in-bundle (Step 3.5.1 positively confirmed the fix did NOT ship, e.g., bundle returned 200 but the marker grep was empty, OR the deploy log shows a failed/superseded job). The fix's code is correct — it just didn't ship. §4.8 emits a project-appropriate re-deploy command (from `aria-config.md`'s `projects_list[<tag>]` if present, otherwise prompt user) plus a directive: "After re-deploy, re-run `/retrospect deployment` to confirm the bundle now contains the fix and validate outcome." Closes the loop between failed-deploy detection and re-validation.
+
+### Changed — Positional scope syntax for /prospect and /retrospect
+
+First positional argument is now the **scope keyword**; subsequent positional arguments are scope-specific. Existing flag forms (`--range`, `--pr`, `--session`, `--commit`, `--plan`, `--linear`, `--branch`, `--todos`) remain accepted indefinitely as backward-compat aliases. Both `/retrospect range a..b` and `/retrospect --range a..b` resolve identically. Argument-hint frontmatter updated to `[<scope>] [<scope-arg>] [--linear-post] [--no-source]`.
+
+### Changed — `--linear` renamed to `--linear-post` on /retrospect (no alias)
+
+For consistency with /prospect's existing `--linear-post` flag. The verb form makes the side-effect explicit (the flag triggers a POST to Linear, doesn't just consult it). Per Mike's pick, no `--linear` alias — old invocations break, but the rename is documented in plugin.json description and Step 0 mode table.
+
+### Changed — Persistent log filename + structured YAML frontmatter
+
+Reports persist to `~/knowledge/logs/prospect/<YYYY-MM-DD>-<scope>-<slug>.md` and `~/knowledge/logs/retrospect/<YYYY-MM-DD>-<scope>-<slug>.md` (existing files under the older `<YYYY-MM-DD>-<slug>.md` pattern are grandfathered — no rename).
+
+Each report is now prepended with structured YAML frontmatter (Q1.1=2 schema):
+
+```yaml
+---
+type: prospect | retrospect
+date: <YYYY-MM-DD>
+scope: <scope keyword>
+goal: <one-line>
+tickets: [<LINEAR-123>, ...]
+steps_count | fixes_count: <N>
+sourcing_pass: <flat block for prospect; nested bundle_marker + outcome blocks for retrospect>
+patterns_hit: [...]
+overall_verdict (prospect): PROCEED | PROCEED-WITH-CHANGES | HOLD | KILL
+overall_outcome (retrospect): closed | partial | unresolved | mixed
+related: [<paths to overlapping prior runs>]
+tags: [<type>, <scope>, <project-tag-if-detected>, <pattern-tag-if-applicable>]
+---
+```
+
+`related:` auto-detection (Q1.2=1, ticket-based): before writing, glob `~/knowledge/logs/{prospect,retrospect}/*.md` for files whose frontmatter `tickets:` overlaps with the current report's tickets. Cap at 10 most-recent overlaps. Bidirectional discoverability — yesterday's retrospect surfaces in today's prospect's `related:` and vice versa.
+
+`overall_outcome` derivation (retrospect): `closed` if every fix's post-Step-3.5 Validated? is ✅; `unresolved` if any fix is ❌ Invalidated or ❌ Not-in-bundle; `partial` if any fix is ⚠ partial AND none are ❌; `mixed` for any other combination.
+
+### Added — Reviews tier scan + Review Index in `/index` (`plugin/skills/index/SKILL.md`)
+
+Q1.3=1 (review reports discoverable via /context). Step 1's "Do NOT scan: ... logs/" rule replaced with a more precise carve-out: top-level `logs/*.md` (audit logs, hook debug log) remain excluded, but `logs/prospect/` and `logs/retrospect/` ARE scanned via a new "Reviews tier scan" sub-step. Review files are stored with `source: "review"` and pull retrospect/prospect-specific frontmatter (`type`, `scope`, `tickets`) alongside standard tags.
+
+Step 9's `index.md` schema gets a new `## Review Index` section between `## Team-Shared Tag Index` and `## Stale Files`, with two subsections (Retrospects, Prospects), descending-by-date sort, compact one-line entries showing date / scope / goal (truncated) / tickets / overall_outcome|overall_verdict.
+
+### Considered and deferred — Step 8 / 8c filter for review files (option C)
+
+Considered applying a high-signal triple-gate filter (ticket-ID match / pattern-hit match / explicit citation) to /index Step 8 (Cross-Reference Pass) for review files, plus a skip-with-mention-exception for Step 8c (Skill Connection Discovery). Motivation: review files have rich tag sets that match many things shallowly via the existing ≥2-tag heuristic, producing dozens of low-signal Y/N suggestions per /index run; reviews are CONSUMERS of knowledge, not SOURCES that other files should link back to. Three options were proposed (A: high-signal triple-gate + direction asymmetry + Step 8c skip; B: skip Step 8 + Step 8c entirely; C: defer with documentation).
+
+**Mike's pick: C.** Deferred because pattern depth is not yet known — until /index runs against several real review files in active /context queries, the actual signal-to-noise of the existing heuristic is theoretical. Better to ship the review-tier scan now, observe noise on real runs, refine filtering based on observed cases. Full design captured in `aria/IDEAS-BACKLOG.md` (2026-05-06 entry — `/index Step 8 + 8c filter for review files`) including implementation sketch and composes-with pointers to existing entries (the 2026-05-05 "/index focused-session cross-reference-only mode" and the 2026-04-30 "25th-Pass /index Run Findings").
+
+### Preserved
+
+All 34 working rules unchanged. Behavioral Foundation preamble from v2.14.0 unchanged. retrospect-patterns.md from v2.13.9 unchanged. /retrospect's existing 10-section report structure preserved verbatim (no section renumbering, no removals); the additions are: Step 3.5 procedural step inserted between Step 3 and Step 4, and §4.2/§4.3/§4.5/§4.7/§4.8/§4.10/Step 8 bodies extended to integrate Step 3.5 findings without breaking the section count.
+
+### Origin — applying /retrospect's discipline to forward-looking work
+
+The /prospect design surfaced from a 2026-05-06 session question: "we have /retrospect for shipped work, but the same per-fix validation discipline applies to plans before they ship — what if every step in a plan got the same scrutiny *before* code lands?" The answer was a mirror skill with parallel structure: same 10 sections, same validation taxonomy (in forward form), same hard rule (with a theory-driven carve-out for the obvious case that all plans are theory-driven). The Evidence-Sourcing Pass was added to *both* skills in the same pass to close the gap between "name the missing evidence" and "actively try to gather it" — a refinement Mike requested after seeing /prospect ship without it.
+
+---
+
 ## [2.14.0] - 2026-05-06
 
 **Behavioral Foundation preamble + Rule 20 reframed for upfront-criteria leverage + Evidence-and-limits section in README.** Distills the 34 working rules into four behavioral principles aligned with [Andrej Karpathy's January 2026 diagnosis](https://x.com/karpathy/status/2015883857489522876) and the [4-line CLAUDE.md repo](https://github.com/forrestchang/andrej-karpathy-skills) it inspired. Positions the 4-line foundation as a load-bearing entry point with the 34 rules as the operationalized expansion. Minor bump because the preamble is a user-visible structural addition above all 34 rules.

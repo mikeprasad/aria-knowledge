@@ -29,7 +29,9 @@ Scan these directories for `.md` files (excluding directory README stubs that on
 - `{knowledge_folder}/guides/` (recursive — includes subdirectories)
 - `{knowledge_folder}/references/`
 
-**Do NOT scan:** `archive/`, `intake/`, `rules/`, `logs/`, or root-level files (`README.md`, `LOCAL.md`, `OVERVIEW.md`, `index.md`).
+**Do NOT scan:** `archive/`, `intake/`, `rules/`, top-level `logs/*.md` (audit-log files like `config-audit-log.md`, `knowledge-audit-log.md`, `hook-debug.log`), or root-level files (`README.md`, `LOCAL.md`, `OVERVIEW.md`, `index.md`).
+
+**Carve-out for review reports:** the two subfolders `logs/prospect/` and `logs/retrospect/` ARE scanned as a separate "reviews tier" — see the dedicated sub-step below. Review reports use the same frontmatter scanning convention as cross-project files (tags, Last updated, first heading).
 
 For each `.md` file found:
 1. Read the file
@@ -41,6 +43,25 @@ For each `.md` file found:
 5. Store: `{path, tags[], description, last_updated, source: "cross-project"}`
 
 Report: "Scanned N files in approaches/, decisions/, guides/, references/."
+
+### Reviews tier scan (always run if either review subfolder exists)
+
+After the cross-project scan, scan `logs/prospect/` and `logs/retrospect/` for review reports written by the `/prospect` and `/retrospect` skills.
+
+For each `.md` file found in either subfolder:
+1. Read the file
+2. Extract YAML frontmatter — review reports have a richer schema than cross-project files. Pull:
+   - `tags:` — array of tags. Always includes `prospect` or `retrospect` plus the scope keyword. If missing (legacy reports written before the structured-frontmatter format), record as untagged and emit a soft warning (one-line) suggesting the file be re-run or hand-tagged.
+   - `Last updated:` — fall back to `date:` if `Last updated:` is absent (review reports use `date:` for the report-creation date).
+   - `type:` — `prospect` or `retrospect`. Used to bucket the file under "Retrospects" or "Prospects" in the `## Review Index` section of `index.md` (see Step 9).
+   - `scope:` — the scope keyword (e.g., `release`, `deployment`, `commit`, `plan`).
+   - `tickets:` — for cross-reference enrichment (consumed by `/context`).
+3. Extract the first `#` heading as the file's description (typically "/prospect — <goal>" or "/retrospect — <goal>").
+4. Store: `{path, tags[], description, last_updated, source: "review", review_type: <prospect|retrospect>, scope: <keyword>, tickets: [...]}`
+
+Report: "Scanned R review reports across logs/prospect/ and logs/retrospect/ (P prospect, Q retrospect)."
+
+If neither subfolder exists yet on disk, skip this sub-step silently (first run before any /prospect or /retrospect has been invoked).
 
 ### Project tier scan (only if `projects_enabled: true` and `projects_list` is non-empty)
 
@@ -400,6 +421,24 @@ tag1, tag2, tag3, tag4, ...
 - ~/Projects/<path>/_project-knowledge/cross/2026-04-28-init-bar.md — File description [project: cross, scope: cross]
 
 (repeat for each tag matching team-shared files, sorted alphabetically. File paths are absolute-from-home so /context can distinguish them from knowledge-folder-relative paths in the regular Tag Index. The trailing `[project: ..., scope: ...]` annotation lets /context render team-shared results with their origin info. Omit this section entirely if `projects_shared_knowledge` is empty/missing or no team-shared files exist.)
+
+## Review Index
+
+### Retrospects
+- YYYY-MM-DD [scope] — Goal text (truncated to ~60 chars) [LINEAR-123, LINEAR-456] → outcome
+- YYYY-MM-DD [scope] — Goal text [tickets] → outcome
+
+### Prospects
+- YYYY-MM-DD [scope] — Goal text [tickets] → verdict
+- YYYY-MM-DD [scope] — Goal text [tickets] → verdict
+
+(Sourced from files indexed under the reviews tier — `logs/retrospect/*.md` and `logs/prospect/*.md`. Within each subsection, sort descending by `date:` from frontmatter (newest first — most actionable for catch-up). Each entry shows: ISO date, scope keyword in brackets, truncated goal, ticket list (if any), and the report's overall_outcome (retrospects: closed / partial / unresolved / mixed) or overall_verdict (prospects: PROCEED / PROCEED-WITH-CHANGES / HOLD / KILL). The ticket list links to the ticket reference if Linear MCP is available; otherwise shows the bare IDs.
+
+Path is relative to the knowledge folder root: `logs/retrospect/YYYY-MM-DD-scope-slug.md`. Use the file path as the link target so the user can click through to the full report.
+
+If no review reports exist (first run before any /prospect or /retrospect was invoked), omit this section entirely.
+
+If reviews lack frontmatter `overall_outcome` / `overall_verdict` (legacy reports written before the structured-frontmatter format), substitute "[no verdict recorded]" rather than omitting the entry.)
 
 ## Stale Files
 
