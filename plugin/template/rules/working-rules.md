@@ -17,6 +17,21 @@ Rules are living — they get added, refined, or retired based on real experienc
 
 -----
 
+## Behavioral Foundation
+
+Four principles distill what the 34 rules below collectively enforce. Framed in the spirit of [Andrej Karpathy's January 2026 diagnosis](https://x.com/karpathy/status/2015883857489522876) of how LLMs fail at coding judgment — and the [4-line CLAUDE.md](https://github.com/forrestchang/andrej-karpathy-skills) it inspired — expanded to ARIA's operational scope.
+
+1. **Don't assume — surface tradeoffs.** Flag uncertainty, present alternatives, push back when warranted. *(Rules 5, 7, 9, 10)*
+2. **Simplest solution wins — nothing speculative.** No abstraction or feature beyond what's asked. *(Rules 13, 14, 18)*
+3. **Touch only what you must.** Match scope to the request; clean only your own mess. *(Rules 22, 25, 26)*
+4. **Define success criteria upfront, loop until verified.** Strong criteria enable independent loops; weak criteria require constant clarification. *(Rule 20)*
+
+The 34 rules below are the expanded, operationalized form. When in doubt, fall back to the four. When the four don't cover it, the 34 likely do. When neither covers it, that's a candidate for Rule 23 (review learnings) and `intake/rules-backlog.md`.
+
+**Why both layers exist.** The 4-line foundation is sufficient for one-off tasks and small projects. The 34 rules earn their keep when (a) work spans multiple sessions and needs persistent discipline, (b) failures have asymmetric cost and need explicit gating, or (c) team coordination requires shared, named conventions. Volume past four is justified by the operational context, not added for its own sake.
+
+-----
+
 ## Coding Rules
 
 ### 1. Scope tasks tightly, but keep the whole system in view
@@ -103,9 +118,21 @@ Ask whether better upfront design would eliminate a problem rather than bolting 
 
 Understand why it failed and capture that learning as context for future improvement. Failures are data, not just problems.
 
-### 20. Always validate before assuming completion
+### 20. Define success criteria upfront, validate before assuming completion
 
-After executing a step, perform at least one verification pass before moving on. Don’t assume it worked — confirm it.
+**Define success criteria upfront.** Strong, verifiable criteria let Claude loop independently — weak criteria ("make it work", "fix the bug") require constant clarification. Before non-trivial work, transform the goal into checkable conditions:
+
+- "Fix the bug" → "Write a test that reproduces it, then make it pass"
+- "Add validation" → "Write tests for invalid inputs, then make them pass"
+- "Refactor X" → "Ensure tests pass before and after"
+
+For multi-step work, state the plan as `[step] → verify: [check]` pairs.
+
+**Validate before assuming completion.** After executing a step, perform at least one verification pass against those criteria before moving on. Don't assume it worked — confirm it.
+
+**Why both halves matter.** Verify-before-done is *discipline* — it catches failure after the work. Define-criteria-first is *leverage* — it prevents most failure by giving the agent a verifiable target to loop against. Discipline alone has diminishing returns; leverage compounds. Together, they reduce both wasted cycles and silent passes.
+
+**Composes with Rule 22 Step 6** (Validate Decision — plan-time validation against criteria) and **Rule 24** (process steps define done — workflow-completion checks beyond the work itself).
 
 ### 21. Document decisions, not just implementations
 

@@ -182,6 +182,26 @@ ARIA takes the position that **the LLM captures, the human promotes, trusted kno
 
 See [plugin/template/OVERVIEW.md](plugin/template/OVERVIEW.md) for the full design rationale.
 
+## Evidence and limits
+
+ARIA is shaped by real-failure data from the plugin author's projects, not controlled study. Behavioral effects are asserted from experience, not benchmarks. The strongest single calibration in the canonical retrospect-pattern library is a five-instance cs-builder cycle on 2026-05-05; most other patterns are seeded from one or two incidents. There are no before/after measurements of ARIA's effect on output quality across the broader developer population.
+
+[The 4-line CLAUDE.md from `forrestchang/andrej-karpathy-skills`](https://github.com/forrestchang/andrej-karpathy-skills) — 60K+ stars on a single behavioral file derived from [Andrej Karpathy's January 2026 diagnosis](https://x.com/karpathy/status/2015883857489522876) — has the same evidence shape: strong resonance, no controlled study. ARIA shares that honest limit and now ships those 4 principles as the **Behavioral Foundation** preamble in `working-rules.md`, with the 34 rules positioned as the operationalized expansion below them.
+
+**Where ARIA is most likely to help:**
+
+- Multi-repo, multi-team operational work where decisions and rules need to persist across sessions
+- Developers who have already accumulated knowledge files and want a discipline layer rather than just storage
+- Codebases where confident-wrong AI output has measurable downstream cost (production users, regulated content, irreversible operations)
+
+**Where ARIA may be overkill:**
+
+- One-off scripts or single-file projects — the 4-line behavioral foundation alone is often sufficient
+- Greenfield codebases without the recurring-context problem ARIA solves
+- Teams that haven't yet experienced the AI-coding failure modes ARIA's rules target — discipline imposed before pain teaches it tends to be ignored
+
+The 4-line foundation is the lightest path; the full 34 rules + lifecycle is the heaviest. Match the shape to your problem. ARIA's scope is justified by the operational context above, not added for its own sake.
+
 ## ARIA vs Other Memory Architectures
 
 ARIA, Karpathy-style markdown wikis, graph-DB memory systems (mem0, Graphiti, Zep), Basic Memory, and MCP memory servers all solve "give the LLM persistent memory" — but they optimize different things. Understanding the axes helps you pick correctly.

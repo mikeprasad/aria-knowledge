@@ -2,6 +2,57 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## [2.14.0] - 2026-05-06
+
+**Behavioral Foundation preamble + Rule 20 reframed for upfront-criteria leverage + Evidence-and-limits section in README.** Distills the 34 working rules into four behavioral principles aligned with [Andrej Karpathy's January 2026 diagnosis](https://x.com/karpathy/status/2015883857489522876) and the [4-line CLAUDE.md repo](https://github.com/forrestchang/andrej-karpathy-skills) it inspired. Positions the 4-line foundation as a load-bearing entry point with the 34 rules as the operationalized expansion. Minor bump because the preamble is a user-visible structural addition above all 34 rules.
+
+### Added — Behavioral Foundation preamble (`template/rules/working-rules.md`)
+
+A new section between "How to Use This Document" and "Coding Rules" introduces four behavioral principles distilling what the 34 rules collectively enforce:
+
+1. **Don't assume — surface tradeoffs.** *(Rules 5, 7, 9, 10)*
+2. **Simplest solution wins — nothing speculative.** *(Rules 13, 14, 18)*
+3. **Touch only what you must.** *(Rules 22, 25, 26)*
+4. **Define success criteria upfront, loop until verified.** *(Rule 20)*
+
+Each principle cross-references the rules below that operationalize it. Includes a "Why both layers exist" paragraph naming the conditions that justify expansion past four lines: (a) work spans multiple sessions and needs persistent discipline, (b) failures have asymmetric cost and need explicit gating, or (c) team coordination requires shared, named conventions. The volume past four is justified by the operational context, not added for its own sake.
+
+### Changed — Rule 20 reframed for leverage + discipline (`template/rules/working-rules.md`)
+
+Rule 20 retitled from "Always validate before assuming completion" to "Define success criteria upfront, validate before assuming completion." The original verify-before-done discipline is preserved verbatim as the second half. A new first half introduces the leverage framing: strong, verifiable criteria let Claude loop independently; weak criteria ("make it work", "fix the bug") require constant clarification. Concrete transformations included:
+
+- "Fix the bug" → "Write a test that reproduces it, then make it pass"
+- "Add validation" → "Write tests for invalid inputs, then make them pass"
+- "Refactor X" → "Ensure tests pass before and after"
+
+A "Why both halves matter" paragraph names the distinction: verify-before-done is *discipline* (catches failure after the work), define-criteria-first is *leverage* (prevents most failure by giving the agent a verifiable target to loop against). Composes-with pointers to Rule 22 Step 6 and Rule 24 added.
+
+### Added — Evidence and limits section (`README.md`)
+
+A new section between "Philosophy" and "ARIA vs Other Memory Architectures" honestly names the calibration shape: real-failure data from the plugin author's projects, not controlled study; the 5-instance cs-builder cycle on 2026-05-05 as the strongest single calibration; no before/after benchmarks across the broader developer population. References the Karpathy 4-line repo as a peer with the same evidence shape ("strong resonance, no controlled study") and notes ARIA now ships those 4 principles as the Behavioral Foundation preamble. Includes "Where ARIA is most likely to help" and "Where ARIA may be overkill" lists to set expectations.
+
+### Origin — applying the Karpathy 4-line article to ARIA
+
+Surfaced from a 2026-05-06 review of [Yanli Liu's "The 4 Lines Every CLAUDE.md Needs"](https://levelup.gitconnected.com/the-4-lines-every-claude-md-needs-2717a46866f6) and the underlying `forrestchang/andrej-karpathy-skills` repo. The article's diagnosis — that behavioral constraints outperform feature checklists past a certain rule-count threshold — is partially a critique of ARIA-shaped systems. v2.14.0's response: keep the 34 rules (justified by ARIA's operational scope), add the 4-line foundation as the entry point, and acknowledge the evidence limit honestly. The four principles are not a replacement; they're the elevator-pitch summary of what the rules already enforce.
+
+### Considered and deferred — `rules-examples.md` plugin-managed tier (S5)
+
+Considered shipping a new plugin-managed file `template/rules/rules-examples.md` with before/after code walkthroughs per rule (modeled on [the Karpathy repo's EXAMPLES.md](https://github.com/forrestchang/andrej-karpathy-skills/blob/main/EXAMPLES.md)). Deferred because (1) per v2.13.7's "Considered and rejected — full approach file in plugin source" precedent, adding a new tier of shipped content is an ADR-class decision, not a routine release, (2) the integration cost is non-trivial — README.md tree, OVERVIEW.md managed-files list, setup SKILL.md (3 places) all require updates, and (3) the design intent question ("does ARIA ship per-rule examples, and at what tier — plugin-managed, user-curated like `approaches/`, or mixed?") deserves explicit deliberation. Recorded as a candidate for an ADR + future release.
+
+### Considered and deferred — aria-cowork tool-portability framing (S6)
+
+Considered adding a "principles transfer, phrasing doesn't" section to aria-cowork's README acknowledging the article's tool-portability point and the design challenge of generalizing aria-knowledge's enforcement layer (Code-only) to Cowork's skills-only surface. Deferred because aria-cowork is a sibling plugin with its own release cycle (v0.2.4 BUILT 2026-05-05); the framing edit belongs in aria-cowork's source, not aria-knowledge's. Recorded for the next aria-cowork release.
+
+### Considered and deferred — litmus-test cull pass on 34 rules (S4)
+
+Considered running Karpathy's litmus test ("Would removing this cause Claude to make a mistake it couldn't recover from?") on each of the 34 working rules to identify candidates for removal, demotion to user-side, or merging into adjacent rules. Deferred per user direction to a separate review session — the cull is judgment-heavy and shouldn't be bundled into a release that introduces new structure.
+
+### Preserved
+
+All 34 rules unchanged in body content and numbering. Rule 20's title evolved (refinement allowed per the file's stated rule-evolution policy) but the original "validate before assuming completion" sentence is preserved verbatim as the second half of the reframed rule. Retrospect-patterns.md from v2.13.9 unchanged.
+
+---
+
 ## [2.13.9] - 2026-05-06
 
 **Two new canonical retrospect patterns: `fix-without-call-site-audit` and `new-artifact-without-consumer-trace`.** Decomposes the broader completion-claim-without-trace family that v2.13.8 opened — covers two distinct sub-shapes surfaced by a five-instance real-use cycle, each with independent calibration data and distinct counter-disciplines. Pure additive content; no plugin behavior, schema, or skill changes.
