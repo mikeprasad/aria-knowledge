@@ -1,7 +1,7 @@
 {
   "plugins": {
     "aria-knowledge": {
-      "version": "2.13.9",
+      "version": "2.14.0",
       "description": "Knowledge management, decision discipline, codebase understanding, and release retrospectives for Claude Code",
       "author": "Mike Prasad",
       "source": {
