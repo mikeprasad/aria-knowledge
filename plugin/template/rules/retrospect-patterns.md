@@ -237,3 +237,51 @@ Before any architectural claim about how an existing system works (or doesn't wo
 
 ### References
 - *(seeded — first canonical reference is the 2026-05-05 cs-builder Stage 1 close-out gate retrospective in the plugin author's environment)*
+
+---
+
+## fix-without-call-site-audit
+
+**Tier:** canonical
+**First identified:** 2026-05-05 in a real-use cs-builder Stage 1 close-out cycle (four instances within hours of each other — the strongest single-session calibration in the canonical library).
+**One-line summary:** Fixing a function-contract bug at one call site without auditing all sibling call sites of the same function for the identical gap, leading to the same defect re-shipping at the next call site discovered.
+
+### Detection cues
+- Bug fix touches a single call site of a function that is known (or knowable) to have multiple callers
+- Commit message uses "fix at X" framing — naming the immediate symptom (this URL, this path, this component) — without naming the function whose contract was incomplete or "all call sites of X audited"
+- Same defect pattern recurs at a sibling call site within hours or days of the original fix
+- A second commit lands shortly after the first, in the same file or a sibling file, fixing what is structurally the same gap
+- Phrase fragments in narrative or commit body: "this fixes [the case]…", "specifically [path]…", "for [this component]…" — without "audited all callers"
+
+### Why it's a problem
+Single-call-site fixes pass type-checking, pass tests targeting the fixed path, and ship cleanly. The sibling call site continues to fail silently until human testing surfaces it. Each missed sibling becomes a separate user-visible bug with separate deploy + retest + rollback cost. The first calibration cycle was four sequential fixes in cs-builder Stage 1: gallery merge missing pageIndex, tool-use rehost missing, action-chip render missing, and Discovery onBlur rehost missing — each fixing one call site of a recurring function-contract gap, each shipping before the next call site was audited.
+
+### Counter-discipline
+Before claiming a function-contract fix complete, grep all call sites of the function and audit each for the same gap. If any sibling call site is left unmodified, name explicitly *why* it doesn't need the same fix (e.g., "Phase 3 generation auto-applies the missing field downstream"). Treat the fix as incomplete until either every sibling is patched or every unpatched sibling has a documented exemption. The audit pass is cheap (one grep, one read per match); the alternative is sequential retest cycles each costing minutes-to-hours.
+
+### References
+- *(seeded — first canonical reference is the 2026-05-05 cs-builder Stage 1 close-out cycle in the plugin author's environment, four instances)*
+
+---
+
+## new-artifact-without-consumer-trace
+
+**Tier:** canonical
+**First identified:** 2026-05-05 in the same cs-builder Stage 1 close-out cycle as `fix-without-call-site-audit`, immediately after the four call-site instances — a distinct sub-shape sharing the broader completion-claim-without-trace family.
+**One-line summary:** Creating a new artifact (file, route, blueprint, skill) that is consumed by an enumerator (registry, manifest, dispatch table, type union) and claiming the artifact will work end-to-end without verifying or updating the enumerator.
+
+### Detection cues
+- New file created at a path matching a plural-file shape: `*/blueprints/*.json`, `*/skills/*/SKILL.md`, `*/api/routes/*.ts`, `*/handlers/*`, `*/templates/*`
+- Completion-claim language applied to the artifact: "will work end-to-end", "auto-mirrors the [registry]", "deployed", "shipped", "matches the existing entries" — without naming the discovery mechanism
+- Rule 22 marker emits low-impact reasoning that elides the consumer (registry / manifest / loader / type union / dispatch table) — the artifact is described in isolation
+- Verification step in the plan is "deploy completes" or "build passes" rather than "consumer enumerates the new entry"
+- The artifact's directory contains 3+ sibling files of the same shape and the consumer is reachable by a single grep (e.g., `grep -rn "'restaurant'" src/`) that was not run
+
+### Why it's a problem
+Most registries are static. A new file plus a missing registry entry produces a silent absence: the build passes, type-checks pass, tests targeting the artifact pass, and only a UI-level test surfaces the gap. The completion-claim language ("will work") creates the same plausibility bar that negative-existence claims do (`architectural-claim-without-source-trace`), with the same wrong-claim cost asymmetry — shipping work that appears complete but isn't discoverable. The first calibration instance was a new blueprint file deployed to `inventory/blueprints/`, claimed to "auto-mirror" the existing blueprints; the type-picker UI read from a static registry array that listed templates by ID, and the new entry was missing from that array.
+
+### Counter-discipline
+Before claiming a new artifact complete, identify its consumer and grep the consumer for analogous entries. If the consumer is a static registry, a manifest, a type union, or a dispatch table, deploying the artifact alone is incomplete — the consumer must also be updated, and the verification claim should name the consumer explicitly. Inverse of the call-site discipline: where `fix-without-call-site-audit` covers existing-function → multiple-callers, this pattern covers new-artifact → existing-enumerator.
+
+### References
+- *(seeded — first canonical reference is the 2026-05-05 cs-builder Stage 1 close-out cycle in the plugin author's environment, bar blueprint instance)*

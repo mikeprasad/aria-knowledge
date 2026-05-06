@@ -2,6 +2,45 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## [2.13.9] - 2026-05-06
+
+**Two new canonical retrospect patterns: `fix-without-call-site-audit` and `new-artifact-without-consumer-trace`.** Decomposes the broader completion-claim-without-trace family that v2.13.8 opened — covers two distinct sub-shapes surfaced by a five-instance real-use cycle, each with independent calibration data and distinct counter-disciplines. Pure additive content; no plugin behavior, schema, or skill changes.
+
+### Added — Two canonical retrospect patterns (`template/rules/retrospect-patterns.md`)
+
+- **`fix-without-call-site-audit`** — fixing a function-contract bug at one call site without auditing all sibling call sites of the same function for the identical gap. Detection cues cover commit-message framing ("fix at X" naming the symptom rather than the function), recurrence at sibling call sites within hours, and missing "audited all callers" language. Counter-discipline: grep all call sites of the function before claiming complete; document why any unpatched sibling is exempt. Calibrated against four sequential cs-builder Stage 1 instances on 2026-05-05 (gallery merge, tool-use rehost, action-chip render, Discovery onBlur rehost) — the strongest single-session calibration in the canonical library.
+
+- **`new-artifact-without-consumer-trace`** — creating a new artifact (blueprint, route, skill, handler, template) consumed by a static enumerator (registry, manifest, dispatch table, type union) and claiming end-to-end completeness without verifying or updating the enumerator. Detection cues include the new file matching a plural-file shape, completion-claim language ("will work end-to-end", "auto-mirrors", "deployed") elided of consumer naming, and the consumer being reachable by a single grep that wasn't run. Counter-discipline: identify the consumer, grep for analogous entries, name the consumer explicitly in the completion claim. Inverse of the call-site discipline above: where `fix-without-call-site-audit` covers existing-function → multiple-callers, this pattern covers new-artifact → existing-enumerator. Calibrated against the bar blueprint instance from the same 2026-05-05 cs-builder Stage 1 cycle.
+
+### Origin — Sub-shape decomposition
+
+Both patterns were surfaced by the same 2026-05-05 cs-builder Stage 1 close-out cycle. The cycle produced five instances of completion-claim failure: four sharing the call-site-audit shape and one sharing the consumer-trace shape. Decomposition into two pattern entries (rather than one umbrella) preserves each calibration: 4x for `fix-without-call-site-audit`, 1x for `new-artifact-without-consumer-trace` — both at or above the bake level v2.13.8 shipped at.
+
+### Layering map across four same-week releases
+
+| Version | Layer | Surface |
+|---|---|---|
+| v2.13.6 | Rule text | "Architectural claims about existing systems" trigger added to Rule 34 |
+| v2.13.7 | Layer 3 enforcement | Recognition cues + required `[Rule 34]` marker format |
+| v2.13.8 | Retrospective × 1 | `architectural-claim-without-source-trace` (negative-existence claims about existing systems) |
+| v2.13.9 | Retrospective × 2 | `fix-without-call-site-audit` + `new-artifact-without-consumer-trace` (two distinct completion-claim sub-shapes) |
+
+The three v2.13.x retrospective patterns now cover three distinct completion-claim sub-shapes: "X doesn't enforce Y" (v2.13.8), "fixed at site X" omitting siblings (v2.13.9), and "X will work" omitting consumers (v2.13.9). Each has independent calibration data and distinct counter-disciplines.
+
+### Considered and rejected — single umbrella pattern
+
+Considered shipping one umbrella pattern (`completion-claim-without-trace`) covering both sub-shapes. Rejected because the 4x and 1x calibrations point to genuinely different counter-disciplines (audit call sites vs. grep registry consumers) — an umbrella would dilute both. Each canonical pattern in the library targets a specific counter-discipline, and merging the two would break that convention.
+
+### Considered and deferred — artifact-shape hook gate
+
+Considered shipping an artifact-shape gate in `pre-edit-check.sh` that fires on `Write` of new files matching registered globs in a per-project artifact-shape registry, emitting an advisory line ("creating artifact X matches shape Y; consumer is Z; have you grepped?"). Deferred because (1) one calibration instance for the consumer-trace shape is insufficient bake to lock the gate's storage location, severity (advisory vs. ack-required), and registry schema, (2) source-trace work required (read `pre-edit-check.sh`, current `aria-knowledge.local.md` schema, `enforcement-mechanisms.md` Layer 2/3 boundary criteria) is non-trivial and shouldn't be combined with content additions, and (3) the call-site-audit sub-shape is a poor fit for hook enforcement since it operates over edit-history not file-paths. Recorded as plan-of-record for v2.14.x pending usage data on (a) `new-artifact-without-consumer-trace` retrospective hit rate, (b) registry-shape diversity across projects, and (c) whether the canonical pattern alone closes the gap or hook enforcement is required.
+
+### Preserved
+
+All template content from v2.13.8 unchanged. `retrospect-patterns.md` is purely additive — the 10 prior canonical entries (`diagnose-from-shape-not-path`, `fix-bundling`, `bundle-unverification`, `speculative-iteration`, `judgment-confused-with-evidence`, `phrase-tell-consistent-with-evidence`, `pattern-matched-from-memory`, `pushback-as-cue`, `user-not-recruited`, `architectural-claim-without-source-trace`) are byte-identical to v2.13.8.
+
+---
+
 ## [2.13.8] - 2026-05-05
 
 **New canonical retrospect pattern: `architectural-claim-without-source-trace`.** Adds the failure-mode detection counterpart to v2.13.7's prospective Rule 34 layering. Where v2.13.7 added recognition cues + required marker format to catch the trigger *before* claiming, v2.13.8 adds the post-incident pattern that `/retrospect` runs detect when the trigger fired but wasn't caught — closing the prospective-plus-retrospective discipline pair against the same recognition gap.
