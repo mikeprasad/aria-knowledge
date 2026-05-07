@@ -46,9 +46,9 @@ Don’t preemptively document everything. Start lean, then add CLAUDE.md files o
 
 Point to canonical examples to establish patterns, but don’t assume the existing approach is optimal. When alternatives exist, present the tradeoffs so we can determine the most objective and contextual solution together.
 
-### 4. Prefer CLIs over MCP servers
+### 4. Choose the lower-token option per operation
 
-Use CLIs to reduce token overhead, unless the MCP server provides functionality the CLI cannot.
+When a task can be done via CLI or MCP, pick the one that returns less data for what you actually need. CLI is usually leaner for simple stdout-friendly Unix operations (file listing, grep, git log). MCP is usually leaner for structured queries — Linear, Supabase, browser state, API/auth — because it returns only the fields you asked for. For new surfaces, ask yourself which form returns sparser output before committing to the tool choice.
 
 ### 5. Explain reasoning before making changes
 
@@ -65,6 +65,10 @@ When unsure about codebase behavior, business logic, or intent, say so and ask r
 ### 8. Start from needs, best practices, and context
 
 Before jumping to solutions, understand the actual requirements, review what’s considered best practice, and factor in the specific project context.
+
+Skipping intake produces solutions calibrated to assumed-needs rather than actual-needs; downstream rework compounds. Applies whenever reasoning starts — design, exploration, debugging, advice — not just before edits. **Composes with Rule 22 Step 2** at the per-edit boundary.
+
+**Origin:** the recurring "implemented X but it didn’t address the actual problem" failure mode that triggers full rework. Most expensive bugs are intake bugs, not implementation bugs.
 
 ### 9. Decisions must be logically or empirically justified
 
@@ -96,7 +100,7 @@ Happy paths represent ideal behavior but won’t happen all the time. Focus test
 
 ### 16. Use semantic, self-evident naming
 
-Names should communicate purpose clearly to someone without assumed context. Prefer names that describe what something does or represents over jargon or implementation knowledge (e.g., `useRequireAuth` over `useAuthGuard`).
+Names should communicate purpose clearly to someone without assumed context. Prefer names that describe what something does or represents over jargon or implementation knowledge (e.g., `useRequireAuth` over `useAuthGuard`; `fetchUserOrders` over `getUO`).
 
 ### 17. Fail gracefully — always handle the unhappy path
 
@@ -114,9 +118,11 @@ Ask whether better upfront design would eliminate a problem rather than bolting 
 
 ## Process Rules
 
-### 19. When something fails, learn from it
+### 19. When something fails, capture the learning
 
-Understand why it failed and capture that learning as context for future improvement. Failures are data, not just problems.
+Failures are data, not just problems. When something fails, understand why and capture that learning as context for future improvement.
+
+This is the *capture* stage — applies whenever any failure occurs (test failure, deploy failure, design didn't meet need, hypothesis contradicted, tool call surprised). Capture into the extraction-backlog or insights-backlog; do NOT promote captured learnings into rules at this stage. **Composes with Rule 23**, which gates promotion against rule-poisoning.
 
 ### 20. Define success criteria upfront, validate before assuming completion
 
@@ -160,15 +166,30 @@ Every change — code, architecture, configuration, documentation — follows th
 
 When a failure involves an external service, API, or dependency, verify that the identifiers, versions, and endpoints you're using are still current before investigating other causes. Stale information is a more common failure mode than system outages. Check the authoritative source first — API discovery endpoints, release notes, package registries, official docs.
 
+**Triggers — when this rule fires:**
+
+- API returned an error code that doesn't match documented behavior
+- Package install/import fails with version mismatch
+- Deprecation warning mentions removal/rename
+- A previously-working call now fails without a change on your side
+
+**Routing order:** (1) API discovery endpoints, (2) release notes / changelog, (3) status page, (4) package registry, (5) ask the user.
+
+**Composes with Rule 33:** Rule 33 verifies before the call (prospective); this rule verifies after the failure (retrospective). Both target stale third-party information; the timing axis determines which fires.
+
 **Origin:** An API returned 404 for a model identifier that had been renamed. A single discovery-endpoint call would have resolved it immediately instead of extended debugging of a non-existent outage.
 
 -----
 
 ## Meta Rules
 
-### 23. Review learnings before saving
+### 23. Review captured learnings before saving them as rules
 
 Always review learnings and proposed rules with the user for validation before saving them. Don’t auto-add rules — discuss first, save only after approval.
+
+**Why this gate exists:** saved rules become load-bearing on all future sessions. ARIA enforces them via `/rules` lookups, Rule 22 hooks, and CLAUDE.md context-loading. A wrong rule, once saved, propagates its error across every subsequent session — poisoning future actions until someone detects and revokes it. This review step is the check against that propagation.
+
+**Composes with Rule 19**, which captures candidates; this rule gates which captured candidates become persistent.
 
 ### 24. Process steps define "done," not task outputs
 
@@ -201,6 +222,8 @@ MCP browser tools (screenshots, snapshots, DOM queries) consume significant toke
 3. **Is it a full E2E flow test?** → Ask the user and suggest alternatives (Playwright script, manual check) before defaulting to interactive MCP sessions.
 
 When visual testing is warranted, minimize token usage: use snapshots (text-based) over screenshots, target specific elements rather than full pages, and batch checks rather than screenshot-per-change.
+
+**Composes with Rule 28:** Rule 29 specializes Rule 28's "write only as much as needed" discipline to the visual-testing case where tool-cost asymmetry is highest. The broader principle (avoid token waste) applies to all tools; this rule provides the concrete decision tree for one of the most expensive cases.
 
 **Origin:** A simple DOM reorder (moving a save status indicator left in a flex container) triggered a full login + navigation + screenshot flow that consumed ~15% of session tokens to verify a change that was self-evident from the code.
 

@@ -2,6 +2,87 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## [2.14.3] - 2026-05-08
+
+**Cull-pass refinement of 7 working rules — closes ADR 069's S4 deferral.** Applied Karpathy's litmus test (*"Would removing this rule cause Claude to make a mistake it couldn't recover from?"*) to all 34 working rules across a live-review session. **Zero retirements, zero MERGEs, zero file-class changes** — every flagged candidate became KEEP, REFINE, or KEEP+REFINE after deeper read surfaced scope-mismatch concerns and accuracy gaps yesterday's analogical reasoning had missed. Patch bump per `feedback_aria_versioning_patch_for_new_skill`: in-place content refinements without semver-meaningful behavior change. The cull-pass-became-refinement-pass outcome is a more honest result than the original DEMOTE-heavy plan would have shipped.
+
+### Changed — Rule 4 retitled and rewritten for accuracy (`template/rules/working-rules.md`)
+
+**Title:** "Prefer CLIs over MCP servers" → "**Choose the lower-token option per operation**"
+
+**Body:** Replaced misleading blanket claim ("CLIs reduce token overhead, unless...") with operationally accurate guidance naming the cases where each form wins. CLI is leaner for simple stdout-friendly Unix operations (file listing, grep, git log); MCP is leaner for structured queries (Linear, Supabase, browser state, API/auth) because it returns only the fields requested. Rule 4 now asks the operational question (*"which form returns sparser output for THIS task?"*) rather than encoding a wrong default.
+
+**Why:** the original blanket was 2024-era intuition that's only directionally true for some operations and false for others (structured-data MCP queries are routinely cheaper than equivalent CLI). Rule numbers preserve per Rule 14 policy — readers expecting Rule 4 still find Rule 4, with sharpened content.
+
+### Changed — Rule 8 expanded with broad-scope clause + Origin (`template/rules/working-rules.md`)
+
+Rule 8's body adds a paragraph naming its broad scope (applies to design / exploration / debugging / advice — not just before edits) and an Origin section. The motivating concern: yesterday's plan flagged Rule 8 as a MERGE candidate into Rule 22 Step 2, but Rule 22 hooks fire only on Edit/Write while Rule 8 should apply whenever reasoning starts. The scope-mismatch would have been lost in a merge. The refinement makes the broad scope and the Rule-22-Step-2 composition explicit so future merge-temptation has documented counter-evidence.
+
+### Changed — Rule 16 example list extended (`template/rules/working-rules.md`)
+
+Added a language-agnostic naming example (`fetchUserOrders` over `getUO`) alongside the existing React hook-naming example (`useRequireAuth` over `useAuthGuard`). Recognition for non-JS readers; ~5 words added; original example preserved.
+
+### Changed — Rule 19 retitled and refined for capture-stage clarity (`template/rules/working-rules.md`)
+
+**Title:** "When something fails, learn from it" → "**When something fails, capture the learning**"
+
+**Body:** Original "Failures are data, not just problems" reframe leads. Added paragraph naming the *capture* stage explicitly — applies to test failures, deploy failures, design didn't meet need, hypothesis contradicted, tool call surprised. Names the staging discipline ("capture into extraction-backlog or insights-backlog; do NOT promote into rules at this stage"). Reciprocal composition pointer to Rule 23.
+
+### Changed — Rule 23 retitled and refined for rule-poisoning gate (`template/rules/working-rules.md`)
+
+**Title:** "Review learnings before saving" → "**Review captured learnings before saving them as rules**"
+
+**Body:** Original sentence preserved. Added "Why this gate exists" section naming the load-bearing concern: saved rules become enforced via `/rules` lookups, Rule 22 hooks, and CLAUDE.md context; a wrong rule, once saved, propagates its error across all future sessions until detected and revoked. The review step is the check against rule-poisoning. Reciprocal composition pointer to Rule 19.
+
+The Rule 19 ↔ Rule 23 pairing now explicitly forms the lifecycle: failure → capture (Rule 19) → review (Rule 23) → save.
+
+### Changed — Rule 27 expanded to structural parallel with Rule 33 (`template/rules/working-rules.md`)
+
+Rule 27 gains three sub-sections that mirror Rule 33's existing structure:
+
+1. **Triggers — when this rule fires** — recognizable failure shapes (API error mismatch, version mismatch, deprecation warning, previously-working call now fails)
+2. **Routing order** — 5 prioritized verification sources (discovery endpoints → release notes → status page → registry → ask user)
+3. **Composes with Rule 33** — reciprocal pointer (Rule 33 already had "Composes with Rule 27"; the asymmetry is now closed)
+
+Original body preserved verbatim; Origin preserved at end. Rule 27 (retrospective verification) and Rule 33 (prospective verification) now read as visibly paired halves of the same external-verification discipline.
+
+### Changed — Rule 29 gains composition pointer to Rule 28 (`template/rules/working-rules.md`)
+
+Inserted a 2-sentence composition note between the minimization tips and the Origin section: Rule 29 specializes Rule 28's "write only as much as needed" discipline to the visual-testing case where tool-cost asymmetry is highest. The pointer surfaces Rule 29 as a worked-example of broader output discipline rather than a standalone tool-cost concern.
+
+### Origin — Karpathy 4-line article review, S4 deferral closes
+
+Surfaced from a 2026-05-06 → 2026-05-08 design conversation walking the 6 cull candidates yesterday's plan flagged. Two patterns fired retrospectively on the original plan's analogical reasoning:
+
+- **`judgment-confused-with-evidence`** — Rules 4 and 29 were flagged as DEMOTE on "tool-specific narrow scope" reasoning that didn't survive deeper read (both turned out to be universal AI-coding cost guidance, not Mike-specific tooling preference)
+- **`pattern-matched-from-memory`** — Rule 29's DEMOTE flag was pattern-matched from Rule 4's flag without examining whether the rules served different audiences
+
+The live review surfaced two new analytical lenses worth carrying forward:
+- **The universal-vs-personal axis** — DEMOTE-to-user-rules.md is appropriate for personal preferences; harmful for universal cost guidance
+- **The scope-mismatch concern** — MERGE proposals frequently collapse rules with different firing conditions (Rule 8's broad reasoning scope vs Rule 22's Edit/Write hook scope; Rule 19's capture stage vs Rule 23's governance stage)
+
+### Considered and rejected
+
+- **DEMOTE Rule 4 / Rule 29 to user-rules.md** — both turned out to be universal cost guidance; demoting harms users who don't read migration notes. Refined in place instead.
+- **MERGE Rule 8 → Rule 22 Step 2** — would lose Rule 8's broad-reasoning scope (applies to design / exploration / debugging / advice; Rule 22 hooks fire only on Edit/Write). Hooks were source-traced as parsing markers not framework body, so the merge was *technically* feasible but *semantically* lossy.
+- **MERGE Rule 19 → Rule 23 (or vice versa)** — would lose either the "failures are data" reframe (Rule 19) or the broader rule-candidate review scope (Rule 23, which covers non-failure-derived learnings too). Kept paired with reciprocal composition pointers.
+- **MERGE Rule 27 → Rule 33** — would lose the timing distinction (Rule 27 retrospective, Rule 33 prospective). Both rules cover stale third-party information but fire on different triggers. Kept paired.
+- **Patch (v2.14.3) vs Minor (v2.15.0)** — v2.15.0 was originally targeted assuming retirements/structural shift. With zero retirements and only content refinements, patch is more honest. No semver-meaningful behavior change.
+
+### Self-binding observation
+
+The cull-pass-became-refinement-pass outcome (zero retirements out of 6 candidates) suggests the 34 working rules are leaner than the Karpathy article's "Configuration Paradox" framing assumed for ARIA's context. v2.14.0's Behavioral Foundation preamble already absorbed the four-line discipline as the entry point; the 34 below it earned their keep when each was tested against operational use. Future cull passes should default to KEEP-or-REFINE; only flag for retirement when a rule is demonstrably never load-bearing across multiple sessions.
+
+### Preserved
+
+- All 34 rule numbers preserved per Rule 14 policy
+- All hook-enforced rules unchanged in structure (Rule 22, 25, 26)
+- Behavioral Foundation preamble (v2.14.0) and `user-examples.md` tier (v2.14.2) unchanged
+- Rule 33's "Composes with Rule 27" reference (already correct) unchanged — reciprocity now achieved by Rule 27's new pointer
+- All `/rules`, `/index`, `/audit-knowledge`, `/setup`, `/prospect`, `/retrospect` skill behavior unchanged
+
+---
+
 ## [2.14.2] - 2026-05-07
 
 **New `rules/user-examples.md` — user-owned file for per-rule before/after examples + `/rules N` skill extension to surface matching examples automatically.** Closes ADR 069's S5 deferral (the "should ARIA ship per-rule examples?" question) with a user-owned single-file design that honors the principle *examples are inherently user-specific* — generic examples drift back into being the rule itself or a separate canonical pattern; project-specific examples ship as foreign content to other users. Patch bump per `feedback_aria_versioning_patch_for_new_skill`: skill extension + new user-owned file is patch-scoped (smaller than a new skill). Plugin ships zero example content; `user-examples.md` is created once on `/setup` from a stub template, then never diffed.
