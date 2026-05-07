@@ -30,6 +30,7 @@ knowledge/
 ├── rules/                   # Living rules and principles
 │   ├── working-rules.md
 │   ├── user-rules.md
+│   ├── user-examples.md       # Your per-rule examples (since v2.14.2) — /rules N reads this for matching ## Rule N
 │   ├── change-decision-framework.md
 │   ├── enforcement-mechanisms.md
 │   └── retrospect-patterns.md  # Canonical failure-mode pattern library (powers /retrospect)

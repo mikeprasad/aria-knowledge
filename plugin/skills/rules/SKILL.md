@@ -72,6 +72,26 @@ or
 
 If no match in either file: "Rule [identifier] not found. Plugin has rules 1-[max plugin]; user-rules.md has [list of user rule identifiers, or 'no custom rules' if file missing/empty]. Run /rules to see the full index."
 
+**Examples lookup (since v2.14.2):** After returning the rule body, also check for a user-authored example in `{knowledge_folder}/rules/user-examples.md`.
+
+If `user-examples.md` exists, search for a heading matching `## Rule N` (where N is the requested plain-number identifier — examples currently target plugin rules only, not user rules). If found, extract the example body (heading through next `## Rule` heading or end of file) and append it to the output as a separate section:
+
+```
+## Plugin Rule 25 — Check secondary impact on every change
+[full rule text]
+
+---
+
+## Example (from your user-examples.md)
+
+## Rule 25 — Check secondary impact
+[example body — Before / After / etc.]
+```
+
+If `user-examples.md` doesn't exist, or exists but has no matching `## Rule N` heading, omit the example section silently. This is the normal state for users who haven't authored examples for that rule yet.
+
+Multiple examples for the same rule (e.g., two `## Rule 25` headings) are all returned in document order, separated by `---`.
+
 ## Step 4: Search Mode
 
 Read both files. Search rule titles and bodies for the keyword. Return all matching rules with their full text, grouped by source:

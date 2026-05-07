@@ -2,6 +2,67 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## [2.14.2] - 2026-05-07
+
+**New `rules/user-examples.md` — user-owned file for per-rule before/after examples + `/rules N` skill extension to surface matching examples automatically.** Closes ADR 069's S5 deferral (the "should ARIA ship per-rule examples?" question) with a user-owned single-file design that honors the principle *examples are inherently user-specific* — generic examples drift back into being the rule itself or a separate canonical pattern; project-specific examples ship as foreign content to other users. Patch bump per `feedback_aria_versioning_patch_for_new_skill`: skill extension + new user-owned file is patch-scoped (smaller than a new skill). Plugin ships zero example content; `user-examples.md` is created once on `/setup` from a stub template, then never diffed.
+
+### Added — `rules/user-examples.md` user-owned template (`plugin/template/rules/user-examples.md`)
+
+A new user-owned file alongside `user-rules.md` for project-specific before/after examples illustrating the rules in `working-rules.md`. Mirrors the user-rules.md voice — friendly intro, "examples are user-specific" framing, naming convention, format guidance, skeleton template clearly labeled for replacement.
+
+**Format:**
+- Required: `## Rule N — {short title}` heading + `### Before` + `### After` sub-sections
+- Optional: `**Calibrated against:** {project / commit / date / incident}`, `### Why this example`, inline citations
+
+**Ownership:** user-owned (created once on `/setup`, never overwritten or diffed). Same class as `LOCAL.md`, `rules/user-rules.md`, directory README stubs.
+
+### Added — `/rules` skill extension (`plugin/skills/rules/SKILL.md`)
+
+Step 3 (Lookup by Identifier) extended with an "Examples lookup" sub-section:
+
+After returning a rule's body, the skill now also reads `{knowledge_folder}/rules/user-examples.md` (if it exists) and searches for a heading matching `## Rule N`. Matching example bodies are appended to the output as a separate section. Multiple examples for the same rule are returned in document order, separated by `---`. If `user-examples.md` doesn't exist or has no matching heading, the example section is omitted silently — no warning for the normal "no examples authored yet" state.
+
+Discovery is automatic: no forward-link maintenance in `working-rules.md` required.
+
+### Added — Documentation surface updates
+
+- `plugin/skills/setup/SKILL.md` — `rules/user-examples.md` added to Expected files list (line 55), User-owned files list (line 57), User-owned bullet in first-setup educational note (line 66), and "Never diff" list (line 107). Same set of integration surfaces as `rules/user-rules.md` since the file class is identical.
+- `plugin/template/OVERVIEW.md` — User-owned files paragraph (line 201) updated with `rules/user-examples.md` and v2.14.2 origin annotation.
+- `plugin/template/README.md` — `rules/` tree listing gained `user-examples.md` between `user-rules.md` and `change-decision-framework.md`, grouping user-owned files together visually.
+
+### Origin — Karpathy 4-line article review (S5 deferral closes)
+
+Surfaced from a 2026-05-07 design conversation that revisited the originally-recommended Option B (plugin-managed stub with forward-links from `working-rules.md`). Two underweighted concerns invalidated B's trajectory:
+
+1. **Cost to non-users** — plugin-managed stub means recurring diff prompts during `/setup` for users who never author examples (compounds over time)
+2. **Examples are inherently user-specific** — Mike's articulated principle: a "universal Rule N example" drifts back toward being the rule itself OR a new canonical pattern; examples earn their illustrative value by being grounded in *specific context* (file paths, commits, project conventions)
+
+Refined Option H (user-owned file + `/rules` extension, zero shipped examples) emerged from synthesizing two alternative designs Mike proposed:
+- **Ship-and-freeze with seeds** (no diffs after install, didactic seeds bake at install time)
+- **Working/user split** (mirrors rules-split, automatic `/rules` discovery)
+
+The hybrid keeps the no-diff property of the first (user-owned) and the automatic-discovery property of the second (skill extension), while *removing* the seed authoring (which would have violated the user-specific principle).
+
+### Considered and rejected
+
+- **Option B — plugin-managed stub + forward-link convention.** Recurring diff-prompt cost; manual forward-link discipline; speculative demand without empirical motivation.
+- **Option F — single file shipped with seeds, becomes user-owned post-install.** Seeds violate user-specific principle (either project-specific = foreign to most users, or generic = should be in the rule itself); bake-time risk.
+- **Option G — working-examples.md / user-examples.md split mirroring `working-rules.md` / `user-rules.md`.** Doubles file count; inflates example importance to rule-tier parity; ongoing curation burden on plugin author.
+- **Option H-original — user-owned file + 2–3 seed examples + `/rules` extension.** Seeds violate user-specific principle (same as F).
+- **Inline `**Example:**` subsections under each rule in `working-rules.md`.** File balloons; behavioral foundation gets buried; re-introduces the Configuration Paradox v2.14.0 was designed to fight.
+
+See ADR 070 (`~/Projects/knowledge/projects/aria/decisions/070-rules-examples-user-owned-tier-decision.md`) for the full alternatives evaluation and consumer-distinction rationale (`detection-mediated tiers = plugin-curated; illustration-only tier = user-authored`).
+
+### Self-binding constraint
+
+ADR 070 records: **no further additions to `rules/` (working-, user-, or otherwise) without an ADR.** Current rule-tier files (`working-rules.md`, `user-rules.md`, `user-examples.md`, `change-decision-framework.md`, `enforcement-mechanisms.md`, `retrospect-patterns.md`, `prospect-patterns.md`) are sufficient for the rule-tier consumer model.
+
+### Preserved
+
+All 34 rules and the Behavioral Foundation preamble (v2.14.0) unchanged. Rule 20's two-half structure preserved verbatim. /retrospect, /prospect, /index, /audit-knowledge, /audit-config, /setup, all hooks: behavior unchanged for users who never author examples. Empty `user-examples.md` is the expected fresh-install state.
+
+---
+
 ## [2.14.1] - 2026-05-06
 
 **New /prospect skill (forward-looking pre-mortems on plans before execution) + active Evidence-Sourcing Pass on both /prospect and /retrospect + new release/deployment scopes for /retrospect with hybrid detection cascade + structured-frontmatter persistent log under `~/knowledge/logs/{prospect,retrospect}/` + /index discoverability for review reports.** /prospect is the forward-looking counterpart to /retrospect — runs a 10-section pre-mortem on a plan before any code is written, with the same per-step validation discipline /retrospect applies after a fix ships. Both skills now run a synchronous Evidence-Sourcing Pass (new procedural Step 3.5) that autonomously sources accessible evidence (codebase reads, public docs, MCP queries) and surfaces user-input asks for anything that requires judgment — converting unsupported assumptions to ✅/❌ before the report finalizes. Patch bump per `feedback_aria_versioning_patch_for_new_skill`: additive new skill + extension to existing skills + index scan extension; no breaking changes.
