@@ -59,9 +59,54 @@ For each file, check:
 - **File references** — do referenced files/paths actually exist?
 - **Cross-references** — do pointers to other CLAUDE.md files resolve?
 - **Version claims** — do stated versions match actual manifests/package.json?
+- **Version-stamp ripple** — when a version appears in one CLAUDE.md, does the same version appear consistently across sibling CLAUDE.md files and memory files that reference the same project? Mismatched versions across surfaces (e.g., root says v2.14.2, sub-project says v2.14.3) signal a post-release update that didn't propagate. See Step 3a for the detection pattern.
+- **Adoption-state phrases** — does language like "NOT YET BUILT", "(placeholder)", "spec drafted, not yet built", "currently disabled", "still has older prototype", "pipeline built but not yet adopted" contradict the actual state of a referenced artifact (plugin.json exists with non-zero version, config flag is enabled, build output is present)? See Step 3a.
 - **Team roster** — is it consistent across CLAUDE.md files?
 - **Stale content** — are there line numbers, dates, or status claims that look outdated?
 - **Missing references** — are there significant docs/files in the project that aren't referenced?
+
+## Step 3a: Release-State Cascade Patterns
+
+Two specific cascade shapes are common enough to warrant dedicated detection. Both follow the same structural pattern: one source-of-truth surface changes (a version bump, an enabled flag), and N downstream surfaces fail to update.
+
+### 3a.1: Version-stamp ripple
+
+After a plugin/package release, version references typically touch 5+ surfaces: the manifest itself, the project's CLAUDE.md status header, any parent container CLAUDE.md table row, the project memory file's description + body + version-row, and the MEMORY.md index entry. Each is small; skipping any creates documentation drift.
+
+**Detection:**
+
+1. For each plugin manifest (`plugin.json`) or `package.json` found, extract the canonical version string (e.g., `v2.14.4`).
+2. Glob CLAUDE.md files in the project + ancestor directories + `~/.claude/projects/.../memory/project_*.md` files referencing the project's slug.
+3. For each surface, grep for version strings matching the pattern `v?\d+\.\d+\.\d+` near a mention of the project name.
+4. Flag any surface where the stated version is **older than** the manifest version. Treat "older" by semver comparison, not string comparison.
+5. Do NOT flag surfaces where the version is absent entirely — those are not drift, just under-documentation (out of scope for this check).
+
+Report shape:
+```
+Version-stamp drift for {project-slug}:
+  Canonical: v{manifest-version} (from {manifest-path})
+  Stale surfaces:
+    - {surface-path} — stated v{stale-version}
+    - {surface-path} — stated v{stale-version}
+```
+
+### 3a.2: Adoption-state cascade
+
+When a binary config value flips (e.g., `enabled=0` → `enabled=1` in a deploy script, or a placeholder folder becomes a built artifact), N referenced docs may still describe the prior state.
+
+**Detection patterns to grep against CLAUDE.md / README.md / memory files:**
+
+| Phrase pattern (case-insensitive) | Inverse-state check |
+|-----------------------------------|---------------------|
+| "currently disabled in {flag-name}" | Read the named flag/script; flag drift if value is now enabled |
+| "NOT YET BUILT" / "(placeholder)" / "spec drafted, not yet built" | Check for plugin.json / package.json with non-zero version, or built artifact (e.g., `*.plugin` package) in the referenced folder |
+| "pipeline built but not yet adopted" | Check whether the pipeline is enabled in the canonical config |
+| "still has older prototype" / "render-broken `dist/` not regenerated" | Check `git status` / file mtimes of the referenced folder |
+| "deferred to v{X.Y.Z}+" where X.Y.Z is now in the past | Check current manifest version against X.Y.Z |
+
+Surfaces to scan are the same as 3a.1: CLAUDE.md files in the working tree, README.md files, and project memory files in `~/.claude/projects/.../memory/`.
+
+**Conservative reporting:** Both 3a.1 and 3a.2 are pattern-based heuristics, so false positives are possible. Report under **Should Fix** (not **Critical**) and present the specific surface + the specific contradicting phrase + the underlying state — let the user judge whether each is real drift or intentional historical note.
 
 ## Step 4: Scan Knowledge Repository
 
@@ -141,6 +186,7 @@ Move the previous "Last Audit" entry to "Previous Audits".
 | **Doc staleness** | Version mismatches, missing file references, line number rot |
 | **Context drift** | Team roster changes, project status gaps, PROGRESS.md staleness |
 | **Structure issues** | README not matching actual files, orphaned docs, missing cross-refs |
+| **Release-state cascade** | Version-stamp ripple (one surface bumped, siblings stale); adoption-state phrases that contradict the underlying flag/manifest/artifact state |
 
 ## Rules
 

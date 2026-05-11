@@ -2,6 +2,44 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## [2.14.4] - 2026-05-12
+
+**New `/handoff` express-handoff skill + `/audit-config` release-state cascade checks.** Closes two ideas filed during the 2026-05-09 wrapup and the 2026-05-11 cascade-traced pipeline-adoption arc. Together they form a prospective↔retrospective release-discipline loop: `/handoff` writes the post-release version-stamp and adoption-state docs (and emits a paste-ready next-session opener); the next `/audit-config` mechanically catches any surfaces that didn't get touched. Patch bump per `feedback_aria_versioning_patch_for_new_skill`: new isolated skill + additive extension to an existing skill, no schema or contract change.
+
+### Added — `/handoff` skill (`plugin/skills/handoff/SKILL.md`)
+
+Express end-of-session handoff. Same coverage as `/wrapup` (review session work → update PROGRESS.md / CLAUDE.md / memory → commit → run `/extract` → verify continuity) compressed into a single combined-go review. Two modes:
+
+- **Default (`/handoff`)** — Generates ALL drafts (session synthesis, PROGRESS entry, CLAUDE.md edits, memory updates, commit message, next-session opener) into one scroll, asks once for combined-go (`yes` / `edit {section}` / `skip {section}` / `abort`), then applies atomically. Preserves the verification pass with the lowest interruption cost.
+- **`auto` (`/handoff auto`)** — Implicit-yes on all gates. Runs silently. Applies all drafts without confirmation. Emits final report only. For short, unambiguous sessions.
+
+Always emits a paste-ready **next-session opener** as the headline artifact, even when no other surfaces changed — a fenced block with project marker + read list + "where we left off" + open threads + first action, formatted to drop directly into the next session.
+
+`/wrapup` stays the interactive default for ambiguous sessions; `/handoff` is the express lane. Both call `/extract` (already non-interactive by design); neither ever pushes to git.
+
+### Changed — `/audit-config` skill (`plugin/skills/audit-config/SKILL.md`)
+
+Two new check categories added to Step 3 + a dedicated Step 3a documenting the detection patterns:
+
+- **Version-stamp ripple (Step 3a.1)** — After a plugin/package release, version references typically touch 5+ surfaces (manifest, project CLAUDE.md, parent container CLAUDE.md, project memory file description + body + version-row, MEMORY.md index entry). Detection: for each manifest's canonical version, grep CLAUDE.md / memory files for older semver strings near a project-name mention, flag any surface where the stated version is older than the manifest's.
+- **Adoption-state cascade (Step 3a.2)** — When a binary config value flips (e.g., enabled flag, placeholder folder becomes a built artifact), N referenced docs may still describe the prior state. Detection: pattern table of phrases (`"currently disabled"`, `"NOT YET BUILT"`, `"(placeholder)"`, `"pipeline built but not yet adopted"`, `"deferred to v{X.Y.Z}+"` where X.Y.Z is now in the past) cross-checked against the underlying flag/manifest/artifact state.
+
+Both check classes report under **Should Fix** (not **Critical**) because they're pattern-based heuristics — false positives possible. Surface + contradicting phrase + underlying state are presented for user judgment.
+
+"What This Audit Catches" table extended with a **Release-state cascade** row covering both shapes.
+
+### Changed — `/help` skill (`plugin/skills/help/SKILL.md`)
+
+`/handoff [auto]` added to the commands table directly after `/wrapup`, and to the "Sonnet 4.6, medium effort" row in Model Recommendations alongside `/wrapup` (same complexity class: structured work with prescribed output).
+
+### Origin
+
+Two ideas filed during prior sessions converged in this release:
+- 2026-05-09 wrapup insight (PROGRESS.md Phase F): post-aria-cowork-v0.2.5 release surfaced a 5-surface version-stamp ripple shape; idea filed to extend `/audit-config` with a version-stamp drift check.
+- 2026-05-11 idea file (`intake/ideas/2026-05-11-cross-audit-config-adoption-state-cascade-check.md`): the ariaknowledge.com pipeline-adoption arc traced an 11-surface cascade from a single `0`→`1` flag flip; idea filed to extend `/audit-config` with adoption-state cascade detection.
+
+Both share structural shape (one source-of-truth change → N downstream surfaces drift), so they bundled cleanly into one `/audit-config` extension. The /handoff skill provides the writer side of the same loop — emit the version-stamp + adoption-state updates at release time, let /audit-config verify them later.
+
 ## [2.14.3] - 2026-05-08
 
 **Cull-pass refinement of 7 working rules — closes ADR 069's S4 deferral.** Applied Karpathy's litmus test (*"Would removing this rule cause Claude to make a mistake it couldn't recover from?"*) to all 34 working rules across a live-review session. **Zero retirements, zero MERGEs, zero file-class changes** — every flagged candidate became KEEP, REFINE, or KEEP+REFINE after deeper read surfaced scope-mismatch concerns and accuracy gaps yesterday's analogical reasoning had missed. Patch bump per `feedback_aria_versioning_patch_for_new_skill`: in-place content refinements without semver-meaningful behavior change. The cull-pass-became-refinement-pass outcome is a more honest result than the original DEMOTE-heavy plan would have shipped.

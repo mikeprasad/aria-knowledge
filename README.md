@@ -8,7 +8,7 @@
 
 ARIA is a Claude Code plugin that gives AI coding sessions persistent memory and structured discipline. It manages a complete knowledge lifecycle — capturing insights, decisions, and feedback during sessions, staging them in backlogs for human review, and promoting what matters into a searchable, tag-indexed knowledge base. Session hooks prevent knowledge loss during context compaction, surface relevant knowledge when tasks are created, and enforce a change decision framework at every file edit, requiring visible impact assessment and scope verification before and after changes. Each session builds on the last instead of starting from scratch.
 
-Beyond capture, ARIA provides active tooling: `/codemap` generates feature-organized maps that trace full-stack flows; `/stitch` builds cross-repo binding tables for product groups; `/distill` turns raw ticket text into tiered executable task specs that cite real files. `/ask` researches questions and saves answers as knowledge docs. `/intake` bulk-imports from files, URLs, or directories. `/audit-config` and `/audit-knowledge` detect drift, staleness, and gaps on configurable cadences. `/wrapup` handles end-of-session handoff. An optional project-specific tier (v2.8.0+) organizes architecture decisions and patterns by project, with cross-project promotion when patterns validate across multiple projects. Everything is plain markdown, works as an Obsidian vault, and follows the core philosophy: **the AI captures, the human promotes, trusted knowledge acts.**
+Beyond capture, ARIA provides active tooling: `/codemap` generates feature-organized maps that trace full-stack flows; `/stitch` builds cross-repo binding tables for product groups; `/distill` turns raw ticket text into tiered executable task specs that cite real files. `/ask` researches questions and saves answers as knowledge docs. `/intake` bulk-imports from files, URLs, or directories. `/audit-config` and `/audit-knowledge` detect drift, staleness, and gaps on configurable cadences. `/wrapup` (interactive) and `/handoff` (combined-go or `auto`) handle end-of-session handoff and emit paste-ready next-session openers. An optional project-specific tier (v2.8.0+) organizes architecture decisions and patterns by project, with cross-project promotion when patterns validate across multiple projects. Everything is plain markdown, works as an Obsidian vault, and follows the core philosophy: **the AI captures, the human promotes, trusted knowledge acts.**
 
 ## The problem
 
@@ -32,6 +32,7 @@ Preserve session knowledge before context evaporates.
 - `/intake` — Bulk import from files, directories, or URLs with preview before staging.
 - `/snapshot` — On-demand raw transcript archive. Same artifact the PreCompact hook produces, invoked explicitly.
 - `/wrapup` — End-of-session handoff: reviews work, updates PROGRESS.md/CLAUDE.md/memory, prompts for commit and `/extract`, verifies the next session can pick up.
+- `/handoff` (`/handoff auto`) — Express handoff. Same coverage as `/wrapup` compressed into a single combined-go review (or silent `auto` mode). Always emits a paste-ready next-session opener as the headline artifact.
 
 ### Govern
 

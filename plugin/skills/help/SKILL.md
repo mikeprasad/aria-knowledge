@@ -32,6 +32,7 @@ Print the command reference table. No config or file access needed.
 | /distill [text or path] | Tiered task spec from raw text; optional --group for CODEMAP-loaded context |
 | /stitch <mode> <group> | Cross-repo binding (auth/endpoints/entities/drift) for a product group |
 | /wrapup | End-of-session handoff — update PROGRESS/CLAUDE.md, prompt for commit, verify continuity |
+| /handoff [auto] | Express handoff — same coverage as /wrapup, one combined-go review (or `auto` for silent), always emits a paste-ready next-session opener |
 | /snapshot | Save the current session transcript to intake/pre-compact-captures/ on demand |
 | /help | This command reference |
 
@@ -49,7 +50,7 @@ These are recommendations only — ARIA does not force a model. Switch per sessi
 | /retrospect | Opus 4.6 (1M context), medium-to-high effort | Multi-stage judgment per fix: validation status assignment, simpler-alternative identification, hypothesis generation, failure-mode pattern matching, action verdict synthesis. Highest leverage from stronger models. |
 | /ask | Opus 4.6 (1M context), medium-to-high effort (ambiguous topics) or Sonnet 4.6 (scoped lookups) | Research + draft + categorize. Drop to Sonnet when the question is narrow. |
 | /codemap create | Opus 4.6 (1M context) minimum | Full-repo traversal needs the large context window so sections aren't truncated mid-generation. |
-| /codemap update, /codemap section, /wrapup, /intake, /distill, /stitch | Sonnet 4.6, medium effort | Structured work with clear prescribed output. |
+| /codemap update, /codemap section, /wrapup, /handoff, /intake, /distill, /stitch | Sonnet 4.6, medium effort | Structured work with clear prescribed output. |
 | /index, /stats, /backlog, /rules, /context, /clip, /snapshot, /help, /setup | Sonnet 4.6, low effort | Mechanical or retrieval-only — higher models add no measurable lift. |
 
 Haiku is not recommended for any ARIA skill — the judgment/cross-reference demands exceed its strengths.
