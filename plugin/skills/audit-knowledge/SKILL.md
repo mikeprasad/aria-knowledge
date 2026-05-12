@@ -214,10 +214,14 @@ Scan `{knowledge_folder}/intake/pre-compact-captures/` for `.md` files. **If the
 > 1. **Digest** — extract high-signal content via script, then review (~1-3K tokens per snapshot; default)
 > 2. **Detailed** — read full transcripts for exhaustive review (~30-50K tokens per snapshot)
 > 3. **Skip** — leave them for a future audit
-> 4. **Clear** — delete all snapshots without reviewing
+> 4. **Clear** — ledger-clear all snapshots without reviewing (v2.15.2+: bodies removed but a REMOVED.md ledger records session-ids + timestamps + pointers to Claude Code's canonical transcript log)
 
 - If **Skip** → skip to Step 3, leave files untouched
-- If **Clear** → delete all `.md` files in the captures directory, report count deleted, skip to Step 3
+- If **Clear** → apply the **ledger-clear pattern** (v2.15.2+):
+  1. Create `{knowledge_folder}/archive/audit-{date}/pre-compact-captures/` if it doesn't exist
+  2. Write `{knowledge_folder}/archive/audit-{date}/pre-compact-captures/REMOVED.md` with frontmatter (`audit_date`, `removed_count`, `canonical_source: ~/.claude/projects/...`) + a per-snapshot list of filename + session-id + capture-timestamp + canonical-jsonl-pointer. See the ledger schema at the end of this section.
+  3. After the ledger is written, `rm` the snapshot `.md` files from `intake/pre-compact-captures/`. Bodies are *derived copies* of Claude Code's per-session transcript log — canonical preservation is at `~/.claude/projects/{cwd-encoded}/{session-id}.jsonl` (until Claude Code rotates that log).
+  4. Report count cleared, skip to Step 3.
 - If **Digest** or **Detailed** → continue with the selected mode below
 
 **Digest mode (default):** For each transcript snapshot, run the digest script to extract high-signal content before reading:
@@ -236,9 +240,34 @@ For each snapshot (digest or full):
 3. Note findings for presentation in Step 6 under a "Pre-Compact Captures" section
 
 After the user reviews findings in Step 7:
-- **Approved items** → append to the appropriate backlog file (insights-backlog.md, decisions-backlog.md, or extraction-backlog.md), then delete the snapshot file
-- **Rejected items** → delete the snapshot file
+- **Approved items** → append to the appropriate backlog file (insights-backlog.md, decisions-backlog.md, or extraction-backlog.md), then apply the **ledger-clear pattern** (see below) to the snapshot file — body removed, REMOVED.md ledger entry appended.
+- **Rejected items** → apply the **ledger-clear pattern** to the snapshot file — body removed, REMOVED.md ledger entry appended with `disposition: rejected` and a one-line reason from the user.
 - **Skip** → leave the snapshot for the next audit
+
+### Ledger schema (v2.15.2+)
+
+Pre-compact snapshots are *derived copies* of Claude Code's per-session transcript log at `~/.claude/projects/{cwd-encoded}/{session-id}.jsonl`. Their bodies are not preserved in the archive — only a ledger of what existed is preserved. The body's canonical source is the Claude Code transcript log (until Claude Code rotates it).
+
+Ledger file: `{knowledge_folder}/archive/audit-{date}/pre-compact-captures/REMOVED.md`
+
+```yaml
+---
+audit_date: YYYY-MM-DD
+removed_count: <N>
+canonical_source_pattern: ~/.claude/projects/{cwd-encoded}/{session-id}.jsonl
+note: |
+  Pre-compact snapshots are derived copies of Claude Code's per-session transcript log.
+  Bodies are not archived here; the canonical source retains them until Claude Code rotates
+  the jsonl. If a snapshot needs recovery after rotation, the body is unrecoverable.
+---
+
+# Removed pre-compact snapshots — {audit-date} audit
+
+- {filename} | session {session-id} | captured {capture-iso8601} | disposition: clear|approved|rejected | reason: {one-line} | canonical: ~/.claude/projects/.../{session-id}.jsonl
+- ...
+```
+
+Append-only — if a subsequent audit on the same date also ledgers snapshots, append rows under the same REMOVED.md. If a same-date audit folder already exists from a prior run, suffix as `audit-{date}-2/`, `-3/`, etc.
 
 ## Step 3: Scan Memory Files
 
@@ -427,7 +456,7 @@ originally_at: projects/proj-a/patterns/state-sync.md (merged with projects/proj
 This makes consolidations greppable (`grep -r "originally_at:" knowledge/`) and survives git history truncation.
 
 5. **Decide what to do with the source files** — present to the user:
-   - **Remove** — delete each source file (the cross-project file is the new home; project context is preserved via `originally_at`)
+   - **Remove** — delete each source file (the cross-project file is the new home; project context is preserved via `originally_at`). **(v2.15.2 note:** this is verify-no-loss-compliant under the never-delete rule — the cross-project destination carries the full body with revisions/edits as needed, and `originally_at:` frontmatter provides the audit trail. Source-file deletion here is delete-after-move, not delete-without-preservation. No archive needed.)
    - **Stub-and-reference** — replace each source file with a 3-line redirect:
      ```markdown
      # [Title]

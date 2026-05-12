@@ -108,6 +108,33 @@ Surfaces to scan are the same as 3a.1: CLAUDE.md files in the working tree, READ
 
 **Conservative reporting:** Both 3a.1 and 3a.2 are pattern-based heuristics, so false positives are possible. Report under **Should Fix** (not **Critical**) and present the specific surface + the specific contradicting phrase + the underlying state — let the user judge whether each is real drift or intentional historical note.
 
+## Step 3b: Missing-Known-Fields Cascade (v2.15.2+)
+
+After 3a's pattern-based drift checks, run a structural check for config-schema gaps: any user-facing field documented in `${CLAUDE_PLUGIN_ROOT}/bin/config.sh` but missing from `~/.claude/aria-knowledge.local.md`. This catches `/setup` discipline failures retroactively — if the wizard ever silently skipped surfacing a new field (e.g., the `active_knowledge_surfacing` gap that bit v2.15.1's first users), this audit cadence picks it up at the configured `audit_cadence_config` cadence (default 14 days).
+
+**Algorithm:**
+
+1. Enumerate known user-facing field names by parsing `${CLAUDE_PLUGIN_ROOT}/bin/config.sh`. Each known field is encoded as:
+
+   ```bash
+   KT_FIELDNAME=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^fieldname:' | sed 's/^fieldname: *//')
+   ```
+
+   Extract `fieldname` from each `grep '^FIELDNAME:'` literal. These are the canonical fields the user's config should contain.
+
+2. For each known field, grep `~/.claude/aria-knowledge.local.md` for `^{fieldname}:`. Zero hits → missing.
+
+3. **Report:** under a new **Missing config fields** subsection in Step 6's findings, list each missing field with:
+   - Field name
+   - Default value (from the matching `KT_FIELDNAME=${KT_FIELDNAME:-default}` line in config.sh; "empty" if no default)
+   - Recommended action: *"Run `/setup` to re-surface this field with `[NEW]` marker, OR hand-add `{fieldname}: {default}` to the config's frontmatter between hook-parsed entries."*
+
+4. **Classification:** report under **Should Fix** (consistent with 3a.1/3a.2 conservative reporting). Missing-field detection has effectively zero false-positive rate (deterministic grep) but the FIX is user judgment — a missing field might be intentional (e.g., user removed it to fall back to default behavior).
+
+**Why this check exists (v2.15.2 Origin):** the `/setup` wizard's Step 6 Advanced Options bundle is a *soft instruction* to Claude — it's not hook-enforced, so a fast/quiet `/setup` run can silently skip surfacing new fields. Step 3b runs against the canonical `bin/config.sh` source-of-truth at audit cadence, surfacing gaps regardless of how the wizard got there. Pairs with `/setup` Step 7e (Self-Validation Audit) as the setup-time safety net.
+
+**Presence-only check:** the field can be present with an empty value (e.g., `critical_paths:` with no value is valid). Step 3b checks for *key presence*, not non-empty value — empty fields are intentional in this schema (per CONFIG.md "Empty values: bare `key:` only").
+
 ## Step 4: Scan Knowledge Repository
 
 Read the `{knowledge_folder}` directory structure and verify:

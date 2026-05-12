@@ -173,7 +173,15 @@ try:
                 continue
             evt_type = evt.get("type")
             if evt_type == "user":
-                # Hit the turn boundary going backward.
+                # v2.15.2: tool_results are also encoded as type:"user" in Claude
+                # Code transcripts. They carry tool_result content blocks rather
+                # than user-authored text. Walk past them — they're not turn
+                # boundaries. Only stop at actual user prompts.
+                user_content = evt.get("message", {}).get("content", [])
+                if isinstance(user_content, list) and user_content and \
+                   all(isinstance(b, dict) and b.get("type") == "tool_result" for b in user_content):
+                    continue  # tool_result only — not a real user message
+                # Actual user prompt → hit the turn boundary going backward.
                 break
             if evt_type != "assistant":
                 continue

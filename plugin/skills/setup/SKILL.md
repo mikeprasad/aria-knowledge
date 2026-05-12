@@ -155,6 +155,14 @@ Record the values.
 
 Detection is a per-key `grep -q '^{key}:' ~/.claude/aria-knowledge.local.md`; non-zero exit means the key is missing → flag with `[NEW]`. For fresh installs there is no prior config to compare against, so no `[NEW]` markers appear and no preamble note is shown — the bundle just renders defaults.
 
+**Emit detection summary (v2.15.2+):** before showing the Advanced Options bundle, output a one-line audit-trail line naming the detection result, regardless of outcome. This makes the [NEW]-detection step transcript-visible so users can verify the wizard actually ran the comparison instead of silently skipping it.
+
+- If `[NEW]` keys were found: `[setup] Advanced Options [NEW]-detection: flagged {N} key(s) added since v{last_setup_version} — {key1}, {key2}, ...`
+- If no `[NEW]` keys: `[setup] Advanced Options [NEW]-detection: none — all keys present in current config.`
+- For fresh installs (no prior config): `[setup] Advanced Options [NEW]-detection: skipped — fresh install, no prior config to compare against.`
+
+The summary line precedes the bundle text. If the user later questions "did the wizard surface my new field?", the transcript carries the explicit yes-or-no.
+
 > "Advanced settings (defaults are fine for most users):
 > - **Freeform tag promotion threshold:** 3 (suggest promoting a freeform tag to known after it appears on this many files)
 > - **Staleness threshold:** 6 months (flag knowledge files not updated within this period)
@@ -399,6 +407,34 @@ Prompt the user:
 If yes: invoke `/audit-share` inline as the next action. The user will see the audit-share batch summary and decide what to share. Setup's Step 8 (Confirm) runs after audit-share completes.
 
 If no: continue to Step 8. Note in setup output: *"Shared knowledge enabled but not yet populated. Run `/audit-share` anytime to do an initial sweep, or it'll surface candidates as they accumulate in your knowledge folder."*
+
+## Step 7e: Self-Validation Audit (v2.15.2+)
+
+After Step 7b's round-trip verification, run a coverage audit to catch any `KT_*` fields documented in `bin/config.sh` but missing from the user's written config. **This is a defense-in-depth check against the wizard's own discipline failures** — if Step 6's Advanced Options bundle silently skipped surfacing a key (e.g., the `active_knowledge_surfacing` gap that bit v2.15.1's first users), this step catches it before the user leaves `/setup` thinking everything is current.
+
+**Algorithm:**
+
+1. Enumerate known user-facing field names by reading `${CLAUDE_PLUGIN_ROOT}/bin/config.sh` and extracting them from the parse lines. Each known field has the shape:
+
+   ```bash
+   KT_FIELDNAME=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^fieldname:' | sed 's/^fieldname: *//')
+   ```
+
+   Use `grep -oE "grep '\\^[a-z_]+:'" plugin/bin/config.sh | grep -oE '[a-z_]+'` to extract the user-facing field names — those are the canonical list of fields the wizard should have covered.
+
+2. For each known field, grep the just-written config `~/.claude/aria-knowledge.local.md` for `^{fieldname}:`. If the grep returns zero hits, add to a `MISSING_FIELDS` list.
+
+3. **If `MISSING_FIELDS` is non-empty:**
+   - Output: `Self-validation found {N} known field(s) missing from your config: {field1}, {field2}, ...`
+   - For each missing field, look up its default value by reading the matching `KT_FIELDNAME=${KT_FIELDNAME:-default}` line in `bin/config.sh`. If no default is set, treat as empty.
+   - Prompt: *"Add all {N} missing fields with their defaults? (y/n/select): {field1}={default1}, {field2}={default2}, ..."*
+   - If user answers **y**: append each missing field as `fieldname: default` between the last column-1 hook-parsed field and the closing `---` of the frontmatter. Re-run Step 7b's round-trip verification on the additions.
+   - If user answers **n**: emit a one-liner to the setup output: *"Self-validation skipped: {N} field(s) missing ({list}). Run `/audit-config` later to surface them again, or hand-add to `~/.claude/aria-knowledge.local.md`."* Do not block setup.
+   - If user answers **select**: walk per-field, prompting `Add {fieldname}: {default}? (y/n)` for each. Aggregate decisions; apply approved fields atomically.
+
+4. **If `MISSING_FIELDS` is empty:** print `Self-validation passed: all {N} known fields present in config.`
+
+**Why this exists (v2.15.2 Origin):** the `[NEW]` detection in Step 6's Advanced Options was specced to surface new-since-last-setup keys, but Step 6 is a *soft instruction* to Claude — it's not hook-enforced, so a fast or quiet /setup run can silently skip the detection. Step 7e is a final verification gate that runs against the canonical config.sh source of truth, surfacing any gap regardless of how the wizard got there. Pairs with `/audit-config`'s missing-known-fields cascade check (Step 3b) as the audit-cadence safety net.
 
 ## Step 8: Confirm
 

@@ -1,7 +1,7 @@
 ---
 description: "View and manage pending backlog items. Use when user says '/backlog', '/backlog insights', '/backlog clear', 'what's pending', 'show backlogs', 'check backlog status'."
 argument-hint: "[insights|decisions|extraction|rules] [clear [type] [date]]"
-allowed-tools: Read, Edit, Grep
+allowed-tools: Read, Edit, Write, Grep
 ---
 
 # /backlog — Backlog Viewer & Manager
@@ -56,12 +56,46 @@ If no entries: "No pending [type] items."
 - Must not be in the future. If it is: "Cannot clear future-dated entries. Today is [today's date]. Did you mean [suggestion]?"
 - If more than 30 entries would be cleared, add a warning: "This will clear N entries — that's a large batch. Are you sure?"
 
-Before clearing, show what will be removed:
-> "This will remove N entries from [type]-backlog.md dated on or before [date]:
+Before clearing, show what will be archived:
+> "This will archive N entries from [type]-backlog.md dated on or before [date]:
 > - [date] — [brief context from each entry]
 >
-> Proceed? (y/n)"
+> Entries move to `{knowledge_folder}/archive/backlog-cleared-{type}-{YYYY-MM-DD-HHmmss}.md`. Proceed? (y/n)"
 
-If user confirms: remove the matching `### YYYY-MM-DD` entries and everything below them until the next `###` heading or end of file. If all entries are removed, replace with the placeholder text (e.g., "(No pending insights)").
+If user confirms, apply the **archive-then-remove pattern** (v2.15.2+):
+1. Create `{knowledge_folder}/archive/` if it doesn't exist.
+2. Write archive file at `{knowledge_folder}/archive/backlog-cleared-{type}-{YYYY-MM-DD-HHmmss}.md` with this shape:
+
+   ```markdown
+   ---
+   archived_at: YYYY-MM-DDTHH:MM:SS
+   source_backlog: intake/{type}-backlog.md
+   cleared_through_date: YYYY-MM-DD
+   entry_count: N
+   reason: /backlog clear user-invoked
+   ---
+
+   # Archived {type} backlog entries — cleared {YYYY-MM-DD}
+
+   The following N entries were cleared from `intake/{type}-backlog.md` on {YYYY-MM-DDTHH:MM:SS} via `/backlog clear {type} {date}`. They are preserved here for recovery if needed.
+
+   ---
+
+   ### YYYY-MM-DD — [entry 1 title]
+   [full body of entry 1]
+
+   ### YYYY-MM-DD — [entry 2 title]
+   [full body of entry 2]
+
+   ...
+   ```
+
+   Copy the full body of each matching `### YYYY-MM-DD` entry (from the entry header down to the next `###` heading or end of file) into the archive file.
+
+3. After the archive is written, remove the matching entries from `intake/{type}-backlog.md`. If all entries are removed, replace with the placeholder text (e.g., "(No pending insights)").
+
+4. Report: "Archived N entries to `archive/backlog-cleared-{type}-{YYYY-MM-DD-HHmmss}.md`. Source backlog updated."
+
+**Never delete (v2.15.2+):** Backlog entries are NEVER `rm`'d during clear. The archive-then-remove pattern moves user-authored content to the archive surface (full body preserved, not just a ledger) before removing from the live backlog. Rule 6 ("Don't delete — archive") is preserved on-disk, no git history dependency.
 
 If user declines: "No entries cleared."

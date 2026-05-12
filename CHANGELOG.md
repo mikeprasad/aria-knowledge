@@ -2,6 +2,66 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## [2.15.2] - 2026-05-13
+
+**Three quality-of-life arcs bundled.** Generalizes v2.15.1's archive-don't-delete rule to all known deletion call-sites; structural fix for Rule 22 marker enforcement under tool-call-interleaved transcripts; defense-in-depth against `/setup` discipline failures. Patch bump — no new features, only safety + correctness fixes.
+
+### Arc 1 — Comprehensive delete-call-site audit
+
+Generalizes v2.15.1's archive-don't-delete rule beyond `/audit-knowledge` Phase 2c2's ideas-routing. Investigation grep across all `plugin/skills/*/SKILL.md` + `plugin/bin/*.sh` classified each deletion site as compliant / needs-ledger / needs-archive / out-of-scope.
+
+- **`/audit-knowledge` Step 2d (pre-compact snapshots)** — Clear / Approved / Rejected branches no longer `rm` snapshot files. Apply the **ledger-clear pattern**: write `{knowledge_folder}/archive/audit-{date}/pre-compact-captures/REMOVED.md` with frontmatter (`audit_date`, `removed_count`, `canonical_source_pattern`) + per-snapshot list (filename + session-id + capture-timestamp + canonical-jsonl-pointer), then remove snapshot bodies. Bodies are *derived copies* of Claude Code's per-session transcript log; canonical preservation lives at `~/.claude/projects/{cwd-encoded}/{session-id}.jsonl` until Claude Code rotates the log. Ledger pattern chosen over full archive because snapshots are large (100KB-1MB each) and the canonical source exists elsewhere.
+- **`/audit-knowledge` Step 5e (cross-project pattern Remove)** — doc clarification: this is already verify-no-loss-compliant (source moves to cross-project file with `originally_at:` frontmatter providing audit trail). Added `(v2.15.2 note: ...)` inline comment so the compliance is explicit for future readers. No behavior change.
+- **`/backlog clear`** — destructive "remove entries" replaced with **archive-then-remove pattern**: matching entries are copied to `{knowledge_folder}/archive/backlog-cleared-{type}-{YYYY-MM-DD-HHmmss}.md` with frontmatter metadata (`archived_at`, `source_backlog`, `cleared_through_date`, `entry_count`, `reason: /backlog clear user-invoked`) before removal from the live backlog. Full archive (not ledger) because backlog entries are user-authored content with no canonical source elsewhere. Skill's `allowed-tools` extended to include `Write` (was `Read, Edit, Grep`).
+- Out-of-scope sites (no spec change): all `rm` calls in `bin/*.sh` operate on temp files (`/tmp/aria-match-*`) or ephemeral runtime state (`active-batch.json`); descriptive "delete"/"remove" mentions in handoff/codemap/wrapup/snapshot are session-summary fields, not deletion calls.
+
+### Arc 2 — Marker-window structural fix (`bin/pre-edit-check.sh`)
+
+Rule 22's marker-detection walker in `pre-edit-check.sh` stopped at any `type: "user"` message going backward through the transcript. But Claude Code encodes tool_results as `type: "user"` messages too — so a `[Rule 22]` marker emitted in an assistant text block, followed by a Bash/Read tool call, followed by an Edit/Write, hit the tool_result boundary and the marker became invisible. Result: false-deny on the Edit/Write, requiring re-emit of the marker.
+
+The fix: distinguish actual user prompts from tool_results via a conservative `all()` heuristic — if the user-typed message's content blocks are ALL `tool_result` blocks, walk past (it's a tool result, not a real user message); if any non-tool_result content exists, treat as a real user turn boundary. 6-line addition to the Python walker.
+
+**Risk profile**: low. Heuristic uses `all()` so any mixed-content message stops the walker (conservative — avoids false-allow). Fail-open behavior preserved on any parse error. Worst case under future Claude Code transcript-format changes: hook denies, same workaround as today (re-emit marker).
+
+### Arc 3 — `/setup` discipline hardening (3 sub-items, defense-in-depth)
+
+- **3a — `/setup` Step 7e (Self-Validation Audit)** — after Step 7b's round-trip verification, enumerate known fields from `bin/config.sh`'s grep patterns, scan user's config for each, surface missing-fields list with defaults, prompt `(y/n/select)` to add. Catches the failure mode where `/setup` Step 6's Advanced Options bundle silently skipped surfacing a new field (the `active_knowledge_surfacing` gap that surfaced this arc).
+- **3b — `/audit-config` Step 3b (Missing-Known-Fields Cascade)** — same check as 3a but runs at config-audit cadence (default 14 days). Catches gaps that escaped `/setup`'s self-validation — defense-in-depth at audit cadence. Reports missing fields under **Should Fix** with field name + default value + recommended action.
+- **3c — [NEW]-detection observability** — before showing Step 6's Advanced Options bundle, emit a transcript-visible one-liner naming the detection result: flagged-N-keys / none / fresh-install-skipped. Makes the [NEW]-detection step observable so users can verify it ran instead of silently skipping.
+
+### Changed — `bin/pre-edit-check.sh`
+
+Python walker: 6-line addition distinguishing tool_results from actual user prompts.
+
+### Changed — `plugin/skills/audit-knowledge/SKILL.md`
+
+Step 2d (Clear / Approved / Rejected) — ledger-clear pattern. Step 5e Remove — doc-only clarification. New ### Ledger schema subsection at end of Step 2d.
+
+### Changed — `plugin/skills/backlog/SKILL.md`
+
+Step 4 (Clear) — archive-then-remove pattern. `allowed-tools` frontmatter: `Read, Edit, Grep` → `Read, Edit, Write, Grep`.
+
+### Changed — `plugin/skills/setup/SKILL.md`
+
+Step 6 Advanced Options — [NEW]-detection observability emit-summary paragraph added after the existing detection-mechanism sentence. New Step 7e (Self-Validation Audit) inserted between Step 7d and Step 8.
+
+### Changed — `plugin/skills/audit-config/SKILL.md`
+
+New Step 3b (Missing-Known-Fields Cascade) inserted between Step 3a and Step 4.
+
+### Out of scope (deferred)
+
+- Backfill of historical destructive audits (e.g., the 2026-05-13 parallel-session incident from v2.15.1's Origin) is handled per-incident by the operator.
+- Pre-compact snapshot retention TTL (when Claude Code rotates jsonl) is not addressed — users who need belt-and-suspenders retention can set up their own backup tooling for `~/.claude/projects/`.
+
+### Origin
+
+Three independent threads converged in this release:
+
+1. **Comprehensive delete-call-site audit** — v2.15.1 fixed ideas-routing but left other deletion sites under the old "git history will preserve it" assumption. A grep across the plugin surfaced two more sites needing the new rule (Step 2d snapshots, `/backlog clear`) plus one already-compliant site needing only doc clarification (Step 5e). User asked: "lets do all of them in the same release."
+2. **Marker-window discovery** — encountered live during v2.15.1's session: writing the retrospect log triggered a false-deny because the `[Rule 22]` marker became invisible past an intervening Bash call. Documented as a novel failure mode in `logs/retrospect/2026-05-13-session-active-knowledge-surfacing-v2150.md` §9 row 6.
+3. **`/setup` discipline failure** — user's parallel `/setup` run on v2.15.1-installed plugin did NOT surface the new `active_knowledge_surfacing` field as `[NEW]` in the Advanced Options bundle, despite v2.15.1's setup SKILL.md correctly containing the bullet. Diagnosis: Step 6's [NEW] detection is a soft instruction to Claude, not hook-enforced; the wizard skipped it. v2.15.2's defense-in-depth approach (Step 7e + Step 3b + observability) ensures detection failures are caught at three different moments.
+
 ## [2.15.1] - 2026-05-13
 
 **`/audit-knowledge` Phase 2c2 — never delete; archive instead.** Closes a destructive failure mode in the ideas-routing flow: prior versions assumed `git log --all -- intake/ideas/` would recover idea bodies after Phase 2c2 deletion, but that assumption silently fails for any idea file created since the last git commit (untracked files have no history). Patch bump because the change is a safety fix on existing behavior, not a new feature surface.
