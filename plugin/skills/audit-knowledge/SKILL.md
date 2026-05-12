@@ -109,6 +109,8 @@ For each `*.md` file in `intake/ideas/`: read the file (frontmatter + body). Eac
 
 **Never delete (v2.15.1+):** Idea files are NEVER `rm`'d. Every disposition that previously deleted now moves the file — to its destination (full-body preservation) or to `archive/audit-{date}/` (with a frontmatter pointer explaining why). Rule 6 ("Don't delete — archive") is preserved without relying on git history; archive-on-disk is the canonical surface, making non-git knowledge folders first-class.
 
+**User override (explicit, v2.15.2+):** If the user explicitly approves or asks for a deletion (phrases like *"delete without archiving"*, *"really delete this"*, *"skip the archive for this one"*), the destructive operation is permitted. The default safety floor remains archive; the override exists for cases where the user has explicit reason to skip preservation (e.g., accidentally captured sensitive content, archive-growth aversion). **Before honoring an override, surface what would have been archived** — name the file(s) and the substance about to be lost — and confirm. User-approved deletes are then honored as one-off; the override does not flip the default for subsequent files in the same audit.
+
 ### Verify-no-loss check (Accept disposition)
 
 Before the idea file moves to its Accept destination, verify the destination preserves the idea's substantive content. This protects against the silent-summarization-then-delete failure mode (where a destination's 1-line entry replaces a multi-paragraph body).
@@ -268,6 +270,8 @@ note: |
 ```
 
 Append-only — if a subsequent audit on the same date also ledgers snapshots, append rows under the same REMOVED.md. If a same-date audit folder already exists from a prior run, suffix as `audit-{date}-2/`, `-3/`, etc.
+
+**User override (explicit, v2.15.2+):** If the user explicitly approves or asks for a snapshot deletion that skips even the ledger (phrases like *"delete the snapshots without writing a ledger"*, *"just rm them"*), the bare deletion is permitted. The default remains ledger-clear; this override exists for cases where the user has explicit reason to skip both archive AND ledger (e.g., snapshots contain sensitive content they want untraceable). **Before honoring, surface the snapshot count + canonical-source pointers that would have been ledgered** and confirm. User-approved bare deletes are one-off; subsequent snapshot operations in the same audit default back to ledger-clear.
 
 ## Step 3: Scan Memory Files
 

@@ -98,4 +98,6 @@ If user confirms, apply the **archive-then-remove pattern** (v2.15.2+):
 
 **Never delete (v2.15.2+):** Backlog entries are NEVER `rm`'d during clear. The archive-then-remove pattern moves user-authored content to the archive surface (full body preserved, not just a ledger) before removing from the live backlog. Rule 6 ("Don't delete — archive") is preserved on-disk, no git history dependency.
 
+**User override (explicit, v2.15.2+):** If the user explicitly approves or asks for a bare deletion that skips the archive (phrases like *"delete without archiving"*, *"really delete these entries"*, *"don't archive this clear"*), the destructive operation is permitted. The default safety floor remains archive-then-remove; this override exists for cases where the user has explicit reason to skip preservation (e.g., backlog entries contain sensitive content they want untraceable, or they're clearing test/spam entries that don't deserve archive space). **Before honoring an override, surface the entry count + the date range that would have been archived** and confirm. User-approved bare deletes are one-off — a subsequent `/backlog clear` invocation defaults back to archive-then-remove.
+
 If user declines: "No entries cleared."
