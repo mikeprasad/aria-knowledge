@@ -47,6 +47,39 @@ After mode detection, gather:
 
 If scope is `branch` (or invoked via `--branch`) and the diff is non-trivial (>50 LOC across >3 files), warn: "Branch already has substantive code — consider `/retrospect range main..HEAD` instead, which is calibrated for already-written changes." Continue if user confirms.
 
+## Step 0.5: Active Knowledge Surfacing
+
+If the user's config (`~/.claude/aria-knowledge.local.md`) has `active_knowledge_surfacing: true` (default as of v2.15.0), surface relevant tagged knowledge BEFORE Steps 1-3 so loaded files inform pattern selection and evidence sourcing. If the field is `false`, skip this step entirely (note `Active surfacing: disabled` in the Anchor block).
+
+**Algorithm:**
+
+1. **Build query.** Combine, separated by spaces: the Goal sentence from Step 0; the plan's first heading or the first 3 TodoWrite items; any detected Linear ticket IDs (e.g., `LINEAR-123`); the file basename if scope is `file`; the branch name if scope is `branch`.
+
+2. **Read the index.** `Read` `<knowledge_folder>/index.md` (resolve `<knowledge_folder>` from the config's `knowledge_folder` field). Parse the `## Tag Index` section for `### tagname` headers — that's the matching vocabulary (~77 known tags as of v2.15.0). Ignore the `## Other Tags` section (freeform tier, intentionally excluded from auto-surfacing).
+
+3. **Tokenize.** Lowercase the query, strip punctuation to spaces, dedupe to a word set.
+
+4. **Match.** Exact word-vs-tag equality only — no substring, no fuzzy. Collect the set of matched tags.
+
+5. **Threshold gate.** If fewer than 2 tags matched, note `Active surfacing: 0 matches (below threshold)` in the Anchor block and skip to Step 1. Single-tag matches are too noisy.
+
+6. **Collect files.** Under each matched tag's `### tag` section, gather the `- path — description` lines. Dedupe by path. Cap at top-5 by first-appearance order.
+
+7. **Ledger filter (best-effort).** Run `ls -t /tmp/aria-active-* 2>/dev/null | head -1` via Bash to find the current session's ledger (the most recently modified file matching that pattern). If found, read it and drop any matched paths already listed there — they were surfaced by an earlier hook/skill in this session. If no ledger exists, proceed unfiltered.
+
+8. **Read matched files.** For each remaining path (up to 5), `Read` the full file into context.
+
+9. **Summarize.** Before Step 1's Anchor Block, emit a 3-line surfacing block:
+
+    ```
+    Active Knowledge Surfacing:
+      Tags matched: <tag1> <tag2> ...
+      Files loaded: <N> (<file1>, <file2>, ...)
+      Relevance: <one sentence per file: why this informs the prospect>
+    ```
+
+10. **Carry-forward.** These loaded files become input to Step 2 (Load Pattern Libraries — past prospects/retros tagged with the same topic may already catalog the relevant patterns) and Step 3.5 (Evidence-Sourcing Pass — they may already validate or falsify assumptions in the plan, converting ⚠/❓ to ✅/❌ before the verdict round).
+
 ## Step 1: Print the Anchor Block
 
 Before producing any verdict, emit the anchor so the rest of the report can be traced to inputs:

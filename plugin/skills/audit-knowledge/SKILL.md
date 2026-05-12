@@ -102,10 +102,25 @@ Glob `{knowledge_folder}/intake/ideas/*.md`. **If the directory is missing**, re
 
 For each `*.md` file in `intake/ideas/`: read the file (frontmatter + body). Each file is one idea — feature proposal, bug report, or design idea captured via `/extract`. Ideas have a **distinct disposition** from other backlogs — they do NOT promote to knowledge files directly. Present them in their own section in Step 6 with the options:
 
-- **Accept** — pick a destination from the submenu below; the idea file is **deleted** after routing, with a note in the audit log of where it went
-- **Reject** — file is **deleted** with a one-line reason in the audit log
+- **Accept** — pick a destination from the submenu below. After the user approves, run the **verify-no-loss check** (below). Idea file then moves either to its destination (full-body preservation) or to `{knowledge_folder}/archive/audit-{date}/` (summary-only destinations — body preserved in archive with `demoted-to: {destination}` frontmatter)
+- **Reject** — idea file moves to `{knowledge_folder}/archive/audit-{date}/` with `dismissal-reason: {one-line}` frontmatter
 - **Defer** — file stays in place for the next audit cycle (no-op)
-- **Reclassify** — if on review the item is actually an observation, move its content to the appropriate knowledge backlog (insights/decisions/extraction) for normal promotion, then **delete** the idea file
+- **Reclassify** — if on review the item is actually an observation, append its content to the appropriate knowledge backlog (insights/decisions/extraction) for normal promotion, then move the idea file to `{knowledge_folder}/archive/audit-{date}/` with `reclassified-to: {backlog#section}` frontmatter
+
+**Never delete (v2.15.1+):** Idea files are NEVER `rm`'d. Every disposition that previously deleted now moves the file — to its destination (full-body preservation) or to `archive/audit-{date}/` (with a frontmatter pointer explaining why). Rule 6 ("Don't delete — archive") is preserved without relying on git history; archive-on-disk is the canonical surface, making non-git knowledge folders first-class.
+
+### Verify-no-loss check (Accept disposition)
+
+Before the idea file moves to its Accept destination, verify the destination preserves the idea's substantive content. This protects against the silent-summarization-then-delete failure mode (where a destination's 1-line entry replaces a multi-paragraph body).
+
+1. **Inventory original substance**: identify which of {Why, Motivation, Implementation sketches, Source} sections exist in the idea file (frontmatter + body).
+2. **Inventory destination coverage**: read the planned destination entry — does it carry text covering each substantive section present in the source?
+3. **Three outcomes per idea**:
+   - **Full coverage** → idea file `mv`'s to the destination as a standalone file (new ADR / approach / reference / plan / project decisions/patterns/), OR is fully expanded as a multi-paragraph entry in the destination (backlog/roadmap entries that carry the full Why/Motivation/Implementation paragraphs, not just a 1-liner). Original idea file gone from `intake/ideas/`; substance lives at destination.
+   - **Insufficient coverage** (typical for summary-style destinations: 1-line ROADMAP bullets, TODO entries, tracker summaries) → idea file `mv`'s to `archive/audit-{date}/{filename}` with `demoted-to: {destination#section}` frontmatter. The destination still receives its summary entry; the archive preserves the body.
+   - **Partial coverage** → surface to user: "Substantive sections X, Y from the original would be missing at {destination}. Choose: (a) expand destination to include them, (b) archive original alongside, (c) accept the compression as a knowing demotion." Default recommendation: (b) for backlog-style destinations, (a) for promotion-style destinations.
+
+Edits/revisions during move are expected and welcome — the rule is *no useful substantive content is lost*, not *body is byte-identical to source*. Reformatting, condensing redundant phrasing, fixing grammar, recontextualizing for the destination format are all fine. The verification gate catches *loss*, not change.
 
 **Accept submenu** — destinations:
 
@@ -116,7 +131,7 @@ For each `*.md` file in `intake/ideas/`: read the file (frontmatter + body). Eac
 | `todo` | Append a single-line entry to project-root `TODO.md` (or `docs/TODO.md`). Format: `- [YYYY-MM-DD] {title} — {one-line proposal}`. | only if `TODO.md` exists at project root or under `docs/` |
 | `adr` | Copy idea body into `intake/decisions-backlog.md` as a new `### YYYY-MM-DD — {title}` entry below the `---` separator. Reviewed as a decision in next audit. | always available |
 | `backlog` | Append idea body to `IDEAS-BACKLOG.md` as a new `### YYYY-MM-DD — {title}` entry with Proposal/Motivation/Source. **Location depends on whether the idea's project tag appears in `projects_shared_knowledge`:** if NOT in the list (or list empty), write to `<project-root>/IDEAS-BACKLOG.md`; if IN the list, write to `<project-root>/_project-knowledge/IDEAS-BACKLOG.md` (team-visible, per `projects_list` resolution; see "Project-root detection" below). The user controls whether the project-root path is a parent container or a specific code repo via their `projects_list` config (e.g., `proj-a:proj-a` resolves the tag directly; `proj-b:path/to/proj-b` resolves to a parent of the code repo). Create the file with a header if it doesn't exist. | always available |
-| `bundle` | Merge 2+ related ideas into a single file, then sub-prompt for one of the destinations above. Source idea files are **all deleted** after the merged file lands. | offered when audit detects clusters (see "Bundle clustering" below) |
+| `bundle` | Merge 2+ related ideas into a single file, then sub-prompt for one of the destinations above. After the merged file lands, source idea files all move to `archive/audit-{date}/` with `bundled-into: {merged-file-path}` frontmatter (bundle-merge typically compresses each source — archive preserves the originals for substance recovery). The verify-no-loss check runs against the *merged* file's destination, not the per-source individually. | offered when audit detects clusters (see "Bundle clustering" below) |
 | `rule` | Append idea body to `intake/rules-backlog.md` as a new `### YYYY-MM-DD — {title}` entry. Reviewed during next audit alongside other rule candidates; promoted entries land in user memory as `feedback_*.md` records or in a project-local `working-rules.md`. | always available |
 
 **Project-root detection:** for `roadmap`, `todo`, and `backlog` paths, the audit needs to resolve the idea's `project` tag to a filesystem path before probing for files. Resolution rules (in priority order):
@@ -148,7 +163,25 @@ For each detected cluster, surface a `bundle` option once in the cluster's lead 
 
 **Bundle sub-prompt destinations:** when a bundle is accepted, the sub-prompt offers `tracker | roadmap | todo | adr | backlog` (the same conditional availability rules as a single idea's submenu). **Excluded from bundle sub-prompts:** `bundle` (would recurse) and `rule` (rule candidates are intentionally one-rule-per-entry — bundling rule candidates obscures their individual review under audit Step 2c3, which expects one rule per `### YYYY-MM-DD — {title}` block).
 
-Git history is the audit trail for accepted/rejected/reclassified ideas; deleted files remain recoverable via `git log --all -- intake/ideas/` if needed.
+The archive folder `{knowledge_folder}/archive/audit-{date}/` is the canonical preservation surface for any idea file whose disposition was Reject, Reclassify, Bundle, or Accept-with-insufficient-coverage. Git tracking is no longer assumed — first-class support for non-git knowledge folders. Each archived file gains frontmatter (`dismissal-reason`, `reclassified-to`, `bundled-into`, or `demoted-to`) explaining why it was archived and where its substance lives (if anywhere). After all Step 2c2 dispositions resolve, write a per-audit `{knowledge_folder}/archive/audit-{date}/MANIFEST.md` capturing the cohort:
+
+```yaml
+---
+audit_date: YYYY-MM-DD
+audit_pass: <pass number from audit log>
+ideas_touched: N
+moved_to_destination: N (full-body preservation; see per-idea audit log entries for destinations)
+archived: N
+  - dismissal (rejected): N
+  - reclassified-to-backlog: N
+  - bundled: N
+  - demoted-to-summary-destination: N
+---
+```
+
+Followed by a per-archived-file list with the originating idea filename + frontmatter pointer. The MANIFEST is the human-readable counterpart to the audit log; the audit log records dispositions, the MANIFEST records the archive's contents.
+
+**Prior versions (pre-v2.15.1)** assumed `git log --all -- intake/ideas/` would recover deleted bodies. That assumption silently failed for any idea file created since the last git commit (untracked file → working-tree delete → no history). v2.15.1 archives unconditionally; never delete is the new safety floor.
 
 Ideas never promote to `approaches/`, `decisions/`, or `rules/` directly via Accept — those land in their respective backlogs (`adr` → `decisions-backlog.md`, `rule` → `rules-backlog.md`) for normal audit-cycle review. The audit report for ideas presents the submenu inline; routing is a user action invoked by their disposition choice.
 

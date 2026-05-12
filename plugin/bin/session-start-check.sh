@@ -17,6 +17,11 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # unrelated edits. Safe no-op if no manifest exists or jq is unavailable.
 kt_batch_clear_stale 1800
 
+# Clear stale active-surfacing ledgers (>1 day old) from prior sessions.
+# The ledger is session-scoped (fresh per session per D4), so anything older
+# than ~24h is debris from crashed/abandoned sessions. Safe no-op if none exist.
+find /tmp -maxdepth 1 -name 'aria-active-*' -mtime +1 -delete 2>/dev/null
+
 # If config file exists but failed validation, report the specific error
 if [ -n "$KT_CONFIG_ERROR" ]; then
   MSG=$(kt_json_escape "aria-knowledge: $KT_CONFIG_ERROR Run /setup to reconfigure.")
@@ -216,10 +221,15 @@ MESSAGES="${MESSAGES}RULE 22 ORDERING — The Low/High Impact block must appear 
 # depletion — raw transcript persists via PreCompact anyway).
 MESSAGES="${MESSAGES}TASK BUDGET — Claude Code's UI shows the user actual token usage and context limits; Claude does not see these directly. If strain symptoms appear (responses cutting short, deep session length, compaction warnings), pause and surface them — offer options (finish the current atomic task, call /aria-knowledge:extract, trigger compaction, or continue) and let the user decide based on what they can see. Don't assume depletion or wrap up autonomously. "
 
-# Knowledge surfacing — prompt Claude to suggest /context after user states task
+# Knowledge surfacing — passive (suggest /context) vs active (Read matches directly)
+# branches on KT_ACTIVE_SURFACING (default true as of v2.15.0).
 INDEX_FILE="$KT_KNOWLEDGE_FOLDER/index.md"
 if [ -f "$INDEX_FILE" ]; then
-  MESSAGES="${MESSAGES}ARIA CONTEXT — Knowledge index available at ${KT_KNOWLEDGE_FOLDER}/index.md. After user states task, check it for relevant tags and suggest a /context with any found relevant tags. Offer once per session and again when changing topics. Do not block. "
+  if [ "$KT_ACTIVE_SURFACING" = "true" ]; then
+    MESSAGES="${MESSAGES}ARIA ACTIVE CONTEXT — Knowledge index at ${KT_KNOWLEDGE_FOLDER}/index.md. After the user states their first task, do this autonomously (do NOT wait for /context): (1) Read index.md and parse the ## Tag Index section for ### tagname headers; (2) tokenize the user's task text (lowercase, alnum-only, dedupe); (3) find tags whose names exactly match any token; (4) if ≥2 tags match, collect file lines under those tag sections, dedupe by path, cap at top-5; (5) Read each matched file; (6) before answering, output 1-2 sentences naming which files loaded and why each is relevant. Offer once per session and again on clear topic change. The TaskCreated / Bash-cd / PostCompact hooks will auto-surface for those triggers — this instruction covers the SessionStart→first-user-message gap. Honors a session ledger at /tmp/aria-active-\${session_id} (paths already there, don't re-Read). "
+  else
+    MESSAGES="${MESSAGES}ARIA CONTEXT — Knowledge index available at ${KT_KNOWLEDGE_FOLDER}/index.md. After user states task, check it for relevant tags and suggest a /context with any found relevant tags. Offer once per session and again when changing topics. Do not block. "
+  fi
 fi
 
 # Project context suggestion — only if both opt-ins are enabled AND CWD matches a configured project

@@ -52,70 +52,50 @@ fi
 TASK_SUBJECT=$(echo "$INPUT" | grep -o '"task_subject":"[^"]*"' | head -1 | sed 's/"task_subject":"//;s/"//')
 TASK_DESCRIPTION=$(echo "$INPUT" | grep -o '"task_description":"[^"]*"' | head -1 | sed 's/"task_description":"//;s/"//')
 
-# Combine and extract words: lowercase, strip punctuation, deduplicate
-WORDS=$(printf '%s %s' "$TASK_SUBJECT" "$TASK_DESCRIPTION" | tr '[:upper:]' '[:lower:]' | tr -cs '[:alnum:]' ' ' | tr ' ' '\n' | sort -u)
-
-if [ -z "$WORDS" ]; then
+# Delegate tokenize→match→collect to the shared helper. Threshold (≥2 tags)
+# and emission cap (5 files) are policy enforced by the helper; cooldown,
+# session-ledger dedup, and wording stay this script's responsibility.
+. "$SCRIPT_DIR/lib-index-match.sh"
+kt_index_match "$TASK_SUBJECT $TASK_DESCRIPTION"
+if [ "$KT_MATCH_COUNT" -eq 0 ]; then
+  kt_match_cleanup
   exit 0
 fi
 
-# Extract tag headers from the Tag Index section of index.md
-# Tags appear as "### tagname" lines after "## Tag Index"
-TAG_SECTION=$(sed -n '/^## Tag Index$/,/^## /p' "$INDEX_FILE" | grep '^### ' | sed 's/^### //' | tr '[:upper:]' '[:lower:]')
-
-if [ -z "$TAG_SECTION" ]; then
-  exit 0
-fi
-
-# Match words against tags (exact match)
-MATCHED_TAGS=""
-MATCH_COUNT=0
-for TAG in $TAG_SECTION; do
-  for WORD in $WORDS; do
-    if [ "$WORD" = "$TAG" ]; then
-      MATCHED_TAGS="${MATCHED_TAGS} ${TAG}"
-      MATCH_COUNT=$(( MATCH_COUNT + 1 ))
-      break
-    fi
-  done
-done
-
-# Require 2+ tag matches
-if [ "$MATCH_COUNT" -lt 2 ]; then
-  exit 0
-fi
-
-# Collect files for matched tags, dedup after
-TEMP_RAW=$(mktemp /tmp/aria-context-raw.XXXXXX)
-TEMP_FILES=$(mktemp /tmp/aria-context-files.XXXXXX)
-for TAG in $MATCHED_TAGS; do
-  # Extract file lines under this tag's section (awk for portable range extraction)
-  awk "/^### ${TAG}\$/{found=1; next} /^##/{found=0} found && /^- /" "$INDEX_FILE" | sed 's/^- //' >> "$TEMP_RAW"
-done
-
-# Dedup by file path (text before " — "), cap at 5
-if [ -s "$TEMP_RAW" ]; then
-  awk -F ' — ' '!seen[$1]++' "$TEMP_RAW" | head -5 > "$TEMP_FILES"
-fi
-rm -f "$TEMP_RAW" 2>/dev/null
-if [ ! -f "$TEMP_FILES" ] || [ ! -s "$TEMP_FILES" ]; then
-  rm -f "$TEMP_FILES" 2>/dev/null
-  exit 0
-fi
-
-FILE_COUNT=$(wc -l < "$TEMP_FILES" | tr -d ' ')
-if [ "$FILE_COUNT" -eq 0 ]; then
-  rm -f "$TEMP_FILES" 2>/dev/null
-  exit 0
+# Active-mode session ledger: filter out files already surfaced earlier in
+# this session, so we don't re-emit the same paths on every task dispatch.
+# Passive mode skips the ledger entirely (it's a no-cost suggestion anyway).
+LEDGER="/tmp/aria-active-${SESSION_ID}"
+if [ "$KT_ACTIVE_SURFACING" = "true" ]; then
+  kt_match_filter_ledger "$LEDGER"
+  if [ "$KT_MATCH_COUNT" -eq 0 ]; then
+    kt_match_cleanup
+    exit 0
+  fi
 fi
 
 # Set cooldown
 date +%s > "$COOLDOWN_FILE" 2>/dev/null
 
-# Build output
-TRIMMED_TAGS=$(echo "$MATCHED_TAGS" | sed 's/^ //')
-FILE_LIST=$(head -5 "$TEMP_FILES" | sed 's/^/  - /' | tr '\n' ';' | sed 's/;$//;s/;/ /g')
-rm -f "$TEMP_FILES" 2>/dev/null
+# Build file list (formatted) before cleanup releases the temp file.
+FILE_LIST=$(head -5 "$KT_MATCH_FILES_TMP" | sed 's/^/  - /' | tr '\n' ';' | sed 's/;$//;s/;/ /g')
 
-MSG=$(kt_json_escape "ARIA: Found ${FILE_COUNT} relevant knowledge file(s) matching tags: ${TRIMMED_TAGS}. ${FILE_LIST}. Run /context ${TRIMMED_TAGS} to load, or proceed without.")
+# Record surfaced paths to the session ledger so subsequent triggers in this
+# session won't re-emit the same files. Only in active mode — passive mode's
+# "suggest /context" doesn't load anything, so dedup is irrelevant.
+if [ "$KT_ACTIVE_SURFACING" = "true" ]; then
+  kt_match_record_ledger "$LEDGER"
+fi
+
+kt_match_cleanup
+
+# Branch wording on KT_ACTIVE_SURFACING. Active instructs Claude to Read the
+# matched files immediately, then summarize. Passive falls back to /context
+# suggestion (the v2.14.x behavior, opt-out path for users who set
+# active_knowledge_surfacing: false).
+if [ "$KT_ACTIVE_SURFACING" = "true" ]; then
+  MSG=$(kt_json_escape "ARIA ACTIVE — ${KT_MATCH_COUNT} knowledge file(s) match this task (tags: ${KT_MATCH_TAGS}). Read each, then summarize what loaded in 1-2 sentences before composing the subagent prompt or proceeding. Files: ${FILE_LIST}. (Recorded to session ledger — won't re-surface.)")
+else
+  MSG=$(kt_json_escape "ARIA: Found ${KT_MATCH_COUNT} relevant knowledge file(s) matching tags: ${KT_MATCH_TAGS}. ${FILE_LIST}. Run /context ${KT_MATCH_TAGS} to load, or proceed without.")
+fi
 echo '{"systemMessage":"'"$MSG"'"}'

@@ -2,6 +2,80 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## [2.15.1] - 2026-05-13
+
+**`/audit-knowledge` Phase 2c2 — never delete; archive instead.** Closes a destructive failure mode in the ideas-routing flow: prior versions assumed `git log --all -- intake/ideas/` would recover idea bodies after Phase 2c2 deletion, but that assumption silently fails for any idea file created since the last git commit (untracked files have no history). Patch bump because the change is a safety fix on existing behavior, not a new feature surface.
+
+### Changed — `plugin/skills/audit-knowledge/SKILL.md` Step 2c2
+
+Three coordinated edits replace "delete after routing" with "move-or-archive, never delete":
+
+1. **Disposition list rewritten** — Accept / Reject / Reclassify no longer delete the idea file. Accept moves to destination (full-body preservation) OR to `archive/audit-{date}/` (summary-only destinations, with `demoted-to:` frontmatter). Reject moves to archive with `dismissal-reason:` frontmatter. Reclassify moves to archive with `reclassified-to:` frontmatter. Defer unchanged (no-op).
+2. **Verify-no-loss check added** — before any Accept disposition's move-to-destination is executed, the audit inventories the original idea's substantive content ({Why, Motivation, Implementation, Source}) against the planned destination's coverage. Three outcomes: full coverage → move to destination; insufficient coverage → archive alongside; partial coverage → surface options to user. Edits/revisions during move are explicitly permitted — the rule is "no useful substantive content is lost," not "body byte-identical."
+3. **Archive-folder canonical-preservation semantics + MANIFEST.md spec** — `archive/audit-{date}/` is the new canonical preservation surface; git tracking no longer assumed. Per-audit `MANIFEST.md` captures the cohort (touched, moved, archived-by-reason) as a human-readable counterpart to the audit log.
+4. **Bundle row updated** — source idea files in a bundle disposition move to archive with `bundled-into:` frontmatter (not deleted). Verify-no-loss runs on the merged file's destination, not per-source individually.
+
+### Why this matters (non-git users)
+
+Prior versions effectively required users to commit `intake/ideas/` before every `/audit-knowledge` run. Users who don't keep their knowledge folder under git (a valid configuration) had no preservation guarantee — Phase 2c2's delete was destructive without recourse. v2.15.1 makes archive-on-disk the universal preservation surface, with non-git knowledge folders first-class.
+
+### Out of scope (deferred to future patch)
+
+- `/audit-knowledge` Step 2d (pre-compact captures) and other deletion points in other skills are NOT yet rewritten under the new rule. They use separate semantics (transcript snapshots are auto-generated, larger, and their substance is the conversation — already persisted in Claude Code's own transcript log). A v2.15.x audit of all delete-call-sites across the plugin is queued for follow-up.
+- Backfill of historical destructive audits (e.g., the 2026-05-13 parallel-session incident that surfaced this bug) is handled per-incident by the operator, not by this skill's spec.
+
+### Origin
+
+A parallel `/audit-knowledge` session on 2026-05-13 deleted 36 idea files whose bodies were never in git history (untracked working-tree files). The user surfaced the destructive damage mid-session; recovery surfaces (Trash, APFS snapshots, Time Machine, VS Code local history) were all exhausted, confirming the bodies were permanently lost. Three iterations of design discussion converged on: never delete; verify substantive coverage before claiming move-preservation is sufficient; archive on insufficient coverage. The shape of the spec change captures all three: dispositions move-or-archive, Accept gates through verify-no-loss, archive folder is the universal preservation surface.
+
+## [2.15.0] - 2026-05-13
+
+**Active Knowledge Surfacing.** New `active_knowledge_surfacing: true` config field (default `true` per D4 of the design discussion) that promotes ARIA's apply pillar from passive (hook suggests `/context`, user types it) to active (hook + skill instructs Claude to autonomously Read matched files, then summarize what loaded before answering). Four hook trigger sites (SessionStart, TaskCreated, PreToolUse:Bash with cd-pattern matching, PostCompact) plus two skill trigger sites (`/prospect` and `/retrospect` via new Step 0.5). Honors a session-scoped dedup ledger at `/tmp/aria-active-{session_id}` so files surfaced by one trigger aren't re-Read by another within the same session. Cleared on SessionStart per the fresh-per-session decision; cross-session continuity comes from PostCompact's re-surface block, not from a persistent ledger. Minor bump (not patch) because the default-true posture is a posture flip, not just an additive knob — existing users upgrading to 2.15.0 will see autonomous Read calls on first session-start.
+
+### Added — `bin/lib-index-match.sh`
+
+New shared shell helper exporting `kt_index_match`, `kt_match_cleanup`, `kt_match_filter_ledger`, and `kt_match_record_ledger`. Refactored out of the inline matcher previously living in `task-context-check.sh` (lines 55-99 of v2.14.4). Single source of truth for the tokenize → match → file-collection → ledger pipeline; called by 3 of the 4 hooks (TaskCreated, Bash-cd, PostCompact reads but doesn't re-match). The two skills do Claude-driven matching via Read on `index.md` rather than shelling out, because skills run inside Claude where `${CLAUDE_PLUGIN_ROOT}` isn't reachable. Preserves the existing ≥2-tag-match threshold and 5-file emission cap as policy constants — changing them is a deliberate cross-cutting decision, not a per-caller knob.
+
+### Added — `bin/bash-cd-check.sh`
+
+New PreToolUse:Bash hook. Parses `cd <path>` from the command string (including compound commands like `cd foo && bar`), resolves relative + `~`-prefixed paths against `$PWD`/`$HOME`, derives a query from the destination path's last 2 basenames (e.g., `cd cs/cs-builder` → query `"cs cs-builder"`), and surfaces matched knowledge files. Per-project-per-session cooldown via `/tmp/aria-bashcd-{session_id}-{project_key}` so repeated cd into the same project doesn't re-prompt. Never blocks the cd — emits `additionalContext` only.
+
+### Added — `Step 0.5: Active Knowledge Surfacing` in `/prospect` and `/retrospect`
+
+Both skills gain an identically-shaped Step 0.5 between Step 0 (Inputs & Mode Detection) and Step 1 (Anchor Block). 10-substep Claude-driven algorithm: query-build (from skill arguments) → Read `index.md` → tokenize → match → threshold gate → collect → ledger filter (best-effort via `ls -t /tmp/aria-active-*`) → Read top-5 → 3-line summarize block → carry-forward into Steps 2 and 3.5. The /retrospect variant adds a `prefer logs/retrospect/` priority hint in substep 8 — past retros on overlapping tags are the loop-closure case (retrospect output becomes the next prospect's input on the same topic, after `/index` promotes them to the tag index).
+
+### Changed — `bin/config.sh`
+
+Adds parse + default (`true`) + validation case for `active_knowledge_surfacing`. Mirrors the `auto_capture` shape exactly (3 contiguous lines in each of the three blocks). Invalid values fall back to `true` (active mode is the secure default per D4).
+
+### Changed — `bin/task-context-check.sh`
+
+Inline matcher removed; delegates to `kt_index_match` via the new shared helper. Cooldown, threshold, and emission cap behavior preserved byte-identical to v2.14.4. Active mode branches: filters previously-surfaced paths via the session ledger, swaps "Run /context" wording for an active-Read instruction, records emitted paths to the ledger after a successful surfacing. Passive mode (when the flag is `false`) preserves the v2.14.4 message verbatim.
+
+### Changed — `bin/session-start-check.sh`
+
+Adds a janitor pass clearing stale `aria-active-*` ledgers older than 24h at session start. The knowledge-surfacing block now branches on the flag: active mode emits a 6-step prescriptive algorithm for Claude to execute after the first user task statement (Read index.md → tokenize → match ≥2 known tags → Read top-5 → summarize 1-2 sentences); passive mode preserves the v2.14.4 "suggest `/context`" wording verbatim.
+
+### Changed — `bin/post-compact-check.sh`
+
+Existing pre-compact snapshot detection preserved. New parallel block reads the active-surfacing ledger and emits a re-surface reminder after compaction wipes context. Both blocks coalesce into a single `additionalContext` emission since each hook fires one JSON output. Active-mode-gated; passive mode skips Block 2 entirely.
+
+### Changed — `.claude-plugin/plugin.json`
+
+Registers `PreToolUse:Bash` matcher pointing to `bash-cd-check.sh` (5s timeout, same as the other PreToolUse entries). Existing `PreToolUse: Edit|Write` and `PreToolUse: Glob|Grep` entries untouched.
+
+### Changed — `/setup` wizard
+
+Adds Step 6 Advanced Options bullet for `active_knowledge_surfacing` (named all six trigger sites + ledger path + thresholds inline). Adds Step 7 YAML template line. Adds Step 7b round-trip validation row. Existing users running `/setup` after upgrade will see the field marked `[NEW]` per the existing new-key detection behavior.
+
+### Changed — `CONFIG.md`
+
+New row in the hook-parsed-fields table positioned between `auto_capture` and `critical_paths`. "Read by" column enumerates all six consumers (4 hooks + 2 skills).
+
+### Origin
+
+Design discussion 2026-05-13: user invoked `aria/aria-knowledge` skill context and asked how indexed knowledge gets auto-surfaced, then requested a setup toggle to switch between passive ("suggest `/context`") and active ("autonomously Read matches") modes. Decisions locked through a 4-question form (Active-Read semantic; SessionStart + TaskCreated + Bash:cd + PostCompact trigger surface; single boolean field; default true) plus an addition for skill insertion on /prospect and /retrospect. Step 0.5 placement chosen over Step 0 inline so the conditional active block stays audit-visible separate from each skill's unconditional Inputs step. Implementation followed a 3-checkpoint plan with `[Rule 22]` markers per edit; final retrospect runs after this changelog lands.
+
 ## [2.14.4] - 2026-05-12
 
 **New `/handoff` express-handoff skill + `/audit-config` release-state cascade checks.** Closes two ideas filed during the 2026-05-09 wrapup and the 2026-05-11 cascade-traced pipeline-adoption arc. Together they form a prospective↔retrospective release-discipline loop: `/handoff` writes the post-release version-stamp and adoption-state docs (and emits a paste-ready next-session opener); the next `/audit-config` mechanically catches any surfaces that didn't get touched. Patch bump per `feedback_aria_versioning_patch_for_new_skill`: new isolated skill + additive extension to an existing skill, no schema or contract change.

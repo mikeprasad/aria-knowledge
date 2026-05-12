@@ -8,7 +8,7 @@ ARIA (Applied Reasoning and Insight Architecture) — an active knowledge and de
 
 ## Sibling Plugin (aria-cowork)
 
-A Cowork-side counterpart lives at `~/Projects/aria/aria-cowork/` (`mikeprasad/aria-cowork`, public). Both plugins share the user's `~/Projects/knowledge/` folder and write to the same canonical config (`aria-config.md`) under an additive-only schema (per ADR-002 in the aria-cowork knowledge folder). Edits to shared surfaces — `aria-config.md` field names, the `template/rules/` content, the `working-rules.md` rule numbering — should preserve cross-plugin compatibility. aria-cowork is at v0.2.4+ and ports 10 of aria-knowledge's 24 skills (with 5 explicitly Code-only excluded per its ADR-005; the 24th is `/prospect`, added in v2.14.1). Cowork-specific authoring constraints documented in `knowledge/guides/claude/cowork-plugin-validation.md`.
+A Cowork-side counterpart lives at `~/Projects/aria/aria-cowork/` (`mikeprasad/aria-cowork`, public). Both plugins share the user's `~/Projects/knowledge/` folder and write to the same canonical config (`aria-config.md`) under an additive-only schema (per ADR-002 in the aria-cowork knowledge folder). Edits to shared surfaces — `aria-config.md` field names, the `template/rules/` content, the `working-rules.md` rule numbering — should preserve cross-plugin compatibility. aria-cowork is at v0.2.5 (BUILT 2026-05-08) and ports 10 of aria-knowledge's 25 skills (with 5 explicitly Code-only excluded per its ADR-005; the 24th was `/prospect`, added in v2.14.1, and the 25th is `/handoff`, added in v2.14.4 — not yet ported to aria-cowork since v0.2.5 predates v2.14.4). Cowork-specific authoring constraints documented in `knowledge/guides/claude/cowork-plugin-validation.md`.
 
 ## Project Structure
 

@@ -53,6 +53,39 @@ After mode detection, gather:
 
 If scope is `session` (or invoked via `--session`), skip post-deploy outcome (no production yet) and tag all fixes 🚫 unvalidatable; their actions will resolve to HOLD-PENDING-DEPLOY.
 
+## Step 0.5: Active Knowledge Surfacing
+
+If the user's config (`~/.claude/aria-knowledge.local.md`) has `active_knowledge_surfacing: true` (default as of v2.15.0), surface relevant tagged knowledge BEFORE Steps 1-3 so loaded files inform pattern selection and evidence sourcing. If the field is `false`, skip this step entirely (note `Active surfacing: disabled` in the Anchor block).
+
+**Algorithm:**
+
+1. **Build query.** Combine, separated by spaces: the Goal sentence from Step 0; the first 3 commit subjects in the bundle range; PR title if scope is `pr`; any detected Linear ticket IDs (e.g., `LINEAR-123`); the resolved deployment marker label if scope is `deployment`; the range descriptor (e.g., `v0.4.2..HEAD`).
+
+2. **Read the index.** `Read` `<knowledge_folder>/index.md` (resolve `<knowledge_folder>` from the config's `knowledge_folder` field). Parse the `## Tag Index` section for `### tagname` headers — that's the matching vocabulary (~77 known tags as of v2.15.0). Ignore the `## Other Tags` section (freeform tier, intentionally excluded from auto-surfacing).
+
+3. **Tokenize.** Lowercase the query, strip punctuation to spaces, dedupe to a word set.
+
+4. **Match.** Exact word-vs-tag equality only — no substring, no fuzzy. Collect the set of matched tags.
+
+5. **Threshold gate.** If fewer than 2 tags matched, note `Active surfacing: 0 matches (below threshold)` in the Anchor block and skip to Step 1.
+
+6. **Collect files.** Under each matched tag's `### tag` section, gather the `- path — description` lines. Dedupe by path. Cap at top-5 by first-appearance order.
+
+7. **Ledger filter (best-effort).** Run `ls -t /tmp/aria-active-* 2>/dev/null | head -1` via Bash to find the current session's ledger. If found, read it and drop any matched paths already listed there. If no ledger exists, proceed unfiltered.
+
+8. **Read matched files.** For each remaining path (up to 5), `Read` the full file into context. **Prefer files under `logs/retrospect/`** if any matched — they're prior retros on overlapping tags, which is the loop-closure case (past retros inform new retros on the same topic). If both a retro and a non-retro file match, prioritize the retro within the top-5 cap.
+
+9. **Summarize.** Before Step 1's Anchor Block, emit a 3-line surfacing block:
+
+    ```
+    Active Knowledge Surfacing:
+      Tags matched: <tag1> <tag2> ...
+      Files loaded: <N> (<file1>, <file2>, ...)
+      Relevance: <one sentence per file: why this informs the retrospective>
+    ```
+
+10. **Carry-forward.** These loaded files become input to Step 2 (Load Pattern Libraries — past retros may already have catalogued the relevant failure-mode patterns) and Step 3.5 (Evidence-Sourcing Pass — they may already provide validation or falsification for fixes in this range).
+
 ## Step 1: Print the Anchor Block
 
 Before producing any verdict, emit the anchor so the rest of the report can be traced to inputs:

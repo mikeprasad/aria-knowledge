@@ -24,6 +24,7 @@ if [ -f "$KT_CONFIG" ]; then
   KT_STALENESS_MONTHS=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^staleness_threshold_months:' | sed 's/^staleness_threshold_months: *//')
   KT_CADENCE_UPDATE=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^audit_cadence_update:' | sed 's/^audit_cadence_update: *//')
   KT_AUTO_CAPTURE=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^auto_capture:' | sed 's/^auto_capture: *//')
+  KT_ACTIVE_SURFACING=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^active_knowledge_surfacing:' | sed 's/^active_knowledge_surfacing: *//')
   KT_CRITICAL_PATHS=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^critical_paths:' | sed 's/^critical_paths: *//')
   KT_PROJECTS_ENABLED=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^projects_enabled:' | sed 's/^projects_enabled: *//')
   KT_PROJECTS_LIST=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^projects_list:' | sed 's/^projects_list: *//')
@@ -42,6 +43,7 @@ if [ -f "$KT_CONFIG" ]; then
   KT_STALENESS_MONTHS=${KT_STALENESS_MONTHS:-6}
   KT_CADENCE_UPDATE=${KT_CADENCE_UPDATE:-30}
   KT_AUTO_CAPTURE=${KT_AUTO_CAPTURE:-true}
+  KT_ACTIVE_SURFACING=${KT_ACTIVE_SURFACING:-true}
   KT_PROJECTS_ENABLED=${KT_PROJECTS_ENABLED:-false}
   KT_PROJECTS_PROMOTION_THRESHOLD=${KT_PROJECTS_PROMOTION_THRESHOLD:-2}
   KT_AUTO_LOAD_PROJECT_CONTEXT=${KT_AUTO_LOAD_PROJECT_CONTEXT:-false}
@@ -83,6 +85,10 @@ if [ -f "$KT_CONFIG" ]; then
   case "$KT_AUTO_CAPTURE" in
     true|false) ;; # valid
     *) KT_AUTO_CAPTURE=true ;;
+  esac
+  case "$KT_ACTIVE_SURFACING" in
+    true|false) ;; # valid
+    *) KT_ACTIVE_SURFACING=true ;;
   esac
   case "$KT_PROJECTS_ENABLED" in
     true|false) ;; # valid
