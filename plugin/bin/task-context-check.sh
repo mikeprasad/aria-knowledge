@@ -57,45 +57,64 @@ TASK_DESCRIPTION=$(echo "$INPUT" | grep -o '"task_description":"[^"]*"' | head -
 # session-ledger dedup, and wording stay this script's responsibility.
 . "$SCRIPT_DIR/lib-index-match.sh"
 kt_index_match "$TASK_SUBJECT $TASK_DESCRIPTION"
-if [ "$KT_MATCH_COUNT" -eq 0 ]; then
-  kt_match_cleanup
-  exit 0
-fi
 
-# Active-mode session ledger: filter out files already surfaced earlier in
-# this session, so we don't re-emit the same paths on every task dispatch.
-# Passive mode skips the ledger entirely (it's a no-cost suggestion anyway).
+# v2.16.1: compute tracked artifacts (CODEMAP/STITCH) for $PWD — surfaces
+# alongside (or independently of) any knowledge-tag matches so subagents
+# get project structural context.
+. "$SCRIPT_DIR/lib-tracked-artifacts.sh"
+kt_artifact_compute_for_path "$PWD"
+
+# Active-mode session ledger: filter out files/artifacts already surfaced
+# earlier in this session, so we don't re-emit the same paths on every task
+# dispatch. Passive mode skips the ledger entirely.
 LEDGER="/tmp/aria-active-${SESSION_ID}"
 if [ "$KT_ACTIVE_SURFACING" = "true" ]; then
-  kt_match_filter_ledger "$LEDGER"
-  if [ "$KT_MATCH_COUNT" -eq 0 ]; then
-    kt_match_cleanup
-    exit 0
+  if [ "$KT_MATCH_COUNT" -gt 0 ]; then
+    kt_match_filter_ledger "$LEDGER"
   fi
+  if [ "$KT_ARTIFACTS_COUNT" -gt 0 ]; then
+    kt_artifact_filter_ledger "$LEDGER"
+  fi
+fi
+
+# Exit if NEITHER surfacing has results
+if [ "$KT_MATCH_COUNT" -eq 0 ] && [ "$KT_ARTIFACTS_COUNT" -eq 0 ]; then
+  kt_match_cleanup
+  exit 0
 fi
 
 # Set cooldown
 date +%s > "$COOLDOWN_FILE" 2>/dev/null
 
-# Build file list (formatted) before cleanup releases the temp file.
-FILE_LIST=$(head -5 "$KT_MATCH_FILES_TMP" | sed 's/^/  - /' | tr '\n' ';' | sed 's/;$//;s/;/ /g')
-
-# Record surfaced paths to the session ledger so subsequent triggers in this
-# session won't re-emit the same files. Only in active mode — passive mode's
-# "suggest /context" doesn't load anything, so dedup is irrelevant.
-if [ "$KT_ACTIVE_SURFACING" = "true" ]; then
-  kt_match_record_ledger "$LEDGER"
+# Knowledge-file processing
+FILE_LIST=""
+if [ "$KT_MATCH_COUNT" -gt 0 ]; then
+  FILE_LIST=$(head -5 "$KT_MATCH_FILES_TMP" | sed 's/^/  - /' | tr '\n' ';' | sed 's/;$//;s/;/ /g')
+  if [ "$KT_ACTIVE_SURFACING" = "true" ]; then
+    kt_match_record_ledger "$LEDGER"
+  fi
 fi
-
 kt_match_cleanup
 
-# Branch wording on KT_ACTIVE_SURFACING. Active instructs Claude to Read the
-# matched files immediately, then summarize. Passive falls back to /context
-# suggestion (the v2.14.x behavior, opt-out path for users who set
-# active_knowledge_surfacing: false).
-if [ "$KT_ACTIVE_SURFACING" = "true" ]; then
-  MSG=$(kt_json_escape "ARIA ACTIVE — ${KT_MATCH_COUNT} knowledge file(s) match this task (tags: ${KT_MATCH_TAGS}). Read each, then summarize what loaded in 1-2 sentences before composing the subagent prompt or proceeding. Files: ${FILE_LIST}. (Recorded to session ledger — won't re-surface.)")
-else
-  MSG=$(kt_json_escape "ARIA: Found ${KT_MATCH_COUNT} relevant knowledge file(s) matching tags: ${KT_MATCH_TAGS}. ${FILE_LIST}. Run /context ${KT_MATCH_TAGS} to load, or proceed without.")
+# Record artifacts to ledger (active mode only)
+if [ "$KT_ACTIVE_SURFACING" = "true" ] && [ "$KT_ARTIFACTS_COUNT" -gt 0 ]; then
+  kt_artifact_record_ledger "$LEDGER"
 fi
+
+# Branch wording on KT_ACTIVE_SURFACING + presence of each surfacing kind.
+COMBINED_MSG=""
+
+if [ "$KT_MATCH_COUNT" -gt 0 ]; then
+  if [ "$KT_ACTIVE_SURFACING" = "true" ]; then
+    COMBINED_MSG="ARIA ACTIVE — ${KT_MATCH_COUNT} knowledge file(s) match this task (tags: ${KT_MATCH_TAGS}). Read each, then summarize what loaded in 1-2 sentences before composing the subagent prompt or proceeding. Files: ${FILE_LIST}. (Recorded to session ledger — won't re-surface.) "
+  else
+    COMBINED_MSG="ARIA: Found ${KT_MATCH_COUNT} relevant knowledge file(s) matching tags: ${KT_MATCH_TAGS}. ${FILE_LIST}. Run /context ${KT_MATCH_TAGS} to load, or proceed without. "
+  fi
+fi
+
+if [ "$KT_ARTIFACTS_COUNT" -gt 0 ]; then
+  COMBINED_MSG="${COMBINED_MSG}${KT_ARTIFACTS_INSTRUCTION}"
+fi
+
+MSG=$(kt_json_escape "$COMBINED_MSG")
 echo '{"systemMessage":"'"$MSG"'"}'

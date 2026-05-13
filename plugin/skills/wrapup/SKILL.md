@@ -142,7 +142,10 @@ Run through a checklist and report status:
 - [x/!/ ] CLAUDE.md — [current / updated / not found / skipped]
 - [x/!/ ] Memory — [updated / already current / not found / skipped]
 - [x/!/ ] Git — [committed / no changes / uncommitted changes (user skipped)]
+- [x/!/ ] Tracked artifacts — [all fresh / N stale (consider /codemap update or /stitch verify) / not checked]
 ```
+
+**Tracked artifacts check (added v2.16.1):** if active project detected (from Step 1's identification), stat `{project_root}/CODEMAP.md` and `{project_root}/STITCH.md` against `codemap_staleness_threshold_days` / `stitch_staleness_threshold_days` from config (defaults 14 / 30). Report status with `x` (fresh), `!` (stale), or blank (not checked). Don't block on staleness — surface for next-session awareness.
 
 If any item shows a gap (uncommitted changes skipped, PROGRESS.md not updated), flag it — but don't block. The user may have good reasons to defer.
 

@@ -85,36 +85,63 @@ INDEX_FILE="$KT_KNOWLEDGE_FOLDER/index.md"
 
 . "$SCRIPT_DIR/lib-index-match.sh"
 kt_index_match "$QUERY"
-if [ "$KT_MATCH_COUNT" -eq 0 ]; then
+
+# v2.16.1: compute tracked artifacts (CODEMAP/STITCH) for the cd destination —
+# surfaces alongside (or independently of) any knowledge-tag matches.
+. "$SCRIPT_DIR/lib-tracked-artifacts.sh"
+kt_artifact_compute_for_path "$CD_PATH"
+
+# Ledger filter (active mode) — applied to BOTH knowledge files and artifacts
+LEDGER="/tmp/aria-active-${SESSION_ID}"
+if [ "$KT_ACTIVE_SURFACING" = "true" ]; then
+  if [ "$KT_MATCH_COUNT" -gt 0 ]; then
+    kt_match_filter_ledger "$LEDGER"
+  fi
+  if [ "$KT_ARTIFACTS_COUNT" -gt 0 ]; then
+    kt_artifact_filter_ledger "$LEDGER"
+  fi
+fi
+
+# Exit if NEITHER surfacing has results
+if [ "$KT_MATCH_COUNT" -eq 0 ] && [ "$KT_ARTIFACTS_COUNT" -eq 0 ]; then
   kt_match_cleanup
   exit 0
 fi
 
-# Ledger filter (active mode)
-LEDGER="/tmp/aria-active-${SESSION_ID}"
-if [ "$KT_ACTIVE_SURFACING" = "true" ]; then
-  kt_match_filter_ledger "$LEDGER"
-  if [ "$KT_MATCH_COUNT" -eq 0 ]; then
-    kt_match_cleanup
-    exit 0
-  fi
-fi
-
-# Mark cooldown
+# Mark cooldown (covers both surfacing kinds for this project this session)
 date +%s > "$COOLDOWN_FILE" 2>/dev/null
 
-FILE_LIST=$(head -5 "$KT_MATCH_FILES_TMP" | sed 's/^/  - /' | tr '\n' ';' | sed 's/;$//;s/;/ /g')
-
-if [ "$KT_ACTIVE_SURFACING" = "true" ]; then
-  kt_match_record_ledger "$LEDGER"
+# Knowledge-file processing (if matches present)
+FILE_LIST=""
+if [ "$KT_MATCH_COUNT" -gt 0 ]; then
+  FILE_LIST=$(head -5 "$KT_MATCH_FILES_TMP" | sed 's/^/  - /' | tr '\n' ';' | sed 's/;$//;s/;/ /g')
+  if [ "$KT_ACTIVE_SURFACING" = "true" ]; then
+    kt_match_record_ledger "$LEDGER"
+  fi
 fi
 kt_match_cleanup
 
-# Emit via additionalContext (PreToolUse) — does not block the cd, just adds
-# context for Claude's next turn. Branch wording on active mode.
-if [ "$KT_ACTIVE_SURFACING" = "true" ]; then
-  MSG=$(kt_json_escape "ARIA ACTIVE — switching into ${LAST} (tags matched: ${KT_MATCH_TAGS}). Read these ${KT_MATCH_COUNT} knowledge file(s) before exploring the new directory, then summarize what loaded in 1-2 sentences: ${FILE_LIST}. (Recorded to session ledger.)")
-else
-  MSG=$(kt_json_escape "ARIA: Detected cd into ${LAST}. ${KT_MATCH_COUNT} relevant knowledge file(s) match tags: ${KT_MATCH_TAGS}. ${FILE_LIST}. Run /context ${KT_MATCH_TAGS} to load, or proceed without.")
+# Record artifacts to ledger (active mode only)
+if [ "$KT_ACTIVE_SURFACING" = "true" ] && [ "$KT_ARTIFACTS_COUNT" -gt 0 ]; then
+  kt_artifact_record_ledger "$LEDGER"
 fi
+
+# Emit via additionalContext (PreToolUse) — does not block the cd, just adds
+# context for Claude's next turn. Branch wording on active mode + presence.
+COMBINED_MSG=""
+
+if [ "$KT_MATCH_COUNT" -gt 0 ]; then
+  if [ "$KT_ACTIVE_SURFACING" = "true" ]; then
+    COMBINED_MSG="ARIA ACTIVE — switching into ${LAST} (tags matched: ${KT_MATCH_TAGS}). Read these ${KT_MATCH_COUNT} knowledge file(s) before exploring the new directory, then summarize what loaded in 1-2 sentences: ${FILE_LIST}. (Recorded to session ledger.) "
+  else
+    COMBINED_MSG="ARIA: Detected cd into ${LAST}. ${KT_MATCH_COUNT} relevant knowledge file(s) match tags: ${KT_MATCH_TAGS}. ${FILE_LIST}. Run /context ${KT_MATCH_TAGS} to load, or proceed without. "
+  fi
+fi
+
+# Append tracked-artifacts part (CODEMAP/STITCH instruction from lib-tracked-artifacts.sh)
+if [ "$KT_ARTIFACTS_COUNT" -gt 0 ]; then
+  COMBINED_MSG="${COMBINED_MSG}${KT_ARTIFACTS_INSTRUCTION}"
+fi
+
+MSG=$(kt_json_escape "$COMBINED_MSG")
 echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","additionalContext":"'"$MSG"'"}}'

@@ -80,6 +80,28 @@ If the user's config (`~/.claude/aria-knowledge.local.md`) has `active_knowledge
 
 10. **Carry-forward.** These loaded files become input to Step 2 (Load Pattern Libraries — past prospects/retros tagged with the same topic may already catalog the relevant patterns) and Step 3.5 (Evidence-Sourcing Pass — they may already validate or falsify assumptions in the plan, converting ⚠/❓ to ✅/❌ before the verdict round).
 
+11. **Tracked artifacts surfacing (added v2.16.1).** After Step 10's carry-forward, ALSO surface CODEMAP + STITCH for the plan's project. The shared lib at `${CLAUDE_PLUGIN_ROOT}/bin/lib-tracked-artifacts.sh` implements equivalent logic for hooks; this step inlines the algorithm for skill-context portability.
+
+    a. **Detect project tag.** Try in order: `--group=<tag>` from Step 0 if provided → first Linear-ticket ID prefix that maps to a `projects_list` tag → first `projects_list[<tag>].path` whose `path` appears as substring in the plan source path (from Step 0 `Source:` field). If no detection, skip the rest of Step 11.
+
+    b. **Resolve project root via Bash.** Parse `projects_list:` from `~/.claude/aria-knowledge.local.md` frontmatter (comma-separated `tag:path`). For the detected tag, compute `project_root = $HOME/Projects/<path>`. If directory doesn't exist, skip.
+
+    c. **CODEMAP directory load** (if `{project_root}/CODEMAP.md` exists). Compute boundary via `awk '/^## [0-9]+\.|^---$/ && NR>5 {print NR; exit}' "{project_root}/CODEMAP.md"`; Read limit = `(end - 1)` (fallback 50 if awk empty). Compute `age = (today - mtime).days`; read `codemap_staleness_threshold_days` (default 14). If `age > 2*threshold`, refuse and emit `[refused — run /codemap update first]`. Else if `age > threshold`, annotate `[STALE — consider /codemap update]`. Else `fresh`. Unless refused: `Read {project_root}/CODEMAP.md offset=0 limit=<end-1>`.
+
+    d. **STITCH load** (only if `{project_root}/STITCH.md` exists — multi-repo signal). Same staleness logic with `stitch_staleness_threshold_days` (default 30). Unless refused: `Read {project_root}/STITCH.md` (full file).
+
+    e. **Ledger dedup.** Locate session ledger via `ls -t /tmp/aria-active-* 2>/dev/null | head -1`. Before loading in (c)/(d), grep ledger for each artifact path; if found, silent skip (already surfaced by earlier T-1/T-2/T-3 trigger) and emit `Tracked artifacts: (already loaded earlier this session for {tag})` in the surfacing block. After loading, append loaded paths to the ledger.
+
+    f. **Output.** Extend the Step 9 surfacing block with a 4th line:
+        ```
+        Tracked artifacts: CODEMAP directory + STITCH for {tag} ({N} / {M} days fresh)
+        ```
+        Variants: `CODEMAP directory only` for single-repo (no STITCH); `(no CODEMAP for {tag})` if missing; `[STALE — consider /codemap update]` annotation; `(already loaded earlier this session)` if ledger-deduped; `(none — no project detected)` if (a) returned nothing.
+
+    g. **Carry-forward.** The loaded artifacts become available to Steps 3+ — particularly Step 3 (Enumerate Steps; CODEMAP directory aids file-path resolution for plan steps) and Step 3.5 (Evidence-Sourcing Pass; CODEMAP sections can validate or falsify assumptions about codebase structure).
+
+    Skip Step 11 entirely if `active_knowledge_surfacing: false` (already gated above).
+
 ## Step 1: Print the Anchor Block
 
 Before producing any verdict, emit the anchor so the rest of the report can be traced to inputs:

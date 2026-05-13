@@ -150,8 +150,11 @@ Run the same checklist `/wrapup` Step 7 uses:
 - Memory — [updated / already current / not found / skipped]
 - Git — [committed N file(s) / no changes / uncommitted (skipped)]
 - /extract — [N items captured / nothing new]
+- Tracked artifacts — [all fresh / N stale (consider /codemap update or /stitch verify for {tags}) / not checked]
 - Next-session opener — [emitted below]
 ```
+
+**Tracked artifacts check (added v2.16.1):** if active project detected (from Step 1's identification), stat `{project_root}/CODEMAP.md` and `{project_root}/STITCH.md` against `codemap_staleness_threshold_days` / `stitch_staleness_threshold_days` from config (defaults 14 / 30). Report status. Don't block on staleness — surface for visibility so next session starts with awareness.
 
 Flag any gaps but don't block — the user may have skipped sections intentionally.
 

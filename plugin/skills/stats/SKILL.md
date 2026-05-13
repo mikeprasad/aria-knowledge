@@ -67,6 +67,25 @@ If no CODEMAP.md files are found under cwd, the section still renders with a sin
 
 **Presentation-only.** This step does not classify stale/current or run git-activity checks. Staleness classification with file-change detection belongs to `/audit-knowledge` Step 5d — `/stats` just surfaces the raw date so the user can decide whether to run the audit.
 
+## Step 3b: Cross-Project Tracked Artifacts (added v2.16.1)
+
+In addition to the cwd-scoped Glob in Step 3a, iterate `KT_PROJECTS_LIST` (from config) to surface CODEMAP + STITCH dates across ALL configured projects — a dashboard view, not just the current working directory.
+
+Skip this step entirely if `KT_PROJECTS_ENABLED != true` or `KT_PROJECTS_LIST` is empty.
+
+For each `tag:path` entry in `projects_list`:
+
+1. Resolve `project_root = $HOME/Projects/<path>`. If directory doesn't exist, note "(configured but missing)" and continue.
+2. Stat `{project_root}/CODEMAP.md`:
+   - If exists, parse `> Last updated: YYYY-MM-DD` from the header (or fall back to mtime). Compute days-since.
+   - If missing, note "(no CODEMAP)".
+3. Stat `{project_root}/STITCH.md`:
+   - If exists, days-since via mtime (STITCH files don't carry a header date in v2.16.x).
+   - If missing, note as single-repo (suppress this row entirely if user prefers terseness — or render "(single-repo, no STITCH)").
+4. Classify against thresholds: `codemap_staleness_threshold_days` (default 14) and `stitch_staleness_threshold_days` (default 30). Status = fresh / STALE (>threshold) / REFUSAL-ZONE (>2× threshold).
+
+**Presentation-only.** Same discipline as Step 3a — surfaces dates + status without auto-acting. Pairs with `/audit-config` Step 5a, which produces actionable findings.
+
 ## Step 4: Index Health (if index.md exists)
 
 If `{knowledge_folder}/index.md` exists, read it and extract:
@@ -124,6 +143,17 @@ Output in this format:
 - <relative-path>: updated YYYY-MM-DD (N days ago)
 [If no codemaps found:]
 - No CODEMAP.md found under cwd
+
+### Cross-Project Tracked Artifacts (added 2.16.1)
+[If projects_enabled=true AND projects_list non-empty, one block per project:]
+- <tag>:
+  - CODEMAP: updated YYYY-MM-DD (N days ago) [fresh | STALE | REFUSAL ZONE]
+  - STITCH: updated YYYY-MM-DD (N days ago) [fresh | STALE | REFUSAL ZONE]
+    (or: "single-repo — no STITCH")
+[If projects_root directory missing for a tag:]
+- <tag>: (configured but missing — verify projects_list path)
+[If projects feature disabled:]
+- Projects feature disabled in config — set projects_enabled: true to enable cross-project tracking
 
 ### Index Health
 [If index exists:]

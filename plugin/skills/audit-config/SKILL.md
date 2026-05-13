@@ -156,6 +156,17 @@ For each PROGRESS.md file found in the current working directory:
 - Flag if no updates in 7+ days (for active projects)
 - Check if IDEAS-BACKLOG.md exists and has dated entries (if present)
 
+## Step 5a: Check Tracked Artifact Staleness (added v2.16.1)
+
+For each configured project in `KT_PROJECTS_LIST` (from config), stat `{project_root}/CODEMAP.md` and `{project_root}/STITCH.md`. Compute `age = (today - mtime).days`. Classify per the v2.16.0 thresholds:
+
+- **Critical** (will block aria-knowledge from loading as reference): CODEMAP age > `2 × codemap_staleness_threshold_days` (default 14, so refusal zone = 28d). STITCH age > `2 × stitch_staleness_threshold_days` (default 30, so refusal zone = 60d). Flag with "REFUSAL ZONE: {N} days; trigger-based loading (T-1/T-2/T-3/T-5/T-6) refuses this artifact until updated. Run /codemap update / /stitch verify {tag}."
+- **Should Fix:** CODEMAP age > threshold but ≤ 2×. STITCH age > threshold but ≤ 2×. Flag with "STALE: {N} days old; run /codemap update / /stitch verify {tag}."
+- **Low Priority:** project in `projects_list` but no CODEMAP.md found. Flag with "no CODEMAP for {tag} — consider /codemap create."
+- **Healthy:** all tracked artifacts within thresholds.
+
+Skip projects whose `project_root` directory doesn't exist (stale `projects_list` entries — surface as a separate config-drift finding under "Should Fix").
+
 ## Step 6: Present Findings
 
 Present results organized by severity:

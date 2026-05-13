@@ -2,6 +2,51 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## [2.16.1] - 2026-05-14
+
+**Full session-lifecycle CODEMAP/STITCH awareness.** Completes v2.16.0's surfacing story — passive `/context` surfacing (v2.16.0) + proactive trigger-based loading (v2.16.1). 6 trigger sites + 4 companion surfaces share the same primitive and config flag. Patch bump — no new schema, no new dependencies; reuses the existing `active_knowledge_surfacing` flag for atomic toggling.
+
+### Added — Trigger-based CODEMAP + STITCH loading (6 sites)
+
+- **New shared lib** `plugin/bin/lib-tracked-artifacts.sh` — boundary-detected CODEMAP directory load (~600-1200 tokens) + full STITCH load (~4K tokens) when multi-repo. Reuses the existing `/tmp/aria-active-{session_id}` ledger from v2.15.0 for cross-trigger dedup.
+- **T-1 `bash-cd-check.sh`** (PreToolUse:Bash with cd) — surfaces tracked artifacts on first cd into a configured project per session, alongside knowledge-file surfacing. Restructured to compute-both-then-decide pattern.
+- **T-2 `session-start-check.sh`** (SessionStart) — surfaces tracked artifacts when `$PWD` substring-matches a `projects_list` entry. Complementary to the existing multi-project CODEMAP staleness reporter; non-interfering.
+- **T-3 `task-context-check.sh`** (TaskCreated) — surfaces tracked artifacts for the project containing `$PWD` at subagent-spawn time, giving subagents structural context.
+- **T-4 `post-compact-check.sh`** (PostCompact) — auto-covered via the shared ledger; tracked-artifact paths recorded by T-1/T-2/T-3 are re-surfaced after compaction with zero code changes.
+- **T-5 `/prospect` Step 0.5** — extended with Step 11 detecting the plan's project (`--group=<tag>` → Linear prefix → plan-path match) and loading CODEMAP directory + STITCH.
+- **T-6 `/retrospect` Step 0.5** — extended with Step 11 detecting the analyzed range's project via `git diff --name-only` majority-file-path match against `projects_list`.
+
+### Added — Companion surfaces (S-3, S-4, S-7)
+
+- **`/audit-config` Step 5a** — cadence-based tracked-artifact staleness audit. Classifies CODEMAP/STITCH into Critical (refusal zone, >2× threshold) / Should Fix (>threshold) / Low Priority (missing) / Healthy. Feeds existing 4-tier findings table without schema change.
+- **`/stats` Step 3b + presentation** — cross-project dashboard view of CODEMAP + STITCH freshness across all `projects_list` entries. New "Cross-Project Tracked Artifacts" section in Step 6 template. Pairs with cwd-focused Step 3a (kept as-is).
+- **`/handoff` + `/wrapup` Step 7 checklists** — added "Tracked artifacts" line to handoff-readiness checklist. Visibility-only; doesn't block at session end.
+
+### Config flag scope expansion
+
+- **`active_knowledge_surfacing`** (existing, default `true`) now ALSO gates CODEMAP/STITCH loading at all 6 trigger sites + skips companion surfacing when `false`. Single atomic toggle for the entire proactive-surfacing capability — no new flag bloat.
+- **`/setup`** Advanced Options help text updated to describe the expanded scope.
+- **`CONFIG.md`** consumers table row updated.
+
+### Load model
+
+- **CODEMAP**: directory section only (boundary-detected via `awk '/^## [0-9]+\.|^---$/ && NR>5'`; fallback `limit=50`). ~600-1200 tokens per project; never the full 1790-line CODEMAP.
+- **STITCH**: full file (~4K tokens; typical 188-200 lines). Loads only when `STITCH.md` exists (multi-repo signal).
+- **Staleness thresholds** (from v2.16.0): `codemap_staleness_threshold_days` (14), `stitch_staleness_threshold_days` (30). Grossly-stale (>2× threshold) refuses to load with warning.
+- **User-facing output**: every load fires `[aria] Loaded {artifact} for {project} ({N days fresh|STALE|REFUSED})` notification. No silent context injection.
+
+### Files
+
+- **New:** `plugin/bin/lib-tracked-artifacts.sh` (~180 LOC).
+- **Modified:** 3 hooks (`bash-cd-check.sh`, `session-start-check.sh`, `task-context-check.sh`), 6 skills (`/prospect`, `/retrospect`, `/audit-config`, `/stats`, `/handoff`, `/wrapup`, `/setup`), 1 docs (`CONFIG.md`).
+
+### Compatibility
+
+- **No breaking changes.** All v2.16.1 behavior gated by `active_knowledge_surfacing: true` (existing default-on flag); passive-mode users see no new behavior.
+- **No new dependencies.** Pure markdown + sh extensions.
+- **No new config schema.** Reuses v2.16.0's `codemap_staleness_threshold_days` + `stitch_staleness_threshold_days`.
+- **`pre-explore-codemap-check.sh`** (PreToolUse:Glob|Grep) **deliberately not extended** in v2.16.1 — existing CODEMAP nudge surface kept independent for scope discipline; v2.16.2+ enhancement candidate.
+
 ## [2.16.0] - 2026-05-13
 
 **Five additive items: staleness gap close, vocabulary primitives, ecosystem doc.** Closes the CODEMAP/STITCH surfacing gap in `/context`; introduces two new optional frontmatter primitives (`semantic-hints` + tag aliases via `aliases.md`); refactors staleness logic into a shared block; adds the ARIA family section to the README. Minor bump — no breaking changes; existing knowledge folders work unchanged.

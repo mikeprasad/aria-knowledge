@@ -240,6 +240,28 @@ if [ "$KT_PROJECTS_ENABLED" = "true" ] && [ "$KT_AUTO_LOAD_PROJECT_CONTEXT" = "t
   fi
 fi
 
+# v2.16.1: tracked-artifacts active load — fires when active_knowledge_surfacing
+# is enabled AND PWD substring-matches a configured project. Surfaces CODEMAP
+# directory + (if multi-repo) STITCH with staleness annotation. Complementary
+# to the existing multi-project CODEMAP staleness report below (line 258+);
+# for sessions started inside a project, this gives an active-load instruction
+# alongside that report. For sessions started at ~/Projects (no project match),
+# this silently skips and the existing block continues unchanged.
+if [ "$KT_ACTIVE_SURFACING" = "true" ] && [ "$KT_PROJECTS_ENABLED" = "true" ]; then
+  # session_id needed for ledger path
+  TA_SESSION_ID=$(echo "$INPUT" | grep -o '"session_id":"[^"]*"' | head -1 | sed 's/"session_id":"//;s/"//' 2>/dev/null)
+  . "$SCRIPT_DIR/lib-tracked-artifacts.sh"
+  kt_artifact_compute_for_path "$PWD"
+  if [ -n "$TA_SESSION_ID" ] && [ "$KT_ARTIFACTS_COUNT" -gt 0 ]; then
+    TA_LEDGER="/tmp/aria-active-${TA_SESSION_ID}"
+    kt_artifact_filter_ledger "$TA_LEDGER"
+    if [ "$KT_ARTIFACTS_COUNT" -gt 0 ]; then
+      kt_artifact_record_ledger "$TA_LEDGER"
+      MESSAGES="${MESSAGES}${KT_ARTIFACTS_INSTRUCTION}"
+    fi
+  fi
+fi
+
 # Per-task insight batch capture — gated by auto_capture
 if [ "$KT_AUTO_CAPTURE" != "false" ]; then
   MESSAGES="${MESSAGES}INSIGHT CAPTURE — After completing discrete tasks, batch-append any uncaptured \xe2\x98\x85 Insight blocks to ${KT_KNOWLEDGE_FOLDER}/intake/insights-backlog.md. Do not capture mid-task — only at task completion boundaries. "
