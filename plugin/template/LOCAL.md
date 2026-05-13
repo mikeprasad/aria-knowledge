@@ -200,3 +200,21 @@ tags: [api, pagination, django]
 | Project | `cs`, `ss`, `df`, `aria` |
 
 **Freeform tags** are valid — any tag works. Freeform tags that appear on 3+ files get suggested for promotion to the known set during `/index`. Similar tags (e.g., `api` vs `apis`) get flagged for normalization.
+
+## Semantic Hints (Optional, added 2.16.0)
+
+In addition to `tags:`, files may declare `semantic-hints:` — a list of free-form phrases that match query tokens via substring (case-insensitive, hyphen-normalized). Use when a file should be discoverable under vocabulary that `tags:` doesn't formally cover.
+
+```yaml
+---
+tags: [api, pagination]
+semantic-hints:
+  - cursor pagination
+  - keyset pagination
+  - infinite scroll
+---
+```
+
+A query for `/context cursor` matches files declaring the hint `cursor pagination` (substring match), even when no file is tagged `cursor`.
+
+**Differs from `tags:`:** tags require exact match against the Known Tags vocabulary or freeform tags; hints match by substring after lowercasing and stripping hyphens. Hints are per-file alternate vocabulary — use them when you can't anticipate the exact query token a future-you will use. `/index` surfaces hints under `## Semantic Hints Index` parallel to `## Tag Index`.

@@ -2,6 +2,39 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## [2.16.0] - 2026-05-13
+
+**Five additive items: staleness gap close, vocabulary primitives, ecosystem doc.** Closes the CODEMAP/STITCH surfacing gap in `/context`; introduces two new optional frontmatter primitives (`semantic-hints` + tag aliases via `aliases.md`); refactors staleness logic into a shared block; adds the ARIA family section to the README. Minor bump — no breaking changes; existing knowledge folders work unchanged.
+
+### Added
+
+- **`/context` surfaces CODEMAP and STITCH artifacts** for queried projects with staleness markers (`[STALE — run /codemap update]`, etc.). Project-tag-gated; topic-only queries unaffected. (P-1, ADR 081)
+- **`semantic-hints:` optional frontmatter field** — list of free-form phrases that match query tokens via substring (case-insensitive, hyphen-normalized). Indexed under new `## Semantic Hints Index` section of `index.md`. (P-4)
+- **Tag aliases via `aliases.md`** — user-edited synonym map (`` `rn` → `react-native` ``). `/context` resolves alias queries to canonical tags before matching. Validates chains + collisions at `/index` time with user-actionable error messages. (P-13)
+- **Shared staleness-marker block** in `/context` Step 5 — pure state-computation primitive (age + stale marker). Consumed by Pending Ideas and Tracked Artifacts. (P-2, ADR 082)
+- **"ARIA family" section** in README documenting sibling projects and license posture. aria-cowork mentioned conceptually (public release planned); aria-hypergraph held out per privacy. (P-16)
+- **`/stats` semantic-hints coverage line** — adoption signal showing `N of M files (P%)` declaring hints.
+
+### Config
+
+- New optional keys in `~/.claude/aria-knowledge.local.md` (defaults baked into `bin/config.sh` for graceful degradation when absent):
+  - `codemap_staleness_threshold_days: 14` — CODEMAP age before flagged stale
+  - `stitch_staleness_threshold_days: 30` — STITCH age before flagged stale (slower decay because cross-repo contracts change less often)
+
+### Templates
+
+- **New user-owned template:** `aliases.md` — bootstrapped on first `/setup`, never overwritten, never diffed.
+
+### Skills affected
+
+`/context` (5 changes: shared block, Pending Ideas refactor, Tracked Artifacts surfacing, semantic-hints matching, alias Step 2.5 + display), `/index` (3 changes: hints parse, aliases Step 2b + Step 9 annotation), `/ask` (2 changes: hints + alias resolution at Step 2), `/setup` (5 changes: 4 declarative-list updates + new template bootstrap), `/stats` (2 changes: extraction + output template).
+
+### Compatibility
+
+- **No breaking changes.** Files without `semantic-hints:` or aliases.md behave identically to v2.15.x. Existing knowledge folders work without modification.
+- **Byte-identical refactor guarantee** for Pending Ideas rendering — verified via pre/post capture-diff at implementation time.
+- **Graceful degradation** for missing config keys: `bin/config.sh` defaults apply silently if `codemap_staleness_threshold_days` / `stitch_staleness_threshold_days` are absent from existing configs.
+
 ## [2.15.2] - 2026-05-13
 
 **Three quality-of-life arcs bundled.** Generalizes v2.15.1's archive-don't-delete rule to all known deletion call-sites; structural fix for Rule 22 marker enforcement under tool-call-interleaved transcripts; defense-in-depth against `/setup` discipline failures. Patch bump — no new features, only safety + correctness fixes.

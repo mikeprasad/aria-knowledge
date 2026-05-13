@@ -24,7 +24,9 @@ Extract the core topic and likely tags from the question for use in Step 2.
 
 Before researching, check if the answer already exists:
 
-1. If `{knowledge_folder}/index.md` exists, extract tags from the question and check for matching files in the tag index
+1. **Resolve aliases first (added 2.16.0):** if `{knowledge_folder}/aliases.md` exists, parse the alias→canonical map and replace any tag token in the question that matches an alias with its canonical form before the index lookup. No notification line needed — this is internal to `/ask`'s coarse check (`/context` is the surface that surfaces resolution notifications).
+
+   If `{knowledge_folder}/index.md` exists, extract tags from the (post-alias-resolution) question and check for matching files in both the `## Tag Index` section AND the `## Semantic Hints Index` section. Tag matching is exact equality (existing behavior); hint matching is substring (case-insensitive, hyphen-normalized) — same rule as `/context` Step 4. A hint match counts the same as a tag match for partial-match detection. (Added 2.16.0.)
 2. Scan headings of files in `approaches/`, `guides/`, `references/`, `decisions/` for topic overlap
 3. Check `intake/` backlogs for pending items on the same topic
 

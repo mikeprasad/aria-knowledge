@@ -51,6 +51,24 @@ Examples:
 
 If no argument provided, stop: "Usage: `/context <tag1> [tag2] [AND tag3]`. Run `/index` to see available tags."
 
+## Step 2.5: Resolve Aliases (added 2.16.0)
+
+After parsing the query into tokens (Step 2) but BEFORE project expansion (Step 3), resolve any aliases.
+
+**Source:** the alias map is encoded in `index.md`'s `## Known Tags` section as `[aliases: ...]` annotations on canonical tag entries. Parse that section to build a flat `alias → canonical` map. If no aliases are declared (no `[aliases: ...]` annotations exist), skip this step entirely.
+
+**Resolution:** for each token `t` in the parsed query, look up `t` in the alias→canonical map. If matched, replace `t` with its canonical form. Record the resolution.
+
+**Notification:** for each resolution, emit one line BEFORE the Step 3 "Expanded …" notification:
+
+```
+Resolved `rn` → `react-native`
+```
+
+**Order matters:** alias resolution runs BEFORE project expansion. If `seer → ss` is an alias and `ss` is a project tag, querying `/context seer` resolves to `ss` first; Step 3 then expands `ss` to its relevant tags.
+
+**Unidirectional:** resolution is alias → canonical only. Querying the canonical does NOT match alias-only declarations (i.e., querying `react-native` won't surface files that only declare alias `rn`).
+
 ## Step 3: Project Tag Expansion
 
 For each tag in the query, check if it matches a project key in the `## Projects` section (e.g., `ss`, `cs`, `df`, `aria`).
@@ -68,6 +86,14 @@ Project expansion only applies in union (OR) mode. In AND mode, project tags are
 ## Step 4: Match Files
 
 File discovery has three sources: the index `## Tag Index` and `## Other Tags` sections (cross-project tagged files), the filesystem (project-specific files under `projects/{tag}/**`), and the index `## Team-Shared Tag Index` section (team-shared files in code repos under `_project-knowledge/`). All three contribute to the result set; results are categorized so Step 5 can present them grouped.
+
+**Matching rule (extended 2.16.0):** for any source, a query token `t` matches a file `f` if either:
+1. `t` equals a tag declared by `f` (existing behavior), OR
+2. `t.lower()` (with hyphens stripped) appears as a substring of any phrase in `f`'s `semantic-hints:` frontmatter (also lowercased + hyphen-stripped).
+
+The `## Semantic Hints Index` in `index.md` is the discovery surface for hint matches — Step 4a scans both `## Tag Index` / `## Other Tags` AND `## Semantic Hints Index` for query-token matches. AND/OR mode applies per-token: each token can satisfy independently via tag OR hint.
+
+When a file matches via hint rather than tag, append `[hint: <phrase>]` to the Step 5 result render so the user can see why the file was surfaced.
 
 ### Step 4a: Index-driven matches (cross-project)
 
@@ -129,6 +155,27 @@ For each matching file, collect:
 
 ## Step 5: Present Summary
 
+<!-- shared-block: staleness-marker -->
+### About this block
+
+Compute age + render `[STALE — …]` marker. Consumed by Pending Ideas surfacing (later in this Step) and Tracked Artifacts surfacing (also later in this Step, added 2.16.0). Pure state-computation primitive — caller owns layout.
+
+**Inputs (caller provides):**
+- `date_source`: literal date `YYYY-MM-DD` OR file mtime (Unix epoch or `YYYY-MM-DD`) — resolved by caller before invocation
+- `threshold_days`: integer, resolved from config by caller (e.g., `KT_IDEAS_STALENESS_DAYS`, `KT_CODEMAP_STALENESS_DAYS`, `KT_STITCH_STALENESS_DAYS`). If the config key is missing, caller falls back to its own baked-in default.
+- `remediation`: template string interpolated into the stale marker (e.g., `"still relevant?"`, `"run /codemap update"`, `"run /stitch verify {tag}"`). Caller substitutes any `{tag}` placeholder before invocation.
+
+**Outputs:**
+- `age_days`: integer = `(today - date_source).days`
+- `age_string`: `"(today)"` if `age_days == 0`, `"(yesterday)"` if `age_days == 1`, else `"(N days ago)"` where N = `age_days`
+- `is_stale`: bool = `age_days > threshold_days`
+- `marker`: `" [STALE — {remediation}]"` if `is_stale` else `""` (empty string)
+
+**Behavior notes:**
+- Future dates (clock skew or mis-dated frontmatter) clamp to `(today)` with `is_stale = false`. Never render `"in future"`.
+- The block is computed-state only; callers render the surrounding line.
+<!-- /shared-block: staleness-marker -->
+
 If matches found, group results by category — **Team-shared first, Project-specific second, Cross-project third**. Use a single continuous numbering across all groups so the user can select by number across categories.
 
 ```
@@ -160,6 +207,31 @@ Load which files? (all / numbers / none)
 
 Do NOT pad results with empty folder notes for project tags that weren't queried.
 
+**Tracked Artifacts surfacing (added 2.16.0):** if the query includes a configured project tag, surface CODEMAP and STITCH artifacts for that project as a numbered section in the result list (continuous numbering from above — artifacts are loadable, same as files).
+
+Per-project artifact resolution:
+
+- **CODEMAP path:** `{project_root}/CODEMAP.md` (per `/codemap` skill convention). Resolve `project_root` from `projects_list` parsed in Step 0.
+- **STITCH path:** `{project_root}/STITCH.md` by default; override with `projects_groups[<tag>].stitch_path` if set in `~/.claude/aria-knowledge.local.md`. **Skip STITCH entry silently** if the project tag is NOT in `projects_groups` (single-repo project — `/stitch` doesn't apply).
+- **If file does not exist:** render `~/Projects/<path>/CODEMAP.md — (not found — run /codemap create) [project: <tag>]`. Same for STITCH with `(not found — run /stitch create <tag>)`.
+- **If file exists:** stat for mtime, invoke the **staleness-marker shared block** (defined at the head of Step 5) with:
+  - `date_source` = file mtime
+  - `threshold_days` = `KT_CODEMAP_STALENESS_DAYS` (default 14) for CODEMAP, or `KT_STITCH_STALENESS_DAYS` (default 30) for STITCH. Both read from `~/.claude/aria-knowledge.local.md` via `config.sh`. Asymmetric defaults: CODEMAP changes with feature churn (faster decay); STITCH with cross-repo contract changes (slower).
+  - `remediation` = `"run /codemap update"` for CODEMAP, or `"run /stitch verify {tag}"` for STITCH (substitute `{tag}` with the project tag at invocation time).
+  - Render: `N. ~/Projects/<path>/CODEMAP.md — {age_string} — fresh{marker} [project: <tag>]` (the literal word `fresh` appears only when `marker` is empty; when stale, the marker replaces "fresh").
+
+**Multi-project queries:** one combined "Tracked artifacts" section; each row carries the `[project: <tag>]` annotation so per-project attribution is visible.
+
+**Skip this section entirely** on topic-only queries (no configured project tag in resolved query). Mirrors the Pending Ideas project-scope-only constraint — topic queries stay clean.
+
+Example render:
+```
+## Tracked artifacts (3)
+8. ~/Projects/cs/CODEMAP.md — 8 days ago — fresh [project: cs]
+9. ~/Projects/cs/STITCH.md — 34 days ago [STALE — run /stitch verify cs] [project: cs]
+10. ~/Projects/ss/CODEMAP.md — (not found — run /codemap create) [project: ss]
+```
+
 **Pending Ideas surfacing:** if the query includes a configured project tag AND `{knowledge_folder}/intake/ideas/` exists, glob `intake/ideas/*.md`, read YAML frontmatter from each, and collect files whose `project:` field matches (or includes) the query's project tag. Present matches as a compact informational section after the file list, before the "Load which files?" prompt.
 
 > **Why project-scoped only:** `/context` loads knowledge for retrieval; ideas are staging for external-tracker routing, not retrieval. Surfacing ideas on topic-only queries (`/context api`, `/context architecture`) would pollute the retrieval intent and blur ARIA's capture-vs-track boundary. Project-tagged queries get ideas as ambient project context; topic-only queries stay clean. See the capture-vs-track architecture in `intake/ideas/README.md`.
@@ -173,8 +245,12 @@ Do NOT pad results with empty folder notes for project tags that weren't queried
 ```
 
 Details:
-- **Age computation:** `(today - idea date)` in days; show as "(N day ago)" or "(N days ago)". Derive the idea date from YAML frontmatter `date:` field; fall back to the `YYYY-MM-DD` prefix of the filename if frontmatter is missing or malformed.
-- **Stale marker:** append ` [STALE — still relevant?]` when age > `KT_IDEAS_STALENESS_DAYS` (default 7). Read the threshold from `~/.claude/aria-knowledge.local.md` via `config.sh` or fall back to 7.
+- **Age + stale marker:** for each idea, invoke the **staleness-marker shared block** (defined at the head of Step 5) with:
+  - `date_source` = YAML frontmatter `date:` field; fall back to filename `YYYY-MM-DD` prefix if frontmatter missing or malformed
+  - `threshold_days` = `KT_IDEAS_STALENESS_DAYS` (default 7; read from `~/.claude/aria-knowledge.local.md` via `config.sh`, fall back to 7 if absent)
+  - `remediation` = `"still relevant?"`
+
+  Apply the block's `age_string` after the date and `marker` after the description. The rendered line is `- YYYY-MM-DD {age_string} — {type} — {description}{marker}` — byte-identical to pre-2.16 output.
 - **Multi-project entries:** if the frontmatter `project:` field has comma-separated project tags (e.g., `cs,ss`), include the file for each matching project query.
 - **Not selectable:** ideas are informational. They do NOT appear in the numbered file list and are not loadable via "all" or numbers. To triage them, use `/audit-knowledge` (structured disposition flow) or edit the files in `intake/ideas/` directly.
 - **Omission:** if no ideas match, omit the section entirely (do not show an empty "Pending Ideas" heading).
@@ -200,6 +276,8 @@ No files match tag(s): [proj-a]
 (projects/proj-a/ exists but is empty — populate it via /extract or by creating files manually.)
 Known tags: api, architecture, ...
 ```
+
+**Alias display (added 2.16.0):** when rendering the "Known tags:" list in either no-match case above, append each canonical tag's aliases in parens, e.g., `kubernetes (k8s, kube), react-native (rn)`. Source the aliases from `index.md`'s `## Known Tags` section `[aliases: ...]` annotations (built by `/index` Step 2b + Step 9). Cap at 2 aliases per canonical to keep the list scannable; truncate with `…` (e.g., `aws (a, b …)`) if more exist. Omit the parens entirely for canonicals with no aliases declared.
 
 ## Step 6: Load Selected Files
 

@@ -269,6 +269,19 @@ See `knowledge/projects/aria/references/opus-4-7-aria-compatibility.md` for the 
 
 - **"hook error" label on Pre/PostToolUse hooks** — Claude Code displays "hook error" next to every tool call that triggers a hook, even when the hook exits successfully (exit code 0) with valid JSON output. This is a [known Claude Code UI bug](https://github.com/anthropics/claude-code/issues/17088) — the Rule 22 enforcement hooks are working correctly. The label is cosmetic and does not indicate a problem with ARIA.
 
+## ARIA family
+
+ARIA is a family of projects under the name **Applied Reasoning and Insight Architecture**. Each sibling targets a different surface; they're independent but share a knowledge-folder convention where it makes sense.
+
+| Project | Scope | Audience | Repo |
+|---------|-------|----------|------|
+| **aria-knowledge** | Active knowledge + decision discipline for Claude Code | Individuals and teams using Claude Code | This repo |
+| **aria-cowork** | Sibling plugin for Claude Cowork — the portable subset of aria-knowledge's discipline | Cowork users | Public release planned |
+
+### License posture
+
+Licenses differ across the family. **aria-knowledge** ships under [CC BY-NC-SA 4.0](LICENSE) — free for non-commercial use, copyleft on derivatives. Other family projects may carry different licenses; check each project's LICENSE before assuming inheritance.
+
 ## License
 
 [CC BY-NC-SA 4.0](LICENSE) — Free to use and modify. Must be attributed, non-commercial, and derivatives must share alike.

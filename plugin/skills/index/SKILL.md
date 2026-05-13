@@ -39,8 +39,9 @@ For each `.md` file found:
 3. From frontmatter, extract:
    - `tags:` — array of tags (e.g., `tags: [api, pagination, django]`). If missing, record as untagged.
    - `Last updated:` — date string (YYYY-MM-DD). If missing, record as unknown.
+   - `semantic-hints:` — array of free-form phrases (e.g., `semantic-hints: [cursor pagination, keyset pagination]`). Optional; if missing, treat as empty list. Added 2.16.0.
 4. Extract the first `#` heading as the file's description
-5. Store: `{path, tags[], description, last_updated, source: "cross-project"}`
+5. Store: `{path, tags[], hints[], description, last_updated, source: "cross-project"}`
 
 Report: "Scanned N files in approaches/, decisions/, guides/, references/."
 
@@ -118,6 +119,24 @@ api, architecture, css, database, deployment, django, react, nextjs, react-nativ
 ```
 
 And leave the Projects section empty (will be populated in Step 6).
+
+## Step 2b: Read and Validate Aliases (added 2.16.0)
+
+Read `{knowledge_folder}/aliases.md` if it exists.
+
+Parse the alias map: each line matching the pattern `` - `<alias>` → `<canonical>` `` contributes one entry. The alias and canonical are the backtick-quoted strings; whitespace around the arrow is tolerated; non-matching lines (headers, comments, blank lines) are ignored.
+
+If the file doesn't exist OR contains no parseable entries, treat the alias map as empty and continue to Step 3.
+
+**Chain check (internal to the alias map):** if any canonical name in the parsed map ALSO appears as an alias key in another entry of the same map, abort `/index` with:
+
+> `"Alias chain detected: \`x\` → \`y\` → \`z\` in aliases.md. Aliases must point directly to a canonical tag, not to another alias. Fix the chain (typically: rewrite the intermediate alias to point at the final canonical) and re-run /index."`
+
+**Collision check (against Step 1's per-file tag data):** for each alias `a` in the parsed map, scan the per-file `tags[]` arrays collected in Step 1. If any file declares `a` in its `tags:` frontmatter, abort `/index` with:
+
+> `"Alias \`a\` in aliases.md collides with existing tag \`a\` used in N file(s): <comma-separated paths>. Either remove the alias from aliases.md or rename the tag in those files."`
+
+On successful validation, retain the alias map for Step 9 (Known Tags annotation). The map is also consumed by `/context` Step 2.5 (which reads it from the `## Known Tags` section's `[aliases: ...]` annotations, not from `aliases.md` directly).
 
 ## Step 3: Tag Normalization
 
@@ -398,7 +417,9 @@ Promotion candidates: M (see below — same pattern appears in ≥`projects_prom
 
 ## Known Tags
 
-tag1, tag2, tag3, tag4, ...
+tag1, tag2 [aliases: alt1, alt2], tag3, tag4, ...
+
+(Canonical tags with aliases declared in `aliases.md` are annotated inline: `tag [aliases: alias1, alias2]` enumerates all aliases pointing to that canonical. Tags with no aliases appear without annotation. The flat tag list is comma-separated. `/context` reads these annotations to build its alias→canonical map at query time. Added 2.16.0.)
 
 ## Tag Index
 
@@ -413,6 +434,13 @@ tag1, tag2, tag3, tag4, ...
 - relative/path/to/file.md — File description
 
 (repeat for each freeform tag, sorted alphabetically)
+
+## Semantic Hints Index
+
+### [hint phrase]
+- relative/path/to/file.md
+
+(Repeat for each unique hint phrase declared across promoted files, sorted alphabetically by phrase. Each file appears under every hint it declares. Hint phrases are stored verbatim from frontmatter — `/context` does the case-insensitive + hyphen-normalized substring match at query time. Omit this section entirely if no files declare `semantic-hints:`. Added 2.16.0.)
 
 ## Team-Shared Tag Index
 

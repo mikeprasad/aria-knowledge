@@ -74,6 +74,7 @@ If `{knowledge_folder}/index.md` exists, read it and extract:
 - **Top tags:** from `## Tag Index`, count files listed under each `### tag` header, sort by count, show top 5
 - **Stale files:** read `## Stale Files` section, count entries
 - **Untagged files:** read `## Untagged Files` section, count entries
+- **Semantic-hints coverage (added 2.16.0):** count files declaring `semantic-hints:` frontmatter / total promoted files; report as `N of M (P%)`. Always emit (zero coverage = "0 of M (0%)") to track adoption over time. Source: scan promoted-folder files (same set as Step 1) for the `semantic-hints:` field; matches `/index`'s Semantic Hints Index input.
 
 If `index.md` doesn't exist, note: "No index — run /index to build."
 
@@ -130,6 +131,7 @@ Output in this format:
 - Top tags: tag1 (N files), tag2 (N files), tag3 (N files), tag4 (N files), tag5 (N files)
 - Untagged files: N
 - Stale files: N
+- Semantic-hints coverage: N of M files (P%)
 [If no index:]
 - No index built yet — run /index
 

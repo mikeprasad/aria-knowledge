@@ -33,6 +33,8 @@ if [ -f "$KT_CONFIG" ]; then
   KT_AUTO_LOAD_PROJECT_CONTEXT=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^auto_load_project_context:' | sed 's/^auto_load_project_context: *//')
   KT_IDEAS_STALENESS_DAYS=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^ideas_staleness_threshold_days:' | sed 's/^ideas_staleness_threshold_days: *//')
   KT_AUDIT_TRIGGER_THRESHOLD=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^audit_trigger_threshold:' | sed 's/^audit_trigger_threshold: *//')
+  KT_CODEMAP_STALENESS_DAYS=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^codemap_staleness_threshold_days:' | sed 's/^codemap_staleness_threshold_days: *//')
+  KT_STITCH_STALENESS_DAYS=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^stitch_staleness_threshold_days:' | sed 's/^stitch_staleness_threshold_days: *//')
   KT_LAST_SETUP_VERSION=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^last_setup_version:' | sed 's/^last_setup_version: *//')
 
   # Defaults if not set
@@ -49,6 +51,8 @@ if [ -f "$KT_CONFIG" ]; then
   KT_AUTO_LOAD_PROJECT_CONTEXT=${KT_AUTO_LOAD_PROJECT_CONTEXT:-false}
   KT_IDEAS_STALENESS_DAYS=${KT_IDEAS_STALENESS_DAYS:-21}
   KT_AUDIT_TRIGGER_THRESHOLD=${KT_AUDIT_TRIGGER_THRESHOLD:-20}
+  KT_CODEMAP_STALENESS_DAYS=${KT_CODEMAP_STALENESS_DAYS:-14}
+  KT_STITCH_STALENESS_DAYS=${KT_STITCH_STALENESS_DAYS:-30}
   # KT_CRITICAL_PATHS intentionally has no default — empty means no critical paths
   # KT_PROJECTS_LIST and KT_PROJECTS_REMOTES intentionally have no defaults — empty means "no projects configured"
 
@@ -106,6 +110,12 @@ if [ -f "$KT_CONFIG" ]; then
   esac
   case "$KT_AUDIT_TRIGGER_THRESHOLD" in
     ''|*[!0-9]*) KT_AUDIT_TRIGGER_THRESHOLD=20 ;;
+  esac
+  case "$KT_CODEMAP_STALENESS_DAYS" in
+    ''|*[!0-9]*) KT_CODEMAP_STALENESS_DAYS=14 ;;
+  esac
+  case "$KT_STITCH_STALENESS_DAYS" in
+    ''|*[!0-9]*) KT_STITCH_STALENESS_DAYS=30 ;;
   esac
 fi
 
