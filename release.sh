@@ -86,11 +86,16 @@ junk=$(unzip -l "$ZIP_PATH" | grep -cE '(__MACOSX|\.DS_Store|\.claude/settings)'
 manifest=$(unzip -l "$ZIP_PATH" | grep -c "$PLUGIN_NAME/\.claude-plugin/plugin\.json" || true)
 [[ "$manifest" -eq 1 ]] || die "verification failed: manifest missing or duplicated ($manifest found)"
 
+# --- version-stable copy (for /releases/latest/download/<stable>.zip URLs) --
+STABLE_ZIP_PATH="$REPO_ROOT/$PLUGIN_NAME-plugin.zip"
+cp "$ZIP_PATH" "$STABLE_ZIP_PATH"
+
 # --- report -----------------------------------------------------------------
 SIZE=$(stat -f%z "$ZIP_PATH")
 ENTRIES=$(unzip -l "$ZIP_PATH" | tail -1 | awk '{print $2}')
 
 ok "built $PLUGIN_NAME v$PLUGIN_VERSION"
 printf '         path:    %s\n' "$ZIP_PATH"
+printf '         stable:  %s\n' "$STABLE_ZIP_PATH"
 printf '         size:    %s bytes\n' "$SIZE"
 printf '         entries: %s files\n' "$ENTRIES"

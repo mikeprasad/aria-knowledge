@@ -73,11 +73,16 @@ agents=$(unzip -l "$ZIP_PATH" | grep -c "$CURSOR_NAME/AGENTS\.md" || true)
 rules=$(unzip -l "$ZIP_PATH" | grep -cE "$CURSOR_NAME/\.cursor/rules/.+\.mdc" || true)
 [[ "$rules" -eq 5 ]] || die "verification failed: expected 5 .mdc rule files, found $rules"
 
+# --- version-stable copy (for /releases/latest/download/<stable>.zip URLs) --
+STABLE_ZIP_PATH="$REPO_ROOT/$CURSOR_NAME-cursor.zip"
+cp "$ZIP_PATH" "$STABLE_ZIP_PATH"
+
 # --- report -----------------------------------------------------------------
 SIZE=$(stat -f%z "$ZIP_PATH")
 ENTRIES=$(unzip -l "$ZIP_PATH" | tail -1 | awk '{print $2}')
 
 ok "built $CURSOR_NAME cursor port v$CURSOR_VERSION"
 printf '         path:    %s\n' "$ZIP_PATH"
+printf '         stable:  %s\n' "$STABLE_ZIP_PATH"
 printf '         size:    %s bytes\n' "$SIZE"
 printf '         entries: %s files\n' "$ENTRIES"
