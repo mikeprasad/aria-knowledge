@@ -1,8 +1,7 @@
 ---
 name: digest
-description: >
-  Cross-tool rollup of what's pending, what shipped, and what's blocked across chat / email / project tracker / docs. Use when user says "/digest", "/aria-cowork:digest", "weekly digest", "cross-tool rollup", "what's pending across my tools", "summarize this week", "standup digest". Probes all 4 ~~categories and degrades gracefully — produces a digest even with only 1-2 MCPs connected, surfacing which categories were unavailable (v1.0.0).
-argument-hint: "[--week | --since YYYY-MM-DD | --until YYYY-MM-DD]"
+description: Cross-tool rollup of what's pending, what shipped, and what's blocked across chat / email / project tracker / docs. Use when user says "/digest", "/aria-cowork:digest", "weekly digest", "cross-tool rollup", "what's pending across my tools", "summarize this week", "standup digest". Probes all 4 ~~categories and degrades gracefully — produces a.
+argument-hint: '[--week | --since YYYY-MM-DD | --until YYYY-MM-DD]'
 ---
 
 # /digest — Cross-Tool Weekly Rollup
@@ -28,7 +27,7 @@ Check Claude's available tool list for each `~~category`. The digest runs with A
 | `~~chat` | slack, ms365 | <connected: list / not connected> |
 | `~~email` | gmail, ms365 | <connected: list / not connected> |
 | `~~project tracker` | linear, asana, atlassian, monday, clickup, notion | <connected: list / not connected> |
-| `~~docs` | notion, atlassian, box, egnyte, google_docs | <connected: list / not connected> |
+| `~~docs` | notion, atlassian, box, egnyte, google docs | <connected: list / not connected> |
 
 If NO MCPs in ANY category are connected, output the standard fallback notice and stop:
 

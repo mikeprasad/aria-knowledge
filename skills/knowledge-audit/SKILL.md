@@ -1,8 +1,7 @@
 ---
 name: knowledge-audit
-description: >
-  Alias for /audit-knowledge. Invoked by "/knowledge-audit" or "/aria-cowork:knowledge-audit". Same behavior as /audit-knowledge — just an alternative phrasing.
-argument-hint: "[detailed]"
+description: Alias for /audit-knowledge. Invoked by "/knowledge-audit" or "/aria-cowork:knowledge-audit". Same behavior as /audit-knowledge — just an alternative phrasing.
+argument-hint: '[detailed]'
 ---
 
 # /knowledge-audit — Alias for /audit-knowledge

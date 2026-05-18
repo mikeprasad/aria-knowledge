@@ -1,8 +1,7 @@
 ---
 name: ask
-description: >
-  Research a question, check existing knowledge first, draft a knowledge doc from the answer, and save directly to the appropriate category. Use when user says "/ask", "/aria-cowork:ask", "ask about", "research and save", "I want to learn about", "what is the pattern for". Skips backlogs — the user reviews the answer in real-time before saving.
-argument-hint: "<question>"
+description: Research a question, check existing knowledge first, draft a knowledge doc from the answer, and save directly to the appropriate category. Use when user says "/ask", "/aria-cowork:ask", "ask about", "research and save", "I want to learn about", "what is the pattern for". Skips backlogs — the user reviews the answer in real-time before saving.
+argument-hint: <question>
 ---
 
 # /ask — Query-Driven Knowledge Creation

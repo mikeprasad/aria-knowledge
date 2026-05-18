@@ -1,8 +1,7 @@
 ---
 name: backlog
-description: >
-  View and manage pending backlog items. Use when user says "/backlog", "/aria-cowork:backlog", "/backlog insights", "/backlog clear", "what's pending", "show backlogs", "check backlog status".
-argument-hint: "[insights|decisions|extraction|rules] [clear [type] [date]]"
+description: View and manage pending backlog items. Use when user says "/backlog", "/aria-cowork:backlog", "/backlog insights", "/backlog clear", "what's pending", "show backlogs", "check backlog status".
+argument-hint: '[insights|decisions|extraction|rules] [clear [type] [date]]'
 ---
 
 # /backlog — Backlog Viewer & Manager

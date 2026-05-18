@@ -1,8 +1,7 @@
 ---
 name: audit-knowledge
-description: >
-  Scan the attached knowledge folder for extractable items, run idea-routing dispositions, archive cleared content per the cohort conventions, and rebuild the index. Use when user says "/audit-knowledge", "/aria-cowork:audit-knowledge", "/knowledge-audit", "audit knowledge", "knowledge audit", "check for extractable knowledge", "scan intake", or at session start when audit cadence is exceeded.
-argument-hint: "[detailed]"
+description: Scan the attached knowledge folder for extractable items, run idea-routing dispositions, archive cleared content per the cohort conventions, and rebuild the index. Use when user says "/audit-knowledge", "/aria-cowork:audit-knowledge", "/knowledge-audit", "audit knowledge", "knowledge audit", "check for extractable knowledge", "scan intake", or at.
+argument-hint: '[detailed]'
 ---
 
 # /audit-knowledge — Knowledge Repository Audit (cowork variant)

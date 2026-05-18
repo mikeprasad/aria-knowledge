@@ -1,7 +1,6 @@
 ---
 name: help
-description: >
-  Show available aria-cowork commands. Use when user says "/help", "/aria-cowork:help", "aria help", "what commands are available", "list commands", "what can aria-cowork do".
+description: Show available aria-cowork commands. Use when user says "/help", "/aria-cowork:help", "aria help", "what commands are available", "list commands", "what can aria-cowork do".
 ---
 
 # /help — aria-cowork Commands

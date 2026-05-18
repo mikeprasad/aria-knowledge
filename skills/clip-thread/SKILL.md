@@ -1,8 +1,7 @@
 ---
 name: clip-thread
-description: >
-  Capture a chat or email thread from a connected MCP to the knowledge intake. Use when user says "/clip-thread", "/aria-cowork:clip-thread", "clip this thread", "save this Slack thread", "capture this email chain", "archive this conversation". Pulls thread content from ~~chat (Slack, Teams) or ~~email (Gmail, MS365) MCP, composes a clipping with thread metadata + body, writes to intake/clippings/ for review at next /audit-knowledge (v1.0.0).
-argument-hint: "<thread-url-or-id> [tags]"
+description: Capture a chat or email thread from a connected MCP to the knowledge intake. Use when user says "/clip-thread", "/aria-cowork:clip-thread", "clip this thread", "save this Slack thread", "capture this email chain", "archive this conversation". Pulls thread content from ~~chat (Slack, Teams) or ~~email (Gmail, MS365) MCP, composes a clipping with.
+argument-hint: <thread-url-or-id> [tags]
 ---
 
 # /clip-thread — Capture Chat/Email Thread to Intake

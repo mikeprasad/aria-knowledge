@@ -1,8 +1,7 @@
 ---
 name: rules
-description: >
-  Quick lookup into working rules. Use when user says "/rules", "/aria-cowork:rules", "/rules 22", "/rules dependencies", "look up rule about...", "what rule covers...", or references a specific rule number.
-argument-hint: "[number or keyword]"
+description: Quick lookup into working rules. Use when user says "/rules", "/aria-cowork:rules", "/rules 22", "/rules dependencies", "look up rule about...", "what rule covers...", or references a specific rule number.
+argument-hint: '[number or keyword]'
 ---
 
 # /rules — Quick Rule Lookup

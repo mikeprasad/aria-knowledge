@@ -1,7 +1,6 @@
 ---
 name: wrapup
-description: >
-  End-of-session handoff. Reviews session work, updates PROGRESS.md and CLAUDE.md if needed, generates a commit message for the user to run, verifies next session can pick up cleanly, and prompts for /extract. Use when ending a session, wrapping up work, saying goodbye, or when user says "/wrapup", "/aria-cowork:wrapup", "wrap up", "end session", "hand off", "wrap it up".
+description: End-of-session handoff. Reviews session work, updates PROGRESS.md and CLAUDE.md if needed, generates a commit message for the user to run, verifies next session can pick up cleanly, and prompts for /extract. Use when ending a session, wrapping up work, saying goodbye, or when user says "/wrapup", "/aria-cowork:wrapup", "wrap up", "end session".
 ---
 
 # /wrapup — Session Handoff (cowork variant)

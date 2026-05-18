@@ -1,7 +1,6 @@
 ---
 name: snapshot
-description: >
-  Save a snapshot of the current Cowork conversation to the knowledge intake on demand. Use when user says "/snapshot", "/aria-cowork:snapshot", "snapshot the session", "save this conversation", "capture the transcript", "archive this session". Schema-identical to aria-knowledge's /snapshot output, but with cowork-specific source acquisition (no transcript jsonl access — uses MCP / user-paste / Claude-recall fallback chain). Distinct from /extract (which synthesizes knowledge) and /clip (which captures a URL or snippet).
+description: Save a snapshot of the current Cowork conversation to the knowledge intake on demand. Use when user says "/snapshot", "/aria-cowork:snapshot", "snapshot the session", "save this conversation", "capture the transcript", "archive this session". Schema-identical to aria-knowledge's /snapshot output, but with cowork-specific source acquisition (no.
 ---
 
 # /snapshot — On-Demand Session Snapshot (cowork variant)

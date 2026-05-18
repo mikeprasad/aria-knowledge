@@ -1,7 +1,7 @@
 {
   "name": "aria-cowork",
-  "version": "1.0.0",
-  "description": "Knowledge management for Claude Cowork — capture, organize, and apply durable knowledge across your work, available in any project workspace via a persistent folder grant. Companion to aria-knowledge for Claude Code; both share one knowledge folder so insights flow between conversational and engineering work. Default knowledge folder location: ~/Projects/knowledge/.",
+  "version": "1.0.1",
+  "description": "Knowledge management for Claude Cowork \u2014 capture, organize, and apply durable knowledge across your work, available in any project workspace via a persistent folder grant. Companion to aria-knowledge for Claude Code; both share one knowledge folder so insights flow between conversational and engineering work. Default knowledge folder.",
   "author": {
     "name": "Mike Prasad"
   }

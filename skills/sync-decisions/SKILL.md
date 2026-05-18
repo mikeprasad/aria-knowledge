@@ -1,8 +1,7 @@
 ---
 name: sync-decisions
-description: >
-  Mirror approved decisions from the knowledge folder out to a connected ~~docs MCP (Notion, Confluence, Google Docs). Use when user says "/sync-decisions", "/aria-cowork:sync-decisions", "mirror decisions to Notion", "push decisions to wiki", "sync ADRs to Confluence", "export decisions externally". WRITE-side skill — embeds Rule 22 advisory preamble per ADR-016 and requires explicit per-write go-gate. Logs each sync to logs/sync-decisions.md (v1.0.0).
-argument-hint: "[<decision-slug>|--all|--since YYYY-MM-DD] [--target <space-or-page>]"
+description: Mirror approved decisions from the knowledge folder out to a connected ~~docs MCP (Notion, Confluence, Google Docs). Use when user says "/sync-decisions", "/aria-cowork:sync-decisions", "mirror decisions to Notion", "push decisions to wiki", "sync ADRs to Confluence", "export decisions externally". WRITE-side skill — embeds Rule 22 advisory.
+argument-hint: '[<decision-slug>|--all|--since YYYY-MM-DD] [--target <space-or-page>]'
 ---
 
 # /sync-decisions — Mirror Decisions to External Docs
@@ -25,7 +24,7 @@ For all subsequent file operations in this skill, use the absolute path from `kn
 
 Check Claude's available tool list for `~~docs` MCPs that support WRITE operations:
 
-- **`~~docs`** (notion, atlassian, box, egnyte, google_docs): if connected, check the MCP's exposed tools — `~~docs` MCPs that only expose `read_page` / `search_pages` are READ-ONLY for this skill's purpose. Need a write surface (`create_page`, `update_page`, `append_block_children`, or equivalent).
+- **`~~docs`** (notion, atlassian, box, egnyte, google docs): if connected, check the MCP's exposed tools — `~~docs` MCPs that only expose `read_page` / `search_pages` are READ-ONLY for this skill's purpose. Need a write surface (`create_page`, `update_page`, `append_block_children`, or equivalent).
 
 If NO `~~docs` MCP with write capability is connected, output the standard fallback notice and stop:
 
@@ -148,7 +147,7 @@ For each successfully synced decision:
 ```yaml
 synced_to_~~docs:
   - target: <destination URL>
-    vendor: <notion|atlassian|box|egnyte|google_docs>
+    vendor: <notion|atlassian|box|egnyte|google docs>
     synced_at: <ISO timestamp>
     operation: <create|append|update>
 ```

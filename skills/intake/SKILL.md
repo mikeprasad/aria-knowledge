@@ -1,8 +1,7 @@
 ---
 name: intake
-description: >
-  Bulk import knowledge from files, directories, URLs, or pasted content into the intake backlogs, OR capture a single doc with structured 5-section template (doc mode). Use when user says "/intake", "/aria-cowork:intake", "/intake doc", "intake from", "import knowledge from", "scan this file for knowledge", "extract from these docs", "onboard this project", "capture a doc", "doc-anchored intake", "log notes on this doc". Unlike /clip (single item), /intake scans external sources in bulk and previews findings before staging. Doc mode produces one structured entry under intake/docs/ with claims / worth-keeping / contested / action / reaction sections.
-argument-hint: "[doc <url-or-title>] | <path|directory|glob|url> [path2] [path3]"
+description: Bulk import knowledge from files, directories, URLs, or pasted content into the intake backlogs, OR capture a single doc with structured 5-section template (doc mode). Use when user says "/intake", "/aria-cowork:intake", "/intake doc", "intake from", "import knowledge from", "scan this file for knowledge", "extract from these docs", "onboard this.
+argument-hint: '[doc <url-or-title>] | <path|directory|glob|url> [path2] [path3]'
 ---
 
 # /intake — Bulk Knowledge Import + Doc-Anchored Capture

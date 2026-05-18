@@ -1,7 +1,6 @@
 ---
 name: index
-description: >
-  Rebuild the knowledge tag index. Scans promoted files, normalizes tags, flags untagged files, suggests freeform-to-known promotions, detects stale files, and regenerates index.md. Use when user says "/index", "/aria-cowork:index", "rebuild index", "update index", "reindex knowledge".
+description: Rebuild the knowledge tag index. Scans promoted files, normalizes tags, flags untagged files, suggests freeform-to-known promotions, detects stale files, and regenerates index.md. Use when user says "/index", "/aria-cowork:index", "rebuild index", "update index", "reindex knowledge".
 ---
 
 # /index — Knowledge Index Builder

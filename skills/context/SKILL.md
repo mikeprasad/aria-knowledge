@@ -1,8 +1,7 @@
 ---
 name: context
-description: >
-  Load relevant knowledge by topic. Queries the tag index and presents matching promoted files for selective loading into context. Use when user says "/context stripe", "/context api pagination", "/aria-cowork:context architecture", "load knowledge about...", "what do we know about...".
-argument-hint: "<tag1> [tag2] [AND tag3]"
+description: Load relevant knowledge by topic. Queries the tag index and presents matching promoted files for selective loading into context. Use when user says "/context stripe", "/context api pagination", "/aria-cowork:context architecture", "load knowledge about...", "what do we know about...".
+argument-hint: <tag1> [tag2] [AND tag3]
 ---
 
 # /context — On-Demand Knowledge Retrieval

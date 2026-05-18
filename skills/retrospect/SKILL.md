@@ -1,8 +1,7 @@
 ---
 name: retrospect
-description: >
-  Run a structured retrospective on a shipped commit range, release, deployment, PR, commit, or session. Per-fix validation enforcement, active evidence-sourcing pass (autonomous lookups + targeted user-asks for anything that could become objective), simpler-alternative discipline, re-diagnosis, action verdicts, and a growing failure-mode pattern library. Triggers: "/retrospect" (auto-range), "/aria-cowork:retrospect", "/retrospect commit <hash>", "/retrospect range <ref1>..<ref2>", "/retrospect pr <num>", "/retrospect session", "/retrospect release", "/retrospect deployment". Backward-compat flags (--range, --pr, --session, --commit) still accepted.
-argument-hint: "[<scope>] [<scope-arg>] [--linear-post] [--no-source]"
+description: Run a structured retrospective on a shipped commit range, release, deployment, PR, commit, or session. Per-fix validation enforcement, active evidence-sourcing pass (autonomous lookups + targeted user-asks for anything that could become objective), simpler-alternative discipline, re-diagnosis, action verdicts, and a growing failure-mode pattern.
+argument-hint: '[<scope>] [<scope-arg>] [--linear-post] [--no-source]'
 ---
 
 # /retrospect — Release retrospective with validation enforcement (cowork variant)

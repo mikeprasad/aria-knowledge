@@ -1,7 +1,6 @@
 ---
 name: extract
-description: >
-  Extract uncaptured knowledge from the current conversation before it's lost to compaction. Use after completing a task, before switching context, before large exploratory work (multi-file reads, codebase scans), or when the user signals session end. Trigger: "/extract", "/aria-cowork:extract", "extract knowledge", "capture session knowledge". Also prompt mid-session: "Task complete — want me to run /extract?" and "Switching context — want me to run /extract first?".
+description: 'Extract uncaptured knowledge from the current conversation before it''s lost to compaction. Use after completing a task, before switching context, before large exploratory work (multi-file reads, codebase scans), or when the user signals session end. Trigger: "/extract", "/aria-cowork:extract", "extract knowledge", "capture session knowledge". Also.'
 ---
 
 # /extract — Pre-Compaction Knowledge Extraction

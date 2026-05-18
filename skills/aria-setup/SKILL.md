@@ -1,7 +1,6 @@
 ---
 name: aria-setup
-description: >
-  Configure aria-cowork on first run or after updates. Verifies your knowledge folder is reachable from this Cowork session, guides you through adding it to claude_desktop_config.json for persistent multi-session access if needed, scaffolds the folder structure, and writes the canonical aria-config.md. Safe to re-run anytime — only touches what needs updating. Use when the user says "/aria-setup", "set up aria-cowork", "configure aria-cowork", "knowledge folder isn't working", or has just installed/updated aria-cowork.
+description: Configure aria-cowork on first run or after updates. Verifies your knowledge folder is reachable from this Cowork session, guides you through adding it to claude_desktop_config.json for persistent multi-session access if needed, scaffolds the folder structure, and writes the canonical aria-config.md. Safe to re-run anytime — only touches what.
 compatibility: Requires Cowork desktop app. Default knowledge folder is `~/Projects/knowledge/`; users with non-default locations can override via inline prompt at first /aria-setup run. Works in any project workspace once the knowledge folder is granted via claude_desktop_config.json.
 ---
 

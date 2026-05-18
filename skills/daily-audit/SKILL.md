@@ -1,8 +1,7 @@
 ---
 name: daily-audit
-description: >
-  First-message audit substitute for Cowork. Use when user says "/daily-audit", "/aria-cowork:daily-audit", "audit check", "daily check", "session start audit", or at the start of a Cowork session to surface audit-cadence status. Cowork has no SessionStart hook (per ADR-004); this skill is the manual equivalent — checks /audit-knowledge + /audit-config cadences and recommends invocation if overdue. Cowork-only — not ported to aria-knowledge (which uses session-start-check.sh hook for this) (v1.0.0).
-argument-hint: ""
+description: First-message audit substitute for Cowork. Use when user says "/daily-audit", "/aria-cowork:daily-audit", "audit check", "daily check", "session start audit", or at the start of a Cowork session to surface audit-cadence status. Cowork has no SessionStart hook (per ADR-004); this skill is the manual equivalent — checks /audit-knowledge +.
+argument-hint: ''
 ---
 
 # /daily-audit — First-Message Audit Cadence Check (Cowork-Only)

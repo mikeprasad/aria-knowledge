@@ -1,8 +1,7 @@
 ---
 name: meeting-notes
-description: >
-  Fold a meeting transcript or notes into structured intake. Use when user says "/meeting-notes", "/aria-cowork:meeting-notes", "capture meeting notes", "fold this meeting transcript", "process this Granola export", "archive this standup". Accepts a ~~docs URL (Notion meeting page, Confluence) OR pasted transcript text — unique among MCP-consuming skills in offering a paste fallback when no ~~docs MCP is connected (v1.0.0).
-argument-hint: "<doc-url-or-paste-marker> [meeting-title]"
+description: Fold a meeting transcript or notes into structured intake. Use when user says "/meeting-notes", "/aria-cowork:meeting-notes", "capture meeting notes", "fold this meeting transcript", "process this Granola export", "archive this standup". Accepts a ~~docs URL (Notion meeting page, Confluence) OR pasted transcript text — unique among MCP-consuming.
+argument-hint: <doc-url-or-paste-marker> [meeting-title]
 ---
 
 # /meeting-notes — Capture Meeting Transcript to Intake
@@ -23,7 +22,7 @@ For all subsequent file operations in this skill, use the absolute path from `kn
 
 Check Claude's available tool list for `~~docs` MCPs:
 
-- **`~~docs`** (notion, atlassian, box, egnyte, google_docs): if connected, available for MCP-sourced meeting docs.
+- **`~~docs`** (notion, atlassian, box, egnyte, google docs): if connected, available for MCP-sourced meeting docs.
 
 **Branching logic** (this skill diverges from other MCP-consuming skills here — see [ADR-015](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/015-capability-probe-pattern.md) §"Application across the 5 MCP-consuming skills"):
 
@@ -41,7 +40,7 @@ Same as `/extract-doc` Step 2-3. Routing table:
 |---|---|
 | Contains `notion.so` | notion (`~~docs`) |
 | Contains `atlassian.net/wiki` | atlassian (`~~docs`) |
-| Contains `docs.google.com/document` | google_docs (`~~docs`) |
+| Contains `docs.google.com/document` | google docs (`~~docs`) |
 | Bare ID + known MCP | use the connected one |
 
 Fetch the doc body. Proceed to Step 3.
@@ -91,7 +90,7 @@ Body template:
 date: <YYYY-MM-DD>
 title: <meeting title>
 source: <doc-url OR "pasted transcript">
-source_type: <notion|atlassian|box|egnyte|google_docs|paste>
+source_type: <notion|atlassian|box|egnyte|google docs|paste>
 participants: [<name list>]
 duration: <if known>
 tags: [meeting, <project-tag-if-inferable>]
