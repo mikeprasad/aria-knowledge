@@ -48,7 +48,7 @@
       "type": "http",
       "url": "https://mcp.egnyte.com/mcp"
     },
-    "google_docs": {
+    "google docs": {
       "type": "http",
       "url": ""
     }

@@ -18,7 +18,7 @@ Verify `{knowledge_folder}/intake/insights-backlog.md` exists. If not, stop: "In
 
 Check Claude's available tool list for `~~docs` MCPs:
 
-- **`~~docs`** (notion, atlassian, box, egnyte, google_docs): if connected, available for doc fetch.
+- **`~~docs`** (notion, atlassian, box, egnyte, google docs): if connected, available for doc fetch.
 
 If NO `~~docs` MCP is connected, output the standard fallback notice and stop:
 
@@ -32,7 +32,7 @@ The user provides one of:
 
 - **A Notion page URL** — `https://www.notion.so/<workspace>/<title>-<id>` or `notion.so/<id>`
 - **A Confluence page URL** — `https://<org>.atlassian.net/wiki/spaces/<space>/pages/<id>/<title>`
-- **A Google Docs URL** — `https://docs.google.com/document/d/<doc-id>/...` (if google_docs MCP wired; placeholder URL in v2.18.0 .mcp.json)
+- **A Google Docs URL** — `https://docs.google.com/document/d/<doc-id>/...` (if google docs MCP wired; placeholder URL in v2.18.0 .mcp.json)
 - **A Box file URL** — `https://app.box.com/file/<file-id>`
 - **An Egnyte file URL** — `https://<org>.egnyte.com/...`
 - **A bare doc/page ID** — opaque string the connected MCP can resolve
@@ -45,7 +45,7 @@ Optionally followed by tags (e.g., `engineering postmortem`, `cs onboarding`).
 |---|---|
 | Contains `notion.so` or `www.notion.so` | `~~docs` (notion) |
 | Contains `atlassian.net/wiki` | `~~docs` (atlassian) |
-| Contains `docs.google.com/document` | `~~docs` (google_docs) |
+| Contains `docs.google.com/document` | `~~docs` (google docs) |
 | Contains `app.box.com/file` | `~~docs` (box) |
 | Contains `egnyte.com` | `~~docs` (egnyte) |
 | Ambiguous | Ask user which `~~docs` MCP holds the doc |

@@ -23,7 +23,7 @@ Check Claude's available tool list for each `~~category`. The digest runs with A
 | `~~chat` | slack, ms365 | <connected: list / not connected> |
 | `~~email` | gmail, ms365 | <connected: list / not connected> |
 | `~~project tracker` | linear, asana, atlassian, monday, clickup, notion | <connected: list / not connected> |
-| `~~docs` | notion, atlassian, box, egnyte, google_docs | <connected: list / not connected> |
+| `~~docs` | notion, atlassian, box, egnyte, google docs | <connected: list / not connected> |
 
 If NO MCPs in ANY category are connected, output the standard fallback notice and stop:
 

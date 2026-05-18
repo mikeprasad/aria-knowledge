@@ -20,7 +20,7 @@ Lazily create `{knowledge_folder}/logs/sync-decisions.md` if it doesn't exist (u
 
 Check Claude's available tool list for `~~docs` MCPs that support WRITE operations:
 
-- **`~~docs`** (notion, atlassian, box, egnyte, google_docs): if connected, check the MCP's exposed tools — `~~docs` MCPs that only expose `read_page` / `search_pages` are READ-ONLY for this skill's purpose. Need a write surface (`create_page`, `update_page`, `append_block_children`, or equivalent).
+- **`~~docs`** (notion, atlassian, box, egnyte, google docs): if connected, check the MCP's exposed tools — `~~docs` MCPs that only expose `read_page` / `search_pages` are READ-ONLY for this skill's purpose. Need a write surface (`create_page`, `update_page`, `append_block_children`, or equivalent).
 
 If NO `~~docs` MCP with write capability is connected, output the standard fallback notice and stop:
 
@@ -143,7 +143,7 @@ For each successfully synced decision:
 ```yaml
 synced_to_~~docs:
   - target: <destination URL>
-    vendor: <notion|atlassian|box|egnyte|google_docs>
+    vendor: <notion|atlassian|box|egnyte|google docs>
     synced_at: <ISO timestamp>
     operation: <create|append|update>
 ```
