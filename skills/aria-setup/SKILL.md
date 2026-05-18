@@ -23,7 +23,7 @@ All references to the version below use `{INSTALLED_VERSION}` as a substitution 
 
 aria-cowork v{INSTALLED_VERSION} uses a **default-path convention**: the knowledge folder is `~/Projects/knowledge/` (expand `~` to the user's home directory at runtime, producing an absolute path like `/Users/<user>/Projects/knowledge`).
 
-Hold the default as `DEFAULT_KNOWLEDGE_FOLDER` (e.g., `/Users/mikeprasad/Projects/knowledge`).
+Hold the default as `DEFAULT_KNOWLEDGE_FOLDER` (e.g., `~/Projects/knowledge` — expand `~` to your home directory's absolute path).
 
 **Override mechanism for non-default locations:**
 

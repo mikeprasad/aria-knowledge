@@ -478,7 +478,7 @@ When assigning Risk? in §4.3, choose one of the 5 statuses below. Under-specifi
 When emitting a Risk? value, always include the required sub-tag where applicable. Examples:
 
 - `Risk?: ✅ Pre-validated (code-read-and-traced: blueprint-loader.ts:645-662 confirms canonical nav rule applies)`
-- `Risk?: ⚠ Theory-driven (single-source-inferred: only one cs-builder route was inspected; assumption that all NDJSON routes share the shape is inferred)`
+- `Risk?: ⚠ Theory-driven (single-source-inferred: only one API route was inspected; assumption that all NDJSON routes share the shape is inferred)`
 - `Risk?: ❌ Falsified (prior-attempt-failed: 2026-04-22 retrospect on this same approach showed it doesn't address the bug)`
 - `Risk?: ❓ Unsupported: needs <specific check>`
 - `Risk?: 🚫 Unverifiable-yet: requires running migration in staging to surface schema collision`

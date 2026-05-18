@@ -19,7 +19,7 @@ the canonical, but querying the canonical does not match alias-only declarations
 Rules:
 - **No chains:** `meeting` → `meetings`, `meetings` → `sync-meetings` is invalid. Aliases must point directly to a canonical tag, not to another alias.
 - **No collisions:** if an alias is also used as a tag on any file's `tags:` frontmatter, `/index` aborts with an error. Either remove the alias here or rename the tag in the file.
-- **Resolution runs before project expansion:** if `kw-fc` is an alias for project tag `commonspace-feedback`, querying `/context kw-fc` resolves to `commonspace-feedback` and then expands relevant tags.
+- **Resolution runs before project expansion:** if `eng-fb` is an alias for project tag `engineering-feedback`, querying `/context eng-fb` resolves to `engineering-feedback` and then expands relevant tags.
 
 ## Aliases
 
