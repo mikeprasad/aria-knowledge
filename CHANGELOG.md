@@ -2,6 +2,105 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## [2.18.0] - 2026-05-18
+
+**First MCP-consuming release. 5 new cross-tool skills + `.mcp.json` + `CONNECTORS.md` + 2 new architectural ADRs.** aria-knowledge gains a category of capability it didn't previously have — pulling from connected MCP servers (Slack, Notion, Linear, Gmail, etc.) and writing structured artifacts back into the knowledge folder. 5 new skills (clip-thread, extract-doc, meeting-notes, digest, sync-decisions) consume 4 `~~category` placeholders (chat / email / project tracker / docs) via the `~~` customization-marker convention from `cowork-plugin-management`. Minor bump because this is a structural-shift-by-addition: the manifest's new `.mcp.json` declaration is additive (existing installs without `.mcp.json` continue to work), but a whole external-integration surface arrives. Bidirectional flow continues — aria-cowork v1.0.0 ships shortly with 5/5 of these skills imported byte-faithfully + 1 cowork-only `daily-audit` skill per ADR-014.
+
+### Added — `/clip-thread` skill
+
+New skill at `plugin/skills/clip-thread/SKILL.md`. Captures a chat or email thread from a connected `~~chat` (slack, ms365) or `~~email` (gmail, ms365) MCP into `intake/clippings/{YYYY-MM-DD}-{slug}.md`. Source-type detection by URL pattern (Slack archives, Teams message links, Gmail thread IDs, MS365 message IDs). 50-message cap with truncation notice. Per-message structure preserves author + timestamp + body + reactions/attachments-noted. Reaction section left empty as user-fill slot (matches `/intake doc` precedent from v2.17.0).
+
+### Added — `/extract-doc` skill
+
+New skill at `plugin/skills/extract-doc/SKILL.md`. Pulls insights from a single Notion / Confluence / Google Doc / Box / Egnyte page via `~~docs` MCP. **Differs from `/intake doc`** (v2.17.0): `/intake doc` captures one structured artifact per doc; `/extract-doc` decomposes a doc into N intake-backlog entries for audit routing. 5 standard intake categories (insight / decision / extraction / idea / reference). 20KB extraction cap with truncation notice. Default fewer-but-stronger ranking discipline.
+
+### Added — `/meeting-notes` skill
+
+New skill at `plugin/skills/meeting-notes/SKILL.md`. Folds a meeting transcript into `intake/meetings/{YYYY-MM-DD}-{slug}.md` with structured participants / topics / action items / decisions / open questions sections + raw transcript preserved verbatim. **Unique among Phase 2 skills:** offers a **paste fallback** when no `~~docs` MCP is connected (Granola exports, hand-typed notes, transcript paste-from-clipboard). The only skill in v2.18.0 that doesn't hard-stop on missing MCP. New `intake/meetings/` lazy-created subfolder convention.
+
+### Added — `/digest` skill
+
+New skill at `plugin/skills/digest/SKILL.md`. Cross-tool rollup synthesizing what's pending / what shipped / what's blocked across `~~chat` + `~~email` + `~~project tracker` + `~~docs`. The composite-MCP skill — probes all 4 categories and degrades gracefully when partial connection (surfaces gap callouts in output). Time window args: `--week` (default), `--month`, `--quarter`, `--since YYYY-MM-DD [--until YYYY-MM-DD]`. Output to `intake/digests/{YYYY-MM-DD}.md` (lazy-created subfolder). Inspired by Anthropic's productivity plugin `update --comprehensive` mode, adapted for ARIA's intake-then-audit model.
+
+### Added — `/sync-decisions` skill
+
+New skill at `plugin/skills/sync-decisions/SKILL.md`. **First WRITE-side skill in ARIA.** Mirrors approved decisions from `{knowledge_folder}/decisions/` out to a `~~docs` MCP destination (Notion page, Confluence space, Google Doc, Box/Egnyte file). Embeds the 4-step Rule 22 advisory preamble per ADR-016 with explicit per-decision go-gate (`Ready to write? (yes / no / edit)`). The only path to batch is the literal phrase `yes to all` per ADR-016's batch carve-out. Logs every sync attempt (success / skip / fail) to `logs/sync-decisions.md`. Adds new `synced_to_~~docs:` frontmatter field on synced decision files for sync-state tracking.
+
+### Added — `plugin/.mcp.json`
+
+First time aria-knowledge ships an `.mcp.json` manifest. Declares 12 MCP servers across 4 categories — mirrors Anthropic's published `productivity/.mcp.json` shape:
+
+| Category | MCPs declared |
+|---|---|
+| Chat | slack, ms365 |
+| Email | gmail (placeholder URL), ms365 |
+| Project tracker | linear, asana, atlassian, monday, clickup, notion |
+| Docs | notion, atlassian, box, egnyte, google_docs (placeholder URL) |
+
+Slack ships with Anthropic's published OAuth config (clientId `1601185624273.8899143856786`, callbackPort 3118) — mirrored from productivity's manifest. Gmail + google_docs ship with empty URLs (placeholder declarations per productivity's pattern, pending public MCP server availability).
+
+### Added — `plugin/CONNECTORS.md`
+
+First time aria-knowledge ships a `CONNECTORS.md`. Documents the `~~category` marker convention per the canonical guidance from `cowork-plugin-management/skills/cowork-plugin-customizer/SKILL.md`. Four categories (chat / email / project tracker / docs) — a focused subset of productivity's 6 (we don't have calendar or office-suite skills). Per-skill MCP-usage table shows which `~~category` each new skill consumes + the fallback behavior. "What this plugin does NOT integrate with" section preempts confusion about calendar / office-suite / code-hosting omissions.
+
+### Added — ADR-015 + ADR-016 (in `~/Projects/knowledge/projects/aria-cowork/decisions/`)
+
+Two new ADRs lock the v2.18.0 design decisions:
+
+- **ADR-015 — Capability-Probe Pattern (Prose-Only, No API).** Locks the `~~category` probe convention verified against productivity plugin reference: prose-only, no helper script, Claude's runtime tool list IS the probe, SKILL.md handles missing-MCP via explicit fallback prose. Composes with ADR-004 (no hooks in cowork) — Layer-1 + Layer-3 only.
+- **ADR-016 — Rule 22 Advisory Preamble for External-Write Skills.** Locks the 4-step preamble + explicit `Ready to write? (yes / no / edit)` go-gate that all WRITE-side skills MUST embed. Applies to `sync-decisions` in v2.18.0; pattern is durable for future write-side skills. Composes with ADR-004 + v0.2.5 "Principles transfer, enforcement doesn't" framing.
+
+Both ADRs include a **Stability and revision triggers** section acknowledging that the patterns derive from Anthropic-published Cowork plugins as of 2026-05-18 and may revise as future Anthropic releases ship new capability surfaces (formal capability-probe APIs, Cowork hook surface for MCP write tools, etc.).
+
+### Schema impact
+
+| Surface | Change | Compatibility |
+|---|---|---|
+| `plugin/.mcp.json` | New file declaring 12 MCP servers | Additive — installs without `.mcp.json` continue to work (existing skills don't probe MCPs) |
+| `plugin/CONNECTORS.md` | New companion doc explaining `~~` markers | Additive — documentation only |
+| `intake/clippings/` | Existing folder, new content shape (`<date>-<slug>.md` with thread structure) | Additive — `/clip-thread` writes alongside `/clip` outputs; no shape conflict |
+| `intake/meetings/` | New subfolder, lazy-created | Additive — created on first `/meeting-notes` invocation |
+| `intake/digests/` | New subfolder, lazy-created | Additive — created on first `/digest` invocation |
+| `logs/sync-decisions.md` | New artifact, lazy-created | Additive — created on first `/sync-decisions` invocation |
+| `synced_to_~~docs:` frontmatter field on decision files | New optional field | Additive — decisions without the field still work; `/audit-knowledge` ignores the field for routing |
+
+### Cross-plugin parity (bidirectional flow continuing per ADR-014)
+
+5/5 new skills are bidirectional per [ADR-014](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/014-bidirectional-feature-flow.md) row 3 — the cross-tool workflow problem exists in both Code and Cowork surfaces. Per ADR-013 (schema-source-of-truth), aria-knowledge ships first; aria-cowork v1.0.0 imports the 5 SKILL.md bodies byte-faithfully with only the Step 0 config-resolution path diverging per ADR-013's "input-discovery diverges per-surface; output-schema converges per-corpus" principle.
+
+aria-cowork v1.0.0 also adds 1 cowork-only skill (`daily-audit` — first-message audit substitute since Cowork has no SessionStart hook per ADR-004). That skill does NOT ship in aria-knowledge.
+
+Output schema is byte-identical across plugins per ADR-013. Both plugins write to the same shared `intake/clippings/`, `intake/meetings/`, `intake/digests/`, `logs/sync-decisions.md` paths in the user's `~/Projects/knowledge/` (or configured) folder.
+
+### Files changed
+
+- New: `plugin/.mcp.json` (~50 lines, 12 MCP server declarations)
+- New: `plugin/CONNECTORS.md` (~80 lines, ~~category convention reference)
+- New: `plugin/skills/clip-thread/SKILL.md` (~155 lines)
+- New: `plugin/skills/extract-doc/SKILL.md` (~145 lines)
+- New: `plugin/skills/meeting-notes/SKILL.md` (~170 lines)
+- New: `plugin/skills/digest/SKILL.md` (~180 lines)
+- New: `plugin/skills/sync-decisions/SKILL.md` (~200 lines, Rule 22 preamble embedded)
+- Modified: `plugin/.claude-plugin/plugin.json` (version bump 2.17.0 → 2.18.0)
+- Modified: `README.md` (skill list additions in Capture + Promote sections, MCP integration mention in Install)
+- Modified: `CLAUDE.md` (Sibling Plugin section refreshed for v0.3.0 → v1.0.0 SHIPPED on disk; originally drafted as v0.4.0 + bumped to v1.0.0 mid-build per ADR-006 stability claim)
+- Cross-knowledge: `~/Projects/knowledge/projects/aria-cowork/decisions/015-capability-probe-pattern.md` + `016-rule-22-advisory-preamble-for-external-writes.md` (new ADRs)
+
+### Compatibility
+
+- **No breaking changes.** Existing skills work unchanged. New skills are opt-in by invocation; no auto-fire hooks reference the new skills.
+- **No new required config.** Existing `aria-knowledge.local.md` works unchanged. Future `default_sync_target:` field is optional (consumed only by `/sync-decisions`).
+- **No new dependencies.** Pure markdown + the MCP runtime that Code already provides. `.mcp.json` is read by Code's MCP client; aria-knowledge doesn't build or host any MCP server itself.
+- **Graceful degradation built-in.** If no MCPs are connected, all 5 new skills output a clear fallback notice and stop. `/meeting-notes` additionally offers a paste-fallback path.
+- **MCP-consuming is opt-in.** Users who don't want any of the 5 new skills can ignore them; no behavior changes to the existing 23 skills.
+- **Cowork sibling release coming:** aria-cowork v1.0.0 ships shortly with 5/5 bidirectional ports + the cowork-only `/daily-audit`.
+
+### Known limitations
+
+- **Slack OAuth clientId** is mirrored from productivity plugin's public manifest. May "just work" if Anthropic's Slack OAuth app covers third-party plugins; may require aria-knowledge to register its own Slack OAuth app if reality differs. Capability probe per ADR-015 will surface "No `~~chat` MCP connected" if Slack auth fails — degraded but not broken.
+- **`gmail` and `google_docs` MCPs ship with empty URLs** (placeholders, per productivity plugin's pattern). Will be populated when Anthropic's hosted Google MCPs go public. Patchable in v2.18.1 if/when that lands.
+- **Probe semantics may evolve.** ADR-015 + ADR-016 explicitly note that future Anthropic releases (formal capability-probe API, Cowork MCP-aware PreToolUse hook) would trigger revision.
+
 ## [2.17.0] - 2026-05-18
 
 **Two new mode flags on existing skills: `/handoff brief` + `/intake doc`.** Both originate as cross-plugin parity items from aria-cowork's v0.3.0 design discussion — this release implements them in aria-knowledge first (per the schema-source-of-truth principle), so aria-cowork's v0.3.0 port can import the templates byte-identical. Minor bump because of the new `intake/docs/` subfolder convention + new `intake-doc` frontmatter type — additive schema, no breaking changes.

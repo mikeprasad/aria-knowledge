@@ -1,6 +1,6 @@
 {
   "name": "aria-knowledge",
-  "version": "2.17.0-codex.0",
+  "version": "2.18.0-codex.0",
   "description": "Codex port of ARIA - Applied Reasoning and Insight Architecture. Uses the Claude-standard ARIA knowledge folder and content schema while adapting plugin manifests, commands, hooks, and tool-boundary behavior for Codex.",
   "author": {
     "name": "Mike Prasad"

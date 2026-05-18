@@ -129,6 +129,11 @@ audit build). All 22 canonical skills + 3 aliases present.
 | `retrospect` | `aria-commands.mdc` | `#/retrospect` |
 | `snapshot` | `aria-commands.mdc` | `#/snapshot` (repurposed — task-boundary capture, not transcript) |
 | `wrapup` | `aria-commands.mdc` | `#/wrapup` |
+| `clip-thread` (v2.18.0+) | `aria-commands.mdc` | `#/clip-thread` — **pending compilation** (see Pending sync items) |
+| `extract-doc` (v2.18.0+) | `aria-commands.mdc` | `#/extract-doc` — **pending compilation** |
+| `meeting-notes` (v2.18.0+) | `aria-commands.mdc` | `#/meeting-notes` — **pending compilation** |
+| `digest` (v2.18.0+) | `aria-commands.mdc` | `#/digest` — **pending compilation** |
+| `sync-decisions` (v2.18.0+) | `aria-commands.mdc` | `#/sync-decisions` — **pending compilation** (WRITE-side; embeds ADR-016 Rule 22 advisory preamble) |
 | (Rule 22 framework body, from `plugin/template/rules/change-decision-framework.md`) | `aria-rule-22.mdc` | full file, verbatim |
 | (ARIA core lifecycle prose) | `aria-core.mdc` | full file |
 
@@ -142,7 +147,13 @@ Cosmetic edits (typo fixes, prose polish) can batch until the next port refresh.
 > When you notice canonical drift that hasn't been ported to Cursor yet, add it
 > here. Keep entries terse: `- <canonical path> @ <version or date>: <what changed>`.
 
-- _none currently tracked — port is at parity with `plugin/` v2.16.1 as of 2026-05-18._
+- `plugin/skills/clip-thread/SKILL.md` @ v2.18.0: new MCP-consuming skill (`~~chat` / `~~email` thread capture). **Pending .mdc compilation into `aria-commands.mdc`.** Concept declared in mapping table above; method (Cursor MCP runtime fit) needs validation pass before compilation.
+- `plugin/skills/extract-doc/SKILL.md` @ v2.18.0: new MCP-consuming skill (`~~docs` page decomposition to intake-backlog). **Pending .mdc compilation into `aria-commands.mdc`.**
+- `plugin/skills/meeting-notes/SKILL.md` @ v2.18.0: new MCP-consuming skill (transcript folding with paste fallback). **Pending .mdc compilation into `aria-commands.mdc`.** Paste-fallback branch makes this skill the most Cursor-friendly of the 5 — usable without any MCP runtime support.
+- `plugin/skills/digest/SKILL.md` @ v2.18.0: new MCP-consuming skill (composite-MCP weekly rollup). **Pending .mdc compilation into `aria-commands.mdc`.**
+- `plugin/skills/sync-decisions/SKILL.md` @ v2.18.0: new **WRITE-side** MCP-consuming skill (mirror decisions to `~~docs` MCP). Embeds ADR-016 Rule 22 advisory preamble. **Pending .mdc compilation into `aria-commands.mdc`.** Highest care item — write-side discipline must port verbatim if compiled.
+- `plugin/.mcp.json` + `plugin/CONNECTORS.md` @ v2.18.0: NOT mirrored to `cursor-template/` in v2.18.0-cursor.0. Cursor's MCP runtime support needs validation pass (concept-and-function-preserved-but-method-may-diverge per Mike's D2 framing on the v2.18.0 release). When Cursor MCP integration is verified, copy these files + compile the 5 skills in one paired update.
+- _Cursor `2.18.0-cursor.0` VERSION bumped on 2026-05-18 to track the canonical release; SKILL.md compilation deferred per the same pattern as `2.17.0-cursor.0` (which also bumped VERSION without re-syncing `/handoff brief` + `/intake doc` modes from v2.17.0)._
 
 ## Release Workflow (independent)
 

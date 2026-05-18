@@ -30,11 +30,15 @@ Preserve session knowledge before context evaporates.
 
 - `/extract` — Scan conversations for uncaptured insights, decisions, feedback, references, and ideas. Deduplicates against existing entries.
 - `/clip` — Quick-save URLs or text snippets to intake without leaving the session.
+- `/clip-thread` (v2.18.0+) — Capture a chat or email thread from a connected `~~chat` or `~~email` MCP. Source-type detection (Slack archives / Teams messages / Gmail threads / MS365); per-message structure + reactions + attachment notes; user-fill reaction section.
 - `/ask` — Research a question, check existing knowledge first, save the answer directly as a knowledge doc.
-- `/intake` — Bulk import from files, directories, or URLs with preview before staging.
+- `/intake` — Bulk import from files, directories, or URLs with preview before staging. Doc mode (v2.17.0+): `/intake doc <url-or-title>` captures one structured artifact per doc with 5-section body + user reaction.
+- `/extract-doc` (v2.18.0+) — Pull insights from a single Notion / Confluence / Google Doc / Box / Egnyte page via `~~docs` MCP. Decomposes one doc into N intake-backlog entries for audit routing (differs from `/intake doc` which captures one doc as one artifact).
+- `/meeting-notes` (v2.18.0+) — Fold a meeting transcript into structured intake (participants / topics / action items / decisions / open questions + raw transcript). Source can be a `~~docs` MCP page OR pasted transcript text (Granola, hand-typed notes, transcript exports) — the one Phase 2 skill with a paste fallback when no MCP is connected.
+- `/digest` (v2.18.0+) — Cross-tool weekly rollup synthesizing what's pending / shipped / blocked across `~~chat` + `~~email` + `~~project tracker` + `~~docs`. Probes all 4 categories and degrades gracefully when partial connection; surfaces gap callouts in output. Time-window args (`--week` default, `--month`, `--quarter`, `--since YYYY-MM-DD`).
 - `/snapshot` — On-demand raw transcript archive. Same artifact the PreCompact hook produces, invoked explicitly.
 - `/wrapup` — End-of-session handoff: reviews work, updates PROGRESS.md/CLAUDE.md/memory, prompts for commit and `/extract`, verifies the next session can pick up.
-- `/handoff` (`/handoff auto`) — Express handoff. Same coverage as `/wrapup` compressed into a single combined-go review (or silent `auto` mode). Always emits a paste-ready next-session opener as the headline artifact.
+- `/handoff` (`/handoff auto`, `/handoff brief`) — Express handoff. Three modes: default (combined-go review), `auto` (silent apply), `brief` (copy/paste coworker prose, 80-150 words). Default and auto modes emit a paste-ready next-session opener; brief mode skips state updates and emits prose-only.
 
 ### Govern
 
@@ -51,6 +55,7 @@ Approved knowledge becomes durable markdown — rules, approaches, decisions, gu
 
 - `/index` — Rebuild the tag index. Normalizes tags, flags untagged files, suggests cross-references, updates project mappings.
 - `/audit-share` (alias `/share-audit`) — Batch-promote personal knowledge to team-visible per-repo `_project-knowledge/` folders when the optional shared-knowledge tier is enabled. Per-item review with sanitization warnings on public-repo targets. See [Shared knowledge tier](#shared-knowledge-tier-since-v213) below.
+- `/sync-decisions` (v2.18.0+) — Mirror approved decisions from `decisions/` out to a connected `~~docs` MCP destination (Notion, Confluence, Google Doc, etc.). **First WRITE-side ARIA skill** — embeds the Rule 22 advisory preamble (per ADR-016) with explicit per-decision go-gate (`Ready to write? (yes / no / edit)`). Logs every sync attempt to `logs/sync-decisions.md`; updates `synced_to_~~docs:` frontmatter on source decision files for sync-state tracking. Distinct from `/audit-share` (which writes to per-repo team folders via git) — `/sync-decisions` is for org-wide wiki / docs publishing via MCP.
 - An optional **project-specific tier** (v2.8.0+) organizes architecture decisions and patterns by project under `projects/{tag}/`. Cross-project promotion fires when patterns validate across multiple projects.
 
 ### Apply
