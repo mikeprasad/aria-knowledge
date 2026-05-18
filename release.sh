@@ -69,6 +69,50 @@ elif [[ "$DESC_LEN" -gt $((DESC_CAP - 50)) ]]; then
     warn "description is $DESC_LEN chars — within $((DESC_CAP - DESC_LEN)) chars of the ~$DESC_CAP cap. Consider trimming."
 fi
 
+# --- total SKILL.md description-bytes cap (v1.0.0 lesson) -------------------
+# Cowork rejects plugins whose summed SKILL.md description lengths exceed
+# 9 KiB. Empirically bisected 2026-05-19 via aria-cowork v1.0.0:
+#   passes:  total 9151 chars (probe K, max 445 — highest verified pass)
+#   fails:   total 9233 chars (probe D, max 450 — lowest verified fail)
+#   passes:  total 5496 chars (probe F, handoff at 707 — proves NO per-skill cap)
+# Per-skill descriptions can be any length individually; only the sum matters.
+# Cap window: [9,151, 9,233]; working answer is 9,216 (9 × 1,024 = 9 KiB exactly,
+# the only round-number candidate fitting the empirical window).
+# See ~/Projects/knowledge/guides/claude/cowork-plugin-validation.md for the
+# full bisection trail and ADR-013 for the cowork-side description-trim
+# divergence rationale. Warn at >8500, hard-fail at >9000 to leave 216-char
+# margin under the suspected cap.
+
+SKILL_TOTAL=$(python3 - <<PY
+import yaml, glob, os
+total = 0
+for f in sorted(glob.glob(os.path.join("$REPO_ROOT", "skills/*/SKILL.md"))):
+    with open(f) as fh:
+        text = fh.read()
+    if not text.startswith("---\n"):
+        continue
+    end = text.find("\n---\n", 4)
+    if end == -1:
+        continue
+    try:
+        fm = yaml.safe_load(text[4:end])
+    except Exception:
+        continue
+    desc = " ".join((fm.get("description") or "").split())
+    total += len(desc)
+print(total)
+PY
+)
+SKILL_WARN=8500
+SKILL_CAP=9000
+vlog "total skill description chars: $SKILL_TOTAL (warn >$SKILL_WARN, fail >$SKILL_CAP)"
+
+if [[ "$SKILL_TOTAL" -gt "$SKILL_CAP" ]]; then
+    die "summed SKILL.md description chars = $SKILL_TOTAL (hard cap $SKILL_CAP per v1.0.0 lesson; empirical fail at 9233). Trim individual descriptions to bring total down."
+elif [[ "$SKILL_TOTAL" -gt "$SKILL_WARN" ]]; then
+    warn "summed SKILL.md description chars = $SKILL_TOTAL — within $((SKILL_CAP - SKILL_TOTAL)) chars of the ~$SKILL_CAP cap. Empirical pass-floor is 7876. Consider trimming."
+fi
+
 # --- TEMPLATE-PARITY drift check (best-effort) ------------------------------
 # Per ADR-007: shared template files between aria-cowork and aria-knowledge
 # should maintain content parity. release.sh runs a best-effort diff for the
