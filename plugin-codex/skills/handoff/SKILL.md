@@ -1,19 +1,23 @@
 ---
-description: "Express end-of-session handoff. Same coverage as /wrapup (review work, update PROGRESS/CLAUDE/memory, commit, run /extract, verify continuity) but compresses six confirmation gates into a single combined-go review — or skips review entirely with `auto`. Always emits a paste-ready next-session opener at the end. Use when ending a session and the work is clear enough to confirm in one pass. Trigger: '/handoff', '/handoff auto', 'hand it off', 'handoff and extract', 'wrap and prompt'."
-argument-hint: "[auto]"
+description: "Express end-of-session handoff with three modes. Default and `auto` cover the same surface as /wrapup (review work, update PROGRESS/CLAUDE/memory, commit, run /extract, verify continuity) and always emit a paste-ready next-session opener. `brief` mode produces a copy/paste coworker brief (Hey [coworker]-style prose) instead — for handing off to another person, not to a future session. Use when ending a session and the work is clear enough to confirm in one pass, or when you need a quick brief to send a teammate. Trigger: '/handoff', '/handoff auto', '/handoff brief', 'hand it off', 'handoff and extract', 'wrap and prompt', 'brief a coworker on this'."
+argument-hint: "[auto|brief]"
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
 # /handoff — Express Session Handoff
 
-Same end-of-session coverage as `/wrapup` (review work → update PROGRESS.md / CLAUDE.md / memory → commit → run `/extract` → verify continuity) compressed into a single combined-go review. Emits a paste-ready next-session opener at the end.
+Three modes covering two distinct handoff shapes:
 
-**Two modes:**
+- **Next-session handoff** (default + `auto`) — Same end-of-session coverage as `/wrapup` (review work → update PROGRESS.md / CLAUDE.md / memory → commit → run `/extract` → verify continuity) compressed into a single combined-go review. Always emits a paste-ready next-session opener at the end.
+- **Coworker brief** (`brief`) — Produces a copy/paste prose block (Slack/email-ready) summarizing the session for another person. Does NOT update PROGRESS/CLAUDE/memory, does NOT commit, does NOT run /extract. Output-only — paste it and you're done.
+
+**Three modes:**
 
 - **Default (`/handoff`)** — Generate ALL drafts (session summary, PROGRESS entry, CLAUDE.md edits, memory updates, commit message, next-session prompt) into one scroll, ask once for combined-go, then apply atomically. Per-item edits allowed.
 - **`auto` (`/handoff auto`)** — Implicit-yes on all gates. Run silently. Apply all drafts without confirmation. Emit final report only. Use when the session is short and unambiguous.
+- **`brief` (`/handoff brief`)** — Generate a coworker-facing prose brief (80-150 words, copy/paste-ready). Skips PROGRESS/CLAUDE/memory/commit/extract entirely. Emits the brief as the only artifact.
 
-**Coverage matches /wrapup.** Differences are interaction model + the always-on next-session-prompt emission.
+**Coverage matches /wrapup** for default + auto modes. Brief mode is a different shape — handoff to a person, not to a session.
 
 ## Step 0: Resolve Config and Parse Mode
 
@@ -22,7 +26,8 @@ Read `~/.claude/aria-knowledge.local.md` and extract `knowledge_folder`. If miss
 Parse the argument:
 - No arg, or arg is empty → `mode = combined-go` (default)
 - Arg matches `auto` (case-insensitive) → `mode = auto`
-- Any other arg → stop: "Unknown argument '{arg}'. Use '/handoff' or '/handoff auto'."
+- Arg matches `brief` (case-insensitive) → `mode = brief`
+- Any other arg → stop: "Unknown argument '{arg}'. Use '/handoff', '/handoff auto', or '/handoff brief'."
 
 Use `{knowledge_folder}` as the base path for all file operations.
 
@@ -53,6 +58,63 @@ Build the session synthesis internally — do NOT print it yet:
 5. **Open threads** — anything explicitly deferred or flagged for later
 
 This synthesis feeds every subsequent step.
+
+**Mode branch:** If `mode = brief`, jump to Step 2B (Brief Output) and stop there. Skip Steps 3-8 entirely. Otherwise continue to Step 3.
+
+## Step 2B: Brief Output (brief mode only)
+
+**Skip this step entirely if `mode != brief`.**
+
+Brief mode produces a single copy/paste artifact — a coworker-facing prose brief. No PROGRESS update, no CLAUDE.md edit, no memory write, no commit, no /extract call. Just the prose, formatted for paste into Slack / email / chat.
+
+### 2B.1: Build the brief from Step 2 synthesis
+
+Compose an 80-150 word prose block following this template (cap at 200 words). Fill placeholders from the Step 2 synthesis; if a section has no relevant content for this session, omit the section line entirely (don't leave empty bullets).
+
+```
+Hey [coworker] —
+
+Quick brief on {topic from synthesis} from {YYYY-MM-DD}:
+
+**What happened:** {2-3 sentence summary drawn from synthesis "Current state" + "Files changed"}
+
+**Key decisions:**
+- {decision 1 from synthesis "Key decisions"}
+- {decision 2}
+- {decision 3 if relevant — cap at 4 bullets}
+
+**What's next:** {1-2 sentences from synthesis "Next steps" + "Open threads"}
+
+**Where to pick up:** {file path, PR link, ticket ref, or doc link — omit this whole line if N/A}
+
+Let me know if you want me to walk through any of this.
+```
+
+Notes for filling the template:
+- Keep `[coworker]` as a literal placeholder — user fills the name at paste time. Don't prompt for a name.
+- Tone: warm-but-professional default. Write as if briefing a peer who shares context but wasn't in the room. Avoid corporate hedging and avoid forced casualness.
+- "**What happened**" is the heaviest section — get the 2-3 sentence summary right. If the session was short or unclear, say so plainly rather than padding.
+- "**Key decisions**" should be the genuinely-decided things, not options-still-on-the-table. 0 decisions is fine — if so, omit the section entirely.
+- "**Where to pick up**" only appears if there's a concrete artifact reference (file, PR, ticket, doc URL). Otherwise omit the line.
+- Stay under 200 words. Above that, the format breaks down and reads as a memo, not a brief.
+
+### 2B.2: Emit the brief
+
+Emit the brief inside a code fence so it copies cleanly. Format:
+
+```
+## Coworker Brief — {YYYY-MM-DD}
+
+Paste this directly into Slack / email / chat:
+
+```
+{full brief from 2B.1}
+```
+
+That's it — no further handoff steps run in brief mode. If you also want to update PROGRESS.md, memory, or run /extract, invoke `/handoff` (default) or `/handoff auto` separately.
+```
+
+**Exit after emission.** Do not run any subsequent steps.
 
 ## Step 3: Draft All Updates (silent)
 
@@ -183,13 +245,16 @@ Read on resume: {primary CLAUDE.md path} for current state.
 ## Rules
 
 - **/wrapup is the interactive default; /handoff is the express lane.** Don't deprecate or replace /wrapup. They serve different cadences.
-- **Always emit the next-session opener.** Even when nothing else changed (no PROGRESS update, no commit, no memory edit), the opener is the headline deliverable.
+- **Always emit the next-session opener (default + auto modes only).** In default + auto, even when nothing else changed (no PROGRESS update, no commit, no memory edit), the opener is the headline deliverable. Brief mode emits the coworker brief instead — different artifact, different audience.
 - **`auto` mode applies everything without confirmation.** The user explicitly opted into that risk by typing `auto`. Do not introduce confirmation gates in auto mode — that defeats the purpose.
+- **`brief` mode produces output only — no side effects.** No PROGRESS update, no CLAUDE.md edit, no memory write, no commit, no /extract. The brief is a copy/paste artifact for a person, not durable state. Users who want both a brief AND state updates run `/handoff brief` then `/handoff` (or `/handoff auto`) separately — two passes, two artifacts.
+- **Brief mode keeps `[coworker]` as a literal placeholder.** Don't prompt the user for a recipient name. They'll fill it at paste time. This avoids friction and supports "send to multiple people" use cases.
+- **Brief mode caps at 200 words.** Above that, the format breaks down and reads as a memo, not a brief. Target 80-150 words. Omit empty sections rather than padding.
 - **Combined-go preserves verification.** Default mode shows all drafts in one scroll before applying. Per-section `edit` / `skip` keeps the per-item escape hatch.
-- **Never push, in either mode.** Local commits only. If the user wants to push, they do it separately.
+- **Never push, in any mode.** Local commits only (and brief mode doesn't commit at all). If the user wants to push, they do it separately.
 - **Stage specific files, not `git add -A`.** Avoid capturing sensitive files (.env, credentials) that happen to be untracked.
 - **Match existing formats** — when appending to PROGRESS.md or editing CLAUDE.md, match the heading style, date format, and structure of existing entries. Don't impose a new format.
 - **Skip gracefully** — if a file doesn't exist (no PROGRESS.md, no CLAUDE.md, no memory), skip that step and note it. Don't create files that aren't already part of the project's conventions.
-- **Don't invent work** — the session synthesis must reflect what actually happened in the conversation. If the session is short or unclear, say so in the synthesis rather than padding.
-- **Delegate extraction** — /handoff calls /extract for capture; it does not duplicate /extract's dedup or routing logic.
-- **One handoff per session** — if the user runs /handoff again in the same session, check what was already done in the prior run and skip completed work. Don't duplicate PROGRESS entries or commits.
+- **Don't invent work** — the session synthesis must reflect what actually happened in the conversation. If the session is short or unclear, say so in the synthesis (default + auto) or in the brief's "What happened" line (brief) rather than padding.
+- **Delegate extraction** — /handoff calls /extract for capture in default + auto modes; it does not duplicate /extract's dedup or routing logic. Brief mode skips /extract entirely.
+- **One handoff per session** — if the user runs /handoff again in the same session, check what was already done in the prior run and skip completed work. Don't duplicate PROGRESS entries or commits. Multiple `/handoff brief` runs are fine (each produces a fresh brief reflecting current state).

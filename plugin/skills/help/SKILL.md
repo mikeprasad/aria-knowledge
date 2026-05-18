@@ -28,11 +28,12 @@ Print the command reference table. No config or file access needed.
 | /ask [question] | Research a question, check existing knowledge, save answer as a knowledge doc |
 | /clip [url or text] | Quick-save a URL or text snippet to intake for later review |
 | /intake [path or url] | Bulk import knowledge from files, directories, or URLs |
+| /intake doc [url or title] | Capture a single doc with 5-section structured body (claims/keeping/contested/action/reaction) → intake/docs/ |
 | /codemap [mode] | Feature-organized CODEMAP.md for any codebase (create/inventory/update/section) |
 | /distill [text or path] | Tiered task spec from raw text; optional --group for CODEMAP-loaded context |
 | /stitch <mode> <group> | Cross-repo binding (auth/endpoints/entities/drift) for a product group |
 | /wrapup | End-of-session handoff — update PROGRESS/CLAUDE.md, prompt for commit, verify continuity |
-| /handoff [auto] | Express handoff — same coverage as /wrapup, one combined-go review (or `auto` for silent), always emits a paste-ready next-session opener |
+| /handoff [auto\|brief] | Express handoff — same coverage as /wrapup, one combined-go review (or `auto` for silent), always emits a paste-ready next-session opener. `brief` mode produces a copy/paste coworker brief (Hey [coworker]-style prose, 80-150 words) instead of next-session opener — no PROGRESS/CLAUDE/memory/commit/extract side effects |
 | /snapshot | Save the current session transcript to intake/pre-compact-captures/ on demand |
 | /help | This command reference |
 

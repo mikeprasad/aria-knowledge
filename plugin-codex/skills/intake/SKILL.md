@@ -1,18 +1,108 @@
 ---
-description: "Bulk import knowledge from files, directories, or URLs into the intake backlogs. Use when user says '/intake', 'intake from', 'import knowledge from', 'scan this file for knowledge', 'extract from these docs', 'onboard this project'. Unlike /extract (current conversation) or /clip (single item), /intake scans external sources in bulk and previews findings before staging."
-argument-hint: "<path|directory|glob|url> [path2] [path3]"
+description: "Bulk import knowledge from files, directories, or URLs into the intake backlogs, OR capture a single doc with structured 5-section template (doc mode). Use when user says '/intake', '/intake doc', 'intake from', 'import knowledge from', 'scan this file for knowledge', 'extract from these docs', 'onboard this project', 'capture a doc', 'doc-anchored intake', 'log notes on this doc'. Unlike /extract (current conversation) or /clip (single item), /intake scans external sources in bulk and previews findings before staging. Doc mode produces one structured entry under intake/docs/ with claims / worth-keeping / contested / action / reaction sections."
+argument-hint: "[doc <url-or-title>] | <path|directory|glob|url> [path2] [path3]"
 allowed-tools: Read, Glob, Grep, Write, Edit, WebFetch, Bash
 ---
 
-# /intake — Bulk Knowledge Import
+# /intake — Bulk Knowledge Import + Doc-Anchored Capture
 
-Scan files, directories, or URLs for knowledge-worthy content and stage findings to backlogs after user review.
+Two modes:
 
-## Step 0: Resolve Config
+- **Bulk mode (default)** — Scan files, directories, or URLs for knowledge-worthy content and stage findings to the existing backlogs (insights / decisions / extraction). Multi-source, category-based, dedup-aware. Same surface as prior /intake versions.
+- **Doc mode (`/intake doc`)** — Capture a single doc as a structured intake entry at `intake/docs/{YYYY-MM-DD}-{slug}.md` with a 5-section body: what the doc claims / worth keeping / contested or unclear / action implied / my reaction. For when you're reading something and want a thoughtful capture rather than a bulk scan.
+
+## Step 0: Resolve Config + Mode Detection
 
 Read `~/.claude/aria-knowledge.local.md` and extract `knowledge_folder`. If the file doesn't exist, stop: "aria-knowledge is not configured. Run /setup to get started."
 
 Use `{knowledge_folder}` as the base path for all file operations in subsequent steps.
+
+**Mode detection:** If the first argument matches `doc` (case-insensitive), this is a doc-mode capture. Set `mode = doc`; the remaining arguments (if any) are the source URL, file path, or title. Jump to "Doc Mode Steps" below. Otherwise set `mode = bulk` and proceed to Step 1.
+
+---
+
+## Doc Mode Steps (mode = doc only)
+
+Doc mode runs steps D1 → D6 to completion and exits. **Do not** run any bulk-mode step (Step 1 onward) in doc mode.
+
+### Step D1: Acquire Doc Source
+
+The source can be a URL, file path, or just a title (when capturing notes on a doc you read elsewhere).
+
+- **If args after `doc` contain a URL:** use as `source_url`; attempt WebFetch in D2 to extract title/author/content
+- **If args after `doc` contain a file path:** use as `source_path`; Read in D2
+- **If args after `doc` are plain text (no URL/path detected):** treat as `source_title`; no content fetch — user fills body manually in D3
+- **If no args after `doc`:** prompt: "What doc are you capturing? Paste a URL, file path, or title."
+
+### Step D2: Read or Note Doc Content
+
+- **URL source:** WebFetch the URL. Extract title, author (if discoverable from byline/meta), and key content. Respect copyright — capture summary and key claims for downstream synthesis, not full page text.
+- **File path source:** Read the file. If very large (>500 lines), use the same chunked-scan strategy as bulk mode (first 100, last 50, section headers, then targeted areas).
+- **Title-only source:** No content fetch. User will fill body sections manually in D3.
+
+Capture the following for D3:
+- `source_title` (from page title, file frontmatter, or user-provided string)
+- `source_url` (if URL; else omit)
+- `source_author` (if discoverable; else omit per #28a-5)
+- `captured_at` (current ISO 8601 timestamp)
+- `read_at` (defaults to `captured_at` — D4 preview lets user adjust if they read the doc earlier)
+- Summarized claims, candidate "worth keeping" items, and any contested or action-implied content noticed during the scan
+
+### Step D3: Populate Template
+
+1. Read `${CLAUDE_PLUGIN_ROOT}/template/intake/intake-doc.md` to load the body template.
+2. Generate slug from `source_title`: lowercase, hyphenated, alphanumeric only, max ~60 chars. Example: `"The Bitter Lesson"` → `the-bitter-lesson`. If `source_title` is empty, use `doc-{HHMMSS}` as fallback.
+3. Resolve target path: `{knowledge_folder}/intake/docs/{YYYY-MM-DD}-{slug}.md`. If file already exists at that path, append `-2`, `-3`, etc. to slug until unique.
+4. Fill the frontmatter using captured fields from D2. Omit `source_url` if absent; omit `source_author` if absent. Always populate `captured_at`, `read_at`, `type: intake-doc`.
+5. Suggest 2-5 tags based on doc topic (cross-check existing `index.md` tags to prefer canonical names; new tags are fine but flag them).
+6. Suggest 2-4 `semantic-hints:` free-form phrases that match how a future query might reach this doc (per the convention in `template/README.md`).
+7. Pre-fill body sections from the D2 scan:
+   - **What the doc claims** — 2-4 sentence summary in your own words
+   - **Worth keeping** — bullet list of insights/quotes/data points worth durable storage; aim for 2-6 bullets
+   - **Contested or unclear** — populate if the scan surfaced anything debatable; leave empty (or omit the section) if nothing flagged
+   - **Action implied** — populate if the doc suggests a decision or next step relevant to ongoing work; omit if N/A
+   - **My reaction** — leave as a single-line placeholder (`{Your reaction — 1-3 sentences. This section is yours, not the doc's.}`) for the user to fill, since "reaction" is the user's voice not Claude's
+
+### Step D4: Preview
+
+Show the populated entry before writing. Format:
+
+```
+## Doc Intake Preview
+
+**Target:** {knowledge_folder}/intake/docs/{YYYY-MM-DD}-{slug}.md
+
+[full populated entry: frontmatter + body]
+
+---
+
+Save to intake/docs/?
+- `yes` — write the file as shown
+- `edit {section}` — revise a specific section (claims / keeping / contested / action / reaction / tags / hints / title / slug)
+- `skip` — abort, write nothing
+```
+
+Wait for explicit response. Allow multiple `edit` directives in sequence (re-show preview after each revision).
+
+### Step D5: Write
+
+On `yes`, write the entry to `{knowledge_folder}/intake/docs/{YYYY-MM-DD}-{slug}.md`. Create the `intake/docs/` subfolder if it doesn't exist (this is the first doc-mode capture).
+
+### Step D6: Report
+
+```
+## Doc Intake Complete
+
+- **Source:** {source_title or source_url or "untitled"}
+- **Path:** {knowledge_folder}/intake/docs/{YYYY-MM-DD}-{slug}.md
+- **Tags:** {tag list}
+
+Entry staged in intake/docs/ for next /audit-knowledge to review and promote.
+```
+
+**Exit after report.** Doc mode runs D1 → D6 only; bulk-mode steps (Step 1 onward) are not executed.
+
+---
 
 ## Step 1: Parse Sources
 
@@ -168,10 +258,14 @@ Knowledge staged in backlogs for next /audit-knowledge to review and promote.
 
 ## Rules
 
-- **Always preview before staging** — unlike `/extract`, intake operates on content the user may not have reviewed. Show findings first.
-- **Attribute sources** — every staged item includes the source file path or URL so the audit process knows where it came from.
-- **Respect copyright** — for URLs, capture summaries and key points, never full page content. The URL itself is the reference.
-- **Don't over-extract** — a 500-line architecture doc might yield 3-5 knowledge items, not 50. Extract the patterns and decisions, not every detail.
-- **Project attribution** — if the source path indicates a project (e.g., `ss/`, `cs/`, `df/`), tag the entries with that project. Otherwise use "intake" or "cross".
-- **Large directories need confirmation** — if a directory scan finds >10 files, list them and ask before proceeding. The user may want to narrow the scope.
-- **One intake, one scope** — don't mix sources from different projects in a single intake. If the user provides paths from multiple projects, process each project's sources as a separate group with its own attribution.
+- **Always preview before staging** — unlike `/extract`, intake operates on content the user may not have reviewed. Show findings first. Applies to both bulk mode (Step 5 preview) and doc mode (Step D4 preview).
+- **Attribute sources** — every staged item includes the source file path or URL so the audit process knows where it came from. Bulk mode adds source attribution per finding; doc mode captures `source_url`, `source_title`, `source_author` (when known) in frontmatter.
+- **Respect copyright** — for URLs, capture summaries and key points, never full page content. The URL itself is the reference. Applies to both modes — doc mode's "What the doc claims" should be in your own words, not a verbatim excerpt.
+- **Don't over-extract** — a 500-line architecture doc might yield 3-5 knowledge items, not 50. Extract the patterns and decisions, not every detail. In doc mode, "worth keeping" usually has 2-6 bullets, not 20.
+- **Project attribution** — if the source path indicates a project (e.g., `ss/`, `cs/`, `df/`), tag the entries with that project. Otherwise use "intake" or "cross". Same rule for both modes.
+- **Large directories need confirmation** — if a directory scan finds >10 files, list them and ask before proceeding. The user may want to narrow the scope. Bulk-mode only — doc mode is always single-source.
+- **One intake, one scope** — don't mix sources from different projects in a single intake. If the user provides paths from multiple projects, process each project's sources as a separate group with its own attribution. Doc mode is inherently single-source so this rule applies only to bulk mode.
+- **Doc mode: reaction is the user's voice** — pre-fill "What the doc claims" / "Worth keeping" / "Contested" / "Action" from your D2 scan. Leave "My reaction" as a single-line placeholder for the user to fill. Don't fabricate an opinion you don't actually hold.
+- **Doc mode: lazy subfolder creation** — `intake/docs/` is created on first doc-mode capture, not bootstrapped on /setup. Doesn't exist until needed.
+- **Doc mode: slug collisions** — if `{date}-{slug}.md` already exists, append `-2`, `-3`, etc. Don't overwrite. The audit process will dedup if the captures are about the same doc.
+- **Doc mode: title-only captures are valid** — if the user doesn't have a URL or file, just a title, accept that. The 5-section body still has value as structured notes-while-reading.

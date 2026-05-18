@@ -2,6 +2,90 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## [2.17.0] - 2026-05-18
+
+**Two new mode flags on existing skills: `/handoff brief` + `/intake doc`.** Both originate as cross-plugin parity items from aria-cowork's v0.3.0 design discussion — this release implements them in aria-knowledge first (per the schema-source-of-truth principle), so aria-cowork's v0.3.0 port can import the templates byte-identical. Minor bump because of the new `intake/docs/` subfolder convention + new `intake-doc` frontmatter type — additive schema, no breaking changes.
+
+### Added — `/handoff brief` mode
+
+New mode flag on the existing `/handoff` skill: `/handoff brief` produces a copy/paste coworker brief (Hey [coworker]-style prose, 80-150 words, capped at 200) instead of the default mode's next-session opener. Different artifact, different audience — brief mode is for handing off to a person, not to a future session.
+
+- **No side effects.** Unlike default and `auto` modes, `brief` skips PROGRESS.md / CLAUDE.md / memory / commit / `/extract` entirely. The brief is the only artifact.
+- **`[coworker]` is a literal placeholder.** Users fill the recipient name at paste time — supports "send to multiple people" use cases without forcing an upfront prompt.
+- **Sections:** "What happened" / "Key decisions" / "What's next" / "Where to pick up" (last line omitted if no concrete artifact reference applies).
+- **Tone:** warm-but-professional default. No `casual` / `formal` variants in v2.17.0 (deferred unless demand emerges).
+- **Users who want both:** run `/handoff brief` first, then `/handoff` (or `/handoff auto`) for the state-updating pass. Two invocations, two artifacts.
+
+### Added — `/intake doc` mode
+
+New mode flag on the existing `/intake` skill: `/intake doc <url-or-title-or-path>` captures a single doc with a structured 5-section body (claims / worth keeping / contested / action / reaction) instead of bulk scanning multiple sources.
+
+- **New subfolder convention:** `{knowledge_folder}/intake/docs/{YYYY-MM-DD}-{slug}.md`. Lazy-created on first doc-mode capture (not bootstrapped on `/setup`).
+- **New frontmatter type:** `type: intake-doc` plus `source_url` (optional), `source_title`, `source_author` (optional), `captured_at`, `read_at` (separate from `captured_at` so users can capture notes days after reading), `tags`, `semantic-hints`.
+- **Body sections (D3 step):**
+  - **What the doc claims** — central thesis or key argument in your own words
+  - **Worth keeping** — durable insights / quotes / data points (2-6 bullets typical)
+  - **Contested or unclear** — populated if scan surfaced debatable claims; omitted otherwise
+  - **Action implied** — populated if doc suggests a decision or next step; omitted otherwise
+  - **My reaction** — left as user-fill placeholder (the user's voice, not Claude's)
+- **Source types accepted:** URL (WebFetch), file path (Read), or title-only (user fills body manually — valid use case for "notes while reading something offline").
+- **Slug generation:** lowercased, hyphenated, max ~60 chars from source title. Collision handling: append `-2`, `-3` etc. if `{date}-{slug}.md` already exists.
+- **Preview before write (D4 step):** populated entry shown for user confirmation; per-section `edit` directives allowed.
+
+### Added — `plugin/template/intake/intake-doc.md`
+
+New plugin-managed template defining the 5-section body structure. Read by `/intake doc` Step D3 when populating new doc-mode captures. Single new file (~42 lines).
+
+### Changed — `plugin/skills/handoff/SKILL.md`
+
+- Frontmatter `argument-hint`: `[auto]` → `[auto|brief]`; `description` updated to introduce three modes
+- Step 0 mode parser: added `brief` branch; error message updated to mention all three modes
+- New Step 2B (Brief Output): runs only when `mode = brief`; emits the prose brief via the locked template; exits without running Steps 3-8
+- Rules section: scoped existing rules (e.g., "always emit next-session opener" qualified to default + auto only); added 3 brief-mode-specific rules (no side effects, literal placeholder, 200-word cap)
+
+### Changed — `plugin/skills/intake/SKILL.md`
+
+- Frontmatter `argument-hint`: `<path|directory|glob|url> [path2] [path3]` → `[doc <url-or-title>] | <path|directory|glob|url> [path2] [path3]`; `description` updated to introduce both modes
+- Step 0 renamed to "Resolve Config + Mode Detection"; doc-mode branch added at end of Step 0
+- New Doc Mode Steps section (D1-D6) inserted before existing Step 1; runs to completion + exits when `mode = doc`
+- Rules section: scoped existing rules to bulk vs doc mode; added 4 doc-mode-specific rules (reaction-is-user-voice, lazy subfolder creation, slug collisions, title-only captures valid)
+
+### Changed — `plugin/skills/help/SKILL.md`
+
+- Existing `/handoff` row updated: `[auto]` → `[auto|brief]` with brief mode description appended
+- New `/intake doc [url or title]` row added below existing `/intake` row, naming the 5-section body and `intake/docs/` destination
+
+### Schema impact
+
+| Surface | Change | Compatibility |
+|---|---|---|
+| `intake/docs/` subfolder | New, lazy-created on first doc-mode capture | Additive — no impact on existing intake folders |
+| `type: intake-doc` frontmatter value | New value | Additive — `/audit-knowledge` routes intake-doc files through same disposition flow as other intake entries |
+| `source_url` / `source_title` / `source_author` / `read_at` frontmatter fields | New optional fields on doc-mode captures | Additive — no impact on other knowledge file types |
+
+### Cross-plugin parity (bidirectional flow precedent)
+
+Both modes originated in aria-cowork's v0.3.0 design discussion as B2 + B5 candidates. This release is the **first instance of cowork→aria-knowledge feature flow** — features conceived in cowork's context, designed cross-plugin, shipped in aria-knowledge first (schema source-of-truth) so aria-cowork's port can import the resulting templates byte-identical. Pattern documented in aria-cowork ADR 014.
+
+The plugin-codex/ port mirrors the same skill body + template changes per the Codex Port Workflow ("keep durable knowledge template/schema changes in sync with `plugin/` — Claude remains the schema standard").
+
+### Files changed
+
+- New: `plugin/template/intake/intake-doc.md` (42 lines)
+- Modified: `plugin/skills/handoff/SKILL.md` (195 → 260 lines, +65)
+- Modified: `plugin/skills/intake/SKILL.md` (177 → 271 lines, +94)
+- Modified: `plugin/skills/help/SKILL.md` (59 → 60 lines, +1)
+- Modified: `plugin/.claude-plugin/plugin.json` (version bump 2.16.1 → 2.17.0)
+- Modified: `CLAUDE.md` (bidirectional flow note added per aria-cowork ADR 014)
+- Mirrored: same changes in `plugin-codex/skills/{handoff,intake,help}/SKILL.md` + `plugin-codex/template/intake/intake-doc.md`
+
+### Compatibility
+
+- **No breaking changes.** Existing `/handoff` and `/intake` invocations work exactly as before. New modes are additive flags.
+- **No new config schema.** Existing `aria-knowledge.local.md` works unchanged.
+- **No new dependencies.** Pure markdown + WebFetch (already in /intake's `allowed-tools`).
+- **Cowork sibling release coming:** aria-cowork v0.3.0 will land shortly with the doc-mode + brief-mode ports plus a much larger parity catch-up arc.
+
 ## [2.16.1] - 2026-05-14
 
 **Full session-lifecycle CODEMAP/STITCH awareness.** Completes v2.16.0's surfacing story — passive `/context` surfacing (v2.16.0) + proactive trigger-based loading (v2.16.1). 6 trigger sites + 4 companion surfaces share the same primitive and config flag. Patch bump — no new schema, no new dependencies; reuses the existing `active_knowledge_surfacing` flag for atomic toggling.

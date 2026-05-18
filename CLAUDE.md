@@ -10,6 +10,8 @@ ARIA (Applied Reasoning and Insight Architecture) — an active knowledge and de
 
 A Cowork-side counterpart lives at `~/Projects/aria/aria-cowork/` (local-only at v0.2.5; will become a public GitHub repo `mikeprasad/aria-cowork` when Phase 1 begins). Both plugins share the user's `~/Projects/knowledge/` folder and write to the same canonical config (`aria-config.md`) under an additive-only schema (per ADR-002 in the aria-cowork knowledge folder). Edits to shared surfaces — `aria-config.md` field names, the `template/rules/` content, the `working-rules.md` rule numbering — should preserve cross-plugin compatibility. aria-cowork is at v0.2.5 (BUILT 2026-05-08) and ports 10 of aria-knowledge's 25 skills (with 5 explicitly Code-only excluded per its ADR-005; the 24th was `/prospect`, added in v2.14.1, and the 25th is `/handoff`, added in v2.14.4 — not yet ported to aria-cowork since v0.2.5 predates v2.14.4). Cowork-specific authoring constraints documented in `knowledge/guides/claude/cowork-plugin-validation.md`.
 
+**Bidirectional feature flow (since v0.3.0 / v2.17.0):** Features may originate in either plugin and port to the other; aria-knowledge remains the schema source-of-truth (output formats, knowledge-folder conventions, archive structures). v0.3.0's `/handoff brief` and `/intake doc` modes are the first cowork-originated features ported into aria-knowledge. See aria-cowork ADR 014 for the architectural rationale.
+
 ## Project Structure
 
 ```
