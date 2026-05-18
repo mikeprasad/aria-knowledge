@@ -1,0 +1,125 @@
+---
+description: "ARIA core — five-phase knowledge lifecycle (capture → govern → promote → apply → refresh), knowledge taxonomy, ideas backlog routing, project tier. Consulted whenever ARIA behavior is in question."
+globs: ["**/*"]
+alwaysApply: true
+---
+
+# ARIA Knowledge — Core
+
+**Applied Reasoning and Insight Architecture**
+
+An active knowledge and development discipline system for AI-assisted development. Built for developers and teams using Cursor who want each session to build on the last — capturing knowledge, enforcing structured decisions, and mapping codebases and tasks so context compounds instead of disappearing.
+
+## The Problem
+
+Every time an AI session ends, context disappears. Your insights, decisions, and corrections vanish into compacted conversation history. The next session starts from scratch — or worse, repeats the same mistakes you already corrected.
+
+Over time, valuable knowledge accumulates in scattered places: AGENTS.md files, auto-memory, session plans, Slack threads, mental notes. Some of it contradicts other parts of it. None of it gets reviewed. The knowledge that matters most — the hard-won lessons from debugging, the architectural decisions made under pressure, the feedback you gave three sessions ago — has no durable home.
+
+This isn't a tooling problem. It's a knowledge lifecycle problem. You need a system that captures knowledge when it's fresh, stages it for governance review, promotes the good stuff into durable findable documents, applies trusted knowledge back into future work, and refreshes the base before staleness rots its value — while letting the rest fade naturally.
+
+## The Approach
+
+Knowledge Repository treats knowledge like code: it moves through a pipeline with clear stages, review gates, promotion criteria, application paths, and freshness checks. Five phases: **Capture → Govern → Promote → Apply → Refresh.** The "Applied" in ARIA's acronym lives in phase four — trusted knowledge actively shapes the next decision rather than just sitting in storage.
+
+### Capture
+
+During work sessions, knowledge is captured automatically and on-demand:
+
+- **Insight blocks** surface non-obvious technical observations as they happen
+- **Extraction** (`/extract`) scans conversations before context compaction destroys them, dumping findings into staging backlogs
+- **Session cleanup** prompts you to capture decisions and insights before ending a session
+
+Nothing captured at this stage is canonical. It's raw signal waiting for review.
+
+### Govern
+
+On a configurable cadence, the knowledge audit (`/audit-knowledge`) scans your backlogs, memory files, and plans. It categorizes everything it finds:
+
+- **Already captured** — knowledge that's already in your docs or AGENTS.md files
+- **Implementation-specific** — session plans, debug steps, one-time fixes (valuable in the moment, not reusable)
+- **Worth extracting** — validated approaches, cross-project decisions, patterns that will save time next month
+
+The audit also detects **emerging themes** — clusters of related insights that individually don't justify a knowledge file but together reveal a pattern worth documenting. This is how the knowledge base grows organically rather than through forced curation.
+
+Nothing gets promoted without your explicit approval. Govern is the trust gate: confident-wrong knowledge cannot quietly become permanent.
+
+### Promote
+
+Approved knowledge moves to its permanent home based on what type it is. Each type has a specific purpose, format, and location:
+
+## Knowledge Taxonomy
+
+| Type | Purpose | Example |
+|------|---------|---------|
+| **Rules** | Principles and constraints that govern how you work | "Decisions must be logically justified" |
+| **Approaches** | Validated methodologies confirmed through real use | "How we structure Linear tickets" |
+| **Decisions** | Architectural choices with context, alternatives, and consequences | "We chose cursor pagination over offset" |
+| **Guides** | Operational knowledge about how things work in your environment | "How to set up Cursor for the team" |
+| **References** | External research, evaluations, and bookmarked resources | "Stripe vs Paddle comparison" |
+
+This taxonomy is complete — every type of reusable knowledge fits into exactly one category. If it doesn't fit any of them, it's either ephemeral (belongs in session notes) or not yet validated (stays in the backlog until it is).
+
+### Apply
+
+A knowledge base only matters if it shapes future work. Apply is where ARIA's "Applied" framing earns its name — promoted knowledge actively guides reasoning, planning, and code changes rather than just being stored.
+
+- **Rule 22 — change decision framework** enforced at every Edit/Write via beforeFileEdit + afterFileEdit hooks. Pre-edit: assess impact (HIGH/LOW), state alternatives, define scope. Post-edit: verify scope wasn't exceeded, check secondary impact on parents/siblings/dependents.
+- **`/context`** loads relevant knowledge by topic using the tag index, with project expansion (`/context {project-tag}` adds project-tier files).
+- **`/rules`** surfaces working rules by number or keyword during reasoning.
+- **`/codemap`** turns a repository into a feature-organized reference; `/stitch` builds cross-repo binding tables for product groups; `/distill` turns raw ticket text into tiered executable task specs that cite real files via optional CODEMAP/STITCH context.
+- **stop hook** surfaces relevant knowledge files when agent tasks complete (tag index matching). Approximates Claude Code's TaskCreated event.
+
+This phase is what separates ARIA from passive memory systems. Storage answers "what did we learn?" Apply answers "which trusted knowledge applies to this task, this edit, this decision — right now."
+
+### Refresh
+
+Knowledge bases rot when nothing forces a review. Refresh keeps the base from quietly going stale.
+
+- **`Last updated` frontmatter on every knowledge file** enables mechanical staleness checks.
+- **Configurable thresholds** — `ideas_staleness_threshold_days` (default 7) for `intake/ideas/` entries; `staleness_threshold_months` for promoted knowledge files.
+- **Audit cadences** — sessionStart hook prompts when `/audit-knowledge` or `/audit-config` is overdue.
+- **Stale-first surfacing** during audits — stale items sort above fresh ones and demand explicit disposition; fresh items pass through informationally.
+- **Drift detection** — `/audit-config` scans AGENTS.md files and configs for broken references; `/audit-knowledge` Step 5b3 checks skill-knowledge connections; `/codemap update` refreshes incrementally via git diff; `/index` flags untagged or stale files and suggests cross-references.
+- **Rule 22 enforcement** — every Edit/Write requires a visible impact assessment and post-edit scope check. No silent drift because no silent edits.
+- **`/stats`** dashboard surfaces backlog depth, audit status, codemap dates, tag coverage, and gaps at a glance.
+
+Format determines auditability; process determines freshness. Plain markdown for auditability + layered review cadences for freshness + humans in the promotion loop so wrong knowledge doesn't accumulate silently.
+
+### Ideas Backlog (capture vs. track boundary)
+
+ARIA captures observations about **what IS** (knowledge) and stages proposals about **what SHOULD BE different** (ideas). The five knowledge types above are observations; ideas are a separate bucket with a distinct disposition.
+
+Feature proposals, bug reports, and design ideas all flow into `intake/ideas/` during `/extract` — one markdown file per idea, since v2.11 (prior versions used a single `intake/ideas-backlog.md`; see `intake/ideas/README.md` for the migration path if you're upgrading). The audit surfaces them in their own section: ideas never promote directly into knowledge files. Since v2.12 each accepted idea routes via an Accept submenu — `tracker | roadmap | todo | adr | backlog | bundle | rule` — picking only the destinations available for that project (e.g., `roadmap` only when `ROADMAP.md` exists at the project root or under `docs/`). The `adr` and `rule` paths stage entries in their respective backlogs (`decisions-backlog.md`, `rules-backlog.md`) for normal audit-cycle review rather than promoting straight to `decisions/` or `rules/`. Rejected ideas are discarded; deferred ideas stay in `intake/ideas/` for the next audit.
+
+**ARIA captures; you choose where each proposal lives.** This boundary keeps ARIA tool-agnostic — no single destination is mandatory — and prevents a common drift mode where proposals get misfiled as documentation of features that don't exist yet. Set `ticketing_plugins` in your local config to have the audit hint at a ticket-drafting plugin when an idea takes the tracker route.
+
+### Project-Specific Tier (opt-in, since v2.8.0)
+
+The five-type taxonomy above is for **cross-project** knowledge — patterns and decisions validated across multiple projects, applicable beyond a single codebase. But not all valuable knowledge clears that bar.
+
+Some architecture decisions are important for a specific project but have no evidence of broader applicability. The choice was right for this codebase but might not generalize. Forcing it into the cross-project tree creates noise; leaving it uncaptured loses durable context.
+
+The optional `projects/` tier solves this. When enabled via `/setup`, ARIA scaffolds:
+
+```
+projects/
+├── README.md              (managed)
+├── {project-tag}/
+│   ├── README.md          (per-project, user-owned)
+│   ├── decisions/         (project ADRs)
+│   ├── patterns/          (reusable within this project)
+│   ├── guides/            (optional)
+│   └── references/        (optional)
+└── {another-project}/
+```
+
+Files under `projects/{tag}/**` are automatically tagged with the project tag (path-derived), surfaced via `/context {tag}` alongside cross-project files, and considered for cross-project promotion when patterns appear in ≥`projects_promotion_threshold` projects (default 2).
+
+The promotion ladder extends to three tiers: **project pattern → cross-project approach → universal rule**. `/audit-knowledge` Step 5e detects when project-specific patterns deserve promotion to the cross-project tree, synthesizes the merged content with provenance preservation (`originally_at:` frontmatter), and offers stub-and-reference disposition for the source files.
+
+This tier is fully opt-in — `projects_enabled: false` by default. Existing users see no behavior change unless they explicitly enable it. New users can opt in during `/setup` Advanced Options.
+
+## Config Location
+
+Configuration lives at `.cursor/aria-knowledge.local.md`. The hook scripts read it as YAML frontmatter. Update via the `/setup` skill (see `aria-commands.mdc`).

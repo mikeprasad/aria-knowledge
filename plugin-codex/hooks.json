@@ -1,0 +1,63 @@
+{
+  "description": "Codex adapter hooks for ARIA Knowledge. Requires Codex feature `plugin_hooks` to be enabled.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ./bin/codex-hook.sh session-start",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ./bin/codex-hook.sh pre-tool-use",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ./bin/codex-hook.sh post-tool-use",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ./bin/codex-hook.sh pre-compact",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ./bin/codex-hook.sh post-compact",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

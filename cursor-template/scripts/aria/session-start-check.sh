@@ -1,0 +1,334 @@
+#!/bin/sh
+# session-start-check.sh — sessionStart hook for Cursor (port of Claude Code's SessionStart)
+# Checks audit cadences and prompts when audits are due.
+#
+# Cursor port notes:
+#   - Cursor payload uses camelCase (sessionId); fallback to snake_case during testing.
+#   - Output uses agentMessage rather than systemMessage.
+#   - Version-check block replaced with a static INSTALLED_VERSION string (no plugin manifest in Cursor).
+#   - First-run welcome message simplified for the Cursor port.
+#   - Rule 22 ordering text remains as instruction-based guidance.
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+. "$SCRIPT_DIR/config.sh"
+
+# Debug log: confirms hook fires (Cursor port verification)
+echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) $0 fired" >> /tmp/aria-hook-debug.log 2>/dev/null
+
+# Cursor port — static version string (no plugin manifest in Cursor)
+INSTALLED_VERSION="2.16.1"
+
+# Read hook input for sessionId if available (Cursor camelCase, snake_case fallback)
+INPUT=""
+if [ ! -t 0 ]; then
+  INPUT=$(cat 2>/dev/null)
+fi
+
+# Clear stale batch manifest (>30 min old) left over from crashed sessions.
+# Prevents stale manifests from silently suppressing Rule 22 on subsequent
+# unrelated edits. Safe no-op if no manifest exists or jq is unavailable.
+kt_batch_clear_stale 1800
+
+# Clear stale active-surfacing ledgers (>1 day old) from prior sessions.
+# The ledger is session-scoped (fresh per session per D4), so anything older
+# than ~24h is debris from crashed/abandoned sessions. Safe no-op if none exist.
+find /tmp -maxdepth 1 -name 'aria-active-*' -mtime +1 -delete 2>/dev/null
+
+# If config file exists but failed validation, report the specific error
+if [ -n "$KT_CONFIG_ERROR" ]; then
+  MSG=$(kt_json_escape "aria-knowledge: $KT_CONFIG_ERROR Ask 'set up ARIA' to reconfigure.")
+  printf '{"agentMessage":"%s"}\n' "$MSG"
+  exit 0
+fi
+
+# If not configured, nudge setup
+if [ "$KT_CONFIGURED" = "false" ]; then
+  printf '{"agentMessage":"aria-knowledge is installed but not configured. Ask '\''set up ARIA'\'' to configure your knowledge folder and start capturing knowledge automatically."}\n'
+  exit 0
+fi
+
+# Check knowledge folder exists
+if [ ! -d "$KT_KNOWLEDGE_FOLDER" ]; then
+  MSG=$(kt_json_escape "aria-knowledge: configured knowledge folder does not exist at $KT_KNOWLEDGE_FOLDER. Ask 'set up ARIA' to reconfigure.")
+  printf '{"agentMessage":"%s"}\n' "$MSG"
+  exit 0
+fi
+
+# Date arithmetic helper — returns epoch seconds for a YYYY-MM-DD date
+# Supports macOS (date -j -f) and Linux (date -d)
+# Returns empty string on failure (caller must check)
+date_to_epoch() {
+  date -j -f "%Y-%m-%d" "$1" +%s 2>/dev/null || date -d "$1" +%s 2>/dev/null
+}
+
+TODAY=$(date +%Y-%m-%d)
+TODAY_EPOCH=$(date_to_epoch "$TODAY")
+
+# Guard: if we can't compute today's epoch, date commands are incompatible
+if [ -z "$TODAY_EPOCH" ]; then
+  printf '{"agentMessage":"aria-knowledge: failed to compute today'\''s date as epoch. Date commands may not be compatible with this platform."}\n'
+  exit 0
+fi
+
+KNOWLEDGE_LOG="$KT_KNOWLEDGE_FOLDER/logs/knowledge-audit-log.md"
+CONFIG_LOG="$KT_KNOWLEDGE_FOLDER/logs/config-audit-log.md"
+
+MESSAGES=""
+
+# First-run detection — show welcome instead of audit prompts for new users
+IS_FIRST_RUN=false
+if [ -f "$KNOWLEDGE_LOG" ]; then
+  if grep -q '(no audits yet)' "$KNOWLEDGE_LOG"; then
+    IS_FIRST_RUN=true
+  fi
+else
+  IS_FIRST_RUN=true
+fi
+
+if [ "$IS_FIRST_RUN" = "true" ]; then
+  MESSAGES="ARIA Knowledge Active: Rule 22 edit discipline, context surfacing, audit prompts. Ask 'show ARIA commands' for the command list."
+  MESSAGES_ESCAPED=$(kt_json_escape "$MESSAGES")
+  printf '{"agentMessage":"%s"}\n' "$MESSAGES_ESCAPED"
+  echo "$(date +%Y-%m-%dT%H:%M:%S) session-start-check: first-run welcome" >> "$KT_KNOWLEDGE_FOLDER/logs/hook-debug.log" 2>/dev/null
+  exit 0
+fi
+
+# Check knowledge audit cadence — OR-logic: entry-count threshold OR elapsed days.
+# Entry count is the primary activity-driven signal; elapsed days is the safety net
+# for low-activity weeks. Counts ^### entries across insights + decisions + extraction
+# backlogs. intake/ideas/ (per-file since v2.11) is deliberately excluded — ideas route
+# out, counting them would conflate staging with action.
+KA_DUE=false
+BACKLOG_COUNT=0
+for _kt_bl in "$KT_KNOWLEDGE_FOLDER/intake/insights-backlog.md" \
+              "$KT_KNOWLEDGE_FOLDER/intake/decisions-backlog.md" \
+              "$KT_KNOWLEDGE_FOLDER/intake/extraction-backlog.md"; do
+  if [ -f "$_kt_bl" ]; then
+    _kt_n=$(awk '/^---$/{sep++; next} sep>=1 && /^### /{c++} END{print c+0}' "$_kt_bl" 2>/dev/null)
+    case "$_kt_n" in
+      ''|*[!0-9]*) _kt_n=0 ;;
+    esac
+    BACKLOG_COUNT=$((BACKLOG_COUNT + _kt_n))
+  fi
+done
+
+# Tier boundaries (derived from threshold via fixed +15/+30 offsets).
+KA_TIER_RECOMMENDED=$((KT_AUDIT_TRIGGER_THRESHOLD + 15))
+KA_TIER_OVERDUE=$((KT_AUDIT_TRIGGER_THRESHOLD + 30))
+
+DAYS_SINCE_KA=""
+if [ -f "$KNOWLEDGE_LOG" ]; then
+  LAST_KA_DATE=$(grep '^\- \*\*Date:\*\*' "$KNOWLEDGE_LOG" | head -1 | sed 's/.*\*\*Date:\*\* //' | sed 's/ .*//')
+  if [ -n "$LAST_KA_DATE" ] && echo "$LAST_KA_DATE" | grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'; then
+    LAST_KA_EPOCH=$(date_to_epoch "$LAST_KA_DATE")
+    if [ -n "$LAST_KA_EPOCH" ]; then
+      DAYS_SINCE_KA=$(( (TODAY_EPOCH - LAST_KA_EPOCH) / 86400 ))
+    else
+      KA_DUE=true
+    fi
+  else
+    KA_DUE=true
+  fi
+else
+  KA_DUE=true
+fi
+
+# Entry-count tier (primary trigger)
+KA_COUNT_MSG=""
+if [ "$BACKLOG_COUNT" -ge "$KA_TIER_OVERDUE" ]; then
+  KA_COUNT_MSG="Knowledge audit overdue — ${BACKLOG_COUNT} entries, plan for multi-pass. "
+elif [ "$BACKLOG_COUNT" -ge "$KA_TIER_RECOMMENDED" ]; then
+  KA_COUNT_MSG="Knowledge audit recommended — ${BACKLOG_COUNT} entries, near one-pass ceiling. "
+elif [ "$BACKLOG_COUNT" -ge "$KT_AUDIT_TRIGGER_THRESHOLD" ]; then
+  KA_COUNT_MSG="Knowledge audit suggested — ${BACKLOG_COUNT} entries ready for review. "
+fi
+
+# Day-based safety net
+KA_DAYS_FIRED=false
+if [ -n "$DAYS_SINCE_KA" ] && [ "$DAYS_SINCE_KA" -ge "$KT_CADENCE_KNOWLEDGE" ]; then
+  KA_DAYS_FIRED=true
+fi
+
+# Compose prompt — entry-tier message takes precedence; day-context appended if both fired.
+if [ -n "$KA_COUNT_MSG" ]; then
+  if [ "$KA_DAYS_FIRED" = "true" ]; then
+    MESSAGES="${MESSAGES}${KA_COUNT_MSG}(trigger: count=${BACKLOG_COUNT} threshold=${KT_AUDIT_TRIGGER_THRESHOLD}; also ${DAYS_SINCE_KA}d since last audit) Ask 'audit knowledge'? "
+  else
+    MESSAGES="${MESSAGES}${KA_COUNT_MSG}(trigger: count=${BACKLOG_COUNT} threshold=${KT_AUDIT_TRIGGER_THRESHOLD}) Ask 'audit knowledge'? "
+  fi
+elif [ "$KA_DAYS_FIRED" = "true" ]; then
+  MESSAGES="${MESSAGES}Knowledge audit due — ${DAYS_SINCE_KA} days since last audit. (trigger: days=${DAYS_SINCE_KA} threshold=${KT_CADENCE_KNOWLEDGE}; backlog=${BACKLOG_COUNT}) Ask 'audit knowledge'? "
+fi
+
+if [ "$KA_DUE" = "true" ]; then
+  MESSAGES="${MESSAGES}No previous Knowledge Audit found. Ask 'audit knowledge'? "
+fi
+
+# Check config audit cadence
+CA_DUE=false
+if [ -f "$CONFIG_LOG" ]; then
+  LAST_CA_DATE=$(grep '^\- \*\*Date:\*\*' "$CONFIG_LOG" | head -1 | sed 's/.*\*\*Date:\*\* //' | sed 's/ .*//')
+  if [ -n "$LAST_CA_DATE" ] && echo "$LAST_CA_DATE" | grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'; then
+    LAST_CA_EPOCH=$(date_to_epoch "$LAST_CA_DATE")
+    if [ -n "$LAST_CA_EPOCH" ]; then
+      DAYS_SINCE_CA=$(( (TODAY_EPOCH - LAST_CA_EPOCH) / 86400 ))
+      if [ "$DAYS_SINCE_CA" -ge "$KT_CADENCE_CONFIG" ]; then
+        MESSAGES="${MESSAGES}Config audit due (${DAYS_SINCE_CA} days). Ask 'audit config'? "
+      fi
+    else
+      CA_DUE=true
+    fi
+  else
+    CA_DUE=true
+  fi
+else
+  CA_DUE=true
+fi
+if [ "$CA_DUE" = "true" ]; then
+  MESSAGES="${MESSAGES}No previous Config Audit found. Ask 'audit config'? "
+fi
+
+# Cursor port — INSTALLED_VERSION is static (no plugin manifest). Version-mismatch
+# prompt fires when the user last ran /setup on a different version of ARIA.
+VERSION_PROMPTED=false
+if [ -n "$INSTALLED_VERSION" ] && [ -n "$KT_LAST_SETUP_VERSION" ] && [ "$INSTALLED_VERSION" != "$KT_LAST_SETUP_VERSION" ]; then
+  MESSAGES="${MESSAGES}ARIA was updated (last setup ran on v${KT_LAST_SETUP_VERSION}, port is now v${INSTALLED_VERSION}). Ask 'set up ARIA' to apply template diffs and surface any new config keys? "
+  VERSION_PROMPTED=true
+fi
+
+# Check update cadence — parse last setup date from config file.
+# Only fires if the version-mismatch prompt above did not fire (mismatch is the
+# stronger signal; cadence is the safety-net for users who don't upgrade often).
+if [ "$VERSION_PROMPTED" = "false" ]; then
+  LAST_SETUP_DATE=$(grep 'setup on ' "$KT_CONFIG" | tail -1 | sed 's|.*setup on ||' | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}')
+  if [ -n "$LAST_SETUP_DATE" ]; then
+    LAST_SETUP_EPOCH=$(date_to_epoch "$LAST_SETUP_DATE")
+    if [ -n "$LAST_SETUP_EPOCH" ]; then
+      DAYS_SINCE_SETUP=$(( (TODAY_EPOCH - LAST_SETUP_EPOCH) / 86400 ))
+      if [ "$DAYS_SINCE_SETUP" -ge "$KT_CADENCE_UPDATE" ]; then
+        MESSAGES="${MESSAGES}ARIA Update check due (${DAYS_SINCE_SETUP} days). Ask 'set up ARIA'? "
+      fi
+    fi
+  fi
+fi
+
+# Rule 22 ordering — describes instruction-based enforcement under Cursor.
+# Cursor has no transcript-scan deny mechanism, so this is reminder-style guidance.
+MESSAGES="${MESSAGES}RULE 22 ORDERING — The Low/High Impact block must appear ABOVE the Edit/Write tool call in the same assistant turn, never below. The beforeFileEdit hook surfaces a reminder via agentMessage, but enforcement is instruction-based (see AGENTS.md and .cursor/rules/aria-rule-22.mdc). Emit the block prospectively, not retroactively — the only valid path is marker-then-edit. Arguments for skipping ('conversation already covered it', 'docs-only edit', 'routine change', 'too trivial') are all invalid — see rules/change-decision-framework.md 'Ordering (required)' and 'Rationalizations that do not apply'. "
+
+# Task budget awareness — surface strain symptoms instead of self-wrapping.
+MESSAGES="${MESSAGES}TASK BUDGET — Cursor's UI shows the user actual token usage and context limits; the agent does not see these directly. If strain symptoms appear (responses cutting short, deep session length), pause and surface them — offer options (finish the current atomic task, capture session insights, or continue) and let the user decide based on what they can see. Don't assume depletion or wrap up autonomously. "
+
+# Knowledge surfacing — passive vs active branches on KT_ACTIVE_SURFACING (default true as of v2.15.0).
+INDEX_FILE="$KT_KNOWLEDGE_FOLDER/index.md"
+if [ -f "$INDEX_FILE" ]; then
+  if [ "$KT_ACTIVE_SURFACING" = "true" ]; then
+    MESSAGES="${MESSAGES}ARIA ACTIVE CONTEXT — Knowledge index at ${KT_KNOWLEDGE_FOLDER}/index.md. After the user states their first task, do this autonomously (do NOT wait for /context): (1) Read index.md and parse the ## Tag Index section for ### tagname headers; (2) tokenize the user's task text (lowercase, alnum-only, dedupe); (3) find tags whose names exactly match any token; (4) if ≥2 tags match, collect file lines under those tag sections, dedupe by path, cap at top-5; (5) Read each matched file; (6) before answering, output 1-2 sentences naming which files loaded and why each is relevant. Offer once per session and again on clear topic change. The beforeShellExecution (cd) and stop hooks will auto-surface for those triggers — this instruction covers the sessionStart→first-user-message gap. Honors a session ledger at /tmp/aria-active-\${sessionId} (paths already there, don't re-Read). "
+  else
+    MESSAGES="${MESSAGES}ARIA CONTEXT — Knowledge index available at ${KT_KNOWLEDGE_FOLDER}/index.md. After user states task, check it for relevant tags and suggest loading context with any found relevant tags. Offer once per session and again when changing topics. Do not block. "
+  fi
+fi
+
+# Project context suggestion — only if both opt-ins are enabled AND CWD matches a configured project
+if [ "$KT_PROJECTS_ENABLED" = "true" ] && [ "$KT_AUTO_LOAD_PROJECT_CONTEXT" = "true" ]; then
+  CURRENT_PROJECT=$(kt_project_for_path "$PWD")
+  if [ -n "$CURRENT_PROJECT" ]; then
+    MESSAGES="${MESSAGES}ARIA Project Context — You're working in project '${CURRENT_PROJECT}'. Suggest the user ask to load context for ${CURRENT_PROJECT} to load project-specific knowledge (decisions, patterns) plus cross-project items tagged ${CURRENT_PROJECT}. Offer once per session. Do not block. "
+  fi
+fi
+
+# v2.16.1: tracked-artifacts active load — fires when active_knowledge_surfacing
+# is enabled AND PWD substring-matches a configured project. Surfaces CODEMAP
+# directory + (if multi-repo) STITCH with staleness annotation.
+if [ "$KT_ACTIVE_SURFACING" = "true" ] && [ "$KT_PROJECTS_ENABLED" = "true" ]; then
+  # sessionId needed for ledger path — Cursor camelCase with snake_case fallback
+  TA_SESSION_ID=$(echo "$INPUT" | grep -o '"sessionId":"[^"]*"' | head -1 | sed 's/"sessionId":"//;s/"//' 2>/dev/null)
+  [ -z "$TA_SESSION_ID" ] && TA_SESSION_ID=$(echo "$INPUT" | grep -o '"session_id":"[^"]*"' | head -1 | sed 's/"session_id":"//;s/"//' 2>/dev/null)
+  . "$SCRIPT_DIR/lib-tracked-artifacts.sh"
+  kt_artifact_compute_for_path "$PWD"
+  if [ -n "$TA_SESSION_ID" ] && [ "$KT_ARTIFACTS_COUNT" -gt 0 ]; then
+    TA_LEDGER="/tmp/aria-active-${TA_SESSION_ID}"
+    kt_artifact_filter_ledger "$TA_LEDGER"
+    if [ "$KT_ARTIFACTS_COUNT" -gt 0 ]; then
+      kt_artifact_record_ledger "$TA_LEDGER"
+      MESSAGES="${MESSAGES}${KT_ARTIFACTS_INSTRUCTION}"
+    fi
+  fi
+fi
+
+# Per-task insight batch capture — gated by auto_capture
+if [ "$KT_AUTO_CAPTURE" != "false" ]; then
+  MESSAGES="${MESSAGES}INSIGHT CAPTURE — After completing discrete tasks, batch-append any uncaptured \xe2\x98\x85 Insight blocks to ${KT_KNOWLEDGE_FOLDER}/intake/insights-backlog.md. Do not capture mid-task — only at task completion boundaries. "
+fi
+
+# Memory pathway guardrail — route file-system memory through ARIA's intake/extract/clip flow.
+MESSAGES="${MESSAGES}MEMORY PATHWAY — ARIA is the structured memory pathway for this session. For notes, use the clip ask (URLs/snippets), the extract ask (session insights), the intake ask (bulk imports), and the audit-knowledge ask (promotion). Route file-system memory through ARIA to keep the knowledge tree curated. "
+
+# CODEMAP detection — find codemaps in project directories, annotate with
+# staleness per /audit-knowledge Step 5d criteria so stale maps are visible
+# at session start without running a full audit.
+CODEMAPS=$(find "$PWD" -maxdepth 2 -name "CODEMAP.md" 2>/dev/null | head -5)
+if [ -n "$CODEMAPS" ]; then
+  CM_MSG=""
+  CM_TODAY_EPOCH=$(date +%s)
+  _cm_old_ifs="$IFS"
+  IFS='
+'
+  for cm in $CODEMAPS; do
+    CM_REL=$(echo "$cm" | sed "s|$PWD/||")
+
+    # Parse "> Last updated: YYYY-MM-DD" from CODEMAP header; fall back to mtime
+    CM_DATE=$(grep -m1 -E '^> Last updated: [0-9]{4}-[0-9]{2}-[0-9]{2}' "$cm" 2>/dev/null \
+      | sed -E 's/^> Last updated: ([0-9]{4}-[0-9]{2}-[0-9]{2}).*/\1/')
+    if [ -z "$CM_DATE" ]; then
+      CM_DATE=$(stat -f "%Sm" -t "%Y-%m-%d" "$cm" 2>/dev/null)
+    fi
+
+    if [ -z "$CM_DATE" ]; then
+      CM_ENTRY="$CM_REL (no date)"
+    else
+      CM_EPOCH=$(date -j -f "%Y-%m-%d" "$CM_DATE" +%s 2>/dev/null)
+      if [ -z "$CM_EPOCH" ]; then
+        CM_ENTRY="$CM_REL (unparseable date: $CM_DATE)"
+      else
+        CM_DAYS=$(( (CM_TODAY_EPOCH - CM_EPOCH) / 86400 ))
+
+        # Count files changed in the codemap's directory since its last-updated date
+        CM_FILES=0
+        if command -v git >/dev/null 2>&1; then
+          CM_DIR=$(dirname "$cm")
+          CM_FILES=$(cd "$CM_DIR" 2>/dev/null && git log --name-only --since="$CM_DATE" --pretty=format:"" 2>/dev/null \
+            | grep -v '^$' | sort -u | wc -l | tr -d ' ')
+          [ -z "$CM_FILES" ] && CM_FILES=0
+        fi
+
+        # Classification matches /audit-knowledge Step 5d exactly
+        if [ "$CM_DAYS" -gt 30 ] && [ "$CM_FILES" -gt 0 ]; then
+          CM_CLASS="stale"
+        elif [ "$CM_DAYS" -gt 14 ] && [ "$CM_FILES" -gt 20 ]; then
+          CM_CLASS="possibly stale"
+        else
+          CM_CLASS="current"
+        fi
+
+        CM_ENTRY="$CM_REL (updated ${CM_DAYS}d ago, ${CM_FILES} files changed — ${CM_CLASS})"
+      fi
+    fi
+
+    [ -z "$CM_MSG" ] && CM_MSG="$CM_ENTRY" || CM_MSG="$CM_MSG, $CM_ENTRY"
+  done
+  IFS="$_cm_old_ifs"
+
+  if [ -n "$CM_MSG" ]; then
+    MESSAGES="${MESSAGES}CODEMAP Found: ${CM_MSG}. Before exploring a project's codebase, read its CODEMAP Directory section first. "
+  fi
+fi
+
+# Output only if there are messages
+if [ -n "$MESSAGES" ]; then
+  MESSAGES_ESCAPED=$(kt_json_escape "$MESSAGES")
+  printf '{"agentMessage":"%s"}\n' "$MESSAGES_ESCAPED"
+fi
+
+# Diagnostic log — confirms hook ran, distinguishes success from silent failure
+echo "$(date +%Y-%m-%dT%H:%M:%S) session-start-check: messages=${#MESSAGES}" >> "$KT_KNOWLEDGE_FOLDER/logs/hook-debug.log" 2>/dev/null

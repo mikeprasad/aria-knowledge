@@ -1,0 +1,43 @@
+{
+  "name": "aria-knowledge",
+  "version": "2.16.1-codex.0",
+  "description": "Codex port of ARIA - Applied Reasoning and Insight Architecture. Uses the Claude-standard ARIA knowledge folder and content schema while adapting plugin manifests, commands, hooks, and tool-boundary behavior for Codex.",
+  "author": {
+    "name": "Mike Prasad"
+  },
+  "homepage": "https://github.com/mikeprasad/aria-knowledge",
+  "repository": "https://github.com/mikeprasad/aria-knowledge",
+  "license": "CC-BY-NC-SA-4.0",
+  "keywords": [
+    "knowledge-management",
+    "knowledge-capture",
+    "decision-framework",
+    "codex",
+    "hooks",
+    "context-retrieval"
+  ],
+  "skills": "./skills/",
+  "hooks": "./hooks.json",
+  "interface": {
+    "displayName": "ARIA Knowledge",
+    "shortDescription": "Persistent human-governed knowledge and decision discipline for Codex",
+    "longDescription": "ARIA gives Codex sessions a persistent markdown knowledge lifecycle: capture, govern, promote, apply, and refresh. This Codex port keeps the Claude-standard knowledge folder schema intact while adapting hooks and commands for Codex tool surfaces.",
+    "developerName": "Mike Prasad",
+    "category": "Coding",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/mikeprasad/aria-knowledge",
+    "privacyPolicyURL": "https://github.com/mikeprasad/aria-knowledge/blob/main/PRIVACY.md",
+    "termsOfServiceURL": "https://github.com/mikeprasad/aria-knowledge/blob/main/LICENSE",
+    "defaultPrompt": [
+      "Set up ARIA Knowledge for this Codex workspace",
+      "Load ARIA context for this task",
+      "Run an ARIA wrapup for this session"
+    ],
+    "brandColor": "#5B5BD6",
+    "screenshots": []
+  }
+}

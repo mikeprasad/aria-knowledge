@@ -24,22 +24,58 @@ aria/
 │   ├── bin/           ← Hook scripts (bash)
 │   ├── skills/        ← Skill definitions (SKILL.md files)
 │   └── template/      ← Knowledge folder templates
+├── plugin-codex/      ← Codex port (independent installable unit)
+│   ├── .codex-plugin/
+│   │   └── plugin.json
+│   ├── hooks.json     ← Codex hook registration
+│   ├── bin/           ← Claude-standard scripts + Codex adapter
+│   ├── commands/      ← Codex command entrypoints
+│   ├── skills/        ← Copied ARIA skills (schema-compatible)
+│   └── template/      ← Copied Claude-standard knowledge templates
+├── cursor-template/   ← Cursor port (repo-skeleton, not a plugin install)
+│   ├── .cursor/       ← Cursor-native config
+│   │   ├── hooks.json
+│   │   ├── aria-knowledge.local.md
+│   │   └── rules/     ← 5 compiled .mdc files (25 skills compiled into 5)
+│   ├── AGENTS.md      ← Cursor's equivalent of CLAUDE.md
+│   ├── QUICKSTART.md  ← Cursor-adapted quickstart
+│   ├── knowledge/     ← Knowledge folder (lives at root in Cursor port, not under template/)
+│   ├── scripts/aria/  ← Hook scripts (instead of bin/)
+│   └── audit/         ← Frozen audit artifacts for the 2.16.1 port build
 └── docs/              ← Extended documentation (future)
 ```
 
 ## Key Conventions
 
 - **`plugin/` is the installable unit** — everything inside it is what users copy to their plugins directory
+- **`plugin-codex/` is the Codex installable unit** — independent adapter surface, same knowledge schema. Claude `plugin/` remains the standard for template/content shape.
+- **`cursor-template/` is the Cursor repo-skeleton** — not a plugin install. Users clone or unzip its contents into the root of their own project. Cursor compiles 25 skills into 5 `.cursor/rules/*.mdc` files because Cursor's Rules system doesn't have a one-skill-per-folder concept. Knowledge folder schema stays compatible with `plugin/template/`.
 - **Template files** in `plugin/template/` are either plugin-managed (diffable on `/setup`) or user-owned (created once, never overwritten). See `plugin/skills/setup/SKILL.md` for the authoritative list.
 - **Version** lives in `plugin/.claude-plugin/plugin.json`
 - **Hook scripts** in `plugin/bin/` are bash — they read config from `~/.claude/aria-knowledge.local.md`
 - **Skills** are markdown files — each skill is a `SKILL.md` with YAML frontmatter
+- **Codex hooks** require Codex `plugin_hooks` enabled; the adapter reads `~/.codex/aria-knowledge.local.md` first, then falls back to `~/.claude/aria-knowledge.local.md`
+- **Cursor hooks** use `.cursor/hooks.json` and resolve script paths via `git rev-parse --show-toplevel`. Some Claude enforcement is weaker on Cursor (no transcript access, no documented pre-edit deny) — port uses an edit-intent marker file as the closest available mechanism. See `cursor-template/audit/ARIA_CURSOR_AUDIT_REPORT.md` §5.
 
 ## Development Workflow
 
 1. Edit files in `plugin/`
 2. To test, copy `plugin/` to `~/.claude/plugins/marketplaces/local-desktop-app-uploads/aria-knowledge/`
 3. Restart Claude Code to pick up changes
+
+### Codex Port Workflow
+
+1. Edit Codex adapter files in `plugin-codex/`
+2. Keep durable knowledge template/schema changes in sync with `plugin/` — Claude remains the schema standard
+3. Enable Codex plugin hooks with `codex features enable plugin_hooks` before testing automatic hooks
+4. Install via `.agents/plugins/marketplace.json` or copy `plugin-codex/` into a Codex local marketplace
+
+### Cursor Port Workflow
+
+1. Edit Cursor adapter files in `cursor-template/`
+2. Keep durable knowledge surfaces in sync with `plugin/template/` — Claude remains the schema standard. Knowledge folder shape lives at `cursor-template/knowledge/` (root-level, not nested under `template/`).
+3. The 5 `.mdc` rule files (`aria-commands`, `aria-audit`, `aria-context`, `aria-core`, `aria-rule-22`) are *compiled* views of the 25 canonical skills in `plugin/skills/`. When a skill changes, the corresponding section in the `.mdc` file needs a matching edit — no auto-build pipeline exists yet.
+4. Users install by unzipping the cursor port artifact (or cloning the folder) into the root of their own project, then restarting Cursor.
 
 ## Rules
 
