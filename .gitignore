@@ -1,0 +1,17 @@
+# Packaged plugin artifacts (built fresh on each release)
+*.plugin
+
+# OS cruft
+.DS_Store
+Thumbs.db
+
+# Editor temps
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Local-only artifacts (not shipped, not committed)
+.local/
+LOCAL.md
