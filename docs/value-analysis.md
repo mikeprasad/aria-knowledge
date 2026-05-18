@@ -18,7 +18,7 @@ This document summarizes measured and estimated evidence for whether ARIA is *ob
 | **What's the wall-clock impact?** | **Under 1% from hooks.** Net positive when codemap orientation or revision-avoidance kicks in. |
 | **When does ARIA pay off?** | Multi-session work, established codebase, critical-path edits, or domains with 5+ relevant promoted knowledge files. |
 | **When does ARIA NOT pay off?** | One-off scratch sessions, greenfield-first-session work, no-edit conversational sessions. |
-| **What's the early-adopter tax?** | **Small.** Quality benefits (Rule 22, `/prospect`, `/retrospect`) ship day-one and don't require a corpus. Token savings ledger is modestly net-negative for ~2–4 weeks (typically <70K tokens/session even at peak), then turns positive as the corpus builds. |
+| **What's the early-adopter tax?** | **Small.** Quality is net-positive from session 1 — Rule 22, `/prospect`, `/retrospect` ship day-one and don't require a corpus. Token-arithmetic catches up at ~2–4 weeks (typically <70K tokens/session even at peak), then turns positive as the corpus builds. |
 
 ---
 
@@ -230,7 +230,7 @@ ARIA is **net-positive in token cost, wall-clock, AND output quality** when sess
 
 ## When ARIA does NOT pay off
 
-ARIA is **net-negative** when:
+**ARIA's overhead doesn't earn its keep** when:
 
 1. **Single-file or scratch work.** Small one-off scripts, throwaway prototypes, isolated bug investigations. The Rule 22 ceremony cost outweighs benefit for trivial changes.
 2. **Greenfield + first-time domain — *only for token math*.** No existing codemap, no related ADRs, no relevant approaches/references means the corpus-based savings aren't there yet. **However:** if the work is non-trivial enough to benefit from a Rule 22 impact assessment or a `/prospect` pre-mortem, those quality interventions fire from session 1 and are typically worth the modest token overhead on their own. The "doesn't pay off" case is specifically about token economics, not output quality.
@@ -238,7 +238,7 @@ ARIA is **net-negative** when:
 
 ### Early-adopter tax
 
-For new users, ARIA's first **2–4 weeks are modestly net-negative on token economics only.** The full per-session cost lands immediately (typically ~6,400–68,150 tokens depending on edit volume, mostly cache-eligible); corpus-based token savings (codemap orientation, `/context` retrieval, ADR avoidance) require a corpus that doesn't exist yet.
+For new users, **quality is net-positive from session 1; only token-arithmetic catches up at ~2–4 weeks.** The full per-session cost lands immediately (typically ~6,400–68,150 tokens depending on edit volume, mostly cache-eligible); corpus-based token savings (codemap orientation, `/context` retrieval, ADR avoidance) require a corpus that doesn't exist yet.
 
 **Quality benefits do *not* have an early-adopter tax.** Rule 22 edit discipline, `/prospect` plan pre-mortems, `/retrospect` per-fix validation, and the 27-pattern retrospect-patterns library all ship with the plugin and apply from session 1. The 78% PROCEED-WITH-CHANGES rate measured on `/prospect` runs in the evidence base does not depend on corpus size. If your work involves non-trivial plans or critical-path edits, the quality interventions typically pay for the modest token overhead on their own — well before any corpus accumulates.
 
@@ -249,7 +249,7 @@ For new users, ARIA's first **2–4 weeks are modestly net-negative on token eco
 
 Once the corpus crosses those thresholds, savings reliably exceed cost on engaged sessions.
 
-**Net:** there is no period during which ARIA is unambiguously net-negative for non-trivial work. The early window is "token-cost slightly exceeds token-savings while quality benefits are already positive." Token-side break-even arrives at ~2–4 weeks.
+**Net:** for non-trivial work, ARIA is value-positive from day one. The early window is "quality is already net-positive while token-arithmetic catches up." Token-side break-even arrives at ~2–4 weeks.
 
 ---
 
