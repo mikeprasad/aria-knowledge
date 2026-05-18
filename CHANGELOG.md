@@ -2,6 +2,28 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## [2.18.1] - 2026-05-19
+
+**Patch release — `.mcp.json` directory-entry-name fix + companion prose alignment.** No skill changes; no schema changes. Surface area touched: `.mcp.json` (both `plugin/` and `plugin-codex/` ports) + prose mentions across CHANGELOG, 4 SKILL.md files in each port. Coordinated with aria-cowork v1.0.0 release (2026-05-19) which fixed the same underlying bug Cowork-side, where it manifested as install failure.
+
+### Fixed — `.mcp.json` `google_docs` → `google docs`
+
+Both `plugin/.mcp.json` and `plugin-codex/.mcp.json` declared `"google_docs"` (underscore) with an empty `url` for the Google Docs MCP server. The canonical Cowork directory-entry name uses a space: `"google docs"`. Per the Cowork plugin-customizer schema reference (`cowork-plugin-management/skills/cowork-plugin-customizer/references/mcp-servers.md`), servers with empty `url` must match a directory entry name *exactly* to validate — the underscore form silently fails Cowork's server-side validator. **Invisible bug Code-side** (Code's MCP client doesn't validate against Cowork's directory) but parity-preserving for ADR-013's byte-faithful intent against the Cowork sibling. Fix applied to both ports; prose mentions of `google_docs` across SKILL.md frontmatter enum docs + CHANGELOG swept to `google docs` for internal consistency with the new manifest key.
+
+### Companion: aria-cowork v1.0.0 fix arc (informational)
+
+aria-cowork v1.0.0 hit the same `google_docs` bug PLUS a second undocumented Cowork constraint — an aggregate-bytes cap (~9 KiB, working answer 9,216 = 9 KiB) on the summed `description` fields across all `skills/*/SKILL.md`. v1.0.0's 6 new MCP-consuming skills tipped the aggregate from v0.3.0's 7,645 chars to 10,404 chars, tripping the cap. **aria-knowledge is unaffected by the description cap** because Code-side installs don't run Cowork's server-side validator, but the cap is documented in `~/Projects/knowledge/guides/claude/cowork-plugin-validation.md` "Key Constraint 2" with the full empirical bisection trail (Probes A-K, ~2.5 hours). ADR-013 now lists "SKILL.md description length" as the 4th axis of cowork-side allowed divergence from aria-knowledge — manifest-level, not per-skill body, and only applies Cowork-side.
+
+### Compatibility
+
+- **No breaking changes.** Existing v2.18.0 installs upgrade in-place. No skill bodies modified; no template changes; no schema additions.
+- **No new dependencies.**
+- **MCP runtime behavior unchanged.** The `google_docs` → `google docs` rename only affects how Cowork's directory lookup matches the entry; Code-side MCP clients treat both forms as opaque server names.
+
+### Coordinated release pairing
+
+- **aria-cowork v1.0.0** (released 2026-05-19) — companion release. Same `.mcp.json` fix Cowork-side, plus the description-length sanitization noted above. aria-cowork-side this was a blocker (install failed); aria-knowledge-side this is purely parity hygiene.
+
 ## [2.18.0] - 2026-05-18
 
 **First MCP-consuming release. 5 new cross-tool skills + `.mcp.json` + `CONNECTORS.md` + 2 new architectural ADRs.** aria-knowledge gains a category of capability it didn't previously have — pulling from connected MCP servers (Slack, Notion, Linear, Gmail, etc.) and writing structured artifacts back into the knowledge folder. 5 new skills (clip-thread, extract-doc, meeting-notes, digest, sync-decisions) consume 4 `~~category` placeholders (chat / email / project tracker / docs) via the `~~` customization-marker convention from `cowork-plugin-management`. Minor bump because this is a structural-shift-by-addition: the manifest's new `.mcp.json` declaration is additive (existing installs without `.mcp.json` continue to work), but a whole external-integration surface arrives. Bidirectional flow continues — aria-cowork v1.0.0 ships shortly with 5/5 of these skills imported byte-faithfully + 1 cowork-only `daily-audit` skill per ADR-014.
@@ -35,9 +57,9 @@ First time aria-knowledge ships an `.mcp.json` manifest. Declares 12 MCP servers
 | Chat | slack, ms365 |
 | Email | gmail (placeholder URL), ms365 |
 | Project tracker | linear, asana, atlassian, monday, clickup, notion |
-| Docs | notion, atlassian, box, egnyte, google_docs (placeholder URL) |
+| Docs | notion, atlassian, box, egnyte, google docs (placeholder URL) |
 
-Slack ships with Anthropic's published OAuth config (clientId `1601185624273.8899143856786`, callbackPort 3118) — mirrored from productivity's manifest. Gmail + google_docs ship with empty URLs (placeholder declarations per productivity's pattern, pending public MCP server availability).
+Slack ships with Anthropic's published OAuth config (clientId `1601185624273.8899143856786`, callbackPort 3118) — mirrored from productivity's manifest. Gmail + google docs ship with empty URLs (placeholder declarations per productivity's pattern, pending public MCP server availability).
 
 ### Added — `plugin/CONNECTORS.md`
 
@@ -98,7 +120,7 @@ Output schema is byte-identical across plugins per ADR-013. Both plugins write t
 ### Known limitations
 
 - **Slack OAuth clientId** is mirrored from productivity plugin's public manifest. May "just work" if Anthropic's Slack OAuth app covers third-party plugins; may require aria-knowledge to register its own Slack OAuth app if reality differs. Capability probe per ADR-015 will surface "No `~~chat` MCP connected" if Slack auth fails — degraded but not broken.
-- **`gmail` and `google_docs` MCPs ship with empty URLs** (placeholders, per productivity plugin's pattern). Will be populated when Anthropic's hosted Google MCPs go public. Patchable in v2.18.1 if/when that lands.
+- **`gmail` and `google docs` MCPs ship with empty URLs** (placeholders, per productivity plugin's pattern). Will be populated when Anthropic's hosted Google MCPs go public. Patchable in v2.18.1 if/when that lands.
 - **Probe semantics may evolve.** ADR-015 + ADR-016 explicitly note that future Anthropic releases (formal capability-probe API, Cowork MCP-aware PreToolUse hook) would trigger revision.
 
 ## [2.17.0] - 2026-05-18
