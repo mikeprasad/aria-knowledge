@@ -28,7 +28,7 @@ First MCP-consuming release + v1.0 stable-contract claim. Originally built as v0
 
 ### `.mcp.json` + `CONNECTORS.md` foundation
 
-- **`.mcp.json`** — declares 12 MCP servers across 4 categories (slack, ms365, gmail-placeholder, linear, asana, atlassian, monday, clickup, notion, box, egnyte, google_docs-placeholder). Byte-identical to aria-knowledge v2.18.0's manifest.
+- **`.mcp.json`** — declares 12 MCP servers across 4 categories (slack, ms365, gmail-placeholder, linear, asana, atlassian, monday, clickup, notion, box, egnyte, google docs-placeholder). Byte-identical to aria-knowledge v2.18.0's manifest.
 - **`CONNECTORS.md`** — documents the `~~category` marker convention per Anthropic's `cowork-plugin-customizer` guidance. 4 categories (chat / email / project tracker / docs). Per-skill MCP-usage table including cowork-only daily-audit row.
 
 ### Cross-plugin architecture (2 new ADRs)

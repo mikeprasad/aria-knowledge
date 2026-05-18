@@ -4,6 +4,36 @@ All notable changes to aria-cowork are documented here. Format follows [Keep a C
 
 Cross-plugin parity callouts (per ADR-006) note when changes coordinate with aria-knowledge releases.
 
+## [1.0.1] — 2026-05-19
+
+**Patch release — install-fix for two undocumented Cowork validator constraints.** v1.0.0 (2026-05-18) was tagged + released but its `.plugin` asset silently failed Cowork's server-side upload validator (generic "Plugin validation failed." dialog with no field-level detail). v1.0.1 ships the same skill manifest, schema, ADR set, and architectural commitments as v1.0.0 with two bug fixes that make the artifact actually installable. See the v1.0.0 entry below for the full bisection narrative (Probes A-K, ~2.5 hours).
+
+### Fixed — `.mcp.json` `google_docs` → `google docs`
+
+Cowork's directory-entry name for the Google Docs MCP uses a space, not an underscore. Servers with empty `url` must match a directory entry name exactly to validate; the underscore form silently failed Cowork's server-side validator. Same fix applied to aria-knowledge v2.18.1 sibling for parity per ADR-013. Prose mentions of `google_docs` across README + 4 SKILL.md files (frontmatter enum docs in `extract-doc`, `digest`, `sync-decisions`, `meeting-notes`) swept to `google docs` for consistency with the new manifest key.
+
+### Fixed — SKILL.md description sanitization for Cowork aggregate-bytes cap
+
+Cowork's validator enforces an aggregate cap of ~9 KiB on the summed `description` fields across all `skills/*/SKILL.md`. v1.0.0's 6 new MCP-consuming skills tipped the aggregate from v0.3.0's 7,645 chars to 10,404 chars, tripping the cap. Empirical bisection (Probes A-K) narrowed the cap to [9,151, 9,233]; working answer is 9,216 (9 KiB). All 26 skill descriptions trimmed at the 350-char per-skill ceiling, bringing total to 7,876 chars. Per-skill descriptions remain semantically intact (trigger phrases preserved); only verbose tails were clipped. **This is a new fourth axis of cowork-side allowed divergence from aria-knowledge per the [ADR-013](../../knowledge/projects/aria-cowork/decisions/013-cowork-modified-skills-schema-identical-outputs.md) amendment** — manifest-level, not per-skill body.
+
+### Added — `release.sh` aggregate-description preflight
+
+`release.sh` now sums skill descriptions at build time and warns at >8,500 / hard-fails at >9,000, preventing recurrence. Thresholds match the ≤9,000 safety recommendation in [`~/Projects/knowledge/guides/claude/cowork-plugin-validation.md`](../../knowledge/guides/claude/cowork-plugin-validation.md) "Key Constraint 2".
+
+### Build artifact
+
+`aria-cowork-1.0.1.plugin` — installs cleanly via Cowork drag-and-drop or Settings → Plugins → Install from file. v1.0.0 asset on GitHub (`aria-cowork-1.0.0.plugin`) retained for historical record but does not install; users should fetch v1.0.1 instead.
+
+### Compatibility
+
+- **No breaking changes vs v1.0.0** — same skill manifest (26 skills), same schema, same ADR set, same MCP declarations. Only install-blocking bugs are fixed.
+- **No new dependencies.**
+- **Existing v1.0.0 installs**: if you somehow have v1.0.0 installed (shouldn't be possible given the validator rejection, but if you sideloaded), reinstall v1.0.1 to pick up the description sanitization and the corrected MCP server name.
+
+### Coordinated release pairing
+
+- **aria-knowledge v2.18.1** (released 2026-05-19) — companion patch. Mirrors the `.mcp.json` `google docs` fix and prose sweep; no description sanitization needed Code-side.
+
 ## [1.0.0] — 2026-05-18
 
 **First MCP-consuming release + v1.0 stable-contract claim.** aria-cowork gains the cross-tool synthesis surface that's been deferred since v0.2.0 AND simultaneously claims v1.0 maturity per ADR-006. Originally planned + built as v0.4.0; bumped to v1.0.0 mid-build (2026-05-19) per Mike's directive: the 4 v1.0 triggers I previously named (Cowork-native skills landed / MCP integrations stable / Phase 1 public release / one full audit cycle) are now 2-of-4 done via this release, and the capability-shipping triggers are the load-bearing ones — the Phase 1 public release + audit-cycle triggers are downstream ceremony rather than capability shifts. 6 new Cowork-native skills land: 5 bidirectional skills (clip-thread, extract-doc, meeting-notes, digest, sync-decisions) port byte-faithfully from aria-knowledge v2.18.0 per ADR-014 schema-source-of-truth; 1 cowork-only skill (daily-audit) replaces aria-knowledge's SessionStart hook since Cowork has no hook surface per ADR-004. Skill manifest grows 20 → 26 (24 distinct + 2 aliases). Coordinated release pair with aria-knowledge v2.18.0 — same coordination shape as v2.17.0 ↔ v0.3.0 last week.
@@ -46,7 +76,7 @@ New skill at `skills/daily-audit/SKILL.md` (~90 lines). **Cowork-only** per [ADR
 
 ### Added — `.mcp.json`
 
-First time aria-cowork ships an `.mcp.json` manifest. Byte-identical to aria-knowledge v2.18.0's manifest — 12 MCP servers across 4 categories (slack, ms365, gmail-placeholder, linear, asana, atlassian, monday, clickup, notion, box, egnyte, google_docs-placeholder). Slack ships with Anthropic's published OAuth config (clientId `1601185624273.8899143856786`, callbackPort 3118). Cowork-side users connect via Settings → Connectors; Code-side users connect via Code's MCP client OAuth flow.
+First time aria-cowork ships an `.mcp.json` manifest. Byte-identical to aria-knowledge v2.18.0's manifest — 12 MCP servers across 4 categories (slack, ms365, gmail-placeholder, linear, asana, atlassian, monday, clickup, notion, box, egnyte, google docs-placeholder). Slack ships with Anthropic's published OAuth config (clientId `1601185624273.8899143856786`, callbackPort 3118). Cowork-side users connect via Settings → Connectors; Code-side users connect via Code's MCP client OAuth flow.
 
 ### Added — `CONNECTORS.md`
 
@@ -85,13 +115,17 @@ All other SKILL.md content (Steps 1-N, output schemas, body templates, Rules sec
 - **Graceful degradation built-in.** If no MCPs connected, the 5 MCP-consuming skills output fallback notices and stop. `/meeting-notes` additionally offers a paste-fallback. `/daily-audit` runs without any MCPs.
 - **MCP-consuming is opt-in.** Users who don't want the 5 MCP-consuming skills can ignore them.
 
+### Install issue + supersession by v1.0.1
+
+The v1.0.0 `.plugin` asset (released 2026-05-18 16:01 UTC, GitHub tag `v1.0.0`) **silently failed Cowork's server-side upload validator** due to two undocumented constraints discovered the next day. **Use v1.0.1 instead** — same skill manifest, schema, and ADR set as v1.0.0 with two bug fixes that make the artifact installable. See the [v1.0.1] entry above for the full diagnostic trail (Probes A-K, ~2.5 hours of empirical bisection logged in `~/Library/Logs/Claude/main.log` lines 87582–89221). The v1.0.0 release is retained as historical record but its assets do not install.
+
 ### Build artifact
 
-`aria-cowork-0.4.0.plugin` — estimated 250-280KB (v0.3.0 was 215KB; +6 skills + `.mcp.json` + `CONNECTORS.md` adds ~15-20% volume). Built via existing `release.sh` (no changes needed — the script already includes new top-level files via rsync without explicit allowlist).
+`aria-cowork-1.0.0.plugin` — 248,523 bytes, 101 files, 26 skills. **Broken — install fails with generic "Plugin validation failed." dialog.** Superseded by `aria-cowork-1.0.1.plugin` (see v1.0.1 entry above). v1.0.0 asset retained on the GitHub release page for historical reference; do not install.
 
 ### Coordinated release pairing
 
-- **aria-knowledge v2.18.0** (released 2026-05-18) — companion release. Ships the 5 bidirectional skills first per D2 schema-source-of-truth. v0.4.0 imports the templates byte-faithfully.
+- **aria-knowledge v2.18.0** (released 2026-05-18) — original companion release. Ships the 5 bidirectional skills first per D2 schema-source-of-truth. v1.0.0 imported the templates byte-faithfully. (aria-knowledge v2.18.1 followed on 2026-05-19 as the companion patch for the parity-affecting `.mcp.json` fix.)
 
 ## [0.3.0] — 2026-05-18
 
