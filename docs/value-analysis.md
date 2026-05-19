@@ -4,7 +4,7 @@
 
 This document summarizes measured and estimated evidence for whether ARIA is *objectively valuable* when added to Claude Code. It accompanies the [README](../README.md)'s "Evidence and limits" framing with concrete numbers.
 
-> **Limits up front:** All evidence below is from the plugin author's own multi-project work. No controlled A/B study, no inter-developer variance data. Treat these as **calibration anchors**, not universal claims.
+> **Limits up front:** All evidence below is from the plugin author's own multi-project work, run almost entirely on **Opus 4.7 High** (>95% of sessions; the remainder use Opus 4.7 Medium). No controlled A/B study, no inter-developer variance data, no cross-model comparison. Treat these as **calibration anchors for high-capability reasoning models**, not universal claims — results on lower-tier models may differ.
 
 ---
 
@@ -12,9 +12,10 @@ This document summarizes measured and estimated evidence for whether ARIA is *ob
 
 | Question | Answer |
 |---|---|
-| **Does ARIA measurably improve Claude Code's output?** | **Yes — on the axes ARIA targets.** Strongest single signal: 78% of plans submitted to `/prospect` had issues identified pre-execution that needed correction. |
+| **What's the core value?** | **Better code, fewer errors, fewer turns.** Higher accuracy + better reasoning + early error catching, compounding into less rework. Without ARIA, the same errors get shipped, then debugged, then re-fixed, then re-verified — each cycle is multiples of the token cost of catching it pre-execution. |
+| **Does ARIA measurably improve Claude Code's output?** | **Yes — across multiple axes.** 78% of plans submitted to `/prospect` had issues caught pre-execution. 44% fewer turns to converge on a real production fix (5 vs 9). 27 canonical failure-mode patterns catch repeat drift modes. |
 | **What does ARIA cost per session?** | **~3,150 tokens fixed + ~325 tokens per edit.** On heavy edit sessions: ~35K tokens total. |
-| **What does ARIA save per session?** | **0 to ~150K tokens**, depending on whether the session intersects existing knowledge. For corpus-engaged sessions: typically 20–60K tokens. |
+| **What does ARIA save per session?** | **Direct: 0 to ~150K tokens** (depending on knowledge intersection — typically 20–60K for corpus-engaged sessions). **Indirect (much larger): the cost of work-shipped-wrong avoided.** A single `/prospect` catch (~3K tokens to run) typically prevents a 15K+ token do-wrong → fix-after → re-verify cycle. At 78% catch rate on non-trivial plans, avoided-rework dominates the direct savings. |
 | **What's the wall-clock impact?** | **Under 1% from hooks.** Net positive when codemap orientation or revision-avoidance kicks in. |
 | **When does ARIA pay off?** | Multi-session work, established codebase, critical-path edits, or domains with 5+ relevant promoted knowledge files. |
 | **When does ARIA NOT pay off?** | One-off scratch sessions, greenfield-first-session work, no-edit conversational sessions. |
