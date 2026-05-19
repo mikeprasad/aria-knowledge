@@ -4,6 +4,35 @@ All notable changes to aria-cowork are documented here. Format follows [Keep a C
 
 Cross-plugin parity callouts (per ADR-006) note when changes coordinate with aria-knowledge releases.
 
+## [1.1.0] — 2026-05-19
+
+**Minor release — `/wrapup` vs `/handoff` intent split clarified; `/wrapup auto` mode added.** No new skills, no schema changes, no MCP changes. Two existing skills (`/wrapup`, `/handoff`) get a behavioral and documentation refactor that makes their distinct purposes unambiguous, plus `/wrapup` gains an `auto` mode mirroring `/handoff auto`.
+
+### Changed — `/wrapup` and `/handoff` skill descriptions reframed by intent
+
+Previously the two skills overlapped: both covered "end-of-session" with `/handoff` framed as "/wrapup + opener." Users couldn't tell from the descriptions which to use. The refactor splits them by **audience**, not posture:
+
+- **`/wrapup`** is now the "I'm done, no passoff" skill — close out cleanly, no next-session opener emitted.
+- **`/handoff`** is now the "passoff package" skill — for future-you in a new session (typically when context is high) or a coworker (via `brief` mode). Headline artifact is the paste-ready next-session opener (or coworker prose brief in `brief` mode).
+
+Same surfaces touched (PROGRESS / CLAUDE / memory / commit message / `/aria-cowork:extract`); different framing and different headline output. Descriptions trimmed to fit the v1.0.1 Cowork aggregate-bytes cap (per [ADR-013 axis 4](../../knowledge/projects/aria-cowork/decisions/013-cowork-modified-skills-schema-identical-outputs.md)) — aggregate now 8,145 chars (12% headroom under the 9,000 internal hard-fail).
+
+### Added — `/wrapup auto` mode
+
+Mirrors `/handoff auto`: implicit-yes on all per-step gates (session summary, PROGRESS, CLAUDE.md, memory, `/aria-cowork:extract`), runs silently, emits final report only. The commit-message step remains informational in both modes (Cowork has no shell access to run git — Q-4 Option B unchanged). Invoke as `/wrapup auto` or `/aria-cowork:wrapup auto`. Use when the session is short and unambiguous, or when a combined-go signal (`yes to all`) has already been given.
+
+`argument-hint` extended to `'[auto]'`.
+
+### Compatibility
+
+- **No breaking changes.** Existing `/wrapup` invocations (no arg) continue to behave exactly as before — gated, per-step prompts. `auto` is opt-in via the explicit argument.
+- **No new dependencies.**
+- **`/handoff brief` mode unchanged** (shipped in v0.3.0). Schema-identical to aria-knowledge.
+
+### Coordinated release pairing
+
+- **aria-knowledge v2.19.0** ships the same intent split + `/wrapup auto` mode Code-side. Per ADR-013, aria-knowledge remains the schema source-of-truth; cowork-side description bodies diverge (much shorter) to satisfy Cowork's aggregate-bytes cap, but the behavior split and mode shape are byte-aligned.
+
 ## [1.0.1] — 2026-05-19
 
 **Patch release — install-fix for two undocumented Cowork validator constraints.** v1.0.0 (2026-05-18) was tagged + released but its `.plugin` asset silently failed Cowork's server-side upload validator (generic "Plugin validation failed." dialog with no field-level detail). v1.0.1 ships the same skill manifest, schema, ADR set, and architectural commitments as v1.0.0 with two bug fixes that make the artifact actually installable. See the v1.0.0 entry below for the full bisection narrative (Probes A-K, ~2.5 hours).

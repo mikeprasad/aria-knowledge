@@ -1,6 +1,6 @@
 ---
 name: handoff
-description: Express end-of-session handoff with three modes. Default and `auto` cover the same surface as /aria-cowork:wrapup (review work, update PROGRESS/CLAUDE/memory, emit commit message, run /extract, verify continuity) and always emit a paste-ready next-session opener. `brief` mode produces a copy/paste coworker brief (Hey [coworker]-style prose).
+description: Generate a passoff package — for future-you (context is high, need to restart) or a coworker (via brief mode). Cowork variant — default+auto emit a paste-ready next-session opener plus PROGRESS/CLAUDE/memory updates, a commit message, and "/aria-cowork:extract"; brief mode emits an 80-150 word coworker prose brief only. For done-with-no-passoff, use "/aria-cowork:wrapup". Triggers — "/handoff", "/aria-cowork:handoff", "/handoff auto", "/handoff brief", "hand it off", "pass off to next session", "brief a coworker on this".
 argument-hint: '[auto|brief]'
 ---
 
