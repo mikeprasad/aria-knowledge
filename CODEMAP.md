@@ -1,7 +1,9 @@
 # aria-cowork Codemap
 
 > Feature-organized reference for the aria-cowork plugin (Claude Cowork sibling of aria-knowledge).
-> Last updated: 2026-05-06 | Sections: 7 | Skills: 10
+> Last updated: 2026-05-19 | Sections: 7 | Skills: 26 (24 distinct + 2 aliases)
+>
+> **2026-05-19 refresh:** v0.2.4 → v1.0.1 SHIPPED PUBLIC at `mikeprasad/aria-cowork` (first public release). Skill manifest grew 10 → 26 (v0.3.0 parity-catch-up adding /extract, /snapshot, /wrapup, /audit-knowledge, /audit-config, /prospect, /retrospect, /handoff; v1.0.0 added 5 bidirectional MCP-consuming skills /clip-thread + /extract-doc + /meeting-notes + /digest + /sync-decisions, plus 1 cowork-only /daily-audit). First MCP-consuming release: ships `.mcp.json` (12 servers, 4 categories: chat / email / project tracker / docs) + `CONNECTORS.md`. First WRITE-side ARIA skill (/sync-decisions per ADR-016). 16 ADRs (added 013 schema-identical outputs, 014 bidirectional feature flow, 015 capability-probe, 016 Rule 22 advisory preamble). Coordinated with aria-knowledge v2.18.1.
 >
 > **How to use:** Read the directory below (~20 lines), then load specific
 > sections with `Read CODEMAP.md offset=X limit=Y`.
@@ -13,7 +15,7 @@
 |---|---------|--------|-----------|
 | 0 | Project Identity & Stack | plugin metadata, version, license, distribution | `.claude-plugin/plugin.json`, `CLAUDE.md` |
 | 1 | Plugin Layout | top-level folders + docs | `.claude-plugin/`, `skills/`, `template/`, `probe/` |
-| 2 | Skills | the 10 user-facing skills (commands) | `skills/*/SKILL.md` |
+| 2 | Skills | the 26 user-facing skills (24 distinct + 2 aliases) — see 2026-05-19 refresh note above | `skills/*/SKILL.md` |
 | 3 | Template Scaffold | knowledge folder structure deployed by `aria-setup` | `template/` |
 | 4 | Probe Plugin | diagnostic sibling plugin (`aria-probe`) | `probe/`, `aria-probe.plugin` |
 | 5 | Built Artifacts | versioning history, build process | `aria-cowork-*.plugin` |
@@ -25,14 +27,14 @@
 
 ## 0. Project Identity & Stack
 
-**Plugin:** aria-cowork v0.2.4 (built 2026-05-05, ~80KB).
-**Type:** Claude Cowork plugin (skills-only — no commands/, hooks/, agents/, or .mcp.json).
+**Plugin:** aria-cowork v1.0.1 (shipped publicly 2026-05-19).
+**Type:** Claude Cowork plugin (skills-only — no commands/, hooks/, agents/; now ships `.mcp.json` + `CONNECTORS.md` for 12-server MCP framework across 4 categories: chat / email / project tracker / docs).
 **License:** CC BY-NC-SA 4.0 (matches aria-knowledge).
 **Author:** Mike Prasad.
-**Distribution:** Local-only `.plugin` artifacts. Eventual public repo `mikeprasad/aria-cowork` once Phase 1 build begins; no `.git` directory yet.
-**Spec:** Canonical at `~/Projects/knowledge/projects/aria-cowork/OVERVIEW.md`; ADRs in `decisions/`. Validation gate at `VALIDATION.md` (Probes 2 + 3 hard-fail).
+**Distribution:** Public GitHub repo `mikeprasad/aria-cowork` (first public release 2026-05-19 — v1.0.0 ceremony + v1.0.1 same-day patch).
+**Spec:** Canonical at `~/Projects/knowledge/projects/aria-cowork/OVERVIEW.md`; 16 ADRs in `decisions/`. Validation gate at `VALIDATION.md` (Probes 2 + 3 hard-fail).
 
-See `CLAUDE.md` for full session/build status (v0.2.0 → v0.2.4 release sequence: description-length cap, `setup` rename, Rules 33+34 mirror, captured_via removal). See `../CLAUDE.md` for ARIA container context.
+See `CLAUDE.md` for full session/build status (v0.2.0 → v0.2.5 → v0.3.0 parity-catch-up → v1.0.0 first-public + MCP foundation → v1.0.1 same-day patch with google_docs MCP id fix + description-length validator fixes + aggregate-description preflight). See `../CLAUDE.md` for ARIA container context.
 
 ---
 
