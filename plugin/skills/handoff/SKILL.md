@@ -1,15 +1,17 @@
 ---
-description: "Express end-of-session handoff with three modes. Default and `auto` cover the same surface as /wrapup (review work, update PROGRESS/CLAUDE/memory, commit, run /extract, verify continuity) and always emit a paste-ready next-session opener. `brief` mode produces a copy/paste coworker brief (Hey [coworker]-style prose) instead — for handing off to another person, not to a future session. Use when ending a session and the work is clear enough to confirm in one pass, or when you need a quick brief to send a teammate. Trigger: '/handoff', '/handoff auto', '/handoff brief', 'hand it off', 'handoff and extract', 'wrap and prompt', 'brief a coworker on this'."
+description: "Generate a passoff package so the next reader can pick up cleanly — for future-you in a new session (typically when context is high and you need to restart) or for a coworker (via brief mode). Default + `auto` modes emit a paste-ready next-session opener as the headline artifact, alongside PROGRESS / CLAUDE / memory updates, commit, and /extract; `brief` mode emits an 80-150 word coworker-facing prose brief instead (Slack/email-ready, no file writes). Use when handing off — not when finishing for the day with nothing pending. For 'I'm done, close it out cleanly' with no passoff, use /wrapup instead. Triggers: '/handoff', '/handoff auto', '/handoff brief', 'hand it off', 'handoff and extract', 'context is full, restart this', 'pass off to next session', 'brief a coworker on this', 'wrap and prompt'."
 argument-hint: "[auto|brief]"
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
 # /handoff — Express Session Handoff
 
-Three modes covering two distinct handoff shapes:
+Generate a passoff package so the next reader can pick up cleanly. Two audiences:
 
-- **Next-session handoff** (default + `auto`) — Same end-of-session coverage as `/wrapup` (review work → update PROGRESS.md / CLAUDE.md / memory → commit → run `/extract` → verify continuity) compressed into a single combined-go review. Always emits a paste-ready next-session opener at the end.
-- **Coworker brief** (`brief`) — Produces a copy/paste prose block (Slack/email-ready) summarizing the session for another person. Does NOT update PROGRESS/CLAUDE/memory, does NOT commit, does NOT run /extract. Output-only — paste it and you're done.
+- **Next-session handoff** (default + `auto`) — For future-you in a new session (typically when context is high and you need to restart). Synthesizes the session, applies PROGRESS.md / CLAUDE.md / memory updates, commits, runs `/extract`, and emits a **paste-ready next-session opener as the headline artifact**.
+- **Coworker brief** (`brief`) — For another person. Produces a copy/paste prose block (Slack/email-ready) summarizing the session. Does NOT update PROGRESS/CLAUDE/memory, does NOT commit, does NOT run /extract. Output-only — paste it and you're done.
+
+For "I'm done, close it out cleanly" with no passoff intent, use `/wrapup` instead.
 
 **Three modes:**
 
@@ -17,7 +19,7 @@ Three modes covering two distinct handoff shapes:
 - **`auto` (`/handoff auto`)** — Implicit-yes on all gates. Run silently. Apply all drafts without confirmation. Emit final report only. Use when the session is short and unambiguous.
 - **`brief` (`/handoff brief`)** — Generate a coworker-facing prose brief (80-150 words, copy/paste-ready). Skips PROGRESS/CLAUDE/memory/commit/extract entirely. Emits the brief as the only artifact.
 
-**Coverage matches /wrapup** for default + auto modes. Brief mode is a different shape — handoff to a person, not to a session.
+**The next-session opener is the headline artifact** in default + auto modes — always produced, even when no other surface changed. That is what distinguishes `/handoff` from `/wrapup`. Brief mode is a different shape — handoff to a person, not to a session.
 
 ## Step 0: Resolve Config and Parse Mode
 

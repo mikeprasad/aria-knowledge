@@ -2,6 +2,49 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## [2.19.0] - 2026-05-19
+
+**Minor release — `/wrapup` vs `/handoff` intent split clarified; `/wrapup auto` mode added.** No new skills, no template changes, no MCP changes, no schema additions. Two existing skills (`/wrapup`, `/handoff`) get a behavioral and documentation refactor that makes their distinct purposes unambiguous, plus `/wrapup` gains an `auto` mode mirroring `/handoff auto`. Cursor port catches up on the pre-existing `/handoff brief` mode drift in the same release.
+
+### Changed — `/wrapup` and `/handoff` skill descriptions reframed by intent
+
+Previously the two skills overlapped: both covered "end-of-session" with `/handoff` framed as "/wrapup + opener." Users couldn't tell from the descriptions which to use, and the auto-invocation triggers competed. The refactor splits them by **audience**, not posture:
+
+- **`/wrapup`** is now the "I'm done, no passoff" skill — close out cleanly, no next-session opener emitted. Title in body changed from "Session Handoff" to "Session Close-Out" to reinforce the intent.
+- **`/handoff`** is now the "passoff package" skill — for future-you in a new session (typically when context is high and you need to restart) or for a coworker (via `brief` mode). The paste-ready next-session opener is the **headline artifact**, always emitted in default + auto modes regardless of whether other surfaces changed.
+
+Same surfaces touched (PROGRESS / CLAUDE / memory / git commit / `/extract`); different framing and different headline output. Description trigger phrases extended with passoff-explicit phrases ("context is full, restart this", "pass off to next session") and done-explicit phrases ("I'm done", "close out", "saying goodbye") to improve auto-invocation accuracy.
+
+The canonical `/handoff` body intro was also tightened: removed the "Same end-of-session coverage as /wrapup" framing that read as superset; replaced with passoff-led framing that names the next-session opener as the headline artifact.
+
+### Added — `/wrapup auto` mode
+
+Mirrors `/handoff auto`: implicit-yes on all per-step gates (session summary, PROGRESS, CLAUDE.md, memory, commit, `/extract`), runs silently, emits final report only. Invoke as `/wrapup auto`. Use when the session is short and unambiguous, or when a combined-go signal (`yes to all`, `yes to all with extract`) has already been given.
+
+`argument-hint` extended from `""` to `"[auto]"`. The Step 0 mode parse follows the same `gated`/`auto` pattern `/handoff` already uses, so the two skills' auto modes feel identical at the user level. Local commit only — auto mode never pushes (existing rule preserved + reinforced in the wiring).
+
+### Added — `/handoff brief` mode in cursor port
+
+The cursor port's `.cursor/rules/aria-commands.mdc` was pre-existing-drifted on `/handoff brief` — it documented Two modes when canonical had shipped Three modes since v2.17.0. v2.19.0 catches the cursor port up: brief bullet added to the modes list, Step 0 parse extended to recognize `brief`, new Step 2B section added at proportionate compression matching the rest of the cursor port. AGENTS.md naming preserved throughout.
+
+### Compatibility
+
+- **No breaking changes.** Existing `/wrapup` invocations (no arg) continue to behave exactly as before — gated, per-step prompts. `auto` is opt-in via the explicit argument.
+- **No new dependencies.**
+- **`/handoff brief` schema unchanged** Code-side (shipped v2.17.0; cursor port is only catching up to existing canonical behavior).
+- **No skill template changes.** Knowledge folder schema unaffected.
+
+### Coordinated release pairing
+
+- **aria-cowork v1.1.0** ships the same intent split + `/wrapup auto` mode Cowork-side. Per ADR-013, aria-knowledge remains the schema source-of-truth; cowork-side descriptions diverge (much shorter — 415/527 chars vs unconstrained Code-side) to satisfy Cowork's aggregate-bytes cap, but the behavior split and mode shape are byte-aligned.
+
+### Surface area touched
+
+- `plugin/skills/wrapup/SKILL.md` + `plugin-codex/skills/wrapup/SKILL.md` (byte-identical) — frontmatter description rewritten, `argument-hint` set, Step 0 + 6 gates + Rules section updated for mode-conditional behavior.
+- `plugin/skills/handoff/SKILL.md` + `plugin-codex/skills/handoff/SKILL.md` (byte-identical) — frontmatter description rewritten + body intro tightened (passoff-led framing).
+- `cursor-template/.cursor/rules/aria-commands.mdc` — `/wrapup` and `/handoff` sections updated for parity (AGENTS.md naming preserved); brief mode added.
+- `plugin/.claude-plugin/plugin.json` + `plugin-codex/.codex-plugin/plugin.json` + `.claude-plugin/marketplace.json` — version bumps.
+
 ## [2.18.1] - 2026-05-19
 
 **Patch release — `.mcp.json` directory-entry-name fix + companion prose alignment.** No skill changes; no schema changes. Surface area touched: `.mcp.json` (both `plugin/` and `plugin-codex/` ports) + prose mentions across CHANGELOG, 4 SKILL.md files in each port. Coordinated with aria-cowork v1.0.0 release (2026-05-19) which fixed the same underlying bug Cowork-side, where it manifested as install failure.

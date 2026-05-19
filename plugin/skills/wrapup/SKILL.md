@@ -1,16 +1,26 @@
 ---
-description: "End-of-session handoff. Reviews session work, updates PROGRESS.md and CLAUDE.md if needed, prompts for commit, verifies next session can pick up cleanly, and prompts for /extract. Use when ending a session, wrapping up work, saying goodbye, or when user says '/wrapup', 'wrap up', 'end session', 'hand off', 'wrap it up'."
-argument-hint: ""
+description: "Close out a session cleanly when the work is done — no passoff intended. Reviews session work, updates PROGRESS.md / CLAUDE.md / memory, commits changes, captures session knowledge via /extract, and confirms everything is wrapped up, captured, and documented. Use when the task is complete and nothing needs to carry into a next session. For passoff to future-you (e.g. context is high, need to restart) or a coworker, use /handoff instead. Triggers: '/wrapup', '/wrapup auto', 'wrap up', 'wrap it up', \"I'm done\", 'close out', 'finish session', 'end session', 'saying goodbye'. Auto mode applies implicit-yes on all gates and runs silently."
+argument-hint: "[auto]"
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
-# /wrapup — Session Handoff
+# /wrapup — Session Close-Out
 
-Review the current session's work, update project tracking files, prompt for commit and knowledge extraction, and verify a new session can pick up where this one left off.
+Close out the current session cleanly: review what got done, update project tracking files, commit changes, capture session knowledge, and confirm everything is documented. This is the "I'm done" skill — no next-session opener is produced. For passoff (future-you or a coworker), use `/handoff` instead.
 
-## Step 0: Resolve Config
+**Two modes:**
+
+- **Default (`/wrapup`)** — Per-step gated review. Each tracked surface (session summary, PROGRESS, CLAUDE.md, memory, commit, /extract prompt) prompts for explicit confirmation before writing.
+- **`auto` (`/wrapup auto`)** — Implicit-yes on all gates. Run silently. Apply all drafts and chain `/extract` without confirmation. Emit final report only. Use when the session is short and unambiguous, or when you've already authorized a combined-go (`yes to all`, `yes to all with extract`).
+
+## Step 0: Resolve Config and Parse Mode
 
 Read `~/.claude/aria-knowledge.local.md` and extract `knowledge_folder`. If the file doesn't exist, stop: "aria-knowledge is not configured. Run /setup to get started."
+
+Parse the argument:
+- No arg, or arg is empty → `mode = gated` (default)
+- Arg matches `auto` (case-insensitive) → `mode = auto`
+- Any other arg → stop: "Unknown argument '{arg}'. Use '/wrapup' or '/wrapup auto'."
 
 Use `{knowledge_folder}` as the base path for all file operations in subsequent steps.
 
@@ -58,7 +68,9 @@ Present this summary to the user:
 - [what follows from here]
 ```
 
-Ask: "Does this summary look right? (yes / edit)"
+**If `mode = auto`:** skip the prompt and proceed with the drafted summary as-is.
+
+**Otherwise (gated mode):** Ask: "Does this summary look right? (yes / edit)"
 
 If the user wants to edit, incorporate their corrections before proceeding.
 
@@ -71,7 +83,9 @@ If a PROGRESS.md exists for this project:
 3. If no entry exists, draft a new session entry using the project's existing format (match the heading style, content structure, and level of detail of previous entries)
 4. Show the draft to the user
 
-Ask: "Add this session entry to PROGRESS.md? (yes / edit / skip)"
+**If `mode = auto`:** append the drafted entry without prompting (equivalent to **yes**).
+
+**Otherwise (gated mode):** Ask: "Add this session entry to PROGRESS.md? (yes / edit / skip)"
 
 - **yes** — append the entry
 - **edit** — let the user modify, then append
@@ -91,7 +105,9 @@ If a CLAUDE.md exists for this project:
    - Tool/integration changes
 3. If updates are needed, show the proposed changes
 
-Ask: "Update CLAUDE.md with these changes? (yes / edit / skip)"
+**If `mode = auto`:** apply the drafted CLAUDE.md updates without prompting (equivalent to **yes**). If no updates are needed, note that in the final report and move on.
+
+**Otherwise (gated mode):** Ask: "Update CLAUDE.md with these changes? (yes / edit / skip)"
 
 If no updates are needed, say so and move on. Don't force updates for the sake of updating.
 
@@ -103,7 +119,9 @@ Check if project memory files (in `~/.claude/projects/` for the current project 
 2. Compare against the session summary — is the memory's "Current State" still accurate?
 3. If the memory is stale, draft an update
 
-Ask: "Update project memory? (yes / edit / skip)"
+**If `mode = auto`:** apply the drafted memory update without prompting (equivalent to **yes**). If no memory file exists or no update is needed, note that in the final report and move on.
+
+**Otherwise (gated mode):** Ask: "Update project memory? (yes / edit / skip)"
 
 If no memory file exists or no update is needed, skip and note it.
 
@@ -121,7 +139,9 @@ For each git repository detected in Step 1:
    [list the file names]
    ```
 
-Ask: "Want to commit these changes? (yes / no / select files)"
+**If `mode = auto`:** stage all changes (per-file, not `git add -A` — exclude anything that looks like a secret or unrelated work-in-progress), draft a conventional commit message from the session work, and commit without prompting. Skip the message-confirmation step. Still **local commit only — never push.**
+
+**Otherwise (gated mode):** Ask: "Want to commit these changes? (yes / no / select files)"
 
 - **yes** — stage all changes, draft a conventional commit message based on the session work, show it for confirmation, then commit
 - **no** — skip committing
@@ -129,7 +149,7 @@ Ask: "Want to commit these changes? (yes / no / select files)"
 
 If no uncommitted changes exist, say "No uncommitted changes" and move on.
 
-**Important:** Do not push to remote. Only commit locally. If the user wants to push, they can do so separately.
+**Important:** Do not push to remote. Only commit locally. If the user wants to push, they can do so separately. This applies to both modes.
 
 ## Step 7: Verify Handoff Readiness
 
@@ -151,7 +171,9 @@ If any item shows a gap (uncommitted changes skipped, PROGRESS.md not updated), 
 
 ## Step 8: Prompt Extract
 
-Ask: "Run /extract to capture session knowledge before ending? (yes / no)"
+**If `mode = auto`:** invoke the `/extract` skill without prompting. It handles its own config resolution and execution. (Captures session knowledge so the close-out is fully documented.)
+
+**Otherwise (gated mode):** Ask: "Run /extract to capture session knowledge before ending? (yes / no)"
 
 - **yes** — invoke the /extract skill (it handles its own config resolution and execution)
 - **no** — skip
@@ -170,7 +192,7 @@ Output a brief closing summary:
 
 ## Rules
 
-- **Always confirm before writing** — every file modification (PROGRESS.md, CLAUDE.md, memory, git commit) requires explicit user approval. Show the proposed change first.
+- **Confirm before writing in gated mode** — every file modification (PROGRESS.md, CLAUDE.md, memory, git commit) requires explicit user approval; show the proposed change first. In `auto` mode, the explicit user approval comes from the `/wrapup auto` invocation itself (or a combined-go signal like `yes to all`) and per-step prompts are skipped.
 - **Match existing format** — when adding entries to PROGRESS.md, match the heading style, date format, and content structure of existing entries. Don't impose a new format.
 - **Don't invent work** — the session summary should reflect what actually happened in the conversation, not what might have happened. If the conversation is short or unclear, say so.
 - **Git safety** — never force push, never amend, never push to remote. Local commits only. Stage specific files, not `git add -A` (avoid capturing sensitive files).
