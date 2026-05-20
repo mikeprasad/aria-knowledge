@@ -98,6 +98,8 @@ For each entry, note it for presentation in Step 6. Feedback items are promoted 
 
 Glob `{knowledge_folder}/intake/ideas/*.md`. **If the directory is missing**, report it in Step 6 and suggest running `/setup` to repair the structure. Do not create it.
 
+**Counting note:** When reporting an idea count (Step 6's `Pending Ideas (N)` header and Step 8's `Plus N ideas` audit-log subfield), filter out `README.md` and `.gitkeep` from the glob result — they're directory-purpose files, not ideas, and inflate counts by 1-2 if included. The reads-and-categorize step below is unaffected since non-idea files lack the required `date:`/`project:`/`type:`/`title:` frontmatter and are skipped during per-file review. Concrete primitive: `ls intake/ideas/*.md 2>/dev/null | grep -v 'README\|\.gitkeep' | wc -l`.
+
 **Legacy-file detection (one-time):** Also check for `{knowledge_folder}/intake/ideas-backlog.md`. If it exists alongside `intake/ideas/`, surface a finding in Step 6 under a "Legacy Ideas Backlog" note: *"Pre-2.11 `ideas-backlog.md` detected. Run `bash ${CLAUDE_PLUGIN_ROOT}/bin/migrate-ideas-backlog.sh {knowledge_folder}` or re-run `/setup` to migrate entries into per-file format."* Do not attempt the migration from within the audit flow.
 
 For each `*.md` file in `intake/ideas/`: read the file (frontmatter + body). Each file is one idea — feature proposal, bug report, or design idea captured via `/extract`. Ideas have a **distinct disposition** from other backlogs — they do NOT promote to knowledge files directly. Present them in their own section in Step 6 with the options:

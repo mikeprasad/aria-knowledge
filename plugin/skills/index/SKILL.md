@@ -264,6 +264,46 @@ If the file's age exceeds `{staleness_threshold_months}` months (default: 6):
 
 This data is used when generating the `## Stale Files` section in Step 9. No user interaction here — just collection.
 
+## Step 7b: Heavy-Pass Gate (REQUIRED before Steps 8.x)
+
+Steps 8 (Cross-Reference Pass), 8b (Entity Detection), 8c (Skill Connection Discovery), and 8d (Cross-Project Promotion Candidates) require **body content scans** of every promoted knowledge file — substantially more expensive than the frontmatter-only scan that powers Steps 1-7. For a 500+ file knowledge base, expect ~3 minutes wall-clock and meaningful token cost.
+
+These steps were silently skipped in the first 35+ `/index` passes (added to the spec but never invoked at routine pass cost). v2.20.0+ makes the cost explicit and gates the heavy work behind user confirmation.
+
+**Prompt:**
+
+> Routine `/index` indexes via frontmatter (tags, dates, descriptions). Heavy-pass Steps 8.x run additional body-content scans for:
+> - **Step 8** — Cross-reference suggestions (pairs of files sharing ≥2 tags with no mutual `## Related` link, plus reverse-link gaps)
+> - **Step 8b** — Entity detection (tools/services/frameworks appearing in ≥2 files)
+> - **Step 8c** — Skill-knowledge connection discovery (skill names referenced in knowledge files; name-overlap matching)
+> - **Step 8d** — Cross-project promotion candidates (similar patterns across ≥2 projects in `projects_list`)
+>
+> Cost: ~3 min wall-clock for N files (N = scanned count from Step 1) + meaningful token spend. Output: enriched `index.md` sections.
+>
+> Run heavy-pass Steps 8.x? **(y / n / partial)**
+
+- **`y`** — proceed with Steps 8, 8b, 8c, 8d as defined below
+- **`n`** — skip Steps 8.x entirely; proceed to Step 9 with frontmatter-only data; resulting `index.md` will omit the `## Cross-Reference Suggestions`, `## Entities`, `## Skill Connections`, `## Cross-Project Promotion Candidates` sections
+- **`partial: <substep-list>`** — run a subset (e.g., `partial: 8d` runs only cross-project; `partial: 8,8d` runs cross-reference + cross-project, skips entity detection + skill connections). Useful when one substep is the user's actual interest and the other three are noise for this pass.
+
+### When `/index` is called from `/audit-knowledge` Step 7b
+
+If `/index` is being invoked as part of `/audit-knowledge`'s Step 7b rebuild (not stand-alone), the heavy-pass gate **still fires** — the audit user is the same human; ask them once. If the user declines or chose `partial`, the audit's Step 5b drift-detection capabilities are degraded (skill-knowledge drift relies on Step 8c output, cross-project candidate detection relies on Step 8d). Surface this degradation explicitly in `/audit-knowledge` Step 6's "Integrity Issues" section with a "Limited by Steps 8.x skip" note.
+
+### When the user pre-authorizes via argument
+
+`/index` accepts an optional argument:
+- `/index` — default; prompt at Step 7b
+- `/index --deep` — pre-authorize all of Steps 8.x (treat the gate as auto-`y`)
+- `/index --shallow` — pre-authorize skip of all Steps 8.x (treat the gate as auto-`n`)
+- `/index --partial=8d` — pre-authorize partial run (same syntax as the prompt's `partial:` response)
+
+When pre-authorized, skip the prompt and proceed accordingly. Audit-time invocations should typically run shallow or partial (audit is the long-flow already); explicit `/index --deep` is the right shape for periodic baseline refreshes (every 1-2 weeks, or when a major batch of new files lands).
+
+### Skill-spec history (informational)
+
+Steps 8.x were defined in the spec from v1.0 but never invoked because routine `/index` calls treated them as frontmatter-tier work. 35+ passes silently skipped. v2.20.0 (2026-05-20) introduces this gate after the 37th-pass `/audit-knowledge` first invoked Steps 8.x via parallel agent (one-time baseline) and the resulting agent output ran ~3 min producing 599 lines of findings — Mike confirmed the cost-value gate-explicit pattern over routine-silent-skip.
+
 ## Step 8: Cross-Reference Pass
 
 For each pair of promoted files, compute tag overlap:
