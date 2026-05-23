@@ -1,11 +1,23 @@
 ---
 name: stats
-description: Show knowledge base health metrics — file counts, backlog depth, audit status, tag stats, and coverage gaps. Use when user says "/stats", "/aria-cowork:stats", "knowledge stats", "how is my knowledge base", "show stats", "knowledge health", "dashboard".
+description: 'Show knowledge base health metrics — file counts, backlog depth, audit status, tag stats, and coverage gaps. Use when user says "/aria-cowork:stats", "knowledge stats", "how is my knowledge base", "show stats", "knowledge health", "dashboard".'
 ---
 
 # /stats — Knowledge Base Health
 
 Read-only dashboard showing the current state of the knowledge repository.
+
+## Runtime Gate (per ADR-094)
+
+**Before Step 0:** Check whether `Bash` is available. If `Bash` IS available (you are in Claude Code), surface:
+
+> ⚠️ **Runtime mismatch — you invoked aria-cowork's `/stats` from a runtime with shell access.**
+>
+> Behavior is largely the same in both runtimes; for the Code-native variant (includes codemap-date metrics), use `/stats` (the aria-knowledge canonical).
+>
+> Proceed with the aria-cowork variant anyway? (`y` / `n`)
+
+Wait for `y` / `yes`. **Gate applies even in `auto`** (ADR-094 §Part 3). If `Bash` is NOT available, proceed to Step 0.
 
 ## Step 0: Resolve config
 

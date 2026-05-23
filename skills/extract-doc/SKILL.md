@@ -1,12 +1,24 @@
 ---
 name: extract-doc
-description: Pull insights from a single doc or page (Notion, Google Doc, Confluence, etc.) into the standard intake backlog. Use when user says "/extract-doc", "/aria-cowork:extract-doc", "extract insights from this doc", "pull learnings from this page", "mine this Notion page for knowledge", "extract from this Confluence". Differs from /intake doc (which.
+description: 'Pull insights from a single doc or page (Notion, Google Doc, Confluence, etc.) into the standard intake backlog. Use when user says "/aria-cowork:extract-doc", "extract insights from this doc", "pull learnings from this page", "mine this Notion page for knowledge", "extract from this Confluence". Differs from /intake doc (which.'
 argument-hint: <doc-url-or-id> [tags]
 ---
 
 # /extract-doc — Extract Insights from a Doc to Intake Backlog
 
 Pull knowledge-worthy items from a single connected `~~docs` source (Notion page, Google Doc, Confluence page, Box doc, Egnyte file) into `intake/insights-backlog.md`. Unlike `/intake doc` (which captures the doc itself as one structured artifact for later reaction), `/extract-doc` **decomposes** the doc into N intake entries — one per insight, decision, or question worth surfacing at audit.
+
+## Runtime Gate (per ADR-094)
+
+**Before Step 0:** Check whether `Bash` is available. If `Bash` IS available (you are in Claude Code), surface:
+
+> ⚠️ **Runtime mismatch — you invoked aria-cowork's `/extract-doc` from a runtime with shell access.**
+>
+> This skill is Cowork-native because it depends on ~~docs MCPs (Notion, Google Docs, Confluence) typically only connected in Cowork. If you're in Code and DO have these MCPs configured there, fine to proceed; otherwise the canonical aria-knowledge variant at `/extract-doc` will at least surface the same gate.
+>
+> Proceed with the aria-cowork variant anyway? (`y` / `n`)
+
+Wait for `y` / `yes`. **Gate applies even in `auto`** (ADR-094 §Part 3). If `Bash` is NOT available, proceed to Step 0.
 
 ## Step 0: Resolve config
 

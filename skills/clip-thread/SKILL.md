@@ -1,12 +1,24 @@
 ---
 name: clip-thread
-description: Capture a chat or email thread from a connected MCP to the knowledge intake. Use when user says "/clip-thread", "/aria-cowork:clip-thread", "clip this thread", "save this Slack thread", "capture this email chain", "archive this conversation". Pulls thread content from ~~chat (Slack, Teams) or ~~email (Gmail, MS365) MCP, composes a clipping with.
+description: 'Capture a chat or email thread from a connected MCP to the knowledge intake. Use when user says "/aria-cowork:clip-thread", "clip this thread", "save this Slack thread", "capture this email chain", "archive this conversation". Pulls thread content from ~~chat (Slack, Teams) or ~~email (Gmail, MS365) MCP, composes a clipping with.'
 argument-hint: <thread-url-or-id> [tags]
 ---
 
 # /clip-thread — Capture Chat/Email Thread to Intake
 
 Save a chat thread or email conversation to `intake/clippings/{YYYY-MM-DD}-{slug}.md` for review and promotion. Unlike `/clip` (URL/snippet) or `/intake` (bulk/doc-anchored), `/clip-thread` is shaped specifically for *threaded* conversations — Slack threads, Teams channel discussions, Gmail conversation chains, MS365 email threads.
+
+## Runtime Gate (per ADR-094)
+
+**Before Step 0:** Check whether `Bash` is available. If `Bash` IS available (you are in Claude Code), surface:
+
+> ⚠️ **Runtime mismatch — you invoked aria-cowork's `/clip-thread` from a runtime with shell access.**
+>
+> This skill is Cowork-native because it depends on ~~chat / ~~email MCPs that are typically only connected in Cowork. If you're in Code and DO have these MCPs configured there, fine to proceed; otherwise the canonical aria-knowledge variant at `/clip-thread` will at least surface the same gate.
+>
+> Proceed with the aria-cowork variant anyway? (`y` / `n`)
+
+Wait for `y` / `yes`. **Gate applies even in `auto`** (ADR-094 §Part 3). If `Bash` is NOT available, proceed to Step 0.
 
 ## Step 0: Resolve config
 

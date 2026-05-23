@@ -1,6 +1,6 @@
 ---
 name: retrospect
-description: Run a structured retrospective on a shipped commit range, release, deployment, PR, commit, or session. Per-fix validation enforcement, active evidence-sourcing pass (autonomous lookups + targeted user-asks for anything that could become objective), simpler-alternative discipline, re-diagnosis, action verdicts, and a growing failure-mode pattern.
+description: 'Run a structured retrospective on a shipped commit range, release, deployment, PR, commit, or session. Per-fix validation enforcement, active evidence-sourcing pass (autonomous lookups + targeted user-asks for anything that could become objective), simpler-alternative discipline, re-diagnosis, action verdicts, and a growing failure-mode pattern.'
 argument-hint: '[<scope>] [<scope-arg>] [--linear-post] [--no-source]'
 ---
 
@@ -17,6 +17,18 @@ Run a structured retrospective on a shipped commit range (or single commit, rele
 Per-fix validation enforcement (#19g), Evidence-Sourcing Pass at Step 3.5 (#19h), failure-mode pattern library reads/writes to shared `rules/retrospect-patterns.md` + project-tier `projects/aria/retrospect-patterns.md` (#19k) port byte-faithfully. **Cross-plugin output coordination per #19n:** cowork's /retrospect writes to the same `logs/retrospect/` directory as aria-knowledge's. Filename collisions handled via timestamp slug. Both plugins reading the same dir produces unified retrospective history.
 
 Source spec: aria-knowledge's `docs/specs/2026-05-03-retrospect-skill-design.md` (cross-plugin shared spec).
+
+## Runtime Gate (per ADR-094)
+
+**Before "When to use":** Check whether `Bash` is available. If `Bash` IS available (you are in Claude Code), surface:
+
+> ⚠️ **Runtime mismatch — you invoked aria-cowork's `/retrospect` from a runtime with shell access.**
+>
+> This variant uses user-paste fallback for git output (Cowork has no shell access). For the Code-native variant (runs `git log` / `git diff` / `gh pr view` directly via Bash), use `/retrospect` (the aria-knowledge canonical).
+>
+> Proceed with the aria-cowork variant anyway? (`y` / `n`)
+
+Wait for `y` / `yes`. **Gate applies even in `auto`** (ADR-094 §Part 3). If `Bash` is NOT available, proceed to "When to use".
 
 ## When to use
 

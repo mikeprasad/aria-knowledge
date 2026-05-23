@@ -1,12 +1,24 @@
 ---
 name: digest
-description: Cross-tool rollup of what's pending, what shipped, and what's blocked across chat / email / project tracker / docs. Use when user says "/digest", "/aria-cowork:digest", "weekly digest", "cross-tool rollup", "what's pending across my tools", "summarize this week", "standup digest". Probes all 4 ~~categories and degrades gracefully — produces a.
+description: 'Cross-tool rollup of what is pending, what shipped, and what is blocked across chat / email / project tracker / docs. Use when user says "/aria-cowork:digest", "weekly digest", "cross-tool rollup", "what is pending across my tools", "summarize this week", "standup digest". Probes all 4 ~~categories and degrades gracefully — produces a.'
 argument-hint: '[--week | --since YYYY-MM-DD | --until YYYY-MM-DD]'
 ---
 
 # /digest — Cross-Tool Weekly Rollup
 
 Synthesize a digest of activity across connected MCPs into `intake/digests/{YYYY-MM-DD}.md`. Pulls from `~~chat` + `~~email` + `~~project tracker` + `~~docs` to produce a "what's pending / what shipped / what's blocked" rollup. Composite of all 4 categories — the most cross-tool of the v1.0.0 skills.
+
+## Runtime Gate (per ADR-094)
+
+**Before Step 0:** Check whether `Bash` is available. If `Bash` IS available (you are in Claude Code), surface:
+
+> ⚠️ **Runtime mismatch — you invoked aria-cowork's `/digest` from a runtime with shell access.**
+>
+> This skill is Cowork-native because the 4-category MCP set (chat / email / project tracker / docs) is typically only connected in Cowork. If you're in Code and DO have these MCPs configured there, fine to proceed; otherwise the canonical aria-knowledge variant at `/digest` will at least surface the same gate.
+>
+> Proceed with the aria-cowork variant anyway? (`y` / `n`)
+
+Wait for `y` / `yes`. **Gate applies even in `auto`** (ADR-094 §Part 3). If `Bash` is NOT available, proceed to Step 0.
 
 ## Step 0: Resolve config
 

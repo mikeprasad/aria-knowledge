@@ -1,6 +1,6 @@
 ---
 name: prospect
-description: Run a structured pre-mortem on a plan or approach BEFORE execution. Per-step risk enforcement, active evidence-sourcing pass (autonomous lookups + targeted user-asks for anything that could become objective), simpler-alternative discipline, plan-formation diagnosis, action verdicts (PROCEED/SHRINK/SPLIT/DEFER/KILL), and a growing failure-mode.
+description: 'Run a structured pre-mortem on a plan or approach BEFORE execution. Per-step risk enforcement, active evidence-sourcing pass (autonomous lookups + targeted user-asks for anything that could become objective), simpler-alternative discipline, plan-formation diagnosis, action verdicts (PROCEED/SHRINK/SPLIT/DEFER/KILL), and a growing failure-mode.'
 argument-hint: '[<scope>] [<scope-arg>] [--linear-post] [--no-source]'
 ---
 
@@ -16,6 +16,18 @@ Run a structured pre-mortem on a plan or approach that has been *created but not
 Step 0.5 Active Knowledge Surfacing skill-side logic ports byte-faithfully per #18c (10-substep query-build → tokenize → match → load → summarize). Evidence-Sourcing Pass (Step 3.5) ports byte-faithfully per #18e. Failure-mode pattern library reads/writes shared `rules/prospect-patterns.md` per #18i (cross-plugin compatible).
 
 The discipline this enforces: before the first edit lands, every planned step gets named, its evidence base examined, its smallest viable version identified, and its action gated on the strength of the underlying hypothesis. Mirrors `/retrospect`'s shape so the same review muscle works in both directions.
+
+## Runtime Gate (per ADR-094)
+
+**Before "When to use":** Check whether `Bash` is available. If `Bash` IS available (you are in Claude Code), surface:
+
+> ⚠️ **Runtime mismatch — you invoked aria-cowork's `/prospect` from a runtime with shell access.**
+>
+> Behavior is largely the same in both runtimes; for the Code-native variant (includes Step 11 CODEMAP/STITCH surfacing, uses `/tmp/` ledger for dedup), use `/prospect` (the aria-knowledge canonical).
+>
+> Proceed with the aria-cowork variant anyway? (`y` / `n`)
+
+Wait for `y` / `yes`. **Gate applies even in `auto`** (ADR-094 §Part 3). If `Bash` is NOT available, proceed to "When to use".
 
 ## When to use
 

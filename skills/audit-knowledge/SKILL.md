@@ -1,6 +1,6 @@
 ---
 name: audit-knowledge
-description: Scan the attached knowledge folder for extractable items, run idea-routing dispositions, archive cleared content per the cohort conventions, and rebuild the index. Use when user says "/audit-knowledge", "/aria-cowork:audit-knowledge", "/knowledge-audit", "audit knowledge", "knowledge audit", "check for extractable knowledge", "scan intake", or at.
+description: 'Scan the attached knowledge folder for extractable items, run idea-routing dispositions, archive cleared content per the cohort conventions, and rebuild the index. Use when user says "/aria-cowork:audit-knowledge", "/aria-cowork:knowledge-audit", "audit knowledge", "knowledge audit", "check for extractable knowledge", "scan intake", or at.'
 argument-hint: '[detailed]'
 ---
 
@@ -17,6 +17,18 @@ Scan the attached knowledge folder for extractable items, route ideas via the Ac
 Plugin attribution in archive frontmatter uses `plugin_version: aria-cowork@{INSTALLED_VERSION}` per item #4b. Schema-identical archive outputs mean a knowledge folder receiving audit-cohort writes from both plugins on the same day merges cleanly per item #4h same-day collision handling.
 
 Scan the attached knowledge folder's `intake/` subfolder for extractable items, compare against what's already in the knowledge folder and project-level docs, and surface anything worth extracting or routing.
+
+## Runtime Gate (per ADR-094)
+
+**Before Step 0:** Check whether `Bash` is available. If `Bash` IS available (you are in Claude Code), surface:
+
+> ⚠️ **Runtime mismatch — you invoked aria-cowork's `/audit-knowledge` from a runtime with shell access.**
+>
+> This variant audits ONLY the attached folder's `intake/` and skips `~/.claude/projects/.../memory/` + `~/.claude/plans/` — but you appear to be in Claude Code, where those memory + plans paths ARE reachable and the aria-knowledge canonical includes them in the audit scope. For the Code-native variant, use `/audit-knowledge` (the aria-knowledge canonical).
+>
+> Proceed with the aria-cowork variant anyway? (`y` / `n`)
+
+Wait for `y` / `yes`. **Gate applies even in `auto`** (ADR-094 §Part 3). If `Bash` is NOT available, proceed to Step 0.
 
 ## Step 0: Resolve Config
 

@@ -1,11 +1,23 @@
 ---
 name: index
-description: Rebuild the knowledge tag index. Scans promoted files, normalizes tags, flags untagged files, suggests freeform-to-known promotions, detects stale files, and regenerates index.md. Use when user says "/index", "/aria-cowork:index", "rebuild index", "update index", "reindex knowledge".
+description: 'Rebuild the knowledge tag index. Scans promoted files, normalizes tags, flags untagged files, suggests freeform-to-known promotions, detects stale files, and regenerates index.md. Use when user says "/aria-cowork:index", "rebuild index", "update index", "reindex knowledge".'
 ---
 
 # /index — Knowledge Index Builder
 
 Scan all promoted knowledge files, normalize tags, detect issues, and regenerate `<knowledge_folder>/index.md`.
+
+## Runtime Gate (per ADR-094)
+
+**Before Step 0:** Check whether `Bash` is available. If `Bash` IS available (you are in Claude Code), surface:
+
+> ⚠️ **Runtime mismatch — you invoked aria-cowork's `/index` from a runtime with shell access.**
+>
+> Behavior is largely the same in both runtimes; for the Code-native variant (uses Bash for stat-based staleness detection and supports `projects_shared_knowledge`), use `/index` (the aria-knowledge canonical).
+>
+> Proceed with the aria-cowork variant anyway? (`y` / `n`)
+
+Wait for `y` / `yes`. **Gate applies even in `auto`** (ADR-094 §Part 3). If `Bash` is NOT available, proceed to Step 0.
 
 ## Step 0: Resolve config
 

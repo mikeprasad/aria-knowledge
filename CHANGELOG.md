@@ -4,6 +4,34 @@ All notable changes to aria-cowork are documented here. Format follows [Keep a C
 
 Cross-plugin parity callouts (per ADR-006) note when changes coordinate with aria-knowledge releases.
 
+## [1.1.1] — 2026-05-23
+
+**Patch release — bare-slash namespace ownership + dual runtime gate (ADR-094).** Coordinated with aria-knowledge v2.19.1. No new skills, no schema changes. 24 colliding skill names between aria-knowledge and aria-cowork now have deterministic routing when both plugins are loaded in the same session (most common in Claude Desktop).
+
+### Changed — bare-slash routing now relies on aria-knowledge's canonical-owner claim
+
+When both plugins are loaded, bare slash commands (`/handoff`, `/wrapup`, `/extract`, etc.) deterministically resolve to **aria-knowledge** as canonical owner per [ADR-094](https://github.com/mikeprasad/knowledge/blob/main/projects/aria/decisions/094-bare-slash-canonical-owner-and-dual-runtime-gate.md). The routing is driven by aria-knowledge's "Bare-slash canonical (Claude Code)" claim in its skill descriptions (the strong signal for the model's resolver). aria-cowork's 24 colliding skills:
+
+- Have bare-slash trigger forms (e.g., `"/handoff"`) removed from their trigger lists — only namespaced (`"/aria-cowork:handoff"`) and natural-language triggers remain.
+- Carry a new `## Runtime Gate (per ADR-094)` section in the **body** that fires when Bash IS available (i.e., when invoked from Claude Code) — surfaces a notification suggesting the Code-canonical invocation. Gate is informational, not blocking; user can proceed.
+- **Gate applies even in `auto` modes** — auto's "implicit-yes" rule is suspended for the runtime-mismatch gate per ADR-094 §Part 3.
+
+Description-level prepends were NOT added to cowork skills (aggregate-bytes cap on cowork is 9,000 chars and would have been exceeded). The architectural simplification is intentional: aria-knowledge owns bare-slash routing via its strong canonical claim; cowork doesn't need to actively disclaim, only document the gate in its body.
+
+### User-visible change
+
+If you use aria-cowork without aria-knowledge installed (Cowork-only setup), bare `/handoff`, `/wrapup`, etc. will no longer auto-invoke. Use the namespaced form (`/aria-cowork:handoff`, `/aria-cowork:wrapup`, etc.) instead. Natural-language triggers (e.g., "hand it off", "wrap up") still work.
+
+### Compatibility
+
+- **No breaking changes for namespaced invocations.** `/aria-cowork:*` calls work everywhere unchanged.
+- **No new dependencies.** No MCP changes.
+- **Bidirectional skills (clip-thread, extract-doc, meeting-notes, digest, sync-decisions) — same edits apply.** Cowork remains the runtime-natural variant for these (the canonical-owner clause documents this).
+
+### Aggregate-bytes status
+
+Description prepends increase aggregate frontmatter bytes. Pre-flight check via release.sh validates we remain under the 9,000-char internal hard-fail.
+
 ## [1.1.0] — 2026-05-19
 
 **Minor release — `/wrapup` vs `/handoff` intent split clarified; `/wrapup auto` mode added.** No new skills, no schema changes, no MCP changes. Two existing skills (`/wrapup`, `/handoff`) get a behavioral and documentation refactor that makes their distinct purposes unambiguous, plus `/wrapup` gains an `auto` mode mirroring `/handoff auto`.

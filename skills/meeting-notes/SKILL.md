@@ -1,12 +1,24 @@
 ---
 name: meeting-notes
-description: Fold a meeting transcript or notes into structured intake. Use when user says "/meeting-notes", "/aria-cowork:meeting-notes", "capture meeting notes", "fold this meeting transcript", "process this Granola export", "archive this standup". Accepts a ~~docs URL (Notion meeting page, Confluence) OR pasted transcript text — unique among MCP-consuming.
+description: 'Fold a meeting transcript or notes into structured intake. Use when user says "/aria-cowork:meeting-notes", "capture meeting notes", "fold this meeting transcript", "process this Granola export", "archive this standup". Accepts a ~~docs URL (Notion meeting page, Confluence) OR pasted transcript text — unique among MCP-consuming.'
 argument-hint: <doc-url-or-paste-marker> [meeting-title]
 ---
 
 # /meeting-notes — Capture Meeting Transcript to Intake
 
 Save a meeting transcript or notes to `intake/meetings/{YYYY-MM-DD}-{slug}.md` with structured participants / topics / action items / decisions sections. Source can be a `~~docs` MCP (Notion meeting page, Confluence meeting doc) OR pasted transcript text (Granola export, raw transcript, hand-written notes).
+
+## Runtime Gate (per ADR-094)
+
+**Before Step 0:** Check whether `Bash` is available. If `Bash` IS available (you are in Claude Code), surface:
+
+> ⚠️ **Runtime mismatch — you invoked aria-cowork's `/meeting-notes` from a runtime with shell access.**
+>
+> This skill works in either runtime via paste-text fallback; ~~docs MCPs are typically only connected in Cowork. If you're using paste-text or have MCPs configured in Code, fine to proceed; otherwise the canonical aria-knowledge variant at `/meeting-notes` will at least surface the same gate.
+>
+> Proceed with the aria-cowork variant anyway? (`y` / `n`)
+
+Wait for `y` / `yes`. **Gate applies even in `auto`** (ADR-094 §Part 3). If `Bash` is NOT available, proceed to Step 0.
 
 ## Step 0: Resolve config
 

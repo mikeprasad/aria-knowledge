@@ -1,11 +1,23 @@
 ---
 name: help
-description: Show available aria-cowork commands. Use when user says "/help", "/aria-cowork:help", "aria help", "what commands are available", "list commands", "what can aria-cowork do".
+description: 'Show available aria-cowork commands. Use when user says "/aria-cowork:help", "aria help", "what commands are available", "list commands", "what can aria-cowork do".'
 ---
 
 # /help — aria-cowork Commands
 
 Print the command reference. No config or file access needed.
+
+## Runtime Gate (per ADR-094)
+
+**Before printing:** Check whether `Bash` is available. If `Bash` IS available (you are in Claude Code), surface:
+
+> ⚠️ **Runtime mismatch — you invoked aria-cowork's `/help` from a runtime with shell access.**
+>
+> This prints aria-cowork's command reference (Cowork-side commands). For aria-knowledge's reference, use `/help` (the aria-knowledge canonical).
+>
+> Proceed and show aria-cowork's commands anyway? (`y` / `n`)
+
+Wait for `y` / `yes`. **Gate applies even in `auto`** (ADR-094 §Part 3). If `Bash` is NOT available, proceed to Output.
 
 ## Output
 

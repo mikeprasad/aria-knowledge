@@ -1,6 +1,6 @@
 ---
 name: sync-decisions
-description: Mirror approved decisions from the knowledge folder out to a connected ~~docs MCP (Notion, Confluence, Google Docs). Use when user says "/sync-decisions", "/aria-cowork:sync-decisions", "mirror decisions to Notion", "push decisions to wiki", "sync ADRs to Confluence", "export decisions externally". WRITE-side skill — embeds Rule 22 advisory.
+description: 'Mirror approved decisions from the knowledge folder out to a connected ~~docs MCP (Notion, Confluence, Google Docs). Use when user says "/aria-cowork:sync-decisions", "mirror decisions to Notion", "push decisions to wiki", "sync ADRs to Confluence", "export decisions externally". WRITE-side skill — embeds Rule 22 advisory.'
 argument-hint: '[<decision-slug>|--all|--since YYYY-MM-DD] [--target <space-or-page>]'
 ---
 
@@ -19,6 +19,18 @@ Verify `<knowledge_folder>/decisions/` exists. If not, stop: *"No decisions/ fol
 Lazily create `<knowledge_folder>/logs/sync-decisions.md` if it doesn't exist (used by Step 7 for sync history).
 
 For all subsequent file operations in this skill, use the absolute path from `knowledge_folder` directly. Cowork resolves absolute paths via the persistent grant from `claude_desktop_config.json` per ADR-008. aria-knowledge in Code uses the same absolute path to reach the same files.
+
+## Runtime Gate (per ADR-094)
+
+**Before Step 1:** Check whether `Bash` is available. If `Bash` IS available (you are in Claude Code), surface:
+
+> ⚠️ **Runtime mismatch — you invoked aria-cowork's `/sync-decisions` from a runtime with shell access.**
+>
+> This skill is Cowork-native because it depends on ~~docs WRITE MCPs (Notion, Confluence, Google Docs) typically only connected in Cowork. If you're in Code and DO have these MCPs configured there, fine to proceed; otherwise the canonical aria-knowledge variant at `/sync-decisions` will at least surface the same gate.
+>
+> Proceed with the aria-cowork variant anyway? (`y` / `n`)
+
+Wait for `y` / `yes`. **Gate applies even in `auto`** (ADR-094 §Part 3). If `Bash` is NOT available, proceed to Step 1.
 
 ## Step 1: Probe Connected MCPs
 

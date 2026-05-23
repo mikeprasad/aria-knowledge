@@ -1,12 +1,24 @@
 ---
 name: ask
-description: Research a question, check existing knowledge first, draft a knowledge doc from the answer, and save directly to the appropriate category. Use when user says "/ask", "/aria-cowork:ask", "ask about", "research and save", "I want to learn about", "what is the pattern for". Skips backlogs — the user reviews the answer in real-time before saving.
+description: 'Research a question, check existing knowledge first, draft a knowledge doc from the answer, and save directly to the appropriate category. Use when user says "/aria-cowork:ask", "ask about", "research and save", "I want to learn about", "what is the pattern for". Skips backlogs — the user reviews the answer in real-time before saving.'
 argument-hint: <question>
 ---
 
 # /ask — Query-Driven Knowledge Creation
 
 Research a question, check if the answer already exists in the knowledge base, and if not, draft a knowledge doc that saves directly to promoted files after user review. Fast path from question to knowledge — no backlog intermediary.
+
+## Runtime Gate (per ADR-094)
+
+**Before Step 0:** Check whether the `Bash` tool is available in this session. If `Bash` IS available (you are running in Claude Code or another runtime with shell access), surface the following notification and wait for explicit user confirmation:
+
+> ⚠️ **Runtime mismatch — you invoked aria-cowork's `/ask` from a runtime with shell access.**
+>
+> Behavior is largely the same in both runtimes; for the Code-native variant (uses `~/.claude/aria-knowledge.local.md` config and the full Code tool surface), use `/ask` (the aria-knowledge canonical).
+>
+> Proceed with the aria-cowork variant anyway? (`y` / `n`)
+
+Wait for an explicit `y` / `yes`. **This gate applies even when invoked under `auto` semantics** (ADR-094 §Part 3). If `Bash` is NOT available (normal Cowork runtime), proceed to Step 0.
 
 ## Step 0: Resolve config
 

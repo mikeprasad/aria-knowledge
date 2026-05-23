@@ -1,6 +1,6 @@
 ---
 name: wrapup
-description: Close out cleanly when work is done — no passoff intended. Cowork variant — updates PROGRESS / CLAUDE / memory in the attached knowledge folder, emits a commit message for you to run, runs "/aria-cowork:extract". For passoff (future-you or coworker), use "/aria-cowork:handoff" instead. Triggers — "/wrapup", "/aria-cowork:wrapup", "/wrapup auto", "wrap up", "I am done", "close out", "end session". Auto mode skips per-step gates.
+description: 'Close out cleanly when work is done — no passoff intended. Cowork variant — updates PROGRESS / CLAUDE / memory in the attached knowledge folder, emits a commit message for you to run, runs "/aria-cowork:extract". For passoff (future-you or coworker), use "/aria-cowork:handoff" instead. Triggers — "/aria-cowork:wrapup", "/aria-cowork:wrapup auto", "wrap up", "I am done", "close out", "end session". Auto mode skips per-step gates.'
 argument-hint: '[auto]'
 ---
 
@@ -20,6 +20,18 @@ Close out the current session cleanly: review what got done, update project trac
 - **Tracked artifacts check (CODEMAP/STITCH staleness) skipped per ADR-005.** aria-knowledge runs this in its Step 7; cowork omits.
 
 Schema-identical outputs (PROGRESS.md entries, CLAUDE.md edits, commit message format) — only invocation and discovery paths differ.
+
+## Runtime Gate (per ADR-094)
+
+**Before Step 0:** Check whether `Bash` is available. If `Bash` IS available (you are in Claude Code), surface:
+
+> ⚠️ **Runtime mismatch — you invoked aria-cowork's `/wrapup` from a runtime with shell access.**
+>
+> This variant emits a copy-paste commit message because Cowork has no shell access — but you appear to be in Claude Code, where `git status` / `git commit` would work directly. For the runtime-appropriate variant that runs git directly, use `/wrapup` (the aria-knowledge canonical).
+>
+> Proceed with the aria-cowork variant anyway? (`y` / `n`)
+
+Wait for `y` / `yes`. **Gate applies even in `auto`** (ADR-094 §Part 3). If `Bash` is NOT available, proceed to Step 0.
 
 ## Step 0: Resolve config and parse mode
 

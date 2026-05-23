@@ -1,6 +1,6 @@
 ---
 name: handoff
-description: Generate a passoff package — for future-you (context is high, need to restart) or a coworker (via brief mode). Cowork variant — default+auto emit a paste-ready next-session opener plus PROGRESS/CLAUDE/memory updates, a commit message, and "/aria-cowork:extract"; brief mode emits an 80-150 word coworker prose brief only. For done-with-no-passoff, use "/aria-cowork:wrapup". Triggers — "/handoff", "/aria-cowork:handoff", "/handoff auto", "/handoff brief", "hand it off", "pass off to next session", "brief a coworker on this".
+description: 'Generate a passoff package — for future-you (context is high, need to restart) or a coworker (via brief mode). Cowork variant — default+auto emit a paste-ready next-session opener plus PROGRESS/CLAUDE/memory updates, a commit message, and "/aria-cowork:extract"; brief mode emits an 80-150 word coworker prose brief only. For done-with-no-passoff, use "/aria-cowork:wrapup". Triggers — "/aria-cowork:handoff", "/aria-cowork:handoff auto", "/aria-cowork:handoff brief", "hand it off", "pass off to next session", "brief a coworker on this".'
 argument-hint: '[auto|brief]'
 ---
 
@@ -18,6 +18,22 @@ Three modes covering two distinct handoff shapes:
 - **Tracked artifacts check (CODEMAP/STITCH staleness) skipped per ADR-005.** Step 7's checklist row about tracked artifacts is omitted in cowork.
 
 Brief mode template (`/handoff brief`) imports from aria-knowledge v2.17.0 schema — same 80-150 word coworker-brief format, same `[coworker]` literal placeholder convention, same 4 section headers (What happened / Key decisions / What's next / Where to pick up). Schema-identical regardless of which plugin generated it.
+
+## Runtime Gate (per ADR-094)
+
+**Before Step 0:** Check whether the `Bash` tool is available in this session. If `Bash` IS available (you are running in Claude Code or another runtime with shell access), surface the following notification and wait for explicit user confirmation:
+
+> ⚠️ **Runtime mismatch — you invoked aria-cowork's `/handoff` from a runtime with shell access.**
+>
+> This variant emits a copy-paste commit message because Cowork has no shell access — but you appear to be running in Claude Code, where `git status` / `git commit` would work directly. For the runtime-appropriate variant that runs git directly, use `/handoff` (the aria-knowledge canonical).
+>
+> Proceed with the aria-cowork variant anyway? (`y` / `n`)
+
+Wait for an explicit `y` / `yes`. Treat `n` / `no` / no response / any other reply as "do not proceed" and exit cleanly.
+
+**This gate applies even when `mode = auto`.** Auto mode's "implicit-yes on all gates" rule is suspended for the runtime-mismatch check per ADR-094 §Part 3 — auto mode trusts that the user invoked the correct variant, and this gate enforces that precondition. All other auto-mode gates remain bypassed.
+
+If `Bash` is NOT available (normal Cowork runtime), proceed to Step 0.
 
 **Three modes:**
 

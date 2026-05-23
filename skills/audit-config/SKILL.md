@@ -1,6 +1,6 @@
 ---
 name: audit-config
-description: Audit project configuration and documentation for drift, staleness, and broken references. Use when user says "/audit-config", "/aria-cowork:audit-config", "/config-audit", "config audit", "docs audit", "check setup", "audit configs", "review CLAUDE.md files", or at the first aria-cowork skill invocation when audit cadence is exceeded.
+description: 'Audit project configuration and documentation for drift, staleness, and broken references. Use when user says "/aria-cowork:audit-config", "/aria-cowork:config-audit", "config audit", "docs audit", "check setup", "audit configs", "review CLAUDE.md files", or at the first aria-cowork skill invocation when audit cadence is exceeded.'
 argument-hint: ''
 ---
 
@@ -17,6 +17,18 @@ Scan all CLAUDE.md files, plugin manifests, and knowledge files for drift, broke
 Step 3a.1 version-stamp ripple + Step 3a.2 adoption-state cascade run with cowork-scoped surfaces + cowork-relevant phrases per #17c + #17d.
 
 Plugin attribution in audit-log entries uses `aria-cowork@{INSTALLED_VERSION}`. Schema-identical 4-tier output means a knowledge folder's `logs/config-audit-log.md` accepts entries from both plugins without format drift.
+
+## Runtime Gate (per ADR-094)
+
+**Before Step 0:** Check whether `Bash` is available. If `Bash` IS available (you are in Claude Code), surface:
+
+> ⚠️ **Runtime mismatch — you invoked aria-cowork's `/audit-config` from a runtime with shell access.**
+>
+> This variant uses `CONFIG.md`-driven field enumeration and skips `CODEMAP.md` / `STITCH.md` checks per ADR-005 — but you appear to be in Claude Code, where the canonical aria-knowledge variant uses `bin/config.sh` + Agent sub-audits + tracked-artifact staleness. For the Code-native variant, use `/audit-config` (the aria-knowledge canonical).
+>
+> Proceed with the aria-cowork variant anyway? (`y` / `n`)
+
+Wait for `y` / `yes`. **Gate applies even in `auto`** (ADR-094 §Part 3). If `Bash` is NOT available, proceed to Step 0.
 
 ## Step 0: Resolve Config
 

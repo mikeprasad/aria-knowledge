@@ -1,6 +1,6 @@
 ---
 name: snapshot
-description: Save a snapshot of the current Cowork conversation to the knowledge intake on demand. Use when user says "/snapshot", "/aria-cowork:snapshot", "snapshot the session", "save this conversation", "capture the transcript", "archive this session". Schema-identical to aria-knowledge's /snapshot output, but with cowork-specific source acquisition (no.
+description: 'Save a snapshot of the current Cowork conversation to the knowledge intake on demand. Use when user says "/aria-cowork:snapshot", "snapshot the session", "save this conversation", "capture the transcript", "archive this session". Schema-identical to aria-knowledge''s /snapshot output, but with cowork-specific source acquisition (no.'
 ---
 
 # /snapshot — On-Demand Session Snapshot (cowork variant)
@@ -16,6 +16,18 @@ Archive a snapshot of the current Cowork conversation to `intake/pre-compact-cap
 Path 1 is preferred when available. Path 2 is the typical case. Path 3 is the last-resort fallback when paste is declined or impractical.
 
 **No hook companion in cowork.** aria-knowledge's `/snapshot` has a pre-compact-check.sh hook that auto-invokes /snapshot before context compaction. Cowork has no hook layer (per ADR-001 + ADR-004), so /snapshot is manual-invoke only. Invoke before expected compaction events, before risky operations, before switching context, or any time you want the conversation preserved.
+
+## Runtime Gate (per ADR-094)
+
+**Before continuing:** Check whether `Bash` is available. If `Bash` IS available (you are in Claude Code), surface:
+
+> ⚠️ **Runtime mismatch — you invoked aria-cowork's `/snapshot` from a runtime with shell access.**
+>
+> This variant uses 3-path source acquisition (transcript MCP → user-paste → Claude-recall) because Cowork lacks the `~/.claude/projects/.../jsonl` path. For the Code-native variant (reads raw transcript directly via `save-transcript.sh`), use `/snapshot` (the aria-knowledge canonical).
+>
+> Proceed with the aria-cowork variant anyway? (`y` / `n`)
+
+Wait for `y` / `yes`. **Gate applies even in `auto`** (ADR-094 §Part 3). If `Bash` is NOT available, proceed.
 
 ## When to use this vs `/extract` vs `/clip`
 

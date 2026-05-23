@@ -1,12 +1,24 @@
 ---
 name: rules
-description: Quick lookup into working rules. Use when user says "/rules", "/aria-cowork:rules", "/rules 22", "/rules dependencies", "look up rule about...", "what rule covers...", or references a specific rule number.
+description: 'Quick lookup into working rules. Use when user says "/aria-cowork:rules", "/aria-cowork:rules 22", "/aria-cowork:rules dependencies", "look up rule about...", "what rule covers...", or references a specific rule number.'
 argument-hint: '[number or keyword]'
 ---
 
 # /rules — Quick Rule Lookup
 
 Look up rules from both the plugin's `working-rules.md` and the user's optional `user-rules.md`.
+
+## Runtime Gate (per ADR-094)
+
+**Before Step 0:** Check whether `Bash` is available. If `Bash` IS available (you are in Claude Code), surface:
+
+> ⚠️ **Runtime mismatch — you invoked aria-cowork's `/rules` from a runtime with shell access.**
+>
+> Behavior is largely the same in both runtimes; for the Code-native variant, use `/rules` (the aria-knowledge canonical).
+>
+> Proceed with the aria-cowork variant anyway? (`y` / `n`)
+
+Wait for `y` / `yes`. **Gate applies even in `auto`** (ADR-094 §Part 3). If `Bash` is NOT available, proceed to Step 0.
 
 ## Step 0: Resolve config
 

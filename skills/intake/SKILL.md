@@ -1,6 +1,6 @@
 ---
 name: intake
-description: Bulk import knowledge from files, directories, URLs, or pasted content into the intake backlogs, OR capture a single doc with structured 5-section template (doc mode). Use when user says "/intake", "/aria-cowork:intake", "/intake doc", "intake from", "import knowledge from", "scan this file for knowledge", "extract from these docs", "onboard this.
+description: 'Bulk import knowledge from files, directories, URLs, or pasted content into the intake backlogs, OR capture a single doc with structured 5-section template (doc mode). Use when user says "/aria-cowork:intake", "/aria-cowork:intake doc", "intake from", "import knowledge from", "scan this file for knowledge", "extract from these docs", "onboard this.'
 argument-hint: '[doc <url-or-title>] | <path|directory|glob|url> [path2] [path3]'
 ---
 
@@ -12,6 +12,18 @@ Two modes:
 - **Doc mode (`/intake doc`)** — Capture a single doc as a structured intake entry at `intake/docs/{YYYY-MM-DD}-{slug}.md` with a 5-section body: what the doc claims / worth keeping / contested or unclear / action implied / my reaction. For when you're reading something and want a thoughtful capture rather than a bulk scan.
 
 Doc mode shipped in v0.3.0 (parity with aria-knowledge v2.17.0 — same `intake-doc.md` template, same `intake/docs/` subfolder convention, same body structure).
+
+## Runtime Gate (per ADR-094)
+
+**Before Step 0:** Check whether `Bash` is available. If `Bash` IS available (you are in Claude Code), surface:
+
+> ⚠️ **Runtime mismatch — you invoked aria-cowork's `/intake` from a runtime with shell access.**
+>
+> This variant uses persistent-grant attached-folder scans and ~~docs MCPs (typically only in Cowork) — but you appear to be in Claude Code, where local file scans via Bash + WebFetch ARE available and the aria-knowledge canonical uses them directly. For the Code-native variant, use `/intake` (the aria-knowledge canonical).
+>
+> Proceed with the aria-cowork variant anyway? (`y` / `n`)
+
+Wait for `y` / `yes`. **Gate applies even in `auto`** (ADR-094 §Part 3). If `Bash` is NOT available, proceed to Step 0.
 
 ## Step 0: Resolve config + Mode detection
 

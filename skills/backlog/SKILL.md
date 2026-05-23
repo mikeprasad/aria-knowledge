@@ -1,12 +1,24 @@
 ---
 name: backlog
-description: View and manage pending backlog items. Use when user says "/backlog", "/aria-cowork:backlog", "/backlog insights", "/backlog clear", "what's pending", "show backlogs", "check backlog status".
+description: 'View and manage pending backlog items. Use when user says "/aria-cowork:backlog", "/aria-cowork:backlog insights", "/aria-cowork:backlog clear", "what is pending", "show backlogs", "check backlog status".'
 argument-hint: '[insights|decisions|extraction|rules] [clear [type] [date]]'
 ---
 
 # /backlog — Backlog Viewer & Manager
 
 View pending items across all four backlogs, or manage entries.
+
+## Runtime Gate (per ADR-094)
+
+**Before Step 0:** Check whether `Bash` is available. If `Bash` IS available (you are in Claude Code), surface:
+
+> ⚠️ **Runtime mismatch — you invoked aria-cowork's `/backlog` from a runtime with shell access.**
+>
+> Behavior is largely the same in both runtimes; for the Code-native variant (uses `~/.claude/aria-knowledge.local.md` config), use `/backlog` (the aria-knowledge canonical).
+>
+> Proceed with the aria-cowork variant anyway? (`y` / `n`)
+
+Wait for `y` / `yes`. **Gate applies even in `auto`** (ADR-094 §Part 3). If `Bash` is NOT available, proceed to Step 0.
 
 ## Step 0: Resolve config
 

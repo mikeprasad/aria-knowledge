@@ -1,11 +1,23 @@
 ---
 name: extract
-description: 'Extract uncaptured knowledge from the current conversation before it''s lost to compaction. Use after completing a task, before switching context, before large exploratory work (multi-file reads, codebase scans), or when the user signals session end. Trigger: "/extract", "/aria-cowork:extract", "extract knowledge", "capture session knowledge". Also.'
+description: 'Extract uncaptured knowledge from the current conversation before it is lost to compaction. Use after completing a task, before switching context, before large exploratory work (multi-file reads, codebase scans), or when the user signals session end. Trigger: "/aria-cowork:extract", "extract knowledge", "capture session knowledge". Also.'
 ---
 
 # /extract — Pre-Compaction Knowledge Extraction
 
 Scan the current conversation since the last extraction for uncaptured insights, decisions, feedback, project context, and references. Dump everything to backlogs for review at the next knowledge audit. No confirmation dialog — just scan, deduplicate, and append.
+
+## Runtime Gate (per ADR-094)
+
+**Before Step 0:** Check whether `Bash` is available. If `Bash` IS available (you are in Claude Code), surface:
+
+> ⚠️ **Runtime mismatch — you invoked aria-cowork's `/extract` from a runtime with shell access.**
+>
+> This variant only writes to the attached knowledge folder and skips `~/.claude/projects/.../memory/` + `~/.claude/plans/` — but you appear to be in Claude Code, where those memory + plans paths ARE reachable and the aria-knowledge canonical includes them. For the Code-native variant, use `/extract` (the aria-knowledge canonical).
+>
+> Proceed with the aria-cowork variant anyway? (`y` / `n`)
+
+Wait for `y` / `yes`. **Gate applies even in `auto`** (ADR-094 §Part 3). If `Bash` is NOT available, proceed to Step 0.
 
 ## Step 0: Resolve config and detect project context
 

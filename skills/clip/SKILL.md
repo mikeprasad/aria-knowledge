@@ -1,12 +1,24 @@
 ---
 name: clip
-description: Save a URL or text snippet to the knowledge intake for later review. Use when user says "/clip", "/save", "/aria-cowork:clip", "clip this", "save this link", "save this snippet", "capture this URL". Quick capture without leaving the session — clipped items are reviewed at the next /audit-knowledge run (v0.2.0).
+description: 'Save a URL or text snippet to the knowledge intake for later review. Use when user says "/aria-cowork:clip", "/aria-cowork:save", "clip this", "save this link", "save this snippet", "capture this URL". Quick capture without leaving the session — clipped items are reviewed at the next /aria-cowork:audit-knowledge run.'
 argument-hint: <url or text> [tags]
 ---
 
 # /clip — Quick Capture to Intake
 
 Save a URL or text snippet to `intake/clippings/` for later review and promotion.
+
+## Runtime Gate (per ADR-094)
+
+**Before Step 0:** Check whether `Bash` is available. If `Bash` IS available (you are in Claude Code), surface:
+
+> ⚠️ **Runtime mismatch — you invoked aria-cowork's `/clip` from a runtime with shell access.**
+>
+> Behavior is largely the same in both runtimes; for the Code-native variant (uses WebFetch via Code's tool surface for URL content), use `/clip` (the aria-knowledge canonical).
+>
+> Proceed with the aria-cowork variant anyway? (`y` / `n`)
+
+Wait for `y` / `yes`. **Gate applies even in `auto`** (ADR-094 §Part 3). If `Bash` is NOT available, proceed to Step 0.
 
 ## Step 0: Resolve config
 
