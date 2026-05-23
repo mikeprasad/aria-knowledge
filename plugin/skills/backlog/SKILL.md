@@ -1,5 +1,5 @@
 ---
-description: "View and manage pending backlog items. Use when user says '/backlog', '/backlog insights', '/backlog clear', 'what's pending', 'show backlogs', 'check backlog status'."
+description: "**Bare-slash canonical (Claude Code).** `/backlog` resolves to this skill when both aria-knowledge and aria-cowork are loaded in the same session. RUNTIME GATE: if invoked from a non-Code runtime (no Bash tool available, e.g., Claude Cowork), the Runtime Gate section surfaces a notification suggesting `/aria-cowork:backlog` and requires explicit user confirmation before proceeding — even in `auto` mode (ADR-094 §Part 3). View and manage pending backlog items. Use when user says '/backlog', '/backlog insights', '/backlog clear', 'what's pending', 'show backlogs', 'check backlog status'."
 argument-hint: "[insights|decisions|extraction|rules] [clear [type] [date]]"
 allowed-tools: Read, Edit, Write, Grep
 ---
@@ -7,6 +7,18 @@ allowed-tools: Read, Edit, Write, Grep
 # /backlog — Backlog Viewer & Manager
 
 View pending items across all four backlogs, or manage entries.
+
+## Runtime Gate (per ADR-094)
+
+**Before Step 0:** Check that `Bash` is available. If `Bash` is NOT available (e.g., Cowork), surface:
+
+> ⚠️ **Runtime mismatch — you invoked aria-knowledge's `/backlog` from a non-Code runtime.**
+>
+> Behavior is largely the same in both runtimes; for the Cowork-native variant (reads backlogs from the attached knowledge folder rather than `~/.claude/aria-knowledge.local.md`), use `/aria-cowork:backlog`.
+>
+> Proceed with the aria-knowledge variant anyway? (`y` / `n`)
+
+Wait for `y` / `yes`. **Gate applies even in `auto`** (ADR-094 §Part 3). If `Bash` is available, proceed to Step 0.
 
 ## Step 0: Resolve Config
 

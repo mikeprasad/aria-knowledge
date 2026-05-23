@@ -1,5 +1,5 @@
 ---
-description: "Alias for /audit-knowledge. Invoked by the '/knowledge-audit' slash command. Same behavior as /audit-knowledge — just an alternative phrasing."
+description: "**Bare-slash canonical (Claude Code).** `/knowledge-audit` resolves to this skill (alias for /audit-knowledge) when both aria-knowledge and aria-cowork are loaded in the same session. RUNTIME GATE: this alias delegates to /audit-knowledge, whose Runtime Gate section will surface a notification suggesting `/aria-cowork:knowledge-audit` if invoked from a non-Code runtime — even in `auto` mode (ADR-094 §Part 3). Alias for /audit-knowledge. Invoked by the '/knowledge-audit' slash command. Same behavior as /audit-knowledge — just an alternative phrasing."
 argument-hint: "[detailed]"
 allowed-tools: Read, Glob, Grep, Write, Edit, Bash
 ---

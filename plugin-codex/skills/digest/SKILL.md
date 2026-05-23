@@ -1,5 +1,5 @@
 ---
-description: "Cross-tool rollup of what's pending, what shipped, and what's blocked across chat / email / project tracker / docs. Use when user says '/digest', 'weekly digest', 'cross-tool rollup', 'what's pending across my tools', 'summarize this week', 'standup digest'. Probes all 4 ~~categories and degrades gracefully — produces a digest even with only 1-2 MCPs connected, surfacing which categories were unavailable."
+description: "**Bare-slash canonical (Claude Code).** `/digest` resolves to this skill when both aria-knowledge and aria-cowork are loaded in the same session. RUNTIME GATE: if invoked from a non-Code runtime (no Bash tool available, e.g., Claude Cowork), the Runtime Gate section surfaces a notification suggesting `/aria-cowork:digest` and requires explicit user confirmation before proceeding — even in `auto` mode (ADR-094 §Part 3). NOTE: this skill requires connected ~~chat / ~~email / ~~project-tracker / ~~docs MCPs, which are typically only present in Cowork — the Code variant exists for parity but most users will want the Cowork variant. Cross-tool rollup of what's pending, what shipped, and what's blocked across chat / email / project tracker / docs. Use when user says '/digest', 'weekly digest', 'cross-tool rollup', 'what's pending across my tools', 'summarize this week', 'standup digest'. Probes all 4 ~~categories and degrades gracefully — produces a digest even with only 1-2 MCPs connected, surfacing which categories were unavailable."
 argument-hint: "[--week | --since YYYY-MM-DD | --until YYYY-MM-DD]"
 allowed-tools: Read, Write, Grep
 ---
@@ -7,6 +7,18 @@ allowed-tools: Read, Write, Grep
 # /digest — Cross-Tool Weekly Rollup
 
 Synthesize a digest of activity across connected MCPs into `intake/digests/{YYYY-MM-DD}.md`. Pulls from `~~chat` + `~~email` + `~~project tracker` + `~~docs` to produce a "what's pending / what shipped / what's blocked" rollup. Composite of all 4 categories — the most cross-tool of the v2.18.0 skills.
+
+## Runtime Gate (per ADR-094)
+
+**Before Step 0:** Check that `Bash` is available. If `Bash` is NOT available (e.g., Cowork), surface:
+
+> ⚠️ **Runtime mismatch — you invoked aria-knowledge's `/digest` from a non-Code runtime.**
+>
+> This skill requires connected ~~chat / ~~email / ~~project-tracker / ~~docs MCPs across 4 categories, which are typically only present in Cowork. The Cowork-native variant has working MCP access. Use `/aria-cowork:digest`.
+>
+> Proceed with the aria-knowledge variant anyway? (`y` / `n`)
+
+Wait for `y` / `yes`. **Gate applies even in `auto`** (ADR-094 §Part 3). If `Bash` is available, proceed to Step 0.
 
 ## Step 0: Resolve Config
 

@@ -12,6 +12,8 @@ A Cowork-side counterpart lives at `~/Projects/aria/aria-cowork/` — **public**
 
 **Bidirectional feature flow (since v0.3.0 / v2.17.0):** Features may originate in either plugin and port to the other; aria-knowledge remains the schema source-of-truth (output formats, knowledge-folder conventions, archive structures). v0.3.0's `/handoff brief` and `/intake doc` modes are the first cowork-originated features ported into aria-knowledge. See aria-cowork ADR 014 for the architectural rationale.
 
+**Bare-slash ownership (ADR-094, v2.19.1):** When both plugins are loaded in the same session (most common in Claude Desktop), 24 colliding skill names (`/handoff`, `/wrapup`, `/extract`, `/intake`, etc.) deterministically resolve to **aria-knowledge** as canonical owner. aria-cowork's variants are namespaced-only (`/aria-cowork:handoff`, etc.). Each colliding skill carries a Runtime Gate in its body that surfaces a notification when invoked from the wrong runtime (Bash-availability is the fingerprint). The gate applies even in `auto` modes — auto's "implicit-yes" rule is suspended for the runtime-mismatch check per ADR-094 §Part 3. Edits affecting cross-plugin compatibility (description prepend conventions, gate clause text, anti-trigger language) should preserve this ownership rule. Full design: [`~/Projects/knowledge/projects/aria/decisions/094-bare-slash-canonical-owner-and-dual-runtime-gate.md`](../../knowledge/projects/aria/decisions/094-bare-slash-canonical-owner-and-dual-runtime-gate.md).
+
 ## Project Structure
 
 ```

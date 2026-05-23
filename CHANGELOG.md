@@ -2,6 +2,39 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## [2.19.1] - 2026-05-23
+
+**Patch release — bare-slash namespace ownership + dual runtime gate (ADR-094).** No new skills, no schema changes. 24 colliding skill names between aria-knowledge and aria-cowork now have deterministic routing when both plugins are loaded in the same session (most common in Claude Desktop).
+
+### Changed — bare-slash canonical owner clarified
+
+When both aria-knowledge and aria-cowork are loaded, bare slash commands (`/handoff`, `/wrapup`, `/extract`, etc.) now deterministically resolve to **aria-knowledge** (the canonical Code-side variant). The 24 affected SKILL.md descriptions in `plugin/skills/` get a prepended canonical-owner clause asserting bare-slash ownership. For the Cowork variant, users invoke the namespaced form (`/aria-cowork:handoff`, etc.) — which remains available everywhere.
+
+### Added — Runtime Gate section per skill
+
+Each of the 24 colliding skills carries a new `## Runtime Gate (per ADR-094)` section in its body. The gate fires at invocation time and checks tool availability (Bash presence) as the runtime fingerprint:
+
+- If a Code-canonical variant is invoked from a non-Code runtime (no Bash, e.g., Cowork) → surface a notification suggesting the Cowork-variant invocation. User confirms before proceeding.
+- Each gate is **informational, not blocking** — the user might legitimately be using both runtimes.
+- **Gate applies even when invoked under `auto` semantics** — auto mode's "implicit-yes on all gates" rule is suspended for the runtime-mismatch check per ADR-094 §Part 3. Other auto-mode gates remain bypassed.
+
+### Coordinated with aria-cowork v1.1.1
+
+Same-day coordinated patch pair. aria-cowork v1.1.1 ships the inverse-direction edits — its 24 colliding skill descriptions get a namespaced-only clause + removal of bare-slash triggers + a Cowork-side Runtime Gate (which fires when Bash IS present, suggesting the Code-canonical invocation).
+
+### Codex + Cursor ports
+
+Plugin-codex port mirrors the aria-knowledge SKILL.md edits byte-faithfully (ADR-087 — Codex is an independent runtime with shared schema). Cursor port adds a single ADR-094 namespace-policy cross-reference at the top of `aria-commands.mdc` rather than 24 per-skill sections, preserving the cursor port's "proportionate compression" philosophy (ADR-092).
+
+### Compatibility
+
+- **No breaking changes.** Existing namespaced invocations (`/aria-knowledge:X`, `/aria-cowork:X`) continue to work everywhere unchanged.
+- **User-visible change for Cowork-only users (no aria-knowledge installed):** bare `/handoff` etc. no longer matches aria-cowork's variant in that configuration — must use the namespaced form. Documented in README.
+
+### Full ADR
+
+See [ADR 094 — Bare-slash canonical owner + dual runtime gate for sibling plugins](https://github.com/mikeprasad/knowledge/blob/main/projects/aria/decisions/094-bare-slash-canonical-owner-and-dual-runtime-gate.md) for the full reasoning, alternatives considered, and per-skill ownership matrix.
+
 ## [2.19.0] - 2026-05-19
 
 **Minor release — `/wrapup` vs `/handoff` intent split clarified; `/wrapup auto` mode added.** No new skills, no template changes, no MCP changes, no schema additions. Two existing skills (`/wrapup`, `/handoff`) get a behavioral and documentation refactor that makes their distinct purposes unambiguous, plus `/wrapup` gains an `auto` mode mirroring `/handoff auto`. Cursor port catches up on the pre-existing `/handoff brief` mode drift in the same release.

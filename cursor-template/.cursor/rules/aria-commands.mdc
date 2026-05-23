@@ -8,6 +8,8 @@ alwaysApply: false
 
 This file ports the remaining ARIA skill instructions for the Cursor port. Triggers are natural-language (e.g., "extract session knowledge", "map the codebase", "wrap up session") in addition to slash-command names. Skill aliases: `/share-audit` → `/audit-share`.
 
+**Namespace policy (per ADR-094):** When both aria-knowledge and aria-cowork are loaded in the same session (most common in Claude Desktop), bare slash commands (`/handoff`, `/wrapup`, `/extract`, etc.) always resolve to aria-knowledge (the canonical owner). For the Cowork variant, use the namespaced form (`/aria-cowork:handoff`). In Cursor specifically, aria-cowork is not typically loaded — so the collision usually doesn't apply here. If you are in a session that loads both plugins, each colliding skill in the canonical aria-knowledge plugin carries a Runtime Gate that surfaces a notification when invoked from a non-Code runtime (and aria-cowork's variants do the inverse). Full ADR at `~/Projects/knowledge/projects/aria/decisions/094-bare-slash-canonical-owner-and-dual-runtime-gate.md`.
+
 ---
 
 ## /extract

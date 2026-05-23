@@ -1,5 +1,5 @@
 ---
-description: "Scan Claude memory and plans for extractable knowledge. Use when user asks for 'knowledge audit', 'audit knowledge', 'check for extractable knowledge', 'scan memory', or at session start when audit cadence is exceeded."
+description: "**Bare-slash canonical (Claude Code).** `/audit-knowledge` resolves to this skill when both aria-knowledge and aria-cowork are loaded in the same session. RUNTIME GATE: if invoked from a non-Code runtime (no Bash tool available, e.g., Claude Cowork), the Runtime Gate section surfaces a notification suggesting `/aria-cowork:audit-knowledge` and requires explicit user confirmation before proceeding — even in `auto` mode (ADR-094 §Part 3). Scan Claude memory and plans for extractable knowledge. Use when user asks for 'knowledge audit', 'audit knowledge', 'check for extractable knowledge', 'scan memory', or at session start when audit cadence is exceeded."
 argument-hint: "[detailed]"
 allowed-tools: Read, Glob, Grep, Write, Edit, Bash
 ---
@@ -7,6 +7,18 @@ allowed-tools: Read, Glob, Grep, Write, Edit, Bash
 # /audit-knowledge — Knowledge Repository Audit
 
 Scan `~/.claude/` memory and plan files, compare against what's already in the knowledge folder and project-level docs, and surface anything worth extracting.
+
+## Runtime Gate (per ADR-094)
+
+**Before Step 0:** Check that `Bash` is available. If `Bash` is NOT available (e.g., Cowork), surface:
+
+> ⚠️ **Runtime mismatch — you invoked aria-knowledge's `/audit-knowledge` from a non-Code runtime.**
+>
+> This variant scans `~/.claude/projects/{cwd}/memory/` and `~/.claude/plans/` via Bash — paths Cowork's persistent-grant model can't reach. For the Cowork-native variant (audits the attached folder's `intake/` subfolder only), use `/aria-cowork:audit-knowledge`.
+>
+> Proceed with the aria-knowledge variant anyway? (`y` / `n`)
+
+Wait for `y` / `yes`. **Gate applies even in `auto`** (ADR-094 §Part 3). If `Bash` is available, proceed to Step 0.
 
 ## Step 0: Resolve Config
 

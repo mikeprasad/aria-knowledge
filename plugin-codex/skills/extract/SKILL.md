@@ -1,5 +1,5 @@
 ---
-description: "Extract uncaptured knowledge from the current conversation before it's lost to compaction. Use after completing a task, before switching context, before large exploratory work (multi-file reads, codebase scans), or when the user signals session end. Trigger: '/extract', 'extract knowledge', 'capture session knowledge'. Also prompt mid-session: 'Task complete — want me to run /extract?' and 'Switching context — want me to run /extract first?'"
+description: "**Bare-slash canonical (Claude Code).** `/extract` resolves to this skill when both aria-knowledge and aria-cowork are loaded in the same session. RUNTIME GATE: if invoked from a non-Code runtime (no Bash tool available, e.g., Claude Cowork), the Runtime Gate section surfaces a notification suggesting `/aria-cowork:extract` and requires explicit user confirmation before proceeding — even in `auto` mode (ADR-094 §Part 3). Extract uncaptured knowledge from the current conversation before it's lost to compaction. Use after completing a task, before switching context, before large exploratory work (multi-file reads, codebase scans), or when the user signals session end. Trigger: '/extract', 'extract knowledge', 'capture session knowledge'. Also prompt mid-session: 'Task complete — want me to run /extract?' and 'Switching context — want me to run /extract first?'"
 argument-hint: ""
 allowed-tools: Read, Glob, Grep, Write, Edit
 ---
@@ -7,6 +7,18 @@ allowed-tools: Read, Glob, Grep, Write, Edit
 # /extract — Pre-Compaction Knowledge Extraction
 
 Scan the current conversation since the last extraction for uncaptured insights, decisions, feedback, project context, and references. Dump everything to backlogs for review at the next knowledge audit. No confirmation dialog — just scan, deduplicate, and append.
+
+## Runtime Gate (per ADR-094)
+
+**Before Step 0:** Check that `Bash` is available. If `Bash` is NOT available (e.g., Cowork), surface:
+
+> ⚠️ **Runtime mismatch — you invoked aria-knowledge's `/extract` from a non-Code runtime.**
+>
+> This variant writes captured items to `~/.claude/projects/.../memory/` and `~/.claude/aria-knowledge.local.md`-scoped paths, which Cowork's persistent-grant model can't reach. For the Cowork-native variant (writes only to the attached knowledge folder), use `/aria-cowork:extract`.
+>
+> Proceed with the aria-knowledge variant anyway? (`y` / `n`)
+
+Wait for `y` / `yes`. **Gate applies even in `auto`** (ADR-094 §Part 3). If `Bash` is available, proceed to Step 0.
 
 ## Step 0: Resolve Config and Detect Project Context
 

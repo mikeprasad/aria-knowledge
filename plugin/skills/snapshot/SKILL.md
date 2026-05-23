@@ -1,11 +1,23 @@
 ---
-description: "Save the current Claude Code transcript to the knowledge intake on demand. Use when user says '/snapshot', 'snapshot the session', 'save this conversation', 'capture the transcript', 'archive this session'. Same archival output as the pre-compact hook, but triggered explicitly. Distinct from /extract (which synthesizes knowledge) and /clip (which captures a URL or snippet)."
+description: "**Bare-slash canonical (Claude Code).** `/snapshot` resolves to this skill when both aria-knowledge and aria-cowork are loaded in the same session. RUNTIME GATE: if invoked from a non-Code runtime (no Bash tool available, e.g., Claude Cowork), the Runtime Gate section surfaces a notification suggesting `/aria-cowork:snapshot` and requires explicit user confirmation before proceeding — even in `auto` mode (ADR-094 §Part 3). Save the current Claude Code transcript to the knowledge intake on demand. Use when user says '/snapshot', 'snapshot the session', 'save this conversation', 'capture the transcript', 'archive this session'. Same archival output as the pre-compact hook, but triggered explicitly. Distinct from /extract (which synthesizes knowledge) and /clip (which captures a URL or snippet)."
 allowed-tools: Bash
 ---
 
 # /snapshot — On-Demand Transcript Snapshot
 
 Archive the current session's raw transcript to `intake/pre-compact-captures/` for later review. This is the same artifact the pre-compact hook produces — just invoked by the user instead of waiting for compaction.
+
+## Runtime Gate (per ADR-094)
+
+**Before continuing:** Check that `Bash` is available. If `Bash` is NOT available (e.g., Cowork), surface:
+
+> ⚠️ **Runtime mismatch — you invoked aria-knowledge's `/snapshot` from a non-Code runtime.**
+>
+> This variant requires Bash to run `save-transcript.sh` against `~/.claude/projects/{cwd-encoded}/{session-id}.jsonl` — Cowork has neither shell access nor that transcript path. For the Cowork-native variant (uses 3-path source acquisition: transcript MCP → user-paste → Claude-recall fallback), use `/aria-cowork:snapshot`.
+>
+> Proceed with the aria-knowledge variant anyway? (`y` / `n`)
+
+Wait for `y` / `yes`. **Gate applies even in `auto`** (ADR-094 §Part 3). If `Bash` is available, proceed.
 
 ## When To Use This vs. /extract vs. /clip
 

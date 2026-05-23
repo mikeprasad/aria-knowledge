@@ -1,5 +1,5 @@
 ---
-description: "Close out a session cleanly when the work is done — no passoff intended. Reviews session work, updates PROGRESS.md / CLAUDE.md / memory, commits changes, captures session knowledge via /extract, and confirms everything is wrapped up, captured, and documented. Use when the task is complete and nothing needs to carry into a next session. For passoff to future-you (e.g. context is high, need to restart) or a coworker, use /handoff instead. Triggers: '/wrapup', '/wrapup auto', 'wrap up', 'wrap it up', \"I'm done\", 'close out', 'finish session', 'end session', 'saying goodbye'. Auto mode applies implicit-yes on all gates and runs silently."
+description: "**Bare-slash canonical (Claude Code).** `/wrapup` resolves to this skill when both aria-knowledge and aria-cowork are loaded in the same session. RUNTIME GATE: if invoked from a non-Code runtime (no Bash tool available, e.g., Claude Cowork), the Runtime Gate section surfaces a notification suggesting `/aria-cowork:wrapup` and requires explicit user confirmation before proceeding — even in `auto` mode (ADR-094 §Part 3). Close out a session cleanly when the work is done — no passoff intended. Reviews session work, updates PROGRESS.md / CLAUDE.md / memory, commits changes, captures session knowledge via /extract, and confirms everything is wrapped up, captured, and documented. Use when the task is complete and nothing needs to carry into a next session. For passoff to future-you (e.g. context is high, need to restart) or a coworker, use /handoff instead. Triggers: '/wrapup', '/wrapup auto', 'wrap up', 'wrap it up', \"I'm done\", 'close out', 'finish session', 'end session', 'saying goodbye'. Auto mode applies implicit-yes on all gates and runs silently."
 argument-hint: "[auto]"
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
@@ -12,6 +12,18 @@ Close out the current session cleanly: review what got done, update project trac
 
 - **Default (`/wrapup`)** — Per-step gated review. Each tracked surface (session summary, PROGRESS, CLAUDE.md, memory, commit, /extract prompt) prompts for explicit confirmation before writing.
 - **`auto` (`/wrapup auto`)** — Implicit-yes on all gates. Run silently. Apply all drafts and chain `/extract` without confirmation. Emit final report only. Use when the session is short and unambiguous, or when you've already authorized a combined-go (`yes to all`, `yes to all with extract`).
+
+## Runtime Gate (per ADR-094)
+
+**Before Step 0:** Check that `Bash` is available. If `Bash` is NOT available (e.g., Cowork), surface:
+
+> ⚠️ **Runtime mismatch — you invoked aria-knowledge's `/wrapup` from a non-Code runtime.**
+>
+> This variant runs `git status` / `git commit` via Bash, which isn't available here. For the Cowork-native variant (emits a copy-paste commit message instead, skips ADR-005 tracked-artifacts check), use `/aria-cowork:wrapup`.
+>
+> Proceed with the aria-knowledge variant anyway? (`y` / `n`)
+
+Wait for `y` / `yes`. **Gate applies even in `auto`** (ADR-094 §Part 3). If `Bash` is available, proceed to Step 0.
 
 ## Step 0: Resolve Config and Parse Mode
 

@@ -1,5 +1,5 @@
 ---
-description: "Mirror approved decisions from the knowledge folder out to a connected ~~docs MCP (Notion, Confluence, Google Docs). Use when user says '/sync-decisions', 'mirror decisions to Notion', 'push decisions to wiki', 'sync ADRs to Confluence', 'export decisions externally'. WRITE-side skill — embeds Rule 22 advisory preamble per ADR-016 and requires explicit per-write go-gate. Logs each sync to logs/sync-decisions.md."
+description: "**Bare-slash canonical (Claude Code).** `/sync-decisions` resolves to this skill when both aria-knowledge and aria-cowork are loaded in the same session. RUNTIME GATE: if invoked from a non-Code runtime (no Bash tool available, e.g., Claude Cowork), the Runtime Gate section surfaces a notification suggesting `/aria-cowork:sync-decisions` and requires explicit user confirmation before proceeding — even in `auto` mode (ADR-094 §Part 3). NOTE: this skill requires connected ~~docs MCPs with WRITE access (Notion, Confluence, Google Docs), which are typically only present in Cowork — the Code variant exists for parity but most users will want the Cowork variant. Mirror approved decisions from the knowledge folder out to a connected ~~docs MCP (Notion, Confluence, Google Docs). Use when user says '/sync-decisions', 'mirror decisions to Notion', 'push decisions to wiki', 'sync ADRs to Confluence', 'export decisions externally'. WRITE-side skill — embeds Rule 22 advisory preamble per ADR-016 and requires explicit per-write go-gate. Logs each sync to logs/sync-decisions.md."
 argument-hint: "[<decision-slug>|--all|--since YYYY-MM-DD] [--target <space-or-page>]"
 allowed-tools: Read, Write, Grep
 ---
@@ -7,6 +7,18 @@ allowed-tools: Read, Write, Grep
 # /sync-decisions — Mirror Decisions to External Docs
 
 Read approved decisions from `{knowledge_folder}/decisions/` and write them out to a connected `~~docs` MCP destination (a Notion page, Confluence space, Google Doc, etc.). The only v2.18.0 skill that writes externally; embeds Rule 22 advisory preamble per [ADR-016](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/016-rule-22-advisory-preamble-for-external-writes.md).
+
+## Runtime Gate (per ADR-094)
+
+**Before Step 0:** Check that `Bash` is available. If `Bash` is NOT available (e.g., Cowork), surface:
+
+> ⚠️ **Runtime mismatch — you invoked aria-knowledge's `/sync-decisions` from a non-Code runtime.**
+>
+> This skill requires connected ~~docs WRITE MCPs (Notion, Confluence, Google Docs), which are typically only present in Cowork. The Cowork-native variant has working MCP write access. Use `/aria-cowork:sync-decisions`.
+>
+> Proceed with the aria-knowledge variant anyway? (`y` / `n`)
+
+Wait for `y` / `yes`. **Gate applies even in `auto`** (ADR-094 §Part 3). If `Bash` is available, proceed to Step 0.
 
 ## Step 0: Resolve Config
 

@@ -1,5 +1,5 @@
 ---
-description: "Fold a meeting transcript or notes into structured intake. Use when user says '/meeting-notes', 'capture meeting notes', 'fold this meeting transcript', 'process this Granola export', 'archive this standup'. Accepts a ~~docs URL (Notion meeting page, Confluence) OR pasted transcript text — unique among MCP-consuming skills in offering a paste fallback when no ~~docs MCP is connected."
+description: "**Bare-slash canonical (Claude Code).** `/meeting-notes` resolves to this skill when both aria-knowledge and aria-cowork are loaded in the same session. RUNTIME GATE: if invoked from a non-Code runtime (no Bash tool available, e.g., Claude Cowork), the Runtime Gate section surfaces a notification suggesting `/aria-cowork:meeting-notes` and requires explicit user confirmation before proceeding — even in `auto` mode (ADR-094 §Part 3). NOTE: paste-text fallback works without MCPs, but ~~docs MCPs (Notion, Confluence, Granola) are typically only connected in Cowork — the Cowork variant has better fidelity for MCP-sourced meetings. Fold a meeting transcript or notes into structured intake. Use when user says '/meeting-notes', 'capture meeting notes', 'fold this meeting transcript', 'process this Granola export', 'archive this standup'. Accepts a ~~docs URL (Notion meeting page, Confluence) OR pasted transcript text — unique among MCP-consuming skills in offering a paste fallback when no ~~docs MCP is connected."
 argument-hint: "<doc-url-or-paste-marker> [meeting-title]"
 allowed-tools: Read, Write, Grep
 ---
@@ -7,6 +7,18 @@ allowed-tools: Read, Write, Grep
 # /meeting-notes — Capture Meeting Transcript to Intake
 
 Save a meeting transcript or notes to `intake/meetings/{YYYY-MM-DD}-{slug}.md` with structured participants / topics / action items / decisions sections. Source can be a `~~docs` MCP (Notion meeting page, Confluence meeting doc) OR pasted transcript text (Granola export, raw transcript, hand-written notes).
+
+## Runtime Gate (per ADR-094)
+
+**Before Step 0:** Check that `Bash` is available. If `Bash` is NOT available (e.g., Cowork), surface:
+
+> ⚠️ **Runtime mismatch — you invoked aria-knowledge's `/meeting-notes` from a non-Code runtime.**
+>
+> This skill works in either runtime via paste-text fallback, but MCP-sourced meetings (Notion, Confluence, Granola) require ~~docs MCPs typically only present in Cowork. For the Cowork-native variant with better MCP fidelity, use `/aria-cowork:meeting-notes`.
+>
+> Proceed with the aria-knowledge variant anyway? (`y` / `n`)
+
+Wait for `y` / `yes`. **Gate applies even in `auto`** (ADR-094 §Part 3). If `Bash` is available, proceed to Step 0.
 
 ## Step 0: Resolve Config
 

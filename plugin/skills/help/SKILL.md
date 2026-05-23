@@ -1,5 +1,5 @@
 ---
-description: "Show available aria-knowledge commands. Use when user says '/help', 'aria help', 'what commands are available', 'list commands', 'what can aria do'."
+description: "**Bare-slash canonical (Claude Code).** `/help` resolves to this skill (aria-knowledge's command reference) when both aria-knowledge and aria-cowork are loaded in the same session. RUNTIME GATE: if invoked from a non-Code runtime (no Bash tool available, e.g., Claude Cowork), surface a notification suggesting `/aria-cowork:help` (aria-cowork's command reference) and require explicit user confirmation — even in `auto` mode (ADR-094 §Part 3). Show available aria-knowledge commands. Use when user says '/help', 'aria help', 'what commands are available', 'list commands', 'what can aria do'."
 argument-hint: ""
 allowed-tools:
 ---
@@ -7,6 +7,18 @@ allowed-tools:
 # /help — aria-knowledge Commands
 
 Print the command reference table. No config or file access needed.
+
+## Runtime Gate (per ADR-094)
+
+**Before printing:** Check that `Bash` is available. If `Bash` is NOT available (e.g., Cowork), surface:
+
+> ⚠️ **Runtime mismatch — you invoked aria-knowledge's `/help` from a non-Code runtime.**
+>
+> This prints aria-knowledge's command reference (Code-side commands). For aria-cowork's reference, use `/aria-cowork:help`.
+>
+> Proceed and show aria-knowledge's commands anyway? (`y` / `n`)
+
+Wait for `y` / `yes`. **Gate applies even in `auto`** (ADR-094 §Part 3). If `Bash` is available, proceed to Output.
 
 ## Output
 

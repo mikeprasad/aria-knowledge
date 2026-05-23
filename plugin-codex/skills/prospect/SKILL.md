@@ -1,5 +1,5 @@
 ---
-description: "Run a structured pre-mortem on a plan or approach BEFORE execution. Per-step risk enforcement, active evidence-sourcing pass (autonomous lookups + targeted user-asks for anything that could become objective), simpler-alternative discipline, plan-formation diagnosis, action verdicts (PROCEED/SHRINK/SPLIT/DEFER/KILL), and a growing failure-mode pattern library. Triggers: '/prospect' (defaults to plan scope), '/prospect plan', '/prospect session', '/prospect todos', '/prospect file <path>', '/prospect linear <id>', '/prospect branch <name>'. Backward-compat flags (--plan, --linear, --branch, --todos, --session) still accepted."
+description: "**Bare-slash canonical (Claude Code).** `/prospect` resolves to this skill when both aria-knowledge and aria-cowork are loaded in the same session. RUNTIME GATE: if invoked from a non-Code runtime (no Bash tool available, e.g., Claude Cowork), the Runtime Gate section surfaces a notification suggesting `/aria-cowork:prospect` and requires explicit user confirmation before proceeding — even in `auto` mode (ADR-094 §Part 3). Run a structured pre-mortem on a plan or approach BEFORE execution. Per-step risk enforcement, active evidence-sourcing pass (autonomous lookups + targeted user-asks for anything that could become objective), simpler-alternative discipline, plan-formation diagnosis, action verdicts (PROCEED/SHRINK/SPLIT/DEFER/KILL), and a growing failure-mode pattern library. Triggers: '/prospect' (defaults to plan scope), '/prospect plan', '/prospect session', '/prospect todos', '/prospect file <path>', '/prospect linear <id>', '/prospect branch <name>'. Backward-compat flags (--plan, --linear, --branch, --todos, --session) still accepted."
 argument-hint: "[<scope>] [<scope-arg>] [--linear-post] [--no-source]"
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash, WebFetch, WebSearch
 ---
@@ -9,6 +9,18 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash, WebFetch, WebSearch
 Run a structured pre-mortem on a plan or approach that has been *created but not yet executed*. Forward-looking counterpart to `/retrospect`. Produces a 10-section markdown report with per-step verdicts, risk status, action recommendations, and process pre-mortem when the plan-formation itself was thin. Writes findings to `knowledge/logs/prospect/` and runs aria's standard intake.
 
 The discipline this enforces: before the first edit lands, every planned step gets named, its evidence base examined, its smallest viable version identified, and its action gated on the strength of the underlying hypothesis. Mirrors `/retrospect`'s shape so the same review muscle works in both directions.
+
+## Runtime Gate (per ADR-094)
+
+**Before "When to use":** Check that `Bash` is available. If `Bash` is NOT available (e.g., Cowork), surface:
+
+> ⚠️ **Runtime mismatch — you invoked aria-knowledge's `/prospect` from a non-Code runtime.**
+>
+> Behavior is largely the same in both runtimes; for the Cowork-native variant (skips Step 11 CODEMAP/STITCH surfacing per ADR-005, uses in-memory dedup instead of `/tmp/` ledger), use `/aria-cowork:prospect`.
+>
+> Proceed with the aria-knowledge variant anyway? (`y` / `n`)
+
+Wait for `y` / `yes`. **Gate applies even in `auto`** (ADR-094 §Part 3). If `Bash` is available, proceed to "When to use".
 
 ## When to use
 
