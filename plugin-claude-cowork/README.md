@@ -107,11 +107,20 @@ aria-cowork operates on a knowledge folder that's persistently granted to Cowork
 
 ## Install (in Cowork)
 
-aria-cowork v0.3.0 uses a **default-path convention**: the knowledge folder is expected at `~/Projects/knowledge/`. Users with knowledge folders elsewhere can override via `aria-config.md` (the setup skill will prompt for the path on first run).
+> **Note (2026-05-24):** This plugin is now developed in `mikeprasad/aria-knowledge` under `plugin-claude-cowork/`. Clone that repo and build from source, or use a pre-built `.plugin` artifact from the [aria-knowledge releases page](https://github.com/mikeprasad/aria-knowledge/releases).
+
+The plugin uses a **default-path convention**: the knowledge folder is expected at `~/Projects/knowledge/`. Users with knowledge folders elsewhere can override via `aria-config.md` (the setup skill will prompt for the path on first run).
 
 ### 1. Install the plugin
 
-Drag the `aria-cowork-0.3.0.plugin` file onto a Cowork conversation, OR install via Cowork's Settings → Plugins → Install from file.
+```bash
+# Clone from the consolidated repo
+git clone https://github.com/mikeprasad/aria-knowledge
+cd aria-knowledge/plugin-claude-cowork
+./release.sh  # builds aria-cowork-<version>.plugin
+```
+
+Then drag the generated `.plugin` file onto a Cowork conversation, OR install via Cowork's Settings → Plugins → Install from file.
 
 ### 2. Run setup in any Cowork conversation
 
@@ -199,7 +208,7 @@ aria-cowork's path-discovery mechanism (Cowork userConfig) is Cowork-only; aria-
 
 ## Principles transfer, enforcement doesn't
 
-aria-cowork shares the working-rules + 7-step change-decision framework with its sibling plugin [aria-knowledge](https://github.com/mikeprasad/aria-knowledge). Both plugins read from the same `~/Projects/knowledge/` folder and write to the same canonical config. **The principles transfer cleanly**: *Don't assume — surface tradeoffs*, *Simplest solution wins*, *Touch only what you must*, *Define success criteria upfront, loop until verified* are good discipline regardless of which Claude surface you're working in.
+plugin-claude-cowork shares the working-rules + 7-step change-decision framework with its sibling port [plugin-claude-code](https://github.com/mikeprasad/aria-knowledge/tree/main/plugin-claude-code) in the same repo. Both ports read from the same `~/Projects/knowledge/` folder and write to the same canonical config. **The principles transfer cleanly**: *Don't assume — surface tradeoffs*, *Simplest solution wins*, *Touch only what you must*, *Define success criteria upfront, loop until verified* are good discipline regardless of which Claude surface you're working in.
 
 **What doesn't transfer is the enforcement layer.** aria-knowledge runs in Claude Code, which has PreToolUse / PostToolUse hooks — Rule 22's change-decision framework fires automatically on every Edit/Write, with required-output format making compliance visible at the point of action. aria-cowork runs in Claude Cowork, which is skills-only: there are no hook events, no automatic enforcement. The same rules apply, but you (or the model, prompted by `/rules` lookups and session context) carry the discipline manually.
 

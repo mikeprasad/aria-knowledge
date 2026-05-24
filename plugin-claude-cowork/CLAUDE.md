@@ -19,9 +19,11 @@ aria-probe plugin built + installed in Cowork + ran. Probe results at `~/Project
 
 **Phase 1 is greenlit** pending Mike's separate go-signal.
 
-## What is aria-cowork?
+## What is plugin-claude-cowork?
 
-The sibling plugin to [aria-knowledge](../aria-knowledge/) that targets [Claude Cowork](https://claude.com/product/cowork) instead of Claude Code. Both plugins share the same `~/Projects/knowledge/` folder so the user gets one knowledge truth across both surfaces. **Public at `mikeprasad/aria-cowork` since 2026-05-19** (current: v1.1.0).
+The Claude Cowork port of aria-knowledge, sibling to `plugin-claude-code/`. Both ports live in the same repo (`mikeprasad/aria-knowledge`) and share schema-identical knowledge-folder outputs. Both plugins share the same `~/Projects/knowledge/` folder so the user gets one knowledge truth across both surfaces.
+
+Originally published at `mikeprasad/aria-cowork`; consolidated into `mikeprasad/aria-knowledge/plugin-claude-cowork/` in v2.20.0 (2026-05-24). The aria-cowork repo is archived with a redirect README pointing here.
 
 ## Where the spec lives
 
@@ -66,10 +68,10 @@ The "Probe results — 2026-04-30 (live)" section above is the original architec
 
 ## Container context
 
-This folder lives under [`Projects/aria/`](../CLAUDE.md), the ARIA container, alongside `aria-knowledge/` (the existing Code-side plugin) and `aria-site/` (the website).
+This folder lives under [`Projects/aria/aria-knowledge/`](../CLAUDE.md) as `plugin-claude-cowork/`, one of 5 active ports in the consolidated aria-knowledge repo. Siblings: `plugin-claude-code/`, `plugin-antigravity/`, `plugin-openai-codex/`, `plugin-cursor-template/`.
 
 ## Rules
 
-- This folder is a public GitHub repo (`mikeprasad/aria-cowork`, public since 2026-05-19). Never commit secrets, internal URLs, or personal info.
-- License is CC BY-NC-SA 4.0 (same as aria-knowledge).
+- This folder is tracked in `mikeprasad/aria-knowledge` (public repo since its first release). Never commit secrets, internal URLs, or personal info.
+- License is CC BY-NC-SA 4.0 (same as all other ports in this repo).
 - All architectural decisions go through ADRs in `~/Projects/knowledge/projects/aria-cowork/decisions/`.

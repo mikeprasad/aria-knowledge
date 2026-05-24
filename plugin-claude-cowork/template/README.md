@@ -45,7 +45,7 @@ knowledge/
 └── archive/                 # Retired or superseded content
 ```
 
-**Code-only additions** (created by aria-knowledge in Code, not aria-cowork): `distill/`, `stitch/`, `intake/pre-compact-captures/`, `intake/ideas/`, `projects/{tag}/`. These are git/repo/hook-bound features that don't apply in Cowork. See [aria-cowork ADR-005](https://github.com/mikeprasad/aria-cowork) for the rationale.
+**Code-only additions** (created by aria-knowledge in Code, not aria-cowork): `distill/`, `stitch/`, `intake/pre-compact-captures/`, `intake/ideas/`, `projects/{tag}/`. These are git/repo/hook-bound features that don't apply in Cowork. See [plugin-claude-cowork ADR-005](https://github.com/mikeprasad/aria-knowledge/tree/main/plugin-claude-cowork) for the rationale.
 
 ## Folder taxonomy
 

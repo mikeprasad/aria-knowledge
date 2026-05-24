@@ -19,7 +19,7 @@
 | 3 | Template Scaffold | knowledge folder structure deployed by `aria-setup` | `template/` |
 | 4 | Probe Plugin | diagnostic sibling plugin (`aria-probe`) | `probe/`, `aria-probe.plugin` |
 | 5 | Built Artifacts | versioning history, build process | `aria-cowork-*.plugin` |
-| 6 | Relationship to aria-knowledge | sibling plugin, divergences, shared rules | `../aria-knowledge/` |
+| 6 | Relationship to aria-knowledge | sibling port, divergences, shared rules | `../plugin-claude-code/` |
 | C1 | File Index | quick lookup table | top-level |
 | BL | Build Log | per-section status + dates | end of file |
 
@@ -31,7 +31,7 @@
 **Type:** Claude Cowork plugin (skills-only — no commands/, hooks/, agents/; now ships `.mcp.json` + `CONNECTORS.md` for 12-server MCP framework across 4 categories: chat / email / project tracker / docs).
 **License:** CC BY-NC-SA 4.0 (matches aria-knowledge).
 **Author:** Mike Prasad.
-**Distribution:** Public GitHub repo `mikeprasad/aria-cowork` (first public release 2026-05-19 — v1.0.0 ceremony + v1.0.1 same-day patch).
+**Distribution:** Consolidated into `mikeprasad/aria-knowledge/plugin-claude-cowork/` as of v2.20.0 (2026-05-24). Originally published as standalone `mikeprasad/aria-cowork` (first public release 2026-05-19 — v1.0.0 ceremony + v1.0.1 same-day patch).
 **Spec:** Canonical at `~/Projects/knowledge/projects/aria-cowork/OVERVIEW.md`; 16 ADRs in `decisions/`. Validation gate at `VALIDATION.md` (Probes 2 + 3 hard-fail).
 
 See `CLAUDE.md` for full session/build status (v0.2.0 → v0.2.5 → v0.3.0 parity-catch-up → v1.0.0 first-public + MCP foundation → v1.0.1 same-day patch with google_docs MCP id fix + description-length validator fixes + aggregate-description preflight). See `../CLAUDE.md` for ARIA container context.
@@ -164,7 +164,7 @@ Diagnostic: `aria-probe.plugin` (8.97KB, dated 2026-04-30) is a separate artifac
 
 ## 6. Relationship to aria-knowledge
 
-Sibling plugin to [`../aria-knowledge/`](../aria-knowledge/) (Claude Code-side, public repo `mikeprasad/aria-knowledge`). Both share the same `~/Projects/knowledge/` folder so the user gets one knowledge truth across both surfaces.
+Sibling port to [`../plugin-claude-code/`](../plugin-claude-code/) within the same repo (`mikeprasad/aria-knowledge`). Both share the same `~/Projects/knowledge/` folder so the user gets one knowledge truth across both surfaces.
 
 **Shared:**
 - Knowledge folder (default `~/Projects/knowledge/`).

@@ -54,7 +54,7 @@ EOF
 From Code (terminal):
 
 ```bash
-cd ~/Projects/aria/aria-cowork/probe
+cd ~/Projects/aria/aria-knowledge/plugin-claude-cowork/probe
 zip -r /tmp/aria-probe.plugin . -x "*.DS_Store"
 ```
 

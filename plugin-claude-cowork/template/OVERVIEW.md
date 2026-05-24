@@ -98,7 +98,7 @@ A subtle but important detail: **Cowork's `cwd` is NOT the user-attached folder.
 
 aria-cowork resolves the absolute path once at `/aria-setup` (asking you to confirm), stores it in `aria-config.md`, and uses it for all cross-surface communication. aria-knowledge in Code reads the same `aria-config.md` and finds the same folder. This is what makes the two plugins share knowledge truth without a sync layer.
 
-See [ADR-008](https://github.com/mikeprasad/aria-cowork) for the full mechanism.
+See [ADR-008](https://github.com/mikeprasad/aria-knowledge/tree/main/plugin-claude-cowork) for the full mechanism.
 
 ## Design principles
 
