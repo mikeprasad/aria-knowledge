@@ -20,15 +20,15 @@ fi
 
 # Locate the current session's transcript. Claude Code does not expose session
 # id or transcript path to skill-invoked shells, so we pick the most recently
-# modified *.jsonl under ~/.claude/projects. ls -t is seconds-granular, which
+# modified *.jsonl under ~/.gemini/antigravity/transcripts. ls -t is seconds-granular, which
 # is ambiguous when multiple Claude Code windows write in the same second;
 # stat -f "%Fm" gives fractional seconds on macOS and reliably disambiguates.
-TRANSCRIPT_PATH=$(find "$HOME/.claude/projects" -name '*.jsonl' -type f 2>/dev/null \
+TRANSCRIPT_PATH=$(find "$HOME/.gemini/antigravity/transcripts" -name '*.jsonl' -type f 2>/dev/null \
   | while IFS= read -r f; do stat -f "%Fm %N" "$f" 2>/dev/null; done \
   | sort -rn | head -1 | cut -d' ' -f2-)
 
 if [ -z "$TRANSCRIPT_PATH" ] || [ ! -f "$TRANSCRIPT_PATH" ]; then
-  echo "No transcript file found under ~/.claude/projects" >&2
+  echo "No transcript file found under ~/.gemini/antigravity/transcripts" >&2
   exit 1
 fi
 

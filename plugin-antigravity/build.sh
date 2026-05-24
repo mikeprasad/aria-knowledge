@@ -80,24 +80,21 @@ find "$DST/template" -name '*.bak' -delete
 
 echo "  Copied template/."
 
-# --- bin/ canonical scripts (copied — wrappers reference these) ---
+# --- bin/ canonical scripts (copied + uniform path-substituted) ---
+# Skip 4 canonical scripts whose hook events were retired in the Antigravity
+# port (see PORTING.md "Retired hooks"): pre-compact-check.sh, post-compact-
+# check.sh (PreCompact/PostCompact → /snapshot skill); session-start-check.sh
+# (SessionStart → GEMINI.md); task-context-check.sh (TaskCreated → inline
+# context-loading in /distill, /codemap skills).
 mkdir -p "$DST/bin"
-# Skip pre-compact-check.sh and post-compact-check.sh (no Antigravity equivalent
-# events; transcript snapshot handled by /snapshot skill).
+# Remove stale top-level canonical scripts from prior builds (glob doesn't
+# recurse, so bin/antigravity/*.sh wrappers are left untouched).
+rm -f "$DST/bin"/*.sh
 for f in "$SRC/bin"/*.sh; do
   name=$(basename "$f")
   case "$name" in
-    pre-compact-check.sh|post-compact-check.sh)
+    pre-compact-check.sh|post-compact-check.sh|session-start-check.sh|task-context-check.sh)
       echo "  [skip] $name (no Antigravity equivalent event)"
-      continue
-      ;;
-    config.sh)
-      # Path substitution for config.sh
-      sed \
-        -e 's|$HOME/.claude/aria-knowledge.local.md|$HOME/.gemini/antigravity/aria-knowledge.local.md|g' \
-        -e 's|mkdir -p "$HOME/.claude"|mkdir -p "$HOME/.gemini/antigravity"|g' \
-        "$f" > "$DST/bin/config.sh"
-      chmod +x "$DST/bin/config.sh"
       continue
       ;;
   esac
@@ -105,7 +102,27 @@ for f in "$SRC/bin"/*.sh; do
   chmod +x "$DST/bin/$name"
 done
 
-echo "  Copied $(ls "$DST/bin"/*.sh 2>/dev/null | wc -l | tr -d ' ') canonical bin scripts."
+# Uniform sed pass across every canonical bin script — covers both $HOME/.claude
+# (bash form, in code) and ~/.claude (tilde form, in comments). More-specific
+# substitutions first, then catch-alls.
+find "$DST/bin" -maxdepth 1 -name '*.sh' -exec sed -i.bak \
+  -e 's|$HOME/.claude/aria-knowledge.local.md|$HOME/.gemini/antigravity/aria-knowledge.local.md|g' \
+  -e 's|$HOME/.claude/active-batch.json|$HOME/.gemini/antigravity/active-batch.json|g' \
+  -e 's|$HOME/.claude/projects|$HOME/.gemini/antigravity/transcripts|g' \
+  -e 's|$HOME/.claude/plugins|$HOME/.gemini/config/plugins|g' \
+  -e 's|$HOME/.claude/plans|$HOME/.gemini/antigravity/plans|g' \
+  -e 's|mkdir -p "$HOME/.claude"|mkdir -p "$HOME/.gemini/antigravity"|g' \
+  -e 's|$HOME/.claude|$HOME/.gemini/antigravity|g' \
+  -e 's|~/\.claude/aria-knowledge\.local\.md|~/.gemini/antigravity/aria-knowledge.local.md|g' \
+  -e 's|~/\.claude/active-batch\.json|~/.gemini/antigravity/active-batch.json|g' \
+  -e 's|~/\.claude/projects|~/.gemini/antigravity/transcripts|g' \
+  -e 's|~/\.claude/plugins|~/.gemini/config/plugins|g' \
+  -e 's|~/\.claude/plans|~/.gemini/antigravity/plans|g' \
+  -e 's|~/\.claude|~/.gemini/antigravity|g' \
+  {} +
+find "$DST/bin" -maxdepth 1 -name '*.bak' -delete
+
+echo "  Copied + path-substituted $(ls "$DST/bin"/*.sh 2>/dev/null | wc -l | tr -d ' ') canonical bin scripts."
 
 echo ""
 echo "[aria-knowledge] Antigravity port build complete."

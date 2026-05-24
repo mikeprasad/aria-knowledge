@@ -4,7 +4,7 @@
 # Usage:
 #   bash migrate-ideas-backlog.sh [knowledge_folder]
 #
-# If no argument is provided, resolves knowledge_folder from ~/.claude/aria-knowledge.local.md.
+# If no argument is provided, resolves knowledge_folder from ~/.gemini/antigravity/aria-knowledge.local.md.
 #
 # Behavior:
 #   - Reads {knowledge_folder}/intake/ideas-backlog.md
@@ -25,7 +25,7 @@ set -euo pipefail
 if [ $# -ge 1 ]; then
   KF="$1"
 else
-  CONFIG="$HOME/.claude/aria-knowledge.local.md"
+  CONFIG="$HOME/.gemini/antigravity/aria-knowledge.local.md"
   if [ ! -f "$CONFIG" ]; then
     echo "Error: no knowledge folder argument given and $CONFIG not found." >&2
     echo "Usage: bash migrate-ideas-backlog.sh [knowledge_folder]" >&2
