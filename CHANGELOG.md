@@ -2,6 +2,20 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## v2.20.0 — 2026-05-24
+
+**Antigravity port parity pass.** Primary-source verification against `antigravity.google/docs/*` clippings closed all v2.19.2 Known Drift items + restored 3 behavioral parities lost in the initial port:
+
+- **PreInvocation hook** restores automatic session-start, Rule 22 scope-check feedback to agent, and transcriptPath caching for skills
+- **Overlay pattern** at `overlays/skills/` ships port-specific bodies for `/snapshot`, `/audit-knowledge`, `/audit-config` (canonical bodies depend on Claude-Code-specific filesystem layouts)
+- **version.txt sidecar** since Antigravity plugin.json schema has no version field
+- **Workflows surface** ships 10 thin-shim workflows for true slash-command invocation
+- **Plugin-bundled rules** at `plugin-antigravity/rules/` exposes ARIA rules via Antigravity's Always-On rule activation
+
+7 v2.20 arc commits (Phases A–E) + 2 v2.21 follow-up commits (workflows + rules).
+
+Canonical Claude Code plugin: no behavioral changes; version bumped synchronously for release coordination.
+
 ## [2.19.2] - 2026-05-24
 
 **Patch release — `kt_project_for_path` longest-match-wins fix.** No new skills, no schema changes. Fixes a silent mis-tag bug for nested sub-project configs.
