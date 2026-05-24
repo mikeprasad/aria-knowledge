@@ -4,6 +4,10 @@ You have access to aria-knowledge, a persistent human-governed knowledge plugin.
 
 ## At the start of every session
 
+The `aria-pre-invocation` hook automatically injects a session-start ephemeralMessage on the first model call of every conversation (when `invocationNum == 0`). It directs you to: check audit cadence, clean stale batch manifests, and surface relevant knowledge. Follow those injected instructions in your first response.
+
+If the injection doesn't fire (e.g., the hook is disabled), do the same three checks manually:
+
 1. **Check audit cadence.** Read `~/.gemini/antigravity/aria-knowledge.local.md`. If `audit_cadence_knowledge` days have passed since the last `/audit-knowledge` (per the log at `{knowledge_folder}/logs/knowledge-audit-log.md`), surface the prompt: *"Knowledge audit is due — want me to run /audit-knowledge?"*
 2. **Surface relevant knowledge.** If `active_knowledge_surfacing: true` and the user's first prompt contains project tags or topic keywords, suggest `/context <tags>` to load relevant knowledge files before answering.
 3. **Check for stale batch manifest.** If `~/.gemini/antigravity/active-batch.json` exists and its `expires_at` is in the past, delete it silently.

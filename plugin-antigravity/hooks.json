@@ -54,5 +54,14 @@
         ]
       }
     ]
+  },
+  "aria-pre-invocation": {
+    "PreInvocation": [
+      {
+        "type": "command",
+        "command": "bash ./bin/antigravity/pre-invocation-aria.sh",
+        "timeout": 30
+      }
+    ]
   }
 }

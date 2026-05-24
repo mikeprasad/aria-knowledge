@@ -43,6 +43,24 @@ The port chose **(2)**. The wrappers live at `bin/antigravity/`; the canonical s
 
 ---
 
+## Registered hooks (this port)
+
+| Hook entry | Event | Matcher | Wrapper |
+|---|---|---|---|
+| `aria-pre-edit` | PreToolUse | `write_to_file\|replace_file_content\|multi_replace_file_content` | `bin/antigravity/pre-edit-aria.sh` |
+| `aria-pre-explore` | PreToolUse | `grep_search\|find_by_name` | `bin/antigravity/pre-explore-aria.sh` |
+| `aria-bash-cd` | PreToolUse | `run_command` | `bin/antigravity/bash-cd-aria.sh` |
+| `aria-post-edit` | PostToolUse | `write_to_file\|replace_file_content\|multi_replace_file_content` | `bin/antigravity/post-edit-aria.sh` |
+| `aria-pre-invocation` | PreInvocation | (n/a — fires every model call) | `bin/antigravity/pre-invocation-aria.sh` |
+
+The `aria-pre-invocation` hook restores three behavioral parities the initial port lost:
+
+1. **Session-start automation** — On `invocationNum == 0` (first call of session), injects an ephemeralMessage with audit-cadence + stale-batch-cleanup + knowledge-surfacing prompts. Restores Claude Code's SessionStart hook automatic behavior.
+2. **PostToolUse → agent feedback channel** — Drains pending entries from `~/.gemini/antigravity/aria-knowledge-scope-check.log` (written by `post-edit-aria.sh`) and injects them as ephemeralMessage. Antigravity's PostToolUse protocol returns `{}` with no agent-visible reasoning; this PreInvocation drain pattern delivers Rule 22 scope-check feedback to the agent at a one-turn lag.
+3. **transcriptPath caching** — Writes `transcriptPath` to `~/.gemini/antigravity/.last-transcript-path` on every call. Skills (which aren't hooks and can't read hook stdin) read this cache to know the current conversation transcript — required by `/snapshot`, `/audit-knowledge`, and `/extract`.
+
+---
+
 ## Retired hooks
 
 | Hook | Canonical script | Reason retired |
@@ -86,7 +104,6 @@ Semantic Claude-Code-specific references in canonical content that survived path
 |---|---|---|
 | `skills/setup/SKILL.md` | 13, 16, 303 | Reads installed version from `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` — but Antigravity's `plugin.json` is at the flat root and contains only `{"name":"aria-knowledge"}` (no version field per Antigravity's documented manifest schema). The /setup skill needs a port-specific version source (e.g., a sibling `version.txt`, or read from `PORTING.md`'s version table). |
 | `skills/audit-config/SKILL.md` | 9, 17, 47, 60 | Audit logic targets `.claude/settings.local.json` and `.claude/*.local.md` — Claude-Code-specific configuration surfaces. Antigravity has different surfaces (`hooks.json`, `mcp_config.json`, `~/.gemini/GEMINI.md`, `.agents/rules/`). Skill needs port-specific audit logic, possibly a separate `audit-config-antigravity` variant. |
-| `template/rules/change-decision-framework.md` | 5, 220 | Documentation prose references `.claude/settings.local.json` as the Rule 22 hook configuration surface. In Antigravity this lives in `hooks.json`. Cosmetic drift only — the rule itself is port-agnostic; the implementation surface example is Claude-Code-specific. |
 
 Resolution path: a v2.20 "port-audit pass" that grep-walks every skill/template file for Claude-Code-specific surfaces and either (a) genericizes them, (b) adds port-aware conditional logic, or (c) creates port-specific skill variants where the surface delta is too large for genericization.
 
