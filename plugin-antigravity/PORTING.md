@@ -27,6 +27,11 @@ This file tracks divergence between `plugin/` (canonical Claude Code port) and `
 | Global rules path | n/a (CLAUDE.md files) | **`~/.gemini/GEMINI.md`** (global) or `.agents/rules/*.md` (workspace) |
 | Install command | `/plugin install` (or copy to `~/.claude/plugins/`) | **`/plugin marketplace add <github>`** + **`/plugin install <plugin-name>`** |
 | jq dependency | not required | **required** (for stdin-JSON parsing in wrappers) |
+| Hook timeout default | not documented | **30 seconds per docs/hooks** (`aria-knowledge` initially shipped 5s on all hooks → bumped to 30 in v2.20) |
+| Plugin version field | In `.claude-plugin/plugin.json` `"version"` key | **`version.txt` sidecar at plugin root** (Antigravity's `plugin.json` schema is marker-only per docs/plugins; no documented version field) |
+| Skill frontmatter fields | `description`, `argument-hint`, `allowed-tools`, `model`, `disable-model-invocation` | **`name` (optional) + `description` (required) only** per docs/skills; `allowed-tools` and `argument-hint` stripped in v2.20 |
+| Slash-command invocation | Skills invoked via `/skill-name` natively | **Description-activated only** (agent picks skill by description-match); for true slash-command parity, ship Workflows at `.agents/workflows/` (v2.21 optional) |
+| Subagent dispatch | Agent tool (programmatic) | **`invoke_subagent` / `define_subagent` tools** per docs/hooks |
 
 ---
 
@@ -110,8 +115,32 @@ Drift between canonical and overlay is detected via `diff plugin/skills/<name>/S
 
 ---
 
+## v2.20 closure summary
+
+Initial port (v2.19.2) shipped 18 plan tasks across the manifest, hook layer, MCP config, GEMINI.md, 30 skills, knowledge folder template, build script, probe-hook, and docs. The v2.20 arc closed every documented Known Drift item plus surfaced 5 schema-level findings from a primary-source verification pass against `~/Projects/knowledge/intake/clippings/Google Antigravity Documentation{,1-4}.md`.
+
+### v2.20 commits
+
+| Commit | Phase | Change |
+|---|---|---|
+| `8acc86a` | A1 | Strip `allowed-tools` + `argument-hint` from all 30 SKILL.md frontmatter (Antigravity schema recognizes only `name` + `description`) |
+| `1dac96b` | A2 | Bump hook timeouts 5s → 30s (Antigravity default per docs/hooks) |
+| `14e03e5` | A3 | Substitute `.claude/settings.local.json` → `hooks.json` in `template/rules/change-decision-framework.md` |
+| `92d04d4` | B | Add `aria-pre-invocation` hook restoring 3 behavioral parities: session-start automation (on `invocationNum == 0`), Rule 22 scope-check feedback injection (drain log → ephemeralMessage), and `transcriptPath` caching |
+| `0ddc045` | C | Add `version.txt` sidecar (Antigravity plugin.json has no version field); patch `/setup` to read it |
+| `cafe2bc` | D | Port-specific overlays for `/snapshot`, `/audit-knowledge`, `/audit-config` (overlay pattern at `overlays/skills/<name>/SKILL.md`); save-transcript.sh heredoc replacement; artifactDirectoryPath caching added to pre-invocation hook |
+
+### v2.21 follow-up candidates (not parity-blocking)
+
+- **Workflows surface** — ship `.agents/workflows/<command>.md` for the ~10 most-used user-invoked commands (`/setup`, `/handoff`, `/wrapup`, `/extract`, `/context`, `/snapshot`, `/audit-knowledge`, `/audit-config`, `/help`, `/stats`) to enable true slash-command invocation. Skills' description-activation works for now but requires the agent to recognize intent rather than the user typing the command directly.
+- **Plugin-bundled rules** — per docs/plugins, plugins can ship a `rules/` subdirectory. ARIA's `template/rules/working-rules.md` could ALSO live at `plugin-antigravity/rules/working-rules.md` for Antigravity's "Always On" rule-activation mode. Optional convenience.
+- **Probe-hook empirical closure** — OQ-1/2/3 (env var availability, CWD assumption, jq path) still gated on a real Antigravity install. First-session probe at `~/aria-antigravity-probe.log` resolves all three on first use; smoke test in `SMOKE-TEST.md`.
+
+---
+
 ## Version history
 
 | Port version | Canonical synced from | Date | Notes |
 |---|---|---|---|
 | 2.19.2 | `plugin/` @ v2.19.2 | 2026-05-24 | Initial Antigravity port. Prior draft (`plugin-antigravity.archive-2026-05-24-draft/`) was built on incorrect contract assumptions; this is the verified rebuild. |
+| 2.20.0 | `plugin/` @ v2.19.2 | 2026-05-24 | Primary-source verification pass closed all Known Drift items + restored 3 behavioral parities via new PreInvocation hook + introduced overlay pattern for 3 misfitting skills + version.txt sidecar. 6 commits 8acc86a..cafe2bc. |

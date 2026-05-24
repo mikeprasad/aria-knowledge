@@ -80,6 +80,68 @@ Findings inform OQ-1, OQ-2, OQ-3 closure in the design guide.
 
 **If fails:** Verify `skills/setup/SKILL.md` is in the plugin install path. Check Antigravity recognizes plugin-bundled skills (vs only `.agents/skills/`).
 
+## Test 7: PreInvocation Hook Behaviors
+
+Verifies the v2.20 PreInvocation hook (`aria-pre-invocation`) restores three behavioral parities lost in the initial port.
+
+### 7a: transcriptPath caching
+
+**Action:** Open a fresh chat. Send any message and let the agent respond.
+
+**Expected:** After the agent's first response, the cache file exists and contains a valid path:
+
+```sh
+cat ~/.gemini/antigravity/.last-transcript-path
+```
+
+Should output an absolute path like `/path/to/workspace/.gemini/jetski/transcript.jsonl`. The file at that path should exist.
+
+**If fails:** PreInvocation hook didn't fire OR didn't have stdin access. Check Antigravity's hook log. Verify `bash ./bin/antigravity/pre-invocation-aria.sh` is registered in hooks.json's `aria-pre-invocation` entry. Verify `jq` is on PATH.
+
+### 7b: artifactDirectoryPath caching
+
+**Action:** Same as 7a — first agent response.
+
+**Expected:**
+
+```sh
+cat ~/.gemini/antigravity/.last-artifact-dir
+```
+
+Should output an absolute path to an artifacts directory (typically `/path/to/workspace/.gemini/jetski/artifacts`).
+
+### 7c: Session-start ephemeralMessage injection
+
+**Action:** Open a brand-new conversation. The first model invocation should have `invocationNum: 0`. Watch the agent's first response.
+
+**Expected:** The agent's first response should include behaviors triggered by the injected ephemeralMessage: check audit cadence, clean stale batch manifests, surface relevant knowledge based on the user's first message.
+
+You can verify the injection happened by looking at Antigravity's trajectory log (if accessible) for an ephemeralMessage step at position 0 containing the string "[ARIA] First call of session".
+
+**If fails:** Hook didn't fire on first call, OR `invocationNum == 0` detection didn't match, OR injectSteps output schema was wrong. Inspect the trajectory.
+
+### 7d: Rule 22 scope-check feedback drain
+
+**Action:**
+1. Ask the agent to make any small edit to a test file.
+2. Watch — the `aria-post-edit` hook fires after the edit, writing scope-check output to `~/.gemini/antigravity/aria-knowledge-scope-check.log`.
+3. Continue the conversation — ask the agent to do another small task that does NOT involve editing.
+4. The next model invocation should see the scope-check feedback injected as an ephemeralMessage from the drain logic.
+
+**Expected:**
+- After step 2: `cat ~/.gemini/antigravity/aria-knowledge-scope-check.log` shows a `[Rule 22 · Scope]` entry.
+- After step 4 (the NEXT model call): the log file is empty (drained) and the agent's response shows awareness of the scope-check (it may comment on the prior edit's scope or proceed normally without explicit mention — but the log should be drained).
+
+**If fails:** Either post-edit-aria didn't write the log, or pre-invocation-aria didn't drain it. Verify both wrappers are registered + executable. Verify the log file is at the exact path `~/.gemini/antigravity/aria-knowledge-scope-check.log`.
+
+### 7e: /snapshot reads cached transcript
+
+**Action:** After some conversation activity (so the transcript cache is warm), type `/snapshot` in the agent chat.
+
+**Expected:** Snapshot succeeds. The output prints both the source path (from the cache) and the destination path (under `{knowledge_folder}/intake/pre-compact-captures/`).
+
+**If fails:** Likely the cache file is missing or stale, OR `save-transcript.sh` wasn't patched correctly. Verify `grep -c 'last-transcript-path' ~/.gemini/config/plugins/aria-knowledge/bin/save-transcript.sh` returns at least 1.
+
 ## Reporting
 
 After running the full sequence, update `PORTING.md` "Open Questions" section with empirical findings:
@@ -87,4 +149,5 @@ After running the full sequence, update `PORTING.md` "Open Questions" section wi
 - OQ-1 (hook event names): confirmed via Test 4
 - OQ-2 (env var availability): confirmed via Test 2 probe log
 - OQ-3 (CWD assumption): confirmed via Test 4 + probe log
+- v2.20 PreInvocation behaviors (transcript cache, artifact cache, session-start injection, scope-check drain, /snapshot integration): all 5 confirmed via Test 7a-7e
 - IDE-vs-CLI: re-test the full sequence in the other surface; document any divergence.

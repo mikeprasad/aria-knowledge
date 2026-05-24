@@ -41,12 +41,14 @@ If `jq` is missing, every hook fails closed with a deny-and-reason. Install befo
 | Component | Path | Purpose |
 |---|---|---|
 | Plugin manifest | `plugin.json` | Marker file identifying this dir as a plugin |
-| Hooks | `hooks.json` + `bin/antigravity/` | 4 per-turn hooks (3 PreToolUse + 1 PostToolUse) |
+| Hooks | `hooks.json` + `bin/antigravity/` | 5 hooks (3 PreToolUse + 1 PostToolUse + 1 PreInvocation) |
 | Hook wrappers | `bin/antigravity/*.sh` | Translate Antigravity stdin JSON to ARIA canonical env vars |
 | MCP servers | `mcp_config.json` | 12 servers (Slack, Linear, Notion, Atlassian, etc.) — HTTP transport with `serverUrl` |
 | Session-lifecycle rules | `GEMINI.md` | One-time-per-session behaviors (audit cadence, knowledge surfacing) |
 | Skills | `skills/<name>/SKILL.md` × 30 | All ARIA commands (`/setup`, `/extract`, `/handoff`, `/audit-knowledge`, etc.) |
 | Knowledge template | `template/` | Knowledge folder scaffold; copied to `knowledge_folder` on `/setup` |
+| Version sidecar | `version.txt` | Bare semver string at plugin root (Antigravity's `plugin.json` schema has no documented version field); read by `/setup` |
+| Skill overlays | `overlays/skills/<name>/SKILL.md` | Port-specific replacements for 3 skills whose canonical bodies depend on Claude Code's filesystem layout (`/snapshot`, `/audit-knowledge`, `/audit-config`) |
 
 ## What's NOT included
 
@@ -62,7 +64,7 @@ This port is assembled from canonical `plugin/` by `build.sh`. Run after any `pl
 bash plugin-antigravity/build.sh
 ```
 
-Hand-authored files (`plugin.json`, `hooks.json`, `mcp_config.json`, `GEMINI.md`, `bin/antigravity/*`, this README, `PORTING.md`, `SMOKE-TEST.md`) are preserved; only `skills/`, `template/`, and `bin/*.sh` (the canonical scripts) are regenerated.
+Hand-authored files (`plugin.json`, `hooks.json`, `mcp_config.json`, `GEMINI.md`, `bin/antigravity/*`, `overlays/skills/*`, `version.txt` *though build.sh syncs version.txt from canonical on rebuild*, this README, `PORTING.md`, `SMOKE-TEST.md`) are preserved; only `skills/`, `template/`, and `bin/*.sh` (the canonical scripts) are regenerated. The overlay layer (`overlays/skills/<name>/SKILL.md`) is applied AFTER canonical skill copy + substitution — overlays win, but only for the 3 skills with port-specific bodies.
 
 ## Testing
 
