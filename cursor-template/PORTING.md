@@ -1,7 +1,7 @@
 # ARIA Knowledge Cursor Port
 
 This directory is the standalone Cursor port of ARIA Knowledge. Unlike the
-Claude (`../plugin/`) and Codex (`../plugin-codex/`) ports, this is a
+Claude (`../plugin/`) and Codex (`../plugin-openai-codex/`) ports, this is a
 **repo skeleton**, not a plugin install — users unzip or copy its contents into
 the root of their own project, then restart Cursor.
 
@@ -61,7 +61,7 @@ section when you push a sync commit.
 
 The canonical source is `plugin/template/`. The Cursor port mirrors it at
 `cursor-template/knowledge/` (hoisted to root, not nested under `template/`).
-The Codex port mirrors it at `plugin-codex/template/` (verbatim).
+The Codex port mirrors it at `plugin-openai-codex/template/` (verbatim).
 
 **Last synced:** `plugin/` @ v2.16.1 → `cursor-template/` (2026-05-18, audit
 build).

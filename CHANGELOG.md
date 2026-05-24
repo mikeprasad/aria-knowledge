@@ -28,7 +28,7 @@ Fix: walk the entire list and return the tag whose configured path is the **long
 
 **Files:**
 - `plugin-claude-code/bin/config.sh` — Claude port
-- `plugin-codex/bin/config.sh` — Codex port
+- `plugin-openai-codex/bin/config.sh` — Codex port
 - `cursor-template/scripts/aria/config.sh` — Cursor port
 
 All 3 ports' `kt_project_for_path` function bodies remain byte-identical post-fix (verified via `diff`).
@@ -108,18 +108,18 @@ The cursor port's `.cursor/rules/aria-commands.mdc` was pre-existing-drifted on 
 
 ### Surface area touched
 
-- `plugin-claude-code/skills/wrapup/SKILL.md` + `plugin-codex/skills/wrapup/SKILL.md` (byte-identical) — frontmatter description rewritten, `argument-hint` set, Step 0 + 6 gates + Rules section updated for mode-conditional behavior.
-- `plugin-claude-code/skills/handoff/SKILL.md` + `plugin-codex/skills/handoff/SKILL.md` (byte-identical) — frontmatter description rewritten + body intro tightened (passoff-led framing).
+- `plugin-claude-code/skills/wrapup/SKILL.md` + `plugin-openai-codex/skills/wrapup/SKILL.md` (byte-identical) — frontmatter description rewritten, `argument-hint` set, Step 0 + 6 gates + Rules section updated for mode-conditional behavior.
+- `plugin-claude-code/skills/handoff/SKILL.md` + `plugin-openai-codex/skills/handoff/SKILL.md` (byte-identical) — frontmatter description rewritten + body intro tightened (passoff-led framing).
 - `cursor-template/.cursor/rules/aria-commands.mdc` — `/wrapup` and `/handoff` sections updated for parity (AGENTS.md naming preserved); brief mode added.
-- `plugin-claude-code/.claude-plugin/plugin.json` + `plugin-codex/.codex-plugin/plugin.json` + `.claude-plugin/marketplace.json` — version bumps.
+- `plugin-claude-code/.claude-plugin/plugin.json` + `plugin-openai-codex/.codex-plugin/plugin.json` + `.claude-plugin/marketplace.json` — version bumps.
 
 ## [2.18.1] - 2026-05-19
 
-**Patch release — `.mcp.json` directory-entry-name fix + companion prose alignment.** No skill changes; no schema changes. Surface area touched: `.mcp.json` (both `plugin/` and `plugin-codex/` ports) + prose mentions across CHANGELOG, 4 SKILL.md files in each port. Coordinated with aria-cowork v1.0.0 release (2026-05-19) which fixed the same underlying bug Cowork-side, where it manifested as install failure.
+**Patch release — `.mcp.json` directory-entry-name fix + companion prose alignment.** No skill changes; no schema changes. Surface area touched: `.mcp.json` (both `plugin/` and `plugin-openai-codex/` ports) + prose mentions across CHANGELOG, 4 SKILL.md files in each port. Coordinated with aria-cowork v1.0.0 release (2026-05-19) which fixed the same underlying bug Cowork-side, where it manifested as install failure.
 
 ### Fixed — `.mcp.json` `google_docs` → `google docs`
 
-Both `plugin-claude-code/.mcp.json` and `plugin-codex/.mcp.json` declared `"google_docs"` (underscore) with an empty `url` for the Google Docs MCP server. The canonical Cowork directory-entry name uses a space: `"google docs"`. Per the Cowork plugin-customizer schema reference (`cowork-plugin-management/skills/cowork-plugin-customizer/references/mcp-servers.md`), servers with empty `url` must match a directory entry name *exactly* to validate — the underscore form silently fails Cowork's server-side validator. **Invisible bug Code-side** (Code's MCP client doesn't validate against Cowork's directory) but parity-preserving for ADR-013's byte-faithful intent against the Cowork sibling. Fix applied to both ports; prose mentions of `google_docs` across SKILL.md frontmatter enum docs + CHANGELOG swept to `google docs` for internal consistency with the new manifest key.
+Both `plugin-claude-code/.mcp.json` and `plugin-openai-codex/.mcp.json` declared `"google_docs"` (underscore) with an empty `url` for the Google Docs MCP server. The canonical Cowork directory-entry name uses a space: `"google docs"`. Per the Cowork plugin-customizer schema reference (`cowork-plugin-management/skills/cowork-plugin-customizer/references/mcp-servers.md`), servers with empty `url` must match a directory entry name *exactly* to validate — the underscore form silently fails Cowork's server-side validator. **Invisible bug Code-side** (Code's MCP client doesn't validate against Cowork's directory) but parity-preserving for ADR-013's byte-faithful intent against the Cowork sibling. Fix applied to both ports; prose mentions of `google_docs` across SKILL.md frontmatter enum docs + CHANGELOG swept to `google docs` for internal consistency with the new manifest key.
 
 ### Companion: aria-cowork v1.0.0 fix arc (informational)
 
@@ -299,7 +299,7 @@ New plugin-managed template defining the 5-section body structure. Read by `/int
 
 Both modes originated in aria-cowork's v0.3.0 design discussion as B2 + B5 candidates. This release is the **first instance of cowork→aria-knowledge feature flow** — features conceived in cowork's context, designed cross-plugin, shipped in aria-knowledge first (schema source-of-truth) so aria-cowork's port can import the resulting templates byte-identical. Pattern documented in aria-cowork ADR 014.
 
-The plugin-codex/ port mirrors the same skill body + template changes per the Codex Port Workflow ("keep durable knowledge template/schema changes in sync with `plugin/` — Claude remains the schema standard").
+The plugin-openai-codex/ port mirrors the same skill body + template changes per the Codex Port Workflow ("keep durable knowledge template/schema changes in sync with `plugin/` — Claude remains the schema standard").
 
 ### Files changed
 
@@ -309,7 +309,7 @@ The plugin-codex/ port mirrors the same skill body + template changes per the Co
 - Modified: `plugin-claude-code/skills/help/SKILL.md` (59 → 60 lines, +1)
 - Modified: `plugin-claude-code/.claude-plugin/plugin.json` (version bump 2.16.1 → 2.17.0)
 - Modified: `CLAUDE.md` (bidirectional flow note added per aria-cowork ADR 014)
-- Mirrored: same changes in `plugin-codex/skills/{handoff,intake,help}/SKILL.md` + `plugin-codex/template/intake/intake-doc.md`
+- Mirrored: same changes in `plugin-openai-codex/skills/{handoff,intake,help}/SKILL.md` + `plugin-openai-codex/template/intake/intake-doc.md`
 
 ### Compatibility
 

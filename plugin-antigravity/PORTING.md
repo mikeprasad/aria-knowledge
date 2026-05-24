@@ -1,6 +1,6 @@
 # PORTING.md — Antigravity Port of aria-knowledge
 
-This file tracks divergence between `plugin/` (canonical Claude Code port) and `plugin-antigravity/` (this port), per the same convention as `cursor-template/PORTING.md` and `plugin-codex/`.
+This file tracks divergence between `plugin/` (canonical Claude Code port) and `plugin-antigravity/` (this port), per the same convention as `cursor-template/PORTING.md` and `plugin-openai-codex/`.
 
 ---
 

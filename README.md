@@ -165,10 +165,10 @@ After install, run `/help` anytime to see the full command catalog with model re
 
 ### Codex Port
 
-A standalone Codex port now lives in [`plugin-codex/`](plugin-codex/). It keeps
+A standalone Codex port now lives in [`plugin-openai-codex/`](plugin-openai-codex/). It keeps
 the Claude-standard ARIA knowledge folder and content schema while adapting the
 plugin manifest, hooks, and command entrypoints for Codex. See
-[`plugin-codex/README.md`](plugin-codex/README.md) for current parity notes and
+[`plugin-openai-codex/README.md`](plugin-openai-codex/README.md) for current parity notes and
 setup details.
 
 ### Cursor Port

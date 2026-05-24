@@ -28,7 +28,7 @@ aria/
 │   ├── bin/           ← Hook scripts (bash)
 │   ├── skills/        ← Skill definitions (SKILL.md files)
 │   └── template/      ← Knowledge folder templates
-├── plugin-codex/      ← Codex port (independent installable unit)
+├── plugin-openai-codex/      ← Codex port (independent installable unit)
 │   ├── .codex-plugin/
 │   │   └── plugin.json
 │   ├── hooks.json     ← Codex hook registration
@@ -52,7 +52,7 @@ aria/
 ## Key Conventions
 
 - **`plugin-claude-code/` is the installable unit** — everything inside it is what users copy to their plugins directory
-- **`plugin-codex/` is the Codex installable unit** — independent adapter surface, same knowledge schema. Claude `plugin-claude-code/` remains the standard for template/content shape.
+- **`plugin-openai-codex/` is the Codex installable unit** — independent adapter surface, same knowledge schema. Claude `plugin-claude-code/` remains the standard for template/content shape.
 - **`cursor-template/` is the Cursor repo-skeleton** — not a plugin install. Users clone or unzip its contents into the root of their own project. Cursor compiles 25 skills into 5 `.cursor/rules/*.mdc` files because Cursor's Rules system doesn't have a one-skill-per-folder concept. Knowledge folder schema stays compatible with `plugin-claude-code/template/`.
 - **Template files** in `plugin-claude-code/template/` are either plugin-managed (diffable on `/setup`) or user-owned (created once, never overwritten). See `plugin-claude-code/skills/setup/SKILL.md` for the authoritative list.
 - **Version** lives in `plugin-claude-code/.claude-plugin/plugin.json`
@@ -69,10 +69,10 @@ aria/
 
 ### Codex Port Workflow
 
-1. Edit Codex adapter files in `plugin-codex/`
+1. Edit Codex adapter files in `plugin-openai-codex/`
 2. Keep durable knowledge template/schema changes in sync with `plugin-claude-code/` — Claude remains the schema standard
 3. Enable Codex plugin hooks with `codex features enable plugin_hooks` before testing automatic hooks
-4. Install via `.agents/plugins/marketplace.json` or copy `plugin-codex/` into a Codex local marketplace
+4. Install via `.agents/plugins/marketplace.json` or copy `plugin-openai-codex/` into a Codex local marketplace
 
 ### Cursor Port Workflow
 

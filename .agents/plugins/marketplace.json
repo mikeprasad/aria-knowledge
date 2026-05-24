@@ -8,7 +8,7 @@
       "name": "aria-knowledge",
       "source": {
         "source": "local",
-        "path": "./plugin-codex"
+        "path": "./plugin-openai-codex"
       },
       "policy": {
         "installation": "AVAILABLE",

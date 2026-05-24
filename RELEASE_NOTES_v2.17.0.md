@@ -22,7 +22,7 @@ Full Claude changelog details: see [CHANGELOG.md § 2.17.0](https://github.com/m
 
 ## Codex port — first public release (`2.17.0-codex.0`)
 
-A standalone Codex port ships from [`plugin-codex/`](https://github.com/mikeprasad/aria-knowledge/tree/main/plugin-codex). Independent installable unit with its own `.codex-plugin/plugin.json`, `hooks.json`, and `commands/` entrypoints. Same ARIA knowledge folder schema as the canonical Claude plugin — no fork.
+A standalone Codex port ships from [`plugin-openai-codex/`](https://github.com/mikeprasad/aria-knowledge/tree/main/plugin-openai-codex). Independent installable unit with its own `.codex-plugin/plugin.json`, `hooks.json`, and `commands/` entrypoints. Same ARIA knowledge folder schema as the canonical Claude plugin — no fork.
 
 **Hook parity:**
 - `SessionStart` cadence + setup prompts (passthrough to existing ARIA scripts)
@@ -41,7 +41,7 @@ A standalone Codex port ships from [`plugin-codex/`](https://github.com/mikepras
 
 **Config:** Codex hooks read `~/.codex/aria-knowledge.local.md` first, then fall back to `~/.claude/aria-knowledge.local.md` — so existing ARIA Claude users can keep their existing config.
 
-See [`plugin-codex/README.md`](https://github.com/mikeprasad/aria-knowledge/blob/main/plugin-codex/README.md) and [`plugin-codex/PORTING.md`](https://github.com/mikeprasad/aria-knowledge/blob/main/plugin-codex/PORTING.md) for the full parity matrix.
+See [`plugin-openai-codex/README.md`](https://github.com/mikeprasad/aria-knowledge/blob/main/plugin-openai-codex/README.md) and [`plugin-openai-codex/PORTING.md`](https://github.com/mikeprasad/aria-knowledge/blob/main/plugin-openai-codex/PORTING.md) for the full parity matrix.
 
 ---
 

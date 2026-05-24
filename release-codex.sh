@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # release-codex.sh — build a clean Codex port zip.
 #
-# Reads version from plugin-codex/.codex-plugin/plugin.json (source of truth),
-# stages plugin-codex/ with junk excluded, and emits
+# Reads version from plugin-openai-codex/.codex-plugin/plugin.json (source of truth),
+# stages plugin-openai-codex/ with junk excluded, and emits
 # aria-knowledge-codex-<canonical-version>.zip at repo root.
 #
 # Sibling of release.sh (Claude port). Independent build per the
@@ -11,7 +11,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CODEX_MANIFEST="$REPO_ROOT/plugin-codex/.codex-plugin/plugin.json"
+CODEX_MANIFEST="$REPO_ROOT/plugin-openai-codex/.codex-plugin/plugin.json"
 
 log()  { printf '\033[0;36m[release]\033[0m %s\n' "$*"; }
 ok()   { printf '\033[0;32m[  ok   ]\033[0m %s\n' "$*"; }
@@ -55,7 +55,7 @@ rsync -a \
     --exclude='__MACOSX' \
     --exclude='.claude/' \
     --exclude='PORTING.md' \
-    "$REPO_ROOT/plugin-codex/" \
+    "$REPO_ROOT/plugin-openai-codex/" \
     "$STAGE_DIR/"
 
 # --- zip --------------------------------------------------------------------
