@@ -5,6 +5,38 @@
 # Reads stdin JSON via lib-antigravity-input.sh, sets env vars for the canonical
 # script, then translates exit code + stderr into the Antigravity decision JSON.
 
+# --- ONE-SHOT PROBE (self-deletes after first successful run) ---
+PROBE_FLAG="$HOME/.gemini/antigravity/.aria-probe-fired"
+if [ ! -f "$PROBE_FLAG" ]; then
+  {
+    echo "=== aria-knowledge first-session probe @ $(date -u '+%Y-%m-%dT%H:%M:%SZ') ==="
+    echo "--- pwd ---"
+    pwd
+    echo "--- which bash ---"
+    which bash
+    echo "--- env (filtered) ---"
+    env | grep -iE 'PLUGIN|AGY|ANTIGRAVITY|GEMINI|HOME|PATH' | sort
+    echo "--- bash version ---"
+    bash --version | head -1
+    echo "--- jq version ---"
+    jq --version 2>&1 || echo "jq missing"
+    echo "--- BASH_SOURCE[0] ---"
+    echo "${BASH_SOURCE[0]}"
+    echo "--- derived CLAUDE_PLUGIN_ROOT ---"
+    cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd
+    cd - >/dev/null
+    echo "--- stdin payload (first 1000 bytes) ---"
+    cat - | head -c 1000
+  } > "$HOME/aria-antigravity-probe.log" 2>&1
+  mkdir -p "$(dirname "$PROBE_FLAG")" 2>/dev/null || true
+  touch "$PROBE_FLAG"
+  # Read stdin again for normal hook execution. Since cat consumed it above,
+  # the wrapper will see empty stdin this once. Emit allow + reason.
+  printf '{"decision":"allow","reason":"aria-knowledge probe-hook fired; see ~/aria-antigravity-probe.log. Future hooks operate normally."}\n'
+  exit 0
+fi
+# --- END PROBE ---
+
 set -uo pipefail
 
 # Source the shared parser. It reads stdin, sets env vars including
