@@ -1,6 +1,6 @@
 {
   "name": "aria-knowledge",
-  "version": "2.20.0",
+  "version": "2.20.1",
   "description": "ARIA \u2014 Applied Reasoning and Insight Architecture. Persistent human-governed knowledge for Claude Code via a five-phase lifecycle: capture \u2192 govern \u2192 promote \u2192 apply \u2192 refresh. Stages session insights/decisions/feedback into review backlogs, promotes approved items to a tag-indexed markdown base, and applies them via /context, /rules, /codemap, /stitch, /distill, /prospect (forward-looking pre-mortems on plans before execution), /retrospect (commit/range/PR/release/deployment retrospectives with per-fix validation), and Rule 22 change-decision hooks on every Edit/Write. Both /prospect and /retrospect run an Evidence-Sourcing Pass that autonomously sources accessible evidence (codebase reads, public docs, MCP queries) and surfaces user-input asks for anything that requires judgment \u2014 converting unsupported assumptions to validated/falsified before the report finalizes. Reports persist to ~/knowledge/logs/{prospect,retrospect}/ with structured frontmatter and become discoverable via /context. Ships 34 working rules + a 7-step framework, audit cadences, ideas-lifecycle routing, drift detection, an optional shared-knowledge tier for team promotions, and structural-signal surfacing on critical paths. IMPORTANT: All skills except /setup require ~/.claude/aria-knowledge.local.md to exist. If missing when any skill is invoked, stop and tell the user to run /setup.",
   "author": {
     "name": "Mike Prasad"

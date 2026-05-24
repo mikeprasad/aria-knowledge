@@ -2,6 +2,59 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## v2.20.1 — 2026-05-25
+
+**Patch release — bare-slash gate UX revision (ADR-094 §Part 1/2/3 revision).** Coordinated with aria-cowork v1.1.2. No new skills, no schema changes. The 24 colliding dual-port skills get a UX refresh of the description format + Runtime Gate question + on-yes mechanism per the 2026-05-24 ADR-094 revision. Closes 4 carry-forward items from the 2026-05-24 maintenance idea file.
+
+### Changed — description format (Strategy 1 trailing parenthetical)
+
+The leading `**Bare-slash canonical (Claude Code).**` boilerplate (~60-80 words of ADR-094 narrative) is stripped from each Code-side skill description. Port-identification moved to a compact trailing parenthetical:
+
+- Code-side: `(Claude Code variant — bare-slash canonical when both ports loaded; see ADR-094.)`
+- Cowork-side: `(Claude Cowork variant. Namespaced-only — bare /X belongs to aria-knowledge per ADR-094.)`
+
+Skill purpose now leads in every UI surface (`/help`, Claude Desktop plugin browser). Description-level model routing signal preserved by trailing port-id — the model reads the full description field; only UI truncation hides the parenthetical from human browsing.
+
+Also closes a real Item 4 audit gap on the Cowork side: ADR-094 §Part 1 specified a `Namespaced-only` clause + `Do NOT match bare /X` anti-trigger that v2.19.1 implementation didn't carry on cowork descriptions (0/24). v2.20.1 restores both surfaces (trailing parenthetical for description-routing + Runtime Gate body preamble for in-skill discovery).
+
+### Changed — Runtime Gate question inverted + Skill-tool auto-redirect on yes
+
+`## Runtime Gate (per ADR-094)` body section in each colliding skill gets three updates:
+
+1. **Canonical resolution preamble** — opens with `**Canonical resolution:** This is the [Code/Cowork] variant. ...` paragraph re-stating cross-port routing (replaces the leading-clause narrative that previously lived in `description:`).
+2. **Question inverted** — `Proceed with the [variant] anyway? (y/n)` → `**Use /[correct-variant] instead?** (y/n)`. Default-yes is now "fix it for me" instead of "proceed with wrong port".
+3. **Skill-tool auto-redirect on yes** — on `y`, the skill uses Claude's `Skill` tool to invoke the correct-port variant with the same arguments the user originally provided. Auto-redirect runs the correct skill to completion; wrong-port skill exits without executing.
+
+The `n` path preserves the opt-in-anyway escape; no-response is fail-closed exit.
+
+### Changed — auto-mode friction analysis (§Part 3)
+
+ADR-094 §Part 3's "auto-mode is NOT exempt from the runtime gate" principle is preserved unchanged. The friction analysis is updated to reflect that auto-redirect on `y` lowers the gate's cost from "manually re-invoke" to "~1 keystroke" — the gate still catches accidental wrong-variant invocations under `auto`, but the safety check is now near-zero cost in the common case.
+
+### Added — ADR-094 Revision history + Validated By
+
+ADR-094 (`knowledge/projects/aria/decisions/094-bare-slash-canonical-owner-and-dual-runtime-gate.md`) gains a Revision history section documenting the three surface changes and a populated Validated By section with two entries: 2026-05-23 initial implementation + 2026-05-25 revision/closure session. Skill-tool chaining empirical behavior is flagged as the residual unknown pending runtime spot-test (see Validated By).
+
+### Docs sync
+
+- `README.md` — added `Last reviewed: 2026-05-25` footer.
+- `plugin-claude-code/README.md` — added `Last reviewed: 2026-05-25` footer.
+- `plugin-claude-cowork/README.md` — bumped Status block from v1.0.0 → v1.1.1 (later → v1.1.2 in this release); added "What's new in v1.1.1 / v1.1.0 / v1.0.1" sections above the existing v1.0.0 section; added footer.
+- `plugin-claude-cowork/CONNECTORS.md` — 2 stale `v0.4.0` references (pre-1.0 codename) bumped to current.
+
+### Coverage
+
+- 48 SKILL.md files changed (24 dual-port skills × 2 ports including 2 alias pairs).
+- 44/44 canonical-resolution preambles (22 non-alias × 2 ports).
+- 44/44 inverted-question gates.
+- 44/44 Skill-tool auto-redirect mentions.
+- 48/48 trailing parentheticals.
+- 0 boilerplate residue, 0 old "Proceed ... anyway" question residue.
+
+### Empirical unknown
+
+Whether a SKILL.md body's instruction to use the `Skill` tool to invoke another port's skill chains cleanly at runtime is not documented by Anthropic. If host plugin-loaders don't honor in-skill Skill-tool invocation across plugin boundaries, the auto-redirect on `y` silently fails to chain — the gate still works as a notification (user re-types the namespaced command). Risk is contained: worst case is a revert to the original "proceed anyway" UX. Documented as the residual unknown in ADR-094's Validated By.
+
 ## v2.20.0 — 2026-05-24
 
 **Antigravity port parity pass.** Primary-source verification against `antigravity.google/docs/*` clippings closed all v2.19.2 Known Drift items + restored 3 behavioral parities lost in the initial port:
