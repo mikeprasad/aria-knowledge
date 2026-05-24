@@ -1,0 +1,8 @@
+{
+  "name": "aria-probe",
+  "version": "0.2.0",
+  "description": "Validation probe for aria-cowork. Tests whether a Cowork plugin can read and write the user-attached knowledge folder, verifies bidirectional access with aria-knowledge in Code, and (v0.2.0) tests whether Cowork can read the existing aria-knowledge config at ~/.claude/aria-knowledge.local.md when ~/.claude/ is attached as an additional workspace folder. Install once, run /aria-probe, uninstall.",
+  "author": {
+    "name": "Mike Prasad"
+  }
+}
