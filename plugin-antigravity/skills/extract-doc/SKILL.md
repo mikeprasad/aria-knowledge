@@ -1,7 +1,5 @@
 ---
 description: "NOTE: this skill requires connected ~~docs MCPs (Notion, Google Docs, Confluence, Box, Egnyte), which are typically only present in Cowork — the Code variant exists for parity but most users will want the Cowork variant. Pull insights from a single doc or page (Notion, Google Doc, Confluence, etc.) into the standard intake backlog. Use when user says '/extract-doc', 'extract insights from this doc', 'pull learnings from this page', 'mine this Notion page for knowledge', 'extract from this Confluence'. Differs from /intake doc (which captures one structured doc artifact with reaction) — extract-doc decomposes a doc into multiple intake-backlog entries for audit routing."
-argument-hint: "<doc-url-or-id> [tags]"
-allowed-tools: Read, Write, Grep
 ---
 
 # /extract-doc — Extract Insights from a Doc to Intake Backlog

@@ -1,7 +1,5 @@
 ---
 description: "Scan Claude memory and plans for extractable knowledge. Use when user asks for 'knowledge audit', 'audit knowledge', 'check for extractable knowledge', 'scan memory', or at session start when audit cadence is exceeded."
-argument-hint: "[detailed]"
-allowed-tools: Read, Glob, Grep, Write, Edit, Bash
 ---
 
 # /audit-knowledge — Knowledge Repository Audit

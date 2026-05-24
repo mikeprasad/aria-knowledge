@@ -1,7 +1,5 @@
 ---
 description: "Configure aria-knowledge plugin. Creates or validates a knowledge folder, checks dependencies, sets audit cadences, and writes config. Run on first install or after plugin updates. Trigger: '/setup', 'setup aria-knowledge', 'configure knowledge'."
-argument-hint: ""
-allowed-tools: Read, Write, Edit, Bash, Glob, Grep
 ---
 
 # /setup — Knowledge Tools Configuration

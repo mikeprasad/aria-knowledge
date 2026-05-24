@@ -1,7 +1,5 @@
 ---
 description: "Generate or update a feature-organized CODEMAP.md for any codebase. Scans repos, detects frameworks, identifies features, traces full-stack flows (frontend routes → hooks → state → backend views → models → integrations), and produces a navigable reference with a directory table for selective loading. Supports modes: create (full generation), inventory (quick index only), update (incremental refresh), section (rebuild one section). Trigger: '/codemap', '/codemap create', '/codemap inventory', '/codemap update', '/codemap section <name>'."
-argument-hint: "<mode: create|inventory|update|section> [section-name]"
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
 # /codemap — Codebase Mapping

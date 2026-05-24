@@ -1,7 +1,5 @@
 ---
 description: "Rebuild the knowledge tag index. Scans promoted files, normalizes tags, flags untagged files, suggests freeform-to-known promotions, detects stale files, suggests cross-references, updates project-to-tag mappings, and regenerates index.md. Use when user says '/index', 'rebuild index', 'update index', 'reindex knowledge'. Also called automatically by /audit-knowledge."
-argument-hint: ""
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
 # /index — Knowledge Index Builder

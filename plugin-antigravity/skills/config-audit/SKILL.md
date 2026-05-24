@@ -1,7 +1,5 @@
 ---
 description: "Alias for /audit-config. Invoked by the '/config-audit' slash command. Same behavior as /audit-config — just an alternative phrasing."
-argument-hint: ""
-allowed-tools: Read, Glob, Grep, Write, Edit, Agent
 ---
 
 # /config-audit — Alias for /audit-config

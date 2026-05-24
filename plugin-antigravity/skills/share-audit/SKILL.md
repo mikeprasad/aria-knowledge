@@ -1,7 +1,5 @@
 ---
 description: "Alias for /audit-share. Invoked by the '/share-audit' slash command. Same behavior as /audit-share — just an alternative phrasing."
-argument-hint: ""
-allowed-tools: Read, Glob, Grep, Write, Edit, Bash
 ---
 
 # /share-audit — Alias for /audit-share

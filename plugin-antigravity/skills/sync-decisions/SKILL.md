@@ -1,7 +1,5 @@
 ---
 description: "NOTE: this skill requires connected ~~docs MCPs with WRITE access (Notion, Confluence, Google Docs), which are typically only present in Cowork — the Code variant exists for parity but most users will want the Cowork variant. Mirror approved decisions from the knowledge folder out to a connected ~~docs MCP (Notion, Confluence, Google Docs). Use when user says '/sync-decisions', 'mirror decisions to Notion', 'push decisions to wiki', 'sync ADRs to Confluence', 'export decisions externally'. WRITE-side skill — embeds Rule 22 advisory preamble per ADR-016 and requires explicit per-write go-gate. Logs each sync to logs/sync-decisions.md."
-argument-hint: "[<decision-slug>|--all|--since YYYY-MM-DD] [--target <space-or-page>]"
-allowed-tools: Read, Write, Grep
 ---
 
 # /sync-decisions — Mirror Decisions to External Docs

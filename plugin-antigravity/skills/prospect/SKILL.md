@@ -1,7 +1,5 @@
 ---
 description: "Run a structured pre-mortem on a plan or approach BEFORE execution. Per-step risk enforcement, active evidence-sourcing pass (autonomous lookups + targeted user-asks for anything that could become objective), simpler-alternative discipline, plan-formation diagnosis, action verdicts (PROCEED/SHRINK/SPLIT/DEFER/KILL), and a growing failure-mode pattern library. Triggers: '/prospect' (defaults to plan scope), '/prospect plan', '/prospect session', '/prospect todos', '/prospect file <path>', '/prospect linear <id>', '/prospect branch <name>'. Backward-compat flags (--plan, --linear, --branch, --todos, --session) still accepted."
-argument-hint: "[<scope>] [<scope-arg>] [--linear-post] [--no-source]"
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash, WebFetch, WebSearch
 ---
 
 # /prospect — Plan pre-mortem with risk enforcement

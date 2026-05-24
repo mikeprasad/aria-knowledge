@@ -1,7 +1,5 @@
 ---
 description: "Generate a passoff package so the next reader can pick up cleanly — for future-you in a new session (typically when context is high and you need to restart) or for a coworker (via brief mode). Default + `auto` modes emit a paste-ready next-session opener as the headline artifact, alongside PROGRESS / CLAUDE / memory updates, commit, and /extract; `brief` mode emits an 80-150 word coworker-facing prose brief instead (Slack/email-ready, no file writes). Use when handing off — not when finishing for the day with nothing pending. For 'I'm done, close it out cleanly' with no passoff, use /wrapup instead. Triggers: '/handoff', '/handoff auto', '/handoff brief', 'hand it off', 'handoff and extract', 'context is full, restart this', 'pass off to next session', 'brief a coworker on this', 'wrap and prompt'."
-argument-hint: "[auto|brief]"
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
 # /handoff — Express Session Handoff

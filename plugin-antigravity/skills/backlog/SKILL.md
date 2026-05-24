@@ -1,7 +1,5 @@
 ---
 description: "View and manage pending backlog items. Use when user says '/backlog', '/backlog insights', '/backlog clear', 'what's pending', 'show backlogs', 'check backlog status'."
-argument-hint: "[insights|decisions|extraction|rules] [clear [type] [date]]"
-allowed-tools: Read, Edit, Write, Grep
 ---
 
 # /backlog — Backlog Viewer & Manager

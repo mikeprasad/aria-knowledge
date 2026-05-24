@@ -1,7 +1,5 @@
 ---
 description: "Turn raw task text into a tiered executable spec per TASK.schema.md. Auto-tiers by complexity (micro/standard/full). Optional --group loads CODEMAPs for cited context. Trigger: '/distill', '/distill --group=<tag> \"…\"'."
-argument-hint: "<text or file path> [--group=tag] [--tier=micro|standard|full] [--append|--out=path|--no-archive]"
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
 # /distill — Task transformation

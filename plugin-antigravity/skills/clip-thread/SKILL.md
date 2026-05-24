@@ -1,7 +1,5 @@
 ---
 description: "NOTE: this skill requires ~~chat or ~~email MCPs, which are typically only connected in Cowork — the Code variant exists for parity but most users will want the Cowork variant. Capture a chat or email thread from a connected MCP to the knowledge intake. Use when user says '/clip-thread', 'clip this thread', 'save this Slack thread', 'capture this email chain', 'archive this conversation'. Pulls thread content from ~~chat (Slack, Teams) or ~~email (Gmail, MS365) MCP, composes a clipping with thread metadata + body, writes to intake/clippings/ for review at next /audit-knowledge."
-argument-hint: "<thread-url-or-id> [tags]"
-allowed-tools: Read, Write, Grep
 ---
 
 # /clip-thread — Capture Chat/Email Thread to Intake

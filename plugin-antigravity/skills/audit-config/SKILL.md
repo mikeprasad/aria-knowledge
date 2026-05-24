@@ -1,7 +1,5 @@
 ---
 description: "Audit project configuration and documentation for drift, staleness, and broken references. Use when user asks for 'config audit', 'docs audit', 'check setup', 'audit configs', 'review CLAUDE.md files', or at session start when audit cadence is exceeded."
-argument-hint: ""
-allowed-tools: Read, Glob, Grep, Write, Edit, Agent
 ---
 
 # /audit-config — Configuration & Documentation Health Check

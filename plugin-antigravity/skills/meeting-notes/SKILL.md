@@ -1,7 +1,5 @@
 ---
 description: "NOTE: paste-text fallback works without MCPs, but ~~docs MCPs (Notion, Confluence, Granola) are typically only connected in Cowork — the Cowork variant has better fidelity for MCP-sourced meetings. Fold a meeting transcript or notes into structured intake. Use when user says '/meeting-notes', 'capture meeting notes', 'fold this meeting transcript', 'process this Granola export', 'archive this standup'. Accepts a ~~docs URL (Notion meeting page, Confluence) OR pasted transcript text — unique among MCP-consuming skills in offering a paste fallback when no ~~docs MCP is connected."
-argument-hint: "<doc-url-or-paste-marker> [meeting-title]"
-allowed-tools: Read, Write, Grep
 ---
 
 # /meeting-notes — Capture Meeting Transcript to Intake

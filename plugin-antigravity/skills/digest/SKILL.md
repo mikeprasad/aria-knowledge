@@ -1,7 +1,5 @@
 ---
 description: "NOTE: this skill requires connected ~~chat / ~~email / ~~project-tracker / ~~docs MCPs, which are typically only present in Cowork — the Code variant exists for parity but most users will want the Cowork variant. Cross-tool rollup of what's pending, what shipped, and what's blocked across chat / email / project tracker / docs. Use when user says '/digest', 'weekly digest', 'cross-tool rollup', 'what's pending across my tools', 'summarize this week', 'standup digest'. Probes all 4 ~~categories and degrades gracefully — produces a digest even with only 1-2 MCPs connected, surfacing which categories were unavailable."
-argument-hint: "[--week | --since YYYY-MM-DD | --until YYYY-MM-DD]"
-allowed-tools: Read, Write, Grep
 ---
 
 # /digest — Cross-Tool Weekly Rollup

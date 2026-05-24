@@ -1,7 +1,5 @@
 ---
 description: "Close out a session cleanly when the work is done — no passoff intended. Reviews session work, updates PROGRESS.md / CLAUDE.md / memory, commits changes, captures session knowledge via /extract, and confirms everything is wrapped up, captured, and documented. Use when the task is complete and nothing needs to carry into a next session. For passoff to future-you (e.g. context is high, need to restart) or a coworker, use /handoff instead. Triggers: '/wrapup', '/wrapup auto', 'wrap up', 'wrap it up', \"I'm done\", 'close out', 'finish session', 'end session', 'saying goodbye'. Auto mode applies implicit-yes on all gates and runs silently."
-argument-hint: "[auto]"
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
 # /wrapup — Session Close-Out

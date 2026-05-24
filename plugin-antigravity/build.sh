@@ -61,6 +61,15 @@ find "$DST/skills" -name 'SKILL.md' -exec sed -i.bak -E \
   {} +
 find "$DST/skills" -name 'SKILL.md.bak' -delete
 
+# Strip allowed-tools + argument-hint from SKILL.md frontmatter (not in
+# Antigravity's documented schema per docs/skills; recognized fields are
+# name + description only).
+find "$DST/skills" -name 'SKILL.md' -exec sed -i.bak \
+  -e '/^allowed-tools:/d' \
+  -e '/^argument-hint:/d' \
+  {} +
+find "$DST/skills" -name 'SKILL.md.bak' -delete
+
 echo "  Copied $(find "$DST/skills" -maxdepth 1 -type d | wc -l | tr -d ' ') skill directories."
 
 # --- template/ (knowledge folder scaffold) ---

@@ -1,7 +1,5 @@
 ---
 description: "Research a question, check existing knowledge first, draft a knowledge doc from the answer, and save directly to the appropriate category. Use when user says '/ask', 'ask about', 'research and save', 'I want to learn about', 'what is the pattern for'. Skips backlogs — the user reviews the answer in real-time before saving."
-argument-hint: "<question>"
-allowed-tools: Read, Write, Glob, Grep, WebSearch, WebFetch
 ---
 
 # /ask — Query-Driven Knowledge Creation
