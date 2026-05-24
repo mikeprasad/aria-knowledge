@@ -8,10 +8,10 @@ Walk the user through configuring their knowledge folder and plugin settings. Sa
 
 ## Step 1: Check for Existing Config
 
-**Read the installed plugin version first.** Parse `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` and extract the `version` field. Hold it as `INSTALLED_VERSION` for use in Step 7 (config write), Step 8 (summary), and the announcement below. Use grep + sed to stay consistent with the no-jq invariant the hook scripts follow:
+**Read the installed plugin version first.** Parse `${CLAUDE_PLUGIN_ROOT}/version.txt` and extract the `version` field. Hold it as `INSTALLED_VERSION` for use in Step 7 (config write), Step 8 (summary), and the announcement below. Use grep + sed to stay consistent with the no-jq invariant the hook scripts follow:
 
 ```bash
-INSTALLED_VERSION=$(grep '"version"' "${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json" | head -1 | sed 's/.*"version": *"\([^"]*\)".*/\1/')
+INSTALLED_VERSION=$(cat "${CLAUDE_PLUGIN_ROOT}/version.txt")
 ```
 
 Then read `~/.gemini/antigravity/aria-knowledge.local.md`.
@@ -298,7 +298,7 @@ In **update mode:** preserve any user-added content in the markdown body below t
 - `projects_list`, `projects_remotes`, and `ticketing_plugins`: comma-separated `tag:value` pairs, no spaces around the colon or comma (e.g., `proj-a:path/to/proj-a,proj-b:proj-b` for paths; `proj-a:foo-ticket,proj-b:bar-ticket` for plugin commands)
 - Project tags (used in `projects_list`, `projects_remotes`, `ticketing_plugins`) cannot contain colons or commas (the parser splits on these)
 - `ticketing_plugins` plugin-command values are bare command names without the leading `/` (e.g., `foo-ticket`, not `/foo-ticket`) — `/audit-knowledge` prepends the slash when printing the hint
-- `last_setup_version` is a semver string read from `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` at Step 1 — write it as bare digits-and-dots (e.g., `2.12.1`), not quoted, not prefixed with `v`. The session-start hook compares this against the installed plugin version to detect upgrades since the user's last `/setup`
+- `last_setup_version` is a semver string read from `${CLAUDE_PLUGIN_ROOT}/version.txt` at Step 1 — write it as bare digits-and-dots (e.g., `2.12.1`), not quoted, not prefixed with `v`. The session-start hook compares this against the installed plugin version to detect upgrades since the user's last `/setup`
 - `projects_promotion_threshold` must be a plain integer ≥ 1 (no units, no quotes)
 - `auto_load_project_context` must be exactly `true` or `false` (not `True`, `yes`, `1`, etc.)
 - No blank lines between frontmatter entries

@@ -102,7 +102,6 @@ Semantic Claude-Code-specific references in canonical content that survived path
 
 | File | Lines | Drift |
 |---|---|---|
-| `skills/setup/SKILL.md` | 13, 16, 303 | Reads installed version from `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` — but Antigravity's `plugin.json` is at the flat root and contains only `{"name":"aria-knowledge"}` (no version field per Antigravity's documented manifest schema). The /setup skill needs a port-specific version source (e.g., a sibling `version.txt`, or read from `PORTING.md`'s version table). |
 | `skills/audit-config/SKILL.md` | 9, 17, 47, 60 | Audit logic targets `.claude/settings.local.json` and `.claude/*.local.md` — Claude-Code-specific configuration surfaces. Antigravity has different surfaces (`hooks.json`, `mcp_config.json`, `~/.gemini/GEMINI.md`, `.agents/rules/`). Skill needs port-specific audit logic, possibly a separate `audit-config-antigravity` variant. |
 
 Resolution path: a v2.20 "port-audit pass" that grep-walks every skill/template file for Claude-Code-specific surfaces and either (a) genericizes them, (b) adds port-aware conditional logic, or (c) creates port-specific skill variants where the surface delta is too large for genericization.

@@ -35,6 +35,14 @@ REPO="$(cd "$SCRIPT_DIR/.." && pwd)"
 SRC="$REPO/plugin"
 DST="$SCRIPT_DIR"
 
+# --- version.txt sidecar (synced from canonical plugin manifest) ---
+# Antigravity's plugin.json schema is marker-only per docs/plugins (just {"name": "..."}).
+# /setup needs the version, so we ship it as a sidecar file and sync it here.
+CANONICAL_VERSION=$(grep '"version"' "$SRC/.claude-plugin/plugin.json" | head -1 | sed 's/.*"version": *"\([^"]*\)".*/\1/')
+if [ -n "$CANONICAL_VERSION" ]; then
+  echo "$CANONICAL_VERSION" > "$DST/version.txt"
+fi
+
 echo "[aria-knowledge] Building Antigravity port (flat layout) ..."
 echo "  Source: $SRC"
 echo "  Dest:   $DST"
@@ -69,6 +77,19 @@ find "$DST/skills" -name 'SKILL.md' -exec sed -i.bak \
   -e '/^argument-hint:/d' \
   {} +
 find "$DST/skills" -name 'SKILL.md.bak' -delete
+
+# Patch setup/SKILL.md to read version from version.txt sidecar
+# (Antigravity plugin.json schema has no version field per docs/plugins).
+if [ -f "$DST/skills/setup/SKILL.md" ]; then
+  sed -i.bak \
+    -e 's|\${CLAUDE_PLUGIN_ROOT}/\.claude-plugin/plugin\.json|${CLAUDE_PLUGIN_ROOT}/version.txt|g' \
+    "$DST/skills/setup/SKILL.md"
+  # Replace the grep+sed bash subshell with a simple cat
+  sed -i.bak -E \
+    's|^INSTALLED_VERSION=\$\(grep .*version\.txt.* head -1 .* sed .*\)$|INSTALLED_VERSION=$(cat "${CLAUDE_PLUGIN_ROOT}/version.txt")|' \
+    "$DST/skills/setup/SKILL.md"
+  rm -f "$DST/skills/setup/SKILL.md.bak"
+fi
 
 echo "  Copied $(find "$DST/skills" -maxdepth 1 -type d | wc -l | tr -d ' ') skill directories."
 
