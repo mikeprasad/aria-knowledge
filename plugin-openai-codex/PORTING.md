@@ -46,7 +46,7 @@ setup path.
 
 ## v2.18.0 update (2026-05-18) — MCP-consuming skills
 
-5 new MCP-consuming skills copied byte-faithfully from `../plugin/skills/`:
+5 new MCP-consuming skills copied byte-faithfully from `../plugin-claude-code/skills/`:
 
 - `clip-thread/SKILL.md` — `~~chat` / `~~email` thread capture
 - `extract-doc/SKILL.md` — `~~docs` page → N intake-backlog entries

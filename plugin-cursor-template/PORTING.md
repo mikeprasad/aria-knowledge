@@ -14,7 +14,7 @@ fork the markdown knowledge contract.
 
 Keep these compatible with the Claude-standard plugin:
 
-- Knowledge folder layout under `knowledge/` (mirrors `plugin/template/`,
+- Knowledge folder layout under `knowledge/` (mirrors `plugin-claude-code/template/`,
   except hoisted to root rather than nested under `template/`)
 - Backlog formats under `knowledge/intake/`
 - `knowledge/index.md` sections and tag semantics
@@ -30,7 +30,7 @@ Cursor-specific files live here:
 - `.cursor/aria-knowledge.local.md` — config equivalent of `~/.claude/aria-knowledge.local.md`
 - `.cursor/rules/*.mdc` — 5 compiled rule files (see mapping table below)
 - `AGENTS.md` — Cursor's equivalent of `CLAUDE.md`; loaded as persistent context
-- `scripts/aria/*.sh` — hook scripts (Cursor analog of Claude's `plugin/bin/`)
+- `scripts/aria/*.sh` — hook scripts (Cursor analog of Claude's `plugin-claude-code/bin/`)
 - `scripts/aria/VERSION` — port version file (Cursor has no `plugin.json`)
 
 ## Current Parity Notes
@@ -59,16 +59,16 @@ section when you push a sync commit.
 
 ### A. Knowledge contract sync
 
-The canonical source is `plugin/template/`. The Cursor port mirrors it at
+The canonical source is `plugin-claude-code/template/`. The Cursor port mirrors it at
 `cursor-template/knowledge/` (hoisted to root, not nested under `template/`).
 The Codex port mirrors it at `plugin-openai-codex/template/` (verbatim).
 
-**Last synced:** `plugin/` @ v2.16.1 → `cursor-template/` (2026-05-18, audit
+**Last synced:** `plugin-claude-code/` @ v2.16.1 → `cursor-template/` (2026-05-18, audit
 build).
 
 **Files that must stay in lockstep across all three ports:**
 
-| Canonical (`plugin/template/`) | Cursor (`cursor-template/`) | Notes |
+| Canonical (`plugin-claude-code/template/`) | Cursor (`cursor-template/`) | Notes |
 |---|---|---|
 | `template/README.md` | `knowledge/README.md` | User-facing folder intro |
 | `template/OVERVIEW.md` | `knowledge/OVERVIEW.md` | Lifecycle + structure overview |
@@ -88,7 +88,7 @@ build).
 | `template/distill/TASK.schema.md` | `knowledge/distill/TASK.schema.md` | `/distill` contract |
 | `template/stitch/STITCH.template.md` | `knowledge/stitch/STITCH.template.md` | `/stitch` contract |
 
-**Sync rule:** any edit to a `plugin/template/**` file in the canonical list
+**Sync rule:** any edit to a `plugin-claude-code/template/**` file in the canonical list
 above requires the same edit to be applied to the Cursor and Codex copies
 before the next release. Validate before tagging.
 
@@ -96,16 +96,16 @@ before the next release. Validate before tagging.
 
 Cursor's Rules system loads `.mdc` files from `.cursor/rules/` as persistent
 context. There is no equivalent of Claude's `skills/<name>/SKILL.md` folder
-shape. The 25 canonical skills (in `plugin/skills/`) are compiled into 5 `.mdc`
+shape. The 25 canonical skills (in `plugin-claude-code/skills/`) are compiled into 5 `.mdc`
 files. When a canonical `SKILL.md` changes, the matching section in the right
 `.mdc` file needs a hand edit.
 
-**Last synced:** `plugin/skills/` @ v2.16.1 → `.cursor/rules/` (2026-05-18,
+**Last synced:** `plugin-claude-code/skills/` @ v2.16.1 → `.cursor/rules/` (2026-05-18,
 audit build). All 22 canonical skills + 3 aliases present.
 
 **Skill → `.mdc` mapping:**
 
-| Canonical skill (`plugin/skills/<name>/SKILL.md`) | Cursor `.mdc` file | Section heading |
+| Canonical skill (`plugin-claude-code/skills/<name>/SKILL.md`) | Cursor `.mdc` file | Section heading |
 |---|---|---|
 | `setup` | `aria-commands.mdc` | `#/setup` |
 | `help` | `aria-commands.mdc` | `#/help` |
@@ -134,7 +134,7 @@ audit build). All 22 canonical skills + 3 aliases present.
 | `meeting-notes` (v2.18.0+) | `aria-commands.mdc` | `#/meeting-notes` — **pending compilation** |
 | `digest` (v2.18.0+) | `aria-commands.mdc` | `#/digest` — **pending compilation** |
 | `sync-decisions` (v2.18.0+) | `aria-commands.mdc` | `#/sync-decisions` — **pending compilation** (WRITE-side; embeds ADR-016 Rule 22 advisory preamble) |
-| (Rule 22 framework body, from `plugin/template/rules/change-decision-framework.md`) | `aria-rule-22.mdc` | full file, verbatim |
+| (Rule 22 framework body, from `plugin-claude-code/template/rules/change-decision-framework.md`) | `aria-rule-22.mdc` | full file, verbatim |
 | (ARIA core lifecycle prose) | `aria-core.mdc` | full file |
 
 **Sync rule:** when a canonical `SKILL.md` gains material new behavior (new
@@ -147,17 +147,17 @@ Cosmetic edits (typo fixes, prose polish) can batch until the next port refresh.
 > When you notice canonical drift that hasn't been ported to Cursor yet, add it
 > here. Keep entries terse: `- <canonical path> @ <version or date>: <what changed>`.
 
-- `plugin/skills/clip-thread/SKILL.md` @ v2.18.0: new MCP-consuming skill (`~~chat` / `~~email` thread capture). **Pending .mdc compilation into `aria-commands.mdc`.** Concept declared in mapping table above; method (Cursor MCP runtime fit) needs validation pass before compilation.
-- `plugin/skills/extract-doc/SKILL.md` @ v2.18.0: new MCP-consuming skill (`~~docs` page decomposition to intake-backlog). **Pending .mdc compilation into `aria-commands.mdc`.**
-- `plugin/skills/meeting-notes/SKILL.md` @ v2.18.0: new MCP-consuming skill (transcript folding with paste fallback). **Pending .mdc compilation into `aria-commands.mdc`.** Paste-fallback branch makes this skill the most Cursor-friendly of the 5 — usable without any MCP runtime support.
-- `plugin/skills/digest/SKILL.md` @ v2.18.0: new MCP-consuming skill (composite-MCP weekly rollup). **Pending .mdc compilation into `aria-commands.mdc`.**
-- `plugin/skills/sync-decisions/SKILL.md` @ v2.18.0: new **WRITE-side** MCP-consuming skill (mirror decisions to `~~docs` MCP). Embeds ADR-016 Rule 22 advisory preamble. **Pending .mdc compilation into `aria-commands.mdc`.** Highest care item — write-side discipline must port verbatim if compiled.
+- `plugin-claude-code/skills/clip-thread/SKILL.md` @ v2.18.0: new MCP-consuming skill (`~~chat` / `~~email` thread capture). **Pending .mdc compilation into `aria-commands.mdc`.** Concept declared in mapping table above; method (Cursor MCP runtime fit) needs validation pass before compilation.
+- `plugin-claude-code/skills/extract-doc/SKILL.md` @ v2.18.0: new MCP-consuming skill (`~~docs` page decomposition to intake-backlog). **Pending .mdc compilation into `aria-commands.mdc`.**
+- `plugin-claude-code/skills/meeting-notes/SKILL.md` @ v2.18.0: new MCP-consuming skill (transcript folding with paste fallback). **Pending .mdc compilation into `aria-commands.mdc`.** Paste-fallback branch makes this skill the most Cursor-friendly of the 5 — usable without any MCP runtime support.
+- `plugin-claude-code/skills/digest/SKILL.md` @ v2.18.0: new MCP-consuming skill (composite-MCP weekly rollup). **Pending .mdc compilation into `aria-commands.mdc`.**
+- `plugin-claude-code/skills/sync-decisions/SKILL.md` @ v2.18.0: new **WRITE-side** MCP-consuming skill (mirror decisions to `~~docs` MCP). Embeds ADR-016 Rule 22 advisory preamble. **Pending .mdc compilation into `aria-commands.mdc`.** Highest care item — write-side discipline must port verbatim if compiled.
 - `plugin/.mcp.json` + `plugin/CONNECTORS.md` @ v2.18.0: NOT mirrored to `cursor-template/` in v2.18.0-cursor.0. Cursor's MCP runtime support needs validation pass (concept-and-function-preserved-but-method-may-diverge per Mike's D2 framing on the v2.18.0 release). When Cursor MCP integration is verified, copy these files + compile the 5 skills in one paired update.
 - _Cursor `2.18.0-cursor.0` VERSION bumped on 2026-05-18 to track the canonical release; SKILL.md compilation deferred per the same pattern as `2.17.0-cursor.0` (which also bumped VERSION without re-syncing `/handoff brief` + `/intake doc` modes from v2.17.0)._
 
 ## Release Workflow (independent)
 
 The Cursor port is released as a standalone zip artifact (separate from
-`plugin/`'s `release.sh`). The audit build at `archive/aria-knowledge-cursor-2.16.1-audited-source.zip`
+`plugin-claude-code/`'s `release.sh`). The audit build at `archive/aria-knowledge-cursor-2.16.1-audited-source.zip`
 is the reference for the current shape. Re-stage and re-zip from
 `cursor-template/` when cutting a new Cursor port version.

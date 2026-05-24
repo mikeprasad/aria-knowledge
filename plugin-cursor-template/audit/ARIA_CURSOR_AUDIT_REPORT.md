@@ -51,28 +51,28 @@ Status legend: ✅ exact · ≈ equivalent · ⚠ advisory · ✗ unavailable.
 
 | Skill | Upstream SKILL.md | Cursor port | Status |
 |---|---|---|---|
-| `/setup` | `plugin/skills/setup/SKILL.md` | `.cursor/rules/aria-commands.mdc#/setup` | ✅ |
-| `/help` | `plugin/skills/help/SKILL.md` | `.cursor/rules/aria-commands.mdc#/help` (**added**) | ✅ |
-| `/extract` | `plugin/skills/extract/SKILL.md` | `.cursor/rules/aria-commands.mdc#/extract` | ✅ |
-| `/audit-knowledge` + alias `/knowledge-audit` | `plugin/skills/audit-knowledge/`, `plugin/skills/knowledge-audit/` | `.cursor/rules/aria-audit.mdc#/audit-knowledge`; alias documented | ✅ |
-| `/audit-config` + alias `/config-audit` | `plugin/skills/audit-config/`, `plugin/skills/config-audit/` | `.cursor/rules/aria-audit.mdc#/audit-config`; alias documented | ✅ |
-| `/audit-share` + alias `/share-audit` | `plugin/skills/audit-share/`, `plugin/skills/share-audit/` | `.cursor/rules/aria-commands.mdc#/audit-share` (**added**); alias documented | ✅ |
-| `/context` | `plugin/skills/context/` | `.cursor/rules/aria-context.mdc#/context` | ✅ |
-| `/rules` | `plugin/skills/rules/` | `.cursor/rules/aria-context.mdc#/rules` | ✅ |
-| `/index` | `plugin/skills/index/` | `.cursor/rules/aria-commands.mdc#/index` | ✅ |
-| `/backlog` | `plugin/skills/backlog/` | `.cursor/rules/aria-commands.mdc#/backlog` | ✅ |
-| `/stats` | `plugin/skills/stats/` | `.cursor/rules/aria-commands.mdc#/stats` | ✅ |
-| `/ask` | `plugin/skills/ask/` | `.cursor/rules/aria-commands.mdc#/ask` | ✅ |
-| `/clip` | `plugin/skills/clip/` | `.cursor/rules/aria-commands.mdc#/clip` | ✅ |
-| `/intake` | `plugin/skills/intake/` | `.cursor/rules/aria-commands.mdc#/intake` | ✅ |
-| `/codemap` | `plugin/skills/codemap/` | `.cursor/rules/aria-commands.mdc#/codemap` | ✅ |
-| `/distill` | `plugin/skills/distill/` | `.cursor/rules/aria-commands.mdc#/distill` | ✅ |
-| `/stitch` | `plugin/skills/stitch/` | `.cursor/rules/aria-commands.mdc#/stitch` | ✅ |
-| `/handoff` | `plugin/skills/handoff/` | `.cursor/rules/aria-commands.mdc#/handoff` | ✅ |
-| `/prospect` | `plugin/skills/prospect/` | `.cursor/rules/aria-commands.mdc#/prospect` | ✅ |
-| `/retrospect` | `plugin/skills/retrospect/` | `.cursor/rules/aria-commands.mdc#/retrospect` | ✅ |
-| `/snapshot` | `plugin/skills/snapshot/` (transcript snapshot) | `.cursor/rules/aria-commands.mdc#/snapshot` (task-boundary capture — repurposed) | ≈ |
-| `/wrapup` | `plugin/skills/wrapup/` | `.cursor/rules/aria-commands.mdc#/wrapup` | ✅ |
+| `/setup` | `plugin-claude-code/skills/setup/SKILL.md` | `.cursor/rules/aria-commands.mdc#/setup` | ✅ |
+| `/help` | `plugin-claude-code/skills/help/SKILL.md` | `.cursor/rules/aria-commands.mdc#/help` (**added**) | ✅ |
+| `/extract` | `plugin-claude-code/skills/extract/SKILL.md` | `.cursor/rules/aria-commands.mdc#/extract` | ✅ |
+| `/audit-knowledge` + alias `/knowledge-audit` | `plugin-claude-code/skills/audit-knowledge/`, `plugin-claude-code/skills/knowledge-audit/` | `.cursor/rules/aria-audit.mdc#/audit-knowledge`; alias documented | ✅ |
+| `/audit-config` + alias `/config-audit` | `plugin-claude-code/skills/audit-config/`, `plugin-claude-code/skills/config-audit/` | `.cursor/rules/aria-audit.mdc#/audit-config`; alias documented | ✅ |
+| `/audit-share` + alias `/share-audit` | `plugin-claude-code/skills/audit-share/`, `plugin-claude-code/skills/share-audit/` | `.cursor/rules/aria-commands.mdc#/audit-share` (**added**); alias documented | ✅ |
+| `/context` | `plugin-claude-code/skills/context/` | `.cursor/rules/aria-context.mdc#/context` | ✅ |
+| `/rules` | `plugin-claude-code/skills/rules/` | `.cursor/rules/aria-context.mdc#/rules` | ✅ |
+| `/index` | `plugin-claude-code/skills/index/` | `.cursor/rules/aria-commands.mdc#/index` | ✅ |
+| `/backlog` | `plugin-claude-code/skills/backlog/` | `.cursor/rules/aria-commands.mdc#/backlog` | ✅ |
+| `/stats` | `plugin-claude-code/skills/stats/` | `.cursor/rules/aria-commands.mdc#/stats` | ✅ |
+| `/ask` | `plugin-claude-code/skills/ask/` | `.cursor/rules/aria-commands.mdc#/ask` | ✅ |
+| `/clip` | `plugin-claude-code/skills/clip/` | `.cursor/rules/aria-commands.mdc#/clip` | ✅ |
+| `/intake` | `plugin-claude-code/skills/intake/` | `.cursor/rules/aria-commands.mdc#/intake` | ✅ |
+| `/codemap` | `plugin-claude-code/skills/codemap/` | `.cursor/rules/aria-commands.mdc#/codemap` | ✅ |
+| `/distill` | `plugin-claude-code/skills/distill/` | `.cursor/rules/aria-commands.mdc#/distill` | ✅ |
+| `/stitch` | `plugin-claude-code/skills/stitch/` | `.cursor/rules/aria-commands.mdc#/stitch` | ✅ |
+| `/handoff` | `plugin-claude-code/skills/handoff/` | `.cursor/rules/aria-commands.mdc#/handoff` | ✅ |
+| `/prospect` | `plugin-claude-code/skills/prospect/` | `.cursor/rules/aria-commands.mdc#/prospect` | ✅ |
+| `/retrospect` | `plugin-claude-code/skills/retrospect/` | `.cursor/rules/aria-commands.mdc#/retrospect` | ✅ |
+| `/snapshot` | `plugin-claude-code/skills/snapshot/` (transcript snapshot) | `.cursor/rules/aria-commands.mdc#/snapshot` (task-boundary capture — repurposed) | ≈ |
+| `/wrapup` | `plugin-claude-code/skills/wrapup/` | `.cursor/rules/aria-commands.mdc#/wrapup` | ✅ |
 
 Rule22 framework (`/rules/change-decision-framework.md`) lives at `.cursor/rules/aria-rule-22.mdc` — full text verbatim.
 

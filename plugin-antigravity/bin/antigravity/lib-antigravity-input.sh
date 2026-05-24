@@ -3,7 +3,7 @@
 #
 # Sourced (not exec'd) by every Antigravity hook wrapper in this directory.
 # Reads the hook input payload on stdin and exports env vars matching what
-# ARIA's canonical bash scripts (in ../../../plugin/bin/) expect.
+# ARIA's canonical bash scripts (in ../../../plugin-claude-code/bin/) expect.
 #
 # Hard dependency: jq. If missing, the lib writes a deny-JSON to stdout
 # and exits the calling wrapper with code 1 (fail-closed).

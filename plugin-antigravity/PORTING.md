@@ -37,14 +37,14 @@ This file tracks divergence between `plugin-claude-code/` (canonical Claude Code
 
 ## Architecture: Why the wrapper layer
 
-ARIA's canonical bash hook scripts in `plugin/bin/` use Claude Code conventions: `${CLAUDE_PLUGIN_ROOT}`, `CLAUDE_TOOL_NAME`, `CLAUDE_TARGET_FILE`, etc. Antigravity exposes none of these — context comes in as stdin JSON.
+ARIA's canonical bash hook scripts in `plugin-claude-code/bin/` use Claude Code conventions: `${CLAUDE_PLUGIN_ROOT}`, `CLAUDE_TOOL_NAME`, `CLAUDE_TARGET_FILE`, etc. Antigravity exposes none of these — context comes in as stdin JSON.
 
 Two architectural choices were available:
 
 1. **Rewrite the canonical scripts** to parse stdin JSON natively. Adds Antigravity-specific code paths to the canonical, breaks single-source-of-truth across ports.
 2. **Insert a thin wrapper layer** that reads stdin JSON, sets the env vars the canonical scripts expect, and execs them. Canonical scripts stay unchanged.
 
-The port chose **(2)**. The wrappers live at `bin/antigravity/`; the canonical scripts at `bin/`. The shared lib `lib-antigravity-input.sh` handles the JSON-to-env translation. This means a canonical script bug fix in `plugin/bin/` automatically propagates to Antigravity at next `build.sh` run.
+The port chose **(2)**. The wrappers live at `bin/antigravity/`; the canonical scripts at `bin/`. The shared lib `lib-antigravity-input.sh` handles the JSON-to-env translation. This means a canonical script bug fix in `plugin-claude-code/bin/` automatically propagates to Antigravity at next `build.sh` run.
 
 ---
 
@@ -75,7 +75,7 @@ The `aria-pre-invocation` hook restores three behavioral parities the initial po
 | `PostCompact` | `post-compact-check.sh` | Same reason as PreCompact. Session-ledger re-emission moved to `GEMINI.md` text. |
 | `TaskCreated` | `task-context-check.sh` | Not a per-turn event; Antigravity has no TaskCreated equivalent. Knowledge-file surfacing moved into skills that dispatch subagents (`/distill`, `/codemap`). |
 
-The canonical scripts are **not copied** to `plugin-antigravity/bin/` by `build.sh` (PreCompact + PostCompact case in the `for` loop). They remain in canonical `plugin/bin/` for Claude Code use.
+The canonical scripts are **not copied** to `plugin-antigravity/bin/` by `build.sh` (PreCompact + PostCompact case in the `for` loop). They remain in canonical `plugin-claude-code/bin/` for Claude Code use.
 
 ---
 
@@ -111,7 +111,7 @@ Three skills carry port-specific overlays at `overlays/skills/<name>/SKILL.md` t
 - `skills/audit-knowledge/SKILL.md` — scans cached transcript + artifact-directory paths instead of Claude Code's memory + plans dirs
 - `skills/audit-config/SKILL.md` — audits Antigravity surfaces (hooks.json, mcp_config.json, GEMINI.md, .agents/rules/, ARIA local config) instead of Claude Code's `.claude/settings.local.json`
 
-Drift between canonical and overlay is detected via `diff plugin/skills/<name>/SKILL.md plugin-antigravity/overlays/skills/<name>/SKILL.md`. When canonical evolves, the overlay needs a corresponding hand-update.
+Drift between canonical and overlay is detected via `diff plugin-claude-code/skills/<name>/SKILL.md plugin-antigravity/overlays/skills/<name>/SKILL.md`. When canonical evolves, the overlay needs a corresponding hand-update.
 
 ---
 
