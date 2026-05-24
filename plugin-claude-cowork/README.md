@@ -6,7 +6,26 @@ Companion plugin to [aria-knowledge](https://github.com/mikeprasad/aria-knowledg
 
 > **Using both plugins?** When aria-cowork and aria-knowledge are loaded in the same session (most common in Claude Desktop), bare slash commands (`/handoff`, `/wrapup`, `/extract`, etc.) resolve to **aria-knowledge** as the canonical Code-side owner. To use the Cowork variant of any skill, type the namespaced form: `/aria-cowork:handoff`, `/aria-cowork:wrapup`, etc. Natural-language triggers (e.g., "hand it off", "wrap up", "extract knowledge") still route to the Cowork variant in Cowork sessions. Each colliding skill carries a Runtime Gate that surfaces a notification if invoked from the wrong runtime. See [ADR 094](https://github.com/mikeprasad/knowledge/blob/main/projects/aria/decisions/094-bare-slash-canonical-owner-and-dual-runtime-gate.md) for the full design.
 
-**Status**: **v1.0.0 — first MCP-consuming release + v1.0 stable-contract claim.** Knowledge folder is reachable from every Cowork session regardless of which project folder is the active workspace. **26 skills** (24 distinct + 2 aliases) covering setup, capture, lookup, audit, retrospective, pre-mortem, end-of-session handoff, **plus 6 new Cowork-native skills** (5 cross-tool MCP-consuming + 1 cowork-only audit-cadence checker). Coordinated release pair with aria-knowledge v2.18.0 — 5 bidirectional skills shared per ADR-014 schema-source-of-truth. v1.0 commits to skill manifest shape, knowledge folder schema, and cross-plugin parity per ADR-006 — see CHANGELOG v1.0.0 entry for the full stability claim. Phase 1 public-repo release scheduled separately.
+**Status**: **v1.1.1 — bare-slash canonical-owner routing + dual runtime gate (ADR-094).** Coordinated patch with aria-knowledge v2.19.1. No new skills, no schema changes. Bare slash commands now deterministically route to aria-knowledge when both plugins are loaded; aria-cowork variants are reachable via `/aria-cowork:` namespace. Each colliding skill carries a Runtime Gate that fires on cross-runtime invocation. **Consolidated into the aria-knowledge monorepo 2026-05-24** (v2.20.0) — see top-level `aria-knowledge/README.md` for cross-port context. **26 skills** (24 distinct + 2 aliases) covering setup, capture, lookup, audit, retrospective, pre-mortem, end-of-session handoff, plus 6 Cowork-native skills (5 cross-tool MCP-consuming + 1 cowork-only audit-cadence checker). Prior stability claim from v1.0.0 remains in force per ADR-006.
+
+---
+
+## What's new in v1.1.1
+
+Patch release coordinated with aria-knowledge v2.19.1 — closes the bare-slash routing ambiguity for sessions where both plugins are loaded. No skills added, no schema changes, no MCP changes. See [`CHANGELOG.md`](CHANGELOG.md) v1.1.1 entry for the full design.
+
+- 24 colliding skill names now deterministically route to **aria-knowledge** when both plugins are loaded (per [ADR-094](https://github.com/mikeprasad/knowledge/blob/main/projects/aria/decisions/094-bare-slash-canonical-owner-and-dual-runtime-gate.md)).
+- aria-cowork variants are reachable via `/aria-cowork:handoff`, `/aria-cowork:wrapup`, etc. Natural-language triggers still route to the Cowork variant in Cowork sessions.
+- Each colliding skill ships a `## Runtime Gate (per ADR-094)` section in its body. Gate fires when invoked from the wrong runtime, surfaces a "Use [correct variant] instead?" prompt, and on `y` auto-redirects via the `Skill` tool (revised 2026-05-24 — see ADR-094 Revision history).
+- **Gate applies even in `auto` modes** — auto's "implicit-yes" rule is suspended for the runtime-mismatch gate per ADR-094 §Part 3.
+
+## What's new in v1.1.0
+
+Minor release — `/wrapup` vs `/handoff` intent split clarified; `/wrapup auto` mode added. No new skills, no schema changes, no MCP changes. Two existing skills get a behavioral and documentation refactor; `/wrapup` gains an `auto` mode mirroring `/handoff auto`. See [`CHANGELOG.md`](CHANGELOG.md) v1.1.0 entry for the full design.
+
+## What's new in v1.0.1
+
+Install-fix patch coordinated across both plugins. `google_docs` → `google docs` MCP id correction in `.mcp.json`, Cowork validator description-length fix, aggregate-description preflight added to `release.sh`. See [`CHANGELOG.md`](CHANGELOG.md) v1.0.1 entry.
 
 ---
 
@@ -239,3 +258,7 @@ The full spec, ADRs, and validation history live in the knowledge folder itself,
 ## License
 
 CC BY-NC-SA 4.0. See [LICENSE](LICENSE).
+
+---
+
+*Last reviewed: 2026-05-24 — current as of v1.1.1 (consolidated into aria-knowledge monorepo via v2.20.0).*

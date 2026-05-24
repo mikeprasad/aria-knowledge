@@ -46,7 +46,7 @@ In both surfaces, you do NOT need to connect all 12 MCPs — connect what you ha
 
 ## What this plugin does NOT integrate with
 
-- **Calendar.** aria-cowork has no calendar-consuming skill in v0.4.0. If/when a `/scheduling` or `/meeting-prep` skill lands, calendar MCPs (Google Calendar, Microsoft 365 Calendar) would be added.
+- **Calendar.** aria-cowork has no calendar-consuming skill in v1.1.1. If/when a `/scheduling` or `/meeting-prep` skill lands, calendar MCPs (Google Calendar, Microsoft 365 Calendar) would be added.
 - **Office suite (Excel/Word/PowerPoint).** Out of scope — aria-cowork's domain is decisions/insights/rules, not document authoring. Use Anthropic's `productivity` Cowork plugin alongside aria-cowork if you want that surface.
 - **Code hosting (GitHub/GitLab).** Cowork has no shell access (per ADR-004 + the 2026-04-30 probe arc); `/codemap`-style git introspection is intentionally cowork-excluded per ADR-005. aria-knowledge sibling on Code covers this surface.
 - **Vendor-specific Slack-alternatives** (Discord, Mattermost, Rocket.Chat, etc.). Not declared in `.mcp.json`. Users with these can configure custom MCPs at the surface level and the `~~chat` category will pick them up at runtime per ADR-015.
@@ -56,7 +56,7 @@ In both surfaces, you do NOT need to connect all 12 MCPs — connect what you ha
 - [`.mcp.json`](.mcp.json) — the manifest declaring the 12 MCP servers above.
 - [ADR-003](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/003-cowork-native-mcp-placeholder-pattern.md) — three-mechanism design (named MCPs in manifest, `~~` markers in prose, native I/O for filesystem).
 - [ADR-013](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/013-cowork-modified-skills-schema-identical-outputs.md) — output schema identical across plugins (input-discovery diverges per-surface).
-- [ADR-014](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/014-bidirectional-feature-flow.md) — bidirectional feature flow (5 of the 6 v0.4.0 native skills originate as cross-plugin parity).
+- [ADR-014](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/014-bidirectional-feature-flow.md) — bidirectional feature flow (5 of the 6 v1.0.0 native skills originate as cross-plugin parity).
 - [ADR-015](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/015-capability-probe-pattern.md) — runtime capability-probe pattern (prose-only, no API).
 - [ADR-016](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/016-rule-22-advisory-preamble-for-external-writes.md) — Rule 22 advisory preamble for write-side skills (applies to `sync-decisions`).
 - Anthropic reference: `cowork-plugin-management/skills/cowork-plugin-customizer/SKILL.md` — the `~~` marker convention's canonical source.

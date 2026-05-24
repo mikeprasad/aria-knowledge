@@ -352,3 +352,7 @@ If ARIA is useful to you, consider buying me Claude credits via [PayPal](https:/
 Install ARIA, run `/setup`, work normally. Rule 22 is active immediately. Run `/extract` before ending sessions. Run `/audit-knowledge` when prompted. Each session builds on the last.
 
 **Memory is not enough. Trusted application is the goal.**
+
+---
+
+*Last reviewed: 2026-05-24 — current as of plugin-claude-code v2.20.0 / plugin-claude-cowork v1.1.1.*

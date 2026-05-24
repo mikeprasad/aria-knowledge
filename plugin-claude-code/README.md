@@ -50,3 +50,7 @@ Five-phase knowledge lifecycle: **Capture → Govern → Promote → Apply → R
 ## License
 
 CC BY-NC-SA 4.0 — See [LICENSE](LICENSE) for details.
+
+---
+
+*Last reviewed: 2026-05-24 — current as of v2.20.0 (consolidated repo).*
