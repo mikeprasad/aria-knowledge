@@ -9,7 +9,7 @@ setup() {
 }
 
 teardown() {
-  rm -f "$CACHE_FILE" "$LOG_FILE" 2>/dev/null || true
+  rm -f "$CACHE_FILE" "$LOG_FILE" "$CACHE_DIR/.last-artifact-dir" 2>/dev/null || true
 }
 
 @test "wrapper output is valid JSON for any invocationNum" {
@@ -25,6 +25,16 @@ teardown() {
   [ -f "$CACHE_FILE" ]
   cached=$(cat "$CACHE_FILE")
   [ "$cached" = "/some/transcript.jsonl" ]
+}
+
+@test "wrapper caches artifactDirectoryPath on every call" {
+  ARTIFACT_FILE="$CACHE_DIR/.last-artifact-dir"
+  rm -f "$ARTIFACT_FILE"
+  PAYLOAD='{"conversationId":"abc","workspacePaths":["/tmp"],"transcriptPath":"/some/t.jsonl","artifactDirectoryPath":"/some/artifacts","invocationNum":7,"initialNumSteps":15}'
+  echo "$PAYLOAD" | bash "$WRAPPER" 2>/dev/null >/dev/null
+  [ -f "$ARTIFACT_FILE" ]
+  cached=$(cat "$ARTIFACT_FILE")
+  [ "$cached" = "/some/artifacts" ]
 }
 
 @test "first-call (invocationNum=0) injects session-start ephemeralMessage" {

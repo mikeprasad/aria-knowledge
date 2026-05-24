@@ -1,8 +1,13 @@
 #!/bin/sh
 # save-transcript.sh — on-demand transcript snapshot for the /snapshot skill.
-# Mirrors the archival logic from pre-compact-check.sh but is invoked
-# explicitly by the user. Bypasses KT_AUTO_CAPTURE — that gate scopes to
-# hook-driven auto capture, not explicit user invocation.
+# Antigravity port: reads transcript path from cache file written by the
+# aria-pre-invocation hook (pre-invocation-aria.sh), which captures
+# transcriptPath from hook stdin on every model call. The canonical Claude Code
+# variant walks ~/.claude/projects/ for the most-recently-modified *.jsonl —
+# that directory layout doesn't exist in Antigravity.
+# Mirrors the archival logic from the canonical but uses the cached path.
+# Bypasses KT_AUTO_CAPTURE — that gate scopes to hook-driven auto capture,
+# not explicit user invocation.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$SCRIPT_DIR/config.sh"
@@ -18,22 +23,27 @@ if [ ! -d "$KT_KNOWLEDGE_FOLDER" ]; then
   exit 1
 fi
 
-# Locate the current session's transcript. Claude Code does not expose session
-# id or transcript path to skill-invoked shells, so we pick the most recently
-# modified *.jsonl under ~/.gemini/antigravity/transcripts. ls -t is seconds-granular, which
-# is ambiguous when multiple Claude Code windows write in the same second;
-# stat -f "%Fm" gives fractional seconds on macOS and reliably disambiguates.
-TRANSCRIPT_PATH=$(find "$HOME/.gemini/antigravity/transcripts" -name '*.jsonl' -type f 2>/dev/null \
-  | while IFS= read -r f; do stat -f "%Fm %N" "$f" 2>/dev/null; done \
-  | sort -rn | head -1 | cut -d' ' -f2-)
-
-if [ -z "$TRANSCRIPT_PATH" ] || [ ! -f "$TRANSCRIPT_PATH" ]; then
-  echo "No transcript file found under ~/.gemini/antigravity/transcripts" >&2
+# Antigravity port: locate transcript via the cache file written by the
+# aria-pre-invocation hook on every model call. If the cache doesn't exist,
+# the hook hasn't fired yet — user needs to let the agent respond once first.
+TRANSCRIPT_CACHE="$HOME/.gemini/antigravity/.last-transcript-path"
+if [ ! -f "$TRANSCRIPT_CACHE" ]; then
+  echo "Transcript cache not found at $TRANSCRIPT_CACHE" >&2
+  echo "The aria-pre-invocation hook writes this file before each model call." >&2
+  echo "Let the agent respond to one message first, then re-run /snapshot." >&2
   exit 1
 fi
 
-# Claude Code names transcript files by session UUID, so the basename is the
-# session id — matches the hook's SESSION_ID format.
+TRANSCRIPT_PATH=$(cat "$TRANSCRIPT_CACHE")
+if [ -z "$TRANSCRIPT_PATH" ] || [ ! -f "$TRANSCRIPT_PATH" ]; then
+  echo "Transcript file not found at ${TRANSCRIPT_PATH:-<empty>} (cache may be stale)" >&2
+  echo "Cache: $TRANSCRIPT_CACHE" >&2
+  exit 1
+fi
+
+# Derive a short identifier from the transcript filename for the snapshot name.
+# Antigravity transcript files are typically named transcript.jsonl or include
+# a conversation id; fall back to a timestamp if neither yields a clean id.
 SESSION_ID=$(basename "$TRANSCRIPT_PATH" .jsonl)
 SESSION_SHORT=$(printf '%s' "$SESSION_ID" | cut -c1-8)
 TODAY=$(date +%Y-%m-%d)

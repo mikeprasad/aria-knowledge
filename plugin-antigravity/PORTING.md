@@ -96,15 +96,17 @@ When canonical drifts, add one line per item: `[date] [skill or file]: [descript
 
 ---
 
-## Known drift (v2.19.2 → v2.20 follow-ups)
+## Known drift
 
-Semantic Claude-Code-specific references in canonical content that survived path substitution and need port-aware redesign in a follow-up pass. Substitutions can't fix these because they encode Claude Code's filesystem layout assumptions, not just config paths.
+_(none as of v2.20 — Phase D port-aware rewrites complete.)_
 
-| File | Lines | Drift |
-|---|---|---|
-| `skills/audit-config/SKILL.md` | 9, 17, 47, 60 | Audit logic targets `.claude/settings.local.json` and `.claude/*.local.md` — Claude-Code-specific configuration surfaces. Antigravity has different surfaces (`hooks.json`, `mcp_config.json`, `~/.gemini/GEMINI.md`, `.agents/rules/`). Skill needs port-specific audit logic, possibly a separate `audit-config-antigravity` variant. |
+Three skills carry port-specific overlays at `overlays/skills/<name>/SKILL.md` that replace the canonical-derived bodies after `build.sh` runs:
 
-Resolution path: a v2.20 "port-audit pass" that grep-walks every skill/template file for Claude-Code-specific surfaces and either (a) genericizes them, (b) adds port-aware conditional logic, or (c) creates port-specific skill variants where the surface delta is too large for genericization.
+- `skills/snapshot/SKILL.md` — reads cached `transcriptPath` instead of grep-walking `~/.claude/projects/`
+- `skills/audit-knowledge/SKILL.md` — scans cached transcript + artifact-directory paths instead of Claude Code's memory + plans dirs
+- `skills/audit-config/SKILL.md` — audits Antigravity surfaces (hooks.json, mcp_config.json, GEMINI.md, .agents/rules/, ARIA local config) instead of Claude Code's `.claude/settings.local.json`
+
+Drift between canonical and overlay is detected via `diff plugin/skills/<name>/SKILL.md plugin-antigravity/overlays/skills/<name>/SKILL.md`. When canonical evolves, the overlay needs a corresponding hand-update.
 
 ---
 

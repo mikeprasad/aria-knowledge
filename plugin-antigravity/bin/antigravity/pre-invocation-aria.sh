@@ -26,9 +26,12 @@ LOG_FILE="$CACHE_DIR/aria-knowledge-scope-check.log"
 
 mkdir -p "$CACHE_DIR" 2>/dev/null || true
 
-# --- Responsibility 1: cache transcriptPath every turn ---
+# --- Responsibility 1: cache transcriptPath + artifactDirectoryPath every turn ---
 if [ -n "$ARIA_TRANSCRIPT_PATH" ]; then
   printf '%s' "$ARIA_TRANSCRIPT_PATH" > "$CACHE_FILE"
+fi
+if [ -n "$ARIA_ARTIFACT_DIR" ]; then
+  printf '%s' "$ARIA_ARTIFACT_DIR" > "$CACHE_DIR/.last-artifact-dir"
 fi
 
 # Build up injectSteps array

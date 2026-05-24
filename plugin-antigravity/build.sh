@@ -91,6 +91,30 @@ if [ -f "$DST/skills/setup/SKILL.md" ]; then
   rm -f "$DST/skills/setup/SKILL.md.bak"
 fi
 
+# --- Apply port-specific skill overlays ---
+# Overlays at plugin-antigravity/overlays/skills/<name>/SKILL.md replace the
+# canonical-derived version for skills whose behavioral logic doesn't fit
+# Antigravity (e.g., scan Claude Code-specific filesystem layouts). The
+# canonical 27 other skills work fine via path-substitution alone; only these
+# need port-specific bodies. Overlays run LAST so they override path
+# substitutions + frontmatter strip + setup patch (when applicable).
+# Drift detection: diff plugin/skills/<name>/SKILL.md
+#                      plugin-antigravity/overlays/skills/<name>/SKILL.md
+if [ -d "$DST/overlays/skills" ]; then
+  overlay_count=0
+  for overlay in "$DST/overlays/skills"/*/SKILL.md; do
+    [ -f "$overlay" ] || continue
+    skill_name=$(basename "$(dirname "$overlay")")
+    if [ -d "$DST/skills/$skill_name" ]; then
+      cp "$overlay" "$DST/skills/$skill_name/SKILL.md"
+      overlay_count=$((overlay_count + 1))
+    fi
+  done
+  if [ "$overlay_count" -gt 0 ]; then
+    echo "  Applied $overlay_count port-specific skill overlay(s)."
+  fi
+fi
+
 echo "  Copied $(find "$DST/skills" -maxdepth 1 -type d | wc -l | tr -d ' ') skill directories."
 
 # --- template/ (knowledge folder scaffold) ---
@@ -152,6 +176,83 @@ find "$DST/bin" -maxdepth 1 -name '*.sh' -exec sed -i.bak \
   -e 's|~/\.claude|~/.gemini/antigravity|g' \
   {} +
 find "$DST/bin" -maxdepth 1 -name '*.bak' -delete
+
+# Patch save-transcript.sh to read transcriptPath from cache file (set by
+# pre-invocation-aria.sh hook). Antigravity's transcript lives at a single
+# known path per workspace, delivered via hook stdin — not in a directory
+# of jsonl files like Claude Code's ~/.claude/projects/ layout.
+# The canonical discovery block is multi-line (find | stat | sort | head | cut)
+# which is fragile to sed-patch after path substitution. We replace the entire
+# file body with a heredoc that preserves all non-discovery logic verbatim.
+if [ -f "$DST/bin/save-transcript.sh" ]; then
+  cat > "$DST/bin/save-transcript.sh" << 'SAVE_TRANSCRIPT_EOF'
+#!/bin/sh
+# save-transcript.sh — on-demand transcript snapshot for the /snapshot skill.
+# Antigravity port: reads transcript path from cache file written by the
+# aria-pre-invocation hook (pre-invocation-aria.sh), which captures
+# transcriptPath from hook stdin on every model call. The canonical Claude Code
+# variant walks ~/.claude/projects/ for the most-recently-modified *.jsonl —
+# that directory layout doesn't exist in Antigravity.
+# Mirrors the archival logic from the canonical but uses the cached path.
+# Bypasses KT_AUTO_CAPTURE — that gate scopes to hook-driven auto capture,
+# not explicit user invocation.
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+. "$SCRIPT_DIR/config.sh"
+
+if [ "$KT_CONFIGURED" = "false" ] || [ -n "$KT_CONFIG_ERROR" ]; then
+  echo "aria-knowledge is not configured. Run /setup first." >&2
+  [ -n "$KT_CONFIG_ERROR" ] && echo "Config error: $KT_CONFIG_ERROR" >&2
+  exit 1
+fi
+
+if [ ! -d "$KT_KNOWLEDGE_FOLDER" ]; then
+  echo "Knowledge folder not found: $KT_KNOWLEDGE_FOLDER" >&2
+  exit 1
+fi
+
+# Antigravity port: locate transcript via the cache file written by the
+# aria-pre-invocation hook on every model call. If the cache doesn't exist,
+# the hook hasn't fired yet — user needs to let the agent respond once first.
+TRANSCRIPT_CACHE="$HOME/.gemini/antigravity/.last-transcript-path"
+if [ ! -f "$TRANSCRIPT_CACHE" ]; then
+  echo "Transcript cache not found at $TRANSCRIPT_CACHE" >&2
+  echo "The aria-pre-invocation hook writes this file before each model call." >&2
+  echo "Let the agent respond to one message first, then re-run /snapshot." >&2
+  exit 1
+fi
+
+TRANSCRIPT_PATH=$(cat "$TRANSCRIPT_CACHE")
+if [ -z "$TRANSCRIPT_PATH" ] || [ ! -f "$TRANSCRIPT_PATH" ]; then
+  echo "Transcript file not found at ${TRANSCRIPT_PATH:-<empty>} (cache may be stale)" >&2
+  echo "Cache: $TRANSCRIPT_CACHE" >&2
+  exit 1
+fi
+
+# Derive a short identifier from the transcript filename for the snapshot name.
+# Antigravity transcript files are typically named transcript.jsonl or include
+# a conversation id; fall back to a timestamp if neither yields a clean id.
+SESSION_ID=$(basename "$TRANSCRIPT_PATH" .jsonl)
+SESSION_SHORT=$(printf '%s' "$SESSION_ID" | cut -c1-8)
+TODAY=$(date +%Y-%m-%d)
+
+CAPTURES_DIR="$KT_KNOWLEDGE_FOLDER/intake/pre-compact-captures"
+mkdir -p "$CAPTURES_DIR" 2>/dev/null
+
+SNAPSHOT_FILE="$CAPTURES_DIR/${TODAY}_${SESSION_SHORT}.md"
+
+if ! cp "$TRANSCRIPT_PATH" "$SNAPSHOT_FILE" 2>/dev/null; then
+  echo "Failed to write snapshot to $SNAPSHOT_FILE" >&2
+  exit 1
+fi
+
+echo "Transcript snapshot saved → $SNAPSHOT_FILE"
+echo "Source: $TRANSCRIPT_PATH"
+echo "Run /extract now (in-context), or /audit-knowledge will review this snapshot at the next audit cycle."
+SAVE_TRANSCRIPT_EOF
+  chmod +x "$DST/bin/save-transcript.sh"
+  echo "  Patched save-transcript.sh: cache-reading transcript discovery (Antigravity port)."
+fi
 
 echo "  Copied + path-substituted $(ls "$DST/bin"/*.sh 2>/dev/null | wc -l | tr -d ' ') canonical bin scripts."
 
