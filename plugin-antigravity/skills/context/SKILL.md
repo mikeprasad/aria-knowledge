@@ -6,18 +6,6 @@ description: "Load relevant knowledge by topic. Queries the tag index and presen
 
 Query the knowledge tag index and load relevant promoted files into the conversation context.
 
-## Runtime Gate (per ADR-094)
-
-**Before Step 0:** Check that `Bash` is available. If `Bash` is NOT available (e.g., Cowork), surface:
-
-> ⚠️ **Runtime mismatch — you invoked aria-knowledge's `/context` from a non-Code runtime.**
->
-> Behavior is largely the same in both runtimes; for the Cowork-native variant (reads `index.md` from the attached knowledge folder via persistent grant), use `/aria-cowork:context`.
->
-> Proceed with the aria-knowledge variant anyway? (`y` / `n`)
-
-Wait for `y` / `yes`. **Gate applies even in `auto`** (ADR-094 §Part 3). If `Bash` is available, proceed to Step 0.
-
 ## Step 0: Resolve Config
 
 Read `~/.gemini/antigravity/aria-knowledge.local.md` and extract:

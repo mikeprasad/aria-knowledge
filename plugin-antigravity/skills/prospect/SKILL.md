@@ -8,18 +8,6 @@ Run a structured pre-mortem on a plan or approach that has been *created but not
 
 The discipline this enforces: before the first edit lands, every planned step gets named, its evidence base examined, its smallest viable version identified, and its action gated on the strength of the underlying hypothesis. Mirrors `/retrospect`'s shape so the same review muscle works in both directions.
 
-## Runtime Gate (per ADR-094)
-
-**Before "When to use":** Check that `Bash` is available. If `Bash` is NOT available (e.g., Cowork), surface:
-
-> ⚠️ **Runtime mismatch — you invoked aria-knowledge's `/prospect` from a non-Code runtime.**
->
-> Behavior is largely the same in both runtimes; for the Cowork-native variant (skips Step 11 CODEMAP/STITCH surfacing per ADR-005, uses in-memory dedup instead of `/tmp/` ledger), use `/aria-cowork:prospect`.
->
-> Proceed with the aria-knowledge variant anyway? (`y` / `n`)
-
-Wait for `y` / `yes`. **Gate applies even in `auto`** (ADR-094 §Part 3). If `Bash` is available, proceed to "When to use".
-
 ## When to use
 
 - After a multi-step plan is articulated (in chat, in TodoWrite, in a `.md` plan file) but no code has been written yet

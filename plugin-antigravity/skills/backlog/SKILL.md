@@ -6,18 +6,6 @@ description: "View and manage pending backlog items. Use when user says '/backlo
 
 View pending items across all four backlogs, or manage entries.
 
-## Runtime Gate (per ADR-094)
-
-**Before Step 0:** Check that `Bash` is available. If `Bash` is NOT available (e.g., Cowork), surface:
-
-> ⚠️ **Runtime mismatch — you invoked aria-knowledge's `/backlog` from a non-Code runtime.**
->
-> Behavior is largely the same in both runtimes; for the Cowork-native variant (reads backlogs from the attached knowledge folder rather than `~/.gemini/antigravity/aria-knowledge.local.md`), use `/aria-cowork:backlog`.
->
-> Proceed with the aria-knowledge variant anyway? (`y` / `n`)
-
-Wait for `y` / `yes`. **Gate applies even in `auto`** (ADR-094 §Part 3). If `Bash` is available, proceed to Step 0.
-
 ## Step 0: Resolve Config
 
 Read `~/.gemini/antigravity/aria-knowledge.local.md` and extract `knowledge_folder`. If the file doesn't exist, stop: "aria-knowledge is not configured. Run /setup to get started."

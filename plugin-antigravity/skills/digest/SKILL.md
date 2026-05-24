@@ -6,18 +6,6 @@ description: "NOTE: this skill requires connected ~~chat / ~~email / ~~project-t
 
 Synthesize a digest of activity across connected MCPs into `intake/digests/{YYYY-MM-DD}.md`. Pulls from `~~chat` + `~~email` + `~~project tracker` + `~~docs` to produce a "what's pending / what shipped / what's blocked" rollup. Composite of all 4 categories — the most cross-tool of the v2.18.0 skills.
 
-## Runtime Gate (per ADR-094)
-
-**Before Step 0:** Check that `Bash` is available. If `Bash` is NOT available (e.g., Cowork), surface:
-
-> ⚠️ **Runtime mismatch — you invoked aria-knowledge's `/digest` from a non-Code runtime.**
->
-> This skill requires connected ~~chat / ~~email / ~~project-tracker / ~~docs MCPs across 4 categories, which are typically only present in Cowork. The Cowork-native variant has working MCP access. Use `/aria-cowork:digest`.
->
-> Proceed with the aria-knowledge variant anyway? (`y` / `n`)
-
-Wait for `y` / `yes`. **Gate applies even in `auto`** (ADR-094 §Part 3). If `Bash` is available, proceed to Step 0.
-
 ## Step 0: Resolve Config
 
 Read `~/.gemini/antigravity/aria-knowledge.local.md` and extract `knowledge_folder`. If the file doesn't exist, stop: "aria-knowledge is not configured. Run /setup to get started."

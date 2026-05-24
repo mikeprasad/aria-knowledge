@@ -67,10 +67,30 @@ find "$DST/skills" -name 'SKILL.md' -exec sed -i.bak \
 find "$DST/skills" -name 'SKILL.md.bak' -delete
 
 # Strip ADR-094 runtime-gate prose from skill descriptions (BSD-sed compatible)
+# Two formats handled, corresponding to the two ADR-094 description-format
+# eras: v2.19.x leading-clause boilerplate, and v2.20.1+ trailing parenthetical.
+# Both encode Code↔Cowork port-collision context that does not apply to the
+# Antigravity port (no sibling port, no bare-slash routing collision).
 find "$DST/skills" -name 'SKILL.md' -exec sed -i.bak -E \
-  's|\*\*Bare-slash canonical \(Claude Code\)\.\*\*.*RUNTIME GATE:.*\(ADR-094 §Part 3[^)]*\)\.[[:space:]]+||g' \
+  -e 's|\*\*Bare-slash canonical \(Claude Code\)\.\*\*.*RUNTIME GATE:.*\(ADR-094 §Part 3[^)]*\)\.[[:space:]]+||g' \
+  -e 's| \(Claude Code variant — bare-slash canonical when both ports loaded; see ADR-094\.\)||g' \
   {} +
 find "$DST/skills" -name 'SKILL.md.bak' -delete
+
+# Strip the `## Runtime Gate (per ADR-094)` body section entirely from
+# antigravity skills (v2.20.1+). The gate logic checks Bash availability to
+# fire only on Cowork (no Bash); Bash IS available in Antigravity, so the
+# gate never fires here — but the prose ("This is the Claude Code variant",
+# "Use /aria-cowork:X instead?") misleads any agent reading the body. Strip
+# the whole section; antigravity skills proceed directly to Step 0.
+# Multi-line strip — use python since BSD sed doesn't handle multiline.
+find "$DST/skills" -name 'SKILL.md' -exec python3 -c '
+import re, sys
+for f in sys.argv[1:]:
+    with open(f) as fh: t = fh.read()
+    t = re.sub(r"## Runtime Gate \(per ADR-094\).*?(?=^## )", "", t, count=0, flags=re.DOTALL | re.MULTILINE)
+    with open(f, "w") as fh: fh.write(t)
+' {} +
 
 # Strip allowed-tools + argument-hint from SKILL.md frontmatter (not in
 # Antigravity's documented schema per docs/skills; recognized fields are

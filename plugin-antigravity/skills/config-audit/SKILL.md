@@ -1,5 +1,5 @@
 ---
-description: "Alias for /audit-config. Invoked by the '/config-audit' slash command. Same behavior as /audit-config — just an alternative phrasing."
+description: "Alias for /audit-config. Invoked by the '/config-audit' slash command. Same behavior as /audit-config — just an alternative phrasing. (Claude Code variant — alias for /audit-config; see ADR-094.)"
 ---
 
 # /config-audit — Alias for /audit-config

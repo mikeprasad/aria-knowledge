@@ -19,22 +19,6 @@ For "I'm done, close it out cleanly" with no passoff intent, use `/wrapup` inste
 
 **The next-session opener is the headline artifact** in default + auto modes — always produced, even when no other surface changed. That is what distinguishes `/handoff` from `/wrapup`. Brief mode is a different shape — handoff to a person, not to a session.
 
-## Runtime Gate (per ADR-094)
-
-**Before Step 0:** Check that the `Bash` tool is available in this session. If `Bash` is NOT available (you are running in Claude Cowork or another non-Code runtime), surface the following notification and wait for explicit user confirmation:
-
-> ⚠️ **Runtime mismatch — you invoked aria-knowledge's `/handoff` from a non-Code runtime.**
->
-> This variant runs `git status` / `git commit` via Bash, which isn't available here. For the runtime-appropriate variant that emits a copy-paste commit message instead, use `/aria-cowork:handoff`.
->
-> Proceed with the aria-knowledge variant anyway? (`y` / `n`)
-
-Wait for an explicit `y` / `yes`. Treat `n` / `no` / no response / any other reply as "do not proceed" and exit cleanly.
-
-**This gate applies even when `mode = auto`.** Auto mode's "implicit-yes on all gates" rule is suspended for the runtime-mismatch check per ADR-094 §Part 3 — auto mode trusts that the user invoked the correct variant, and this gate enforces that precondition. All other auto-mode gates remain bypassed.
-
-If `Bash` is available, proceed to Step 0.
-
 ## Step 0: Resolve Config and Parse Mode
 
 Read `~/.gemini/antigravity/aria-knowledge.local.md` and extract `knowledge_folder`. If missing, stop: "aria-knowledge is not configured. Run /setup to get started."

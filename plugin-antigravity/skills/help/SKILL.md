@@ -6,18 +6,6 @@ description: "Show available aria-knowledge commands. Use when user says '/help'
 
 Print the command reference table. No config or file access needed.
 
-## Runtime Gate (per ADR-094)
-
-**Before printing:** Check that `Bash` is available. If `Bash` is NOT available (e.g., Cowork), surface:
-
-> ⚠️ **Runtime mismatch — you invoked aria-knowledge's `/help` from a non-Code runtime.**
->
-> This prints aria-knowledge's command reference (Code-side commands). For aria-cowork's reference, use `/aria-cowork:help`.
->
-> Proceed and show aria-knowledge's commands anyway? (`y` / `n`)
-
-Wait for `y` / `yes`. **Gate applies even in `auto`** (ADR-094 §Part 3). If `Bash` is available, proceed to Output.
-
 ## Output
 
 ```

@@ -6,18 +6,6 @@ description: "Rebuild the knowledge tag index. Scans promoted files, normalizes 
 
 Scan all promoted knowledge files, normalize tags, detect issues, and regenerate `{knowledge_folder}/index.md`.
 
-## Runtime Gate (per ADR-094)
-
-**Before Step 0:** Check that `Bash` is available. If `Bash` is NOT available (e.g., Cowork), surface:
-
-> ⚠️ **Runtime mismatch — you invoked aria-knowledge's `/index` from a non-Code runtime.**
->
-> This variant supports `projects_enabled` / `projects_shared_knowledge` config keys not present in Cowork's `aria-config.md`. For the Cowork-native variant (simpler index, no shared-knowledge tier), use `/aria-cowork:index`.
->
-> Proceed with the aria-knowledge variant anyway? (`y` / `n`)
-
-Wait for `y` / `yes`. **Gate applies even in `auto`** (ADR-094 §Part 3). If `Bash` is available, proceed to Step 0.
-
 ## Step 0: Resolve Config
 
 Read `~/.gemini/antigravity/aria-knowledge.local.md` and extract:

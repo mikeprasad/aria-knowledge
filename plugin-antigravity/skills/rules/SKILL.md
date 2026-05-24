@@ -6,18 +6,6 @@ description: "Quick lookup into working rules. Use when user says '/rules', '/ru
 
 Look up rules from both the plugin's `working-rules.md` and the user's optional `user-rules.md`.
 
-## Runtime Gate (per ADR-094)
-
-**Before Step 0:** Check that `Bash` is available. If `Bash` is NOT available (e.g., Cowork), surface:
-
-> ⚠️ **Runtime mismatch — you invoked aria-knowledge's `/rules` from a non-Code runtime.**
->
-> Behavior is largely the same in both runtimes (both look up `working-rules.md` + `user-rules.md`); for the Cowork-native variant (reads from the attached knowledge folder), use `/aria-cowork:rules`.
->
-> Proceed with the aria-knowledge variant anyway? (`y` / `n`)
-
-Wait for `y` / `yes`. **Gate applies even in `auto`** (ADR-094 §Part 3). If `Bash` is available, proceed to Step 0.
-
 ## Step 0: Resolve Config
 
 Read `~/.gemini/antigravity/aria-knowledge.local.md` and extract `knowledge_folder`. If the file doesn't exist, stop: "aria-knowledge is not configured. Run /setup to get started."

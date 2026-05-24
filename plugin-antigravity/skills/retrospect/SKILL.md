@@ -6,18 +6,6 @@ description: "Run a structured retrospective on a shipped commit range, release,
 
 Run a structured retrospective on a shipped commit range (or single commit, or current session). Produces a 10-section markdown report with per-fix verdicts, validation status, action recommendations, and re-diagnosis when fixes failed. Writes findings to `knowledge/logs/retrospect/` and runs aria's standard intake. Source spec: `docs/specs/2026-05-03-retrospect-skill-design.md`.
 
-## Runtime Gate (per ADR-094)
-
-**Before "When to use":** Check that `Bash` is available. If `Bash` is NOT available (e.g., Cowork), surface:
-
-> ⚠️ **Runtime mismatch — you invoked aria-knowledge's `/retrospect` from a non-Code runtime.**
->
-> This variant runs `git log`, `git diff`, `gh pr view` directly via Bash for commit/range/pr/deployment scopes. For the Cowork-native variant (prompts user-paste for git output; session/decision scopes work unmodified), use `/aria-cowork:retrospect`.
->
-> Proceed with the aria-knowledge variant anyway? (`y` / `n`)
-
-Wait for `y` / `yes`. **Gate applies even in `auto`** (ADR-094 §Part 3). If `Bash` is available, proceed to "When to use".
-
 ## When to use
 
 - After a release ships and the bug is partially or fully unresolved

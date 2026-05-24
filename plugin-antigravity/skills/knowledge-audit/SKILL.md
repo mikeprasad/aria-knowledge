@@ -1,5 +1,5 @@
 ---
-description: "Alias for /audit-knowledge. Invoked by the '/knowledge-audit' slash command. Same behavior as /audit-knowledge — just an alternative phrasing."
+description: "Alias for /audit-knowledge. Invoked by the '/knowledge-audit' slash command. Same behavior as /audit-knowledge — just an alternative phrasing. (Claude Code variant — alias for /audit-knowledge; see ADR-094.)"
 ---
 
 # /knowledge-audit — Alias for /audit-knowledge
