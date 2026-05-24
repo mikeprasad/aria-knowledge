@@ -11,11 +11,13 @@ All notable changes to ARIA will be documented in this file.
 The leading `**Bare-slash canonical (Claude Code).**` boilerplate (~60-80 words of ADR-094 narrative) is stripped from each Code-side skill description. Port-identification moved to a compact trailing parenthetical:
 
 - Code-side: `(Claude Code variant — bare-slash canonical when both ports loaded; see ADR-094.)`
-- Cowork-side: `(Claude Cowork variant. Namespaced-only — bare /X belongs to aria-knowledge per ADR-094.)`
+- Cowork-side: `(Cowork variant — namespaced-only.)` (short form, see Cowork SKILL_CAP note below).
 
 Skill purpose now leads in every UI surface (`/help`, Claude Desktop plugin browser). Description-level model routing signal preserved by trailing port-id — the model reads the full description field; only UI truncation hides the parenthetical from human browsing.
 
-Also closes a real Item 4 audit gap on the Cowork side: ADR-094 §Part 1 specified a `Namespaced-only` clause + `Do NOT match bare /X` anti-trigger that v2.19.1 implementation didn't carry on cowork descriptions (0/24). v2.20.1 restores both surfaces (trailing parenthetical for description-routing + Runtime Gate body preamble for in-skill discovery).
+Also closes a real Item 4 audit gap on the Cowork side: ADR-094 §Part 1 specified a `Namespaced-only` clause + `Do NOT match bare /X` anti-trigger that v2.19.1 implementation didn't carry on cowork descriptions (0/24). v2.20.1 restores both surfaces: the description-level "namespaced-only" routing signal in the trailing parenthetical, plus the verbose ADR-094 narrative + explicit "Do NOT match bare /X" anti-trigger in each skill's Runtime Gate body preamble.
+
+**Cowork SKILL_CAP constraint:** aria-cowork's release.sh enforces a 9000-char hard cap on summed SKILL.md description chars (empirical install-fail at 9233, documented v0.2.1 + v1.0.0). The long-form trailing parenthetical used on the Code side would push cowork to ~10335 chars (over cap). Cowork uses the short form `(Cowork variant — namespaced-only.)` to stay under cap; the verbose ADR-094 reference + "Do NOT match bare /X" anti-trigger live in the Runtime Gate body preamble where no cap applies.
 
 ### Changed — Runtime Gate question inverted + Skill-tool auto-redirect on yes
 

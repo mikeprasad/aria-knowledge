@@ -10,13 +10,16 @@ Cross-plugin parity callouts (per ADR-006) note when changes coordinate with ari
 
 ### Changed — description format (Strategy 1 trailing parenthetical)
 
-Mid-description "Cowork variant —" framing is removed (where present); each colliding skill description ends with a trailing parenthetical:
+Mid-description "Cowork variant —" framing is removed (where present); each colliding skill description ends with a short trailing parenthetical:
 
 ```
-(Claude Cowork variant. Namespaced-only — bare /X belongs to aria-knowledge per ADR-094.)
+(Cowork variant — namespaced-only.)         # non-alias skills
+(Cowork alias — namespaced-only.)            # config-audit, knowledge-audit
 ```
 
-This restores the ADR-094 §Part 1 spec language (`Namespaced-only` clause + `Do NOT match bare /X` anti-trigger) that v1.1.1's implementation didn't carry on cowork descriptions (0/24 conformance pre-fix). UI truncation in plugin browsers now shows skill purpose first; port-identifier remains available for model-side description routing.
+This restores the ADR-094 §Part 1 spec language (`namespaced-only` clause) that v1.1.1's implementation didn't carry on cowork descriptions (0/24 conformance pre-fix). UI truncation in plugin browsers now shows skill purpose first; port-identifier remains available for model-side description routing.
+
+**Short form (vs Code-side's verbose form):** aria-cowork's release.sh enforces a 9000-char hard cap on summed SKILL.md description chars (empirical install-fail at 9233, documented v0.2.1 + v1.0.0). The verbose form used on the Code side `(Claude Code variant — bare-slash canonical when both ports loaded; see ADR-094.)` would push cowork's summed chars to ~10335 (over cap). The short form keeps cowork at ~8895 chars (under cap). The verbose ADR-094 reference + explicit "Do NOT match bare /X" anti-trigger live in each skill's Runtime Gate body preamble where no cap applies.
 
 ### Changed — Runtime Gate question inverted + Skill-tool auto-redirect on yes
 
