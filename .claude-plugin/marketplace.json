@@ -1,13 +1,22 @@
 {
-  "plugins": {
-    "aria-knowledge": {
-      "version": "2.20.2",
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "aria-knowledge",
+  "description": "ARIA — Applied Reasoning and Insight Architecture. Knowledge management, decision discipline, codebase understanding, plan pre-mortems, and release retrospectives for Claude Code.",
+  "owner": {
+    "name": "Mike Prasad"
+  },
+  "plugins": [
+    {
+      "name": "aria-knowledge",
       "description": "Knowledge management, decision discipline, codebase understanding, plan pre-mortems, and release retrospectives for Claude Code",
-      "author": "Mike Prasad",
-      "source": {
-        "type": "dir",
-        "path": "./plugin-claude-code"
-      }
+      "author": {
+        "name": "Mike Prasad"
+      },
+      "source": "./plugin-claude-code",
+      "category": "development",
+      "homepage": "https://ariaknowledge.com",
+      "repository": "https://github.com/mikeprasad/aria-knowledge",
+      "license": "CC-BY-NC-SA-4.0"
     }
-  }
+  ]
 }
