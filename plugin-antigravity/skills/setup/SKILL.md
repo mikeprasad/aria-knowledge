@@ -123,7 +123,7 @@ In **update mode** (re-run): always diff, even if the file was previously kept. 
 Check if the `explanatory-output-style` plugin is installed:
 
 ```bash
-find ~/.claude/plugins -name "explanatory-output-style" -type d 2>/dev/null | head -1
+find ~/.gemini/config/plugins -name "explanatory-output-style" -type d 2>/dev/null | head -1
 ```
 
 - **If found:** "explanatory-output-style plugin detected. Insight capture will be enabled."

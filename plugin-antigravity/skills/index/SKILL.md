@@ -380,7 +380,7 @@ Scan for connections between the plugin's skills and knowledge files. This enabl
 **Scan skill files:**
 
 1. Glob for `${CLAUDE_PLUGIN_ROOT}/skills/*/SKILL.md` (or use the plugin's own skill directory)
-2. Also scan any other installed plugins: `~/.claude/plugins/**/skills/*/SKILL.md`
+2. Also scan any other installed plugins: `~/.gemini/config/plugins/**/skills/*/SKILL.md`
 3. For each skill: extract `name` from frontmatter or directory name, extract `description`, scan for `## Related` sections
 
 **Auto-discover connections** using these heuristics (in priority order):

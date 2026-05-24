@@ -6,7 +6,7 @@ allowed-tools: Read, Glob, Grep, Write, Edit, Bash
 
 # /audit-knowledge — Knowledge Repository Audit
 
-Scan `~/.claude/` memory and plan files, compare against what's already in the knowledge folder and project-level docs, and surface anything worth extracting.
+Scan `~/.gemini/antigravity/` memory and plan files, compare against what's already in the knowledge folder and project-level docs, and surface anything worth extracting.
 
 ## Runtime Gate (per ADR-094)
 
@@ -14,7 +14,7 @@ Scan `~/.claude/` memory and plan files, compare against what's already in the k
 
 > ⚠️ **Runtime mismatch — you invoked aria-knowledge's `/audit-knowledge` from a non-Code runtime.**
 >
-> This variant scans `~/.gemini/antigravity/transcripts/{cwd}/memory/` and `~/.claude/plans/` via Bash — paths Cowork's persistent-grant model can't reach. For the Cowork-native variant (audits the attached folder's `intake/` subfolder only), use `/aria-cowork:audit-knowledge`.
+> This variant scans `~/.gemini/antigravity/transcripts/{cwd}/memory/` and `~/.gemini/antigravity/plans/` via Bash — paths Cowork's persistent-grant model can't reach. For the Cowork-native variant (audits the attached folder's `intake/` subfolder only), use `/aria-cowork:audit-knowledge`.
 >
 > Proceed with the aria-knowledge variant anyway? (`y` / `n`)
 
@@ -302,7 +302,7 @@ For each file, categorize:
 
 ## Step 4: Scan Plan Files
 
-Read all files in `~/.claude/plans/`.
+Read all files in `~/.gemini/antigravity/plans/`.
 
 Issue Read calls for all plan files in a single parallel tool-use block. Categorization runs in the main thread after reads complete.
 
