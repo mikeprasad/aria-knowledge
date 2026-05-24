@@ -173,12 +173,12 @@ If no uncommitted changes exist, say "No uncommitted changes" and move on.
 
 **Important:** Do not push to remote. Only commit locally. If the user wants to push, they can do so separately. This applies to both modes.
 
-## Step 7: Verify Handoff Readiness
+## Step 7: Verify Wrapup Readiness
 
 Run through a checklist and report status:
 
 ```
-## Handoff Checklist
+## Wrapup Checklist
 
 - [x/!/ ] PROGRESS.md — [updated / already current / not found / skipped]
 - [x/!/ ] CLAUDE.md — [current / updated / not found / skipped]
@@ -193,11 +193,11 @@ If any item shows a gap (uncommitted changes skipped, PROGRESS.md not updated), 
 
 ## Step 8: Prompt Extract
 
-**If `mode = auto`:** invoke the `/extract` skill without prompting. It handles its own config resolution and execution. (Captures session knowledge so the close-out is fully documented.)
+**If `mode = auto`:** ALWAYS invoke the `/extract` skill. No judgment-skip allowed — even if the session feels short, conversational, or seems to have nothing new to extract, run `/extract` anyway. The model running this step must not pre-judge whether extraction is worthwhile; `/extract` has its own dedup logic (per its Rules section: "Never ask for confirmation — scan and dump") that correctly handles the "nothing to add" case by reporting `No uncaptured knowledge found`. The wrapup skill must not make that judgment on `/extract`'s behalf. Auto mode's "implicit-yes on all gates" rule converts to **"extract always runs"** here — there is no skip path in auto mode.
 
 **Otherwise (gated mode):** Ask: "Run /extract to capture session knowledge before ending? (yes / no)"
 
-- **yes** — invoke the /extract skill (it handles its own config resolution and execution)
+- **yes** — invoke the /extract skill. Once the user has said yes, the same "always run" rule applies — do not subsequently skip based on session-content judgment. /extract handles its own dedup; the user authorized the run.
 - **no** — skip
 
 ## Step 9: Report
@@ -205,12 +205,14 @@ If any item shows a gap (uncommitted changes skipped, PROGRESS.md not updated), 
 Output a brief closing summary:
 
 ```
-## Session Handoff Complete
+## Session Wrapup Complete
 
 [1-2 lines: what was updated]
 
 **Next session pickup:** Read [path to PROGRESS.md or CLAUDE.md]
 ```
+
+Use the heading **`Session Wrapup Complete`** for `/wrapup` runs — distinct from `/handoff`'s **`Session Handoff Complete`** heading. The two skills have distinct intents per the v2.19.0 intent split (wrapup = close-out with no passoff; handoff = passoff package with next-session opener) and their closing-report headings should reflect that.
 
 ## Rules
 

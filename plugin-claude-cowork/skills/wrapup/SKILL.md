@@ -191,12 +191,12 @@ If the user has no git repo context for this session (e.g., the session was pure
 
 **Important:** Cowork never pushes either. The user pushes from their terminal after committing. Push is always an explicit user action.
 
-## Step 7: Verify handoff readiness
+## Step 7: Verify wrapup readiness
 
 Run through a checklist and report status:
 
 ```
-## Handoff Checklist
+## Wrapup Checklist
 
 - PROGRESS.md — [updated / already current / not found / skipped]
 - CLAUDE.md — [current / updated (in-place) / updated (copy-paste emitted) / not found / skipped]
@@ -211,11 +211,11 @@ If any item shows a gap (commit-message emitted but not yet run, PROGRESS.md not
 
 ## Step 8: Prompt extract
 
-**If `mode = auto`:** invoke the `/aria-cowork:extract` skill without prompting. It handles its own config resolution and execution. (Captures session knowledge so the close-out is fully documented.)
+**If `mode = auto`:** ALWAYS invoke the `/aria-cowork:extract` skill. No judgment-skip allowed — even if the session feels short, conversational, or seems to have nothing new to extract, run `/aria-cowork:extract` anyway. The model running this step must not pre-judge whether extraction is worthwhile; `/extract` has its own dedup logic (per its Rules section: "Never ask for confirmation — scan and dump") that correctly handles the "nothing to add" case by reporting `No uncaptured knowledge found`. The wrapup skill must not make that judgment on `/extract`'s behalf. Auto mode's "implicit-yes on all gates" rule converts to **"extract always runs"** here — there is no skip path in auto mode.
 
 **Otherwise (gated mode):** Ask: *"Run `/aria-cowork:extract` to capture session knowledge before ending? (yes / no)"*
 
-- **yes** — invoke the `/extract` skill (it handles its own config resolution and execution)
+- **yes** — invoke the `/aria-cowork:extract` skill. Once the user has said yes, the same "always run" rule applies — do not subsequently skip based on session-content judgment. /extract handles its own dedup; the user authorized the run.
 - **no** — skip
 
 ## Step 9: Report
@@ -223,13 +223,15 @@ If any item shows a gap (commit-message emitted but not yet run, PROGRESS.md not
 Output a brief closing summary:
 
 ```
-## Session Handoff Complete
+## Session Wrapup Complete
 
 [1-2 lines: what was updated]
 
 **Next session pickup:** Read [path to PROGRESS.md or CLAUDE.md]
 [If commit message was emitted but not yet run: "Reminder: commit message awaiting your terminal run."]
 ```
+
+Use the heading **`Session Wrapup Complete`** for `/aria-cowork:wrapup` runs — distinct from `/aria-cowork:handoff`'s **`Session Handoff Complete`** heading. The two skills have distinct intents per the v1.1.0 intent split (wrapup = close-out with no passoff; handoff = passoff package) and their closing-report headings should reflect that.
 
 ## Rules
 

@@ -198,7 +198,9 @@ If any step fails (e.g., commit hook rejects), surface the failure inline and st
 
 ## Step 6: Run /extract
 
-Invoke `/extract` programmatically. `/extract` is already non-interactive by design (per its Rules section: "Never ask for confirmation — scan and dump"), so no user prompt is needed in either mode. Capture its summary report for inclusion in Step 8.
+ALWAYS invoke `/extract` programmatically. This applies to default mode (after the user has approved the combined-go review in Step 4) AND `auto` mode unconditionally. No judgment-skip allowed — even if the session feels short, conversational, or seems to have nothing new to extract, run `/extract` anyway. The handoff skill must not pre-judge whether extraction is worthwhile; `/extract` has its own dedup logic (per its Rules section: "Never ask for confirmation — scan and dump") that correctly handles the "nothing to add" case by reporting `No uncaptured knowledge found`. Auto mode's "implicit-yes on all gates" rule converts to **"extract always runs"** here — there is no skip path. Capture `/extract`'s summary report for inclusion in Step 8.
+
+(Brief mode never reaches Step 6 — it exits at Step 2B before any handoff side-effects, per the Rules section.)
 
 ## Step 7: Verify Handoff Readiness
 

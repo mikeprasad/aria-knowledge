@@ -2,6 +2,44 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## v2.20.2 — 2026-05-25
+
+**Patch release — two latent wrapup/handoff spec bugs surfaced post-v2.20.1.** Coordinated with aria-cowork v1.1.3 + antigravity rebuild. No new skills, no schema changes, no MCP changes. Pure content fixes in `/wrapup` + `/handoff` skill bodies. Both bugs were latent since v2.19.0 (2026-05-19 intent split) — invisible across every auto-mode wrapup/handoff session for 6 days until Mike named them at the v2.20.1 release wrapup.
+
+### Fixed — `/wrapup` closing report uses correct heading + checklist
+
+Bug 1: `plugin-claude-code/skills/wrapup/SKILL.md` Step 7 + Step 9 carried "Handoff" labels from pre-v2.19.0 when `/wrapup` was the only end-of-session skill (and "handoff" was the natural closing-report label). The v2.19.0 intent split made `/handoff` distinct from `/wrapup`; the skill names became precise but the internal template strings inside the wrapup body stayed pre-split. Result: every `/wrapup auto` since v2.19.0 has emitted `## Handoff Checklist` and `## Session Handoff Complete` — confusing labels at the moment when distinct intent matters most.
+
+Fixed:
+- `## Step 7: Verify Handoff Readiness` → `## Step 7: Verify Wrapup Readiness`
+- `## Handoff Checklist` → `## Wrapup Checklist` (inside the rendered output template)
+- `## Session Handoff Complete` → `## Session Wrapup Complete` (closing-report heading)
+- Added clarifying paragraph below Step 9 contrasting the two skills' closing headings explicitly
+
+Mirror applied to `plugin-claude-cowork/skills/wrapup/SKILL.md` (cowork's intent split shipped in v1.1.0, same date as aria-knowledge v2.19.0 — same labeling drift).
+
+### Fixed — `/extract` always runs under auto mode (no judgment-skip)
+
+Bug 2: `plugin-claude-code/skills/wrapup/SKILL.md` Step 8 used procedural language `**If mode = auto:** invoke the /extract skill without prompting.` — read literally, this is correct, but a model running auto-mode through Step 8 could rationalize skipping (e.g., "session was short, nothing new to extract") because the spec didn't explicitly forbid that judgment surface. Same shape in `plugin-claude-code/skills/handoff/SKILL.md` Step 6: `Invoke /extract programmatically...` permitted similar rationalization. Result: across multiple recent auto-mode sessions, `/extract` was occasionally skipped — losing session knowledge irrecoverably, which is the exact failure mode ARIA is built to prevent.
+
+Fixed with imperative + anti-rationalization phrasing:
+- Wrapup Step 8 auto-mode now reads: `ALWAYS invoke the /extract skill. No judgment-skip allowed — even if the session feels short, conversational, or seems to have nothing new to extract, run /extract anyway.` Plus explicit "extract always runs" rule + post-yes auto-run rule for gated mode.
+- Handoff Step 6 rewritten with the same `ALWAYS invoke` + anti-rationalization clause covering default + auto. Brief-mode carveout note preserved (brief mode never reaches Step 6).
+
+Mirror applied to cowork wrapup Step 8 + cowork handoff Step 6 (using `/aria-cowork:extract` namespaced form). Same auto-mode invariant established across both ports + both skills.
+
+### Auto-mode invariants — design pattern named
+
+ADR-094 §Part 3 (shipped v2.19.1 / revised v2.20.1) carved a single explicit exception to auto-mode's "implicit-yes" rule: the runtime-mismatch gate must always prompt. v2.20.2 ships the inverse exception: `/extract` under auto mode is always-invoked, no judgment-skip permitted. Both are instances of a shared pattern: **auto-mode invariants** — surfaces where auto's default behavior is overridden in a specific direction (always run / always ask / always skip) to protect a load-bearing semantic. Document each invariant explicitly so the model can't rationalize around it. Worth promoting to a working-rule or approach doc at a future audit.
+
+### Antigravity rebuild
+
+`plugin-antigravity/` rebuilt from canonical via `build.sh`. v2.20.1's strip rules (trailing parenthetical + entire Runtime Gate body section) continue to apply unchanged; v2.20.2's Step 7+8+9 + Step 6 fixes propagate cleanly to antigravity skills.
+
+### Coordinated release pairing
+
+- **aria-cowork v1.1.3** (released 2026-05-25 same day) — companion release; mirror fixes shipped to cowork's `/wrapup` + `/handoff`. See cowork CHANGELOG v1.1.3 entry.
+
 ## v2.20.1 — 2026-05-25
 
 **Patch release — bare-slash gate UX revision (ADR-094 §Part 1/2/3 revision).** Coordinated with aria-cowork v1.1.2. No new skills, no schema changes. The 24 colliding dual-port skills get a UX refresh of the description format + Runtime Gate question + on-yes mechanism per the 2026-05-24 ADR-094 revision. Closes 4 carry-forward items from the 2026-05-24 maintenance idea file.

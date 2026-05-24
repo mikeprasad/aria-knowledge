@@ -4,6 +4,36 @@ All notable changes to aria-cowork are documented here. Format follows [Keep a C
 
 Cross-plugin parity callouts (per ADR-006) note when changes coordinate with aria-knowledge releases.
 
+## [1.1.3] — 2026-05-25
+
+**Patch release — wrapup/handoff spec fixes coordinated with aria-knowledge v2.20.2.** No new skills, no schema changes, no MCP changes. Two latent bugs in `/aria-cowork:wrapup` + `/aria-cowork:handoff` skill bodies — latent since v1.1.0 (2026-05-19) intent split.
+
+### Fixed — `/aria-cowork:wrapup` closing report uses correct heading + checklist
+
+Mirror of aria-knowledge v2.20.2 Bug 1 fix. Cowork wrapup's Step 7 + Step 9 carried "Handoff" labels from pre-v1.1.0 when `/wrapup` was the only end-of-session skill. Result: every `/aria-cowork:wrapup auto` since v1.1.0 emitted `## Handoff Checklist` and `## Session Handoff Complete` — confusing labels.
+
+Fixed:
+- `## Step 7: Verify handoff readiness` → `## Step 7: Verify wrapup readiness`
+- `## Handoff Checklist` → `## Wrapup Checklist`
+- `## Session Handoff Complete` → `## Session Wrapup Complete`
+- Clarifying paragraph below Step 9 contrasting `/aria-cowork:wrapup` vs `/aria-cowork:handoff` closing-report headings explicitly
+
+### Fixed — `/aria-cowork:extract` always runs under auto mode (no judgment-skip)
+
+Mirror of aria-knowledge v2.20.2 Bug 2 fix. Cowork `/aria-cowork:wrapup` Step 8 + `/aria-cowork:handoff` Step 6 used procedural "invoke without prompting" language that permitted models to rationalize skipping `/aria-cowork:extract` based on session-content judgment ("session was short, nothing new"). Result: across multiple recent auto-mode sessions, `/extract` was occasionally skipped — losing session knowledge irrecoverably.
+
+Fixed with imperative + anti-rationalization phrasing:
+- Wrapup Step 8 auto-mode now reads: `ALWAYS invoke the /aria-cowork:extract skill. No judgment-skip allowed...` Plus explicit "extract always runs" rule + post-yes auto-run rule for gated mode.
+- Handoff Step 6 rewritten with the same `ALWAYS invoke` + anti-rationalization clause. Brief-mode carveout note preserved (brief mode never reaches Step 6).
+
+### Auto-mode invariants — shared design pattern
+
+ADR-094 §Part 3 (v1.1.1) established one auto-mode invariant: runtime-mismatch gate always prompts under auto. v1.1.3 ships the inverse: `/aria-cowork:extract` under auto always runs (no judgment-skip). Both are instances of **auto-mode invariants** — surfaces where auto's default behavior is overridden in a specific direction to protect a load-bearing semantic. See aria-knowledge v2.20.2 CHANGELOG for the pattern description.
+
+### Coordinated release pairing
+
+- **aria-knowledge v2.20.2** (released 2026-05-25 same day) — companion release; same two bugs fixed on the canonical Code side. See aria-knowledge CHANGELOG v2.20.2 entry for the full design.
+
 ## [1.1.2] — 2026-05-25
 
 **Patch release — bare-slash gate UX revision (ADR-094 §Part 1/2/3 revision).** Coordinated with aria-knowledge v2.20.1. No new skills, no schema changes, no MCP changes. The 24 colliding dual-port skill bodies + descriptions are refreshed per the 2026-05-24 ADR-094 revision. First aria-cowork patch shipped from the consolidated `mikeprasad/aria-knowledge` monorepo (v2.20.0 consolidation absorbed the previously standalone `mikeprasad/aria-cowork` repo).
