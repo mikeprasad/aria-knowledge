@@ -19,6 +19,6 @@ setup() {
 
 @test "lib fails closed when jq is missing" {
   PAYLOAD='{}'
-  result=$(echo "$PAYLOAD" | PATH=/usr/bin bash -c "source '$LIB' 2>&1; echo exit=\$?") || true
+  result=$(echo "$PAYLOAD" | PATH=/usr/bin /bin/bash -c "source '$LIB' 2>&1; echo exit=\$?") || true
   [[ "$result" =~ jq ]] || [[ "$result" =~ exit=0 ]]  # If jq exists at /usr/bin/jq, test is a no-op
 }
