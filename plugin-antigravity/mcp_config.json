@@ -1,0 +1,40 @@
+{
+  "mcpServers": {
+    "slack": {
+      "serverUrl": "https://mcp.slack.com/mcp"
+    },
+    "ms365": {
+      "serverUrl": "https://microsoft365.mcp.claude.com/mcp"
+    },
+    "gmail": {
+      "serverUrl": ""
+    },
+    "linear": {
+      "serverUrl": "https://mcp.linear.app/mcp"
+    },
+    "asana": {
+      "serverUrl": "https://mcp.asana.com/v2/mcp"
+    },
+    "atlassian": {
+      "serverUrl": "https://mcp.atlassian.com/v1/mcp"
+    },
+    "monday": {
+      "serverUrl": "https://mcp.monday.com/mcp"
+    },
+    "clickup": {
+      "serverUrl": "https://mcp.clickup.com/mcp"
+    },
+    "notion": {
+      "serverUrl": "https://mcp.notion.com/mcp"
+    },
+    "box": {
+      "serverUrl": "https://mcp.box.com/"
+    },
+    "egnyte": {
+      "serverUrl": "https://mcp.egnyte.com/mcp"
+    },
+    "google docs": {
+      "serverUrl": ""
+    }
+  }
+}
