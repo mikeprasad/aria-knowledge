@@ -31,7 +31,7 @@ Investigation (2026-04-18) confirmed PreToolUse hooks receive a `transcript_path
 
 **Procedure:**
 
-1. Write a throwaway PreToolUse hook in `aria/plugin/bin/spike-transcript-dump.sh`:
+1. Write a throwaway PreToolUse hook in `aria/plugin-claude-code/bin/spike-transcript-dump.sh`:
    - Reads `transcript_path` from stdin JSON
    - Writes the last 20 lines of that file + timestamp to `/tmp/aria-spike-<timestamp>.log`
    - Returns success (exit 0, no blocking)
@@ -129,7 +129,7 @@ Two parallel tracks; Track 1 gates Track 2.
 
 ### Track 2 — Format option A (small, independent)
 
-1. Update `aria/plugin/template/rules/change-decision-framework.md` HIGH Post-Edit Format (pass) to specify `Validate` as optional — only emit when flagging.
+1. Update `aria/plugin-claude-code/template/rules/change-decision-framework.md` HIGH Post-Edit Format (pass) to specify `Validate` as optional — only emit when flagging.
 2. Update skill files that reference the HIGH format template (if any).
 3. Bump to v2.10.5 (or bundle with the next patch release).
 4. Monitor: does skipping `Validate` on pass correlate with more FLAG cases going uncaught? If yes, revert.
@@ -176,8 +176,8 @@ These are the explicit decision points that need Mike's sign-off before moving f
 - `knowledge/projects/aria/decisions/036-rule22-ordering-discipline.md` — shipped layer model
 - `knowledge/projects/aria/decisions/006-full-rule22-format-every-edit.md` — anti-compression commitment
 - `knowledge/projects/aria/decisions/021-rule22-ceremony-plan-a.md` — batch-manifest precedent
-- `aria/plugin/template/rules/change-decision-framework.md` — current format definitions
-- `aria/plugin/bin/pre-edit-check.sh` — hook whose injection text Track 1 would later reduce
+- `aria/plugin-claude-code/template/rules/change-decision-framework.md` — current format definitions
+- `aria/plugin-claude-code/bin/pre-edit-check.sh` — hook whose injection text Track 1 would later reduce
 
 ---
 

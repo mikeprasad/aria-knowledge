@@ -286,16 +286,16 @@ The cost-side measurements above can be reproduced by anyone running the plugin:
 
 ```bash
 # Hook output bytes
-echo '{}' | bash plugin/bin/session-start-check.sh | wc -c
-echo '{"file_path":"/tmp/x"}' | bash plugin/bin/post-edit-check.sh | wc -c
+echo '{}' | bash plugin-claude-code/bin/session-start-check.sh | wc -c
+echo '{"file_path":"/tmp/x"}' | bash plugin-claude-code/bin/post-edit-check.sh | wc -c
 
 # Skill description bytes
-for f in plugin/skills/*/SKILL.md; do
+for f in plugin-claude-code/skills/*/SKILL.md; do
   awk '/^description:/{flag=1; print; next} flag && /^[a-z-]+:/{flag=0} flag {print}' "$f" | wc -c
 done
 
 # Hook latency
-time bash plugin/bin/session-start-check.sh < /dev/null
+time bash plugin-claude-code/bin/session-start-check.sh < /dev/null
 ```
 
 The quality-side measurements require a running corpus (`~/Projects/knowledge/logs/prospect/`, `logs/retrospect/`, `logs/knowledge-audit-log.md`) and follow the same pattern: count verdicts, count patterns_hit, count items audited.

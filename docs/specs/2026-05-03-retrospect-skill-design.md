@@ -4,7 +4,7 @@
 **Date:** 2026-05-03
 **Author:** Mike Prasad (with Claude)
 **Plugin:** `aria-knowledge`
-**Skill folder:** `plugin/skills/retrospect/`
+**Skill folder:** `plugin-claude-code/skills/retrospect/`
 
 ---
 
@@ -271,7 +271,7 @@ A catalogued, growing list of process failure patterns the skill checks against 
 
 ### Seeding patterns from real retrospective evidence
 
-The skill is initialized with canonical patterns derived from a real CS retrospective. **Sanitization note:** because aria-knowledge ships as a public repo, seeded pattern entries must be scrubbed of project-specific identifiers (session names, internal URLs, ticket numbers, user names) before they land in `plugin/template/rules/retrospect-patterns.md`. Pattern names and descriptions stay generic; concrete examples that reference proprietary detail go in project-specific pattern files (`knowledge/projects/<proj>/retrospect-patterns.md`), which are not committed to the public template.
+The skill is initialized with canonical patterns derived from a real CS retrospective. **Sanitization note:** because aria-knowledge ships as a public repo, seeded pattern entries must be scrubbed of project-specific identifiers (session names, internal URLs, ticket numbers, user names) before they land in `plugin-claude-code/template/rules/retrospect-patterns.md`. Pattern names and descriptions stay generic; concrete examples that reference proprietary detail go in project-specific pattern files (`knowledge/projects/<proj>/retrospect-patterns.md`), which are not committed to the public template.
 
 Initial canonical patterns:
 
@@ -333,7 +333,7 @@ The skill *never* auto-executes `/retrospect` from a cue. It always asks.
 ## 9. Plugin File Layout
 
 ```
-plugin/skills/retrospect/
+plugin-claude-code/skills/retrospect/
   SKILL.md                         # Skill instructions (Claude-readable)
   references/
     layered-structure.md           # Detail on the 10 sections, with examples
@@ -344,13 +344,13 @@ plugin/skills/retrospect/
     retrospect-report.md           # Skeleton output template
     pattern-entry.md               # Template for new pattern library entries
 
-plugin/template/rules/
+plugin-claude-code/template/rules/
   retrospect-patterns.md           # Canonical pattern library (seeded with 9 patterns from §6)
 
-plugin/template/projects/<proj>/
+plugin-claude-code/template/projects/<proj>/
   retrospect-patterns.md           # Created lazily when first project-specific pattern is added
 
-plugin/template/logs/retrospect/   # Created on first /retrospect invocation
+plugin-claude-code/template/logs/retrospect/   # Created on first /retrospect invocation
 ```
 
 The `template/` directory is the aria-knowledge plugin's standard pattern for files that get copied into a user's `knowledge/` folder during `/setup` — so the canonical pattern library ships as a template and is installed alongside other knowledge assets.

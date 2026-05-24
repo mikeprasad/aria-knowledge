@@ -145,13 +145,13 @@ Two habits determine how much value you get from ARIA:
 
 Everything else — Rule 22 enforcement, transcript capture, context surfacing, codemap reminders — runs automatically via hooks.
 
-See [OVERVIEW.md](plugin/template/OVERVIEW.md) for the full explanation of why these matter.
+See [OVERVIEW.md](plugin-claude-code/template/OVERVIEW.md) for the full explanation of why these matter.
 
 ## Install
 
 ### CLI
 
-1. Copy the `plugin/` directory to your Claude Code plugins folder
+1. Copy the `plugin-claude-code/` directory to your Claude Code plugins folder
 2. Run `/setup` to configure your knowledge folder
 3. Start working — the plugin captures knowledge automatically
 
@@ -213,7 +213,7 @@ It's especially useful when AI is not just answering questions but actively shap
 
 ARIA takes the position that **the LLM captures, the human promotes, trusted knowledge acts.** AI is excellent at noticing and structuring knowledge during sessions. Deciding what's load-bearing vs. noise requires human judgment. And once trusted, that knowledge is most useful when it actively shapes the next decision — through context loading, rules surfacing, codebase mapping, task distillation, and Rule 22 edit-time discipline.
 
-See [plugin/template/OVERVIEW.md](plugin/template/OVERVIEW.md) for the full design rationale.
+See [plugin-claude-code/template/OVERVIEW.md](plugin-claude-code/template/OVERVIEW.md) for the full design rationale.
 
 ## Evidence and limits
 

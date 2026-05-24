@@ -1,6 +1,6 @@
 #!/bin/sh
-# build.sh — assemble plugin-antigravity from canonical plugin/ source.
-# Run after any plugin/ update to propagate canonical changes.
+# build.sh — assemble plugin-antigravity from canonical plugin-claude-code/ source.
+# Run after any plugin-claude-code/ update to propagate canonical changes.
 #
 # Usage: bash plugin-antigravity/build.sh
 # Safe to re-run.
@@ -35,7 +35,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO="$(cd "$SCRIPT_DIR/.." && pwd)"
-SRC="$REPO/plugin"
+SRC="$REPO/plugin-claude-code"
 DST="$SCRIPT_DIR"
 
 # --- version.txt sidecar (synced from canonical plugin manifest) ---
@@ -101,7 +101,7 @@ fi
 # canonical 27 other skills work fine via path-substitution alone; only these
 # need port-specific bodies. Overlays run LAST so they override path
 # substitutions + frontmatter strip + setup patch (when applicable).
-# Drift detection: diff plugin/skills/<name>/SKILL.md
+# Drift detection: diff plugin-claude-code/skills/<name>/SKILL.md
 #                      plugin-antigravity/overlays/skills/<name>/SKILL.md
 if [ -d "$DST/overlays/skills" ]; then
   overlay_count=0

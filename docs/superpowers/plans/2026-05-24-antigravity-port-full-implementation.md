@@ -35,13 +35,13 @@ Antigravity's other supported events (`PreInvocation`, `PostInvocation`, `Stop`)
 
 ## Locked Decisions
 
-- **D1: Wrapper architecture.** Each hook entry in `hooks.json` calls a thin wrapper at `bin/antigravity/<hook-name>.sh`. The wrapper sources a shared `lib-antigravity-input.sh` that parses stdin JSON into env vars matching what the canonical scripts expect, then `exec`s the canonical script at `../plugin/bin/<script>.sh`. The wrapper translates the canonical script's exit code (0 → allow, non-zero → deny) plus its stderr into the Antigravity stdout JSON shape (`{"decision": "allow"|"deny", "reason": "..."}`). This keeps the canonical scripts unchanged — one source of truth across Claude Code, Codex, and Antigravity ports.
+- **D1: Wrapper architecture.** Each hook entry in `hooks.json` calls a thin wrapper at `bin/antigravity/<hook-name>.sh`. The wrapper sources a shared `lib-antigravity-input.sh` that parses stdin JSON into env vars matching what the canonical scripts expect, then `exec`s the canonical script at `../plugin-claude-code/bin/<script>.sh`. The wrapper translates the canonical script's exit code (0 → allow, non-zero → deny) plus its stderr into the Antigravity stdout JSON shape (`{"decision": "allow"|"deny", "reason": "..."}`). This keeps the canonical scripts unchanged — one source of truth across Claude Code, Codex, and Antigravity ports.
 - **D2: 4 hook entries.** Three `PreToolUse` entries with different matchers, one `PostToolUse`. No `PreInvocation`, `PostInvocation`, or `Stop` hooks.
 - **D3: One-time logic lives in `GEMINI.md`** at the plugin root. Antigravity reads global rules from `~/.gemini/GEMINI.md` once per session; per-plugin GEMINI.md content gets surfaced via the plugin install path.
 - **D4: PreCompact / PostCompact retired.** `/snapshot` skill becomes the user-invoked equivalent; it reads `transcriptPath` from any hook stdin payload when invoked.
 - **D5: TaskCreated retired.** Skills that dispatch subagents already load context inline; no per-task hook needed.
 - **D6: Archive the prior draft.** Move `plugin-antigravity/` → `plugin-antigravity.archive-2026-05-24-draft/`. Rebuild in `plugin-antigravity/`.
-- **D7: New canonical bash scripts stay in `plugin/bin/`.** The Antigravity wrappers live in `plugin-antigravity/bin/antigravity/`. The wrappers reference the canonical scripts via relative path (`../../plugin/bin/<script>.sh`) when running from the source repo, or via the install-time copied path when running from `~/.gemini/config/plugins/aria-knowledge/bin/`.
+- **D7: New canonical bash scripts stay in `plugin-claude-code/bin/`.** The Antigravity wrappers live in `plugin-antigravity/bin/antigravity/`. The wrappers reference the canonical scripts via relative path (`../../plugin-claude-code/bin/<script>.sh`) when running from the source repo, or via the install-time copied path when running from `~/.gemini/config/plugins/aria-knowledge/bin/`.
 - **D8: `jq` is a hard dependency** for stdin JSON parsing. Document in README. Antigravity's Linux sandbox has package managers; users without `jq` see a deny-with-reason from the wrapper.
 
 ## File Structure
@@ -273,7 +273,7 @@ Create `plugin-antigravity/bin/antigravity/lib-antigravity-input.sh`:
 #
 # Sourced (not exec'd) by every Antigravity hook wrapper in this directory.
 # Reads the hook input payload on stdin and exports env vars matching what
-# ARIA's canonical bash scripts (in ../../../plugin/bin/) expect.
+# ARIA's canonical bash scripts (in ../../../plugin-claude-code/bin/) expect.
 #
 # Hard dependency: jq. If missing, the lib writes a deny-JSON to stdout
 # and exits the calling wrapper with code 1 (fail-closed).
@@ -365,7 +365,7 @@ Hard dep: jq. Fails closed with reason if jq missing."
 - Create: `plugin-antigravity/bin/antigravity/pre-edit-aria.sh`
 - Test: `plugin-antigravity/tests/test-pre-edit-aria.bats`
 
-PreToolUse hook for edit-class tools. Wraps `plugin/bin/pre-edit-check.sh` (the canonical Rule 22 marker scan).
+PreToolUse hook for edit-class tools. Wraps `plugin-claude-code/bin/pre-edit-check.sh` (the canonical Rule 22 marker scan).
 
 - [ ] **Step 1: Write the failing bats test**
 
@@ -477,7 +477,7 @@ git commit -m "feat(antigravity): add PreToolUse wrapper for edit-class tools
 
 Matches Antigravity tools write_to_file|replace_file_content|
 multi_replace_file_content. Translates stdin JSON to env vars,
-delegates to canonical plugin/bin/pre-edit-check.sh, converts
+delegates to canonical plugin-claude-code/bin/pre-edit-check.sh, converts
 exit code + advisory text to Antigravity decision JSON.
 
 Antigravity's documented deny semantic means Rule 22 is fail-closed
@@ -492,7 +492,7 @@ here (unlike Claude Code where the deny is advisory)."
 - Create: `plugin-antigravity/bin/antigravity/pre-explore-aria.sh`
 - Test: `plugin-antigravity/tests/test-pre-explore-aria.bats`
 
-PreToolUse hook for search-class tools (`grep_search`, `find_by_name`). Wraps `plugin/bin/pre-explore-codemap-check.sh`.
+PreToolUse hook for search-class tools (`grep_search`, `find_by_name`). Wraps `plugin-claude-code/bin/pre-explore-codemap-check.sh`.
 
 - [ ] **Step 1: Write the failing bats test**
 
@@ -706,7 +706,7 @@ bash-cd-check.sh when the agent cd's into a tracked dir."
 - Create: `plugin-antigravity/bin/antigravity/post-edit-aria.sh`
 - Test: `plugin-antigravity/tests/test-post-edit-aria.bats`
 
-PostToolUse hook for edit-class tools. Wraps `plugin/bin/post-edit-check.sh` (the scope-check PASS/CONDITIONAL/FAIL emitter).
+PostToolUse hook for edit-class tools. Wraps `plugin-claude-code/bin/post-edit-check.sh` (the scope-check PASS/CONDITIONAL/FAIL emitter).
 
 - [ ] **Step 1: Write the failing bats test**
 
@@ -922,7 +922,7 @@ needed; SessionStart-equivalent content lives in GEMINI.md instead."
 - [ ] **Step 1: Read the canonical .mcp.json**
 
 ```bash
-cat /Users/mikeprasad/Projects/aria/aria-knowledge/plugin/.mcp.json
+cat /Users/mikeprasad/Projects/aria/aria-knowledge/plugin-claude-code/.mcp.json
 ```
 
 Expected: the 12-server HTTP-MCP block with `"type": "http", "url": "..."` shape.
@@ -1109,7 +1109,7 @@ session-lifecycle content goes in GEMINI.md."
 
 ```bash
 cd /Users/mikeprasad/Projects/aria/aria-knowledge
-cp -R plugin/skills/. plugin-antigravity/skills/
+cp -R plugin-claude-code/skills/. plugin-antigravity/skills/
 ls plugin-antigravity/skills/ | wc -l
 ```
 
@@ -1191,7 +1191,7 @@ Substitutions:
 
 ```bash
 cd /Users/mikeprasad/Projects/aria/aria-knowledge
-cp -R plugin/template/. plugin-antigravity/template/
+cp -R plugin-claude-code/template/. plugin-antigravity/template/
 ```
 
 - [ ] **Step 2: Path-substitute**
@@ -1505,14 +1505,14 @@ This file tracks divergence between `plugin/` (canonical Claude Code port) and `
 
 ## Architecture: Why the wrapper layer
 
-ARIA's canonical bash hook scripts in `plugin/bin/` use Claude Code conventions: `${CLAUDE_PLUGIN_ROOT}`, `CLAUDE_TOOL_NAME`, `CLAUDE_TARGET_FILE`, etc. Antigravity exposes none of these — context comes in as stdin JSON.
+ARIA's canonical bash hook scripts in `plugin-claude-code/bin/` use Claude Code conventions: `${CLAUDE_PLUGIN_ROOT}`, `CLAUDE_TOOL_NAME`, `CLAUDE_TARGET_FILE`, etc. Antigravity exposes none of these — context comes in as stdin JSON.
 
 Two architectural choices were available:
 
 1. **Rewrite the canonical scripts** to parse stdin JSON natively. Adds Antigravity-specific code paths to the canonical, breaks single-source-of-truth across ports.
 2. **Insert a thin wrapper layer** that reads stdin JSON, sets the env vars the canonical scripts expect, and execs them. Canonical scripts stay unchanged.
 
-The port chose **(2)**. The wrappers live at `bin/antigravity/`; the canonical scripts at `bin/`. The shared lib `lib-antigravity-input.sh` handles the JSON-to-env translation. This means a canonical script bug fix in `plugin/bin/` automatically propagates to Antigravity at next `build.sh` run.
+The port chose **(2)**. The wrappers live at `bin/antigravity/`; the canonical scripts at `bin/`. The shared lib `lib-antigravity-input.sh` handles the JSON-to-env translation. This means a canonical script bug fix in `plugin-claude-code/bin/` automatically propagates to Antigravity at next `build.sh` run.
 
 ---
 
@@ -1525,7 +1525,7 @@ The port chose **(2)**. The wrappers live at `bin/antigravity/`; the canonical s
 | `PostCompact` | `post-compact-check.sh` | Same reason as PreCompact. Session-ledger re-emission moved to `GEMINI.md` text. |
 | `TaskCreated` | `task-context-check.sh` | Not a per-turn event; Antigravity has no TaskCreated equivalent. Knowledge-file surfacing moved into skills that dispatch subagents (`/distill`, `/codemap`). |
 
-The canonical scripts are **not copied** to `plugin-antigravity/bin/` by `build.sh` (PreCompact + PostCompact case in the `for` loop). They remain in canonical `plugin/bin/` for Claude Code use.
+The canonical scripts are **not copied** to `plugin-antigravity/bin/` by `build.sh` (PreCompact + PostCompact case in the `for` loop). They remain in canonical `plugin-claude-code/bin/` for Claude Code use.
 
 ---
 
@@ -1801,7 +1801,7 @@ Run these checks before declaring the plan complete:
   - D4 (PreCompact/PostCompact retired) → Tasks 14 (build.sh skip) + 16 (PORTING.md)
   - D5 (TaskCreated retired) → Task 16 (PORTING.md documents the disposition)
   - D6 (archive prior draft) → Task 1
-  - D7 (canonical scripts stay in plugin/bin) → Task 14 (build.sh copies them in, doesn't move)
+  - D7 (canonical scripts stay in plugin-claude-code/bin) → Task 14 (build.sh copies them in, doesn't move)
   - D8 (jq hard dep) → Tasks 4 (lib emits deny if missing) + 17 (README documents) + 18 (smoke test verifies)
 - [ ] **Placeholder scan:** Search for `TBD`, `TODO`, `fill in`, "appropriate error handling", "similar to":
   ```bash

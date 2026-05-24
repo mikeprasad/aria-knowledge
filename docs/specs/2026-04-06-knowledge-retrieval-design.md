@@ -387,15 +387,15 @@ PostToolUse (Edit|Write):
 ## Implementation Notes
 
 ### New files to create
-- `plugin/skills/index/SKILL.md` — the `/index` skill definition
-- `plugin/skills/context/SKILL.md` — the `/context` skill definition
+- `plugin-claude-code/skills/index/SKILL.md` — the `/index` skill definition
+- `plugin-claude-code/skills/context/SKILL.md` — the `/context` skill definition
 
 ### Files to modify
-- `plugin/skills/audit-knowledge/SKILL.md` — add cross-referencing, staleness action items, and index rebuild steps
-- `plugin/bin/session-start-check.sh` — add knowledge surfacing instruction to system message output
-- `plugin/template/README.md` — document `index.md` in the folder structure
-- `plugin/template/LOCAL.md` — add tag convention to format templates, document `/context` and `/index`
-- `plugin/.claude-plugin/plugin.json` — register new skills, update hook prompts, bump version
+- `plugin-claude-code/skills/audit-knowledge/SKILL.md` — add cross-referencing, staleness action items, and index rebuild steps
+- `plugin-claude-code/bin/session-start-check.sh` — add knowledge surfacing instruction to system message output
+- `plugin-claude-code/template/README.md` — document `index.md` in the folder structure
+- `plugin-claude-code/template/LOCAL.md` — add tag convention to format templates, document `/context` and `/index`
+- `plugin-claude-code/.claude-plugin/plugin.json` — register new skills, update hook prompts, bump version
 
 ### Template updates
 - Knowledge file format templates in `LOCAL.md` need `tags:` added to their frontmatter examples

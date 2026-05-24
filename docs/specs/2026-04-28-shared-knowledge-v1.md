@@ -97,7 +97,7 @@ tags: [...]                # carried from origin
 ---
 ```
 
-## `audit-share` skill — `plugin/skills/audit-share/SKILL.md` (new)
+## `audit-share` skill — `plugin-claude-code/skills/audit-share/SKILL.md` (new)
 
 Alias: `share-audit`. Pattern matches `audit-config`/`config-audit`.
 
@@ -185,7 +185,7 @@ Next steps:
 - Run /context <project-tag> to verify discovery works
 ```
 
-## `/index` extension — `plugin/skills/index/SKILL.md`
+## `/index` extension — `plugin-claude-code/skills/index/SKILL.md`
 
 New Phase 5 (after current Phase 4 project-tier scan): scan `_project-knowledge/` folders.
 
@@ -197,7 +197,7 @@ For each tag in `projects_list`:
 
 Result: tag index includes team-shared entries alongside personal + project entries; same query path. No new file format.
 
-## `/context` extension — `plugin/skills/context/SKILL.md`
+## `/context` extension — `plugin-claude-code/skills/context/SKILL.md`
 
 **Step 4c (new):** read team-shared category entries from the index, filter by query tags using existing union/intersection rules.
 
@@ -220,7 +220,7 @@ Load which files? (all / numbers / none)
 
 Section omission rules apply (zero-results section omitted entirely).
 
-## Setup skill update — `plugin/skills/setup/SKILL.md`
+## Setup skill update — `plugin-claude-code/skills/setup/SKILL.md`
 
 After projects-tier setup, add a "shared knowledge" enable step:
 
@@ -284,7 +284,7 @@ Each prompt skipped if `projects_enabled: false`.
 
 ## Version bump
 
-`plugin/.claude-plugin/plugin.json`: 2.12.2 → 2.13.0 (minor — structural addition, opt-in, backward-compatible)
+`plugin-claude-code/.claude-plugin/plugin.json`: 2.12.2 → 2.13.0 (minor — structural addition, opt-in, backward-compatible)
 `marketplace.json`: auto-synced via release.sh
 
 ## Implementation order

@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # release.sh — build a clean plugin zip for Local Zip install.
 #
-# Reads version from plugin/.claude-plugin/plugin.json (source of truth),
-# syncs marketplace.json to match, stages plugin/ with junk excluded,
+# Reads version from plugin-claude-code/.claude-plugin/plugin.json (source of truth),
+# syncs marketplace.json to match, stages plugin-claude-code/ with junk excluded,
 # and emits <name>-<version>.zip at repo root.
 
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PLUGIN_MANIFEST="$REPO_ROOT/plugin/.claude-plugin/plugin.json"
+PLUGIN_MANIFEST="$REPO_ROOT/plugin-claude-code/.claude-plugin/plugin.json"
 MARKETPLACE_MANIFEST="$REPO_ROOT/.claude-plugin/marketplace.json"
 
 log()  { printf '\033[0;36m[release]\033[0m %s\n' "$*"; }
@@ -69,7 +69,7 @@ rsync -a \
     --exclude='.DS_Store' \
     --exclude='__MACOSX' \
     --exclude='.claude/' \
-    "$REPO_ROOT/plugin/" \
+    "$REPO_ROOT/plugin-claude-code/" \
     "$STAGING/$PLUGIN_NAME/"
 
 # --- zip --------------------------------------------------------------------

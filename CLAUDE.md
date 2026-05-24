@@ -22,7 +22,7 @@ aria/
 ├── LICENSE            ← CC BY-NC-SA 4.0
 ├── CHANGELOG.md       ← Version history
 ├── CLAUDE.md          ← You are here
-├── plugin/            ← The installable plugin
+├── plugin-claude-code/            ← The installable plugin
 │   ├── .claude-plugin/
 │   │   └── plugin.json
 │   ├── bin/           ← Hook scripts (bash)
@@ -51,34 +51,34 @@ aria/
 
 ## Key Conventions
 
-- **`plugin/` is the installable unit** — everything inside it is what users copy to their plugins directory
-- **`plugin-codex/` is the Codex installable unit** — independent adapter surface, same knowledge schema. Claude `plugin/` remains the standard for template/content shape.
-- **`cursor-template/` is the Cursor repo-skeleton** — not a plugin install. Users clone or unzip its contents into the root of their own project. Cursor compiles 25 skills into 5 `.cursor/rules/*.mdc` files because Cursor's Rules system doesn't have a one-skill-per-folder concept. Knowledge folder schema stays compatible with `plugin/template/`.
-- **Template files** in `plugin/template/` are either plugin-managed (diffable on `/setup`) or user-owned (created once, never overwritten). See `plugin/skills/setup/SKILL.md` for the authoritative list.
-- **Version** lives in `plugin/.claude-plugin/plugin.json`
-- **Hook scripts** in `plugin/bin/` are bash — they read config from `~/.claude/aria-knowledge.local.md`
+- **`plugin-claude-code/` is the installable unit** — everything inside it is what users copy to their plugins directory
+- **`plugin-codex/` is the Codex installable unit** — independent adapter surface, same knowledge schema. Claude `plugin-claude-code/` remains the standard for template/content shape.
+- **`cursor-template/` is the Cursor repo-skeleton** — not a plugin install. Users clone or unzip its contents into the root of their own project. Cursor compiles 25 skills into 5 `.cursor/rules/*.mdc` files because Cursor's Rules system doesn't have a one-skill-per-folder concept. Knowledge folder schema stays compatible with `plugin-claude-code/template/`.
+- **Template files** in `plugin-claude-code/template/` are either plugin-managed (diffable on `/setup`) or user-owned (created once, never overwritten). See `plugin-claude-code/skills/setup/SKILL.md` for the authoritative list.
+- **Version** lives in `plugin-claude-code/.claude-plugin/plugin.json`
+- **Hook scripts** in `plugin-claude-code/bin/` are bash — they read config from `~/.claude/aria-knowledge.local.md`
 - **Skills** are markdown files — each skill is a `SKILL.md` with YAML frontmatter
 - **Codex hooks** require Codex `plugin_hooks` enabled; the adapter reads `~/.codex/aria-knowledge.local.md` first, then falls back to `~/.claude/aria-knowledge.local.md`
 - **Cursor hooks** use `.cursor/hooks.json` and resolve script paths via `git rev-parse --show-toplevel`. Some Claude enforcement is weaker on Cursor (no transcript access, no documented pre-edit deny) — port uses an edit-intent marker file as the closest available mechanism. See `cursor-template/audit/ARIA_CURSOR_AUDIT_REPORT.md` §5.
 
 ## Development Workflow
 
-1. Edit files in `plugin/`
-2. To test, copy `plugin/` to `~/.claude/plugins/marketplaces/local-desktop-app-uploads/aria-knowledge/`
+1. Edit files in `plugin-claude-code/`
+2. To test, copy `plugin-claude-code/` to `~/.claude/plugins/marketplaces/local-desktop-app-uploads/aria-knowledge/`
 3. Restart Claude Code to pick up changes
 
 ### Codex Port Workflow
 
 1. Edit Codex adapter files in `plugin-codex/`
-2. Keep durable knowledge template/schema changes in sync with `plugin/` — Claude remains the schema standard
+2. Keep durable knowledge template/schema changes in sync with `plugin-claude-code/` — Claude remains the schema standard
 3. Enable Codex plugin hooks with `codex features enable plugin_hooks` before testing automatic hooks
 4. Install via `.agents/plugins/marketplace.json` or copy `plugin-codex/` into a Codex local marketplace
 
 ### Cursor Port Workflow
 
 1. Edit Cursor adapter files in `cursor-template/`
-2. Keep durable knowledge surfaces in sync with `plugin/template/` — Claude remains the schema standard. Knowledge folder shape lives at `cursor-template/knowledge/` (root-level, not nested under `template/`).
-3. The 5 `.mdc` rule files (`aria-commands`, `aria-audit`, `aria-context`, `aria-core`, `aria-rule-22`) are *compiled* views of the 25 canonical skills in `plugin/skills/`. When a skill changes, the corresponding section in the `.mdc` file needs a matching edit — no auto-build pipeline exists yet.
+2. Keep durable knowledge surfaces in sync with `plugin-claude-code/template/` — Claude remains the schema standard. Knowledge folder shape lives at `cursor-template/knowledge/` (root-level, not nested under `template/`).
+3. The 5 `.mdc` rule files (`aria-commands`, `aria-audit`, `aria-context`, `aria-core`, `aria-rule-22`) are *compiled* views of the 25 canonical skills in `plugin-claude-code/skills/`. When a skill changes, the corresponding section in the `.mdc` file needs a matching edit — no auto-build pipeline exists yet.
 4. Users install by unzipping the cursor port artifact (or cloning the folder) into the root of their own project, then restarting Cursor.
 
 ## Rules
@@ -97,7 +97,7 @@ Project-specific architecture decisions live in `~/Projects/knowledge/projects/a
 - `decisions/008-skill-knowledge-connections.md` — skill-knowledge connection discovery + drift detection
 
 Cross-project knowledge that applies to ARIA:
-- `knowledge/rules/working-rules.md` — the 34 universal rules (ARIA's source of truth ships in plugin/template)
+- `knowledge/rules/working-rules.md` — the 34 universal rules (ARIA's source of truth ships in plugin-claude-code/template)
 - `knowledge/rules/change-decision-framework.md` — Rule 22 framework
 - `knowledge/rules/enforcement-mechanisms.md` — enforcement tier model
 - `knowledge/guides/claude/plugin-development.md` — Claude Code plugin patterns

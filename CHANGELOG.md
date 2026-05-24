@@ -27,7 +27,7 @@ Canonical Claude Code plugin: no behavioral changes; version bumped synchronousl
 Fix: walk the entire list and return the tag whose configured path is the **longest** substring match of CWD. Backward-compatible — flat single-project configs are unaffected (only one entry ever matches → it's also the longest by definition).
 
 **Files:**
-- `plugin/bin/config.sh` — Claude port
+- `plugin-claude-code/bin/config.sh` — Claude port
 - `plugin-codex/bin/config.sh` — Codex port
 - `cursor-template/scripts/aria/config.sh` — Cursor port
 
@@ -43,7 +43,7 @@ Reported via `/extract` 2026-05-24 — `[insights-backlog.md]` and `[intake/idea
 
 ### Changed — bare-slash canonical owner clarified
 
-When both aria-knowledge and aria-cowork are loaded, bare slash commands (`/handoff`, `/wrapup`, `/extract`, etc.) now deterministically resolve to **aria-knowledge** (the canonical Code-side variant). The 24 affected SKILL.md descriptions in `plugin/skills/` get a prepended canonical-owner clause asserting bare-slash ownership. For the Cowork variant, users invoke the namespaced form (`/aria-cowork:handoff`, etc.) — which remains available everywhere.
+When both aria-knowledge and aria-cowork are loaded, bare slash commands (`/handoff`, `/wrapup`, `/extract`, etc.) now deterministically resolve to **aria-knowledge** (the canonical Code-side variant). The 24 affected SKILL.md descriptions in `plugin-claude-code/skills/` get a prepended canonical-owner clause asserting bare-slash ownership. For the Cowork variant, users invoke the namespaced form (`/aria-cowork:handoff`, etc.) — which remains available everywhere.
 
 ### Added — Runtime Gate section per skill
 
@@ -108,10 +108,10 @@ The cursor port's `.cursor/rules/aria-commands.mdc` was pre-existing-drifted on 
 
 ### Surface area touched
 
-- `plugin/skills/wrapup/SKILL.md` + `plugin-codex/skills/wrapup/SKILL.md` (byte-identical) — frontmatter description rewritten, `argument-hint` set, Step 0 + 6 gates + Rules section updated for mode-conditional behavior.
-- `plugin/skills/handoff/SKILL.md` + `plugin-codex/skills/handoff/SKILL.md` (byte-identical) — frontmatter description rewritten + body intro tightened (passoff-led framing).
+- `plugin-claude-code/skills/wrapup/SKILL.md` + `plugin-codex/skills/wrapup/SKILL.md` (byte-identical) — frontmatter description rewritten, `argument-hint` set, Step 0 + 6 gates + Rules section updated for mode-conditional behavior.
+- `plugin-claude-code/skills/handoff/SKILL.md` + `plugin-codex/skills/handoff/SKILL.md` (byte-identical) — frontmatter description rewritten + body intro tightened (passoff-led framing).
 - `cursor-template/.cursor/rules/aria-commands.mdc` — `/wrapup` and `/handoff` sections updated for parity (AGENTS.md naming preserved); brief mode added.
-- `plugin/.claude-plugin/plugin.json` + `plugin-codex/.codex-plugin/plugin.json` + `.claude-plugin/marketplace.json` — version bumps.
+- `plugin-claude-code/.claude-plugin/plugin.json` + `plugin-codex/.codex-plugin/plugin.json` + `.claude-plugin/marketplace.json` — version bumps.
 
 ## [2.18.1] - 2026-05-19
 
@@ -119,7 +119,7 @@ The cursor port's `.cursor/rules/aria-commands.mdc` was pre-existing-drifted on 
 
 ### Fixed — `.mcp.json` `google_docs` → `google docs`
 
-Both `plugin/.mcp.json` and `plugin-codex/.mcp.json` declared `"google_docs"` (underscore) with an empty `url` for the Google Docs MCP server. The canonical Cowork directory-entry name uses a space: `"google docs"`. Per the Cowork plugin-customizer schema reference (`cowork-plugin-management/skills/cowork-plugin-customizer/references/mcp-servers.md`), servers with empty `url` must match a directory entry name *exactly* to validate — the underscore form silently fails Cowork's server-side validator. **Invisible bug Code-side** (Code's MCP client doesn't validate against Cowork's directory) but parity-preserving for ADR-013's byte-faithful intent against the Cowork sibling. Fix applied to both ports; prose mentions of `google_docs` across SKILL.md frontmatter enum docs + CHANGELOG swept to `google docs` for internal consistency with the new manifest key.
+Both `plugin-claude-code/.mcp.json` and `plugin-codex/.mcp.json` declared `"google_docs"` (underscore) with an empty `url` for the Google Docs MCP server. The canonical Cowork directory-entry name uses a space: `"google docs"`. Per the Cowork plugin-customizer schema reference (`cowork-plugin-management/skills/cowork-plugin-customizer/references/mcp-servers.md`), servers with empty `url` must match a directory entry name *exactly* to validate — the underscore form silently fails Cowork's server-side validator. **Invisible bug Code-side** (Code's MCP client doesn't validate against Cowork's directory) but parity-preserving for ADR-013's byte-faithful intent against the Cowork sibling. Fix applied to both ports; prose mentions of `google_docs` across SKILL.md frontmatter enum docs + CHANGELOG swept to `google docs` for internal consistency with the new manifest key.
 
 ### Companion: aria-cowork v1.0.0 fix arc (informational)
 
@@ -141,25 +141,25 @@ aria-cowork v1.0.0 hit the same `google_docs` bug PLUS a second undocumented Cow
 
 ### Added — `/clip-thread` skill
 
-New skill at `plugin/skills/clip-thread/SKILL.md`. Captures a chat or email thread from a connected `~~chat` (slack, ms365) or `~~email` (gmail, ms365) MCP into `intake/clippings/{YYYY-MM-DD}-{slug}.md`. Source-type detection by URL pattern (Slack archives, Teams message links, Gmail thread IDs, MS365 message IDs). 50-message cap with truncation notice. Per-message structure preserves author + timestamp + body + reactions/attachments-noted. Reaction section left empty as user-fill slot (matches `/intake doc` precedent from v2.17.0).
+New skill at `plugin-claude-code/skills/clip-thread/SKILL.md`. Captures a chat or email thread from a connected `~~chat` (slack, ms365) or `~~email` (gmail, ms365) MCP into `intake/clippings/{YYYY-MM-DD}-{slug}.md`. Source-type detection by URL pattern (Slack archives, Teams message links, Gmail thread IDs, MS365 message IDs). 50-message cap with truncation notice. Per-message structure preserves author + timestamp + body + reactions/attachments-noted. Reaction section left empty as user-fill slot (matches `/intake doc` precedent from v2.17.0).
 
 ### Added — `/extract-doc` skill
 
-New skill at `plugin/skills/extract-doc/SKILL.md`. Pulls insights from a single Notion / Confluence / Google Doc / Box / Egnyte page via `~~docs` MCP. **Differs from `/intake doc`** (v2.17.0): `/intake doc` captures one structured artifact per doc; `/extract-doc` decomposes a doc into N intake-backlog entries for audit routing. 5 standard intake categories (insight / decision / extraction / idea / reference). 20KB extraction cap with truncation notice. Default fewer-but-stronger ranking discipline.
+New skill at `plugin-claude-code/skills/extract-doc/SKILL.md`. Pulls insights from a single Notion / Confluence / Google Doc / Box / Egnyte page via `~~docs` MCP. **Differs from `/intake doc`** (v2.17.0): `/intake doc` captures one structured artifact per doc; `/extract-doc` decomposes a doc into N intake-backlog entries for audit routing. 5 standard intake categories (insight / decision / extraction / idea / reference). 20KB extraction cap with truncation notice. Default fewer-but-stronger ranking discipline.
 
 ### Added — `/meeting-notes` skill
 
-New skill at `plugin/skills/meeting-notes/SKILL.md`. Folds a meeting transcript into `intake/meetings/{YYYY-MM-DD}-{slug}.md` with structured participants / topics / action items / decisions / open questions sections + raw transcript preserved verbatim. **Unique among Phase 2 skills:** offers a **paste fallback** when no `~~docs` MCP is connected (Granola exports, hand-typed notes, transcript paste-from-clipboard). The only skill in v2.18.0 that doesn't hard-stop on missing MCP. New `intake/meetings/` lazy-created subfolder convention.
+New skill at `plugin-claude-code/skills/meeting-notes/SKILL.md`. Folds a meeting transcript into `intake/meetings/{YYYY-MM-DD}-{slug}.md` with structured participants / topics / action items / decisions / open questions sections + raw transcript preserved verbatim. **Unique among Phase 2 skills:** offers a **paste fallback** when no `~~docs` MCP is connected (Granola exports, hand-typed notes, transcript paste-from-clipboard). The only skill in v2.18.0 that doesn't hard-stop on missing MCP. New `intake/meetings/` lazy-created subfolder convention.
 
 ### Added — `/digest` skill
 
-New skill at `plugin/skills/digest/SKILL.md`. Cross-tool rollup synthesizing what's pending / what shipped / what's blocked across `~~chat` + `~~email` + `~~project tracker` + `~~docs`. The composite-MCP skill — probes all 4 categories and degrades gracefully when partial connection (surfaces gap callouts in output). Time window args: `--week` (default), `--month`, `--quarter`, `--since YYYY-MM-DD [--until YYYY-MM-DD]`. Output to `intake/digests/{YYYY-MM-DD}.md` (lazy-created subfolder). Inspired by Anthropic's productivity plugin `update --comprehensive` mode, adapted for ARIA's intake-then-audit model.
+New skill at `plugin-claude-code/skills/digest/SKILL.md`. Cross-tool rollup synthesizing what's pending / what shipped / what's blocked across `~~chat` + `~~email` + `~~project tracker` + `~~docs`. The composite-MCP skill — probes all 4 categories and degrades gracefully when partial connection (surfaces gap callouts in output). Time window args: `--week` (default), `--month`, `--quarter`, `--since YYYY-MM-DD [--until YYYY-MM-DD]`. Output to `intake/digests/{YYYY-MM-DD}.md` (lazy-created subfolder). Inspired by Anthropic's productivity plugin `update --comprehensive` mode, adapted for ARIA's intake-then-audit model.
 
 ### Added — `/sync-decisions` skill
 
-New skill at `plugin/skills/sync-decisions/SKILL.md`. **First WRITE-side skill in ARIA.** Mirrors approved decisions from `{knowledge_folder}/decisions/` out to a `~~docs` MCP destination (Notion page, Confluence space, Google Doc, Box/Egnyte file). Embeds the 4-step Rule 22 advisory preamble per ADR-016 with explicit per-decision go-gate (`Ready to write? (yes / no / edit)`). The only path to batch is the literal phrase `yes to all` per ADR-016's batch carve-out. Logs every sync attempt (success / skip / fail) to `logs/sync-decisions.md`. Adds new `synced_to_~~docs:` frontmatter field on synced decision files for sync-state tracking.
+New skill at `plugin-claude-code/skills/sync-decisions/SKILL.md`. **First WRITE-side skill in ARIA.** Mirrors approved decisions from `{knowledge_folder}/decisions/` out to a `~~docs` MCP destination (Notion page, Confluence space, Google Doc, Box/Egnyte file). Embeds the 4-step Rule 22 advisory preamble per ADR-016 with explicit per-decision go-gate (`Ready to write? (yes / no / edit)`). The only path to batch is the literal phrase `yes to all` per ADR-016's batch carve-out. Logs every sync attempt (success / skip / fail) to `logs/sync-decisions.md`. Adds new `synced_to_~~docs:` frontmatter field on synced decision files for sync-state tracking.
 
-### Added — `plugin/.mcp.json`
+### Added — `plugin-claude-code/.mcp.json`
 
 First time aria-knowledge ships an `.mcp.json` manifest. Declares 12 MCP servers across 4 categories — mirrors Anthropic's published `productivity/.mcp.json` shape:
 
@@ -172,7 +172,7 @@ First time aria-knowledge ships an `.mcp.json` manifest. Declares 12 MCP servers
 
 Slack ships with Anthropic's published OAuth config (clientId `1601185624273.8899143856786`, callbackPort 3118) — mirrored from productivity's manifest. Gmail + google docs ship with empty URLs (placeholder declarations per productivity's pattern, pending public MCP server availability).
 
-### Added — `plugin/CONNECTORS.md`
+### Added — `plugin-claude-code/CONNECTORS.md`
 
 First time aria-knowledge ships a `CONNECTORS.md`. Documents the `~~category` marker convention per the canonical guidance from `cowork-plugin-management/skills/cowork-plugin-customizer/SKILL.md`. Four categories (chat / email / project tracker / docs) — a focused subset of productivity's 6 (we don't have calendar or office-suite skills). Per-skill MCP-usage table shows which `~~category` each new skill consumes + the fallback behavior. "What this plugin does NOT integrate with" section preempts confusion about calendar / office-suite / code-hosting omissions.
 
@@ -189,8 +189,8 @@ Both ADRs include a **Stability and revision triggers** section acknowledging th
 
 | Surface | Change | Compatibility |
 |---|---|---|
-| `plugin/.mcp.json` | New file declaring 12 MCP servers | Additive — installs without `.mcp.json` continue to work (existing skills don't probe MCPs) |
-| `plugin/CONNECTORS.md` | New companion doc explaining `~~` markers | Additive — documentation only |
+| `plugin-claude-code/.mcp.json` | New file declaring 12 MCP servers | Additive — installs without `.mcp.json` continue to work (existing skills don't probe MCPs) |
+| `plugin-claude-code/CONNECTORS.md` | New companion doc explaining `~~` markers | Additive — documentation only |
 | `intake/clippings/` | Existing folder, new content shape (`<date>-<slug>.md` with thread structure) | Additive — `/clip-thread` writes alongside `/clip` outputs; no shape conflict |
 | `intake/meetings/` | New subfolder, lazy-created | Additive — created on first `/meeting-notes` invocation |
 | `intake/digests/` | New subfolder, lazy-created | Additive — created on first `/digest` invocation |
@@ -207,14 +207,14 @@ Output schema is byte-identical across plugins per ADR-013. Both plugins write t
 
 ### Files changed
 
-- New: `plugin/.mcp.json` (~50 lines, 12 MCP server declarations)
-- New: `plugin/CONNECTORS.md` (~80 lines, ~~category convention reference)
-- New: `plugin/skills/clip-thread/SKILL.md` (~155 lines)
-- New: `plugin/skills/extract-doc/SKILL.md` (~145 lines)
-- New: `plugin/skills/meeting-notes/SKILL.md` (~170 lines)
-- New: `plugin/skills/digest/SKILL.md` (~180 lines)
-- New: `plugin/skills/sync-decisions/SKILL.md` (~200 lines, Rule 22 preamble embedded)
-- Modified: `plugin/.claude-plugin/plugin.json` (version bump 2.17.0 → 2.18.0)
+- New: `plugin-claude-code/.mcp.json` (~50 lines, 12 MCP server declarations)
+- New: `plugin-claude-code/CONNECTORS.md` (~80 lines, ~~category convention reference)
+- New: `plugin-claude-code/skills/clip-thread/SKILL.md` (~155 lines)
+- New: `plugin-claude-code/skills/extract-doc/SKILL.md` (~145 lines)
+- New: `plugin-claude-code/skills/meeting-notes/SKILL.md` (~170 lines)
+- New: `plugin-claude-code/skills/digest/SKILL.md` (~180 lines)
+- New: `plugin-claude-code/skills/sync-decisions/SKILL.md` (~200 lines, Rule 22 preamble embedded)
+- Modified: `plugin-claude-code/.claude-plugin/plugin.json` (version bump 2.17.0 → 2.18.0)
 - Modified: `README.md` (skill list additions in Capture + Promote sections, MCP integration mention in Install)
 - Modified: `CLAUDE.md` (Sibling Plugin section refreshed for v0.3.0 → v1.0.0 SHIPPED on disk; originally drafted as v0.4.0 + bumped to v1.0.0 mid-build per ADR-006 stability claim)
 - Cross-knowledge: `~/Projects/knowledge/projects/aria-cowork/decisions/015-capability-probe-pattern.md` + `016-rule-22-advisory-preamble-for-external-writes.md` (new ADRs)
@@ -264,25 +264,25 @@ New mode flag on the existing `/intake` skill: `/intake doc <url-or-title-or-pat
 - **Slug generation:** lowercased, hyphenated, max ~60 chars from source title. Collision handling: append `-2`, `-3` etc. if `{date}-{slug}.md` already exists.
 - **Preview before write (D4 step):** populated entry shown for user confirmation; per-section `edit` directives allowed.
 
-### Added — `plugin/template/intake/intake-doc.md`
+### Added — `plugin-claude-code/template/intake/intake-doc.md`
 
 New plugin-managed template defining the 5-section body structure. Read by `/intake doc` Step D3 when populating new doc-mode captures. Single new file (~42 lines).
 
-### Changed — `plugin/skills/handoff/SKILL.md`
+### Changed — `plugin-claude-code/skills/handoff/SKILL.md`
 
 - Frontmatter `argument-hint`: `[auto]` → `[auto|brief]`; `description` updated to introduce three modes
 - Step 0 mode parser: added `brief` branch; error message updated to mention all three modes
 - New Step 2B (Brief Output): runs only when `mode = brief`; emits the prose brief via the locked template; exits without running Steps 3-8
 - Rules section: scoped existing rules (e.g., "always emit next-session opener" qualified to default + auto only); added 3 brief-mode-specific rules (no side effects, literal placeholder, 200-word cap)
 
-### Changed — `plugin/skills/intake/SKILL.md`
+### Changed — `plugin-claude-code/skills/intake/SKILL.md`
 
 - Frontmatter `argument-hint`: `<path|directory|glob|url> [path2] [path3]` → `[doc <url-or-title>] | <path|directory|glob|url> [path2] [path3]`; `description` updated to introduce both modes
 - Step 0 renamed to "Resolve Config + Mode Detection"; doc-mode branch added at end of Step 0
 - New Doc Mode Steps section (D1-D6) inserted before existing Step 1; runs to completion + exits when `mode = doc`
 - Rules section: scoped existing rules to bulk vs doc mode; added 4 doc-mode-specific rules (reaction-is-user-voice, lazy subfolder creation, slug collisions, title-only captures valid)
 
-### Changed — `plugin/skills/help/SKILL.md`
+### Changed — `plugin-claude-code/skills/help/SKILL.md`
 
 - Existing `/handoff` row updated: `[auto]` → `[auto|brief]` with brief mode description appended
 - New `/intake doc [url or title]` row added below existing `/intake` row, naming the 5-section body and `intake/docs/` destination
@@ -303,11 +303,11 @@ The plugin-codex/ port mirrors the same skill body + template changes per the Co
 
 ### Files changed
 
-- New: `plugin/template/intake/intake-doc.md` (42 lines)
-- Modified: `plugin/skills/handoff/SKILL.md` (195 → 260 lines, +65)
-- Modified: `plugin/skills/intake/SKILL.md` (177 → 271 lines, +94)
-- Modified: `plugin/skills/help/SKILL.md` (59 → 60 lines, +1)
-- Modified: `plugin/.claude-plugin/plugin.json` (version bump 2.16.1 → 2.17.0)
+- New: `plugin-claude-code/template/intake/intake-doc.md` (42 lines)
+- Modified: `plugin-claude-code/skills/handoff/SKILL.md` (195 → 260 lines, +65)
+- Modified: `plugin-claude-code/skills/intake/SKILL.md` (177 → 271 lines, +94)
+- Modified: `plugin-claude-code/skills/help/SKILL.md` (59 → 60 lines, +1)
+- Modified: `plugin-claude-code/.claude-plugin/plugin.json` (version bump 2.16.1 → 2.17.0)
 - Modified: `CLAUDE.md` (bidirectional flow note added per aria-cowork ADR 014)
 - Mirrored: same changes in `plugin-codex/skills/{handoff,intake,help}/SKILL.md` + `plugin-codex/template/intake/intake-doc.md`
 
@@ -324,7 +324,7 @@ The plugin-codex/ port mirrors the same skill body + template changes per the Co
 
 ### Added — Trigger-based CODEMAP + STITCH loading (6 sites)
 
-- **New shared lib** `plugin/bin/lib-tracked-artifacts.sh` — boundary-detected CODEMAP directory load (~600-1200 tokens) + full STITCH load (~4K tokens) when multi-repo. Reuses the existing `/tmp/aria-active-{session_id}` ledger from v2.15.0 for cross-trigger dedup.
+- **New shared lib** `plugin-claude-code/bin/lib-tracked-artifacts.sh` — boundary-detected CODEMAP directory load (~600-1200 tokens) + full STITCH load (~4K tokens) when multi-repo. Reuses the existing `/tmp/aria-active-{session_id}` ledger from v2.15.0 for cross-trigger dedup.
 - **T-1 `bash-cd-check.sh`** (PreToolUse:Bash with cd) — surfaces tracked artifacts on first cd into a configured project per session, alongside knowledge-file surfacing. Restructured to compute-both-then-decide pattern.
 - **T-2 `session-start-check.sh`** (SessionStart) — surfaces tracked artifacts when `$PWD` substring-matches a `projects_list` entry. Complementary to the existing multi-project CODEMAP staleness reporter; non-interfering.
 - **T-3 `task-context-check.sh`** (TaskCreated) — surfaces tracked artifacts for the project containing `$PWD` at subagent-spawn time, giving subagents structural context.
@@ -353,7 +353,7 @@ The plugin-codex/ port mirrors the same skill body + template changes per the Co
 
 ### Files
 
-- **New:** `plugin/bin/lib-tracked-artifacts.sh` (~180 LOC).
+- **New:** `plugin-claude-code/bin/lib-tracked-artifacts.sh` (~180 LOC).
 - **Modified:** 3 hooks (`bash-cd-check.sh`, `session-start-check.sh`, `task-context-check.sh`), 6 skills (`/prospect`, `/retrospect`, `/audit-config`, `/stats`, `/handoff`, `/wrapup`, `/setup`), 1 docs (`CONFIG.md`).
 
 ### Compatibility
@@ -402,7 +402,7 @@ The plugin-codex/ port mirrors the same skill body + template changes per the Co
 
 ### Arc 1 — Comprehensive delete-call-site audit
 
-Generalizes v2.15.1's archive-don't-delete rule beyond `/audit-knowledge` Phase 2c2's ideas-routing. Investigation grep across all `plugin/skills/*/SKILL.md` + `plugin/bin/*.sh` classified each deletion site as compliant / needs-ledger / needs-archive / out-of-scope.
+Generalizes v2.15.1's archive-don't-delete rule beyond `/audit-knowledge` Phase 2c2's ideas-routing. Investigation grep across all `plugin-claude-code/skills/*/SKILL.md` + `plugin-claude-code/bin/*.sh` classified each deletion site as compliant / needs-ledger / needs-archive / out-of-scope.
 
 - **`/audit-knowledge` Step 2d (pre-compact snapshots)** — Clear / Approved / Rejected branches no longer `rm` snapshot files. Apply the **ledger-clear pattern**: write `{knowledge_folder}/archive/audit-{date}/pre-compact-captures/REMOVED.md` with frontmatter (`audit_date`, `removed_count`, `canonical_source_pattern`) + per-snapshot list (filename + session-id + capture-timestamp + canonical-jsonl-pointer), then remove snapshot bodies. Bodies are *derived copies* of Claude Code's per-session transcript log; canonical preservation lives at `~/.claude/projects/{cwd-encoded}/{session-id}.jsonl` until Claude Code rotates the log. Ledger pattern chosen over full archive because snapshots are large (100KB-1MB each) and the canonical source exists elsewhere.
 - **`/audit-knowledge` Step 5e (cross-project pattern Remove)** — doc clarification: this is already verify-no-loss-compliant (source moves to cross-project file with `originally_at:` frontmatter providing audit trail). Added `(v2.15.2 note: ...)` inline comment so the compliance is explicit for future readers. No behavior change.
@@ -428,19 +428,19 @@ The fix: distinguish actual user prompts from tool_results via a conservative `a
 
 Python walker: 6-line addition distinguishing tool_results from actual user prompts.
 
-### Changed — `plugin/skills/audit-knowledge/SKILL.md`
+### Changed — `plugin-claude-code/skills/audit-knowledge/SKILL.md`
 
 Step 2d (Clear / Approved / Rejected) — ledger-clear pattern. Step 5e Remove — doc-only clarification. New ### Ledger schema subsection at end of Step 2d.
 
-### Changed — `plugin/skills/backlog/SKILL.md`
+### Changed — `plugin-claude-code/skills/backlog/SKILL.md`
 
 Step 4 (Clear) — archive-then-remove pattern. `allowed-tools` frontmatter: `Read, Edit, Grep` → `Read, Edit, Write, Grep`.
 
-### Changed — `plugin/skills/setup/SKILL.md`
+### Changed — `plugin-claude-code/skills/setup/SKILL.md`
 
 Step 6 Advanced Options — [NEW]-detection observability emit-summary paragraph added after the existing detection-mechanism sentence. New Step 7e (Self-Validation Audit) inserted between Step 7d and Step 8.
 
-### Changed — `plugin/skills/audit-config/SKILL.md`
+### Changed — `plugin-claude-code/skills/audit-config/SKILL.md`
 
 New Step 3b (Missing-Known-Fields Cascade) inserted between Step 3a and Step 4.
 
@@ -461,7 +461,7 @@ Three independent threads converged in this release:
 
 **`/audit-knowledge` Phase 2c2 — never delete; archive instead.** Closes a destructive failure mode in the ideas-routing flow: prior versions assumed `git log --all -- intake/ideas/` would recover idea bodies after Phase 2c2 deletion, but that assumption silently fails for any idea file created since the last git commit (untracked files have no history). Patch bump because the change is a safety fix on existing behavior, not a new feature surface.
 
-### Changed — `plugin/skills/audit-knowledge/SKILL.md` Step 2c2
+### Changed — `plugin-claude-code/skills/audit-knowledge/SKILL.md` Step 2c2
 
 Three coordinated edits replace "delete after routing" with "move-or-archive, never delete":
 
@@ -535,7 +535,7 @@ Design discussion 2026-05-13: user invoked `aria/aria-knowledge` skill context a
 
 **New `/handoff` express-handoff skill + `/audit-config` release-state cascade checks.** Closes two ideas filed during the 2026-05-09 wrapup and the 2026-05-11 cascade-traced pipeline-adoption arc. Together they form a prospective↔retrospective release-discipline loop: `/handoff` writes the post-release version-stamp and adoption-state docs (and emits a paste-ready next-session opener); the next `/audit-config` mechanically catches any surfaces that didn't get touched. Patch bump per `feedback_aria_versioning_patch_for_new_skill`: new isolated skill + additive extension to an existing skill, no schema or contract change.
 
-### Added — `/handoff` skill (`plugin/skills/handoff/SKILL.md`)
+### Added — `/handoff` skill (`plugin-claude-code/skills/handoff/SKILL.md`)
 
 Express end-of-session handoff. Same coverage as `/wrapup` (review session work → update PROGRESS.md / CLAUDE.md / memory → commit → run `/extract` → verify continuity) compressed into a single combined-go review. Two modes:
 
@@ -546,7 +546,7 @@ Always emits a paste-ready **next-session opener** as the headline artifact, eve
 
 `/wrapup` stays the interactive default for ambiguous sessions; `/handoff` is the express lane. Both call `/extract` (already non-interactive by design); neither ever pushes to git.
 
-### Changed — `/audit-config` skill (`plugin/skills/audit-config/SKILL.md`)
+### Changed — `/audit-config` skill (`plugin-claude-code/skills/audit-config/SKILL.md`)
 
 Two new check categories added to Step 3 + a dedicated Step 3a documenting the detection patterns:
 
@@ -557,7 +557,7 @@ Both check classes report under **Should Fix** (not **Critical**) because they'r
 
 "What This Audit Catches" table extended with a **Release-state cascade** row covering both shapes.
 
-### Changed — `/help` skill (`plugin/skills/help/SKILL.md`)
+### Changed — `/help` skill (`plugin-claude-code/skills/help/SKILL.md`)
 
 `/handoff [auto]` added to the commands table directly after `/wrapup`, and to the "Sonnet 4.6, medium effort" row in Model Recommendations alongside `/wrapup` (same complexity class: structured work with prescribed output).
 
@@ -654,7 +654,7 @@ The cull-pass-became-refinement-pass outcome (zero retirements out of 6 candidat
 
 **New `rules/user-examples.md` — user-owned file for per-rule before/after examples + `/rules N` skill extension to surface matching examples automatically.** Closes ADR 069's S5 deferral (the "should ARIA ship per-rule examples?" question) with a user-owned single-file design that honors the principle *examples are inherently user-specific* — generic examples drift back into being the rule itself or a separate canonical pattern; project-specific examples ship as foreign content to other users. Patch bump per `feedback_aria_versioning_patch_for_new_skill`: skill extension + new user-owned file is patch-scoped (smaller than a new skill). Plugin ships zero example content; `user-examples.md` is created once on `/setup` from a stub template, then never diffed.
 
-### Added — `rules/user-examples.md` user-owned template (`plugin/template/rules/user-examples.md`)
+### Added — `rules/user-examples.md` user-owned template (`plugin-claude-code/template/rules/user-examples.md`)
 
 A new user-owned file alongside `user-rules.md` for project-specific before/after examples illustrating the rules in `working-rules.md`. Mirrors the user-rules.md voice — friendly intro, "examples are user-specific" framing, naming convention, format guidance, skeleton template clearly labeled for replacement.
 
@@ -664,7 +664,7 @@ A new user-owned file alongside `user-rules.md` for project-specific before/afte
 
 **Ownership:** user-owned (created once on `/setup`, never overwritten or diffed). Same class as `LOCAL.md`, `rules/user-rules.md`, directory README stubs.
 
-### Added — `/rules` skill extension (`plugin/skills/rules/SKILL.md`)
+### Added — `/rules` skill extension (`plugin-claude-code/skills/rules/SKILL.md`)
 
 Step 3 (Lookup by Identifier) extended with an "Examples lookup" sub-section:
 
@@ -674,9 +674,9 @@ Discovery is automatic: no forward-link maintenance in `working-rules.md` requir
 
 ### Added — Documentation surface updates
 
-- `plugin/skills/setup/SKILL.md` — `rules/user-examples.md` added to Expected files list (line 55), User-owned files list (line 57), User-owned bullet in first-setup educational note (line 66), and "Never diff" list (line 107). Same set of integration surfaces as `rules/user-rules.md` since the file class is identical.
-- `plugin/template/OVERVIEW.md` — User-owned files paragraph (line 201) updated with `rules/user-examples.md` and v2.14.2 origin annotation.
-- `plugin/template/README.md` — `rules/` tree listing gained `user-examples.md` between `user-rules.md` and `change-decision-framework.md`, grouping user-owned files together visually.
+- `plugin-claude-code/skills/setup/SKILL.md` — `rules/user-examples.md` added to Expected files list (line 55), User-owned files list (line 57), User-owned bullet in first-setup educational note (line 66), and "Never diff" list (line 107). Same set of integration surfaces as `rules/user-rules.md` since the file class is identical.
+- `plugin-claude-code/template/OVERVIEW.md` — User-owned files paragraph (line 201) updated with `rules/user-examples.md` and v2.14.2 origin annotation.
+- `plugin-claude-code/template/README.md` — `rules/` tree listing gained `user-examples.md` between `user-rules.md` and `change-decision-framework.md`, grouping user-owned files together visually.
 
 ### Origin — Karpathy 4-line article review (S5 deferral closes)
 
@@ -715,7 +715,7 @@ All 34 rules and the Behavioral Foundation preamble (v2.14.0) unchanged. Rule 20
 
 **New /prospect skill (forward-looking pre-mortems on plans before execution) + active Evidence-Sourcing Pass on both /prospect and /retrospect + new release/deployment scopes for /retrospect with hybrid detection cascade + structured-frontmatter persistent log under `~/knowledge/logs/{prospect,retrospect}/` + /index discoverability for review reports.** /prospect is the forward-looking counterpart to /retrospect — runs a 10-section pre-mortem on a plan before any code is written, with the same per-step validation discipline /retrospect applies after a fix ships. Both skills now run a synchronous Evidence-Sourcing Pass (new procedural Step 3.5) that autonomously sources accessible evidence (codebase reads, public docs, MCP queries) and surfaces user-input asks for anything that requires judgment — converting unsupported assumptions to ✅/❌ before the report finalizes. Patch bump per `feedback_aria_versioning_patch_for_new_skill`: additive new skill + extension to existing skills + index scan extension; no breaking changes.
 
-### Added — /prospect skill (`plugin/skills/prospect/SKILL.md`)
+### Added — /prospect skill (`plugin-claude-code/skills/prospect/SKILL.md`)
 
 Forward-looking pre-mortem on a plan or approach that has been *created but not yet executed*. Mirror of /retrospect's shape so the same review muscle works in both directions. Six positional scopes plus a no-args default:
 
@@ -734,7 +734,7 @@ Produces a 10-section markdown report with anchor / plan-specificity gate / per-
 
 Hard rule: a step's Action cannot be PROCEED unless post-Step-3.5 Risk? is ✅ Pre-validated, OR ⚠ Theory-driven WITH explicit "Acceptable risk because: …" appended. The theory-driven carve-out exists because every plan is theory-driven by definition (you're imagining, not measuring) — the carve-out forces the planner to *name the risk* rather than block all forward motion.
 
-### Added — Evidence-Sourcing Pass on both skills (`plugin/skills/{prospect,retrospect}/SKILL.md`)
+### Added — Evidence-Sourcing Pass on both skills (`plugin-claude-code/skills/{prospect,retrospect}/SKILL.md`)
 
 New procedural Step 3.5 inserted between Step 3 (Enumerate) and Step 4 (Render Report). For each candidate with non-✅ preliminary status, Step 3.5 generates the *single most decisive question* whose answer would upgrade the verdict to ✅ or ❌, categorizes the answer source as AUTO-SOURCEABLE / USER-INPUT / MIXED, then either sources autonomously or surfaces a structured ask to the user.
 
@@ -753,7 +753,7 @@ New procedural Step 3.5 inserted between Step 3 (Enumerate) and Step 4 (Render R
 
 /retrospect's Step 3.5 has *two* sub-passes (vs /prospect's single pass) — bundle-marker first (resolves 🤷 by sourcing the deployed bundle and grepping for the in-bundle marker), then outcome (resolves ⚠/❓/🚫 by sourcing post-deploy logs/repros). Bundle-marker pass feeds §4.2's emit value; outcome pass feeds §4.3's emit value.
 
-### Added — `release` and `deployment` scopes for /retrospect (`plugin/skills/retrospect/SKILL.md`)
+### Added — `release` and `deployment` scopes for /retrospect (`plugin-claude-code/skills/retrospect/SKILL.md`)
 
 Two new positional scopes joining the existing `commit`, `range`, `pr`, `session` set:
 
@@ -762,7 +762,7 @@ Two new positional scopes joining the existing `commit`, `range`, `pr`, `session
 
 Designed to cover the union of CS (semver tags), SS (Bitbucket pipelines without GH releases), and builder repos (semver) deploy conventions without per-project config.
 
-### Added — RESHIP-AND-VERIFY action for /retrospect (`plugin/skills/retrospect/SKILL.md`)
+### Added — RESHIP-AND-VERIFY action for /retrospect (`plugin-claude-code/skills/retrospect/SKILL.md`)
 
 New action introduced when §4.2 emits ❌ Not-in-bundle (Step 3.5.1 positively confirmed the fix did NOT ship, e.g., bundle returned 200 but the marker grep was empty, OR the deploy log shows a failed/superseded job). The fix's code is correct — it just didn't ship. §4.8 emits a project-appropriate re-deploy command (from `aria-config.md`'s `projects_list[<tag>]` if present, otherwise prompt user) plus a directive: "After re-deploy, re-run `/retrospect deployment` to confirm the bundle now contains the fix and validate outcome." Closes the loop between failed-deploy detection and re-validation.
 
@@ -801,7 +801,7 @@ tags: [<type>, <scope>, <project-tag-if-detected>, <pattern-tag-if-applicable>]
 
 `overall_outcome` derivation (retrospect): `closed` if every fix's post-Step-3.5 Validated? is ✅; `unresolved` if any fix is ❌ Invalidated or ❌ Not-in-bundle; `partial` if any fix is ⚠ partial AND none are ❌; `mixed` for any other combination.
 
-### Added — Reviews tier scan + Review Index in `/index` (`plugin/skills/index/SKILL.md`)
+### Added — Reviews tier scan + Review Index in `/index` (`plugin-claude-code/skills/index/SKILL.md`)
 
 Q1.3=1 (review reports discoverable via /context). Step 1's "Do NOT scan: ... logs/" rule replaced with a more precise carve-out: top-level `logs/*.md` (audit logs, hook debug log) remain excluded, but `logs/prospect/` and `logs/retrospect/` ARE scanned via a new "Reviews tier scan" sub-step. Review files are stored with `source: "review"` and pull retrospect/prospect-specific frontmatter (`type`, `scope`, `tickets`) alongside standard tags.
 
@@ -970,15 +970,15 @@ Considered shipping `template/approaches/audit-before-architecture-claims.md` as
 
 ### Fixed — `template/README.md` rules/ tree
 
-The `rules/` directory tree in the README's "Structure" section now lists `retrospect-patterns.md` alongside the other four rules-tier files. Previously the file shipped at `plugin/template/rules/retrospect-patterns.md` and was referenced by `/retrospect` and `/setup`, but the user-facing tree omitted it — making it undiscoverable to anyone reading the template README to understand what's in their knowledge folder.
+The `rules/` directory tree in the README's "Structure" section now lists `retrospect-patterns.md` alongside the other four rules-tier files. Previously the file shipped at `plugin-claude-code/template/rules/retrospect-patterns.md` and was referenced by `/retrospect` and `/setup`, but the user-facing tree omitted it — making it undiscoverable to anyone reading the template README to understand what's in their knowledge folder.
 
 ### Fixed — `template/OVERVIEW.md` plugin-managed files paragraph
 
-The "Plugin-Managed vs User-Owned Files" section's managed-files list now includes `rules/retrospect-patterns.md` between `rules/enforcement-mechanisms.md` and `projects/README.md`. This brings OVERVIEW.md in sync with `plugin/skills/setup/SKILL.md` (lines 65 and 105), which already listed the file as plugin-managed and in the `/setup` diff loop — the contradiction has now been resolved.
+The "Plugin-Managed vs User-Owned Files" section's managed-files list now includes `rules/retrospect-patterns.md` between `rules/enforcement-mechanisms.md` and `projects/README.md`. This brings OVERVIEW.md in sync with `plugin-claude-code/skills/setup/SKILL.md` (lines 65 and 105), which already listed the file as plugin-managed and in the `/setup` diff loop — the contradiction has now been resolved.
 
 ### Origin — README/OVERVIEW docs regression
 
-Surfaced during a `/setup` diff session on a v2.13.6-installed knowledge folder where the user noticed both files were listed as "user ahead, plugin regressed." Cross-checked against the file's actual presence in `plugin/template/rules/` (still shipped) and against `setup/SKILL.md` (still authoritative on managed-file status). Both were correct; the documentation surface was the only point of drift. This patch restores the documentation invariant.
+Surfaced during a `/setup` diff session on a v2.13.6-installed knowledge folder where the user noticed both files were listed as "user ahead, plugin regressed." Cross-checked against the file's actual presence in `plugin-claude-code/template/rules/` (still shipped) and against `setup/SKILL.md` (still authoritative on managed-file status). Both were correct; the documentation surface was the only point of drift. This patch restores the documentation invariant.
 
 ## [2.13.6] - 2026-05-05
 
@@ -1018,21 +1018,21 @@ aria-cowork v0.1.0–v0.2.3 wrote `captured_via: aria-cowork` to `/ask` and `/cl
 
 Patch release adding the `/retrospect` skill — a structured retrospective tool for shipped commit ranges with per-fix validation enforcement, simpler-alternative discipline, re-diagnosis when fixes failed, and a growing failure-mode pattern library.
 
-### Added — `/retrospect` skill in `plugin/skills/retrospect/SKILL.md`
+### Added — `/retrospect` skill in `plugin-claude-code/skills/retrospect/SKILL.md`
 
 A new slash command that runs a 10-section retrospective on a shipped commit range, single commit, PR, or current session. The skill enforces a validation discipline: no fix is marked effective without explicit, named evidence (log event, reproduction-then-fix-verified, production instrumentation, or deployed-state check). Unvalidated fixes are flagged 🤷 Bundle-unverified or ❓ Unvalidated and cannot reach a KEEP action. Failed/partial fixes feed back into a re-diagnosis section that names surviving hypotheses and the specific instrumentation needed to discriminate between them — converting failed releases into evidence for the next attempt rather than another speculative fix.
 
 The skill also runs a **failure-mode pattern check** against `rules/retrospect-patterns.md` (canonical) and `projects/<proj>/retrospect-patterns.md` (project-specific when applicable). Pattern hits surface named process failure modes (e.g., `diagnose-from-shape-not-path`, `bundle-unverification`, `speculative-iteration`, `phrase-tell-consistent-with-evidence`) so that recurring discipline gaps are visible across retrospectives. Novel patterns identified during a retrospective can be added to either library on user approval.
 
-### Added — Canonical pattern library at `plugin/template/rules/retrospect-patterns.md`
+### Added — Canonical pattern library at `plugin-claude-code/template/rules/retrospect-patterns.md`
 
-Seeded with 9 canonical, project-agnostic failure-mode patterns derived from real retrospective evidence. Each entry includes detection cues, why-it's-a-problem, counter-discipline, and a references list. The file is registered as plugin-managed in `plugin/skills/setup/SKILL.md` — user-added patterns appear as diff prompts on plugin upgrades, never silently overwritten.
+Seeded with 9 canonical, project-agnostic failure-mode patterns derived from real retrospective evidence. Each entry includes detection cues, why-it's-a-problem, counter-discipline, and a references list. The file is registered as plugin-managed in `plugin-claude-code/skills/setup/SKILL.md` — user-added patterns appear as diff prompts on plugin upgrades, never silently overwritten.
 
-### Added — Plugin-managed registration in `plugin/skills/setup/SKILL.md`
+### Added — Plugin-managed registration in `plugin-claude-code/skills/setup/SKILL.md`
 
 `rules/retrospect-patterns.md` added to both the educational plugin-managed file list and the diff-loop file list, so `/setup` recognizes the new template.
 
-### Added — `/retrospect` listing in `plugin/skills/help/SKILL.md` and `README.md`
+### Added — `/retrospect` listing in `plugin-claude-code/skills/help/SKILL.md` and `README.md`
 
 Discoverability via `/help` and the public-facing skill catalog.
 
@@ -1062,7 +1062,7 @@ The skill instructions include Claude-side judgment for offering `/retrospect` (
 
 Patch release adding **Rule 34: Validate the plan with Rule 22's framework before executing** to the working-rules template, plus supporting cross-references in `change-decision-framework.md` and `enforcement-mechanisms.md`. Rule 33's plan-level counterpart — extends the same framework discipline from per-edit to per-plan scope.
 
-### Added — Rule 34 in `plugin/template/rules/working-rules.md`
+### Added — Rule 34 in `plugin-claude-code/template/rules/working-rules.md`
 
 Plan-formation discipline rule directing that any qualifying plan be validated with Rule 22's full 7-step framework *before* execution begins. The goal: validate that this is the right plan based on (a) what we know now, (b) what's accessible to know, and (c) the actual goal. A plan can pass per-edit Rule 22 on every edit and still fail systemically if any framework step — Identify, Intake, Criteria, Solutions, Rank, Validate, Execute — was skipped or shortcut at plan-formation time.
 
@@ -1104,7 +1104,7 @@ This release applied Rule 34 to its own creation. The original 8-surface plan (w
 
 Patch release adding **Rule 33: Verify third-party surfaces against current docs before use** to the working-rules template. Single isolated rule addition; no skill, hook, or behavior changes.
 
-### Added — Rule 33 in `plugin/template/rules/working-rules.md`
+### Added — Rule 33 in `plugin-claude-code/template/rules/working-rules.md`
 
 Proactive doc-check rule directing that any third-party API, SDK, library, CLI, or external tool surface be verified against current documentation before the call is written. Defines *current* as fetched-or-read-this-session (not training memory, not analogy, not cached belief). Provides four objective triggers (first-use, version-volatile surfaces, silent-failure-prone calls, project-version-differs-from-training-version), a five-step routing order (local docs → `context7` → official docs → `--help` → ask the user), an explicit out-of-scope clause for language standard library, and a Rule 7 escape hatch when docs are inaccessible.
 
@@ -1413,7 +1413,7 @@ Patch release. Adds `/snapshot`, an on-demand equivalent of the pre-compact tran
 
 ### New — `/snapshot` skill
 
-`plugin/skills/snapshot/SKILL.md` registers the command. The skill is a thin wrapper: it delegates to `bin/save-transcript.sh` and relays the output verbatim. Description triggers include `/snapshot`, "snapshot the session", "save this conversation", "archive this session", and explicitly contrasts with `/extract` (knowledge synthesis) and `/clip` (URL or snippet capture) so the LLM routes cleanly between the three. `allowed-tools: Bash`.
+`plugin-claude-code/skills/snapshot/SKILL.md` registers the command. The skill is a thin wrapper: it delegates to `bin/save-transcript.sh` and relays the output verbatim. Description triggers include `/snapshot`, "snapshot the session", "save this conversation", "archive this session", and explicitly contrasts with `/extract` (knowledge synthesis) and `/clip` (URL or snippet capture) so the LLM routes cleanly between the three. `allowed-tools: Bash`.
 
 Also registered in `/help`: row added to the commands table and to the Sonnet-low-effort row of the model-recommendations table. `/snapshot` is mechanical (bash-script-driven), so Sonnet is the right default — no judgment lift from a larger model.
 
@@ -1536,25 +1536,25 @@ Both skills were referenced in the Model Recommendations table below but absent 
 
 Patch release. Resolves a structural deadlock introduced in v2.10.5 under Claude Opus 4.7: the PreToolUse compliance scanner assumed text and tool_use blocks co-locate in a single assistant message, but 4.7's harness splits them into separate messages, causing every Edit/Write to deny. Diagnosed in a 2026-04-20 session via statistical tally of 51 assistant messages (zero text+tool_use co-location). v2.10.6 replaces same-message scan with turn-scoped walk-back bounded by the previous Edit/Write tool_use or user message — preserves per-edit marker requirement, aligns implementation with the framework doc's "same assistant turn" language. Also bundles four supporting fixes, a new rule (32), and the first test infrastructure for hook contracts.
 
-### Changed â `plugin/bin/pre-edit-check.sh` turn-scoped scanner
+### Changed â `plugin-claude-code/bin/pre-edit-check.sh` turn-scoped scanner
 
 The embedded python scanner now walks backward through assistant messages, collecting text blocks until encountering either a previous Edit/Write tool_use (which caps the walk and clears collected blocks from before that cap) or a user message (turn boundary). The walk also handles a prior Edit/Write in the target tool_use's own message by resetting the collection mid-message. Marker regex unchanged; fail-open paths unchanged; deny REASON wording updated to clarify "text output (not thinking)" and "between the previous Edit/Write (if any) and this one" — closing the thinking-block loophole and making the per-edit scope explicit. Verified via three test fixtures (see `tests/`).
 
-### Changed â `plugin/bin/session-start-check.sh` accuracy + guardrails
+### Changed â `plugin-claude-code/bin/session-start-check.sh` accuracy + guardrails
 
 The RULE 22 ORDERING text at line 192 previously claimed "the PreToolUse hook cannot enforce this; discipline is Claude-side." v2.10.5's `permissionDecision: deny` mechanism made that statement false, and under 4.7's literal reading the contradiction was an active compliance hazard. Rewritten to accurately describe the deny behavior, the per-edit scope ("between the previous Edit/Write and this one"), and four common rationalizations (added "too trivial" to the existing three). Also adds two new guardrails: **TASK BUDGET** (prompts Claude to surface strain symptoms — cut-short responses, deep sessions, compaction warnings — to the user for decision, since Claude Code's UI exposes actual usage to the user but not to the model; explicitly forbids self-defeating `/extract` during strain since the raw transcript persists via PreCompact anyway) and **MEMORY PATHWAY** (routes 4.7's enhanced file-system memory through ARIA's `/clip`, `/extract`, `/intake`, `/audit-knowledge` flow so the knowledge tree stays curated rather than fragmenting into ad-hoc notes).
 
-### Changed â `plugin/bin/post-edit-check.sh` prose trimmed
+### Changed â `plugin-claude-code/bin/post-edit-check.sh` prose trimmed
 
 Non-planning-path `additionalContext` reduced from ~580 to ~515 characters. All five verification questions (scope held, nothing extra touched, no unnecessary rewrites, matches decision, secondary impact) preserved. All three output formats (PASS, PASS CONDITIONAL, FAIL) preserved with full markers. Only redundant prose removed. Saves ~65 chars per edit; scales favorably under 4.7's 1.0â1.35Ã tokenizer inflation.
 
-### Changed â `plugin/bin/task-context-check.sh` case normalization
+### Changed â `plugin-claude-code/bin/task-context-check.sh` case normalization
 
 Index tag extraction now pipes through `tr '[:upper:]' '[:lower:]'` so mixed-case tags in `index.md` (e.g., `### TypeScript`, `### React`) match against task words (which were already lowercased). Prior to this fix, any mixed-case tag was silently never-matched, suppressing context suggestions. Single-pipeline change; no other behavior affected.
 
 ### New â Rule 32: Halt on direct contradiction with a written directive
 
-Added to `plugin/template/rules/working-rules.md` (and mirrored in `knowledge/rules/working-rules.md` for this install). If a user request directly contradicts a written directive (rule in `rules/working-rules.md`, instruction in the currently-invoked skill's prompt, or recorded decision under `decisions/` or `projects/{tag}/decisions/`), halt before any tool call, name the contradiction verbatim, and ask for explicit override. Trigger is literal textual contradiction only â perceived expectations and inferred intent don't trigger (handled by Rule 7); scope-creep concerns remain governed by Rule 22. Motivated by 4.7's literal instruction-following: silent resolution of a contradiction masks a disagreement the user may not know exists.
+Added to `plugin-claude-code/template/rules/working-rules.md` (and mirrored in `knowledge/rules/working-rules.md` for this install). If a user request directly contradicts a written directive (rule in `rules/working-rules.md`, instruction in the currently-invoked skill's prompt, or recorded decision under `decisions/` or `projects/{tag}/decisions/`), halt before any tool call, name the contradiction verbatim, and ask for explicit override. Trigger is literal textual contradiction only â perceived expectations and inferred intent don't trigger (handled by Rule 7); scope-creep concerns remain governed by Rule 22. Motivated by 4.7's literal instruction-following: silent resolution of a contradiction masks a disagreement the user may not know exists.
 
 ### New â `tests/` directory with hook regression protection
 
@@ -1571,7 +1571,7 @@ An external analysis suggested that 4.7's native self-verification makes the pos
 ### Upgrade notes
 
 - **Reinstall required:** copy `plugin/` to `~/.claude/plugins/marketplaces/local-desktop-app-uploads/aria-knowledge/` to pick up the hook changes. Sessions running the pre-v2.10.6 hook continue to deadlock under 4.7 until reinstalled.
-- **Template diffs on `/setup`:** `plugin/template/rules/working-rules.md` has a new Rule 32. `/setup` will present a diff prompt on next run. Accept to take Rule 32; decline to keep your customized local copy (and note that Rule 32 applies regardless of which version of the doc is loaded when the user opts to adopt it).
+- **Template diffs on `/setup`:** `plugin-claude-code/template/rules/working-rules.md` has a new Rule 32. `/setup` will present a diff prompt on next run. Accept to take Rule 32; decline to keep your customized local copy (and note that Rule 32 applies regardless of which version of the doc is loaded when the user opts to adopt it).
 - **Regression protection:** run `sh tests/run.sh` at `Projects/aria/` to verify the hook scanner behavior on the 4.7 split-message shape. All three cases should pass.
 - **Related references:** `knowledge/projects/aria/references/opus-4-7-aria-compatibility.md` documents the verified 4.7 behaviors this release is designed around and serves as the canonical ARIAâ4.7 design reference.
 - **Deferred to v2.11.x:** `config.sh` sed batching (CPU, not 4.7-specific), usage-monitor hook (automatic token-usage observation via transcript sum), post-edit scope-check structural enforcement (Scenario E gap), Bash-write detection (Scenario C gap).
@@ -1580,15 +1580,15 @@ An external analysis suggested that 4.7's native self-verification makes the pos
 
 Patch release. Replaces instructional Rule 22 enforcement with compliance-detecting mechanism. The v2.10.1 PreToolUse hook emitted "output retroactively AND prospectively" as an unconditional directive because the hook text claimed the platform gave hooks "no preventive authority." This claim was incorrect — PreToolUse hooks can return `permissionDecision: "deny"` to block the tool call. Under Claude 4.7's literal reading of ambiguous instructions, the "AND" clause was applied unconditionally, causing duplicate block emission per edit (one prospective above, one retroactive after, one prospective for next). Diagnosed in a live 4.7 session on 2026-04-20 after ~15 edits accrued ~3-6k wasted tokens. This release makes the retroactive path unreachable by construction: the PreToolUse hook now parses the current assistant turn's transcript, looks for a `[Rule 22]` marker, and denies with recovery instructions if absent. There is no code path in which compliance is satisfied after the edit lands, so the instruction ambiguity that drove duplication no longer exists.
 
-### Changed — `plugin/bin/pre-edit-check.sh` rewrite
+### Changed — `plugin-claude-code/bin/pre-edit-check.sh` rewrite
 
 Full rewrite. Preserves all v2.10.x path-classification logic (planning path, protected basenames, knowledge-folder conditional protection, critical paths, batch-manifest layers 3a/3b/3c/4/5). Adds compliance detection: parses `transcript_path` for the assistant message containing the current `tool_use_id`, scans text blocks preceding the tool_use for regex `\[Rule 22(\s·\s[^\]]+)?\]`. On match, exits silently (no `additionalContext` emission — compliant path is now zero-noise). On miss, emits `permissionDecision: "deny"` with a concise recovery message naming the expected format for the matched variant (planning / batch / full). Fail-open on every detector error path: unreadable transcript, malformed JSONL, missing `tool_use_id`, or python exception all fall through to allow rather than block.
 
-### Changed — `plugin/bin/post-edit-check.sh` scope marker
+### Changed — `plugin-claude-code/bin/post-edit-check.sh` scope marker
 
 Scope-check output format updated to `[Rule 22 · Scope] PASS — ...`, `[Rule 22 · Scope] PASS CONDITIONAL — ...`, `[Rule 22 · Scope] FAIL — ...` (planning branch: `[Rule 22 · Scope] OK — planning doc.`). Marker is symmetric with pre-edit compliance blocks — same regex, same readability. Hook logic (path classification, protection detection) unchanged.
 
-### Changed — `plugin/template/rules/change-decision-framework.md` harmonization
+### Changed — `plugin-claude-code/template/rules/change-decision-framework.md` harmonization
 
 Three classes of edit: (1) "Ordering (required)" opening paragraphs rewritten — the "hook has no preventive authority" claim is replaced with the accurate v2.10.5 mechanism description including marker format + `permissionDecision: "deny"` behavior; (2) "The hook can only be satisfied retroactively" rationalization subsection marked historical — retained per Rule 6 archive principle (the rationalization was real in v2.10.1–v2.10.4 sessions; naming it preserves institutional memory for future instruction-design patches); (3) marker convention note added to "Required Output Formats" section; all format templates and examples (Impact headers + Scope pass/fail lines) prefixed with `[Rule 22]` / `[Rule 22 · Scope]` so doc and hook teach the same format.
 
@@ -1613,7 +1613,7 @@ The v2.10.4 CHANGELOG deferred "Rule 22 hook text strengthening (v2.11.x candida
 - **Reinstall required:** copy `plugin/` to `~/.claude/plugins/marketplaces/local-desktop-app-uploads/aria-knowledge/` to pick up the hook rewrite. Sessions running the pre-v2.10.5 hook continue to behave as before (retroactive-AND-prospective instruction fires, duplicate blocks possible); only reinstalled sessions get the deny-on-miss mechanism.
 - **No config migration:** no new fields in `~/.claude/aria-knowledge.local.md`. Existing configs continue to work unchanged.
 - **First-edit teaching moment for Claude-in-flight:** immediately after reinstall, the first Edit/Write in any session will be denied if Claude hasn't yet emitted a `[Rule 22]` marker. The deny message includes the expected format template; Claude self-recovers within one retry. No user action required.
-- **Template diff on `/setup`:** `plugin/template/rules/change-decision-framework.md` changed; `/setup` will present a diff prompt on next run. Accept to take the v2.10.5 teaching content; decline to keep a customized local copy (and note that the marker convention applies regardless of which version of the doc is loaded — enforcement is hook-side, not doc-side).
+- **Template diff on `/setup`:** `plugin-claude-code/template/rules/change-decision-framework.md` changed; `/setup` will present a diff prompt on next run. Accept to take the v2.10.5 teaching content; decline to keep a customized local copy (and note that the marker convention applies regardless of which version of the doc is loaded — enforcement is hook-side, not doc-side).
 - **Examples now use the marker:** if you had copied an older example block as a snippet or template, update the first line to include `[Rule 22]` before re-using it.
 
 ## [2.10.4] - 2026-04-18
@@ -1624,17 +1624,17 @@ Patch release. Applies Opus 4.7 best-practices guidance to ARIA's bulk-scan and 
 
 Added explicit "issue Read calls in a single parallel tool-use block" guidance to steps that read multiple files of the same kind for the same purpose. Under 4.6 defaults the model tended to parallelize implicitly; under 4.7's less-eager tool use, these serialize unless told. Scope kept strictly within-step to protect each skill's cross-step sequencing and user-approval checkpoints.
 
-- `plugin/skills/audit-knowledge/SKILL.md` — Step 3 (memory files), Step 4 (plan files), Step 5 (knowledge-folder dedup — feeds 5b/5c without re-reads), Step 5b ("do not re-read" reinforcement at the highest-risk re-read site)
-- `plugin/skills/audit-config/SKILL.md` — Step 3 (CLAUDE.md scan), Step 4 (knowledge-folder verify), Step 5 (PROGRESS.md scan)
-- `plugin/skills/intake/SKILL.md` — Step 2 (source-file reads, with explicit URL/WebFetch exception), Step 4 (dedup reads)
+- `plugin-claude-code/skills/audit-knowledge/SKILL.md` — Step 3 (memory files), Step 4 (plan files), Step 5 (knowledge-folder dedup — feeds 5b/5c without re-reads), Step 5b ("do not re-read" reinforcement at the highest-risk re-read site)
+- `plugin-claude-code/skills/audit-config/SKILL.md` — Step 3 (CLAUDE.md scan), Step 4 (knowledge-folder verify), Step 5 (PROGRESS.md scan)
+- `plugin-claude-code/skills/intake/SKILL.md` — Step 2 (source-file reads, with explicit URL/WebFetch exception), Step 4 (dedup reads)
 
 ### Changed — Output policy guards in bulk-output skills (Change 2)
 
 Added top-level "emit every section defined below" directives to skills producing structured comprehensive reports, plus per-section zero-state rules where empty-state behavior was previously ambiguous. Guards against 4.7 adaptively collapsing dashboards into prose or silently omitting zero-finding sections that carry informational signal. The pattern that emerged: **top-level output policy directive placed between the "Output in this format:" / "Present ... in this format:" opener and the fenced code-block template.**
 
-- `plugin/skills/audit-knowledge/SKILL.md` — Step 6 top-level output policy directive + per-section zero-state rules for four previously-ambiguous subsections (Pending Insights, Pending Decisions, Category C Items, Cross-Reference Findings). Four other subsections already had explicit conditional-on-feature-presence omission rules and were left unchanged.
-- `plugin/skills/audit-config/SKILL.md` — Step 6 top-level output policy directive only (existing `[list items or "None"]` template was already prescriptive per-section; gap was the whole-report-is-None collapse case).
-- `plugin/skills/stats/SKILL.md` — Step 6 top-level output policy directive only (existing dashboard template was already prescriptive; gap was potential misreading of Rules section's "Fast — just counting and date parsing, no heavy analysis" as "keep output short" rather than as an implementation-effort directive).
+- `plugin-claude-code/skills/audit-knowledge/SKILL.md` — Step 6 top-level output policy directive + per-section zero-state rules for four previously-ambiguous subsections (Pending Insights, Pending Decisions, Category C Items, Cross-Reference Findings). Four other subsections already had explicit conditional-on-feature-presence omission rules and were left unchanged.
+- `plugin-claude-code/skills/audit-config/SKILL.md` — Step 6 top-level output policy directive only (existing `[list items or "None"]` template was already prescriptive per-section; gap was the whole-report-is-None collapse case).
+- `plugin-claude-code/skills/stats/SKILL.md` — Step 6 top-level output policy directive only (existing dashboard template was already prescriptive; gap was potential misreading of Rules section's "Fast — just counting and date parsing, no heavy analysis" as "keep output short" rather than as an implementation-effort directive).
 
 ### Declined / Deferred — Intentional no-change decisions
 
@@ -1650,7 +1650,7 @@ Full scope records with per-skill revisit triggers captured in `knowledge/intake
 
 ### Deferred — Rule 22 hook text strengthening (v2.11.x candidate)
 
-Considered and deferred: reinforcing language in `plugin/bin/pre-edit-check.sh` rejecting "extensive prose reasoning = compliant" readings under 4.7's adaptive thinking. The framework mechanism is correct (adaptive thinking expands *quantity* of reasoning, not *shape* — Rule 22's slots force the shape). Current hook text fires cleanly in real sessions; no observed drift tied to 4.7. **Revisit after 2-3 weeks of 4.7 usage if drift emerges** where the block "technically fires" but named slots are under-addressed. Candidate phrasing captured in `knowledge/intake/ideas-backlog.md` (2026-04-18 entry: "Strengthen Rule 22 hook text against 4.7 adaptive-thinking drift").
+Considered and deferred: reinforcing language in `plugin-claude-code/bin/pre-edit-check.sh` rejecting "extensive prose reasoning = compliant" readings under 4.7's adaptive thinking. The framework mechanism is correct (adaptive thinking expands *quantity* of reasoning, not *shape* — Rule 22's slots force the shape). Current hook text fires cleanly in real sessions; no observed drift tied to 4.7. **Revisit after 2-3 weeks of 4.7 usage if drift emerges** where the block "technically fires" but named slots are under-addressed. Candidate phrasing captured in `knowledge/intake/ideas-backlog.md` (2026-04-18 entry: "Strengthen Rule 22 hook text against 4.7 adaptive-thinking drift").
 
 ### Shared-pattern opportunity — not acted on
 
@@ -1663,7 +1663,7 @@ All edits are additive skill-markdown directives. No schema change, no hook chan
 ### Upgrade notes
 
 - **Reinstall required:** copy `plugin/` to `~/.claude/plugins/marketplaces/local-desktop-app-uploads/aria-knowledge/` to pick up the skill changes.
-- **No template diff on `/setup`:** the edits are skill-internal; `plugin/template/` is unchanged.
+- **No template diff on `/setup`:** the edits are skill-internal; `plugin-claude-code/template/` is unchanged.
 - **No Rule 22 hook change:** the v2.10.3 hook text is unchanged. The v2.11.x candidate strengthening (captured in `ideas-backlog.md`) is future work.
 - **Empty-state output verification:** next run of `/audit-knowledge`, `/audit-config`, or `/stats` on a clean baseline should emit zero-state lines/counts explicitly — if you see collapsed or prose-style summaries instead, the skill didn't reload.
 
@@ -1673,11 +1673,11 @@ Patch release. Replaces the day-only `/audit-knowledge` trigger with activity-dr
 
 ### Added — `audit_trigger_threshold` config field (default 20)
 
-New YAML frontmatter key in `~/.claude/aria-knowledge.local.md` counted via `^### ` headers across `intake/insights-backlog.md`, `intake/decisions-backlog.md`, and `intake/extraction-backlog.md`. `ideas-backlog.md` is deliberately excluded — ideas route out rather than promoting, so counting them would conflate staging with action. Parsing and numeric-validation plumbed through `plugin/bin/config.sh` alongside existing cadence fields.
+New YAML frontmatter key in `~/.claude/aria-knowledge.local.md` counted via `^### ` headers across `intake/insights-backlog.md`, `intake/decisions-backlog.md`, and `intake/extraction-backlog.md`. `ideas-backlog.md` is deliberately excluded — ideas route out rather than promoting, so counting them would conflate staging with action. Parsing and numeric-validation plumbed through `plugin-claude-code/bin/config.sh` alongside existing cadence fields.
 
 ### Changed — Tiered SessionStart prompt messaging
 
-`plugin/bin/session-start-check.sh` now composes one of three prompt tiers based on backlog size (tier boundaries derived from `audit_trigger_threshold` via fixed `+15` / `+30` offsets):
+`plugin-claude-code/bin/session-start-check.sh` now composes one of three prompt tiers based on backlog size (tier boundaries derived from `audit_trigger_threshold` via fixed `+15` / `+30` offsets):
 
 - `count ≥ threshold` → *"Knowledge audit suggested — N entries ready for review."*
 - `count ≥ threshold + 15` → *"Knowledge audit recommended — N entries, near one-pass ceiling."*
@@ -1687,15 +1687,15 @@ If both entry-count and elapsed-days triggers fire, the entry-tier message wins 
 
 ### Changed — `audit_cadence_knowledge` default 3 → 7 days
 
-Bumped throughout: `plugin/bin/config.sh` default + fallback, `plugin/skills/setup/SKILL.md` prompt prose + Step 7 config template, `plugin/QUICKSTART.md` documented default. Rationale: once activity-count is the primary signal, the day-based check becomes the safety net for "did anything drift silently while I wasn't writing" — weekly cadence matches that intent better than the original 3 days, which was calibrated for day-only triggering.
+Bumped throughout: `plugin-claude-code/bin/config.sh` default + fallback, `plugin-claude-code/skills/setup/SKILL.md` prompt prose + Step 7 config template, `plugin/QUICKSTART.md` documented default. Rationale: once activity-count is the primary signal, the day-based check becomes the safety net for "did anything drift silently while I wasn't writing" — weekly cadence matches that intent better than the original 3 days, which was calibrated for day-only triggering.
 
 ### Added — `Trigger:` subfield in audit-log entries
 
-`plugin/skills/audit-knowledge/SKILL.md` Step 8 audit-log template (both promoted-items and empty-audit variants) now records `Trigger: count=N threshold=T days=D cadence=C — (which fired)`. This makes trigger distribution greppable across audits, enabling data-driven tuning once 3-4 entries accumulate. Applied to both promoted and yield-zero audits — the yield-zero cases are the most important tuning signal since they indicate the threshold fired but nothing promoted.
+`plugin-claude-code/skills/audit-knowledge/SKILL.md` Step 8 audit-log template (both promoted-items and empty-audit variants) now records `Trigger: count=N threshold=T days=D cadence=C — (which fired)`. This makes trigger distribution greppable across audits, enabling data-driven tuning once 3-4 entries accumulate. Applied to both promoted and yield-zero audits — the yield-zero cases are the most important tuning signal since they indicate the threshold fired but nothing promoted.
 
 ### Skill updates
 
-`plugin/skills/audit-knowledge/SKILL.md` Step 0 reads `audit_trigger_threshold`; Step 1 computes current backlog count and enumerates tier-message semantics so user-invoked runs see the same state as hook-triggered prompts.
+`plugin-claude-code/skills/audit-knowledge/SKILL.md` Step 0 reads `audit_trigger_threshold`; Step 1 computes current backlog count and enumerates tier-message semantics so user-invoked runs see the same state as hook-triggered prompts.
 
 ### No migration required
 
@@ -1707,7 +1707,7 @@ Patch release. Strengthens v2.10.1's Rule 22 ordering discipline after a real-se
 
 ### Changed — Hook message leads with prospective requirement, names escape hatches inline
 
-`plugin/bin/pre-edit-check.sh` MAIN_MSG reworded. The message now opens with:
+`plugin-claude-code/bin/pre-edit-check.sh` MAIN_MSG reworded. The message now opens with:
 
 > "REQUIRED: your NEXT Edit/Write must be preceded (in the same assistant turn, ABOVE the tool call) by the Low/High Impact block."
 
@@ -1715,7 +1715,7 @@ Patch release. Strengthens v2.10.1's Rule 22 ordering discipline after a real-se
 
 ### Added — "Rationalizations that do not apply" section in doctrine
 
-New `## Rationalizations that do not apply` section in `plugin/template/rules/change-decision-framework.md`, placed between the v2.10.1 `## Ordering (required)` section and `## Required Output Formats`. Names and rejects the four escape hatches with framework-semantic reasoning (not just "don't do it"):
+New `## Rationalizations that do not apply` section in `plugin-claude-code/template/rules/change-decision-framework.md`, placed between the v2.10.1 `## Ordering (required)` section and `## Required Output Formats`. Names and rejects the four escape hatches with framework-semantic reasoning (not just "don't do it"):
 
 - **"Conversation already established the reasoning"** — conversation surfaces decisions; the block surfaces ranked alternatives and scope checks. Skipping drops the alternative-ranking.
 - **"Hook can only be satisfied retroactively"** — reading only half the AND clause; retroactive is recovery, not method.
@@ -1726,7 +1726,7 @@ Plus a catch-all subsection for novel rationalizations: file as an `ideas-backlo
 
 ### Changed — SessionStart reminder references the new doctrine section
 
-`plugin/bin/session-start-check.sh` RULE 22 ORDERING reminder updated to cite both `"Ordering (required)"` and `"Rationalizations that do not apply"` sections, and to name three of the specific invalid arguments inline as quick-reference against skim-reading. Length increase ~50 tokens per session-start; acceptable cost for closing the doctrine cross-reference.
+`plugin-claude-code/bin/session-start-check.sh` RULE 22 ORDERING reminder updated to cite both `"Ordering (required)"` and `"Rationalizations that do not apply"` sections, and to name three of the specific invalid arguments inline as quick-reference against skim-reading. Length increase ~50 tokens per session-start; acceptable cost for closing the doctrine cross-reference.
 
 ### Observed failure this patch addresses
 
@@ -1776,17 +1776,17 @@ Documented in ADR 035 as candidate test cases for future hook refactors.
 
 ### Changed — `pre-edit-check.sh` decision hierarchy comment updated
 
-Header comment block in `plugin/bin/pre-edit-check.sh` now documents the v2.10.1 conditional-protection semantics inline, with explicit `v2.10.1:` markers at the two logic sites for future maintainability.
+Header comment block in `plugin-claude-code/bin/pre-edit-check.sh` now documents the v2.10.1 conditional-protection semantics inline, with explicit `v2.10.1:` markers at the two logic sites for future maintainability.
 
 ### Clarified — Rule 22 ordering discipline (three-layer fix)
 
 Prior versions had a latent gap: the PreToolUse hook fires alongside the tool result (not before the tool runs), so Claude was reading the CHANGE DECISION CHECK reminder AFTER each Edit/Write landed, then outputting the Low/High Impact block retroactively. The hook's wording ("Output this REQUIRED format before proceeding... STOP and do so before proceeding.") implied preventive behavior that Claude Code's tool lifecycle can't actually provide. v2.10.1 adds three coordinated layers so the ordering discipline shifts from hook-driven correction to Claude-side proactive output.
 
-**Layer 1 — Doctrine:** New `## Ordering (required)` section in `plugin/template/rules/change-decision-framework.md` states the rule explicitly, with WRONG/RIGHT examples and the reasoning that the hook is a safety net, not a primary mechanism. Plugin-managed file — users will see this as a `/setup` diff on next update.
+**Layer 1 — Doctrine:** New `## Ordering (required)` section in `plugin-claude-code/template/rules/change-decision-framework.md` states the rule explicitly, with WRONG/RIGHT examples and the reasoning that the hook is a safety net, not a primary mechanism. Plugin-managed file — users will see this as a `/setup` diff on next update.
 
-**Layer 2 — SessionStart injection:** `plugin/bin/session-start-check.sh` now emits a `RULE 22 ORDERING` reminder on every non-first-run session start, so the ordering rule is in Claude's foreground context before the first edit of the session, not after. This is the preventive layer — the only one that fires before any Edit/Write.
+**Layer 2 — SessionStart injection:** `plugin-claude-code/bin/session-start-check.sh` now emits a `RULE 22 ORDERING` reminder on every non-first-run session start, so the ordering rule is in Claude's foreground context before the first edit of the session, not after. This is the preventive layer — the only one that fires before any Edit/Write.
 
-**Layer 3 — Hook message rewrite:** `plugin/bin/pre-edit-check.sh` MAIN_MSG reworded. Removed the deceptive "before proceeding" / "STOP and do so before proceeding" phrasing (which implied preventive timing the hook doesn't have). Replaced with honest framing: the hook fires with the tool result, so if Claude is reading the message the edit has already landed. Dual-action recovery: output retroactively now AND put the next edit's block above the tool call. HIGH/LOW format specs preserved verbatim — only the framing around them changed. Batch-mode (BATCH_MSG) variant unchanged since its timing framing is already honest.
+**Layer 3 — Hook message rewrite:** `plugin-claude-code/bin/pre-edit-check.sh` MAIN_MSG reworded. Removed the deceptive "before proceeding" / "STOP and do so before proceeding" phrasing (which implied preventive timing the hook doesn't have). Replaced with honest framing: the hook fires with the tool result, so if Claude is reading the message the edit has already landed. Dual-action recovery: output retroactively now AND put the next edit's block above the tool call. HIGH/LOW format specs preserved verbatim — only the framing around them changed. Batch-mode (BATCH_MSG) variant unchanged since its timing framing is already honest.
 
 **Why three layers, not one:** the PreToolUse hook cannot technically prevent the ordering violation (it fires too late). Rewriting its wording alone would have improved honesty but not the failure rate. The SessionStart injection is the only preventive layer — without it, the doctrine and hook rewrite stay corrective. All three are complementary: doctrine is canonical reference, SessionStart puts the rule in foreground before first edit, hook rewrite is the per-edit safety net when discipline slips.
 
@@ -1825,7 +1825,7 @@ Skills and manual plan-execution can declare an active batch by writing `~/.clau
 }
 ```
 
-**New helpers in `plugin/bin/config.sh`:**
+**New helpers in `plugin-claude-code/bin/config.sh`:**
 - `kt_batch_begin SKILL_NAME PLAN_SUMMARY OPS_JSON` — validates the ops array (each op must have non-empty `file_path_pattern`, `impact` in {high, low}, and non-empty `justification`) and writes the manifest
 - `kt_batch_end` — removes the active manifest (safe no-op if none exists)
 - `kt_batch_find_match FILE_PATH` — used by the hook to check if an edit matches an expected op
@@ -1874,11 +1874,11 @@ The batch manifest is **skill-agnostic by design**. When Claude is executing a u
 
 ### Changed
 
-- `plugin/.claude-plugin/plugin.json` — version bumped to 2.10.0.
-- `plugin/bin/pre-edit-check.sh` — rewritten with safety-floor decision hierarchy (planning → protected → batch compression → full with contextual prefixes). Backward-compatible for all no-batch edits.
-- `plugin/bin/session-start-check.sh` — added `kt_batch_clear_stale 1800` early in the hook.
-- `plugin/template/OVERVIEW.md` — new "Batch Manifests for Ceremony Reduction" section (between "Plugin-Managed vs User-Owned Files" and "Design Principles").
-- `plugin/skills/audit-knowledge/SKILL.md` — added Step 7a (declare manifest) and Step 8b (clear manifest).
+- `plugin-claude-code/.claude-plugin/plugin.json` — version bumped to 2.10.0.
+- `plugin-claude-code/bin/pre-edit-check.sh` — rewritten with safety-floor decision hierarchy (planning → protected → batch compression → full with contextual prefixes). Backward-compatible for all no-batch edits.
+- `plugin-claude-code/bin/session-start-check.sh` — added `kt_batch_clear_stale 1800` early in the hook.
+- `plugin-claude-code/template/OVERVIEW.md` — new "Batch Manifests for Ceremony Reduction" section (between "Plugin-Managed vs User-Owned Files" and "Design Principles").
+- `plugin-claude-code/skills/audit-knowledge/SKILL.md` — added Step 7a (declare manifest) and Step 8b (clear manifest).
 
 ### Dependencies
 

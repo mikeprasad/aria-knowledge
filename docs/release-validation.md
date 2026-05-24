@@ -62,7 +62,7 @@ If the release changes config schema, run validation against both a fresh `~/.cl
 ## Phase 8 — Release artifacts
 
 - [ ] `release.sh` runs cleanly with no errors.
-- [ ] Generated zip contains `plugin/.claude-plugin/plugin.json` exactly once.
+- [ ] Generated zip contains `plugin-claude-code/.claude-plugin/plugin.json` exactly once.
 - [ ] Generated zip excludes `.DS_Store`, `__MACOSX`, `.claude/settings*`.
 - [ ] `marketplace.json` synced to `plugin.json` version (auto-sync confirmed by `release.sh` log).
 - [ ] CHANGELOG entry exists for the new version with date, narrative, sections, and upgrade notes.
