@@ -2,7 +2,7 @@
 
 # Change Decision Framework
 
-A process discipline system for Claude Code that enforces structured decision-making before code changes and scope verification after. Implemented via hooks in `.claude/settings.local.json`.
+A process discipline system for Claude Code that enforces structured decision-making before code changes and scope verification after. Implemented via hooks in `hooks.json`.
 
 ---
 
@@ -217,7 +217,7 @@ The framework is about decision discipline, not edit content. A one-line rename 
 
 ### "Skipping the block for this session is a plugin-config change the user can make"
 
-It isn't. Neither `aria-knowledge.local.md` nor Claude Code settings offer a per-session skip for the framework. If the user has not explicitly disabled the plugin's `PreToolUse` hook in their `.claude/settings.local.json`, the framework is active. Offering the user an "option to skip for this review" is offering an escape hatch that doesn't exist — and even if it did, the correct response to ceremony cost is to shorten the block (LOW is already 3-4 lines) or to declare a batch manifest (per ADR 021), not to skip.
+It isn't. Neither `aria-knowledge.local.md` nor Claude Code settings offer a per-session skip for the framework. If the user has not explicitly disabled the plugin's `PreToolUse` hook in their `hooks.json`, the framework is active. Offering the user an "option to skip for this review" is offering an escape hatch that doesn't exist — and even if it did, the correct response to ceremony cost is to shorten the block (LOW is already 3-4 lines) or to declare a batch manifest (per ADR 021), not to skip.
 
 ### If a rationalization seems novel
 

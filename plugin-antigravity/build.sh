@@ -84,6 +84,7 @@ find "$DST/template" -name '*.md' -exec sed -i.bak \
   -e 's|~/\.claude/plugins|~/.gemini/config/plugins|g' \
   -e 's|~/\.claude/plans/|~/.gemini/antigravity/plans/|g' \
   -e 's|~/\.claude/|~/.gemini/antigravity/|g' \
+  -e 's|`\.claude/settings\.local\.json`|`hooks.json`|g' \
   {} +
 find "$DST/template" -name '*.bak' -delete
 
