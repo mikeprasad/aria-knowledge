@@ -1,6 +1,6 @@
 ---
 name: audit-config
-description: 'Audit project configuration and documentation for drift, staleness, and broken references. Use when user says "/aria-cowork:audit-config", "/aria-cowork:config-audit", "config audit", "docs audit", "check setup", "audit configs", "review CLAUDE.md files", or at the first aria-cowork skill invocation when audit cadence is exceeded. (Claude Cowork variant. Namespaced-only — bare /audit-config belongs to aria-knowledge per ADR-094.)'
+description: 'Audit project configuration and documentation for drift, staleness, and broken references. Use when user says "/aria-cowork:audit-config", "/aria-cowork:config-audit", "config audit", "docs audit", "check setup", "audit configs", "review CLAUDE.md files", or at the first aria-cowork skill invocation when audit cadence is exceeded. (Cowork variant — namespaced-only.)'
 argument-hint: ''
 ---
 

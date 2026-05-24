@@ -4,6 +4,50 @@ All notable changes to aria-cowork are documented here. Format follows [Keep a C
 
 Cross-plugin parity callouts (per ADR-006) note when changes coordinate with aria-knowledge releases.
 
+## [1.1.2] — 2026-05-25
+
+**Patch release — bare-slash gate UX revision (ADR-094 §Part 1/2/3 revision).** Coordinated with aria-knowledge v2.20.1. No new skills, no schema changes, no MCP changes. The 24 colliding dual-port skill bodies + descriptions are refreshed per the 2026-05-24 ADR-094 revision. First aria-cowork patch shipped from the consolidated `mikeprasad/aria-knowledge` monorepo (v2.20.0 consolidation absorbed the previously standalone `mikeprasad/aria-cowork` repo).
+
+### Changed — description format (Strategy 1 trailing parenthetical)
+
+Mid-description "Cowork variant —" framing is removed (where present); each colliding skill description ends with a trailing parenthetical:
+
+```
+(Claude Cowork variant. Namespaced-only — bare /X belongs to aria-knowledge per ADR-094.)
+```
+
+This restores the ADR-094 §Part 1 spec language (`Namespaced-only` clause + `Do NOT match bare /X` anti-trigger) that v1.1.1's implementation didn't carry on cowork descriptions (0/24 conformance pre-fix). UI truncation in plugin browsers now shows skill purpose first; port-identifier remains available for model-side description routing.
+
+### Changed — Runtime Gate question inverted + Skill-tool auto-redirect on yes
+
+Each colliding skill's `## Runtime Gate (per ADR-094)` body section is rewritten:
+
+1. **Canonical resolution preamble** — opens with `**Canonical resolution:** This is the Claude Cowork variant — namespaced-only. ...` paragraph re-stating cross-port routing, including the explicit `Do NOT match bare /X` anti-trigger.
+2. **Question inverted** — `Proceed with the aria-cowork variant anyway? (y/n)` → `**Use /X instead?** (y/n)` (where `/X` is the bare-slash aria-knowledge canonical).
+3. **Skill-tool auto-redirect on yes** — on `y`, the skill uses Claude's `Skill` tool to invoke the bare-slash canonical (which routes to aria-knowledge per ADR-094 §Part 1) with the same arguments. Auto-redirect runs the correct skill to completion; aria-cowork skill exits without executing.
+
+The `n` path preserves the opt-in-anyway escape.
+
+### Auto-mode behavior unchanged (§Part 3)
+
+ADR-094 §Part 3's "auto-mode is NOT exempt from the runtime gate" rule is preserved — even under `auto`, the runtime-mismatch gate requires explicit confirmation. New friction profile: `y` triggers auto-redirect (zero-friction), `n` triggers wrong-port-anyway (degraded behavior the user explicitly opted into).
+
+### Coverage (cowork-side)
+
+- 24 SKILL.md files changed (24 dual-port skills including 2 alias pairs).
+- 22/22 canonical-resolution preambles (22 non-alias × 1 port).
+- 22/22 inverted-question gates.
+- 22/22 Skill-tool auto-redirect mentions.
+- 24/24 trailing parentheticals.
+
+### Coordinated release pairing
+
+- **aria-knowledge v2.20.1** (released 2026-05-25) — companion release; shares the same 48-file rewrite arc (24 dual-port skills × 2 ports) + ADR-094 Revision history + Validated By entries. See aria-knowledge CHANGELOG v2.20.1 for the full design rationale.
+
+### Empirical unknown
+
+Whether a SKILL.md body's instruction to use the `Skill` tool to invoke another port's skill chains cleanly at runtime is not documented by Anthropic. If host plugin-loaders don't honor in-skill Skill-tool invocation across plugin boundaries, the auto-redirect on `y` silently fails to chain — gate still works as a notification (user types the bare-slash form). Risk is contained: worst case is a revert to the original "proceed anyway" UX.
+
 ## [1.1.1] — 2026-05-23
 
 **Patch release — bare-slash namespace ownership + dual runtime gate (ADR-094).** Coordinated with aria-knowledge v2.19.1. No new skills, no schema changes. 24 colliding skill names between aria-knowledge and aria-cowork now have deterministic routing when both plugins are loaded in the same session (most common in Claude Desktop).

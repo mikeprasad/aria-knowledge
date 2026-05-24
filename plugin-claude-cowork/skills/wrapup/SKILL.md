@@ -1,6 +1,6 @@
 ---
 name: wrapup
-description: 'Close out cleanly when work is done — no passoff intended. updates PROGRESS / CLAUDE / memory in the attached knowledge folder, emits a commit message for you to run, runs "/aria-cowork:extract". For passoff (future-you or coworker), use "/aria-cowork:handoff" instead. Triggers — "/aria-cowork:wrapup", "/aria-cowork:wrapup auto", "wrap up", "I am done", "close out", "end session". Auto mode skips per-step gates. (Claude Cowork variant. Namespaced-only — bare /wrapup belongs to aria-knowledge per ADR-094.)'
+description: 'Close out cleanly when work is done — no passoff intended. updates PROGRESS / CLAUDE / memory in the attached knowledge folder, emits a commit message for you to run, runs "/aria-cowork:extract". For passoff (future-you or coworker), use "/aria-cowork:handoff" instead. Triggers — "/aria-cowork:wrapup", "/aria-cowork:wrapup auto", "wrap up", "I am done", "close out", "end session". Auto mode skips per-step gates. (Cowork variant — namespaced-only.)'
 argument-hint: '[auto]'
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: stats
-description: 'Show knowledge base health metrics — file counts, backlog depth, audit status, tag stats, and coverage gaps. Use when user says "/aria-cowork:stats", "knowledge stats", "how is my knowledge base", "show stats", "knowledge health", "dashboard". (Claude Cowork variant. Namespaced-only — bare /stats belongs to aria-knowledge per ADR-094.)'
+description: 'Show knowledge base health metrics — file counts, backlog depth, audit status, tag stats, and coverage gaps. Use when user says "/aria-cowork:stats", "knowledge stats", "how is my knowledge base", "show stats", "knowledge health", "dashboard". (Cowork variant — namespaced-only.)'
 ---
 
 # /stats — Knowledge Base Health

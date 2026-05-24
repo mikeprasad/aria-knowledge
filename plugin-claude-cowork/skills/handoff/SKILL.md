@@ -1,6 +1,6 @@
 ---
 name: handoff
-description: 'Generate a passoff package — for future-you (context is high, need to restart) or a coworker (via brief mode). Default + auto emit a paste-ready next-session opener plus PROGRESS/CLAUDE/memory updates, a commit message, and "/aria-cowork:extract"; brief mode emits an 80-150 word coworker prose brief only. For done-with-no-passoff, use "/aria-cowork:wrapup". Triggers — "/aria-cowork:handoff", "/aria-cowork:handoff auto", "/aria-cowork:handoff brief", "hand it off", "pass off to next session", "brief a coworker on this". (Claude Cowork variant. Namespaced-only — bare /handoff belongs to aria-knowledge per ADR-094.)'
+description: 'Generate a passoff package — for future-you (context is high, need to restart) or a coworker (via brief mode). Default + auto emit a paste-ready next-session opener plus PROGRESS/CLAUDE/memory updates, a commit message, and "/aria-cowork:extract"; brief mode emits an 80-150 word coworker prose brief only. For done-with-no-passoff, use "/aria-cowork:wrapup". Triggers — "/aria-cowork:handoff", "/aria-cowork:handoff auto", "/aria-cowork:handoff brief", "hand it off", "pass off to next session", "brief a coworker on this". (Cowork variant — namespaced-only.)'
 argument-hint: '[auto|brief]'
 ---
 

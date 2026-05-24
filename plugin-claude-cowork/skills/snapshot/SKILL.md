@@ -1,6 +1,6 @@
 ---
 name: snapshot
-description: 'Save a snapshot of the current Cowork conversation to the knowledge intake on demand. Use when user says "/aria-cowork:snapshot", "snapshot the session", "save this conversation", "capture the transcript", "archive this session". Schema-identical to aria-knowledge''s /snapshot output, but with cowork-specific source acquisition (no. (Claude Cowork variant. Namespaced-only — bare /snapshot belongs to aria-knowledge per ADR-094.)'
+description: 'Save a snapshot of the current Cowork conversation to the knowledge intake on demand. Use when user says "/aria-cowork:snapshot", "snapshot the session", "save this conversation", "capture the transcript", "archive this session". Schema-identical to aria-knowledge''s /snapshot output, but with cowork-specific source acquisition (no. (Cowork variant — namespaced-only.)'
 ---
 
 # /snapshot — On-Demand Session Snapshot (cowork variant)

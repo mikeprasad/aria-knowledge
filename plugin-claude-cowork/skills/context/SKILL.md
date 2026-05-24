@@ -1,6 +1,6 @@
 ---
 name: context
-description: 'Load relevant knowledge by topic. Queries the tag index and presents matching promoted files for selective loading into context. Use when user says "/aria-cowork:context stripe", "/aria-cowork:context api pagination", "/aria-cowork:context architecture", "load knowledge about...", "what do we know about...". (Claude Cowork variant. Namespaced-only — bare /context belongs to aria-knowledge per ADR-094.)'
+description: 'Load relevant knowledge by topic. Queries the tag index and presents matching promoted files for selective loading into context. Use when user says "/aria-cowork:context stripe", "/aria-cowork:context api pagination", "/aria-cowork:context architecture", "load knowledge about...", "what do we know about...". (Cowork variant — namespaced-only.)'
 argument-hint: <tag1> [tag2] [AND tag3]
 ---
 

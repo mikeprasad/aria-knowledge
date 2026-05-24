@@ -1,6 +1,6 @@
 ---
 name: sync-decisions
-description: 'Mirror approved decisions from the knowledge folder out to a connected ~~docs MCP (Notion, Confluence, Google Docs). Use when user says "/aria-cowork:sync-decisions", "mirror decisions to Notion", "push decisions to wiki", "sync ADRs to Confluence", "export decisions externally". WRITE-side skill — embeds Rule 22 advisory. (Claude Cowork variant. Namespaced-only — bare /sync-decisions belongs to aria-knowledge per ADR-094.)'
+description: 'Mirror approved decisions from the knowledge folder out to a connected ~~docs MCP (Notion, Confluence, Google Docs). Use when user says "/aria-cowork:sync-decisions", "mirror decisions to Notion", "push decisions to wiki", "sync ADRs to Confluence", "export decisions externally". WRITE-side skill — embeds Rule 22 advisory. (Cowork variant — namespaced-only.)'
 argument-hint: '[<decision-slug>|--all|--since YYYY-MM-DD] [--target <space-or-page>]'
 ---
 

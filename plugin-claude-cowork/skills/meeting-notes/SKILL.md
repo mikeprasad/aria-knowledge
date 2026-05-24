@@ -1,6 +1,6 @@
 ---
 name: meeting-notes
-description: 'Fold a meeting transcript or notes into structured intake. Use when user says "/aria-cowork:meeting-notes", "capture meeting notes", "fold this meeting transcript", "process this Granola export", "archive this standup". Accepts a ~~docs URL (Notion meeting page, Confluence) OR pasted transcript text — unique among MCP-consuming. (Claude Cowork variant. Namespaced-only — bare /meeting-notes belongs to aria-knowledge per ADR-094.)'
+description: 'Fold a meeting transcript or notes into structured intake. Use when user says "/aria-cowork:meeting-notes", "capture meeting notes", "fold this meeting transcript", "process this Granola export", "archive this standup". Accepts a ~~docs URL (Notion meeting page, Confluence) OR pasted transcript text — unique among MCP-consuming. (Cowork variant — namespaced-only.)'
 argument-hint: <doc-url-or-paste-marker> [meeting-title]
 ---
 

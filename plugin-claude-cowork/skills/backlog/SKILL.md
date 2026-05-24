@@ -1,6 +1,6 @@
 ---
 name: backlog
-description: 'View and manage pending backlog items. Use when user says "/aria-cowork:backlog", "/aria-cowork:backlog insights", "/aria-cowork:backlog clear", "what is pending", "show backlogs", "check backlog status". (Claude Cowork variant. Namespaced-only — bare /backlog belongs to aria-knowledge per ADR-094.)'
+description: 'View and manage pending backlog items. Use when user says "/aria-cowork:backlog", "/aria-cowork:backlog insights", "/aria-cowork:backlog clear", "what is pending", "show backlogs", "check backlog status". (Cowork variant — namespaced-only.)'
 argument-hint: '[insights|decisions|extraction|rules] [clear [type] [date]]'
 ---
 

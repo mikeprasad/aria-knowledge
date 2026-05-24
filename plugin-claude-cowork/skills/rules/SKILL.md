@@ -1,6 +1,6 @@
 ---
 name: rules
-description: 'Quick lookup into working rules. Use when user says "/aria-cowork:rules", "/aria-cowork:rules 22", "/aria-cowork:rules dependencies", "look up rule about...", "what rule covers...", or references a specific rule number. (Claude Cowork variant. Namespaced-only — bare /rules belongs to aria-knowledge per ADR-094.)'
+description: 'Quick lookup into working rules. Use when user says "/aria-cowork:rules", "/aria-cowork:rules 22", "/aria-cowork:rules dependencies", "look up rule about...", "what rule covers...", or references a specific rule number. (Cowork variant — namespaced-only.)'
 argument-hint: '[number or keyword]'
 ---
 

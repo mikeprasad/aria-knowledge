@@ -1,6 +1,6 @@
 ---
 name: clip
-description: 'Save a URL or text snippet to the knowledge intake for later review. Use when user says "/aria-cowork:clip", "/aria-cowork:save", "clip this", "save this link", "save this snippet", "capture this URL". Quick capture without leaving the session — clipped items are reviewed at the next /aria-cowork:audit-knowledge run. (Claude Cowork variant. Namespaced-only — bare /clip belongs to aria-knowledge per ADR-094.)'
+description: 'Save a URL or text snippet to the knowledge intake for later review. Use when user says "/aria-cowork:clip", "/aria-cowork:save", "clip this", "save this link", "save this snippet", "capture this URL". Quick capture without leaving the session — clipped items are reviewed at the next /aria-cowork:audit-knowledge run. (Cowork variant — namespaced-only.)'
 argument-hint: <url or text> [tags]
 ---
 

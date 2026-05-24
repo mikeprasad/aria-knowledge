@@ -1,6 +1,6 @@
 ---
 name: prospect
-description: 'Run a structured pre-mortem on a plan or approach BEFORE execution. Per-step risk enforcement, active evidence-sourcing pass (autonomous lookups + targeted user-asks for anything that could become objective), simpler-alternative discipline, plan-formation diagnosis, action verdicts (PROCEED/SHRINK/SPLIT/DEFER/KILL), and a growing failure-mode. (Claude Cowork variant. Namespaced-only — bare /prospect belongs to aria-knowledge per ADR-094.)'
+description: 'Run a structured pre-mortem on a plan or approach BEFORE execution. Per-step risk enforcement, active evidence-sourcing pass (autonomous lookups + targeted user-asks for anything that could become objective), simpler-alternative discipline, plan-formation diagnosis, action verdicts (PROCEED/SHRINK/SPLIT/DEFER/KILL), and a growing failure-mode. (Cowork variant — namespaced-only.)'
 argument-hint: '[<scope>] [<scope-arg>] [--linear-post] [--no-source]'
 ---
 

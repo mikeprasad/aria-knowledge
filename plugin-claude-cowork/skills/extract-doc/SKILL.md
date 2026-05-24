@@ -1,6 +1,6 @@
 ---
 name: extract-doc
-description: 'Pull insights from a single doc or page (Notion, Google Doc, Confluence, etc.) into the standard intake backlog. Use when user says "/aria-cowork:extract-doc", "extract insights from this doc", "pull learnings from this page", "mine this Notion page for knowledge", "extract from this Confluence". Differs from /intake doc (which. (Claude Cowork variant. Namespaced-only — bare /extract-doc belongs to aria-knowledge per ADR-094.)'
+description: 'Pull insights from a single doc or page (Notion, Google Doc, Confluence, etc.) into the standard intake backlog. Use when user says "/aria-cowork:extract-doc", "extract insights from this doc", "pull learnings from this page", "mine this Notion page for knowledge", "extract from this Confluence". Differs from /intake doc (which. (Cowork variant — namespaced-only.)'
 argument-hint: <doc-url-or-id> [tags]
 ---
 

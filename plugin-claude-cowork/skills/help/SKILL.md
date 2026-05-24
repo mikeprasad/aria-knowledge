@@ -1,6 +1,6 @@
 ---
 name: help
-description: 'Show available aria-cowork commands. Use when user says "/aria-cowork:help", "aria help", "what commands are available", "list commands", "what can aria-cowork do". (Claude Cowork variant. Namespaced-only — bare /help belongs to aria-knowledge per ADR-094.)'
+description: 'Show available aria-cowork commands. Use when user says "/aria-cowork:help", "aria help", "what commands are available", "list commands", "what can aria-cowork do". (Cowork variant — namespaced-only.)'
 ---
 
 # /help — aria-cowork Commands
