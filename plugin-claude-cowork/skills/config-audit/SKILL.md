@@ -28,4 +28,4 @@ Natural-language dispatch (*"run a config audit"*) should still route to the can
 
 ## Cross-plugin parity
 
-aria-knowledge ships the same alias at `plugin/skills/config-audit/SKILL.md`. Both plugins recognize both invocation forms, so a user moving between Code (aria-knowledge) and Cowork (aria-cowork) gets consistent behavior regardless of which spelling they prefer.
+aria-knowledge ships the same alias at `plugin-claude-code/skills/config-audit/SKILL.md`. Both plugins recognize both invocation forms, so a user moving between Code (aria-knowledge) and Cowork (aria-cowork) gets consistent behavior regardless of which spelling they prefer.
