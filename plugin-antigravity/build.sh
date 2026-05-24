@@ -22,10 +22,13 @@
 #
 # What this script does NOT touch (hand-authored, durable across rebuilds):
 #   - plugin.json                  (marker file, never changes)
-#   - hooks.json                   (4 named hook entries)
+#   - hooks.json                   (5 named hook entries)
 #   - mcp_config.json              (12 servers, manual updates)
 #   - GEMINI.md                    (session-lifecycle content)
-#   - bin/antigravity/             (4 wrappers + 1 lib + tests)
+#   - bin/antigravity/             (5 wrappers + 1 lib + tests)
+#   - workflows/                   (10 thin-shim workflows for slash-command invocation)
+#   - rules/                       (plugin-bundled rules for Always-On activation)
+#   - overlays/skills/             (port-specific skill bodies applied after canonical copy)
 #   - PORTING.md, README.md, SMOKE-TEST.md
 
 set -e
