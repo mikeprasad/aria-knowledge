@@ -8,7 +8,7 @@
 |---|---|---|---|
 | **Claude** (canonical) | `aria-knowledge-plugin-2.18.0.zip` | `aria-knowledge-plugin.zip` | Full v2.18.0 (5 new skills + foundation files) |
 | **Codex** | `aria-knowledge-codex-2.18.0.zip` | `aria-knowledge-codex.zip` | Full v2.18.0-codex.0 (byte-faithful skill mirror + foundation) |
-| **Cursor** (repo-skeleton) | `aria-knowledge-cursor-2.18.0.zip` | `aria-knowledge-cursor.zip` | v2.18.0-cursor.0 light-touch — VERSION + PORTING.md drift tracker. SKILL.md `.mdc` compilation deferred pending Cursor MCP runtime validation (per Pending sync items in `cursor-template/PORTING.md`). |
+| **Cursor** (repo-skeleton) | `aria-knowledge-cursor-2.18.0.zip` | `aria-knowledge-cursor.zip` | v2.18.0-cursor.0 light-touch — VERSION + PORTING.md drift tracker. SKILL.md `.mdc` compilation deferred pending Cursor MCP runtime validation (per Pending sync items in `plugin-cursor-template/PORTING.md`). |
 
 Stable-filename URLs continue to auto-resolve to latest release via `/releases/latest/download/aria-knowledge-<port>.zip`.
 
@@ -66,7 +66,7 @@ aria-cowork v1.0.0 ships on disk same day as a coordinated companion release. Im
 1. Download `aria-knowledge-cursor-2.18.0.zip`
 2. Unzip into the root of your project (it's a repo-skeleton, not a plugin install)
 3. Restart Cursor
-4. Note: 5 new MCP-consuming skills are declared in `cursor-template/PORTING.md` "Pending sync items" but NOT YET compiled into `.mdc` rules. Cursor MCP runtime validation is the prerequisite — see PORTING.md for the deferred-compilation tracker.
+4. Note: 5 new MCP-consuming skills are declared in `plugin-cursor-template/PORTING.md` "Pending sync items" but NOT YET compiled into `.mdc` rules. Cursor MCP runtime validation is the prerequisite — see PORTING.md for the deferred-compilation tracker.
 
 ## Full changelog
 

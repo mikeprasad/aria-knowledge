@@ -173,14 +173,14 @@ setup details.
 
 ### Cursor Port
 
-A standalone Cursor port lives in [`cursor-template/`](cursor-template/). Unlike
+A standalone Cursor port lives in [`plugin-cursor-template/`](plugin-cursor-template/). Unlike
 the Claude and Codex ports, it is a **repo skeleton**, not a plugin install:
 unzip the released artifact (or copy the folder contents) into the root of your
 own project, then restart Cursor. The port keeps the same knowledge folder
 schema, but compiles the 25 canonical skills into 5 `.cursor/rules/*.mdc` files
 because Cursor's Rules system doesn't have a one-skill-per-folder concept.
-See [`cursor-template/QUICKSTART.md`](cursor-template/QUICKSTART.md) for setup
-and [`cursor-template/PORTING.md`](cursor-template/PORTING.md) for the parity
+See [`plugin-cursor-template/QUICKSTART.md`](plugin-cursor-template/QUICKSTART.md) for setup
+and [`plugin-cursor-template/PORTING.md`](plugin-cursor-template/PORTING.md) for the parity
 matrix, residual enforcement gaps, and the skill-to-`.mdc` mapping that needs
 manual sync on canonical changes.
 

@@ -47,7 +47,7 @@ See [`plugin-openai-codex/README.md`](https://github.com/mikeprasad/aria-knowled
 
 ## Cursor port — first public release (`2.17.0-cursor.0`)
 
-A standalone Cursor port ships from [`cursor-template/`](https://github.com/mikeprasad/aria-knowledge/tree/main/cursor-template). **Distribution shape differs from Claude and Codex:** the Cursor port is a *repo skeleton*, not a plugin install. Users unzip its contents into the root of their own project and restart Cursor.
+A standalone Cursor port ships from [`plugin-cursor-template/`](https://github.com/mikeprasad/aria-knowledge/tree/main/plugin-cursor-template). **Distribution shape differs from Claude and Codex:** the Cursor port is a *repo skeleton*, not a plugin install. Users unzip its contents into the root of their own project and restart Cursor.
 
 **What's inside:**
 - `.cursor/hooks.json` + `.cursor/aria-knowledge.local.md` (Cursor-native config)
@@ -66,7 +66,7 @@ A standalone Cursor port ships from [`cursor-template/`](https://github.com/mike
 
 **Install:** download `aria-knowledge-cursor-2.17.0.zip` from this release, unzip it, and copy the contents into the root of your project. Restart Cursor.
 
-See [`cursor-template/QUICKSTART.md`](https://github.com/mikeprasad/aria-knowledge/blob/main/cursor-template/QUICKSTART.md) for setup details and [`cursor-template/PORTING.md`](https://github.com/mikeprasad/aria-knowledge/blob/main/cursor-template/PORTING.md) for the full parity + skill→`.mdc` mapping + residual enforcement-gap matrix.
+See [`plugin-cursor-template/QUICKSTART.md`](https://github.com/mikeprasad/aria-knowledge/blob/main/plugin-cursor-template/QUICKSTART.md) for setup details and [`plugin-cursor-template/PORTING.md`](https://github.com/mikeprasad/aria-knowledge/blob/main/plugin-cursor-template/PORTING.md) for the full parity + skill→`.mdc` mapping + residual enforcement-gap matrix.
 
 ---
 

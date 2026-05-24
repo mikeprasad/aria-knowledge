@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # release-cursor.sh — build a clean Cursor port zip.
 #
-# Reads version from cursor-template/scripts/aria/VERSION (source of truth),
-# stages cursor-template/ with junk + maintainer-only files excluded, and emits
+# Reads version from plugin-cursor-template/scripts/aria/VERSION (source of truth),
+# stages plugin-cursor-template/ with junk + maintainer-only files excluded, and emits
 # aria-knowledge-cursor-<canonical-version>.zip at repo root.
 #
 # Excluded from shipped zip (per multi-port release decisions):
@@ -17,7 +17,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CURSOR_VERSION_FILE="$REPO_ROOT/cursor-template/scripts/aria/VERSION"
+CURSOR_VERSION_FILE="$REPO_ROOT/plugin-cursor-template/scripts/aria/VERSION"
 
 log()  { printf '\033[0;36m[release]\033[0m %s\n' "$*"; }
 ok()   { printf '\033[0;32m[  ok   ]\033[0m %s\n' "$*"; }
@@ -51,7 +51,7 @@ rsync -a \
     --exclude='__MACOSX' \
     --exclude='audit/' \
     --exclude='PORTING.md' \
-    "$REPO_ROOT/cursor-template/" \
+    "$REPO_ROOT/plugin-cursor-template/" \
     "$STAGE_DIR/"
 
 # --- zip --------------------------------------------------------------------

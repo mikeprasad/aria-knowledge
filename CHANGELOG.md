@@ -29,7 +29,7 @@ Fix: walk the entire list and return the tag whose configured path is the **long
 **Files:**
 - `plugin-claude-code/bin/config.sh` — Claude port
 - `plugin-openai-codex/bin/config.sh` — Codex port
-- `cursor-template/scripts/aria/config.sh` — Cursor port
+- `plugin-cursor-template/scripts/aria/config.sh` — Cursor port
 
 All 3 ports' `kt_project_for_path` function bodies remain byte-identical post-fix (verified via `diff`).
 
@@ -110,7 +110,7 @@ The cursor port's `.cursor/rules/aria-commands.mdc` was pre-existing-drifted on 
 
 - `plugin-claude-code/skills/wrapup/SKILL.md` + `plugin-openai-codex/skills/wrapup/SKILL.md` (byte-identical) — frontmatter description rewritten, `argument-hint` set, Step 0 + 6 gates + Rules section updated for mode-conditional behavior.
 - `plugin-claude-code/skills/handoff/SKILL.md` + `plugin-openai-codex/skills/handoff/SKILL.md` (byte-identical) — frontmatter description rewritten + body intro tightened (passoff-led framing).
-- `cursor-template/.cursor/rules/aria-commands.mdc` — `/wrapup` and `/handoff` sections updated for parity (AGENTS.md naming preserved); brief mode added.
+- `plugin-cursor-template/.cursor/rules/aria-commands.mdc` — `/wrapup` and `/handoff` sections updated for parity (AGENTS.md naming preserved); brief mode added.
 - `plugin-claude-code/.claude-plugin/plugin.json` + `plugin-openai-codex/.codex-plugin/plugin.json` + `.claude-plugin/marketplace.json` — version bumps.
 
 ## [2.18.1] - 2026-05-19

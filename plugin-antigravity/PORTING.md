@@ -1,6 +1,6 @@
 # PORTING.md — Antigravity Port of aria-knowledge
 
-This file tracks divergence between `plugin/` (canonical Claude Code port) and `plugin-antigravity/` (this port), per the same convention as `cursor-template/PORTING.md` and `plugin-openai-codex/`.
+This file tracks divergence between `plugin-claude-code/` (canonical Claude Code port) and `plugin-antigravity/` (this port), per the same convention as `plugin-cursor-template/PORTING.md` and `plugin-openai-codex/`.
 
 ---
 
@@ -142,5 +142,5 @@ Initial port (v2.19.2) shipped 18 plan tasks across the manifest, hook layer, MC
 
 | Port version | Canonical synced from | Date | Notes |
 |---|---|---|---|
-| 2.19.2 | `plugin/` @ v2.19.2 | 2026-05-24 | Initial Antigravity port. Prior draft (`plugin-antigravity.archive-2026-05-24-draft/`) was built on incorrect contract assumptions; this is the verified rebuild. |
-| 2.20.0 | `plugin/` @ v2.19.2 | 2026-05-24 | Primary-source verification pass closed all Known Drift items + restored 3 behavioral parities via new PreInvocation hook + introduced overlay pattern for 3 misfitting skills + version.txt sidecar. 6 commits 8acc86a..cafe2bc. |
+| 2.19.2 | `plugin-claude-code/` @ v2.19.2 | 2026-05-24 | Initial Antigravity port. Prior draft (`plugin-antigravity.archive-2026-05-24-draft/`) was built on incorrect contract assumptions; this is the verified rebuild. |
+| 2.20.0 | `plugin-claude-code/` @ v2.19.2 | 2026-05-24 | Primary-source verification pass closed all Known Drift items + restored 3 behavioral parities via new PreInvocation hook + introduced overlay pattern for 3 misfitting skills + version.txt sidecar. 6 commits 8acc86a..cafe2bc. |
