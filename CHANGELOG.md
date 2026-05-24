@@ -16,6 +16,17 @@ All notable changes to ARIA will be documented in this file.
 
 Canonical Claude Code plugin: no behavioral changes; version bumped synchronously for release coordination.
 
+### Repository consolidation
+
+`aria-cowork` (previously `mikeprasad/aria-cowork`, last standalone release v1.1.1) is now `plugin-claude-cowork/` inside `mikeprasad/aria-knowledge`. Full git history preserved via subtree import. The aria-cowork repo is archived with a redirect README pointing here. Renames applied across all ports:
+
+- `plugin/` → `plugin-claude-code/`
+- `plugin-codex/` → `plugin-openai-codex/`
+- `cursor-template/` → `plugin-cursor-template/`
+- aria-cowork repo → consolidated into `plugin-claude-cowork/` via git subtree (full history preserved)
+
+5 active ports in this repo, all sharing the canonical `~/Projects/knowledge/` schema.
+
 ## [2.19.2] - 2026-05-24
 
 **Patch release — `kt_project_for_path` longest-match-wins fix.** No new skills, no schema changes. Fixes a silent mis-tag bug for nested sub-project configs.

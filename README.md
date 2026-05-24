@@ -8,9 +8,9 @@
 
 > **New to ARIA?** See [QUICKSTART.md](QUICKSTART.md) — 5-minute setup + best practices by session phase.
 
-ARIA is a knowledge-and-discipline layer for AI coding sessions that ships as a plugin for Claude Code, Codex, and Cursor — with a sibling plugin ([aria-cowork](https://github.com/mikeprasad/aria-cowork)) for Claude Cowork. All ports read from and write to the same `~/Projects/knowledge/` folder collaboratively, so insights captured in one tool flow into another. The folder itself is plain markdown — readable by any AI, any human, any editor, with or without ARIA installed.
+ARIA is a knowledge-and-discipline layer for AI coding sessions. It ships as a family of ports — Claude Code (`plugin-claude-code/`), Claude Cowork (`plugin-claude-cowork/`), OpenAI Codex (`plugin-openai-codex/`), and Cursor (`plugin-cursor-template/`) — all living in this repo and sharing the same `~/Projects/knowledge/` folder. Insights captured in one tool flow into another. The folder itself is plain markdown — readable by any AI, any human, any editor, with or without ARIA installed.
 
-> **Both plugins installed?** When aria-knowledge and aria-cowork are loaded in the same session (most common in Claude Desktop), bare slash commands (`/handoff`, `/wrapup`, `/extract`, etc.) deterministically resolve to **aria-knowledge** (the Code-side canonical). For the Cowork variant of any skill, use the namespaced form: `/aria-cowork:handoff`, `/aria-cowork:wrapup`, etc. Each colliding skill carries a Runtime Gate that surfaces a notification if invoked from the wrong runtime. See [ADR 094](https://github.com/mikeprasad/knowledge/blob/main/projects/aria/decisions/094-bare-slash-canonical-owner-and-dual-runtime-gate.md) for the full design. ARIA manages a complete knowledge lifecycle — capturing insights, decisions, and feedback during sessions, staging them in backlogs for human review, and promoting what matters into a searchable, tag-indexed knowledge base. Session hooks prevent knowledge loss during context compaction, surface relevant knowledge when tasks are created, and enforce a change decision framework at every file edit, requiring visible impact assessment and scope verification before and after changes. Each session builds on the last instead of starting from scratch.
+> **Both ports installed?** When `plugin-claude-code` and `plugin-claude-cowork` are loaded in the same session (most common in Claude Desktop), bare slash commands (`/handoff`, `/wrapup`, `/extract`, etc.) deterministically resolve to **plugin-claude-code** (the Code-side canonical). For the Cowork variant of any skill, use the namespaced form: `/aria-cowork:handoff`, `/aria-cowork:wrapup`, etc. Each colliding skill carries a Runtime Gate that surfaces a notification if invoked from the wrong runtime. See [ADR 094](https://github.com/mikeprasad/knowledge/blob/main/projects/aria/decisions/094-bare-slash-canonical-owner-and-dual-runtime-gate.md) for the full design. ARIA manages a complete knowledge lifecycle — capturing insights, decisions, and feedback during sessions, staging them in backlogs for human review, and promoting what matters into a searchable, tag-indexed knowledge base. Session hooks prevent knowledge loss during context compaction, surface relevant knowledge when tasks are created, and enforce a change decision framework at every file edit, requiring visible impact assessment and scope verification before and after changes. Each session builds on the last instead of starting from scratch.
 
 Beyond capture, ARIA provides active tooling: `/codemap` generates feature-organized maps that trace full-stack flows; `/stitch` builds cross-repo binding tables for product groups; `/distill` turns raw ticket text into tiered executable task specs that cite real files. `/ask` researches questions and saves answers as knowledge docs. `/intake` bulk-imports from files, URLs, or directories. `/audit-config` and `/audit-knowledge` detect drift, staleness, and gaps on configurable cadences. `/wrapup` (gated or `auto`) closes out a session cleanly when you're done — no passoff intended; `/handoff` (combined-go, `auto`, or `brief`) generates a passoff package — paste-ready next-session opener for future-you in a new session, or 80–150 word coworker prose brief. An optional project-specific tier (v2.8.0+) organizes architecture decisions and patterns by project, with cross-project promotion when patterns validate across multiple projects. Everything is plain markdown, works as an Obsidian vault, and follows the core philosophy: **the AI captures, the human promotes, trusted knowledge acts.**
 
@@ -184,6 +184,26 @@ and [`plugin-cursor-template/PORTING.md`](plugin-cursor-template/PORTING.md) for
 matrix, residual enforcement gaps, and the skill-to-`.mdc` mapping that needs
 manual sync on canonical changes.
 
+### Claude Cowork Port
+
+A standalone Claude Cowork port lives in [`plugin-claude-cowork/`](plugin-claude-cowork/).
+Previously published as the standalone `mikeprasad/aria-cowork` repo (v1.1.1, 2026-05-19);
+consolidated into this repo in v2.20.0 (2026-05-24). It is a **skills-only plugin** —
+no hooks API in the Cowork runtime, so all enforcement is skill-embedded.
+
+Build and install:
+
+```bash
+cd plugin-claude-cowork
+./release.sh   # produces aria-cowork-<version>.plugin
+```
+
+Drag the generated `.plugin` file onto a Cowork conversation or install via
+Cowork's Settings → Plugins → Install from file. Both ports share the same
+`~/Projects/knowledge/` folder — insights flow between Code and Cowork sessions
+without a sync layer. See [`plugin-claude-cowork/README.md`](plugin-claude-cowork/README.md)
+for full setup, MCP connector config, and skill reference.
+
 ## Works Well With Obsidian
 
 The knowledge folder is plain markdown — it works great as an Obsidian vault. We recommend using [Obsidian Web Clipper](https://obsidian.md/clipper) to save articles and references directly into `intake/clippings/`, where ARIA's audit process can review and promote them.
@@ -299,18 +319,25 @@ See `knowledge/projects/aria/references/opus-4-7-aria-compatibility.md` for the 
 
 - **"hook error" label on Pre/PostToolUse hooks** — Claude Code displays "hook error" next to every tool call that triggers a hook, even when the hook exits successfully (exit code 0) with valid JSON output. This is a [known Claude Code UI bug](https://github.com/anthropics/claude-code/issues/17088) — the Rule 22 enforcement hooks are working correctly. The label is cosmetic and does not indicate a problem with ARIA.
 
+## Installable ports
+
+aria-knowledge is a family of ports targeting different agent runtimes. All ports share the user's `~/Projects/knowledge/` folder, working-rules, change-decision-framework, and audit-cadence model. `plugin-claude-code/` is the schema source-of-truth; other ports mirror it via build scripts or hand-authored overlays where the runtime contract differs.
+
+| Port | Runtime | Status | Install path |
+|------|---------|--------|-------------|
+| `plugin-claude-code/` | Claude Code (Anthropic) | Production — schema source-of-truth | `~/.claude/plugins/` or marketplace |
+| `plugin-claude-cowork/` | Claude Cowork (Anthropic) | Production v1.1.1 (consolidated 2026-05-24 from `mikeprasad/aria-cowork`) | Cowork install flow — see [plugin-claude-cowork/README.md](plugin-claude-cowork/README.md) |
+| `plugin-antigravity/` | Antigravity (Google) | v2.20.0 — initial port + parity pass complete | `~/.gemini/config/plugins/` or `.agents/plugins/` |
+| `plugin-openai-codex/` | Codex (OpenAI) | Production | Codex plugin marketplace or `.agents/plugins/marketplace.json` |
+| `plugin-cursor-template/` | Cursor (Cursor AI) | Production — repo template (clone, not install) | Clone contents into your project root |
+
 ## ARIA family
 
-ARIA is a family of projects under the name **Applied Reasoning and Insight Architecture**. Each sibling targets a different surface; they're independent but share a knowledge-folder convention where it makes sense.
-
-| Project | Scope | Audience | Repo |
-|---------|-------|----------|------|
-| **aria-knowledge** | Active knowledge + decision discipline for Claude Code | Individuals and teams using Claude Code | This repo |
-| **aria-cowork** | Sibling plugin for Claude Cowork — the portable subset of aria-knowledge's discipline. Shares the same knowledge folder. | Cowork users | [mikeprasad/aria-cowork](https://github.com/mikeprasad/aria-cowork) |
+ARIA is a family of projects under the name **Applied Reasoning and Insight Architecture**. Each member targets a different surface; the plugin ports above all live in this repo.
 
 ### License posture
 
-Licenses differ across the family. **aria-knowledge** ships under [CC BY-NC-SA 4.0](LICENSE) — free for non-commercial use, copyleft on derivatives. Other family projects may carry different licenses; check each project's LICENSE before assuming inheritance.
+Licenses differ across the family. **aria-knowledge** (this repo, all ports) ships under [CC BY-NC-SA 4.0](LICENSE) — free for non-commercial use, copyleft on derivatives. Other family projects (aria-hypergraph, aria-synapse) may carry different licenses; check each project's LICENSE before assuming inheritance.
 
 ## License
 

@@ -6,13 +6,13 @@ ARIA (Applied Reasoning and Insight Architecture) — an active knowledge and de
 
 **Repository:** GitHub (`mikeprasad/aria-knowledge`) — **public repo**
 
-## Sibling Plugin (aria-cowork)
+## Cowork Port (plugin-claude-cowork/)
 
-A Cowork-side counterpart lives at `~/Projects/aria/aria-cowork/` — **public** at `mikeprasad/aria-cowork` (CC BY-NC-SA 4.0; first public release v1.0.0 shipped 2026-05-19; v1.0.1 patch shipped same day with `.mcp.json` `google_docs` → `google docs` MCP id fix + description-length validator fixes; v1.1.0 same-day minor with `/wrapup` vs `/handoff` intent split + `/wrapup auto` mode, mirroring aria-knowledge v2.19.0). Both plugins share the user's `~/Projects/knowledge/` folder and write to the same canonical config (`aria-config.md`) under an additive-only schema (per ADR-002 in the aria-cowork knowledge folder). Edits to shared surfaces — `aria-config.md` field names, the `template/rules/` content, the `working-rules.md` rule numbering — should preserve cross-plugin compatibility. aria-cowork **v1.1.0 SHIPPED** alongside aria-knowledge v2.19.0 as a coordinated release pair — aria-cowork imports the 5 bidirectional MCP-consuming skills (clip-thread, extract-doc, meeting-notes, digest, sync-decisions) byte-faithfully per ADR-014, plus adds 1 cowork-only `/daily-audit` skill (first-message audit substitute since Cowork has no SessionStart hook per ADR-004). 26 skills (24 distinct + 2 aliases). Cowork-specific authoring constraints documented in `knowledge/guides/claude/cowork-plugin-validation.md`.
+The Claude Cowork port lives at `plugin-claude-cowork/` — consolidated into this repo in v2.20.0 (2026-05-24) from the previously standalone `mikeprasad/aria-cowork` (last standalone release: v1.1.0, 2026-05-19). Both ports share the user's `~/Projects/knowledge/` folder and write to the same canonical config (`aria-config.md`) under an additive-only schema (per ADR-002). Edits to shared surfaces — `aria-config.md` field names, `template/rules/` content, `working-rules.md` rule numbering — must preserve cross-port compatibility. 26 skills (24 distinct + 2 aliases). Cowork-specific authoring constraints documented in `knowledge/guides/claude/cowork-plugin-validation.md`.
 
-**Bidirectional feature flow (since v0.3.0 / v2.17.0):** Features may originate in either plugin and port to the other; aria-knowledge remains the schema source-of-truth (output formats, knowledge-folder conventions, archive structures). v0.3.0's `/handoff brief` and `/intake doc` modes are the first cowork-originated features ported into aria-knowledge. See aria-cowork ADR 014 for the architectural rationale.
+**Bidirectional feature flow (since v0.3.0 / v2.17.0):** Features may originate in either port and port to the other; plugin-claude-code remains the schema source-of-truth (output formats, knowledge-folder conventions, archive structures). v0.3.0's `/handoff brief` and `/intake doc` modes are the first cowork-originated features ported into aria-knowledge. See plugin-claude-cowork ADR-014 for the architectural rationale.
 
-**Bare-slash ownership (ADR-094, v2.19.1):** When both plugins are loaded in the same session (most common in Claude Desktop), 24 colliding skill names (`/handoff`, `/wrapup`, `/extract`, `/intake`, etc.) deterministically resolve to **aria-knowledge** as canonical owner. aria-cowork's variants are namespaced-only (`/aria-cowork:handoff`, etc.). Each colliding skill carries a Runtime Gate in its body that surfaces a notification when invoked from the wrong runtime (Bash-availability is the fingerprint). The gate applies even in `auto` modes — auto's "implicit-yes" rule is suspended for the runtime-mismatch check per ADR-094 §Part 3. Edits affecting cross-plugin compatibility (description prepend conventions, gate clause text, anti-trigger language) should preserve this ownership rule. Full design: [`~/Projects/knowledge/projects/aria/decisions/094-bare-slash-canonical-owner-and-dual-runtime-gate.md`](../../knowledge/projects/aria/decisions/094-bare-slash-canonical-owner-and-dual-runtime-gate.md).
+**Bare-slash ownership (ADR-094, v2.19.1):** When both ports are loaded in the same session (most common in Claude Desktop), 24 colliding skill names (`/handoff`, `/wrapup`, `/extract`, `/intake`, etc.) deterministically resolve to **plugin-claude-code** as canonical owner. plugin-claude-cowork's variants are namespaced-only (`/aria-cowork:handoff`, etc.). Each colliding skill carries a Runtime Gate in its body that surfaces a notification when invoked from the wrong runtime (Bash-availability is the fingerprint). The gate applies even in `auto` modes — auto's "implicit-yes" rule is suspended for the runtime-mismatch check per ADR-094 §Part 3. Edits affecting cross-port compatibility (description prepend conventions, gate clause text, anti-trigger language) should preserve this ownership rule. Full design: [`~/Projects/knowledge/projects/aria/decisions/094-bare-slash-canonical-owner-and-dual-runtime-gate.md`](../../knowledge/projects/aria/decisions/094-bare-slash-canonical-owner-and-dual-runtime-gate.md).
 
 ## Project Structure
 
@@ -36,6 +36,13 @@ aria/
 │   ├── commands/      ← Codex command entrypoints
 │   ├── skills/        ← Copied ARIA skills (schema-compatible)
 │   └── template/      ← Copied Claude-standard knowledge templates
+├── plugin-claude-cowork/     ← Cowork port (skills-only; no hooks API in Cowork runtime)
+│   ├── .claude-plugin/
+│   │   └── plugin.json
+│   ├── skills/        ← 26 skills (24 distinct + 2 aliases)
+│   ├── template/      ← Knowledge folder templates (schema mirror of plugin-claude-code/)
+│   ├── .mcp.json      ← 12 MCP servers across 4 categories
+│   └── release.sh     ← Builds aria-cowork-<version>.plugin
 ├── plugin-cursor-template/   ← Cursor port (repo-skeleton, not a plugin install)
 │   ├── .cursor/       ← Cursor-native config
 │   │   ├── hooks.json
@@ -59,6 +66,7 @@ aria/
 - **Hook scripts** in `plugin-claude-code/bin/` are bash — they read config from `~/.claude/aria-knowledge.local.md`
 - **Skills** are markdown files — each skill is a `SKILL.md` with YAML frontmatter
 - **Codex hooks** require Codex `plugin_hooks` enabled; the adapter reads `~/.codex/aria-knowledge.local.md` first, then falls back to `~/.claude/aria-knowledge.local.md`
+- **`plugin-claude-cowork/` is the Claude Cowork installable unit** — sibling to plugin-claude-code/, both share schema-identical knowledge-folder outputs (per ADR-013). Cowork runtime is skills-only (no hooks API); enforcement is skill-embedded. Per ADR-094, bare-slash skill names resolve to plugin-claude-code as canonical owner when both ports are loaded in the same session; cowork-namespaced variants are `/aria-cowork:handoff` etc.
 - **Cursor hooks** use `.cursor/hooks.json` and resolve script paths via `git rev-parse --show-toplevel`. Some Claude enforcement is weaker on Cursor (no transcript access, no documented pre-edit deny) — port uses an edit-intent marker file as the closest available mechanism. See `plugin-cursor-template/audit/ARIA_CURSOR_AUDIT_REPORT.md` §5.
 
 ## Development Workflow
@@ -80,6 +88,14 @@ aria/
 2. Keep durable knowledge surfaces in sync with `plugin-claude-code/template/` — Claude remains the schema standard. Knowledge folder shape lives at `plugin-cursor-template/knowledge/` (root-level, not nested under `template/`).
 3. The 5 `.mdc` rule files (`aria-commands`, `aria-audit`, `aria-context`, `aria-core`, `aria-rule-22`) are *compiled* views of the 25 canonical skills in `plugin-claude-code/skills/`. When a skill changes, the corresponding section in the `.mdc` file needs a matching edit — no auto-build pipeline exists yet.
 4. Users install by unzipping the cursor port artifact (or cloning the folder) into the root of their own project, then restarting Cursor.
+
+### Cowork Port Workflow
+
+1. Edit Cowork-specific files in `plugin-claude-cowork/`. Most skills mirror `plugin-claude-code/` via ADR-013 schema-identical outputs; cowork-specific skills (`daily-audit`, cowork-modified `/extract-doc`, etc.) live only here.
+2. Keep MCP-consuming skills (clip-thread, extract-doc, meeting-notes, digest, sync-decisions) byte-faithful between ports per ADR-014; plugin-claude-code remains schema source-of-truth.
+3. Per ADR-094, when both ports load in the same session, bare-slash command names (`/handoff`, `/extract`, etc.) resolve to plugin-claude-code as canonical owner; cowork-namespaced variants are `/aria-cowork:handoff` etc.
+4. Build with `./release.sh` in `plugin-claude-cowork/` — produces `aria-cowork-<version>.plugin`. Install by dragging into a Cowork conversation or via Settings → Plugins → Install from file.
+5. Cowork runs as a skills-only plugin (no hooks API). The `/daily-audit` skill substitutes for SessionStart on first message.
 
 ## Rules
 
