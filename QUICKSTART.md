@@ -9,7 +9,7 @@ Get ARIA running in 5 minutes. Then learn the rhythm that makes it valuable.
 ### 1. Install the plugin
 
 ```
-/plugin marketplace add mikeprasad/aria-knowledge
+/plugin marketplace add https://github.com/mikeprasad/aria-knowledge
 /plugin install aria-knowledge@latest
 ```
 

@@ -179,7 +179,7 @@ aria-cowork ships separately from aria-knowledge. To get the full ARIA family ac
 
 ```bash
 # In Code, install aria-knowledge
-claude plugin marketplace add mikeprasad/aria-knowledge
+claude plugin marketplace add https://github.com/mikeprasad/aria-knowledge
 claude plugin install aria-knowledge@aria-knowledge
 ```
 

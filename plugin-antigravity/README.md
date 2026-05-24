@@ -8,7 +8,7 @@ Targets **Antigravity IDE** (VS Code fork) and **Antigravity CLI** (`agy`) from 
 
 ```sh
 # Inside Antigravity (IDE or CLI):
-/plugin marketplace add mikeprasad/aria-knowledge
+/plugin marketplace add https://github.com/mikeprasad/aria-knowledge
 /plugin install aria-knowledge
 ```
 
