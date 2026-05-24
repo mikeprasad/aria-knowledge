@@ -2,6 +2,27 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## [2.19.2] - 2026-05-24
+
+**Patch release — `kt_project_for_path` longest-match-wins fix.** No new skills, no schema changes. Fixes a silent mis-tag bug for nested sub-project configs.
+
+### Fixed — `kt_project_for_path` no longer shadows nested sub-projects
+
+`bin/config.sh:kt_project_for_path` previously iterated `KT_PROJECTS_LIST` with first-match-wins substring matching — so for nested configs like `aria:aria,aria-core:aria/aria-core`, any CWD inside `aria/aria-core/` would mechanically match the `aria:aria` entry first and return `aria` (the workspace), shadowing the `aria-core` sub-project tag. The bug was masked when the markdown-driven `/extract` skill ran, because the skill body inferred project from conversation context — but any bash-driven consumer (hooks, audit-config, automation scripts) would mis-tag.
+
+Fix: walk the entire list and return the tag whose configured path is the **longest** substring match of CWD. Backward-compatible — flat single-project configs are unaffected (only one entry ever matches → it's also the longest by definition).
+
+**Files:**
+- `plugin/bin/config.sh` — Claude port
+- `plugin-codex/bin/config.sh` — Codex port
+- `cursor-template/scripts/aria/config.sh` — Cursor port
+
+All 3 ports' `kt_project_for_path` function bodies remain byte-identical post-fix (verified via `diff`).
+
+### Reproducer (closed)
+
+Reported via `/extract` 2026-05-24 — `[insights-backlog.md]` and `[intake/ideas/2026-05-24-cross-projects-list-longest-prefix-or-path-anchored-matching.md]`.
+
 ## [2.19.1] - 2026-05-23
 
 **Patch release — bare-slash namespace ownership + dual runtime gate (ADR-094).** No new skills, no schema changes. 24 colliding skill names between aria-knowledge and aria-cowork now have deterministic routing when both plugins are loaded in the same session (most common in Claude Desktop).

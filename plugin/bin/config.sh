@@ -121,8 +121,9 @@ fi
 
 # kt_project_for_path PATH
 # Returns the project tag for a given path, or empty if not in any configured project.
-# Uses CWD-based substring matching first; falls back to git-remote-based matching
-# if KT_PROJECTS_REMOTES is set and git is available.
+# Uses CWD-based substring matching first (longest-matching configured path wins —
+# disambiguates nested sub-projects like aria + aria/aria-core); falls back to
+# git-remote-based matching if KT_PROJECTS_REMOTES is set and git is available.
 # Early-returns silently if projects feature is disabled or unconfigured.
 kt_project_for_path() {
   _kt_path="$1"
@@ -130,7 +131,12 @@ kt_project_for_path() {
   [ "$KT_PROJECTS_ENABLED" = "true" ] || return
   [ -z "$KT_PROJECTS_LIST" ] && return
 
-  # CWD-based: substring match against configured paths
+  # CWD-based: longest-matching configured path wins. Walking all entries and
+  # tracking the longest hit (instead of returning on first hit) ensures nested
+  # sub-projects (e.g., aria-core at aria/aria-core nested under aria) get their
+  # own tag rather than being shadowed by an earlier parent-tag entry.
+  _kt_best_tag=""
+  _kt_best_len=0
   _kt_old_ifs="$IFS"
   IFS=','
   for _kt_entry in $KT_PROJECTS_LIST; do
@@ -141,10 +147,20 @@ kt_project_for_path() {
     _kt_proj_path="${_kt_entry#*:}"
     [ -z "$_kt_proj_path" ] && continue
     case "$_kt_path" in
-      *"$_kt_proj_path"*) printf '%s' "$_kt_tag"; IFS="$_kt_old_ifs"; return ;;
+      *"$_kt_proj_path"*)
+        _kt_len=${#_kt_proj_path}
+        if [ "$_kt_len" -gt "$_kt_best_len" ]; then
+          _kt_best_tag="$_kt_tag"
+          _kt_best_len="$_kt_len"
+        fi
+        ;;
     esac
   done
   IFS="$_kt_old_ifs"
+  if [ -n "$_kt_best_tag" ]; then
+    printf '%s' "$_kt_best_tag"
+    return
+  fi
 
   # Git-remote fallback: only if projects_remotes is configured AND git is available
   [ -z "$KT_PROJECTS_REMOTES" ] && return
