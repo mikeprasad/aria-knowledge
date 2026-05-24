@@ -1,0 +1,58 @@
+{
+  "aria-pre-edit": {
+    "PreToolUse": [
+      {
+        "matcher": "write_to_file|replace_file_content|multi_replace_file_content",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ./bin/antigravity/pre-edit-aria.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  },
+  "aria-pre-explore": {
+    "PreToolUse": [
+      {
+        "matcher": "grep_search|find_by_name",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ./bin/antigravity/pre-explore-aria.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  },
+  "aria-bash-cd": {
+    "PreToolUse": [
+      {
+        "matcher": "run_command",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ./bin/antigravity/bash-cd-aria.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  },
+  "aria-post-edit": {
+    "PostToolUse": [
+      {
+        "matcher": "write_to_file|replace_file_content|multi_replace_file_content",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ./bin/antigravity/post-edit-aria.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
