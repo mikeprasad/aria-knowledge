@@ -1,6 +1,6 @@
 # TASK.schema — `/distill` output contract
 
-Referenced by: `plugin/skills/distill/SKILL.md`
+Referenced by: `plugin-claude-code/skills/distill/SKILL.md`
 
 ## Tiering
 

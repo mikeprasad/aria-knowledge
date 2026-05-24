@@ -4,11 +4,11 @@ description: "Alias for /audit-config. Invoked by the '/config-audit' slash comm
 
 # /config-audit — Alias for /audit-config
 
-This is an **alias skill**. The canonical implementation lives at `plugin/skills/audit-config/SKILL.md` within the aria-knowledge plugin. Invoking `/config-audit` and `/audit-config` produces identical behavior — this alias exists only to accommodate users who prefer the inverted "config-audit" phrasing.
+This is an **alias skill**. The canonical implementation lives at `plugin-claude-code/skills/audit-config/SKILL.md` within the aria-knowledge plugin. Invoking `/config-audit` and `/audit-config` produces identical behavior — this alias exists only to accommodate users who prefer the inverted "config-audit" phrasing.
 
 ## Execute
 
-Read `plugin/skills/audit-config/SKILL.md` (relative to the aria-knowledge plugin root — resolve via `${CLAUDE_PLUGIN_ROOT}/skills/audit-config/SKILL.md` if available, otherwise locate it within the installed plugin tree) and follow every step in that file exactly, passing through any arguments the user provided to this alias.
+Read `plugin-claude-code/skills/audit-config/SKILL.md` (relative to the aria-knowledge plugin root — resolve via `${CLAUDE_PLUGIN_ROOT}/skills/audit-config/SKILL.md` if available, otherwise locate it within the installed plugin tree) and follow every step in that file exactly, passing through any arguments the user provided to this alias.
 
 Do not duplicate canonical logic here. When the canonical skill changes, this alias continues to work because it delegates.
 

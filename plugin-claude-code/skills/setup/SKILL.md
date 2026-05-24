@@ -420,7 +420,7 @@ After Step 7b's round-trip verification, run a coverage audit to catch any `KT_*
    KT_FIELDNAME=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^fieldname:' | sed 's/^fieldname: *//')
    ```
 
-   Use `grep -oE "grep '\\^[a-z_]+:'" plugin/bin/config.sh | grep -oE '[a-z_]+'` to extract the user-facing field names — those are the canonical list of fields the wizard should have covered.
+   Use `grep -oE "grep '\\^[a-z_]+:'" plugin-claude-code/bin/config.sh | grep -oE '[a-z_]+'` to extract the user-facing field names — those are the canonical list of fields the wizard should have covered.
 
 2. For each known field, grep the just-written config `~/.claude/aria-knowledge.local.md` for `^{fieldname}:`. If the grep returns zero hits, add to a `MISSING_FIELDS` list.
 

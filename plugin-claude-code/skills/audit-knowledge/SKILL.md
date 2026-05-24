@@ -731,8 +731,8 @@ If any shared block has drifted across skills, present the divergence:
 ## Shared-Block Drift
 
 `group-loader` differs between:
-  - plugin/skills/distill/SKILL.md
-  - plugin/skills/stitch/SKILL.md
+  - plugin-claude-code/skills/distill/SKILL.md
+  - plugin-claude-code/skills/stitch/SKILL.md
 
 Diff: (show the key differing lines — first ~5 differences with line context)
 
