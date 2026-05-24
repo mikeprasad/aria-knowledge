@@ -1,6 +1,6 @@
 ---
 name: extract-doc
-description: 'Pull insights from a single doc or page (Notion, Google Doc, Confluence, etc.) into the standard intake backlog. Use when user says "/aria-cowork:extract-doc", "extract insights from this doc", "pull learnings from this page", "mine this Notion page for knowledge", "extract from this Confluence". Differs from /intake doc (which.'
+description: 'Pull insights from a single doc or page (Notion, Google Doc, Confluence, etc.) into the standard intake backlog. Use when user says "/aria-cowork:extract-doc", "extract insights from this doc", "pull learnings from this page", "mine this Notion page for knowledge", "extract from this Confluence". Differs from /intake doc (which. (Claude Cowork variant. Namespaced-only — bare /extract-doc belongs to aria-knowledge per ADR-094.)'
 argument-hint: <doc-url-or-id> [tags]
 ---
 
@@ -10,15 +10,25 @@ Pull knowledge-worthy items from a single connected `~~docs` source (Notion page
 
 ## Runtime Gate (per ADR-094)
 
-**Before Step 0:** Check whether `Bash` is available. If `Bash` IS available (you are in Claude Code), surface:
+**Canonical resolution:** This is the Claude Cowork variant — namespaced-only. When both `plugin-claude-code` and `plugin-claude-cowork` are loaded in the same session (most common in Claude Desktop), bare `/extract-doc` resolves to aria-knowledge's variant — Code is the canonical owner of all 24 dual-port skills per ADR-094 §Part 1. To reach this skill, use the namespaced form: `/aria-cowork:extract-doc`. Do NOT match bare `/extract-doc` — that belongs to aria-knowledge.
+
+**Before Step 0:** Check whether the `Bash` tool is available in this session. If `Bash` IS available (you are running in Claude Code or another runtime with shell access), surface the following notification and wait for explicit user confirmation:
 
 > ⚠️ **Runtime mismatch — you invoked aria-cowork's `/extract-doc` from a runtime with shell access.**
 >
 > This skill is Cowork-native because it depends on ~~docs MCPs (Notion, Google Docs, Confluence) typically only connected in Cowork. If you're in Code and DO have these MCPs configured there, fine to proceed; otherwise the canonical aria-knowledge variant at `/extract-doc` will at least surface the same gate.
 >
-> Proceed with the aria-cowork variant anyway? (`y` / `n`)
+> **Use `/extract-doc` instead?** (`y` / `n`)
 
-Wait for `y` / `yes`. **Gate applies even in `auto`** (ADR-094 §Part 3). If `Bash` is NOT available, proceed to Step 0.
+Wait for an explicit reply:
+
+- **`y` / `yes`** — Use the `Skill` tool to invoke `extract-doc` (the bare-slash canonical, which routes to aria-knowledge when both ports are loaded) with the same arguments the user provided to this invocation. Do not proceed with this skill's steps; the aria-knowledge variant takes over and runs to completion. This is the default-yes path — auto-redirect is the helpful action.
+- **`n` / `no`** — Proceed with this (aria-cowork) variant anyway despite the runtime mismatch. The user has explicitly opted in.
+- **No response / any other reply** — Treat as "do not proceed" and exit cleanly without running either variant.
+
+**This gate applies even when `mode = auto`** per ADR-094 §Part 3. Auto mode's "implicit-yes on all gates" rule is suspended for the runtime-mismatch check — auto trusts that the user invoked the correct variant, and this gate enforces that precondition. All other auto-mode gates remain bypassed. The friction cost is now low: on `y`, the auto-redirect runs the correct variant with the original args.
+
+If `Bash` is NOT available (normal Cowork runtime), proceed to Step 0.
 
 ## Step 0: Resolve config
 

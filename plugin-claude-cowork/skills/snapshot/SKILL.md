@@ -1,6 +1,6 @@
 ---
 name: snapshot
-description: 'Save a snapshot of the current Cowork conversation to the knowledge intake on demand. Use when user says "/aria-cowork:snapshot", "snapshot the session", "save this conversation", "capture the transcript", "archive this session". Schema-identical to aria-knowledge''s /snapshot output, but with cowork-specific source acquisition (no.'
+description: 'Save a snapshot of the current Cowork conversation to the knowledge intake on demand. Use when user says "/aria-cowork:snapshot", "snapshot the session", "save this conversation", "capture the transcript", "archive this session". Schema-identical to aria-knowledge''s /snapshot output, but with cowork-specific source acquisition (no. (Claude Cowork variant. Namespaced-only — bare /snapshot belongs to aria-knowledge per ADR-094.)'
 ---
 
 # /snapshot — On-Demand Session Snapshot (cowork variant)
@@ -19,15 +19,25 @@ Path 1 is preferred when available. Path 2 is the typical case. Path 3 is the la
 
 ## Runtime Gate (per ADR-094)
 
-**Before continuing:** Check whether `Bash` is available. If `Bash` IS available (you are in Claude Code), surface:
+**Canonical resolution:** This is the Claude Cowork variant — namespaced-only. When both `plugin-claude-code` and `plugin-claude-cowork` are loaded in the same session (most common in Claude Desktop), bare `/snapshot` resolves to aria-knowledge's variant — Code is the canonical owner of all 24 dual-port skills per ADR-094 §Part 1. To reach this skill, use the namespaced form: `/aria-cowork:snapshot`. Do NOT match bare `/snapshot` — that belongs to aria-knowledge.
+
+**Before Step 0:** Check whether the `Bash` tool is available in this session. If `Bash` IS available (you are running in Claude Code or another runtime with shell access), surface the following notification and wait for explicit user confirmation:
 
 > ⚠️ **Runtime mismatch — you invoked aria-cowork's `/snapshot` from a runtime with shell access.**
 >
 > This variant uses 3-path source acquisition (transcript MCP → user-paste → Claude-recall) because Cowork lacks the `~/.claude/projects/.../jsonl` path. For the Code-native variant (reads raw transcript directly via `save-transcript.sh`), use `/snapshot` (the aria-knowledge canonical).
 >
-> Proceed with the aria-cowork variant anyway? (`y` / `n`)
+> **Use `/snapshot` instead?** (`y` / `n`)
 
-Wait for `y` / `yes`. **Gate applies even in `auto`** (ADR-094 §Part 3). If `Bash` is NOT available, proceed.
+Wait for an explicit reply:
+
+- **`y` / `yes`** — Use the `Skill` tool to invoke `snapshot` (the bare-slash canonical, which routes to aria-knowledge when both ports are loaded) with the same arguments the user provided to this invocation. Do not proceed with this skill's steps; the aria-knowledge variant takes over and runs to completion. This is the default-yes path — auto-redirect is the helpful action.
+- **`n` / `no`** — Proceed with this (aria-cowork) variant anyway despite the runtime mismatch. The user has explicitly opted in.
+- **No response / any other reply** — Treat as "do not proceed" and exit cleanly without running either variant.
+
+**This gate applies even when `mode = auto`** per ADR-094 §Part 3. Auto mode's "implicit-yes on all gates" rule is suspended for the runtime-mismatch check — auto trusts that the user invoked the correct variant, and this gate enforces that precondition. All other auto-mode gates remain bypassed. The friction cost is now low: on `y`, the auto-redirect runs the correct variant with the original args.
+
+If `Bash` is NOT available (normal Cowork runtime), proceed to Step 0.
 
 ## When to use this vs `/extract` vs `/clip`
 

@@ -1,5 +1,5 @@
 ---
-description: "**Bare-slash canonical (Claude Code).** `/config-audit` resolves to this skill (alias for /audit-config) when both aria-knowledge and aria-cowork are loaded in the same session. RUNTIME GATE: this alias delegates to /audit-config, whose Runtime Gate section will surface a notification suggesting `/aria-cowork:config-audit` if invoked from a non-Code runtime — even in `auto` mode (ADR-094 §Part 3). Alias for /audit-config. Invoked by the '/config-audit' slash command. Same behavior as /audit-config — just an alternative phrasing."
+description: "Alias for /audit-config. Invoked by the '/config-audit' slash command. Same behavior as /audit-config — just an alternative phrasing. (Claude Code variant — alias for /audit-config; see ADR-094.)"
 argument-hint: ""
 allowed-tools: Read, Glob, Grep, Write, Edit, Agent
 ---

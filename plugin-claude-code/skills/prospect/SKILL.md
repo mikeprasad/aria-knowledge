@@ -1,5 +1,5 @@
 ---
-description: "**Bare-slash canonical (Claude Code).** `/prospect` resolves to this skill when both aria-knowledge and aria-cowork are loaded in the same session. RUNTIME GATE: if invoked from a non-Code runtime (no Bash tool available, e.g., Claude Cowork), the Runtime Gate section surfaces a notification suggesting `/aria-cowork:prospect` and requires explicit user confirmation before proceeding — even in `auto` mode (ADR-094 §Part 3). Run a structured pre-mortem on a plan or approach BEFORE execution. Per-step risk enforcement, active evidence-sourcing pass (autonomous lookups + targeted user-asks for anything that could become objective), simpler-alternative discipline, plan-formation diagnosis, action verdicts (PROCEED/SHRINK/SPLIT/DEFER/KILL), and a growing failure-mode pattern library. Triggers: '/prospect' (defaults to plan scope), '/prospect plan', '/prospect session', '/prospect todos', '/prospect file <path>', '/prospect linear <id>', '/prospect branch <name>'. Backward-compat flags (--plan, --linear, --branch, --todos, --session) still accepted."
+description: "Run a structured pre-mortem on a plan or approach BEFORE execution. Per-step risk enforcement, active evidence-sourcing pass (autonomous lookups + targeted user-asks for anything that could become objective), simpler-alternative discipline, plan-formation diagnosis, action verdicts (PROCEED/SHRINK/SPLIT/DEFER/KILL), and a growing failure-mode pattern library. Triggers: '/prospect' (defaults to plan scope), '/prospect plan', '/prospect session', '/prospect todos', '/prospect file <path>', '/prospect linear <id>', '/prospect branch <name>'. Backward-compat flags (--plan, --linear, --branch, --todos, --session) still accepted. (Claude Code variant — bare-slash canonical when both ports loaded; see ADR-094.)"
 argument-hint: "[<scope>] [<scope-arg>] [--linear-post] [--no-source]"
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash, WebFetch, WebSearch
 ---
@@ -12,15 +12,25 @@ The discipline this enforces: before the first edit lands, every planned step ge
 
 ## Runtime Gate (per ADR-094)
 
-**Before "When to use":** Check that `Bash` is available. If `Bash` is NOT available (e.g., Cowork), surface:
+**Canonical resolution:** This is the Claude Code variant. When both `plugin-claude-code` and `plugin-claude-cowork` are loaded in the same session (most common in Claude Desktop), bare `/prospect` resolves to this skill — aria-knowledge (Code) is the canonical owner of all 24 dual-port skills per ADR-094 §Part 1. The Cowork variant is namespaced-only: `/aria-cowork:prospect`.
+
+**Before Step 0:** Check that the `Bash` tool is available in this session. If `Bash` is NOT available (you are running in Claude Cowork or another non-Code runtime), surface the following notification and wait for explicit user confirmation:
 
 > ⚠️ **Runtime mismatch — you invoked aria-knowledge's `/prospect` from a non-Code runtime.**
 >
 > Behavior is largely the same in both runtimes; for the Cowork-native variant (skips Step 11 CODEMAP/STITCH surfacing per ADR-005, uses in-memory dedup instead of `/tmp/` ledger), use `/aria-cowork:prospect`.
 >
-> Proceed with the aria-knowledge variant anyway? (`y` / `n`)
+> **Use `/aria-cowork:prospect` instead?** (`y` / `n`)
 
-Wait for `y` / `yes`. **Gate applies even in `auto`** (ADR-094 §Part 3). If `Bash` is available, proceed to "When to use".
+Wait for an explicit reply:
+
+- **`y` / `yes`** — Use the `Skill` tool to invoke `aria-cowork:prospect` with the same arguments the user provided to this invocation. Do not proceed with this skill's steps; the cowork variant takes over and runs to completion. This is the default-yes path — auto-redirect is the helpful action.
+- **`n` / `no`** — Proceed with this (aria-knowledge) variant anyway despite the runtime mismatch. The user has explicitly opted in.
+- **No response / any other reply** — Treat as "do not proceed" and exit cleanly without running either variant.
+
+**This gate applies even when `mode = auto`** per ADR-094 §Part 3. Auto mode's "implicit-yes on all gates" rule is suspended for the runtime-mismatch check — auto trusts that the user invoked the correct variant, and this gate enforces that precondition. All other auto-mode gates remain bypassed. The friction cost is now low: on `y`, the auto-redirect runs the correct variant with the original args.
+
+If `Bash` is available, proceed to Step 0.
 
 ## When to use
 

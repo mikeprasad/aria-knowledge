@@ -1,6 +1,6 @@
 ---
 name: knowledge-audit
-description: 'Alias for /audit-knowledge. Invoked by "/aria-cowork:knowledge-audit". Same behavior as /aria-cowork:audit-knowledge — just an alternative phrasing.'
+description: 'Alias for /audit-knowledge. Invoked by "/aria-cowork:knowledge-audit". Same behavior as /aria-cowork:audit-knowledge — just an alternative phrasing. (Claude Cowork variant — alias for /aria-cowork:audit-knowledge. Namespaced-only per ADR-094.)'
 argument-hint: '[detailed]'
 ---
 

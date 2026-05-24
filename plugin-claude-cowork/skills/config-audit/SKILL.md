@@ -1,6 +1,6 @@
 ---
 name: config-audit
-description: 'Alias for /audit-config. Invoked by "/aria-cowork:config-audit". Same behavior as /aria-cowork:audit-config — just an alternative phrasing.'
+description: 'Alias for /audit-config. Invoked by "/aria-cowork:config-audit". Same behavior as /aria-cowork:audit-config — just an alternative phrasing. (Claude Cowork variant — alias for /aria-cowork:audit-config. Namespaced-only per ADR-094.)'
 argument-hint: ''
 ---
 

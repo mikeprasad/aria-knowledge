@@ -1,6 +1,6 @@
 ---
 name: context
-description: 'Load relevant knowledge by topic. Queries the tag index and presents matching promoted files for selective loading into context. Use when user says "/aria-cowork:context stripe", "/aria-cowork:context api pagination", "/aria-cowork:context architecture", "load knowledge about...", "what do we know about...".'
+description: 'Load relevant knowledge by topic. Queries the tag index and presents matching promoted files for selective loading into context. Use when user says "/aria-cowork:context stripe", "/aria-cowork:context api pagination", "/aria-cowork:context architecture", "load knowledge about...", "what do we know about...". (Claude Cowork variant. Namespaced-only — bare /context belongs to aria-knowledge per ADR-094.)'
 argument-hint: <tag1> [tag2] [AND tag3]
 ---
 
@@ -10,15 +10,25 @@ Query the knowledge tag index and load relevant promoted files into the conversa
 
 ## Runtime Gate (per ADR-094)
 
-**Before Step 0:** Check whether `Bash` is available. If `Bash` IS available (you are in Claude Code), surface:
+**Canonical resolution:** This is the Claude Cowork variant — namespaced-only. When both `plugin-claude-code` and `plugin-claude-cowork` are loaded in the same session (most common in Claude Desktop), bare `/context` resolves to aria-knowledge's variant — Code is the canonical owner of all 24 dual-port skills per ADR-094 §Part 1. To reach this skill, use the namespaced form: `/aria-cowork:context`. Do NOT match bare `/context` — that belongs to aria-knowledge.
+
+**Before Step 0:** Check whether the `Bash` tool is available in this session. If `Bash` IS available (you are running in Claude Code or another runtime with shell access), surface the following notification and wait for explicit user confirmation:
 
 > ⚠️ **Runtime mismatch — you invoked aria-cowork's `/context` from a runtime with shell access.**
 >
 > Behavior is largely the same in both runtimes; for the Code-native variant (supports `projects_enabled` / `projects_shared_knowledge` config not present in Cowork's `aria-config.md`), use `/context` (the aria-knowledge canonical).
 >
-> Proceed with the aria-cowork variant anyway? (`y` / `n`)
+> **Use `/context` instead?** (`y` / `n`)
 
-Wait for `y` / `yes`. **Gate applies even in `auto`** (ADR-094 §Part 3). If `Bash` is NOT available, proceed to Step 0.
+Wait for an explicit reply:
+
+- **`y` / `yes`** — Use the `Skill` tool to invoke `context` (the bare-slash canonical, which routes to aria-knowledge when both ports are loaded) with the same arguments the user provided to this invocation. Do not proceed with this skill's steps; the aria-knowledge variant takes over and runs to completion. This is the default-yes path — auto-redirect is the helpful action.
+- **`n` / `no`** — Proceed with this (aria-cowork) variant anyway despite the runtime mismatch. The user has explicitly opted in.
+- **No response / any other reply** — Treat as "do not proceed" and exit cleanly without running either variant.
+
+**This gate applies even when `mode = auto`** per ADR-094 §Part 3. Auto mode's "implicit-yes on all gates" rule is suspended for the runtime-mismatch check — auto trusts that the user invoked the correct variant, and this gate enforces that precondition. All other auto-mode gates remain bypassed. The friction cost is now low: on `y`, the auto-redirect runs the correct variant with the original args.
+
+If `Bash` is NOT available (normal Cowork runtime), proceed to Step 0.
 
 ## Step 0: Resolve config
 

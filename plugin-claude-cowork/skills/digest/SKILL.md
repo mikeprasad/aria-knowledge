@@ -1,6 +1,6 @@
 ---
 name: digest
-description: 'Cross-tool rollup of what is pending, what shipped, and what is blocked across chat / email / project tracker / docs. Use when user says "/aria-cowork:digest", "weekly digest", "cross-tool rollup", "what is pending across my tools", "summarize this week", "standup digest". Probes all 4 ~~categories and degrades gracefully — produces a.'
+description: 'Cross-tool rollup of what is pending, what shipped, and what is blocked across chat / email / project tracker / docs. Use when user says "/aria-cowork:digest", "weekly digest", "cross-tool rollup", "what is pending across my tools", "summarize this week", "standup digest". Probes all 4 ~~categories and degrades gracefully — produces a. (Claude Cowork variant. Namespaced-only — bare /digest belongs to aria-knowledge per ADR-094.)'
 argument-hint: '[--week | --since YYYY-MM-DD | --until YYYY-MM-DD]'
 ---
 
@@ -10,15 +10,25 @@ Synthesize a digest of activity across connected MCPs into `intake/digests/{YYYY
 
 ## Runtime Gate (per ADR-094)
 
-**Before Step 0:** Check whether `Bash` is available. If `Bash` IS available (you are in Claude Code), surface:
+**Canonical resolution:** This is the Claude Cowork variant — namespaced-only. When both `plugin-claude-code` and `plugin-claude-cowork` are loaded in the same session (most common in Claude Desktop), bare `/digest` resolves to aria-knowledge's variant — Code is the canonical owner of all 24 dual-port skills per ADR-094 §Part 1. To reach this skill, use the namespaced form: `/aria-cowork:digest`. Do NOT match bare `/digest` — that belongs to aria-knowledge.
+
+**Before Step 0:** Check whether the `Bash` tool is available in this session. If `Bash` IS available (you are running in Claude Code or another runtime with shell access), surface the following notification and wait for explicit user confirmation:
 
 > ⚠️ **Runtime mismatch — you invoked aria-cowork's `/digest` from a runtime with shell access.**
 >
 > This skill is Cowork-native because the 4-category MCP set (chat / email / project tracker / docs) is typically only connected in Cowork. If you're in Code and DO have these MCPs configured there, fine to proceed; otherwise the canonical aria-knowledge variant at `/digest` will at least surface the same gate.
 >
-> Proceed with the aria-cowork variant anyway? (`y` / `n`)
+> **Use `/digest` instead?** (`y` / `n`)
 
-Wait for `y` / `yes`. **Gate applies even in `auto`** (ADR-094 §Part 3). If `Bash` is NOT available, proceed to Step 0.
+Wait for an explicit reply:
+
+- **`y` / `yes`** — Use the `Skill` tool to invoke `digest` (the bare-slash canonical, which routes to aria-knowledge when both ports are loaded) with the same arguments the user provided to this invocation. Do not proceed with this skill's steps; the aria-knowledge variant takes over and runs to completion. This is the default-yes path — auto-redirect is the helpful action.
+- **`n` / `no`** — Proceed with this (aria-cowork) variant anyway despite the runtime mismatch. The user has explicitly opted in.
+- **No response / any other reply** — Treat as "do not proceed" and exit cleanly without running either variant.
+
+**This gate applies even when `mode = auto`** per ADR-094 §Part 3. Auto mode's "implicit-yes on all gates" rule is suspended for the runtime-mismatch check — auto trusts that the user invoked the correct variant, and this gate enforces that precondition. All other auto-mode gates remain bypassed. The friction cost is now low: on `y`, the auto-redirect runs the correct variant with the original args.
+
+If `Bash` is NOT available (normal Cowork runtime), proceed to Step 0.
 
 ## Step 0: Resolve config
 

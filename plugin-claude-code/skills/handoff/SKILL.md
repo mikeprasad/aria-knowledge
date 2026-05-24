@@ -1,5 +1,5 @@
 ---
-description: "**Bare-slash canonical (Claude Code).** `/handoff` resolves to this skill when both aria-knowledge and aria-cowork are loaded in the same session. RUNTIME GATE: if invoked from a non-Code runtime (no Bash tool available, e.g., Claude Cowork), the Runtime Gate section surfaces a notification suggesting `/aria-cowork:handoff` and requires explicit user confirmation before proceeding — even in `auto` mode (ADR-094 §Part 3 carves auto-mode out of this single gate). Generate a passoff package so the next reader can pick up cleanly — for future-you in a new session (typically when context is high and you need to restart) or for a coworker (via brief mode). Default + `auto` modes emit a paste-ready next-session opener as the headline artifact, alongside PROGRESS / CLAUDE / memory updates, commit, and /extract; `brief` mode emits an 80-150 word coworker-facing prose brief instead (Slack/email-ready, no file writes). Use when handing off — not when finishing for the day with nothing pending. For 'I'm done, close it out cleanly' with no passoff, use /wrapup instead. Triggers: '/handoff', '/handoff auto', '/handoff brief', 'hand it off', 'handoff and extract', 'context is full, restart this', 'pass off to next session', 'brief a coworker on this', 'wrap and prompt'."
+description: "Generate a passoff package so the next reader can pick up cleanly — for future-you in a new session (typically when context is high and you need to restart) or for a coworker (via brief mode). Default + `auto` modes emit a paste-ready next-session opener as the headline artifact, alongside PROGRESS / CLAUDE / memory updates, commit, and /extract; `brief` mode emits an 80-150 word coworker-facing prose brief instead (Slack/email-ready, no file writes). Use when handing off — not when finishing for the day with nothing pending. For 'I'm done, close it out cleanly' with no passoff, use /wrapup instead. Triggers: '/handoff', '/handoff auto', '/handoff brief', 'hand it off', 'handoff and extract', 'context is full, restart this', 'pass off to next session', 'brief a coworker on this', 'wrap and prompt'. (Claude Code variant — bare-slash canonical when both ports loaded; see ADR-094.)"
 argument-hint: "[auto|brief]"
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
@@ -23,17 +23,23 @@ For "I'm done, close it out cleanly" with no passoff intent, use `/wrapup` inste
 
 ## Runtime Gate (per ADR-094)
 
+**Canonical resolution:** This is the Claude Code variant. When both `plugin-claude-code` and `plugin-claude-cowork` are loaded in the same session (most common in Claude Desktop), bare `/handoff` resolves to this skill — aria-knowledge (Code) is the canonical owner of all 24 dual-port skills per ADR-094 §Part 1. The Cowork variant is namespaced-only: `/aria-cowork:handoff`.
+
 **Before Step 0:** Check that the `Bash` tool is available in this session. If `Bash` is NOT available (you are running in Claude Cowork or another non-Code runtime), surface the following notification and wait for explicit user confirmation:
 
 > ⚠️ **Runtime mismatch — you invoked aria-knowledge's `/handoff` from a non-Code runtime.**
 >
-> This variant runs `git status` / `git commit` via Bash, which isn't available here. For the runtime-appropriate variant that emits a copy-paste commit message instead, use `/aria-cowork:handoff`.
+> This variant runs `git status` / `git commit` via Bash, which isn't available here. The runtime-appropriate variant is `/aria-cowork:handoff`, which emits a copy-paste commit message instead.
 >
-> Proceed with the aria-knowledge variant anyway? (`y` / `n`)
+> **Use `/aria-cowork:handoff` instead?** (`y` / `n`)
 
-Wait for an explicit `y` / `yes`. Treat `n` / `no` / no response / any other reply as "do not proceed" and exit cleanly.
+Wait for an explicit reply:
 
-**This gate applies even when `mode = auto`.** Auto mode's "implicit-yes on all gates" rule is suspended for the runtime-mismatch check per ADR-094 §Part 3 — auto mode trusts that the user invoked the correct variant, and this gate enforces that precondition. All other auto-mode gates remain bypassed.
+- **`y` / `yes`** — Use the `Skill` tool to invoke `aria-cowork:handoff` with the same arguments the user provided to this invocation (e.g., if invoked as `/handoff auto`, invoke the cowork variant with `args: "auto"`). Do not proceed with this skill's steps; the cowork variant takes over and runs to completion. This is the default-yes path — auto-redirect is the helpful action.
+- **`n` / `no`** — Proceed with this (aria-knowledge) variant anyway despite the runtime mismatch. The user has explicitly opted in; subsequent Bash failures are expected.
+- **No response / any other reply** — Treat as "do not proceed" and exit cleanly without running either variant.
+
+**This gate applies even when `mode = auto`** per ADR-094 §Part 3. Auto mode's "implicit-yes on all gates" rule is suspended for the runtime-mismatch check — auto trusts that the user invoked the correct variant, and this gate enforces that precondition. All other auto-mode gates remain bypassed. The friction cost is now low: on `y`, the auto-redirect runs the correct variant with the original args; the user loses ~1 keystroke vs. fully silent auto.
 
 If `Bash` is available, proceed to Step 0.
 

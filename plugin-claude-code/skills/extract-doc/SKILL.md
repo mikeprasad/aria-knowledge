@@ -1,5 +1,5 @@
 ---
-description: "**Bare-slash canonical (Claude Code).** `/extract-doc` resolves to this skill when both aria-knowledge and aria-cowork are loaded in the same session. RUNTIME GATE: if invoked from a non-Code runtime (no Bash tool available, e.g., Claude Cowork), the Runtime Gate section surfaces a notification suggesting `/aria-cowork:extract-doc` and requires explicit user confirmation before proceeding — even in `auto` mode (ADR-094 §Part 3). NOTE: this skill requires connected ~~docs MCPs (Notion, Google Docs, Confluence, Box, Egnyte), which are typically only present in Cowork — the Code variant exists for parity but most users will want the Cowork variant. Pull insights from a single doc or page (Notion, Google Doc, Confluence, etc.) into the standard intake backlog. Use when user says '/extract-doc', 'extract insights from this doc', 'pull learnings from this page', 'mine this Notion page for knowledge', 'extract from this Confluence'. Differs from /intake doc (which captures one structured doc artifact with reaction) — extract-doc decomposes a doc into multiple intake-backlog entries for audit routing."
+description: "NOTE: this skill requires connected ~~docs MCPs (Notion, Google Docs, Confluence, Box, Egnyte), which are typically only present in Cowork — the Code variant exists for parity but most users will want the Cowork variant. Pull insights from a single doc or page (Notion, Google Doc, Confluence, etc.) into the standard intake backlog. Use when user says '/extract-doc', 'extract insights from this doc', 'pull learnings from this page', 'mine this Notion page for knowledge', 'extract from this Confluence'. Differs from /intake doc (which captures one structured doc artifact with reaction) — extract-doc decomposes a doc into multiple intake-backlog entries for audit routing. (Claude Code variant — bare-slash canonical when both ports loaded; see ADR-094.)"
 argument-hint: "<doc-url-or-id> [tags]"
 allowed-tools: Read, Write, Grep
 ---
@@ -10,15 +10,25 @@ Pull knowledge-worthy items from a single connected `~~docs` source (Notion page
 
 ## Runtime Gate (per ADR-094)
 
-**Before Step 0:** Check that `Bash` is available. If `Bash` is NOT available (e.g., Cowork), surface:
+**Canonical resolution:** This is the Claude Code variant. When both `plugin-claude-code` and `plugin-claude-cowork` are loaded in the same session (most common in Claude Desktop), bare `/extract-doc` resolves to this skill — aria-knowledge (Code) is the canonical owner of all 24 dual-port skills per ADR-094 §Part 1. The Cowork variant is namespaced-only: `/aria-cowork:extract-doc`.
+
+**Before Step 0:** Check that the `Bash` tool is available in this session. If `Bash` is NOT available (you are running in Claude Cowork or another non-Code runtime), surface the following notification and wait for explicit user confirmation:
 
 > ⚠️ **Runtime mismatch — you invoked aria-knowledge's `/extract-doc` from a non-Code runtime.**
 >
 > This skill requires connected ~~docs MCPs (Notion, Google Docs, Confluence, Box, Egnyte), which are typically only present in Cowork. The Cowork-native variant has working MCP access. Use `/aria-cowork:extract-doc`.
 >
-> Proceed with the aria-knowledge variant anyway? (`y` / `n`)
+> **Use `/aria-cowork:extract-doc` instead?** (`y` / `n`)
 
-Wait for `y` / `yes`. **Gate applies even in `auto`** (ADR-094 §Part 3). If `Bash` is available, proceed to Step 0.
+Wait for an explicit reply:
+
+- **`y` / `yes`** — Use the `Skill` tool to invoke `aria-cowork:extract-doc` with the same arguments the user provided to this invocation. Do not proceed with this skill's steps; the cowork variant takes over and runs to completion. This is the default-yes path — auto-redirect is the helpful action.
+- **`n` / `no`** — Proceed with this (aria-knowledge) variant anyway despite the runtime mismatch. The user has explicitly opted in.
+- **No response / any other reply** — Treat as "do not proceed" and exit cleanly without running either variant.
+
+**This gate applies even when `mode = auto`** per ADR-094 §Part 3. Auto mode's "implicit-yes on all gates" rule is suspended for the runtime-mismatch check — auto trusts that the user invoked the correct variant, and this gate enforces that precondition. All other auto-mode gates remain bypassed. The friction cost is now low: on `y`, the auto-redirect runs the correct variant with the original args.
+
+If `Bash` is available, proceed to Step 0.
 
 ## Step 0: Resolve Config
 

@@ -1,5 +1,5 @@
 ---
-description: "**Bare-slash canonical (Claude Code).** `/ask` resolves to this skill when both aria-knowledge and aria-cowork are loaded in the same session. RUNTIME GATE: if invoked from a non-Code runtime (no Bash tool available, e.g., Claude Cowork), the Runtime Gate section surfaces a notification suggesting `/aria-cowork:ask` and requires explicit user confirmation before proceeding — even in `auto` mode (ADR-094 §Part 3). Research a question, check existing knowledge first, draft a knowledge doc from the answer, and save directly to the appropriate category. Use when user says '/ask', 'ask about', 'research and save', 'I want to learn about', 'what is the pattern for'. Skips backlogs — the user reviews the answer in real-time before saving."
+description: "Research a question, check existing knowledge first, draft a knowledge doc from the answer, and save directly to the appropriate category. Use when user says '/ask', 'ask about', 'research and save', 'I want to learn about', 'what is the pattern for'. Skips backlogs — the user reviews the answer in real-time before saving. (Claude Code variant — bare-slash canonical when both ports loaded; see ADR-094.)"
 argument-hint: "<question>"
 allowed-tools: Read, Write, Glob, Grep, WebSearch, WebFetch
 ---
@@ -10,15 +10,25 @@ Research a question, check if the answer already exists in the knowledge base, a
 
 ## Runtime Gate (per ADR-094)
 
+**Canonical resolution:** This is the Claude Code variant. When both `plugin-claude-code` and `plugin-claude-cowork` are loaded in the same session (most common in Claude Desktop), bare `/ask` resolves to this skill — aria-knowledge (Code) is the canonical owner of all 24 dual-port skills per ADR-094 §Part 1. The Cowork variant is namespaced-only: `/aria-cowork:ask`.
+
 **Before Step 0:** Check that the `Bash` tool is available in this session. If `Bash` is NOT available (you are running in Claude Cowork or another non-Code runtime), surface the following notification and wait for explicit user confirmation:
 
 > ⚠️ **Runtime mismatch — you invoked aria-knowledge's `/ask` from a non-Code runtime.**
 >
 > Behavior is largely the same in both runtimes; for the Cowork-native variant (reads from the attached knowledge folder rather than `~/.claude/aria-knowledge.local.md`), use `/aria-cowork:ask`.
 >
-> Proceed with the aria-knowledge variant anyway? (`y` / `n`)
+> **Use `/aria-cowork:ask` instead?** (`y` / `n`)
 
-Wait for an explicit `y` / `yes`. **This gate applies even when invoked under `auto` semantics** (ADR-094 §Part 3). If `Bash` is available, proceed to Step 0.
+Wait for an explicit reply:
+
+- **`y` / `yes`** — Use the `Skill` tool to invoke `aria-cowork:ask` with the same arguments the user provided to this invocation. Do not proceed with this skill's steps; the cowork variant takes over and runs to completion. This is the default-yes path — auto-redirect is the helpful action.
+- **`n` / `no`** — Proceed with this (aria-knowledge) variant anyway despite the runtime mismatch. The user has explicitly opted in.
+- **No response / any other reply** — Treat as "do not proceed" and exit cleanly without running either variant.
+
+**This gate applies even when `mode = auto`** per ADR-094 §Part 3. Auto mode's "implicit-yes on all gates" rule is suspended for the runtime-mismatch check — auto trusts that the user invoked the correct variant, and this gate enforces that precondition. All other auto-mode gates remain bypassed. The friction cost is now low: on `y`, the auto-redirect runs the correct variant with the original args.
+
+If `Bash` is available, proceed to Step 0.
 
 ## Step 0: Resolve Config
 

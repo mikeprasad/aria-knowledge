@@ -1,5 +1,5 @@
 ---
-description: "**Bare-slash canonical (Claude Code).** `/help` resolves to this skill (aria-knowledge's command reference) when both aria-knowledge and aria-cowork are loaded in the same session. RUNTIME GATE: if invoked from a non-Code runtime (no Bash tool available, e.g., Claude Cowork), surface a notification suggesting `/aria-cowork:help` (aria-cowork's command reference) and require explicit user confirmation — even in `auto` mode (ADR-094 §Part 3). Show available aria-knowledge commands. Use when user says '/help', 'aria help', 'what commands are available', 'list commands', 'what can aria do'."
+description: "Show available aria-knowledge commands. Use when user says '/help', 'aria help', 'what commands are available', 'list commands', 'what can aria do'. (Claude Code variant — bare-slash canonical when both ports loaded; see ADR-094.)"
 argument-hint: ""
 allowed-tools:
 ---
@@ -10,15 +10,25 @@ Print the command reference table. No config or file access needed.
 
 ## Runtime Gate (per ADR-094)
 
-**Before printing:** Check that `Bash` is available. If `Bash` is NOT available (e.g., Cowork), surface:
+**Canonical resolution:** This is the Claude Code variant. When both `plugin-claude-code` and `plugin-claude-cowork` are loaded in the same session (most common in Claude Desktop), bare `/help` resolves to this skill — aria-knowledge (Code) is the canonical owner of all 24 dual-port skills per ADR-094 §Part 1. The Cowork variant is namespaced-only: `/aria-cowork:help`.
+
+**Before Step 0:** Check that the `Bash` tool is available in this session. If `Bash` is NOT available (you are running in Claude Cowork or another non-Code runtime), surface the following notification and wait for explicit user confirmation:
 
 > ⚠️ **Runtime mismatch — you invoked aria-knowledge's `/help` from a non-Code runtime.**
 >
 > This prints aria-knowledge's command reference (Code-side commands). For aria-cowork's reference, use `/aria-cowork:help`.
 >
-> Proceed and show aria-knowledge's commands anyway? (`y` / `n`)
+> **Use `/aria-cowork:help` instead?** (`y` / `n`)
 
-Wait for `y` / `yes`. **Gate applies even in `auto`** (ADR-094 §Part 3). If `Bash` is available, proceed to Output.
+Wait for an explicit reply:
+
+- **`y` / `yes`** — Use the `Skill` tool to invoke `aria-cowork:help` with the same arguments the user provided to this invocation. Do not proceed with this skill's steps; the cowork variant takes over and runs to completion. This is the default-yes path — auto-redirect is the helpful action.
+- **`n` / `no`** — Proceed with this (aria-knowledge) variant anyway despite the runtime mismatch. The user has explicitly opted in.
+- **No response / any other reply** — Treat as "do not proceed" and exit cleanly without running either variant.
+
+**This gate applies even when `mode = auto`** per ADR-094 §Part 3. Auto mode's "implicit-yes on all gates" rule is suspended for the runtime-mismatch check — auto trusts that the user invoked the correct variant, and this gate enforces that precondition. All other auto-mode gates remain bypassed. The friction cost is now low: on `y`, the auto-redirect runs the correct variant with the original args.
+
+If `Bash` is available, proceed to Step 0.
 
 ## Output
 

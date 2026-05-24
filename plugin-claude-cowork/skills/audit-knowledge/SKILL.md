@@ -1,6 +1,6 @@
 ---
 name: audit-knowledge
-description: 'Scan the attached knowledge folder for extractable items, run idea-routing dispositions, archive cleared content per the cohort conventions, and rebuild the index. Use when user says "/aria-cowork:audit-knowledge", "/aria-cowork:knowledge-audit", "audit knowledge", "knowledge audit", "check for extractable knowledge", "scan intake", or at.'
+description: 'Scan the attached knowledge folder for extractable items, run idea-routing dispositions, archive cleared content per the cohort conventions, and rebuild the index. Use when user says "/aria-cowork:audit-knowledge", "/aria-cowork:knowledge-audit", "audit knowledge", "knowledge audit", "check for extractable knowledge", "scan intake", or at. (Claude Cowork variant. Namespaced-only — bare /audit-knowledge belongs to aria-knowledge per ADR-094.)'
 argument-hint: '[detailed]'
 ---
 
@@ -20,15 +20,25 @@ Scan the attached knowledge folder's `intake/` subfolder for extractable items, 
 
 ## Runtime Gate (per ADR-094)
 
-**Before Step 0:** Check whether `Bash` is available. If `Bash` IS available (you are in Claude Code), surface:
+**Canonical resolution:** This is the Claude Cowork variant — namespaced-only. When both `plugin-claude-code` and `plugin-claude-cowork` are loaded in the same session (most common in Claude Desktop), bare `/audit-knowledge` resolves to aria-knowledge's variant — Code is the canonical owner of all 24 dual-port skills per ADR-094 §Part 1. To reach this skill, use the namespaced form: `/aria-cowork:audit-knowledge`. Do NOT match bare `/audit-knowledge` — that belongs to aria-knowledge.
+
+**Before Step 0:** Check whether the `Bash` tool is available in this session. If `Bash` IS available (you are running in Claude Code or another runtime with shell access), surface the following notification and wait for explicit user confirmation:
 
 > ⚠️ **Runtime mismatch — you invoked aria-cowork's `/audit-knowledge` from a runtime with shell access.**
 >
 > This variant audits ONLY the attached folder's `intake/` and skips `~/.claude/projects/.../memory/` + `~/.claude/plans/` — but you appear to be in Claude Code, where those memory + plans paths ARE reachable and the aria-knowledge canonical includes them in the audit scope. For the Code-native variant, use `/audit-knowledge` (the aria-knowledge canonical).
 >
-> Proceed with the aria-cowork variant anyway? (`y` / `n`)
+> **Use `/audit-knowledge` instead?** (`y` / `n`)
 
-Wait for `y` / `yes`. **Gate applies even in `auto`** (ADR-094 §Part 3). If `Bash` is NOT available, proceed to Step 0.
+Wait for an explicit reply:
+
+- **`y` / `yes`** — Use the `Skill` tool to invoke `audit-knowledge` (the bare-slash canonical, which routes to aria-knowledge when both ports are loaded) with the same arguments the user provided to this invocation. Do not proceed with this skill's steps; the aria-knowledge variant takes over and runs to completion. This is the default-yes path — auto-redirect is the helpful action.
+- **`n` / `no`** — Proceed with this (aria-cowork) variant anyway despite the runtime mismatch. The user has explicitly opted in.
+- **No response / any other reply** — Treat as "do not proceed" and exit cleanly without running either variant.
+
+**This gate applies even when `mode = auto`** per ADR-094 §Part 3. Auto mode's "implicit-yes on all gates" rule is suspended for the runtime-mismatch check — auto trusts that the user invoked the correct variant, and this gate enforces that precondition. All other auto-mode gates remain bypassed. The friction cost is now low: on `y`, the auto-redirect runs the correct variant with the original args.
+
+If `Bash` is NOT available (normal Cowork runtime), proceed to Step 0.
 
 ## Step 0: Resolve Config
 

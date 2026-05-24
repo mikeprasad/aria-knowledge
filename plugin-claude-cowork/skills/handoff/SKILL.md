@@ -1,6 +1,6 @@
 ---
 name: handoff
-description: 'Generate a passoff package — for future-you (context is high, need to restart) or a coworker (via brief mode). Cowork variant — default+auto emit a paste-ready next-session opener plus PROGRESS/CLAUDE/memory updates, a commit message, and "/aria-cowork:extract"; brief mode emits an 80-150 word coworker prose brief only. For done-with-no-passoff, use "/aria-cowork:wrapup". Triggers — "/aria-cowork:handoff", "/aria-cowork:handoff auto", "/aria-cowork:handoff brief", "hand it off", "pass off to next session", "brief a coworker on this".'
+description: 'Generate a passoff package — for future-you (context is high, need to restart) or a coworker (via brief mode). Default + auto emit a paste-ready next-session opener plus PROGRESS/CLAUDE/memory updates, a commit message, and "/aria-cowork:extract"; brief mode emits an 80-150 word coworker prose brief only. For done-with-no-passoff, use "/aria-cowork:wrapup". Triggers — "/aria-cowork:handoff", "/aria-cowork:handoff auto", "/aria-cowork:handoff brief", "hand it off", "pass off to next session", "brief a coworker on this". (Claude Cowork variant. Namespaced-only — bare /handoff belongs to aria-knowledge per ADR-094.)'
 argument-hint: '[auto|brief]'
 ---
 
@@ -21,17 +21,23 @@ Brief mode template (`/handoff brief`) imports from aria-knowledge v2.17.0 schem
 
 ## Runtime Gate (per ADR-094)
 
+**Canonical resolution:** This is the Claude Cowork variant — namespaced-only. When both `plugin-claude-code` and `plugin-claude-cowork` are loaded in the same session (most common in Claude Desktop), bare `/handoff` resolves to aria-knowledge's variant — Code is the canonical owner of all 24 dual-port skills per ADR-094 §Part 1. To reach this skill, use the namespaced form: `/aria-cowork:handoff`. Do NOT match bare `/handoff` — that belongs to aria-knowledge.
+
 **Before Step 0:** Check whether the `Bash` tool is available in this session. If `Bash` IS available (you are running in Claude Code or another runtime with shell access), surface the following notification and wait for explicit user confirmation:
 
 > ⚠️ **Runtime mismatch — you invoked aria-cowork's `/handoff` from a runtime with shell access.**
 >
-> This variant emits a copy-paste commit message because Cowork has no shell access — but you appear to be running in Claude Code, where `git status` / `git commit` would work directly. For the runtime-appropriate variant that runs git directly, use `/handoff` (the aria-knowledge canonical).
+> This variant emits a copy-paste commit message because Cowork has no shell access — but you appear to be running in Claude Code, where `git status` / `git commit` would work directly. The runtime-appropriate variant is `/handoff` (the aria-knowledge canonical), which runs git directly.
 >
-> Proceed with the aria-cowork variant anyway? (`y` / `n`)
+> **Use `/handoff` instead?** (`y` / `n`)
 
-Wait for an explicit `y` / `yes`. Treat `n` / `no` / no response / any other reply as "do not proceed" and exit cleanly.
+Wait for an explicit reply:
 
-**This gate applies even when `mode = auto`.** Auto mode's "implicit-yes on all gates" rule is suspended for the runtime-mismatch check per ADR-094 §Part 3 — auto mode trusts that the user invoked the correct variant, and this gate enforces that precondition. All other auto-mode gates remain bypassed.
+- **`y` / `yes`** — Use the `Skill` tool to invoke `handoff` (the bare-slash canonical, which routes to aria-knowledge when both ports are loaded) with the same arguments the user provided to this invocation. Do not proceed with this skill's steps; the aria-knowledge variant takes over and runs to completion. This is the default-yes path — auto-redirect is the helpful action.
+- **`n` / `no`** — Proceed with this (aria-cowork) variant anyway despite the runtime mismatch. The user has explicitly opted in.
+- **No response / any other reply** — Treat as "do not proceed" and exit cleanly without running either variant.
+
+**This gate applies even when `mode = auto`** per ADR-094 §Part 3. Auto mode's "implicit-yes on all gates" rule is suspended for the runtime-mismatch check — auto trusts that the user invoked the correct variant, and this gate enforces that precondition. All other auto-mode gates remain bypassed. The friction cost is now low: on `y`, the auto-redirect runs the correct variant with the original args.
 
 If `Bash` is NOT available (normal Cowork runtime), proceed to Step 0.
 
