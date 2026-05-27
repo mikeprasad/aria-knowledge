@@ -213,7 +213,11 @@ A standalone Codex port lives in [`plugin-openai-codex/`](plugin-openai-codex/).
 
 ### Cursor Port
 
-A standalone Cursor port lives in [`plugin-cursor-template/`](plugin-cursor-template/). Unlike the Claude and Codex ports, it is a **repo skeleton**, not a plugin install: unzip the released artifact into the root of your own project, then restart Cursor. The port compiles the 25 canonical skills into 5 `.cursor/rules/*.mdc` files. See [`plugin-cursor-template/QUICKSTART.md`](plugin-cursor-template/QUICKSTART.md) for setup.
+A standalone Cursor port lives in [`plugin-cursor-template/`](plugin-cursor-template/). Unlike the Claude and Codex ports, it is a **repo skeleton**, not a plugin install: unzip [`aria-knowledge-cursor-2.20.2.zip`](https://github.com/mikeprasad/aria-knowledge/releases) (or `aria-knowledge-cursor.zip` stable alias) into the root of your own project, then restart Cursor.
+
+The port compiles **27 commands** (22 core + 5 MCP skills, plus `/help` and `/audit-share`) into 5 `.cursor/rules/*.mdc` files. Project instructions use root **`AGENTS.md`** (not `CLAUDE.md`). Config: `.cursor/aria-knowledge.local.md`. MCP skills require servers connected in **Cursor Settings → MCP**.
+
+See [`plugin-cursor-template/QUICKSTART.md`](plugin-cursor-template/QUICKSTART.md) for setup and [`plugin-cursor-template/PORTING.md`](plugin-cursor-template/PORTING.md) for maintainer drift notes.
 
 ### Claude Cowork Port
 
@@ -235,7 +239,7 @@ All ports share the same `~/Projects/knowledge/` folder, working rules, change-d
 | `plugin-claude-cowork/` | Claude Cowork (Anthropic) | Production | Cowork install flow |
 | `plugin-antigravity/` | Antigravity (Google) | Initial port + parity pass complete | `~/.gemini/config/plugins/` or `.agents/plugins/` |
 | `plugin-openai-codex/` | Codex (OpenAI) | Production | Codex plugin marketplace or `.agents/plugins/marketplace.json` |
-| `plugin-cursor-template/` | Cursor | Production — repo template | Clone contents into project root |
+| `plugin-cursor-template/` | Cursor | Production — `2.20.2-cursor.0` (parity w/ Code v2.20.2) | Unzip `aria-knowledge-cursor-*.zip` into project root |
 
 ## Works Well With Obsidian
 
@@ -309,4 +313,4 @@ Install ARIA, run `/setup`, work normally. Rule 22 is active immediately. Run `/
 
 ---
 
-*Last reviewed: 2026-05-25 — current as of plugin-claude-code v2.20.2 / plugin-claude-cowork v1.1.3.*
+*Last reviewed: 2026-05-27 — current as of plugin-claude-code v2.20.2 / plugin-claude-cowork v1.1.3 / plugin-cursor-template 2.20.2-cursor.0.*

@@ -24,15 +24,21 @@ Config is at `.cursor/aria-knowledge.local.md`. Run the setup command below if i
 | `/stats` or "knowledge stats" | Knowledge base health dashboard |
 | `/ask <question>` or "research and save: X" | Research a question, save answer as a knowledge doc |
 | `/clip <url or text>` or "save this" | Quick-save URL or snippet to `knowledge/intake/clippings/` |
+| `/clip-thread <url>` or "clip this thread" | Capture chat/email thread via MCP to `intake/clippings/` |
 | `/intake <path>` or "import from file" | Bulk import knowledge from files or URLs |
+| `/intake doc <url or title>` or "capture this doc" | Structured single-doc capture under `intake/docs/` |
+| `/extract-doc <url>` or "extract from this page" | Decompose one doc into intake backlog entries (MCP) |
+| `/meeting-notes` or "capture meeting notes" | Fold meeting transcript into `intake/meetings/` (MCP or paste) |
+| `/digest` or "weekly digest" | Cross-tool rollup into `intake/digests/` |
+| `/sync-decisions` or "mirror decisions to wiki" | Push approved decisions to external docs (MCP write) |
 | `/codemap` or "map the codebase" | Generate a feature-organized `CODEMAP.md` |
 | `/distill <text or path>` or "shape a task spec" | Tiered task spec from raw text; `--group` loads CODEMAP context |
 | `/stitch <mode> <group>` or "stitch repos" | Cross-repo binding (auth/endpoints/entities/drift) for a product group |
 | `/prospect <plan>` or "pre-mortem this plan" | Plan pre-mortem with risk enforcement + Evidence-Sourcing Pass |
 | `/retrospect [--range/--pr/--session/--commit]` or "retrospective" | Structured retrospective on shipped work — per-fix validation, simpler-alternative discipline, action verdicts |
-| `/handoff [auto]` or "handoff session" | Express handoff — paste-ready next-session opener |
+| `/handoff [auto\|brief]` or "handoff session" | Passoff — next-session opener or coworker brief |
 | `/snapshot` or "capture task boundary" | Write a non-transcript task-boundary capture under `intake/task-boundary-captures/` (git + hook + config state) |
-| `/wrapup` or "wrap up session" | End-of-session handoff — update tracking, prompt to extract and commit |
+| `/wrapup [auto]` or "wrap up session" | Session close-out — update tracking, commit, capture via /extract |
 
 Full skill instructions are in `.cursor/rules/`. Aliases (`/knowledge-audit`, `/config-audit`, `/share-audit`) are accepted as alternate phrasings of their canonical commands.
 

@@ -2,6 +2,47 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## Cursor port 2.20.2-cursor.0 — 2026-05-27
+
+**Cursor port parity pass** — brings `plugin-cursor-template/` to equivalent coverage with `plugin-claude-code` v2.20.2. Independent version file: `plugin-cursor-template/scripts/aria/VERSION`. Release artifact: `aria-knowledge-cursor-2.20.2.zip` via `./release-cursor.sh`. No changes to the canonical Claude Code plugin in this pass.
+
+### Added — maintainer re-sync tooling
+
+- `plugin-cursor-template/scripts/port-skills-to-mdc.py` — compiles canonical `SKILL.md` bodies into `.cursor/rules/aria-commands.mdc`; strips ADR-094 Runtime Gate blocks; adapts paths for Cursor (`AGENTS.md`, `.cursor/aria-knowledge.local.md`, Cursor Settings → MCP); idempotent upsert for MCP skill sections.
+
+### Added — five MCP skills in Cursor `.mdc`
+
+Compiled into `aria-commands.mdc` (Cursor-adapted, no per-skill Runtime Gates):
+
+- `/clip-thread`, `/extract-doc`, `/meeting-notes`, `/digest`, `/sync-decisions`
+
+### Added — `/intake doc` mode in Cursor
+
+Doc-mode steps D1–D6 from canonical `intake/SKILL.md` now present in `aria-commands.mdc`.
+
+### Changed — v2.20.2 wrapup/handoff invariants mirrored
+
+- `/wrapup`: Wrapup Checklist, Session Wrapup Complete, ALWAYS invoke `/extract` in auto mode (no judgment-skip).
+- `/handoff`: ALWAYS invoke `/extract` in default + auto (brief mode carveout preserved).
+
+### Changed — `/extract` project detection prose
+
+Longest-matching `projects_list` path wins (aligned with `scripts/aria/config.sh` v2.19.2 fix).
+
+### Changed — docs
+
+- `plugin-cursor-template/PORTING.md` — sync status @ 2.20.2, maintainer workflow.
+- `plugin-cursor-template/AGENTS.md`, `QUICKSTART.md` — command table + session-end behavior.
+- `CLAUDE.md` — Cursor Port section + updated project structure and workflow.
+- `README.md` — Cursor install blurb + ports table version note.
+
+### Intentional Cursor divergences (unchanged platform limits)
+
+- No ADR-094 per-skill Runtime Gates (preamble-only note).
+- Advisory Rule 22 via edit-intent marker (no transcript deny).
+- No bundled `.mcp.json` — MCP via Cursor Settings.
+- `task-boundary-captures/` via `stop` hook instead of PreCompact transcripts.
+
 ## v2.20.2 — 2026-05-25
 
 **Patch release — two latent wrapup/handoff spec bugs surfaced post-v2.20.1.** Coordinated with aria-cowork v1.1.3 + antigravity rebuild. No new skills, no schema changes, no MCP changes. Pure content fixes in `/wrapup` + `/handoff` skill bodies. Both bugs were latent since v2.19.0 (2026-05-19 intent split) — invisible across every auto-mode wrapup/handoff session for 6 days until Mike named them at the v2.20.1 release wrapup.
@@ -39,6 +80,7 @@ ADR-094 §Part 3 (shipped v2.19.1 / revised v2.20.1) carved a single explicit ex
 ### Coordinated release pairing
 
 - **aria-cowork v1.1.3** (released 2026-05-25 same day) — companion release; mirror fixes shipped to cowork's `/wrapup` + `/handoff`. See cowork CHANGELOG v1.1.3 entry.
+- **Cursor port 2.20.2-cursor.0** (released 2026-05-27) — mirror of wrapup/handoff invariants + full v2.18 MCP skill surface in compiled `.mdc`. See Cursor port changelog entry above.
 
 ## v2.20.1 — 2026-05-25
 

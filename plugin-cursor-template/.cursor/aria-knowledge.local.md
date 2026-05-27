@@ -20,7 +20,7 @@ codemap_staleness_threshold_days: 14
 stitch_staleness_threshold_days: 30
 task_boundary_capture: true
 edit_intent: true
-last_setup_version: 2.17.0-cursor.0
+last_setup_version: 2.20.2-cursor.0
 ---
 
 # ARIA Knowledge Configuration (Cursor Port)

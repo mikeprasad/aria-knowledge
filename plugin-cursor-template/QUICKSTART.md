@@ -138,8 +138,12 @@ Code, write, debug, refactor — normal flow. ARIA stays mostly invisible. Two i
 ### Mid-session capture
 
 ```
-/clip <url>          # capture a URL or snippet for later reference
-/snapshot            # write a task-boundary capture (git + hook + config state) under intake/task-boundary-captures/
+/clip <url>              # capture a URL or snippet for later reference
+/clip-thread <url>       # capture Slack/Teams/Gmail thread (MCP)
+/meeting-notes paste     # fold meeting notes (paste or MCP)
+/intake doc <url>        # structured single-doc capture
+/extract-doc <url>       # decompose external doc into backlog (MCP)
+/snapshot                # task-boundary capture under intake/task-boundary-captures/
 ```
 
 Inline `★ Insight` blocks the agent emits during work get auto-captured to your intake backlog at session end via `/extract`.
@@ -147,25 +151,19 @@ Inline `★ Insight` blocks the agent emits during work get auto-captured to you
 ### Session end
 
 ```
-/wrapup              # end-of-session ceremony (PROGRESS, AGENTS.md, memory, commit, /extract)
+/wrapup              # session close-out (PROGRESS, AGENTS.md, memory, commit, /extract)
+/wrapup auto         # same, silent — /extract always runs (no judgment-skip)
 ```
 
-or a tighter version:
+Passoff (next session or coworker):
 
 ```
-/handoff             # express handoff with combined-go review
-/handoff auto        # autonomous handoff (skip review gates)
+/handoff             # combined-go review + paste-ready next-session opener
+/handoff auto        # silent passoff — /extract always runs
+/handoff brief       # 80–150 word coworker brief only (no file writes)
 ```
 
-Both finish with a paste-ready opener for your next session.
-
-Before `/wrapup` or `/handoff`, consider:
-
-```
-/extract             # capture session insights / decisions / approaches / rules into the backlog
-```
-
-`/wrapup` and `/handoff` will prompt you to run `/extract` if you haven't.
+`/wrapup auto` and `/handoff auto` always invoke `/extract`. Gated `/wrapup` prompts before running `/extract`.
 
 ---
 

@@ -1,17 +1,16 @@
 ---
-description: "ARIA workflow commands — /extract, /index, /backlog, /stats, /ask, /clip, /intake, /wrapup, /codemap, /distill, /stitch, /handoff, /prospect, /retrospect, /snapshot, /setup, /help, /audit-share. Use when the user invokes any of these slash commands or their natural-language equivalents."
+description: "ARIA workflow commands — /extract, /index, /backlog, /stats, /ask, /clip, /clip-thread, /intake, /extract-doc, /meeting-notes, /digest, /sync-decisions, /wrapup, /codemap, /distill, /stitch, /handoff, /prospect, /retrospect, /snapshot, /setup, /help, /audit-share. Use when the user invokes any of these slash commands or their natural-language equivalents."
 globs: ["knowledge/**/*", "CODEMAP.md", "STITCH-*.md"]
 alwaysApply: false
 ---
 
 # ARIA — Commands
 
-This file ports the remaining ARIA skill instructions for the Cursor port. Triggers are natural-language (e.g., "extract session knowledge", "map the codebase", "wrap up session") in addition to slash-command names. Skill aliases: `/share-audit` → `/audit-share`.
+This file ports ARIA skill instructions for the **Cursor** port. Triggers are natural-language (e.g., "extract session knowledge", "map the codebase", "wrap up session") in addition to slash-command names. Skill aliases: `/share-audit` → `/audit-share`, `/knowledge-audit` → `/audit-knowledge`, `/config-audit` → `/audit-config`.
 
-**Namespace policy (per ADR-094):** When both aria-knowledge and aria-cowork are loaded in the same session (most common in Claude Desktop), bare slash commands (`/handoff`, `/wrapup`, `/extract`, etc.) always resolve to aria-knowledge (the canonical owner). For the Cowork variant, use the namespaced form (`/aria-cowork:handoff`). In Cursor specifically, aria-cowork is not typically loaded — so the collision usually doesn't apply here. If you are in a session that loads both plugins, each colliding skill in the canonical aria-knowledge plugin carries a Runtime Gate that surfaces a notification when invoked from a non-Code runtime (and aria-cowork's variants do the inverse). Full ADR at `~/Projects/knowledge/projects/aria/decisions/094-bare-slash-canonical-owner-and-dual-runtime-gate.md`.
+**Cursor port notes:** Config lives at `.cursor/aria-knowledge.local.md` (per-repo). Rule 22 uses the edit-intent marker (`scripts/aria/record-edit-intent.sh`) — see `AGENTS.md`. Connect MCP servers in **Cursor Settings → MCP** for `/clip-thread`, `/extract-doc`, `/meeting-notes`, `/digest`, and `/sync-decisions`. ADR-094 dual-port Runtime Gates are **not** used in Cursor (no aria-cowork collision in typical Cursor sessions).
 
 ---
-
 ## /extract
 
 
@@ -36,14 +35,14 @@ Determine the current working directory and check if it matches a configured pro
 
 1. Get the current working directory (typically the user's primary working directory, e.g., `~/Projects/path/to/proj-a`).
 2. Parse `projects_list` into `tag:path` pairs.
-3. For each pair, check if the CWD contains the configured path as a substring. If so, set `current_project` to that tag and stop iterating (first match wins).
+3. For each pair, check if the CWD contains the configured path as a substring. Track every matching tag and keep the tag whose configured path is the **longest** substring match (nested sub-projects win over parent workspace paths).
 4. If no path-based match is found AND `projects_remotes` is configured AND git is available, fall back to git-remote matching: run `git config --get remote.origin.url` from the CWD; for each `tag:url-pattern` pair in `projects_remotes`, check if the remote URL contains the pattern; if so, set `current_project` to that tag.
 5. If still no match, leave `current_project` unset — subsequent steps will skip auto-tagging.
 
 This logic mirrors the `kt_project_for_path` shell helper in `bin/config.sh`. Skills can either invoke that helper via Bash or replicate the matching logic in markdown-driven flow as above.
 
 Examples:
-- CWD = `~/Projects/myproject/sub-module/file.md`, `projects_list: myproject:myproject,other:other` → `current_project = myproject` (substring match on `myproject`)
+- CWD = `~/Projects/aria/aria-core/file.md`, `projects_list: aria:aria,aria-core:aria/aria-core` → `current_project = aria-core` (longest path match wins over `aria`)
 - CWD = `~/Projects/other`, `projects_list: myproject:myproject,other:other` → `current_project = other`
 - CWD = `~/Downloads/scratch-folder`, `projects_list: myproject:myproject,other:other` → `current_project` unset (no configured path matches)
 
@@ -1264,15 +1263,105 @@ Will be reviewed at next /audit-knowledge run.
 ## /intake
 
 
-# /intake — Bulk Knowledge Import
+# /intake — Bulk Knowledge Import + Doc-Anchored Capture
 
-Scan files, directories, or URLs for knowledge-worthy content and stage findings to backlogs after user review.
+Two modes:
 
-## Step 0: Resolve Config
+- **Bulk mode (default)** — Scan files, directories, or URLs for knowledge-worthy content and stage findings to the existing backlogs (insights / decisions / extraction). Multi-source, category-based, dedup-aware. Same surface as prior /intake versions.
+- **Doc mode (`/intake doc`)** — Capture a single doc as a structured intake entry at `intake/docs/{YYYY-MM-DD}-{slug}.md` with a 5-section body: what the doc claims / worth keeping / contested or unclear / action implied / my reaction. For when you're reading something and want a thoughtful capture rather than a bulk scan.
+
+## Step 0: Resolve Config + Mode Detection
 
 Read `.cursor/aria-knowledge.local.md` and extract `knowledge_folder`. If the file doesn't exist, stop: "aria-knowledge is not configured. Run /setup to get started."
 
 Use `{knowledge_folder}` as the base path for all file operations in subsequent steps.
+
+**Mode detection:** If the first argument matches `doc` (case-insensitive), this is a doc-mode capture. Set `mode = doc`; the remaining arguments (if any) are the source URL, file path, or title. Jump to "Doc Mode Steps" below. Otherwise set `mode = bulk` and proceed to Step 1.
+
+---
+
+## Doc Mode Steps (mode = doc only)
+
+Doc mode runs steps D1 → D6 to completion and exits. **Do not** run any bulk-mode step (Step 1 onward) in doc mode.
+
+### Step D1: Acquire Doc Source
+
+The source can be a URL, file path, or just a title (when capturing notes on a doc you read elsewhere).
+
+- **If args after `doc` contain a URL:** use as `source_url`; attempt WebFetch in D2 to extract title/author/content
+- **If args after `doc` contain a file path:** use as `source_path`; Read in D2
+- **If args after `doc` are plain text (no URL/path detected):** treat as `source_title`; no content fetch — user fills body manually in D3
+- **If no args after `doc`:** prompt: "What doc are you capturing? Paste a URL, file path, or title."
+
+### Step D2: Read or Note Doc Content
+
+- **URL source:** WebFetch the URL. Extract title, author (if discoverable from byline/meta), and key content. Respect copyright — capture summary and key claims for downstream synthesis, not full page text.
+- **File path source:** Read the file. If very large (>500 lines), use the same chunked-scan strategy as bulk mode (first 100, last 50, section headers, then targeted areas).
+- **Title-only source:** No content fetch. User will fill body sections manually in D3.
+
+Capture the following for D3:
+- `source_title` (from page title, file frontmatter, or user-provided string)
+- `source_url` (if URL; else omit)
+- `source_author` (if discoverable; else omit per #28a-5)
+- `captured_at` (current ISO 8601 timestamp)
+- `read_at` (defaults to `captured_at` — D4 preview lets user adjust if they read the doc earlier)
+- Summarized claims, candidate "worth keeping" items, and any contested or action-implied content noticed during the scan
+
+### Step D3: Populate Template
+
+1. Read `knowledge/intake/docs/_TEMPLATE.md (or inline structure from Step D3 below if missing)` to load the body template.
+2. Generate slug from `source_title`: lowercase, hyphenated, alphanumeric only, max ~60 chars. Example: `"The Bitter Lesson"` → `the-bitter-lesson`. If `source_title` is empty, use `doc-{HHMMSS}` as fallback.
+3. Resolve target path: `{knowledge_folder}/intake/docs/{YYYY-MM-DD}-{slug}.md`. If file already exists at that path, append `-2`, `-3`, etc. to slug until unique.
+4. Fill the frontmatter using captured fields from D2. Omit `source_url` if absent; omit `source_author` if absent. Always populate `captured_at`, `read_at`, `type: intake-doc`.
+5. Suggest 2-5 tags based on doc topic (cross-check existing `index.md` tags to prefer canonical names; new tags are fine but flag them).
+6. Suggest 2-4 `semantic-hints:` free-form phrases that match how a future query might reach this doc (per the convention in `template/README.md`).
+7. Pre-fill body sections from the D2 scan:
+   - **What the doc claims** — 2-4 sentence summary in your own words
+   - **Worth keeping** — bullet list of insights/quotes/data points worth durable storage; aim for 2-6 bullets
+   - **Contested or unclear** — populate if the scan surfaced anything debatable; leave empty (or omit the section) if nothing flagged
+   - **Action implied** — populate if the doc suggests a decision or next step relevant to ongoing work; omit if N/A
+   - **My reaction** — leave as a single-line placeholder (`{Your reaction — 1-3 sentences. This section is yours, not the doc's.}`) for the user to fill, since "reaction" is the user's voice not Claude's
+
+### Step D4: Preview
+
+Show the populated entry before writing. Format:
+
+```
+## Doc Intake Preview
+
+**Target:** {knowledge_folder}/intake/docs/{YYYY-MM-DD}-{slug}.md
+
+[full populated entry: frontmatter + body]
+
+---
+
+Save to intake/docs/?
+- `yes` — write the file as shown
+- `edit {section}` — revise a specific section (claims / keeping / contested / action / reaction / tags / hints / title / slug)
+- `skip` — abort, write nothing
+```
+
+Wait for explicit response. Allow multiple `edit` directives in sequence (re-show preview after each revision).
+
+### Step D5: Write
+
+On `yes`, write the entry to `{knowledge_folder}/intake/docs/{YYYY-MM-DD}-{slug}.md`. Create the `intake/docs/` subfolder if it doesn't exist (this is the first doc-mode capture).
+
+### Step D6: Report
+
+```
+## Doc Intake Complete
+
+- **Source:** {source_title or source_url or "untitled"}
+- **Path:** {knowledge_folder}/intake/docs/{YYYY-MM-DD}-{slug}.md
+- **Tags:** {tag list}
+
+Entry staged in intake/docs/ for next /audit-knowledge to review and promote.
+```
+
+**Exit after report.** Doc mode runs D1 → D6 only; bulk-mode steps (Step 1 onward) are not executed.
+
+---
 
 ## Step 1: Parse Sources
 
@@ -1428,13 +1517,17 @@ Knowledge staged in backlogs for next /audit-knowledge to review and promote.
 
 ## Rules
 
-- **Always preview before staging** — unlike `/extract`, intake operates on content the user may not have reviewed. Show findings first.
-- **Attribute sources** — every staged item includes the source file path or URL so the audit process knows where it came from.
-- **Respect copyright** — for URLs, capture summaries and key points, never full page content. The URL itself is the reference.
-- **Don't over-extract** — a 500-line architecture doc might yield 3-5 knowledge items, not 50. Extract the patterns and decisions, not every detail.
-- **Project attribution** — if the source path indicates a project (e.g., `ss/`, `cs/`, `df/`), tag the entries with that project. Otherwise use "intake" or "cross".
-- **Large directories need confirmation** — if a directory scan finds >10 files, list them and ask before proceeding. The user may want to narrow the scope.
-- **One intake, one scope** — don't mix sources from different projects in a single intake. If the user provides paths from multiple projects, process each project's sources as a separate group with its own attribution.
+- **Always preview before staging** — unlike `/extract`, intake operates on content the user may not have reviewed. Show findings first. Applies to both bulk mode (Step 5 preview) and doc mode (Step D4 preview).
+- **Attribute sources** — every staged item includes the source file path or URL so the audit process knows where it came from. Bulk mode adds source attribution per finding; doc mode captures `source_url`, `source_title`, `source_author` (when known) in frontmatter.
+- **Respect copyright** — for URLs, capture summaries and key points, never full page content. The URL itself is the reference. Applies to both modes — doc mode's "What the doc claims" should be in your own words, not a verbatim excerpt.
+- **Don't over-extract** — a 500-line architecture doc might yield 3-5 knowledge items, not 50. Extract the patterns and decisions, not every detail. In doc mode, "worth keeping" usually has 2-6 bullets, not 20.
+- **Project attribution** — if the source path indicates a project (e.g., `ss/`, `cs/`, `df/`), tag the entries with that project. Otherwise use "intake" or "cross". Same rule for both modes.
+- **Large directories need confirmation** — if a directory scan finds >10 files, list them and ask before proceeding. The user may want to narrow the scope. Bulk-mode only — doc mode is always single-source.
+- **One intake, one scope** — don't mix sources from different projects in a single intake. If the user provides paths from multiple projects, process each project's sources as a separate group with its own attribution. Doc mode is inherently single-source so this rule applies only to bulk mode.
+- **Doc mode: reaction is the user's voice** — pre-fill "What the doc claims" / "Worth keeping" / "Contested" / "Action" from your D2 scan. Leave "My reaction" as a single-line placeholder for the user to fill. Don't fabricate an opinion you don't actually hold.
+- **Doc mode: lazy subfolder creation** — `intake/docs/` is created on first doc-mode capture, not bootstrapped on /setup. Doesn't exist until needed.
+- **Doc mode: slug collisions** — if `{date}-{slug}.md` already exists, append `-2`, `-3`, etc. Don't overwrite. The audit process will dedup if the captures are about the same doc.
+- **Doc mode: title-only captures are valid** — if the user doesn't have a URL or file, just a title, accept that. The 5-section body still has value as structured notes-while-reading.
 
 ---
 
@@ -1588,12 +1681,12 @@ If no uncommitted changes exist, say "No uncommitted changes" and move on.
 
 **Important:** Do not push to remote. Only commit locally. If the user wants to push, they can do so separately. This applies to both modes.
 
-## Step 7: Verify Handoff Readiness
+## Step 7: Verify Wrapup Readiness
 
 Run through a checklist and report status:
 
 ```
-## Handoff Checklist
+## Wrapup Checklist
 
 - [x/!/ ] PROGRESS.md — [updated / already current / not found / skipped]
 - [x/!/ ] AGENTS.md — [current / updated / not found / skipped]
@@ -1608,11 +1701,11 @@ If any item shows a gap (uncommitted changes skipped, PROGRESS.md not updated), 
 
 ## Step 8: Prompt Extract
 
-**If `mode = auto`:** invoke the `/extract` skill without prompting. It handles its own config resolution and execution. (Captures session knowledge so the close-out is fully documented.)
+**If `mode = auto`:** ALWAYS invoke the `/extract` skill. No judgment-skip allowed — even if the session feels short, conversational, or seems to have nothing new to extract, run `/extract` anyway. The model running this step must not pre-judge whether extraction is worthwhile; `/extract` has its own dedup logic (per its Rules section: "Never ask for confirmation — scan and dump") that correctly handles the "nothing to add" case by reporting `No uncaptured knowledge found`. Auto mode's "implicit-yes on all gates" rule converts to **"extract always runs"** here — there is no skip path in auto mode.
 
 **Otherwise (gated mode):** Ask: "Run /extract to capture session knowledge before ending? (yes / no)"
 
-- **yes** — invoke the /extract skill (it handles its own config resolution and execution)
+- **yes** — invoke the /extract skill. Once the user has said yes, the same "always run" rule applies — do not subsequently skip based on session-content judgment.
 - **no** — skip
 
 ## Step 9: Report
@@ -1620,12 +1713,14 @@ If any item shows a gap (uncommitted changes skipped, PROGRESS.md not updated), 
 Output a brief closing summary:
 
 ```
-## Session Handoff Complete
+## Session Wrapup Complete
 
 [1-2 lines: what was updated]
 
 **Next session pickup:** Read [path to PROGRESS.md or AGENTS.md]
 ```
+
+Use the heading **`Session Wrapup Complete`** for `/wrapup` runs — distinct from `/handoff`'s closing headings. The two skills have distinct intents per the v2.19.0 intent split.
 
 ## Rules
 
@@ -2605,7 +2700,9 @@ If any step fails (e.g., commit hook rejects), surface the failure inline and st
 
 ## Step 6: Run /extract
 
-Invoke `/extract` programmatically. `/extract` is already non-interactive by design (per its Rules section: "Never ask for confirmation — scan and dump"), so no user prompt is needed in either mode. Capture its summary report for inclusion in Step 8.
+ALWAYS invoke `/extract` programmatically. This applies to default mode (after the user has approved the combined-go review in Step 4) AND `auto` mode unconditionally. No judgment-skip allowed — even if the session feels short, conversational, or seems to have nothing new to extract, run `/extract` anyway. Capture `/extract`'s summary report for inclusion in Step 8.
+
+(Brief mode never reaches Step 6 — it exits at Step 2B before any handoff side-effects.)
 
 ## Step 7: Verify Handoff Readiness
 
@@ -3933,6 +4030,879 @@ Or invoke from the agent: read `.cursor/aria-knowledge.local.md` for `knowledge_
 
 ---
 
+## /clip-thread
+
+
+# /clip-thread — Capture Chat/Email Thread to Intake
+
+Save a chat thread or email conversation to `intake/clippings/{YYYY-MM-DD}-{slug}.md` for review and promotion. Unlike `/clip` (URL/snippet) or `/intake` (bulk/doc-anchored), `/clip-thread` is shaped specifically for *threaded* conversations — Slack threads, Teams channel discussions, Gmail conversation chains, MS365 email threads.
+
+## Step 0: Resolve Config
+
+Read `.cursor/aria-knowledge.local.md` and extract `knowledge_folder`. If the file doesn't exist, stop: "aria-knowledge is not configured. Run /setup to get started."
+
+Verify `{knowledge_folder}/intake/clippings/` exists. If not, stop: "Clippings directory not found. Run /setup to repair the knowledge folder structure."
+
+## Step 1: Probe Connected MCPs
+
+Check Cursor's available MCP tool list for `~~chat` and `~~email` MCPs. The skill needs at least ONE of these connected to proceed.
+
+- **`~~chat`** (slack, ms365): if connected, available for Slack threads or Teams channel messages.
+- **`~~email`** (gmail, ms365): if connected, available for Gmail or MS365 email threads.
+
+If NEITHER category has a connected MCP, output the standard fallback notice and stop:
+
+> No required MCPs connected for `/clip-thread`. Connect one of: Slack, Microsoft 365 Teams (for ~~chat) or Gmail, Microsoft 365 Outlook (for ~~email) via Cursor Settings → MCP. See `plugin-claude-cowork/CONNECTORS.md` in the aria-knowledge repo. Skipping this run.
+
+Per [ADR-015](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/015-capability-probe-pattern.md), the runtime tool list IS the probe — no explicit API call needed.
+
+## Step 2: Parse Input
+
+The user provides one of:
+
+- **A Slack thread URL** — `https://<workspace>.slack.com/archives/<channel>/<message-ts>` or thread permalink
+- **A Teams message link** — `https://teams.microsoft.com/l/message/...`
+- **A Gmail thread ID or URL** — `https://mail.google.com/mail/u/0/#inbox/<thread-id>` or just the thread ID
+- **An MS365 message ID** — opaque ID from Outlook
+- **A bare thread/conversation identifier** — opaque string the connected MCP can resolve
+
+Optionally followed by tags (e.g., `slack #engineering`, `email customer-feedback`).
+
+**Source-type detection:**
+
+| Input shape | Routes to |
+|---|---|
+| Contains `slack.com/archives/` | `~~chat` (slack) |
+| Contains `teams.microsoft.com` | `~~chat` (ms365) |
+| Contains `mail.google.com` or matches Gmail thread-ID pattern | `~~email` (gmail) |
+| Outlook-shaped ID | `~~email` (ms365) |
+| Ambiguous | Ask user which category to route through |
+
+If the detected category's MCP is NOT connected, output the category-specific fallback notice and stop:
+
+> This thread looks like a [Slack thread / Gmail thread / etc.] but the `~~chat` / `~~email` MCP for that source is not connected. Connect [vendor] via your MCP config and retry. Skipping this run.
+
+## Step 3: Fetch Thread Content
+
+Call the appropriate MCP tool to retrieve the thread:
+
+- **Slack:** use the connected slack MCP's `conversations.replies` (or equivalent) tool with the channel + thread_ts derived from the URL. Retrieve all messages in the thread.
+- **Teams:** use the connected ms365 MCP's message-thread tool.
+- **Gmail:** use the connected gmail MCP's `messages.get` for each message in the thread (or `threads.get` if exposed).
+- **MS365 Outlook:** use the ms365 MCP's email-thread tool.
+
+For each message in the thread, gather:
+- Author (display name + handle/email)
+- Timestamp (ISO format)
+- Body (plaintext if available, markdown if the source supports it)
+- Reactions / attachments (if exposed — note their presence but don't fetch attachment bodies in this skill)
+
+**Limit:** if the thread has more than 50 messages, fetch the first 50 + note the truncation in the clipping. The user can run `/clip-thread` again with a refined identifier for the tail.
+
+## Step 4: Compose Clipping
+
+Slug-ify the thread for the filename: use the first message's first ~6 significant words, lowercased, hyphen-separated, ASCII-only.
+
+Generate the date stamp as `YYYY-MM-DD` (local time).
+
+Filename: `intake/clippings/{date}-{slug}.md`
+
+If a file with that name already exists, append `-2`, `-3`, etc. to deduplicate.
+
+Body template:
+
+```markdown
+---
+source: <thread-url-or-id>
+source_type: <slack|teams|gmail|ms365>
+date: <YYYY-MM-DD>
+participants: [<list of unique authors>]
+message_count: <N>
+tags: [<from input args, plus auto-detected like 'slack' or 'email'>]
+---
+
+# <thread topic — extracted from first message's first line or the channel name>
+
+## Context
+
+- **Source:** <source URL or "Slack thread in #channel" / "Gmail thread with N replies">
+- **Participants:** <N authors>: <list>
+- **Spans:** <first-message-date> → <last-message-date>
+- **Message count:** <N> (or "<N> of <total> — truncated at 50")
+
+## Thread
+
+<for each message:>
+
+### <Author> — <timestamp>
+
+<message body, lightly cleaned (remove Slack/MS markup if obvious, preserve markdown)>
+
+<reactions if present: e.g., "Reactions: 👍 ×3, 🎉 ×1">
+
+<attachment notes if present: e.g., "[attachment: deploy-logs.txt (45KB)]">
+
+---
+
+## Reaction
+
+<intentionally left empty — the user's reaction / why this is worth keeping. /audit-knowledge surfaces this for review at next audit pass.>
+```
+
+## Step 5: Write + Report
+
+Write the composed clipping to `{knowledge_folder}/intake/clippings/{date}-{slug}.md`.
+
+Report to user:
+
+```
+Clipped <N> messages from <source-type> thread to intake/clippings/<date>-<slug>.md.
+
+- Participants: <list, max 5 + "and N more" if truncated>
+- Spans: <date range>
+- Tags: <from input>
+
+Next: review at next /audit-knowledge run. Add a reaction in the "## Reaction" section if you want to lock in the why-it-matters context now.
+```
+
+## Rules
+
+- **Never auto-promote.** Clippings stay in `intake/clippings/` until `/audit-knowledge` routes them. This skill is intake-only.
+- **Never delete the source.** Reading a thread via MCP doesn't modify it; this is read-only externally.
+- **Respect 50-message truncation cap.** Do NOT loop and fetch all pages. If user wants the full thread, they can re-invoke with a refined scope or use the source platform's native export.
+- **Strip secrets if obvious** — if the thread contains what look like API keys, OAuth tokens, or passwords (regex match against common patterns), replace with `[REDACTED]` in the body and add a `redactions: true` field to frontmatter. Surface in the report.
+- **One thread per invocation.** If the user wants multiple threads, suggest `/intake` bulk mode.
+
+## Notes
+
+- Composes with `/audit-knowledge` — clippings written here are routed at next audit per the standard intake-disposition vocabulary (Accept → tracker / roadmap / todo / adr / plan / bundle / rule, or Reject / Defer).
+- The `## Reaction` section is the user's voice slot. `/clip-thread` never fills it (the same precedent `/intake doc` set in v2.17.0).
+- This skill is **bidirectional** per [ADR-014](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/014-bidirectional-feature-flow.md) — aria-cowork v0.4.0 ships an identical port. Output schema is byte-identical per [ADR-013](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/013-cowork-modified-skills-schema-identical-outputs.md).
+- Probe semantics per [ADR-015](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/015-capability-probe-pattern.md).
+
+---
+
+## /extract-doc
+
+
+# /extract-doc — Extract Insights from a Doc to Intake Backlog
+
+Pull knowledge-worthy items from a single connected `~~docs` source (Notion page, Google Doc, Confluence page, Box doc, Egnyte file) into `intake/insights-backlog.md`. Unlike `/intake doc` (which captures the doc itself as one structured artifact for later reaction), `/extract-doc` **decomposes** the doc into N intake entries — one per insight, decision, or question worth surfacing at audit.
+
+## Step 0: Resolve Config
+
+Read `.cursor/aria-knowledge.local.md` and extract `knowledge_folder`. If the file doesn't exist, stop: "aria-knowledge is not configured. Run /setup to get started."
+
+Verify `{knowledge_folder}/intake/insights-backlog.md` exists. If not, stop: "Insights backlog not found. Run /setup to repair the knowledge folder structure."
+
+## Step 1: Probe Connected MCPs
+
+Check Cursor's available MCP tool list for `~~docs` MCPs:
+
+- **`~~docs`** (notion, atlassian, box, egnyte, google docs): if connected, available for doc fetch.
+
+If NO `~~docs` MCP is connected, output the standard fallback notice and stop:
+
+> No required MCPs connected for `/extract-doc`. Connect one of: Notion, Atlassian (Confluence), Box, Egnyte, or Google Docs (when available) via Cursor Settings → MCP. See `plugin-claude-cowork/CONNECTORS.md` in the aria-knowledge repo. Skipping this run.
+
+Per [ADR-015](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/015-capability-probe-pattern.md).
+
+## Step 2: Parse Input
+
+The user provides one of:
+
+- **A Notion page URL** — `https://www.notion.so/<workspace>/<title>-<id>` or `notion.so/<id>`
+- **A Confluence page URL** — `https://<org>.atlassian.net/wiki/spaces/<space>/pages/<id>/<title>`
+- **A Google Docs URL** — `https://docs.google.com/document/d/<doc-id>/...` (if google docs MCP wired; placeholder URL in v2.18.0 .mcp.json)
+- **A Box file URL** — `https://app.box.com/file/<file-id>`
+- **An Egnyte file URL** — `https://<org>.egnyte.com/...`
+- **A bare doc/page ID** — opaque string the connected MCP can resolve
+
+Optionally followed by tags (e.g., `engineering postmortem`, `cs onboarding`).
+
+**Source-type detection:**
+
+| Input shape | Routes to |
+|---|---|
+| Contains `notion.so` or `www.notion.so` | `~~docs` (notion) |
+| Contains `atlassian.net/wiki` | `~~docs` (atlassian) |
+| Contains `docs.google.com/document` | `~~docs` (google docs) |
+| Contains `app.box.com/file` | `~~docs` (box) |
+| Contains `egnyte.com` | `~~docs` (egnyte) |
+| Ambiguous | Ask user which `~~docs` MCP holds the doc |
+
+If the detected-source's MCP is not connected, output a specific fallback notice:
+
+> This doc looks like a [Notion / Confluence / etc.] page but the [vendor] MCP is not connected. Connect [vendor] via your MCP config and retry, or paste the doc URL of a different format. Skipping this run.
+
+## Step 3: Fetch Doc Content
+
+Call the connected MCP's page/doc-fetch tool with the resolved ID:
+
+- **Notion:** `notion.fetch` or `pages.retrieve` + `blocks.children.list` for body.
+- **Atlassian:** `confluence.pages.get` (or equivalent) — request body in storage/representation that preserves headings + lists.
+- **Google Docs:** `documents.get` — extract text content + structure.
+- **Box / Egnyte:** file content fetch + text extraction (skip binary attachments).
+
+Gather:
+- Doc title
+- Author (last editor) + last-edited timestamp (if exposed)
+- Workspace / space / parent context (e.g., "Notion → Engineering → 2026 Q2")
+- Body content as structured text (preserve headings, lists, links — flatten complex blocks)
+
+**Limit:** if the doc is >20KB of extracted text, fetch the first 20KB + note the truncation in the entry metadata. The user can re-invoke with a section anchor (`#heading`) for the tail.
+
+## Step 4: Extract Insights
+
+Read the doc body and identify **knowledge-worthy items** — discrete propositions worth surfacing at next `/audit-knowledge`. Each candidate should be a single self-contained claim, decision, lesson, or question.
+
+For each candidate, classify into one of the standard intake categories:
+
+| Category | Use when |
+|---|---|
+| `insight` | Observation about how something works, or a learning |
+| `decision` | A choice that was made + rationale |
+| `extraction` | A pattern, recipe, or how-to worth promoting later |
+| `idea` | A "we should consider X" proposition |
+| `reference` | A useful URL or external resource named in the doc |
+
+Quality bar: skip items that are project-status updates, ephemeral context, or items already obviously in the knowledge folder. Default to **fewer-but-stronger** — extracting 3 strong items beats 12 weak ones.
+
+## Step 5: Stage to Backlog + Report
+
+For each extracted item, append a new entry to `{knowledge_folder}/intake/insights-backlog.md` (or `decisions-backlog.md` / `extraction-backlog.md` per category; ideas go to `intake/ideas/<date>-<slug>.md` per v2.11.0 per-file convention).
+
+Standard intake entry format (mirrors `/extract` skill output):
+
+```markdown
+## <one-line claim or title>
+
+- **Source:** [<doc-title>](<doc-url>) ([<vendor>])
+- **Date captured:** <YYYY-MM-DD>
+- **Project tags:** <from input args + auto-detected from doc workspace>
+- **Original context:** <2-3 sentence excerpt from the doc giving the surrounding context>
+
+<the insight itself, 1-3 sentences, in the user's voice as inferred from the doc>
+```
+
+For `idea` candidates (per v2.11.0 per-file convention), write `{knowledge_folder}/intake/ideas/{date}-{slug}.md`:
+
+```markdown
+---
+date: <YYYY-MM-DD>
+project: <tag>
+type: <category>
+title: <slug-shaped title>
+source: <doc-url>
+---
+
+**Proposal:** <the idea>
+
+**Motivation:** <why this matters per the doc context>
+
+**Source:** [<doc-title>](<doc-url>) via /extract-doc
+```
+
+Report to user:
+
+```
+Extracted <N> items from <doc-title> (<vendor>):
+
+| Category | Count | Routed to |
+|---|---|---|
+| insight | <n> | intake/insights-backlog.md |
+| decision | <n> | intake/decisions-backlog.md |
+| extraction | <n> | intake/extraction-backlog.md |
+| idea | <n> | intake/ideas/<date>-*.md |
+| reference | <n> | intake/insights-backlog.md (will route to references/ at audit) |
+
+Next: review at next /audit-knowledge run. The standard disposition vocabulary (Accept → tracker / roadmap / todo / adr / plan / bundle / rule / Defer / Reject) applies.
+```
+
+## Rules
+
+- **Never auto-promote.** Items stay in `intake/*-backlog.md` until `/audit-knowledge` routes them.
+- **Never modify the source doc.** Read-only externally.
+- **Strip secrets if obvious** — same redaction rules as `/clip-thread`.
+- **One doc per invocation.** For bulk, use `/intake` with a directory or glob of doc URLs.
+- **Default fewer-but-stronger.** Better to surface 3 substantial items for audit than 15 trivial ones — audit cycles cost user attention.
+
+## Notes
+
+- Bidirectional per [ADR-014](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/014-bidirectional-feature-flow.md) — aria-cowork v0.4.0 imports byte-faithfully.
+- Output schema is byte-identical across plugins per [ADR-013](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/013-cowork-modified-skills-schema-identical-outputs.md). Both plugins write to the same `insights-backlog.md` / `decisions-backlog.md` / `extraction-backlog.md` / `intake/ideas/*.md` files in the shared knowledge folder.
+- Probe semantics per [ADR-015](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/015-capability-probe-pattern.md).
+- Composes with `/audit-knowledge` — extracted items follow the same disposition vocabulary as any other intake entry. The `Source:` field is preserved through routing.
+- Differs from `/intake doc` mode (v2.17.0+): `/intake doc` captures ONE structured artifact per doc with user-fillable reaction section; `/extract-doc` decomposes a doc into MULTIPLE intake entries for audit routing. Use `/intake doc` when you want to react to a doc as a whole; use `/extract-doc` when the doc contains many discrete items worth surfacing separately.
+
+---
+
+## /meeting-notes
+
+
+# /meeting-notes — Capture Meeting Transcript to Intake
+
+Save a meeting transcript or notes to `intake/meetings/{YYYY-MM-DD}-{slug}.md` with structured participants / topics / action items / decisions sections. Source can be a `~~docs` MCP (Notion meeting page, Confluence meeting doc) OR pasted transcript text (Granola export, raw transcript, hand-written notes).
+
+## Step 0: Resolve Config
+
+Read `.cursor/aria-knowledge.local.md` and extract `knowledge_folder`. If the file doesn't exist, stop: "aria-knowledge is not configured. Run /setup to get started."
+
+Verify `{knowledge_folder}/intake/meetings/` exists. If not, create it (lazy creation for first-time use of this skill).
+
+## Step 1: Probe Connected MCPs (with paste fallback)
+
+Check Cursor's available MCP tool list for `~~docs` MCPs:
+
+- **`~~docs`** (notion, atlassian, box, egnyte, google docs): if connected, available for MCP-sourced meeting docs.
+
+**Branching logic** (this skill diverges from other MCP-consuming skills here — see [ADR-015](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/015-capability-probe-pattern.md) §"Application across the 5 MCP-consuming skills"):
+
+- **If `~~docs` IS connected AND input looks like a URL/ID:** route through MCP fetch (Step 2 MCP branch).
+- **If `~~docs` IS NOT connected OR input is `paste` (or empty):** offer paste fallback (Step 2 paste branch).
+- **If input is `paste` even with `~~docs` connected:** respect the explicit paste choice; skip MCP fetch.
+
+Unlike `/extract-doc`, `/clip-thread`, `/digest`, and `/sync-decisions`, this skill does NOT hard-stop when no `~~docs` MCP is present. Meeting transcripts often arrive via paste (from Granola, from a meeting tool's export button, from hand-typed notes) — closing that path would defeat the skill's primary use case.
+
+## Step 2 (MCP branch): Parse + Fetch from ~~docs
+
+Same as `/extract-doc` Step 2-3. Routing table:
+
+| Input shape | Routes to |
+|---|---|
+| Contains `notion.so` | notion (`~~docs`) |
+| Contains `atlassian.net/wiki` | atlassian (`~~docs`) |
+| Contains `docs.google.com/document` | google docs (`~~docs`) |
+| Bare ID + known MCP | use the connected one |
+
+Fetch the doc body. Proceed to Step 3.
+
+## Step 2 (paste branch): Prompt for transcript
+
+If no MCP fetch is possible (or the user passed `paste`), prompt:
+
+```
+Paste the meeting transcript or notes below. End with a blank line + `---END---` on its own line. Common sources:
+
+- Granola export (Markdown)
+- Slack thread copy-paste
+- Hand-typed notes
+- Zoom / Teams / Meet auto-transcript export
+- Any plaintext or Markdown
+
+I'll structure it into participants / topics / action items / decisions.
+```
+
+Wait for the paste. Read the content until `---END---` marker. Proceed to Step 3.
+
+## Step 3: Structure the Transcript
+
+Parse the transcript body to identify these sections (Claude infers from content; this is NOT a strict parser — handle informal transcripts):
+
+1. **Participants** — names + roles if present. Look for lists at the top, "@" mentions, speaker labels.
+2. **Date + duration** — if not explicit, ask user or default to today.
+3. **Topics discussed** — section headings, bullet points, "we talked about" markers.
+4. **Action items** — "TODO", "[ ]", "@person will", "action:" markers. Extract assignee + description + due date if present.
+5. **Decisions** — "we decided", "agreed to", "going with X over Y" patterns. Extract the decision + rationale if stated.
+6. **Open questions** — "?", "unresolved", "follow-up", "need to figure out" markers.
+7. **Topic-level summary** — 1-2 sentences per major topic.
+
+Be conservative: if a section can't be reliably extracted, mark it `(none identified)` rather than fabricating.
+
+## Step 4: Compose Meeting Note
+
+Slug-ify the meeting title for the filename (from input arg, or extracted from first heading, or "meeting" as fallback). Lowercase, hyphen-separated, ASCII-only, max ~50 chars.
+
+Filename: `intake/meetings/{YYYY-MM-DD}-{slug}.md`. If a file with that name exists, append `-2`, `-3` to deduplicate.
+
+Body template:
+
+```markdown
+---
+date: <YYYY-MM-DD>
+title: <meeting title>
+source: <doc-url OR "pasted transcript">
+source_type: <notion|atlassian|box|egnyte|google docs|paste>
+participants: [<name list>]
+duration: <if known>
+tags: [meeting, <project-tag-if-inferable>]
+---
+
+# <Meeting title>
+
+## Context
+
+- **Date:** <YYYY-MM-DD>
+- **Source:** <doc-url OR "pasted transcript">
+- **Participants:** <comma-separated list>
+- **Duration:** <if known, else omit>
+
+## Topics
+
+<for each major topic, with 1-2 sentence summary:>
+
+### <Topic name>
+
+<summary>
+
+## Action Items
+
+<for each action item:>
+
+- [ ] **<assignee>** — <action description> <(due: <date> if present)>
+
+<or: "(none identified)" if section is empty>
+
+## Decisions
+
+<for each decision:>
+
+- **<decision>** — <rationale if stated, else "no rationale captured">
+
+<or: "(none identified)">
+
+## Open Questions
+
+- <question>
+
+<or: "(none identified)">
+
+## Raw Transcript
+
+<the original transcript body, preserved verbatim for reference. If from MCP fetch, include source-doc URL at top of this section.>
+
+---
+
+## Reaction
+
+<intentionally left empty — the user's reaction / why this meeting is worth keeping in knowledge. /audit-knowledge surfaces this for review.>
+```
+
+## Step 5: Write + Report
+
+Write the composed meeting note to `{knowledge_folder}/intake/meetings/{date}-{slug}.md`.
+
+Report to user:
+
+```
+Captured meeting "<title>" to intake/meetings/<date>-<slug>.md.
+
+- Source: <vendor or "pasted">
+- Participants: <N>: <list, max 5 + "and N more">
+- Topics: <N>
+- Action items: <N>
+- Decisions: <N>
+- Open questions: <N>
+
+Next: add a reaction in the "## Reaction" section (or wait for /audit-knowledge to surface it). Action items + decisions may be worth extracting separately via /extract-doc on this file if you want them in the standard intake backlogs.
+```
+
+## Rules
+
+- **Never delete the source doc.** Read-only on the MCP side.
+- **Preserve the raw transcript verbatim.** The structured sections are derived; the raw transcript is the source-of-truth. Both ship in the same file so audit / future re-extraction has the source.
+- **Strip secrets if obvious** — same redaction rules as `/clip-thread`. Note redactions in frontmatter.
+- **Default `(none identified)` over fabrication.** If a section can't be reliably parsed, mark it empty rather than guess.
+- **One meeting per invocation.** Multiple meetings = multiple `/meeting-notes` calls.
+
+## Notes
+
+- The Reaction section pattern matches `/intake doc` (v2.17.0) and `/clip-thread` (v2.18.0) — capture artifacts ship with a user-fillable "why this matters" slot that Claude never autocompletes.
+- Bidirectional per [ADR-014](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/014-bidirectional-feature-flow.md) — aria-cowork v0.4.0 imports byte-faithfully.
+- Output schema is byte-identical per [ADR-013](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/013-cowork-modified-skills-schema-identical-outputs.md). Both plugins write to `intake/meetings/` in the shared knowledge folder.
+- **Paste-fallback divergence** documented in [ADR-015](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/015-capability-probe-pattern.md) §"Application across the 5 MCP-consuming skills" — this is the one skill that doesn't hard-stop on missing MCPs.
+- The skill is **intake-only** — it doesn't promote meeting notes to `references/` or `decisions/`. That's `/audit-knowledge`'s job at next audit, or the user can manually promote via `/extract-doc` on this file to split out decisions/action items.
+- Composes naturally with Granola exports — Granola's Markdown format already includes participants + transcript + (optionally) extracted action items. The paste branch picks this up cleanly.
+
+---
+
+## /digest
+
+
+# /digest — Cross-Tool Weekly Rollup
+
+Synthesize a digest of activity across connected MCPs into `intake/digests/{YYYY-MM-DD}.md`. Pulls from `~~chat` + `~~email` + `~~project tracker` + `~~docs` to produce a "what's pending / what shipped / what's blocked" rollup. Composite of all 4 categories — the most cross-tool of the v2.18.0 skills.
+
+## Step 0: Resolve Config
+
+Read `.cursor/aria-knowledge.local.md` and extract `knowledge_folder`. If the file doesn't exist, stop: "aria-knowledge is not configured. Run /setup to get started."
+
+Lazily create `{knowledge_folder}/intake/digests/` if it doesn't exist.
+
+## Step 1: Probe Connected MCPs (all 4 categories)
+
+Check Cursor's available MCP tool list for each `~~category`. The digest runs with ANY non-zero set of connected MCPs — gather from whichever are connected, surface gaps for the rest.
+
+| Category | MCP options | Status |
+|---|---|---|
+| `~~chat` | slack, ms365 | <connected: list / not connected> |
+| `~~email` | gmail, ms365 | <connected: list / not connected> |
+| `~~project tracker` | linear, asana, atlassian, monday, clickup, notion | <connected: list / not connected> |
+| `~~docs` | notion, atlassian, box, egnyte, google docs | <connected: list / not connected> |
+
+If NO MCPs in ANY category are connected, output the standard fallback notice and stop:
+
+> No required MCPs connected for `/digest`. Connect at least one of: Slack/MS365 (~~chat), Gmail/MS365 (~~email), Linear/Asana/etc. (~~project tracker), or Notion/Confluence/etc. (~~docs) via Cursor Settings → MCP. See `plugin-claude-cowork/CONNECTORS.md` in the aria-knowledge repo. Skipping this run.
+
+Per [ADR-015](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/015-capability-probe-pattern.md) — degrade gracefully for missing categories; don't fabricate.
+
+## Step 2: Parse Time Window
+
+Determine the digest window from args:
+
+| Arg | Window |
+|---|---|
+| (none) or `--week` | Last 7 days (today minus 7) |
+| `--since YYYY-MM-DD` | From that date to today |
+| `--since YYYY-MM-DD --until YYYY-MM-DD` | Closed range |
+| `--month` | Last 30 days |
+| `--quarter` | Last 90 days |
+
+Default: 7-day window. State the window explicitly in the digest header.
+
+## Step 3: Gather per Connected Category
+
+For each CONNECTED category, run the appropriate fetch. Skip disconnected categories (note as gaps in the digest output).
+
+### 3a. `~~chat` (if connected)
+
+For Slack: search for messages where the user is mentioned (`@user`) OR is the author, in the time window. Also fetch unresolved threads (the user posted and got no response after 24+ hours).
+
+For MS365 Teams: similar — channel mentions + direct messages.
+
+Gather:
+- Mention count per channel
+- Top 5-10 threads ranked by reply count or recency
+- Threads where the user owes a response (last message is not theirs + question mark or @-mention)
+
+### 3b. `~~email` (if connected)
+
+For Gmail or MS365: search inbox for unread messages in the window, sent items in the window, and emails flagged/starred.
+
+Gather:
+- Top 10 sent emails by reply-count (active threads the user drove)
+- Unread count by sender
+- Flagged / starred items
+
+### 3c. `~~project tracker` (if connected)
+
+For Linear / Asana / Atlassian / Monday / ClickUp / Notion-as-tracker: query for issues assigned to the user with status changes in the window.
+
+Gather (per tool, format-normalized):
+- **Pending:** open issues assigned, sorted by priority + last-update
+- **Shipped:** issues moved to Done/Closed/Shipped in the window
+- **Blocked:** issues with Blocked status, or stale (no update in 7+ days while still Open)
+- **Mentions:** issues where the user was mentioned in comments
+
+### 3d. `~~docs` (if connected)
+
+For Notion / Confluence / etc.: list docs touched by the user (created OR edited) in the window. List docs the user was @-mentioned in.
+
+Gather:
+- Recently touched (top 10, ordered by edit time)
+- Mentions / pages the user was tagged in
+
+## Step 4: Synthesize the Digest
+
+Compose a unified narrative from the gathered data. Sections:
+
+1. **Window & sources** — explicit time window + which MCPs were available + which were not
+2. **What's pending** — open items needing the user's action (from project tracker + threads owed responses + unread flagged emails)
+3. **What shipped** — closed/completed/moved items in the window (from project tracker + sent emails noting completion + docs marked done)
+4. **What's blocked** — items in Blocked status, stale items, threads waiting on others
+5. **Cross-tool patterns** — observations that span sources (e.g., "3 mentions of Project Phoenix across chat + tracker but no doc in `~~docs` for it; consider creating one")
+6. **Gaps surfaced** — categories that weren't connected + what would be added by connecting them
+
+Be conservative: rank by signal, not volume. A digest with 12 strong items beats 47 noisy ones.
+
+## Step 5: Write + Report
+
+Filename: `intake/digests/{YYYY-MM-DD}.md`. Use today's date (the digest's *creation* date, not the window's end date). If a file with that name exists, append `-2`, `-3` for multiple digests in one day.
+
+Body template:
+
+```markdown
+---
+date: <YYYY-MM-DD>
+window_start: <YYYY-MM-DD>
+window_end: <YYYY-MM-DD>
+sources_connected: [<list of connected MCP names>]
+sources_unavailable: [<list of disconnected categories>]
+tags: [digest, weekly|monthly|quarterly]
+---
+
+# Digest — <window_start> → <window_end>
+
+## Sources
+
+**Connected:** <list of MCPs that contributed data>
+**Not connected:** <list of categories that would have added value> — to fill these gaps, connect the relevant MCP via Claude Code's MCP config or Cowork Settings → Connectors.
+
+## What's pending
+
+<bulleted list, grouped by source-of-priority. Each item includes a link back to the source if a URL is exposed by the MCP.>
+
+## What shipped
+
+<bulleted list of completed items in the window.>
+
+## What's blocked
+
+<bulleted list of stuck items + brief why.>
+
+## Cross-tool patterns
+
+<observations that span 2+ sources. Skip section if nothing notable.>
+
+## Gaps surfaced
+
+<categories that weren't connected + what they would have added. Skip if all 4 connected.>
+
+---
+
+## Reaction
+
+<intentionally left empty — the user's reaction. /audit-knowledge surfaces this for review.>
+```
+
+Report to user:
+
+```
+Digest written to intake/digests/<date>.md.
+
+- Window: <start> → <end>
+- Sources connected: <N>/4
+- Pending items: <n>
+- Shipped items: <n>
+- Blocked items: <n>
+
+Disconnected categories surfaced N gap callouts in the digest. Connect more MCPs to enrich next week's digest.
+```
+
+## Rules
+
+- **Never auto-act on digest content.** This skill READS from MCPs; it does not write back. (For external writes, see `/sync-decisions` — that's the only v2.18.0 skill that writes externally.)
+- **Always surface gaps.** If `~~docs` wasn't connected, the digest must say so — don't silently omit categories.
+- **Default conservative ranking.** Better 5 strong items per section than 30 weak ones. The digest is for *Mike-reading-on-Sunday-night*, not exhaustive audit.
+- **Strip secrets if obvious** — same redaction rules as other skills.
+- **Window defaults to 7 days.** Re-invoke with `--month` or `--quarter` for longer rollups (rare; weekly is the standard cadence).
+
+## Notes
+
+- Most expensive of the v2.18.0 skills in terms of MCP calls — calls 4 categories' worth of tools in one invocation. Run cadence: weekly (Sunday or Monday morning), not on every session.
+- Bidirectional per [ADR-014](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/014-bidirectional-feature-flow.md) — aria-cowork v0.4.0 imports byte-faithfully. The Cowork-side context (conversational sessions, more cross-tool synthesis built into the workflow) makes this skill particularly load-bearing on the Cowork side.
+- Output schema is byte-identical per [ADR-013](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/013-cowork-modified-skills-schema-identical-outputs.md).
+- Probe semantics per [ADR-015](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/015-capability-probe-pattern.md) — graceful degradation built-in for partial-connection scenarios.
+- Composes with `/audit-knowledge` — digests are intake artifacts and route through standard audit disposition. Most digests will be `Defer` (interesting but not promotion-worthy) or `Bundle` (cluster patterns across multiple digests for a cross-week insight).
+- Inspired by Anthropic's productivity plugin `update --comprehensive` mode, adapted for ARIA's intake-then-audit model rather than productivity's TASKS.md sync model.
+
+---
+
+## /sync-decisions
+
+
+# /sync-decisions — Mirror Decisions to External Docs
+
+Read approved decisions from `{knowledge_folder}/decisions/` and write them out to a connected `~~docs` MCP destination (a Notion page, Confluence space, Google Doc, etc.). The only v2.18.0 skill that writes externally; embeds Rule 22 advisory preamble per [ADR-016](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/016-rule-22-advisory-preamble-for-external-writes.md).
+
+## Step 0: Resolve Config
+
+Read `.cursor/aria-knowledge.local.md` and extract `knowledge_folder`. If the file doesn't exist, stop: "aria-knowledge is not configured. Run /setup to get started."
+
+Verify `{knowledge_folder}/decisions/` exists. If not, stop: "No decisions/ folder found. Nothing to sync."
+
+Lazily create `{knowledge_folder}/logs/sync-decisions.md` if it doesn't exist (used by Step 7 for sync history).
+
+## Step 1: Probe Connected MCPs
+
+Check Cursor's available MCP tool list for `~~docs` MCPs that support WRITE operations:
+
+- **`~~docs`** (notion, atlassian, box, egnyte, google docs): if connected, check the MCP's exposed tools — `~~docs` MCPs that only expose `read_page` / `search_pages` are READ-ONLY for this skill's purpose. Need a write surface (`create_page`, `update_page`, `append_block_children`, or equivalent).
+
+If NO `~~docs` MCP with write capability is connected, output the standard fallback notice and stop:
+
+> No required MCPs connected for `/sync-decisions`. This skill writes externally — needs a `~~docs` MCP with write capability (page creation or block append). Connect Notion, Atlassian (Confluence), Box, Egnyte, or Google Docs via Cursor Settings → MCP. See `plugin-claude-cowork/CONNECTORS.md` in the aria-knowledge repo. Skipping this run.
+
+Per [ADR-015](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/015-capability-probe-pattern.md).
+
+## Step 2: Enumerate Decisions to Sync
+
+Determine which decisions are candidates based on args:
+
+| Arg | Candidates |
+|---|---|
+| (none) | All decisions whose `synced_to_~~docs:` frontmatter field is absent OR older than file's last-modified time |
+| `<decision-slug>` | Just the named decision (e.g., `/sync-decisions 069-karpathy-4-line-foundation`) |
+| `--all` | Every decision in `decisions/`, regardless of prior sync state |
+| `--since YYYY-MM-DD` | Decisions modified or created on/after that date |
+
+Read each candidate decision file from `{knowledge_folder}/decisions/`. Cache them in working memory.
+
+If zero candidates: report "No decisions need syncing" and stop.
+
+## Step 3: Resolve Sync Target
+
+Determine the destination on the `~~docs` MCP side. Args + heuristics:
+
+| Source of target | Used when |
+|---|---|
+| `--target <space-or-page-url>` from args | User specified |
+| `sync_target:` frontmatter field on the decision | Decision specifies own target |
+| `default_sync_target` from aria-knowledge.local.md (if set) | User has a global default |
+| Ask user interactively | None of above resolved |
+
+If target resolution requires asking the user, present:
+
+```
+Which destination?
+
+- (a) Existing page URL: paste the ~~docs page URL where decisions should be appended
+- (b) New top-level page: I'll create `aria-knowledge-decisions` (or a name you provide) in the workspace root
+- (c) Cancel this sync run
+
+Decision-specific syncs (where decisions/<slug>.md has its own `sync_target:` field) override this; this prompt only fires for decisions without a per-file target.
+```
+
+If no target resolvable + no interactive answer, abort with clear message: "No sync target resolvable. Set `default_sync_target` in aria-knowledge.local.md or invoke with `--target <url>`."
+
+## Step 4: Rule 22 Advisory Preamble (per ADR-016)
+
+For EACH candidate decision, walk through this checklist:
+
+```
+Before each external write — Rule 22 advisory checklist
+
+This skill writes to an external system. aria-knowledge's PreToolUse hook gates Edit/Write but does NOT catch MCP write tools — Rule 22 here is text-only discipline per ADR-016.
+
+1. **State the change in one sentence.** "Writing decision <slug> to <target-url-or-page-title>."
+
+2. **Why this destination?** Is this the right audience for this decision content? Could it leak into a view the user didn't intend (public workspace, wrong project, wrong channel)?
+
+3. **Reversibility check.** Can the user edit/delete the write from <vendor> after it lands? (For Notion / Confluence / Google Docs: YES, user can edit at destination. For Box / Egnyte: depends on workspace permissions. Note any constraint explicitly.)
+
+4. **Surface for explicit go.** Present the full proposed write content + destination. Wait for explicit user `yes` / `go` before calling the write tool.
+```
+
+Concretely: for each decision, surface this block to the user:
+
+```
+Decision: <slug>
+Source file: decisions/<slug>.md
+Destination: <target-url-or-page-title> on <vendor>
+Operation: <create new page | append to existing page | update existing page>
+Reversibility: <user can edit at destination: yes/no/constrained>
+
+--- Proposed write content (preview) ---
+
+<the full decision content as it will appear externally — markdown if Notion/Confluence; plaintext if Google Doc; etc.>
+
+--- End preview ---
+
+Ready to write? (yes / no / edit)
+```
+
+## Step 5: Per-Decision Go-Gate
+
+Wait for the user's explicit response:
+
+- **`yes` / `go`:** proceed to Step 6 for THIS decision.
+- **`no` / `skip`:** mark this decision as skipped in the sync log; move to the next candidate.
+- **`edit`:** ask the user what to change in the preview content, regenerate, re-present, ask again.
+- **`yes to all writes` (literal):** authorize this AND all remaining decisions in the candidate list without per-decision confirmation. This is the ONLY way to batch — explicit user opt-in per ADR-016. The exact phrase "yes to all writes" must appear in the user's reply; partial forms like "yes to all" or "yes all" do NOT trigger the batch carve-out (per the retro 2026-05-19 finding aligning SKILL.md to ADR-016's literal-phrase requirement).
+- **`cancel`:** abort the entire sync run; nothing else gets written.
+- **(silence or non-matching reply):** treat as `no`; re-prompt.
+
+Per ADR-016: "Do NOT proceed on implicit consent. Do NOT batch multiple writes behind a single `yes` unless the user explicitly says 'yes to all writes' in this invocation."
+
+## Step 6: Execute Write
+
+Call the connected `~~docs` MCP's write tool with the resolved target + proposed content.
+
+For each MCP:
+- **Notion:** `pages.create` (new page) or `blocks.children.append` (append to existing page). Set `parent` to the target page; populate `properties.title` from decision title.
+- **Atlassian (Confluence):** `confluence.pages.create` or `confluence.pages.update`. Set `space` + `parent` per target.
+- **Google Docs:** `documents.batchUpdate` with InsertText requests appending to the target doc.
+- **Box / Egnyte:** create a new doc file (typically `.md` or `.txt`) at the resolved path; vendor-specific tool name.
+
+On success, capture:
+- The destination URL / ID returned by the MCP
+- The timestamp of the write
+- The size of the write
+
+On failure, surface the error and ask the user: continue with remaining decisions? Abort?
+
+## Step 7: Update Frontmatter + Log
+
+For each successfully synced decision:
+
+**Update the decision file's frontmatter** to record the sync — add or update:
+
+```yaml
+synced_to_~~docs:
+  - target: <destination URL>
+    vendor: <notion|atlassian|box|egnyte|google docs>
+    synced_at: <ISO timestamp>
+    operation: <create|append|update>
+```
+
+This is the only modification to the source file — content is unchanged; only frontmatter records the sync state.
+
+**Append to `logs/sync-decisions.md`:**
+
+```markdown
+## <YYYY-MM-DD HH:MM> — <vendor>
+
+- **<decision-slug>** → [<destination URL>](<destination URL>) (<operation>)
+  Source: `decisions/<slug>.md`
+  Size: <N> chars
+
+<repeat per synced decision>
+```
+
+If a decision was skipped (`no` response), log it too with `status: skipped` for audit traceability.
+
+## Step 8: Report
+
+Summary to user:
+
+```
+Sync complete: <N synced> / <N skipped> / <N failed>
+
+Synced to <vendor> (<target>):
+- <slug>: [<destination URL>](<destination URL>) <create|append>
+- <slug>: ...
+
+Skipped (user declined):
+- <slug>
+- <slug>
+
+Failed (MCP errors):
+- <slug>: <error message>
+
+Sync log: logs/sync-decisions.md
+```
+
+## Rules
+
+- **Never batch without explicit user opt-in.** The "yes to all writes" path requires the literal 4-word phrase per ADR-016. Partial forms (e.g., "yes to all", "yes all", "go all") do NOT trigger the batch carve-out.
+- **Never modify the decision body.** Only the `synced_to_~~docs:` frontmatter field changes locally; the markdown body is untouched.
+- **Never delete a destination page.** This skill creates / appends / updates only — destination cleanup is the user's responsibility at the vendor side.
+- **Strip secrets if obvious** — same redaction rules as other skills. If a decision body contains what look like API keys / tokens, redact before write + surface in preview.
+- **One sync target per invocation.** If the user wants different decisions to go to different targets, run `/sync-decisions <slug> --target <url1>` then `/sync-decisions <other-slug> --target <url2>`.
+- **Log every attempt.** Success, skip, or failure — all go in `logs/sync-decisions.md` for audit traceability.
+
+## Notes
+
+- **First WRITE-side skill in either ARIA plugin.** Embedding the Rule 22 advisory preamble verbatim per [ADR-016](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/016-rule-22-advisory-preamble-for-external-writes.md). Future write-side skills MUST embed the same preamble.
+- Bidirectional per [ADR-014](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/014-bidirectional-feature-flow.md) — aria-cowork v0.4.0 imports byte-faithfully. The advisory preamble template is identical across plugins; the only divergence is the Step 0 config path resolution.
+- Output schema is byte-identical per [ADR-013](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/013-cowork-modified-skills-schema-identical-outputs.md). Both plugins write to the same shared `logs/sync-decisions.md` + update the same `synced_to_~~docs:` frontmatter shape.
+- The `synced_to_~~docs:` frontmatter convention is **new in v2.18.0**. Documented in `CONFIG.md` schema section (added in Phase 3a).
+- Composes with `/audit-knowledge` — synced decisions are no different from unsynced for audit purposes. The `synced_to_~~docs:` field is informational, not consumed by audit routing.
+- **Does NOT replace `_project-knowledge/` git-based team sharing.** That mechanism (v2.13.0) is for per-repo team-mate sharing; `/sync-decisions` is for org-wide wiki / docs publishing. Both can run in parallel.
+- Future direction (post-v2.18.0): a `/sync-rules` or `/sync-references` skill could follow the same pattern if external mirroring of other knowledge artifacts is wanted. ADR-016's preamble template ports forward.
+
+---
+
 ## /setup
 
 
@@ -4423,12 +5393,18 @@ Print the command reference table. No config or file access needed. Use when use
 | /stats | Knowledge base health dashboard — file counts, backlogs, audit status |
 | /ask [question] | Research a question, check existing knowledge, save answer as a knowledge doc |
 | /clip [url or text] | Quick-save a URL or text snippet to intake for later review |
+| /clip-thread [url or id] | Capture a Slack/Teams/Gmail thread via connected MCP to intake/clippings/ |
 | /intake [path or url] | Bulk import knowledge from files, directories, or URLs |
+| /intake doc [url or title] | Structured single-doc capture under intake/docs/ |
+| /extract-doc [url] | Decompose one external doc into intake backlog entries (~~docs MCP) |
+| /meeting-notes [url or paste] | Fold meeting transcript into intake/meetings/ (MCP or paste) |
+| /digest [--week] | Cross-tool weekly rollup into intake/digests/ (MCP composite) |
+| /sync-decisions [slug] | Mirror approved decisions to external wiki (~~docs WRITE MCP) |
 | /codemap [mode] | Feature-organized CODEMAP.md for any codebase (create/inventory/update/section) |
 | /distill [text or path] | Tiered task spec from raw text; optional --group for CODEMAP-loaded context |
 | /stitch <mode> <group> | Cross-repo binding (auth/endpoints/entities/drift) for a product group |
-| /wrapup | End-of-session handoff — update PROGRESS/AGENTS.md, prompt for commit, verify continuity |
-| /handoff [auto] | Express handoff — same coverage as /wrapup, one combined-go review (or `auto` for silent), always emits a paste-ready next-session opener |
+| /wrapup [auto] | Session close-out — update PROGRESS/AGENTS.md, commit, always-run /extract in auto mode |
+| /handoff [auto\|brief] | Passoff package with paste-ready next-session opener (or coworker brief) |
 | /snapshot | Write a task-boundary capture (git + hook + config state) under intake/task-boundary-captures/ |
 | /help | This command reference |
 
@@ -4538,4 +5514,3 @@ If a project root has a top-level `IDEAS-BACKLOG.md` but no `_project-knowledge/
 Print: `N items shared across {project count} project(s). Migration steps: {list}. Skipped: {list with reasons}.`
 
 If anything failed (write errors, missing dirs), report the specific failure but do not roll back successful writes.
-```
