@@ -5,8 +5,9 @@
 node_modules/
 plugin-claude-code/.claude/
 
-# Release artifacts built by release.sh — distribute via GitHub Releases, not git.
+# Release artifacts built by release scripts — distribute via GitHub Releases, not git.
 aria-knowledge-*.zip
+aria-cowork*.plugin
 
 # Local /codemap output. ARIA is a public repo — keep generated codemaps off the source tree
 # unless we want to ship a curated one as an AI-onboarding artifact.

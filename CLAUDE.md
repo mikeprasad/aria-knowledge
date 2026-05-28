@@ -33,6 +33,22 @@ python3 plugin-cursor-template/scripts/port-skills-to-mdc.py
 
 `port-skills-to-mdc.py` strips Runtime Gate blocks, adapts paths (`AGENTS.md`, `.cursor/aria-knowledge.local.md`), and upserts MCP skill sections idempotently.
 
+## Codex Port (plugin-openai-codex/)
+
+The OpenAI Codex port lives at `plugin-openai-codex/` — an independent installable adapter that uses the shared ARIA knowledge folder and content schema while diverging on plugin manifest shape, hook registration, and tool-boundary behavior for Codex. **Current Codex release: `2.20.2-codex.0`** (2026-05-28, parity with plugin-claude-code v2.20.2). Wires MCP servers via `.mcp.json` (Codex manifest convention uses `mcp_servers` snake_case key vs. Claude's `mcpServers` camelCase — both are correct for their target runtime). Strips ADR-094 Runtime Gate sections from ported skills (gates are Bash-availability-fingerprint-dependent and don't fire in Codex). Ships a port-specific test suite at `plugin-openai-codex/tests/run.sh` that release-codex.sh gates on (skills carry codex metadata, no ADR-094 gates leaked through, `apply_patch` denial shape current, transcript reader doesn't scan without `turn_id`).
+
+**Build with** `./release-codex.sh` from repo root. Reads version from `plugin-openai-codex/.codex-plugin/plugin.json` (single source of truth, strips `-codex.N` suffix for filename). Produces `aria-knowledge-codex-<canonical>.zip` + version-stable `aria-knowledge-codex.zip`. Verification gates: MCP manifest present, `tests/` excluded from artifact, no junk.
+
+## Antigravity Port (plugin-antigravity/)
+
+The Antigravity IDE port lives at `plugin-antigravity/` — targets **Antigravity IDE** (VS Code fork) and **Antigravity CLI** (`agy`) from Google's Antigravity team. **Current Antigravity release: `2.20.2`** (2026-05-28, parity with plugin-claude-code v2.20.2). Unlike sibling ports, Antigravity's `plugin.json` schema has **no version field** per Antigravity docs — version lives in a `version.txt` sidecar synced from canonical by `plugin-antigravity/build.sh`. Setup skill reads version from `${CLAUDE_PLUGIN_ROOT}/version.txt` rather than parsing JSON.
+
+**Two-script model** (different from sibling ports' one-script model):
+1. `plugin-antigravity/build.sh` — *regenerates* port content from canonical sources (copies skills from `plugin-claude-code/skills/`, applies overlays from `plugin-antigravity/overlays/`, syncs `version.txt`, patches setup/SKILL.md paths). Run when canonical sources change.
+2. `release-antigravity.sh` (at repo root) — stages regenerated port content with junk exclusions and emits `aria-knowledge-antigravity-<version>.zip` + version-stable copy.
+
+**Zip structure is flat (no top-level wrapper dir).** This differs from claude-code/codex/cursor zips which nest content under a plugin-name wrapper, matching Antigravity IDE's install machinery. `release-antigravity.sh` verifies this invariant (`wrapper` count must be 0).
+
 ## Project Structure
 
 ```
@@ -75,6 +91,21 @@ aria/
 │   │   └── VERSION    ← Port version (e.g. 2.20.2-cursor.0)
 │   ├── scripts/port-skills-to-mdc.py  ← Re-sync from plugin-claude-code/skills/
 │   └── audit/         ← Frozen audit artifacts (2.16.1 baseline; see PORTING.md for current)
+├── plugin-antigravity/         ← Antigravity IDE / CLI port (flat-zip install)
+│   ├── plugin.json   ← Manifest (no version field per Antigravity docs)
+│   ├── version.txt   ← Port version sidecar (source of truth — synced by build.sh)
+│   ├── mcp_config.json
+│   ├── hooks.json
+│   ├── bin/          ← Canonical bin scripts + Antigravity adapter (bin/antigravity/)
+│   ├── skills/       ← Regenerated from canonical via build.sh
+│   ├── template/     ← Regenerated from canonical via build.sh
+│   ├── overlays/     ← Per-skill overrides applied by build.sh
+│   ├── build.sh      ← Regenerates port content from canonical sources
+│   └── tests/        ← Port test suite (smoke + structural)
+├── release.sh                  ← Builds claude-code zip (canonical)
+├── release-codex.sh            ← Builds codex zip
+├── release-cursor.sh           ← Builds cursor zip
+├── release-antigravity.sh      ← Builds antigravity zip (flat layout)
 └── docs/              ← Extended documentation (future)
 ```
 
@@ -90,6 +121,7 @@ aria/
 - **Codex hooks** require Codex `plugin_hooks` enabled; the adapter reads `~/.codex/aria-knowledge.local.md` first, then falls back to `~/.claude/aria-knowledge.local.md`
 - **`plugin-claude-cowork/` is the Claude Cowork installable unit** — sibling to plugin-claude-code/, both share schema-identical knowledge-folder outputs (per ADR-013). Cowork runtime is skills-only (no hooks API); enforcement is skill-embedded. Per ADR-094, bare-slash skill names resolve to plugin-claude-code as canonical owner when both ports are loaded in the same session; cowork-namespaced variants are `/aria-cowork:handoff` etc.
 - **Cursor hooks** use `.cursor/hooks.json` and resolve script paths via `git rev-parse --show-toplevel`. Some Claude enforcement is weaker on Cursor (no transcript access, no documented pre-edit deny) — port uses an edit-intent marker file as the closest available mechanism. See `plugin-cursor-template/audit/ARIA_CURSOR_AUDIT_REPORT.md` §5.
+- **`plugin-antigravity/` is the Antigravity IDE/CLI installable unit** — independent port targeting Google's Antigravity IDE (VS Code fork) and `agy` CLI. Version lives in `version.txt` sidecar (not `plugin.json`, which has no version field per Antigravity manifest schema). Two-script build model: `plugin-antigravity/build.sh` regenerates port content from canonical sources; `release-antigravity.sh` (repo root) zips. Zip layout is **flat** (no top-level wrapper dir) vs. sibling ports' wrapped layout.
 
 ## Development Workflow
 
@@ -123,6 +155,22 @@ aria/
 4. Build with `./release.sh` in `plugin-claude-cowork/` — produces `aria-cowork-<version>.plugin`. Install by dragging into a Cowork conversation or via Settings → Plugins → Install from file.
 5. Cowork runs as a skills-only plugin (no hooks API). The `/daily-audit` skill substitutes for SessionStart on first message.
 
+### Antigravity Port Workflow
+
+1. Edit canonical skills in `plugin-claude-code/skills/` first (schema source-of-truth). For Antigravity-specific adapter behavior, edit hand-authored files preserved by build.sh: `plugin.json`, `hooks.json`, `mcp_config.json`, `GEMINI.md`, `bin/antigravity/*`, `PORTING.md`, `README.md`, `SMOKE-TEST.md`. Place per-skill overrides in `plugin-antigravity/overlays/`.
+2. Regenerate port content from canonical sources:
+   ```bash
+   ./plugin-antigravity/build.sh
+   ```
+   This copies skills/template from `plugin-claude-code/`, applies overlays, syncs `version.txt` from the canonical `plugin.json` version, and patches setup/SKILL.md to read version from the sidecar instead of JSON.
+3. Bump `plugin-claude-code/.claude-plugin/plugin.json` version first (canonical), then re-run `build.sh` — version.txt syncs automatically.
+4. Build the release zip from repo root:
+   ```bash
+   ./release-antigravity.sh
+   ```
+   Produces `aria-knowledge-antigravity-<version>.zip` (flat layout) + version-stable `aria-knowledge-antigravity.zip`. Verification gates: `plugin.json` present, `version.txt` present, no top-level wrapper dir, no junk.
+5. Users install per Antigravity IDE / CLI conventions; see `plugin-antigravity/README.md` and `plugin-antigravity/SMOKE-TEST.md`.
+
 ## Rules
 
 - Follow the universal rules in `Projects/CLAUDE.md`
@@ -153,4 +201,4 @@ Use `/context aria` to load relevant knowledge by project tag.
 
 ---
 
-*Last reviewed: 2026-05-27 — plugin-claude-code v2.20.2, plugin-claude-cowork v1.1.3, plugin-cursor-template 2.20.2-cursor.0.*
+*Last reviewed: 2026-05-28 — plugin-claude-code v2.20.2, plugin-openai-codex 2.20.2-codex.0, plugin-claude-cowork v1.1.3, plugin-cursor-template 2.20.2-cursor.0, plugin-antigravity 2.20.2.*
