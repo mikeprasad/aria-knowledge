@@ -13,6 +13,6 @@ Use ARIA Knowledge in Codex.
 ## Codex Notes
 
 - This port keeps the Claude-standard ARIA knowledge folder schema.
-- If `~/.codex/aria-knowledge.local.md` exists, Codex hooks read it.
-- Otherwise Codex hooks fall back to `~/.claude/aria-knowledge.local.md`.
-- Automatic plugin hooks require `codex features enable plugin_hooks` and a Codex restart.
+- Codex uses the shared `~/.claude/aria-knowledge.local.md` config by default.
+- Legacy `~/.codex/aria-knowledge.local.md` is only a fallback for older Codex-only installs.
+- Plugin-bundled hooks are enabled by current Codex, but Codex may ask you to review and trust them after install or updates.

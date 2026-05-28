@@ -1,16 +1,17 @@
 ---
-description: "**Bare-slash canonical (Claude Code).** `/knowledge-audit` resolves to this skill (alias for /audit-knowledge) when both aria-knowledge and aria-cowork are loaded in the same session. RUNTIME GATE: this alias delegates to /audit-knowledge, whose Runtime Gate section will surface a notification suggesting `/aria-cowork:knowledge-audit` if invoked from a non-Code runtime — even in `auto` mode (ADR-094 §Part 3). Alias for /audit-knowledge. Invoked by the '/knowledge-audit' slash command. Same behavior as /audit-knowledge — just an alternative phrasing."
+name: knowledge-audit
+description: "Alias for /audit-knowledge. Use when the user invokes /knowledge-audit or asks for a knowledge audit using the inverted command phrasing."
 argument-hint: "[detailed]"
 allowed-tools: Read, Glob, Grep, Write, Edit, Bash
 ---
 
 # /knowledge-audit — Alias for /audit-knowledge
 
-This is an **alias skill**. The canonical implementation lives at `plugin-claude-code/skills/audit-knowledge/SKILL.md` within the aria-knowledge plugin. Invoking `/knowledge-audit` and `/audit-knowledge` produces identical behavior — this alias exists only to accommodate users who prefer the inverted "knowledge-audit" phrasing.
+This is an **alias skill**. The canonical implementation lives at `skills/audit-knowledge/SKILL.md` within this Codex plugin. Invoking `/knowledge-audit` and `/audit-knowledge` produces identical behavior — this alias exists only to accommodate users who prefer the inverted "knowledge-audit" phrasing.
 
 ## Execute
 
-Read `plugin-claude-code/skills/audit-knowledge/SKILL.md` (relative to the aria-knowledge plugin root — resolve via `${CLAUDE_PLUGIN_ROOT}/skills/audit-knowledge/SKILL.md` if available, otherwise locate it within the installed plugin tree) and follow every step in that file exactly, passing through any arguments the user provided to this alias.
+Read `${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/skills/audit-knowledge/SKILL.md` and follow every step in that file exactly, passing through any arguments the user provided to this alias.
 
 Do not duplicate canonical logic here. When the canonical skill changes, this alias continues to work because it delegates.
 

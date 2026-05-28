@@ -1,5 +1,6 @@
 ---
-description: "**Bare-slash canonical (Claude Code).** `/retrospect` resolves to this skill when both aria-knowledge and aria-cowork are loaded in the same session. RUNTIME GATE: if invoked from a non-Code runtime (no Bash tool available, e.g., Claude Cowork), the Runtime Gate section surfaces a notification suggesting `/aria-cowork:retrospect` and requires explicit user confirmation before proceeding — even in `auto` mode (ADR-094 §Part 3). Run a structured retrospective on a shipped commit range, release, deployment, PR, commit, or session. Per-fix validation enforcement, active evidence-sourcing pass (autonomous lookups + targeted user-asks for anything that could become objective), simpler-alternative discipline, re-diagnosis, action verdicts, and a growing failure-mode pattern library. Triggers: '/retrospect' (auto-range), '/retrospect commit <hash>', '/retrospect range <ref1>..<ref2>', '/retrospect pr <num>', '/retrospect session', '/retrospect release', '/retrospect deployment'. Backward-compat flags (--range, --pr, --session, --commit) still accepted."
+name: retrospect
+description: "Run a structured retrospective on a commit, range, PR, release, deployment, or session after execution. Trigger on /retrospect, postmortem, release review, or what went wrong."
 argument-hint: "[<scope>] [<scope-arg>] [--linear-post] [--no-source]"
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash, WebFetch, WebSearch
 ---
@@ -7,25 +8,6 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash, WebFetch, WebSearch
 # /retrospect — Release retrospective with validation enforcement
 
 Run a structured retrospective on a shipped commit range (or single commit, or current session). Produces a 10-section markdown report with per-fix verdicts, validation status, action recommendations, and re-diagnosis when fixes failed. Writes findings to `knowledge/logs/retrospect/` and runs aria's standard intake. Source spec: `docs/specs/2026-05-03-retrospect-skill-design.md`.
-
-## Runtime Gate (per ADR-094)
-
-**Before "When to use":** Check that `Bash` is available. If `Bash` is NOT available (e.g., Cowork), surface:
-
-> ⚠️ **Runtime mismatch — you invoked aria-knowledge's `/retrospect` from a non-Code runtime.**
->
-> This variant runs `git log`, `git diff`, `gh pr view` directly via Bash for commit/range/pr/deployment scopes. For the Cowork-native variant (prompts user-paste for git output; session/decision scopes work unmodified), use `/aria-cowork:retrospect`.
->
-> Proceed with the aria-knowledge variant anyway? (`y` / `n`)
-
-Wait for `y` / `yes`. **Gate applies even in `auto`** (ADR-094 §Part 3). If `Bash` is available, proceed to "When to use".
-
-## When to use
-
-- After a release ships and the bug is partially or fully unresolved
-- When the user reports a regression and a recent change set could be the cause
-- Before proposing another fix to a bug that's already been "fixed" once
-- As a soft-suggested response to user pushback ("review what you did," "are these changes necessary")
 
 ## Step 0: Inputs & Mode Detection
 
@@ -155,7 +137,7 @@ Number them `#1, #2, …` in commit order. For each fix, capture:
 - **Preliminary Bundle-verified?** — provisional ✅ verified / 🤷 unverified / N/A (session mode). Use the user-supplied evidence from Step 0 #3 as a starting point. Step 3.5's bundle-marker pass will attempt to upgrade 🤷 by sourcing the deployed bundle.
 - **Preliminary Validated?** — provisional classification using the Step 5 taxonomy (✅ / ⚠ partial / ❌ / ❓ / 🚫). Use the user-supplied post-deploy outcome from Step 0 #3 as the starting point. Step 3.5's outcome pass will attempt to upgrade ⚠/❓/🚫 by sourcing post-deploy evidence (logs, repro tests, ticket comments). These are DRAFT values — the FINAL Validated? values emitted in §4.3 reflect post-Step-3.5 state.
 
-If `session` scope, enumerate by file-touch sets that resolve a single concern (Claude's judgment from session context). Preliminary Bundle-verified? = N/A and Preliminary Validated? = 🚫 unvalidatable (no deploy yet).
+If `session` scope, enumerate by file-touch sets that resolve a single concern (Codex's judgment from session context). Preliminary Bundle-verified? = N/A and Preliminary Validated? = 🚫 unvalidatable (no deploy yet).
 
 After preliminary triage, list every fix whose Preliminary Bundle-verified? is 🤷 — these are candidates for Step 3.5's **bundle-marker pass**. Separately, list every fix whose Preliminary Validated? is ⚠ partial / ❓ unvalidated / 🚫 unvalidatable — these are candidates for Step 3.5's **outcome pass**. ❌ Invalidated fixes skip Step 3.5 (they go directly to REVERT/REDO-MINIMAL in §4.3 unless the user contests the falsification). ✅ Validated fixes also skip Step 3.5 (already confirmed).
 
@@ -615,7 +597,7 @@ Pattern write-backs are *separate* from intake — they go directly to the patte
 
 ## Step 7: Soft-Suggest Trigger Logic (Claude-side judgment)
 
-When the skill is *not* directly invoked, Claude monitors user messages for cues that suggest a retrospective is warranted. When detected AND the current session has shipped recent fixes (commits in the last hour or since the last `/retrospect`), Claude offers — never auto-executes — `/retrospect`.
+When the skill is *not* directly invoked, Codex monitors user messages for cues that suggest a retrospective is warranted. When detected AND the current session has shipped recent fixes (commits in the last hour or since the last `/retrospect`), Codex offers — never auto-executes — `/retrospect`.
 
 Cues (non-exhaustive, judgment-based):
 

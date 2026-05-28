@@ -1,5 +1,6 @@
 ---
-description: "Batch-review personal knowledge for promotion to team-shared project knowledge. Walks insights/decisions/approaches/rules and IDEAS-BACKLOG.md entries, recommends a target _project-knowledge/ destination per item, and lets the user approve all/numbers/modify/skip. Use when user says '/audit-share', '/share-audit', 'share knowledge', 'promote to team', 'sync to shared knowledge', or after enabling the projects_shared_knowledge feature."
+name: audit-share
+description: "Review personal ARIA knowledge for promotion to team-shared _project-knowledge folders. Trigger on /audit-share, share knowledge, promote to team, or sync shared knowledge."
 argument-hint: ""
 allowed-tools: Read, Glob, Grep, Write, Edit, Bash
 ---

@@ -200,7 +200,7 @@ ARIA template files fall into two classes with different update behavior on `/se
 
 **User-owned files** are yours entirely. `/setup` creates them once from a template on first install, then never touches them again — no diffs, no overwrites, no merges. Use these for customizations you want the plugin to stay out of. Key user-owned files include `LOCAL.md` (your local guide), `rules/user-rules.md` (your custom rules), `rules/user-examples.md` (your per-rule examples since v2.14.2 — `/rules N` reads this for matching `## Rule N` examples), the intake backlogs (`intake/insights-backlog.md`, `decisions-backlog.md`, `extraction-backlog.md`, `rules-backlog.md`) and the `intake/ideas/` directory (per-file ideas since v2.11, plus the directory's `README.md`), audit logs under `logs/`, directory README stubs (`guides/README.md`, `approaches/README.md`, `decisions/README.md`, `references/README.md`, `archive/README.md`), and per-project READMEs under `projects/{tag}/`.
 
-The authoritative classification lives in `plugin-claude-code/skills/setup/SKILL.md` (Step 3 lists user-owned files; Step 4 lists managed files). Managed files also carry an HTML comment header at the top of the raw markdown signaling their class at the point of customization, and on first-setup the `/setup` skill surfaces a one-time educational note about the split.
+The authoritative classification lives in `plugin-openai-codex/skills/setup/SKILL.md` for Codex installs (Step 3 lists user-owned files; Step 4 lists managed files). Managed files also carry an HTML comment header at the top of the raw markdown signaling their class at the point of customization, and on first-setup the `/setup` skill surfaces a one-time educational note about the split.
 
 **Rule of thumb:** if your customization is content-specific to your project or team (custom rules, per-project READMEs, local conventions, session captures), put it in a user-owned file. If you want to modify plugin-shipped core guidance (working rules, change-decision framework, enforcement mechanisms, top-level README/OVERVIEW), expect diff prompts on updates and reconcile during `/setup`.
 
@@ -212,7 +212,7 @@ v2.10.0 adds **batch manifests** as a narrow, file-based exception that compress
 
 ### Mechanism
 
-A batch manifest is a JSON file at `~/.claude/active-batch.json` declaring expected operations for a bulk task. The `pre-edit-check.sh` hook reads it and emits a compressed directive for declared-low-impact matches; everything else falls through to the full CHANGE DECISION CHECK.
+A batch manifest is a JSON file at `~/.codex/active-batch.json` declaring expected operations for a bulk task. The `pre-edit-check.sh` hook reads it and emits a compressed directive for declared-low-impact matches; everything else falls through to the full CHANGE DECISION CHECK.
 
 ```json
 {

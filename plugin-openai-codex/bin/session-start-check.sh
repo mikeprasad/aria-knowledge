@@ -182,8 +182,9 @@ fi
 # plugin (or downgraded) without re-running /setup, so template diffs and any new
 # config keys haven't been applied yet.
 INSTALLED_VERSION=""
-if [ -f "${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json" ]; then
-  INSTALLED_VERSION=$(grep '"version"' "${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json" | head -1 | sed 's/.*"version": *"\([^"]*\)".*/\1/')
+PLUGIN_ROOT_RESOLVED="${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-}}"
+if [ -n "$PLUGIN_ROOT_RESOLVED" ] && [ -f "${PLUGIN_ROOT_RESOLVED}/.codex-plugin/plugin.json" ]; then
+  INSTALLED_VERSION=$(grep '"version"' "${PLUGIN_ROOT_RESOLVED}/.codex-plugin/plugin.json" | head -1 | sed 's/.*"version": *"\([^"]*\)".*/\1/')
 fi
 
 VERSION_PROMPTED=false
@@ -214,12 +215,12 @@ fi
 # literal reading, per the v2.10.6 change notes).
 MESSAGES="${MESSAGES}RULE 22 ORDERING — The Low/High Impact block must appear ABOVE the Edit/Write tool call in the same assistant turn, never below. As of v2.10.5, the PreToolUse hook structurally enforces this: if the [Rule 22] marker is absent from a text block between the previous Edit/Write and this one, the hook returns permissionDecision: deny and blocks the tool call. Retrying without the marker will deny again. Emit the block prospectively, not retroactively — the only valid path is marker-then-edit. Arguments for skipping ('conversation already covered it', 'docs-only edit', 'routine change', 'too trivial') are all invalid — see rules/change-decision-framework.md 'Ordering (required)' and 'Rationalizations that do not apply'. "
 
-# Task budget awareness (v2.10.6). Claude lacks direct visibility into the
-# thinking token budget or context-window usage; the user sees both in Claude
-# Code's UI. Prompt to surface strain and let the user decide rather than
-# Claude wrapping up autonomously (avoids self-defeating /extract during
+# Task budget awareness (v2.10.6). Codex lacks direct visibility into the
+# thinking token budget or context-window usage; the user sees both in Codex's
+# UI. Prompt to surface strain and let the user decide rather than
+# Codex wrapping up autonomously (avoids self-defeating /extract during
 # depletion — raw transcript persists via PreCompact anyway).
-MESSAGES="${MESSAGES}TASK BUDGET — Claude Code's UI shows the user actual token usage and context limits; Claude does not see these directly. If strain symptoms appear (responses cutting short, deep session length, compaction warnings), pause and surface them — offer options (finish the current atomic task, call /aria-knowledge:extract, trigger compaction, or continue) and let the user decide based on what they can see. Don't assume depletion or wrap up autonomously. "
+MESSAGES="${MESSAGES}TASK BUDGET — Codex's UI shows the user actual token usage and context limits; Codex does not see these directly. If strain symptoms appear (responses cutting short, deep session length, compaction warnings), pause and surface them — offer options (finish the current atomic task, call /aria-knowledge:extract, trigger compaction, or continue) and let the user decide based on what they can see. Don't assume depletion or wrap up autonomously. "
 
 # Knowledge surfacing — passive (suggest /context) vs active (Read matches directly)
 # branches on KT_ACTIVE_SURFACING (default true as of v2.15.0).

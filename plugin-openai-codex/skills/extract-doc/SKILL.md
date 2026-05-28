@@ -1,5 +1,6 @@
 ---
-description: "**Bare-slash canonical (Claude Code).** `/extract-doc` resolves to this skill when both aria-knowledge and aria-cowork are loaded in the same session. RUNTIME GATE: if invoked from a non-Code runtime (no Bash tool available, e.g., Claude Cowork), the Runtime Gate section surfaces a notification suggesting `/aria-cowork:extract-doc` and requires explicit user confirmation before proceeding — even in `auto` mode (ADR-094 §Part 3). NOTE: this skill requires connected ~~docs MCPs (Notion, Google Docs, Confluence, Box, Egnyte), which are typically only present in Cowork — the Code variant exists for parity but most users will want the Cowork variant. Pull insights from a single doc or page (Notion, Google Doc, Confluence, etc.) into the standard intake backlog. Use when user says '/extract-doc', 'extract insights from this doc', 'pull learnings from this page', 'mine this Notion page for knowledge', 'extract from this Confluence'. Differs from /intake doc (which captures one structured doc artifact with reaction) — extract-doc decomposes a doc into multiple intake-backlog entries for audit routing."
+name: extract-doc
+description: "Extract reusable insights from a single external doc or page into ARIA intake entries. Trigger on /extract-doc or extract insights from this Notion, Google Doc, or Confluence page."
 argument-hint: "<doc-url-or-id> [tags]"
 allowed-tools: Read, Write, Grep
 ---
@@ -7,18 +8,6 @@ allowed-tools: Read, Write, Grep
 # /extract-doc — Extract Insights from a Doc to Intake Backlog
 
 Pull knowledge-worthy items from a single connected `~~docs` source (Notion page, Google Doc, Confluence page, Box doc, Egnyte file) into `intake/insights-backlog.md`. Unlike `/intake doc` (which captures the doc itself as one structured artifact for later reaction), `/extract-doc` **decomposes** the doc into N intake entries — one per insight, decision, or question worth surfacing at audit.
-
-## Runtime Gate (per ADR-094)
-
-**Before Step 0:** Check that `Bash` is available. If `Bash` is NOT available (e.g., Cowork), surface:
-
-> ⚠️ **Runtime mismatch — you invoked aria-knowledge's `/extract-doc` from a non-Code runtime.**
->
-> This skill requires connected ~~docs MCPs (Notion, Google Docs, Confluence, Box, Egnyte), which are typically only present in Cowork. The Cowork-native variant has working MCP access. Use `/aria-cowork:extract-doc`.
->
-> Proceed with the aria-knowledge variant anyway? (`y` / `n`)
-
-Wait for `y` / `yes`. **Gate applies even in `auto`** (ADR-094 §Part 3). If `Bash` is available, proceed to Step 0.
 
 ## Step 0: Resolve Config
 
@@ -28,13 +17,13 @@ Verify `{knowledge_folder}/intake/insights-backlog.md` exists. If not, stop: "In
 
 ## Step 1: Probe Connected MCPs
 
-Check Claude's available tool list for `~~docs` MCPs:
+Check Codex's available tool list for `~~docs` MCPs:
 
 - **`~~docs`** (notion, atlassian, box, egnyte, google docs): if connected, available for doc fetch.
 
 If NO `~~docs` MCP is connected, output the standard fallback notice and stop:
 
-> No required MCPs connected for `/extract-doc`. Connect one of: Notion, Atlassian (Confluence), Box, Egnyte, or Google Docs (when available) via Claude Code's MCP config (or Cowork Settings → Connectors). See [CONNECTORS.md](../../CONNECTORS.md). Skipping this run.
+> No required MCPs connected for `/extract-doc`. Connect one of: Notion, Atlassian (Confluence), Box, Egnyte, or Google Docs (when available) via Codex MCP configuration. See [CONNECTORS.md](../../CONNECTORS.md). Skipping this run.
 
 Per [ADR-015](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/015-capability-probe-pattern.md).
 

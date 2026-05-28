@@ -1,5 +1,6 @@
 ---
-description: "**Bare-slash canonical (Claude Code).** `/digest` resolves to this skill when both aria-knowledge and aria-cowork are loaded in the same session. RUNTIME GATE: if invoked from a non-Code runtime (no Bash tool available, e.g., Claude Cowork), the Runtime Gate section surfaces a notification suggesting `/aria-cowork:digest` and requires explicit user confirmation before proceeding — even in `auto` mode (ADR-094 §Part 3). NOTE: this skill requires connected ~~chat / ~~email / ~~project-tracker / ~~docs MCPs, which are typically only present in Cowork — the Code variant exists for parity but most users will want the Cowork variant. Cross-tool rollup of what's pending, what shipped, and what's blocked across chat / email / project tracker / docs. Use when user says '/digest', 'weekly digest', 'cross-tool rollup', 'what's pending across my tools', 'summarize this week', 'standup digest'. Probes all 4 ~~categories and degrades gracefully — produces a digest even with only 1-2 MCPs connected, surfacing which categories were unavailable."
+name: digest
+description: "Build a cross-tool digest from connected chat, email, project tracker, and docs MCPs, with graceful fallback when connectors are missing. Trigger on /digest or weekly digest."
 argument-hint: "[--week | --since YYYY-MM-DD | --until YYYY-MM-DD]"
 allowed-tools: Read, Write, Grep
 ---
@@ -7,18 +8,6 @@ allowed-tools: Read, Write, Grep
 # /digest — Cross-Tool Weekly Rollup
 
 Synthesize a digest of activity across connected MCPs into `intake/digests/{YYYY-MM-DD}.md`. Pulls from `~~chat` + `~~email` + `~~project tracker` + `~~docs` to produce a "what's pending / what shipped / what's blocked" rollup. Composite of all 4 categories — the most cross-tool of the v2.18.0 skills.
-
-## Runtime Gate (per ADR-094)
-
-**Before Step 0:** Check that `Bash` is available. If `Bash` is NOT available (e.g., Cowork), surface:
-
-> ⚠️ **Runtime mismatch — you invoked aria-knowledge's `/digest` from a non-Code runtime.**
->
-> This skill requires connected ~~chat / ~~email / ~~project-tracker / ~~docs MCPs across 4 categories, which are typically only present in Cowork. The Cowork-native variant has working MCP access. Use `/aria-cowork:digest`.
->
-> Proceed with the aria-knowledge variant anyway? (`y` / `n`)
-
-Wait for `y` / `yes`. **Gate applies even in `auto`** (ADR-094 §Part 3). If `Bash` is available, proceed to Step 0.
 
 ## Step 0: Resolve Config
 
@@ -28,7 +17,7 @@ Lazily create `{knowledge_folder}/intake/digests/` if it doesn't exist.
 
 ## Step 1: Probe Connected MCPs (all 4 categories)
 
-Check Claude's available tool list for each `~~category`. The digest runs with ANY non-zero set of connected MCPs — gather from whichever are connected, surface gaps for the rest.
+Check Codex's available tool list for each `~~category`. The digest runs with ANY non-zero set of connected MCPs — gather from whichever are connected, surface gaps for the rest.
 
 | Category | MCP options | Status |
 |---|---|---|
@@ -39,7 +28,7 @@ Check Claude's available tool list for each `~~category`. The digest runs with A
 
 If NO MCPs in ANY category are connected, output the standard fallback notice and stop:
 
-> No required MCPs connected for `/digest`. Connect at least one of: Slack/MS365 (~~chat), Gmail/MS365 (~~email), Linear/Asana/etc. (~~project tracker), or Notion/Confluence/etc. (~~docs) via Claude Code's MCP config (or Cowork Settings → Connectors). See [CONNECTORS.md](../../CONNECTORS.md). Skipping this run.
+> No required MCPs connected for `/digest`. Connect at least one of: Slack/MS365 (~~chat), Gmail/MS365 (~~email), Linear/Asana/etc. (~~project tracker), or Notion/Confluence/etc. (~~docs) via Codex MCP configuration. See [CONNECTORS.md](../../CONNECTORS.md). Skipping this run.
 
 Per [ADR-015](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/015-capability-probe-pattern.md) — degrade gracefully for missing categories; don't fabricate.
 
@@ -133,7 +122,7 @@ tags: [digest, weekly|monthly|quarterly]
 ## Sources
 
 **Connected:** <list of MCPs that contributed data>
-**Not connected:** <list of categories that would have added value> — to fill these gaps, connect the relevant MCP via Claude Code's MCP config or Cowork Settings → Connectors.
+**Not connected:** <list of categories that would have added value> — to fill these gaps, connect the relevant MCP via Codex MCP configuration.
 
 ## What's pending
 

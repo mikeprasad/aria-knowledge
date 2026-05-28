@@ -1,5 +1,6 @@
 ---
-description: "**Bare-slash canonical (Claude Code).** `/stats` resolves to this skill when both aria-knowledge and aria-cowork are loaded in the same session. RUNTIME GATE: if invoked from a non-Code runtime (no Bash tool available, e.g., Claude Cowork), the Runtime Gate section surfaces a notification suggesting `/aria-cowork:stats` and requires explicit user confirmation before proceeding — even in `auto` mode (ADR-094 §Part 3). Show knowledge base health metrics — file counts, backlog depth, audit status, codemap dates, tag stats, and coverage gaps. Use when user says '/stats', 'knowledge stats', 'how is my knowledge base', 'show stats', 'knowledge health', 'dashboard'."
+name: stats
+description: "Show ARIA knowledge-base health metrics: counts, backlog depth, audit status, codemap freshness, tag coverage, and gaps. Trigger on /stats or knowledge health."
 argument-hint: ""
 allowed-tools: Read, Glob, Grep
 ---
@@ -7,18 +8,6 @@ allowed-tools: Read, Glob, Grep
 # /stats — Knowledge Base Health
 
 Read-only dashboard showing the current state of the knowledge repository.
-
-## Runtime Gate (per ADR-094)
-
-**Before Step 0:** Check that `Bash` is available. If `Bash` is NOT available (e.g., Cowork), surface:
-
-> ⚠️ **Runtime mismatch — you invoked aria-knowledge's `/stats` from a non-Code runtime.**
->
-> Behavior is largely the same in both runtimes; for the Cowork-native variant (reads from the attached knowledge folder), use `/aria-cowork:stats`.
->
-> Proceed with the aria-knowledge variant anyway? (`y` / `n`)
-
-Wait for `y` / `yes`. **Gate applies even in `auto`** (ADR-094 §Part 3). If `Bash` is available, proceed to Step 0.
 
 ## Step 0: Resolve Config
 

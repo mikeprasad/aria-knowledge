@@ -1,5 +1,6 @@
 ---
-description: "**Bare-slash canonical (Claude Code).** `/context` resolves to this skill when both aria-knowledge and aria-cowork are loaded in the same session. RUNTIME GATE: if invoked from a non-Code runtime (no Bash tool available, e.g., Claude Cowork), the Runtime Gate section surfaces a notification suggesting `/aria-cowork:context` and requires explicit user confirmation before proceeding — even in `auto` mode (ADR-094 §Part 3). Load relevant knowledge by topic. Queries the tag index and presents matching promoted files for selective loading into context. Use when user says '/context stripe', '/context api pagination', '/context ss', 'load knowledge about...', 'what do we know about...'."
+name: context
+description: "Load relevant ARIA knowledge by tag, project, topic, CODEMAP, STITCH, pending ideas, or shared project knowledge. Trigger on /context <topic> or load knowledge about something."
 argument-hint: "<tag1> [tag2] [AND tag3]"
 allowed-tools: Read, Glob, Grep
 ---
@@ -7,18 +8,6 @@ allowed-tools: Read, Glob, Grep
 # /context — On-Demand Knowledge Retrieval
 
 Query the knowledge tag index and load relevant promoted files into the conversation context.
-
-## Runtime Gate (per ADR-094)
-
-**Before Step 0:** Check that `Bash` is available. If `Bash` is NOT available (e.g., Cowork), surface:
-
-> ⚠️ **Runtime mismatch — you invoked aria-knowledge's `/context` from a non-Code runtime.**
->
-> Behavior is largely the same in both runtimes; for the Cowork-native variant (reads `index.md` from the attached knowledge folder via persistent grant), use `/aria-cowork:context`.
->
-> Proceed with the aria-knowledge variant anyway? (`y` / `n`)
-
-Wait for `y` / `yes`. **Gate applies even in `auto`** (ADR-094 §Part 3). If `Bash` is available, proceed to Step 0.
 
 ## Step 0: Resolve Config
 

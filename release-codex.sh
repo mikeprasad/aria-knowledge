@@ -44,6 +44,10 @@ CANONICAL_VERSION="${CODEX_VERSION%-codex.*}"
 
 log "codex:   $CODEX_NAME v$CODEX_VERSION (canonical $CANONICAL_VERSION)"
 
+# --- port tests -------------------------------------------------------------
+log "testing: plugin-openai-codex"
+sh "$REPO_ROOT/plugin-openai-codex/tests/run.sh"
+
 # --- stage ------------------------------------------------------------------
 STAGING=$(mktemp -d -t "aria-codex-release.XXXXXX")
 trap 'rm -rf "$STAGING"' EXIT
@@ -55,6 +59,7 @@ rsync -a \
     --exclude='__MACOSX' \
     --exclude='.claude/' \
     --exclude='PORTING.md' \
+    --exclude='tests/' \
     "$REPO_ROOT/plugin-openai-codex/" \
     "$STAGE_DIR/"
 
@@ -71,6 +76,12 @@ junk=$(unzip -l "$ZIP_PATH" | grep -cE '(__MACOSX|\.DS_Store|\.claude/settings|P
 
 manifest=$(unzip -l "$ZIP_PATH" | grep -c "$CODEX_NAME/\.codex-plugin/plugin\.json" || true)
 [[ "$manifest" -eq 1 ]] || die "verification failed: codex manifest missing or duplicated ($manifest found)"
+
+mcp_manifest=$(unzip -l "$ZIP_PATH" | grep -c "$CODEX_NAME/\.mcp\.json" || true)
+[[ "$mcp_manifest" -eq 1 ]] || die "verification failed: codex MCP manifest missing or duplicated ($mcp_manifest found)"
+
+tests=$(unzip -l "$ZIP_PATH" | grep -c "$CODEX_NAME/tests/" || true)
+[[ "$tests" -eq 0 ]] || die "verification failed: tests should not ship in codex zip ($tests found)"
 
 # --- version-stable copy (for /releases/latest/download/<stable>.zip URLs) --
 STABLE_ZIP_PATH="$REPO_ROOT/$CODEX_NAME-codex.zip"

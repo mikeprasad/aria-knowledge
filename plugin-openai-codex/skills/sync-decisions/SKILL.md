@@ -1,5 +1,6 @@
 ---
-description: "**Bare-slash canonical (Claude Code).** `/sync-decisions` resolves to this skill when both aria-knowledge and aria-cowork are loaded in the same session. RUNTIME GATE: if invoked from a non-Code runtime (no Bash tool available, e.g., Claude Cowork), the Runtime Gate section surfaces a notification suggesting `/aria-cowork:sync-decisions` and requires explicit user confirmation before proceeding — even in `auto` mode (ADR-094 §Part 3). NOTE: this skill requires connected ~~docs MCPs with WRITE access (Notion, Confluence, Google Docs), which are typically only present in Cowork — the Code variant exists for parity but most users will want the Cowork variant. Mirror approved decisions from the knowledge folder out to a connected ~~docs MCP (Notion, Confluence, Google Docs). Use when user says '/sync-decisions', 'mirror decisions to Notion', 'push decisions to wiki', 'sync ADRs to Confluence', 'export decisions externally'. WRITE-side skill — embeds Rule 22 advisory preamble per ADR-016 and requires explicit per-write go-gate. Logs each sync to logs/sync-decisions.md."
+name: sync-decisions
+description: "Mirror approved ARIA decisions from the knowledge folder to connected docs MCP destinations with explicit external-write review. Trigger on /sync-decisions or sync ADRs to docs."
 argument-hint: "[<decision-slug>|--all|--since YYYY-MM-DD] [--target <space-or-page>]"
 allowed-tools: Read, Write, Grep
 ---
@@ -7,18 +8,6 @@ allowed-tools: Read, Write, Grep
 # /sync-decisions — Mirror Decisions to External Docs
 
 Read approved decisions from `{knowledge_folder}/decisions/` and write them out to a connected `~~docs` MCP destination (a Notion page, Confluence space, Google Doc, etc.). The only v2.18.0 skill that writes externally; embeds Rule 22 advisory preamble per [ADR-016](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/016-rule-22-advisory-preamble-for-external-writes.md).
-
-## Runtime Gate (per ADR-094)
-
-**Before Step 0:** Check that `Bash` is available. If `Bash` is NOT available (e.g., Cowork), surface:
-
-> ⚠️ **Runtime mismatch — you invoked aria-knowledge's `/sync-decisions` from a non-Code runtime.**
->
-> This skill requires connected ~~docs WRITE MCPs (Notion, Confluence, Google Docs), which are typically only present in Cowork. The Cowork-native variant has working MCP write access. Use `/aria-cowork:sync-decisions`.
->
-> Proceed with the aria-knowledge variant anyway? (`y` / `n`)
-
-Wait for `y` / `yes`. **Gate applies even in `auto`** (ADR-094 §Part 3). If `Bash` is available, proceed to Step 0.
 
 ## Step 0: Resolve Config
 
@@ -30,13 +19,13 @@ Lazily create `{knowledge_folder}/logs/sync-decisions.md` if it doesn't exist (u
 
 ## Step 1: Probe Connected MCPs
 
-Check Claude's available tool list for `~~docs` MCPs that support WRITE operations:
+Check Codex's available tool list for `~~docs` MCPs that support WRITE operations:
 
 - **`~~docs`** (notion, atlassian, box, egnyte, google docs): if connected, check the MCP's exposed tools — `~~docs` MCPs that only expose `read_page` / `search_pages` are READ-ONLY for this skill's purpose. Need a write surface (`create_page`, `update_page`, `append_block_children`, or equivalent).
 
 If NO `~~docs` MCP with write capability is connected, output the standard fallback notice and stop:
 
-> No required MCPs connected for `/sync-decisions`. This skill writes externally — needs a `~~docs` MCP with write capability (page creation or block append). Connect Notion, Atlassian (Confluence), Box, Egnyte, or Google Docs via Claude Code's MCP config (or Cowork Settings → Connectors). See [CONNECTORS.md](../../CONNECTORS.md). Skipping this run.
+> No required MCPs connected for `/sync-decisions`. This skill writes externally — needs a `~~docs` MCP with write capability (page creation or block append). Connect Notion, Atlassian (Confluence), Box, Egnyte, or Google Docs via Codex MCP configuration. See [CONNECTORS.md](../../CONNECTORS.md). Skipping this run.
 
 Per [ADR-015](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/015-capability-probe-pattern.md).
 

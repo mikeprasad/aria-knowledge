@@ -1,5 +1,5 @@
 {
-  "mcpServers": {
+  "mcp_servers": {
     "slack": {
       "type": "http",
       "url": "https://mcp.slack.com/mcp",

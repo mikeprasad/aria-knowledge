@@ -1,5 +1,6 @@
 ---
-description: "**Bare-slash canonical (Claude Code).** `/clip-thread` resolves to this skill when both aria-knowledge and aria-cowork are loaded in the same session. RUNTIME GATE: if invoked from a non-Code runtime (no Bash tool available, e.g., Claude Cowork), the Runtime Gate section surfaces a notification suggesting `/aria-cowork:clip-thread` and requires explicit user confirmation before proceeding — even in `auto` mode (ADR-094 §Part 3). NOTE: this skill requires ~~chat or ~~email MCPs, which are typically only connected in Cowork — the Code variant exists for parity but most users will want the Cowork variant. Capture a chat or email thread from a connected MCP to the knowledge intake. Use when user says '/clip-thread', 'clip this thread', 'save this Slack thread', 'capture this email chain', 'archive this conversation'. Pulls thread content from ~~chat (Slack, Teams) or ~~email (Gmail, MS365) MCP, composes a clipping with thread metadata + body, writes to intake/clippings/ for review at next /audit-knowledge."
+name: clip-thread
+description: "Capture a chat or email thread from connected MCP tools into ARIA clippings for later audit. Trigger on /clip-thread, clip this thread, save Slack thread, or archive email chain."
 argument-hint: "<thread-url-or-id> [tags]"
 allowed-tools: Read, Write, Grep
 ---
@@ -7,18 +8,6 @@ allowed-tools: Read, Write, Grep
 # /clip-thread — Capture Chat/Email Thread to Intake
 
 Save a chat thread or email conversation to `intake/clippings/{YYYY-MM-DD}-{slug}.md` for review and promotion. Unlike `/clip` (URL/snippet) or `/intake` (bulk/doc-anchored), `/clip-thread` is shaped specifically for *threaded* conversations — Slack threads, Teams channel discussions, Gmail conversation chains, MS365 email threads.
-
-## Runtime Gate (per ADR-094)
-
-**Before Step 0:** Check that `Bash` is available. If `Bash` is NOT available (e.g., Cowork), surface:
-
-> ⚠️ **Runtime mismatch — you invoked aria-knowledge's `/clip-thread` from a non-Code runtime.**
->
-> This skill requires connected ~~chat / ~~email MCPs, which are typically only present in Cowork. The Cowork-native variant has working MCP access. Use `/aria-cowork:clip-thread`.
->
-> Proceed with the aria-knowledge variant anyway? (`y` / `n`)
-
-Wait for `y` / `yes`. **Gate applies even in `auto`** (ADR-094 §Part 3). If `Bash` is available, proceed to Step 0.
 
 ## Step 0: Resolve Config
 
@@ -28,14 +17,14 @@ Verify `{knowledge_folder}/intake/clippings/` exists. If not, stop: "Clippings d
 
 ## Step 1: Probe Connected MCPs
 
-Check Claude's available tool list for `~~chat` and `~~email` MCPs. The skill needs at least ONE of these connected to proceed.
+Check Codex's available tool list for `~~chat` and `~~email` MCPs. The skill needs at least ONE of these connected to proceed.
 
 - **`~~chat`** (slack, ms365): if connected, available for Slack threads or Teams channel messages.
 - **`~~email`** (gmail, ms365): if connected, available for Gmail or MS365 email threads.
 
 If NEITHER category has a connected MCP, output the standard fallback notice and stop:
 
-> No required MCPs connected for `/clip-thread`. Connect one of: Slack, Microsoft 365 Teams (for ~~chat) or Gmail, Microsoft 365 Outlook (for ~~email) via Claude Code's MCP config (or Cowork Settings → Connectors). See [CONNECTORS.md](../../CONNECTORS.md). Skipping this run.
+> No required MCPs connected for `/clip-thread`. Connect one of: Slack, Microsoft 365 Teams (for ~~chat) or Gmail, Microsoft 365 Outlook (for ~~email) via Codex MCP configuration. See [CONNECTORS.md](../../CONNECTORS.md). Skipping this run.
 
 Per [ADR-015](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/015-capability-probe-pattern.md), the runtime tool list IS the probe — no explicit API call needed.
 

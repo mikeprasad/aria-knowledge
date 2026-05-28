@@ -2,8 +2,8 @@
 
 This is the standalone Codex port of ARIA Knowledge.
 
-The Claude plugin in `../plugin/` remains the standard for the knowledge folder
-and content schema. This port adapts the installable plugin shell for Codex:
+The Claude Code plugin in `../plugin-claude-code/` remains the standard for the
+knowledge folder and content schema. This port adapts the installable plugin shell for Codex:
 `.codex-plugin/plugin.json`, Codex commands, and Codex hook payload handling.
 
 ## Compatibility Contract
@@ -18,30 +18,22 @@ The Codex port intentionally shares the same durable knowledge surfaces:
 - `index.md` tag index semantics
 
 Do not fork those formats in this directory without also updating the
-Claude-standard plugin.
+Claude Code-standard plugin.
 
 ## Quick Start
 
-1. Enable Codex plugin hooks if you want automatic hook behavior:
+1. Restart Codex after installing or changing the plugin. Hooks are enabled by default in current Codex, but plugin-bundled hooks must be reviewed and trusted when Codex prompts for hook review.
 
-   ```bash
-   codex features enable plugin_hooks
-   ```
-
-2. Restart Codex.
-
-3. Install this local plugin from the repo marketplace metadata at
-   `.agents/plugins/marketplace.json`, or copy `plugin-codex/` into a local
+2. Install this local plugin from the repo marketplace metadata at
+   `.agents/plugins/marketplace.json`, or copy `plugin-openai-codex/` into a local
    Codex marketplace.
 
-4. Configure ARIA:
+3. Configure ARIA:
 
-   - Existing ARIA users can keep using `~/.claude/aria-knowledge.local.md`.
-   - Codex-specific installs may create `~/.codex/aria-knowledge.local.md`.
-   - Codex hooks read `~/.codex/aria-knowledge.local.md` first, then fall back
-     to the Claude config.
+   - Codex uses the shared ARIA config at `~/.claude/aria-knowledge.local.md` so it can share the same knowledge folder and settings as the Claude Code port.
+   - A legacy `~/.codex/aria-knowledge.local.md` is only a fallback for older Codex-only installs.
 
-5. Use the copied ARIA skills by asking Codex directly:
+4. Use the copied ARIA skills by asking Codex directly:
 
    - `setup aria-knowledge`
    - `load aria context for stripe`
@@ -64,11 +56,8 @@ Codex hooks currently cover:
 
 Known gaps:
 
-- Claude `TaskCreated` has no direct Codex equivalent yet.
-- Existing skills are copied from the Claude-standard plugin in this first pass,
-  so some prose still names Claude-specific surfaces.
-- `plugin_hooks` is a Codex under-development feature; use this port as a test
-  adapter until the hook surface is fully stable.
+- Claude `TaskCreated` has no direct Codex equivalent yet; the port relies on SessionStart, UserPromptSubmit-compatible guidance, and explicit `/context` use.
+- Some durable knowledge templates intentionally still mention Claude Code because the shared knowledge folder remains cross-port.
 
 ## Development Notes
 

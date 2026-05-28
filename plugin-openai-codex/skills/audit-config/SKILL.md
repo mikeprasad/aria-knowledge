@@ -1,5 +1,6 @@
 ---
-description: "**Bare-slash canonical (Claude Code).** `/audit-config` resolves to this skill when both aria-knowledge and aria-cowork are loaded in the same session. RUNTIME GATE: if invoked from a non-Code runtime (no Bash tool available, e.g., Claude Cowork), the Runtime Gate section surfaces a notification suggesting `/aria-cowork:audit-config` and requires explicit user confirmation before proceeding — even in `auto` mode (ADR-094 §Part 3). Audit project configuration and documentation for drift, staleness, and broken references. Use when user asks for 'config audit', 'docs audit', 'check setup', 'audit configs', 'review CLAUDE.md files', or at session start when audit cadence is exceeded."
+name: audit-config
+description: "Audit ARIA configuration and project documentation for drift, stale references, broken links, and setup issues. Trigger on /audit-config, config audit, docs audit, or check setup."
 argument-hint: ""
 allowed-tools: Read, Glob, Grep, Write, Edit, Agent
 ---
@@ -7,18 +8,6 @@ allowed-tools: Read, Glob, Grep, Write, Edit, Agent
 # /audit-config — Configuration & Documentation Health Check
 
 Scan all CLAUDE.md files, `.claude/settings.local.json` configs, plugin manifests, and knowledge files for drift, broken references, and staleness.
-
-## Runtime Gate (per ADR-094)
-
-**Before Step 0:** Check that the `Bash` tool is available. If `Bash` is NOT available (you are running in Claude Cowork or another non-Code runtime), surface:
-
-> ⚠️ **Runtime mismatch — you invoked aria-knowledge's `/audit-config` from a non-Code runtime.**
->
-> This variant scans local files via Bash + Agent for sub-audits and stats `.claude/settings.local.json`, none of which are reachable here. For the Cowork-native variant (audits CLAUDE.md + CONFIG.md + plugin manifests reachable from the attached knowledge folder), use `/aria-cowork:audit-config`.
->
-> Proceed with the aria-knowledge variant anyway? (`y` / `n`)
-
-Wait for `y` / `yes`. **Gate applies even in `auto`** (ADR-094 §Part 3). If `Bash` is available, proceed to Step 0.
 
 ## Step 0: Resolve Config
 

@@ -1,5 +1,6 @@
 ---
-description: "Configure aria-knowledge plugin. Creates or validates a knowledge folder, checks dependencies, sets audit cadences, and writes config. Run on first install or after plugin updates. Trigger: '/setup', 'setup aria-knowledge', 'configure knowledge'."
+name: setup
+description: "Configure ARIA for Codex using the shared ARIA config file, knowledge folder, template diffs, audit cadences, project tier, and shared-knowledge settings. Trigger on /setup or setup aria-knowledge."
 argument-hint: ""
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep
 ---
@@ -10,13 +11,14 @@ Walk the user through configuring their knowledge folder and plugin settings. Sa
 
 ## Step 1: Check for Existing Config
 
-**Read the installed plugin version first.** Parse `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` and extract the `version` field. Hold it as `INSTALLED_VERSION` for use in Step 7 (config write), Step 8 (summary), and the announcement below. Use grep + sed to stay consistent with the no-jq invariant the hook scripts follow:
+**Read the installed plugin version first.** Parse `${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/.codex-plugin/plugin.json` and extract the `version` field. Hold it as `INSTALLED_VERSION` for use in Step 7 (config write), Step 8 (summary), and the announcement below. Use grep + sed to stay consistent with the no-jq invariant the hook scripts follow:
 
 ```bash
-INSTALLED_VERSION=$(grep '"version"' "${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json" | head -1 | sed 's/.*"version": *"\([^"]*\)".*/\1/')
+ARIA_PLUGIN_ROOT="${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}"
+INSTALLED_VERSION=$(grep '"version"' "${ARIA_PLUGIN_ROOT}/.codex-plugin/plugin.json" | head -1 | sed 's/.*"version": *"\([^"]*\)".*/\1/')
 ```
 
-Then read `~/.claude/aria-knowledge.local.md`.
+Then read `~/.claude/aria-knowledge.local.md`. The Codex port intentionally shares this config file with the Claude Code port when both are installed, so the knowledge folder, cadence settings, project tier, and shared-knowledge settings stay in one place. If a legacy `~/.codex/aria-knowledge.local.md` exists and the shared config does not, offer to copy it to `~/.claude/aria-knowledge.local.md`; otherwise leave it untouched and report that Codex now uses the shared config.
 
 - **If it exists:** show current settings and say *"aria-knowledge v{INSTALLED_VERSION} is already configured. I'll check for updates."* If the existing config has `last_setup_version: X` and X differs from `INSTALLED_VERSION`, also note: *"Plugin upgraded from v{X} → v{INSTALLED_VERSION} since last setup. Diff prompts and any new config keys will surface in the steps below."* Then proceed to Step 2 in **update mode** — scan for missing structure, re-diff templated files, check dependencies.
 - **If it doesn't exist:** say *"Let's set up aria-knowledge v{INSTALLED_VERSION}. This will configure your knowledge folder and preferences."* Proceed to Step 2 in **fresh mode**.
@@ -48,7 +50,7 @@ If **(b) create new:**
 
 ## Step 3: Folder Structure Validation
 
-Read the expected structure from `${CLAUDE_PLUGIN_ROOT}/template/`.
+Read the expected structure from `${ARIA_PLUGIN_ROOT}/template/`.
 
 **Expected directories:** `intake/`, `intake/notes/`, `intake/attachments/`, `intake/clippings/`, `intake/pre-compact-captures/`, `intake/ideas/`, `logs/`, `rules/`, `approaches/`, `decisions/`, `guides/`, `references/`, `archive/`
 
@@ -90,7 +92,7 @@ ARIA v2.11 moved the ideas backlog from a single `intake/ideas-backlog.md` file 
 
   - **If count is 0:** the legacy file has no active entries (cleared-history HTML comments only). Prompt: *"Empty pre-2.11 `ideas-backlog.md` found. Delete it? (y/n)"* — on yes, `rm` the file; on no, leave it.
   - **If count > 0:** report: *"Pre-2.11 `ideas-backlog.md` detected with {N} active entries. ARIA v2.11 uses per-file ideas in `intake/ideas/`. Options:"*
-    - `(1) Migrate now` — run `bash ${CLAUDE_PLUGIN_ROOT}/bin/migrate-ideas-backlog.sh "{knowledge_folder}"` and report the output (N files written, original renamed to `ideas-backlog.md.pre-2.11-migration`)
+    - `(1) Migrate now` — run `bash ${ARIA_PLUGIN_ROOT}/bin/migrate-ideas-backlog.sh "{knowledge_folder}"` and report the output (N files written, original renamed to `ideas-backlog.md.pre-2.11-migration`)
     - `(2) Skip for now` — leave the file in place; `/setup` will prompt again on the next run. Note in the Step 8 summary that legacy entries are still stranded.
     - `(3) Never migrate` — write a sentinel file at `{knowledge_folder}/intake/ideas/.legacy-skipped` so future `/setup` runs stop prompting. Document that the user accepts stranded pre-2.11 entries.
 
@@ -100,7 +102,7 @@ ARIA v2.11 moved the ideas backlog from a single `intake/ideas-backlog.md` file 
 
 ## Step 4: File Diffing
 
-For each templated file that already exists in the user's folder, compare against the plugin's shipped version in `${CLAUDE_PLUGIN_ROOT}/template/`.
+For each templated file that already exists in the user's folder, compare against the plugin's shipped version in `${ARIA_PLUGIN_ROOT}/template/`.
 
 **Files to diff:** `rules/working-rules.md`, `rules/change-decision-framework.md`, `rules/enforcement-mechanisms.md`, `rules/retrospect-patterns.md`, `README.md`, `OVERVIEW.md`, `projects/README.md` (plugin-managed if present)
 
@@ -300,7 +302,7 @@ In **update mode:** preserve any user-added content in the markdown body below t
 - `projects_list`, `projects_remotes`, and `ticketing_plugins`: comma-separated `tag:value` pairs, no spaces around the colon or comma (e.g., `proj-a:path/to/proj-a,proj-b:proj-b` for paths; `proj-a:foo-ticket,proj-b:bar-ticket` for plugin commands)
 - Project tags (used in `projects_list`, `projects_remotes`, `ticketing_plugins`) cannot contain colons or commas (the parser splits on these)
 - `ticketing_plugins` plugin-command values are bare command names without the leading `/` (e.g., `foo-ticket`, not `/foo-ticket`) — `/audit-knowledge` prepends the slash when printing the hint
-- `last_setup_version` is a semver string read from `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` at Step 1 — write it as bare digits-and-dots (e.g., `2.12.1`), not quoted, not prefixed with `v`. The session-start hook compares this against the installed plugin version to detect upgrades since the user's last `/setup`
+- `last_setup_version` is a semver string read from `${ARIA_PLUGIN_ROOT}/.codex-plugin/plugin.json` at Step 1 — write it as bare digits-and-dots plus any Codex prerelease suffix (e.g., `2.20.2-codex.0`), not quoted, not prefixed with `v`. The session-start hook compares this against the installed plugin version to detect upgrades since the user's last `/setup`
 - `projects_promotion_threshold` must be a plain integer ≥ 1 (no units, no quotes)
 - `auto_load_project_context` must be exactly `true` or `false` (not `True`, `yes`, `1`, etc.)
 - No blank lines between frontmatter entries
@@ -357,7 +359,7 @@ Runs only if the config just written has `projects_enabled: true` and a non-empt
 Scaffold the project tier using the final config values:
 
 1. **Create `projects/` directory** if it doesn't exist.
-2. **Copy `${CLAUDE_PLUGIN_ROOT}/template/projects/README.md` to `projects/README.md`** if missing (plugin-managed; will be diffed on future `/setup` runs).
+2. **Copy `${ARIA_PLUGIN_ROOT}/template/projects/README.md` to `projects/README.md`** if missing (plugin-managed; will be diffed on future `/setup` runs).
 3. **For each entry in `projects_list` (parsed as `tag:path` pairs):**
    - Create `projects/{tag}/` if missing.
    - Create `projects/{tag}/decisions/`, `projects/{tag}/patterns/`, and `projects/{tag}/rules/` if missing. The `rules/` subdir is the destination for `/audit-knowledge` Step 7's project-tier rule promotion (`{knowledge_folder}/projects/{tag}/rules/working-rules.md`); it stays empty until the first rule is promoted.
@@ -414,13 +416,13 @@ After Step 7b's round-trip verification, run a coverage audit to catch any `KT_*
 
 **Algorithm:**
 
-1. Enumerate known user-facing field names by reading `${CLAUDE_PLUGIN_ROOT}/bin/config.sh` and extracting them from the parse lines. Each known field has the shape:
+1. Enumerate known user-facing field names by reading `${ARIA_PLUGIN_ROOT}/bin/config.sh` and extracting them from the parse lines. Each known field has the shape:
 
    ```bash
    KT_FIELDNAME=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^fieldname:' | sed 's/^fieldname: *//')
    ```
 
-   Use `grep -oE "grep '\\^[a-z_]+:'" plugin-claude-code/bin/config.sh | grep -oE '[a-z_]+'` to extract the user-facing field names — those are the canonical list of fields the wizard should have covered.
+   Use `grep -oE "grep '\\^[a-z_]+:'" "${ARIA_PLUGIN_ROOT}/bin/config.sh" | grep -oE '[a-z_]+'` to extract the user-facing field names — those are the canonical list of fields the wizard should have covered.
 
 2. For each known field, grep the just-written config `~/.claude/aria-knowledge.local.md` for `^{fieldname}:`. If the grep returns zero hits, add to a `MISSING_FIELDS` list.
 

@@ -1,16 +1,17 @@
 ---
-description: "**Bare-slash canonical (Claude Code).** `/config-audit` resolves to this skill (alias for /audit-config) when both aria-knowledge and aria-cowork are loaded in the same session. RUNTIME GATE: this alias delegates to /audit-config, whose Runtime Gate section will surface a notification suggesting `/aria-cowork:config-audit` if invoked from a non-Code runtime — even in `auto` mode (ADR-094 §Part 3). Alias for /audit-config. Invoked by the '/config-audit' slash command. Same behavior as /audit-config — just an alternative phrasing."
+name: config-audit
+description: "Alias for /audit-config. Use when the user invokes /config-audit or asks for a config audit using the inverted command phrasing."
 argument-hint: ""
 allowed-tools: Read, Glob, Grep, Write, Edit, Agent
 ---
 
 # /config-audit — Alias for /audit-config
 
-This is an **alias skill**. The canonical implementation lives at `plugin-claude-code/skills/audit-config/SKILL.md` within the aria-knowledge plugin. Invoking `/config-audit` and `/audit-config` produces identical behavior — this alias exists only to accommodate users who prefer the inverted "config-audit" phrasing.
+This is an **alias skill**. The canonical implementation lives at `skills/audit-config/SKILL.md` within this Codex plugin. Invoking `/config-audit` and `/audit-config` produces identical behavior — this alias exists only to accommodate users who prefer the inverted "config-audit" phrasing.
 
 ## Execute
 
-Read `plugin-claude-code/skills/audit-config/SKILL.md` (relative to the aria-knowledge plugin root — resolve via `${CLAUDE_PLUGIN_ROOT}/skills/audit-config/SKILL.md` if available, otherwise locate it within the installed plugin tree) and follow every step in that file exactly, passing through any arguments the user provided to this alias.
+Read `${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/skills/audit-config/SKILL.md` and follow every step in that file exactly, passing through any arguments the user provided to this alias.
 
 Do not duplicate canonical logic here. When the canonical skill changes, this alias continues to work because it delegates.
 

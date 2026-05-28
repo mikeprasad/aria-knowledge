@@ -2,14 +2,14 @@
 
 This directory is the standalone Codex port of ARIA Knowledge.
 
-The Claude plugin in `../plugin/` remains the canonical implementation for the
+The Claude Code plugin in `../plugin-claude-code/` remains the canonical implementation for the
 knowledge folder and content schema. The Codex port may diverge in manifests,
 commands, hook payload handling, and Codex-specific tool names, but it should not
 silently fork the markdown knowledge contract.
 
 ## Stable Contract
 
-Keep these compatible with the Claude-standard plugin:
+Keep these compatible with the Claude Code-standard plugin:
 
 - Knowledge folder layout under `template/`
 - Backlog formats under `intake/`
@@ -28,25 +28,26 @@ Codex-specific files live here:
 - `bin/codex-hook.sh`
 - `bin/codex-hook.py`
 
-The hook adapter reads `~/.codex/aria-knowledge.local.md` first, then falls back
-to `~/.claude/aria-knowledge.local.md`. This lets Codex share an existing ARIA
-knowledge folder immediately while still allowing a future independent Codex
-setup path.
+The hook adapter reads the shared `~/.claude/aria-knowledge.local.md` first, then
+falls back to legacy `~/.codex/aria-knowledge.local.md` for older Codex-only
+installs. The shared config is intentional: Claude Code and Codex should use the
+same knowledge folder, cadences, project tier, and shared-knowledge settings
+unless the user explicitly overrides `KT_CONFIG` or `ARIA_KNOWLEDGE_CONFIG`.
 
 ## Current Parity Notes
 
-- Skills are copied from the Claude-standard plugin in this first pass, so some
-  skill prose still names Claude surfaces.
+- Skills should keep shared knowledge schemas compatible while using Codex-native
+  metadata, config, and hook wording.
 - Rule 22 maps Codex file edits to `apply_patch`.
 - Shell write detection is advisory in this port; use `apply_patch` for edits.
 - Claude `TaskCreated` has no direct Codex equivalent yet. Prefer explicit
-  context-loading skills and SessionStart/UserPrompt patterns.
-- Plugin hooks require Codex `plugin_hooks`, which is currently an
-  under-development feature.
+  context-loading skills plus SessionStart/UserPromptSubmit-compatible guidance.
+- Hooks are enabled by default in current Codex, but plugin-bundled hooks still
+  require user trust review before they run.
 
 ## v2.18.0 update (2026-05-18) — MCP-consuming skills
 
-5 new MCP-consuming skills copied byte-faithfully from `../plugin-claude-code/skills/`:
+5 MCP-consuming skills originally ported from `../plugin-claude-code/skills/` and now maintained with Codex-native metadata:
 
 - `clip-thread/SKILL.md` — `~~chat` / `~~email` thread capture
 - `extract-doc/SKILL.md` — `~~docs` page → N intake-backlog entries
@@ -62,4 +63,4 @@ Plus `.mcp.json` (12 MCPs across chat/email/project-tracker/docs categories) and
 - **OAuth flow surface:** Claude Code prompts for OAuth via its own MCP client. Codex's flow may differ. The `.mcp.json` declaration (with `oauth.clientId` + `callbackPort` for Slack) is the same; the runtime that consumes it differs per surface.
 - **Write-side discipline:** `sync-decisions` Rule 22 advisory preamble (ADR-016) is Layer-1-only (skill prose + required output format). Codex has no PreToolUse hook on MCP tool calls; this matches Cowork's constraint and is the documented Layer-1 enforcement pattern. SKILL.md body unchanged.
 
-Skill descriptions still name Claude-surface conventions (e.g., references to Claude Code's `.mcp.json` in fallback notices). The intent is the same in Codex; future refinement may add Codex-specific phrasing per the "skill prose still names Claude surfaces" note above.
+Skill descriptions are Codex-native; durable knowledge templates may still mention Claude Code where the shared knowledge folder documents cross-port conventions.

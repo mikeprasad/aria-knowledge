@@ -1,6 +1,6 @@
 # TASK.schema — `/distill` output contract
 
-Referenced by: `plugin-claude-code/skills/distill/SKILL.md`
+Referenced by: `plugin-openai-codex/skills/distill/SKILL.md`
 
 ## Tiering
 
@@ -42,7 +42,7 @@ Watered-down phrasing that typically signals incomplete thinking. Prefer concret
 ## Validation rules (when `--group` is used)
 
 - Every file path cited in Scope / Frontend / Backend / Database sections must appear in the loaded CODEMAP or STITCH content.
-- If Claude invents a path not present in loaded context, move the uncertainty to **Assumptions** (mark as blocking) or remove the citation entirely.
+- If Codex invents a path not present in loaded context, move the uncertainty to **Assumptions** (mark as blocking) or remove the citation entirely.
 - At most one implementation approach per layer section — match the discipline of Rule 22's Execute step (no option menus inside a layer).
 
 ## Output

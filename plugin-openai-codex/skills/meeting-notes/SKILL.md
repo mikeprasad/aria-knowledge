@@ -1,5 +1,6 @@
 ---
-description: "**Bare-slash canonical (Claude Code).** `/meeting-notes` resolves to this skill when both aria-knowledge and aria-cowork are loaded in the same session. RUNTIME GATE: if invoked from a non-Code runtime (no Bash tool available, e.g., Claude Cowork), the Runtime Gate section surfaces a notification suggesting `/aria-cowork:meeting-notes` and requires explicit user confirmation before proceeding — even in `auto` mode (ADR-094 §Part 3). NOTE: paste-text fallback works without MCPs, but ~~docs MCPs (Notion, Confluence, Granola) are typically only connected in Cowork — the Cowork variant has better fidelity for MCP-sourced meetings. Fold a meeting transcript or notes into structured intake. Use when user says '/meeting-notes', 'capture meeting notes', 'fold this meeting transcript', 'process this Granola export', 'archive this standup'. Accepts a ~~docs URL (Notion meeting page, Confluence) OR pasted transcript text — unique among MCP-consuming skills in offering a paste fallback when no ~~docs MCP is connected."
+name: meeting-notes
+description: "Turn meeting notes, transcripts, or connected docs into structured ARIA intake records. Trigger on /meeting-notes, capture meeting notes, process standup, or fold this transcript."
 argument-hint: "<doc-url-or-paste-marker> [meeting-title]"
 allowed-tools: Read, Write, Grep
 ---
@@ -7,18 +8,6 @@ allowed-tools: Read, Write, Grep
 # /meeting-notes — Capture Meeting Transcript to Intake
 
 Save a meeting transcript or notes to `intake/meetings/{YYYY-MM-DD}-{slug}.md` with structured participants / topics / action items / decisions sections. Source can be a `~~docs` MCP (Notion meeting page, Confluence meeting doc) OR pasted transcript text (Granola export, raw transcript, hand-written notes).
-
-## Runtime Gate (per ADR-094)
-
-**Before Step 0:** Check that `Bash` is available. If `Bash` is NOT available (e.g., Cowork), surface:
-
-> ⚠️ **Runtime mismatch — you invoked aria-knowledge's `/meeting-notes` from a non-Code runtime.**
->
-> This skill works in either runtime via paste-text fallback, but MCP-sourced meetings (Notion, Confluence, Granola) require ~~docs MCPs typically only present in Cowork. For the Cowork-native variant with better MCP fidelity, use `/aria-cowork:meeting-notes`.
->
-> Proceed with the aria-knowledge variant anyway? (`y` / `n`)
-
-Wait for `y` / `yes`. **Gate applies even in `auto`** (ADR-094 §Part 3). If `Bash` is available, proceed to Step 0.
 
 ## Step 0: Resolve Config
 
@@ -28,7 +17,7 @@ Verify `{knowledge_folder}/intake/meetings/` exists. If not, create it (lazy cre
 
 ## Step 1: Probe Connected MCPs (with paste fallback)
 
-Check Claude's available tool list for `~~docs` MCPs:
+Check Codex's available tool list for `~~docs` MCPs:
 
 - **`~~docs`** (notion, atlassian, box, egnyte, google docs): if connected, available for MCP-sourced meeting docs.
 
@@ -73,7 +62,7 @@ Wait for the paste. Read the content until `---END---` marker. Proceed to Step 3
 
 ## Step 3: Structure the Transcript
 
-Parse the transcript body to identify these sections (Claude infers from content; this is NOT a strict parser — handle informal transcripts):
+Parse the transcript body to identify these sections (Codex infers from content; this is NOT a strict parser — handle informal transcripts):
 
 1. **Participants** — names + roles if present. Look for lists at the top, "@" mentions, speaker labels.
 2. **Date + duration** — if not explicit, ask user or default to today.
@@ -183,7 +172,7 @@ Next: add a reaction in the "## Reaction" section (or wait for /audit-knowledge 
 
 ## Notes
 
-- The Reaction section pattern matches `/intake doc` (v2.17.0) and `/clip-thread` (v2.18.0) — capture artifacts ship with a user-fillable "why this matters" slot that Claude never autocompletes.
+- The Reaction section pattern matches `/intake doc` (v2.17.0) and `/clip-thread` (v2.18.0) — capture artifacts ship with a user-fillable "why this matters" slot that Codex never autocompletes.
 - Bidirectional per [ADR-014](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/014-bidirectional-feature-flow.md) — aria-cowork v0.4.0 imports byte-faithfully.
 - Output schema is byte-identical per [ADR-013](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/013-cowork-modified-skills-schema-identical-outputs.md). Both plugins write to `intake/meetings/` in the shared knowledge folder.
 - **Paste-fallback divergence** documented in [ADR-015](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/015-capability-probe-pattern.md) §"Application across the 5 MCP-consuming skills" — this is the one skill that doesn't hard-stop on missing MCPs.

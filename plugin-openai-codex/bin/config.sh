@@ -236,7 +236,7 @@ kt_detect_signals() {
 
 # Batch-manifest support (v2.10.0)
 # Per ADR 021 Plan A (Upgrades 1+2 bundled): skills and manual plan-execution
-# declare an active batch by writing ~/.claude/active-batch.json. The pre-edit
+# declare an active batch by writing ~/.codex/active-batch.json. The pre-edit
 # hook detects the manifest and, for matching low-impact ops, emits a compressed
 # directive instead of the full Rule 22 format. Out-of-scope edits, high-impact
 # declared ops, protected paths, and structural-signal-triggering files all
@@ -256,7 +256,7 @@ kt_detect_signals() {
 #     ]
 #   }
 
-KT_BATCH_MANIFEST="$HOME/.claude/active-batch.json"
+KT_BATCH_MANIFEST="$HOME/.codex/active-batch.json"
 
 # kt_batch_find_match FILE_PATH
 # Check if file path matches an op in the active batch manifest.
@@ -362,7 +362,7 @@ kt_batch_begin() {
   _kt_batch_id="batch-$(date +%Y%m%d-%H%M%S)-$$"
   _kt_now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
-  mkdir -p "$HOME/.claude" 2>/dev/null
+  mkdir -p "$HOME/.codex" 2>/dev/null
 
   jq -n \
     --arg batch_id "$_kt_batch_id" \

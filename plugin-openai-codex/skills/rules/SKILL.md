@@ -1,5 +1,6 @@
 ---
-description: "**Bare-slash canonical (Claude Code).** `/rules` resolves to this skill when both aria-knowledge and aria-cowork are loaded in the same session. RUNTIME GATE: if invoked from a non-Code runtime (no Bash tool available, e.g., Claude Cowork), the Runtime Gate section surfaces a notification suggesting `/aria-cowork:rules` and requires explicit user confirmation before proceeding — even in `auto` mode (ADR-094 §Part 3). Quick lookup into working rules. Use when user says '/rules', '/rules 22', '/rules dependencies', 'look up rule about...', 'what rule covers...', or references a specific rule number."
+name: rules
+description: "Load and apply ARIA working rules, user rules, examples, and the change decision framework. Trigger on /rules, show rule N, working rules, or decision framework."
 argument-hint: "[number or keyword]"
 allowed-tools: Read, Grep
 ---
@@ -7,18 +8,6 @@ allowed-tools: Read, Grep
 # /rules — Quick Rule Lookup
 
 Look up rules from both the plugin's `working-rules.md` and the user's optional `user-rules.md`.
-
-## Runtime Gate (per ADR-094)
-
-**Before Step 0:** Check that `Bash` is available. If `Bash` is NOT available (e.g., Cowork), surface:
-
-> ⚠️ **Runtime mismatch — you invoked aria-knowledge's `/rules` from a non-Code runtime.**
->
-> Behavior is largely the same in both runtimes (both look up `working-rules.md` + `user-rules.md`); for the Cowork-native variant (reads from the attached knowledge folder), use `/aria-cowork:rules`.
->
-> Proceed with the aria-knowledge variant anyway? (`y` / `n`)
-
-Wait for `y` / `yes`. **Gate applies even in `auto`** (ADR-094 §Part 3). If `Bash` is available, proceed to Step 0.
 
 ## Step 0: Resolve Config
 

@@ -105,10 +105,64 @@ def last_assistant_text(data: dict[str, Any]) -> str:
         path = Path(transcript).expanduser()
         if path.exists():
             try:
-                return "\n".join(path.read_text(errors="ignore").splitlines()[-80:])
+                return transcript_assistant_text(path, str(data.get("turn_id") or ""))
             except OSError:
                 return ""
     return ""
+
+
+def extract_text(value: Any) -> str:
+    if isinstance(value, str):
+        return value
+    if isinstance(value, list):
+        parts: list[str] = []
+        for item in value:
+            if isinstance(item, str):
+                parts.append(item)
+            elif isinstance(item, dict):
+                if isinstance(item.get("text"), str):
+                    parts.append(item["text"])
+                elif isinstance(item.get("content"), str):
+                    parts.append(item["content"])
+        return "\n".join(parts)
+    if isinstance(value, dict):
+        for key in ("text", "content", "message"):
+            text = extract_text(value.get(key))
+            if text:
+                return text
+    return ""
+
+
+def transcript_assistant_text(path: Path, turn_id: str) -> str:
+    """Best-effort transcript reader.
+
+    Codex documents transcript_path as convenient but unstable. Keep this
+    conservative: prefer events from the active turn_id, and fall back to an
+    empty string instead of scanning prior turns where stale Rule 22 markers can
+    create false compliance.
+    """
+    if not turn_id:
+        return ""
+
+    texts: list[str] = []
+    for line in path.read_text(errors="ignore").splitlines():
+        try:
+            evt = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if turn_id and str(evt.get("turn_id") or "") != turn_id:
+            continue
+        role = evt.get("role") or evt.get("type") or nested_get(evt, "message", "role")
+        if role != "assistant":
+            continue
+        text = (
+            extract_text(evt.get("content"))
+            or extract_text(nested_get(evt, "message", "content"))
+            or extract_text(evt.get("message"))
+        )
+        if text:
+            texts.append(text)
+    return "\n".join(texts)
 
 
 def has_rule22_marker(text: str) -> bool:
@@ -129,7 +183,7 @@ def deny(message: str) -> dict[str, Any]:
         "hookSpecificOutput": {
             "hookEventName": "PreToolUse",
             "permissionDecision": "deny",
-            "additionalContext": message,
+            "permissionDecisionReason": message,
         },
         "systemMessage": message,
     }
@@ -189,7 +243,7 @@ def pre_tool_use(data: dict[str, Any]) -> None:
     inputs = tool_input(data)
     last_text = last_assistant_text(data)
 
-    if short_name == "apply_patch" or short_name.endswith("apply_patch"):
+    if short_name in {"apply_patch", "Edit", "Write"} or short_name.endswith("apply_patch"):
         if last_text and not has_rule22_marker(last_text):
             emit(
                 deny(
@@ -205,7 +259,7 @@ def pre_tool_use(data: dict[str, Any]) -> None:
             )
         return
 
-    if short_name == "exec_command" or short_name.endswith("exec_command"):
+    if short_name in {"Bash", "exec_command"} or short_name.endswith("exec_command"):
         cmd = str(inputs.get("cmd") or inputs.get("command") or "")
         reminder = maybe_codemap_reminder(data, cmd)
         if reminder is not None:

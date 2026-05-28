@@ -1,5 +1,6 @@
 ---
-description: "Turn raw task text into a tiered executable spec per TASK.schema.md. Auto-tiers by complexity (micro/standard/full). Optional --group loads CODEMAPs for cited context. Trigger: '/distill', '/distill --group=<tag> \"…\"'."
+name: distill
+description: "Shape messy task input into an implementation-ready task spec with scope, criteria, risks, dependencies, and execution plan. Trigger on /distill or turn this into a task spec."
 argument-hint: "<text or file path> [--group=tag] [--tier=micro|standard|full] [--append|--out=path|--no-archive]"
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
@@ -73,7 +74,7 @@ One implementation path per layer section. No option menus inside a layer. Match
 
 - All `[R]` sections present for the chosen tier.
 - No empty `[L]` sections (omit entirely if layer not touched).
-- With `--group`, every cited file path must appear in the loaded CODEMAP or STITCH content. If Claude invents a path, either remove the citation or promote the uncertainty to **Assumptions** as a blocking item.
+- With `--group`, every cited file path must appear in the loaded CODEMAP or STITCH content. If Codex invents a path, either remove the citation or promote the uncertainty to **Assumptions** as a blocking item.
 - **Advisory vocabulary check:** scan output for the list in `TASK.schema.md` (`flexible`, `extensible`, `scalable framework`, `we could also`, `alternatively`, `one option`, `potentially`, `might want to`). Prefer concrete alternatives. Not a hard rejection — surface as a soft warning in skill output, continue otherwise.
 
 On validation failure: self-correct once, then move remaining gaps to **Assumptions** as blocking items.

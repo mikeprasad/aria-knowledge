@@ -1,5 +1,6 @@
 ---
-description: "**Bare-slash canonical (Claude Code).** `/intake` resolves to this skill when both aria-knowledge and aria-cowork are loaded in the same session. RUNTIME GATE: if invoked from a non-Code runtime (no Bash tool available, e.g., Claude Cowork), the Runtime Gate section surfaces a notification suggesting `/aria-cowork:intake` and requires explicit user confirmation before proceeding — even in `auto` mode (ADR-094 §Part 3). Bulk import knowledge from files, directories, or URLs into the intake backlogs, OR capture a single doc with structured 5-section template (doc mode). Use when user says '/intake', '/intake doc', 'intake from', 'import knowledge from', 'scan this file for knowledge', 'extract from these docs', 'onboard this project', 'capture a doc', 'doc-anchored intake', 'log notes on this doc'. Unlike /extract (current conversation) or /clip (single item), /intake scans external sources in bulk and previews findings before staging. Doc mode produces one structured entry under intake/docs/ with claims / worth-keeping / contested / action / reaction sections."
+name: intake
+description: "Import bulk notes, docs, decisions, rules, or structured task intake into ARIA staging areas. Trigger on /intake, intake this, import notes, or capture this doc."
 argument-hint: "[doc <url-or-title>] | <path|directory|glob|url> [path2] [path3]"
 allowed-tools: Read, Glob, Grep, Write, Edit, WebFetch, Bash
 ---
@@ -10,18 +11,6 @@ Two modes:
 
 - **Bulk mode (default)** — Scan files, directories, or URLs for knowledge-worthy content and stage findings to the existing backlogs (insights / decisions / extraction). Multi-source, category-based, dedup-aware. Same surface as prior /intake versions.
 - **Doc mode (`/intake doc`)** — Capture a single doc as a structured intake entry at `intake/docs/{YYYY-MM-DD}-{slug}.md` with a 5-section body: what the doc claims / worth keeping / contested or unclear / action implied / my reaction. For when you're reading something and want a thoughtful capture rather than a bulk scan.
-
-## Runtime Gate (per ADR-094)
-
-**Before Step 0:** Check that `Bash` is available. If `Bash` is NOT available (e.g., Cowork), surface:
-
-> ⚠️ **Runtime mismatch — you invoked aria-knowledge's `/intake` from a non-Code runtime.**
->
-> This variant scans local files/directories/globs via Bash + WebFetch, which Cowork can't access the same way. For the Cowork-native variant (file scan reads from attached folder; doc mode uses ~~docs MCPs; supports pasted content), use `/aria-cowork:intake`.
->
-> Proceed with the aria-knowledge variant anyway? (`y` / `n`)
-
-Wait for `y` / `yes`. **Gate applies even in `auto`** (ADR-094 §Part 3). If `Bash` is available, proceed to Step 0.
 
 ## Step 0: Resolve Config + Mode Detection
 

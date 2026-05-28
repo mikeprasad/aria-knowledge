@@ -1,5 +1,6 @@
 ---
-description: "**Bare-slash canonical (Claude Code).** `/ask` resolves to this skill when both aria-knowledge and aria-cowork are loaded in the same session. RUNTIME GATE: if invoked from a non-Code runtime (no Bash tool available, e.g., Claude Cowork), the Runtime Gate section surfaces a notification suggesting `/aria-cowork:ask` and requires explicit user confirmation before proceeding — even in `auto` mode (ADR-094 §Part 3). Research a question, check existing knowledge first, draft a knowledge doc from the answer, and save directly to the appropriate category. Use when user says '/ask', 'ask about', 'research and save', 'I want to learn about', 'what is the pattern for'. Skips backlogs — the user reviews the answer in real-time before saving."
+name: ask
+description: "Research a question, check existing ARIA knowledge first, draft a knowledge note, and save it to the right knowledge category. Trigger on /ask, research and save, or ask about a pattern."
 argument-hint: "<question>"
 allowed-tools: Read, Write, Glob, Grep, WebSearch, WebFetch
 ---
@@ -7,18 +8,6 @@ allowed-tools: Read, Write, Glob, Grep, WebSearch, WebFetch
 # /ask — Query-Driven Knowledge Creation
 
 Research a question, check if the answer already exists in the knowledge base, and if not, draft a knowledge doc that saves directly to promoted files after user review. Fast path from question to knowledge — no backlog intermediary.
-
-## Runtime Gate (per ADR-094)
-
-**Before Step 0:** Check that the `Bash` tool is available in this session. If `Bash` is NOT available (you are running in Claude Cowork or another non-Code runtime), surface the following notification and wait for explicit user confirmation:
-
-> ⚠️ **Runtime mismatch — you invoked aria-knowledge's `/ask` from a non-Code runtime.**
->
-> Behavior is largely the same in both runtimes; for the Cowork-native variant (reads from the attached knowledge folder rather than `~/.claude/aria-knowledge.local.md`), use `/aria-cowork:ask`.
->
-> Proceed with the aria-knowledge variant anyway? (`y` / `n`)
-
-Wait for an explicit `y` / `yes`. **This gate applies even when invoked under `auto` semantics** (ADR-094 §Part 3). If `Bash` is available, proceed to Step 0.
 
 ## Step 0: Resolve Config
 

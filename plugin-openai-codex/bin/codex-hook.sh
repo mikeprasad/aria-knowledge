@@ -5,16 +5,18 @@ set -u
 
 EVENT="${1:-}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PLUGIN_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+PLUGIN_ROOT="${PLUGIN_ROOT:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 
 export ARIA_CODEX_PLUGIN_ROOT="$PLUGIN_ROOT"
 export CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT"
 
 if [ -z "${KT_CONFIG:-}" ]; then
-  if [ -f "$HOME/.codex/aria-knowledge.local.md" ]; then
-    export KT_CONFIG="$HOME/.codex/aria-knowledge.local.md"
-  else
+  if [ -n "${ARIA_KNOWLEDGE_CONFIG:-}" ]; then
+    export KT_CONFIG="$ARIA_KNOWLEDGE_CONFIG"
+  elif [ -f "$HOME/.claude/aria-knowledge.local.md" ]; then
     export KT_CONFIG="$HOME/.claude/aria-knowledge.local.md"
+  else
+    export KT_CONFIG="$HOME/.codex/aria-knowledge.local.md"
   fi
 fi
 
