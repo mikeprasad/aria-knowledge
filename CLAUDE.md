@@ -205,4 +205,4 @@ Use `/context aria` to load relevant knowledge by project tag.
 
 ---
 
-*Last reviewed: 2026-05-29 — plugin-claude-code v2.20.3, plugin-claude-cowork v1.1.4 (Opus 4.8 readiness). plugin-openai-codex 2.20.2-codex.0, plugin-cursor-template 2.20.2-cursor.0, plugin-antigravity 2.20.2 NOT yet re-synced to 2.20.3 — tracked drift (see CHANGELOG v2.20.3 "Pending follow-up").*
+*Last reviewed: 2026-05-30 — plugin-claude-code v2.20.4 (`/handoff` opener now recommends model + effort; Claude Code only). plugin-claude-cowork v1.1.4, plugin-openai-codex 2.20.2-codex.0, plugin-cursor-template 2.20.2-cursor.0, plugin-antigravity 2.20.2 NOT yet re-synced to 2.20.3/2.20.4 — tracked drift (see CHANGELOG v2.20.3 + v2.20.4 "Pending follow-up" / "Scope").*
