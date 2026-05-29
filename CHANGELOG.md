@@ -2,6 +2,29 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## v2.20.3 / cowork v1.1.4 — 2026-05-29
+
+**Opus 4.8 readiness.** Hardens Rule 22 enforcement for the current model generation and de-versions stale model references that shipped to users.
+
+### Changed — Rule 22 PreToolUse hook (plugin-claude-code)
+
+- **Loud fail-open** (`bin/pre-edit-check.sh`): when the compliance detector can't evaluate an edit (`unknown` — a transcript/schema/runtime failure, which the model cannot reach by reasoning), the hook still allows the edit (no v2.10.5-style deadlock) but now emits a visible warning `systemMessage` so enforcement is never lost *silently*. Determinate marker-absent — including a marker placed only in a thinking block — still denies.
+- **Planning-path fix** (`bin/pre-edit-check.sh`): the planning-path glob now recognizes `docs/superpowers/{plans,specs}`, so plan/spec docs get the abbreviated `[Rule 22 · Planning]` variant instead of being misclassified as full-impact edits.
+
+### Added — regression guards
+
+- `tests/repros/4-8-thinking-and-failopen.sh` + fixtures: lock the marker-must-be-visible-text deny contract, the loud fail-open, and the planning-path classification, so a future model/harness change fails a test instead of bricking the editor.
+
+### Changed — de-versioned stale model references
+
+- `/help` Model Recommendations table: capability tiers (Highest-capability Opus / Sonnet mid-tier) replace pinned "Opus 4.6 (1M context)" / "Sonnet 4.6"; exclusion reworded to "below Sonnet-equivalent capability."
+- SessionStart MEMORY PATHWAY injected message + two present-tense comments: model-agnostic wording instead of "enhanced in 4.7."
+- `working-rules.md` (both ports): the Rule "Why:" clause de-versioned to "modern Claude models'." Historical Origin / 4.7 references intentionally preserved (they document why the code is shaped as it is).
+
+### Pending follow-up
+
+- Downstream ports (cursor / codex / antigravity) mirror the canonical `/help` table, `working-rules.md`, and (codex/antigravity) the hook scripts. They are **not** re-synced in this release — scoped intentionally to Claude Code + Cowork. Re-sync via `port-skills-to-mdc.py` + `release-cursor.sh`, `release-codex.sh`, and `plugin-antigravity/build.sh` is a tracked follow-up.
+
 ## Cursor port 2.20.2-cursor.0 — 2026-05-27
 
 **Cursor port parity pass** — brings `plugin-cursor-template/` to equivalent coverage with `plugin-claude-code` v2.20.2. Independent version file: `plugin-cursor-template/scripts/aria/VERSION`. Release artifact: `aria-knowledge-cursor-2.20.2.zip` via `./release-cursor.sh`. No changes to the canonical Claude Code plugin in this pass.
