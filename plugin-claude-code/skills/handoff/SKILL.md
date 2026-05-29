@@ -163,6 +163,9 @@ Build a fenced block intended for paste into the next session. Format:
 {project-marker}
 Resume {project-name} from {YYYY-MM-DD} handoff.
 
+Suggested next session: {model · effort}
+  ({one-line rationale grounded in the first action})
+
 Read first:
 - {PROGRESS.md path} (latest entry)
 - {primary CLAUDE.md path}
@@ -179,6 +182,29 @@ First action:
 ```
 
 The opener is always produced, even when the session was short or no other artifacts changed — it's the headline deliverable.
+
+#### Choosing the `Suggested next session:` value
+
+The recommendation is the current session's judgment about what the **next session's hardest first action** needs. Pick the rubric row matching that first action (from the Step 2 synthesis: `Next steps` + `Open threads` + `Current state`). Both axes descend together as one difficulty gradient, so the matched row doubles as the rationale skeleton.
+
+| Next session's character | Recommend |
+|---|---|
+| Novel architecture · deeply ambiguous · high asymmetric failure cost · gnarly debugging | `Opus · xhigh` (`max` only if truly hard — session-only, may overthink) |
+| Design + hard multi-step implementation, real ambiguity | `Opus · high` |
+| Standard implementation with a clear-ish plan, moderate complexity | `Opus · medium` |
+| Planning is the hard part, execution mechanical | `opusplan` |
+| Well-specified implementation, moderate mechanical work | `Sonnet · high` |
+| Routine mechanical execution (sweeps, renames, doc edits, plan already written) | `Sonnet · medium` |
+| Trivial lookups / status checks | `Haiku` |
+
+Rules for the line:
+- **De-version.** Write only the model family (`Opus` / `Sonnet` / `Haiku`) — a bare family name means the **latest version** of that family. Never write a version number.
+- **Always include a one-line rationale** on the indented line below, grounded in the first action.
+- **Effort ladder:** `low · medium · high · xhigh · max` (Opus and Sonnet support effort; `Haiku` does **not** — emit `Haiku` with no `· effort` suffix). `opusplan` (Opus plans → Sonnet executes) is its own token, no effort suffix.
+- **Uncertain / no strong signal → `Opus · high`**, rationale "general session, no strong signal."
+- **Spans tiers → recommend the higher tier** and say so in the rationale.
+
+This line is advisory — it does not set the model. The user selects via `/model` and `/effort`; a running next-session model uses the effort cue + a mismatch self-check.
 
 ## Step 4: Single Combined-Go Review (default mode only)
 
@@ -272,6 +298,7 @@ Read on resume: {primary CLAUDE.md path} for current state.
 
 - **/wrapup is the interactive default; /handoff is the express lane.** Don't deprecate or replace /wrapup. They serve different cadences.
 - **Always emit the next-session opener (default + auto modes only).** In default + auto, even when nothing else changed (no PROGRESS update, no commit, no memory edit), the opener is the headline deliverable. Brief mode emits the coworker brief instead — different artifact, different audience.
+- **The opener always carries a `Suggested next session:` line (default + auto modes only).** De-versioned model family (`Opus`/`Sonnet`/`Haiku`, never a version number) + effort level + a one-line rationale grounded in the first action. It is advisory, not model-setting. Brief mode does not carry it. See Step 3e's rubric for the row mapping.
 - **`auto` mode applies everything without confirmation.** The user explicitly opted into that risk by typing `auto`. Do not introduce confirmation gates in auto mode — that defeats the purpose.
 - **`brief` mode produces output only — no side effects.** No PROGRESS update, no CLAUDE.md edit, no memory write, no commit, no /extract. The brief is a copy/paste artifact for a person, not durable state. Users who want both a brief AND state updates run `/handoff brief` then `/handoff` (or `/handoff auto`) separately — two passes, two artifacts.
 - **Brief mode keeps `[coworker]` as a literal placeholder.** Don't prompt the user for a recipient name. They'll fill it at paste time. This avoids friction and supports "send to multiple people" use cases.

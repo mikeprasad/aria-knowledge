@@ -2,6 +2,22 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## v2.20.4 — 2026-05-30
+
+**`/handoff` next-session opener now recommends a model + effort.** The current session — which has the most context about what comes next — emits a one-line posture recommendation for the next session.
+
+### Added — `Suggested next session:` line in the opener (plugin-claude-code)
+
+- `skills/handoff/SKILL.md` Step 3e: the next-session opener template gains a `Suggested next session: {model · effort}` line (with a one-line rationale) directly under the `Resume …` line. Applies to **default + auto modes only** — brief mode (coworker prose, no resume mechanics) is unchanged.
+- A rubric maps the next session's hardest first action → model + effort (`Opus · xhigh` for novel/ambiguous/high-stakes work down to `Sonnet · medium` for mechanical execution and `Haiku` for trivial lookups; `opusplan` when planning is the hard part).
+- **De-versioned:** the line names only the model family (`Opus`/`Sonnet`/`Haiku`) — a bare family name denotes the latest version, so the rubric never goes stale on a model release (consistent with v2.20.3's de-versioning of shipped model references).
+- The line is advisory (user selects via `/model` + `/effort`); it does not auto-set the model. Because Step 8 already echoes the full opener, the line reaches both the user (in the report) and the next Claude instance (on paste) with no second render site.
+- Rules section documents the always-on invariant.
+
+### Scope
+
+- **Claude Code only.** Effort/model selection is a Claude Code concept that does not map cleanly to every runtime. The cursor / codex / antigravity / cowork ports are **not** re-synced in this release — a tracked follow-up, consistent with the v2.20.3 scoping precedent.
+
 ## v2.20.3 / cowork v1.1.4 — 2026-05-29
 
 **Opus 4.8 readiness.** Hardens Rule 22 enforcement for the current model generation and de-versions stale model references that shipped to users.
