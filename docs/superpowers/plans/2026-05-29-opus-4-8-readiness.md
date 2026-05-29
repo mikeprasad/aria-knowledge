@@ -439,3 +439,16 @@ git commit -m "chore(release): v2.20.3 / cowork v1.1.4 — Opus 4.8 readiness"
 2. **Placeholder scan:** No TBD/TODO; every code step shows real content; every command states expected output.
 3. **Cross-port:** Task 5 Step 4 verifies the *edited lines* in both ports (line-scoped, not full-file diff — the files intentionally diverge); Task 8 Step 3 handles downstream drift explicitly.
 4. **Honest test boundary:** Deterministic tasks (1-6, 8) are CI-verifiable; empirical behaviors are isolated in Task 7 and labeled non-automatable.
+
+---
+
+## Verification Results (2026-05-29, Opus 4.8 — partial)
+
+Recorded during plan execution. Deterministic tasks (1–5; 6 = no-op; 8 pending) are covered by `tests/run.sh`; this block tracks Task 7's manual items.
+
+- ✅ **Marker-in-text path (Task 7 Step 2, partial):** Every Edit/Write this session emitted the `[Rule 22]` marker as visible text and was allowed by the live PreToolUse hook — no deadlock. The safe path works on Opus 4.8. *Not* yet confirmed: whether 4.8 ever routes the marker into thinking *unprompted* — but the regression guard + loud fail-open cover that failure case either way.
+- ✅ **Deny-on-thinking + loud fail-open:** verified directly against the hook (`tests/repros/4-8-thinking-and-failopen.sh`, 3/3) and by live pipe.
+- ⬜ **PreCompact fires on 4.8 (Task 7 Step 1):** NOT OBSERVED — no auto-compaction occurred this session. Open: needs a long live 4.8 session; confirm a snapshot lands in `intake/pre-compact-captures/`.
+- ⬜ **Cowork prose-only enforcement (Task 7 Step 3):** NOT TESTED — no Cowork runtime this session. Open.
+
+Open items (PreCompact, Cowork) carry forward as live-runtime checks.
