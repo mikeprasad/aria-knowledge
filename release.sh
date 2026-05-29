@@ -40,25 +40,11 @@ PLUGIN_VERSION=$(read_json "$PLUGIN_MANIFEST" "version")
 
 log "plugin:  $PLUGIN_NAME v$PLUGIN_VERSION"
 
-# --- sync marketplace.json (auto-sync per design) ---------------------------
-MARKETPLACE_VERSION=$(read_json "$MARKETPLACE_MANIFEST" "plugins.$PLUGIN_NAME.version")
-
-if [[ "$MARKETPLACE_VERSION" != "$PLUGIN_VERSION" ]]; then
-    warn "marketplace.json drift: $MARKETPLACE_VERSION → $PLUGIN_VERSION (auto-syncing)"
-    python3 -c '
-import json, sys
-path, name, ver = sys.argv[1], sys.argv[2], sys.argv[3]
-with open(path) as f:
-    mkt = json.load(f)
-mkt["plugins"][name]["version"] = ver
-with open(path, "w") as f:
-    json.dump(mkt, f, indent=2)
-    f.write("\n")
-' "$MARKETPLACE_MANIFEST" "$PLUGIN_NAME" "$PLUGIN_VERSION"
-    ok "marketplace.json synced to $PLUGIN_VERSION"
-else
-    ok "marketplace.json already in sync"
-fi
+# --- marketplace.json carries no version (current marketplace schema) -------
+# Version's source of truth is plugin.json; the marketplace.json plugins[]
+# entries intentionally have no version field, so there is nothing to sync.
+# (Removed the obsolete name-keyed-dict sync block — it pre-dated the switch
+# to the schema-compliant plugins-as-list form and broke on it.)
 
 # --- stage ------------------------------------------------------------------
 STAGING=$(mktemp -d -t "aria-release.XXXXXX")
