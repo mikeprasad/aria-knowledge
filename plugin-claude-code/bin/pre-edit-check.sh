@@ -224,8 +224,23 @@ PY
   [ -z "$COMPLIANT" ] && COMPLIANT="unknown"
 fi
 
-# Fail-open: allow silently when compliant or when we couldn't verify.
-if [ "$COMPLIANT" = "yes" ] || [ "$COMPLIANT" = "unknown" ]; then
+# Compliant: allow silently.
+if [ "$COMPLIANT" = "yes" ]; then
+  exit 0
+fi
+
+# Fail-open (LOUD): the detector could not evaluate this edit — the queried
+# tool_use_id was not locatable in the transcript, the transcript was
+# unreadable, or python3 was unavailable. This is an INFRASTRUCTURE failure,
+# not a "marker absent" decision (a located edit always resolves to yes/no, so
+# the model cannot reach this branch by reasoning around enforcement). Allow
+# the edit so a detector/schema break never deadlocks the editor (cf. the
+# v2.10.5 deadlock), but surface a visible warning so enforcement is never lost
+# SILENTLY — on a model/harness change you see this on the first affected edit.
+if [ "$COMPLIANT" = "unknown" ]; then
+  WARN="aria-knowledge Rule 22: could not verify this edit — enforcement was bypassed for it. The transcript parser may be broken (possible model/harness change). If this appears on every edit, run tests/run.sh and check pre-edit-check.sh against the current transcript format."
+  WARN_ESCAPED=$(kt_json_escape "$WARN")
+  printf '{"systemMessage":"%s"}\n' "$WARN_ESCAPED"
   exit 0
 fi
 

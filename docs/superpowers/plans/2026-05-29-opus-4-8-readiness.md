@@ -12,7 +12,7 @@
 
 **Prospect verdict (2026-05-29):** PROCEED-WITH-CHANGES. Pre-mortem at `~/Projects/knowledge/logs/prospect/2026-05-29-file-opus-4-8-readiness.md`. One required change applied below: Task 5 Step 4 was line-scoped after the evidence pass falsified its byte-identity assumption (CC and Cowork rule files intentionally diverge: `/setup` vs `/aria-setup`). Tasks 6 & 7 intentionally DEFERRED.
 
-**Decision required (do not silently resolve):** Task 1 locks the *current* contract — the Rule 22 marker must appear in a **visible text block**, and a marker that lands only in a **thinking block** is treated as non-compliant (deny). Whether Opus 4.8 should instead get a thinking-block fallback scan is a genuine tradeoff (auditability vs. deadlock-resistance) called out in Task 1 Step 6. The executor must surface it, not decide it.
+**Decision RESOLVED (2026-05-29, during execution):** Task 1 locks the contract that the Rule 22 marker must appear in a **visible text block**; a marker only in a **thinking block** is non-compliant → deny (the model cannot reach the fail-open path by reasoning — only an infra break can). A thinking-block fallback scan was rejected (it would make the marker non-auditable). Instead, the `unknown`/detector-break path was changed from **silent** fail-open to **loud** fail-open: it still allows the edit (no v2.10.5-style deadlock) but emits a visible warning `systemMessage` so enforcement is never lost silently. Implemented in `pre-edit-check.sh` + asserted by the `4-8-thinking-and-failopen.sh` repro (`run_warn_case`).
 
 ---
 
