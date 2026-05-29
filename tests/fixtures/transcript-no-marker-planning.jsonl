@@ -1,0 +1,2 @@
+{"type":"user","message":{"role":"user","content":"Write the plan"}}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"toolu_plan_edit","name":"Write","input":{"file_path":"/x/docs/superpowers/plans/p.md"}}]}}

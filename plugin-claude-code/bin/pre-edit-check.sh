@@ -42,7 +42,7 @@ TOOL_USE_ID=$(echo "$INPUT" | grep -o '"tool_use_id":"[^"]*"' | head -1 | sed 's
 # Planning paths where abbreviated assessment is permitted
 IS_PLANNING=false
 case "$FILE_PATH" in
-  */docs/specs/*|*/docs/plans/*) IS_PLANNING=true ;;
+  */docs/specs/*|*/docs/plans/*|*/docs/superpowers/specs/*|*/docs/superpowers/plans/*) IS_PLANNING=true ;;
 esac
 
 # Protected filenames that always require full assessment

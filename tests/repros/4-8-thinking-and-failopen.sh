@@ -55,8 +55,22 @@ run_warn_case() {
   fi
 }
 
-run_case      "D-thinking-only-marker-denies" "$FIXTURES/transcript-thinking-only-marker.jsonl" "toolu_thinking_only" "deny"
-run_warn_case "E-id-absent-failopen-loud"     "$FIXTURES/transcript-id-absent.jsonl"            "toolu_query_missing"
+run_planning_case() {
+  # asserts a no-marker edit to a docs/superpowers/plans path is DENIED with the
+  # PLANNING variant named — proving the path is classified as a planning path.
+  case_name="$1"; fixture="$2"; tool_use_id="$3"; file_path="$4"
+  input=$(printf '{"file_path":"%s","transcript_path":"%s","tool_use_id":"%s"}' "$file_path" "$fixture" "$tool_use_id")
+  output=$(printf '%s' "$input" | sh "$HOOK" 2>&1)
+  if printf '%s' "$output" | grep -q 'Planning'; then
+    printf "PASS  %s (planning variant named in deny message)\n" "$case_name"; PASS=$((PASS + 1))
+  else
+    printf "FAIL  %s (expected planning variant; got full)\n      output: %s\n" "$case_name" "$output"; FAIL=$((FAIL + 1))
+  fi
+}
+
+run_case          "D-thinking-only-marker-denies"   "$FIXTURES/transcript-thinking-only-marker.jsonl" "toolu_thinking_only" "deny"
+run_warn_case     "E-id-absent-failopen-loud"       "$FIXTURES/transcript-id-absent.jsonl"            "toolu_query_missing"
+run_planning_case "F-superpowers-plans-is-planning" "$FIXTURES/transcript-no-marker-planning.jsonl"   "toolu_plan_edit" "/x/docs/superpowers/plans/p.md"
 
 printf "\n%d passed, %d failed\n" "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
