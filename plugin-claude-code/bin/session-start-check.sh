@@ -6,7 +6,7 @@
 # accurately (the v2.10.5 wording claimed "hook cannot enforce" which
 # contradicted the new structural enforcement). Added TASK BUDGET guardrail
 # (prompts Claude to surface strain symptoms to the user who has UI-side
-# visibility) and MEMORY PATHWAY guardrail (routes 4.7's enhanced
+# visibility) and MEMORY PATHWAY guardrail (routes recent models' enhanced
 # file-system memory through ARIA's intake/extract/clip flow).
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -267,10 +267,10 @@ if [ "$KT_AUTO_CAPTURE" != "false" ]; then
   MESSAGES="${MESSAGES}INSIGHT CAPTURE — After completing discrete tasks, batch-append any uncaptured \xe2\x98\x85 Insight blocks to ${KT_KNOWLEDGE_FOLDER}/intake/insights-backlog.md. Do not capture mid-task — only at task completion boundaries. "
 fi
 
-# Memory pathway guardrail (v2.10.6). Claude Opus 4.7 has enhanced
+# Memory pathway guardrail (v2.10.6). Recent Claude models have enhanced
 # file-system memory; route that capability through ARIA's pathways so
 # the knowledge tree stays curated rather than fragmenting into ad-hoc notes.
-MESSAGES="${MESSAGES}MEMORY PATHWAY — ARIA is the structured memory pathway for this session. For notes, use /clip (URLs/snippets), /extract (session insights), /intake (bulk imports), /audit-knowledge (promotion). File-system memory is enhanced in 4.7; route it through ARIA to keep the knowledge tree curated. "
+MESSAGES="${MESSAGES}MEMORY PATHWAY — ARIA is the structured memory pathway for this session. For notes, use /clip (URLs/snippets), /extract (session insights), /intake (bulk imports), /audit-knowledge (promotion). Recent Claude models have enhanced file-system memory; route it through ARIA to keep the knowledge tree curated. "
 
 # CODEMAP detection — find codemaps in project directories, annotate with
 # staleness per /audit-knowledge Step 5d criteria so stale maps are visible
