@@ -206,6 +206,13 @@ Rules for the line:
 
 This line is advisory — it does not set the model. The user selects via `/model` and `/effort`; a running next-session model uses the effort cue + a mismatch self-check.
 
+### 3f: SESSION.md (handoff state)
+Skip if `session_state` is not `true` in `~/.claude/aria-knowledge.local.md` (read in Step 0). When enabled, draft `{project_root}/SESSION.md` as a **handoff-state** snapshot per `aria-atlas/docs/TEMPLATE_SESSION.md` (full rewrite; create if absent — the one create-exception to the skip-gracefully rule):
+- Header: `lastEvent: handoff`; `at:` current UTC (`date -u +%Y-%m-%dT%H:%M:%SZ`); `currentFocus:` one line; `nextAction:` the imperative first action from 3e; `branch:`/`headCommit:` from `git -C {project_root} rev-parse --abbrev-ref HEAD` / `... rev-parse --short HEAD` (omit if not a git repo); `by:` `author_tag` (omit if unset); `sessionId:` omit unless known.
+- Body: `## Where we left off` + `## Next session pickup` (2-4 sentences each); `## Next session prompt` = **the 3e opener verbatim** inside the fenced block (it may contain nested ``` fences — preserve them).
+
+The 3e opener is authored once and reused here — single source, no divergence between the closing report's opener and the SESSION.md prompt block.
+
 ## Step 4: Single Combined-Go Review (default mode only)
 
 **Skip this step entirely if `mode = auto`.**
@@ -220,12 +227,13 @@ In default mode, present all drafts together in one scroll under clear section h
 [3c: Memory updates draft, or "no changes needed"]
 [3d: Commit messages + staged file lists per repo, or "no uncommitted changes"]
 [3e: Next-session opener]
+[3f: SESSION.md (handoff state) draft, or "skipped — session_state off"]
 
 ---
 
 **Apply all of the above?**
 - `yes` — apply all drafts, run /extract, emit final report
-- `edit {section}` — let user revise a specific section before applying (3a, 3b, 3c, 3d, or 3e)
+- `edit {section}` — let user revise a specific section before applying (3a, 3b, 3c, 3d, 3e, or 3f)
 - `skip {section}` — apply everything except the named section
 - `abort` — apply nothing, exit cleanly
 ```
@@ -243,6 +251,7 @@ Apply approved drafts in order. For `auto` mode, this runs immediately after Ste
    - Stage the listed files (specific paths, never `git add -A`)
    - Commit with the drafted message
    - **Never push.** This applies in both modes regardless of how the repo is hosted.
+5. **3f:** Write `{project_root}/SESSION.md` (handoff state, full rewrite, create if absent). Skip if `session_state` is off or the user `skip`-ped 3f.
 
 If any step fails (e.g., commit hook rejects), surface the failure inline and stop — do not silently continue.
 
@@ -264,6 +273,7 @@ Run the same checklist `/wrapup` Step 7 uses:
 - Memory — [updated / already current / not found / skipped]
 - Git — [committed N file(s) / no changes / uncommitted (skipped)]
 - /extract — [N items captured / nothing new]
+- SESSION.md — [written: handoff (prompt embedded) / skipped (session_state off)]
 - Tracked artifacts — [all fresh / N stale (consider /codemap update or /stitch verify for {tags}) / not checked]
 - Next-session opener — [emitted below]
 ```
