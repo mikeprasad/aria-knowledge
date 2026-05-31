@@ -147,7 +147,7 @@ kt_project_for_path() {
     _kt_proj_path="${_kt_entry#*:}"
     [ -z "$_kt_proj_path" ] && continue
     case "$_kt_path" in
-      *"$_kt_proj_path"*)
+      */"$_kt_proj_path"/*|*/"$_kt_proj_path")  # path-boundary match (not bare substring) so e.g. vox does not match innvoxate
         _kt_len=${#_kt_proj_path}
         if [ "$_kt_len" -gt "$_kt_best_len" ]; then
           _kt_best_tag="$_kt_tag"
