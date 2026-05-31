@@ -173,6 +173,28 @@ If no uncommitted changes exist, say "No uncommitted changes" and move on.
 
 **Important:** Do not push to remote. Only commit locally. If the user wants to push, they can do so separately. This applies to both modes.
 
+## Step 6.5: Write SESSION.md (wrapup state)
+
+Skip this step entirely unless `session_state: true` in `~/.claude/aria-knowledge.local.md` (the config you read in Step 0). When enabled:
+
+Write `{project_root}/SESSION.md` (project root from Step 1) as a **wrapup-state** snapshot, following the contract at `aria-atlas/docs/TEMPLATE_SESSION.md`. **Full rewrite** (wrapup is an authoritative close). This is a deliberate exception to the "don't create files" rule — create it if absent.
+
+Header fields:
+- `lastEvent: wrapup`
+- `at:` current UTC — `date -u +%Y-%m-%dT%H:%M:%SZ`
+- `currentFocus:` one line from the Step 2 summary (where the project stands)
+- `nextAction:` one line, or `complete` for a clean close with nothing pending
+- `branch:` / `headCommit:` from `git -C {project_root} rev-parse --abbrev-ref HEAD` and `git -C {project_root} rev-parse --short HEAD` (omit both if not a git repo)
+- `by:` the `author_tag` config value (omit if unset)
+- `sessionId:` omit unless known
+
+Body:
+- `## Where we left off` — 2-4 sentences from the Step 2 summary
+- `## Next session pickup` — 2-4 sentences
+- `## Next session prompt` — **leave the fenced block empty** (wrapup carries no opener; that's what distinguishes it from `/handoff`)
+
+**If `mode = auto`:** write without prompting. **Otherwise (gated):** show the drafted file and ask "Write SESSION.md (wrapup state)? (yes / edit / skip)".
+
 ## Step 7: Verify Wrapup Readiness
 
 Run through a checklist and report status:
@@ -184,6 +206,7 @@ Run through a checklist and report status:
 - [x/!/ ] CLAUDE.md — [current / updated / not found / skipped]
 - [x/!/ ] Memory — [updated / already current / not found / skipped]
 - [x/!/ ] Git — [committed / no changes / uncommitted changes (user skipped)]
+- [x/!/ ] SESSION.md — [written: wrapup / skipped (session_state off) / not applicable]
 - [x/!/ ] Tracked artifacts — [all fresh / N stale (consider /codemap update or /stitch verify) / not checked]
 ```
 
@@ -221,5 +244,6 @@ Use the heading **`Session Wrapup Complete`** for `/wrapup` runs — distinct fr
 - **Don't invent work** — the session summary should reflect what actually happened in the conversation, not what might have happened. If the conversation is short or unclear, say so.
 - **Git safety** — never force push, never amend, never push to remote. Local commits only. Stage specific files, not `git add -A` (avoid capturing sensitive files).
 - **Skip gracefully** — if a file doesn't exist (no PROGRESS.md, no CLAUDE.md, no memory), skip that step and note it. Don't create files that don't already exist as part of the project's conventions.
+- **SESSION.md is the one create-exception.** Unlike PROGRESS.md/CLAUDE.md/memory (skip-gracefully if absent), SESSION.md is *always written* when `session_state` is on — created at the project root if it doesn't exist. It's a new convention that must bootstrap. This is the only file /wrapup creates rather than skips.
 - **Delegate extraction** — /wrapup prompts for /extract but does not perform extraction itself. The /extract skill has its own deduplication and formatting logic.
 - **One passoff per session** — if the user runs /wrapup again in the same session, check what was already done and skip completed steps. Don't duplicate entries.
