@@ -297,6 +297,36 @@ Append-only — if a subsequent audit on the same date also ledgers snapshots, a
 
 **User override (explicit, v2.15.2+):** If the user explicitly approves or asks for a snapshot deletion that skips even the ledger (phrases like *"delete the snapshots without writing a ledger"*, *"just rm them"*), the bare deletion is permitted. The default remains ledger-clear; this override exists for cases where the user has explicit reason to skip both archive AND ledger (e.g., snapshots contain sensitive content they want untraceable). **Before honoring, surface the snapshot count + canonical-source pointers that would have been ledgered** and confirm. User-approved bare deletes are one-off; subsequent snapshot operations in the same audit default back to ledger-clear.
 
+## Step 2e: Review Subagent Captures
+
+Scan `{knowledge_folder}/intake/subagent-captures/` for `.md` files. **If the directory doesn't exist or is empty**, skip silently to Step 3.
+
+**If captures exist**, report the count and total size, then ask the user:
+
+> "Found N subagent transcript capture(s) (total ~X KB) archived from heavyweight subagents. A subagent cannot extract its own session, so these are held until reviewed. Options:"
+> 1. **Digest** — extract high-signal content via script, then review (~1-3K tokens per capture; default)
+> 2. **Detailed** — read full transcripts for exhaustive review (~30-50K tokens per capture)
+> 3. **Skip** — leave for the next audit
+
+There is **no bare-Clear option** for subagent captures. Unlike pre-compact snapshots (derived copies of Claude Code's canonical session `.jsonl`), a subagent capture is held under **sticky retention** — its body is only removed *after* its knowledge is folded into a backlog, because the subagent's source transcript is not assumed to persist.
+
+**Digest mode (default):** for each capture, run:
+
+```
+bash ${CLAUDE_PLUGIN_ROOT}/bin/digest-transcript.sh "{capture_path}" "/tmp/aria-digest-{filename}"
+```
+
+Then read the digest (not the raw transcript). Extract findings into the standard six buckets (insights, decisions, feedback, project context, references, ideas) — same categorization as `/extract`.
+
+**Detailed mode:** read the full capture directly. Use sparingly (a single capture can consume 30-50K+ tokens).
+
+For each reviewed capture:
+- **Approved items** → append to the appropriate backlog (`insights-backlog.md`, `decisions-backlog.md`, or `extraction-backlog.md`), then apply the **ledger-clear pattern**: create `{knowledge_folder}/archive/audit-{date}/subagent-captures/` if needed, append an entry to its `REMOVED.md` (filename + parent-session-id + agent_type + agent_id + capture-timestamp), then `rm` the capture `.md`.
+- **Rejected items** → ledger-clear with `disposition: rejected` and a one-line reason.
+- **Skip** → leave the capture for the next audit.
+
+Note findings for presentation in Step 6 under a "Subagent Captures" section.
+
 ## Step 3: Scan Memory Files
 
 Read all `.md` files in `~/.claude/projects/` memory directories for the current project (excluding `MEMORY.md` itself).
@@ -505,7 +535,7 @@ If candidates are detected but the user declines all promotions, note in Step 8'
 
 Present a table with ALL files scanned and their category. Only show details for Category C items.
 
-**Output policy:** emit every subsection defined below. Subsections with no findings must emit an explicit zero-state line (e.g., "**Pending Insights:** 0 — none pending.") rather than being omitted. The four subsections that explicitly permit silent omission (Pre-Compact Captures, Codemap Staleness, Codemap Coverage, Shared-Block Drift) are conditional-on-feature-presence — they omit when the feature doesn't apply to this project, not when findings are empty. Do not collapse or shorten the structured report in pursuit of brevity — empty sections with zero-count confirmations are informational signals that the audit ran the check.
+**Output policy:** emit every subsection defined below. Subsections with no findings must emit an explicit zero-state line (e.g., "**Pending Insights:** 0 — none pending.") rather than being omitted. The five subsections that explicitly permit silent omission (Pre-Compact Captures, Subagent Captures, Codemap Staleness, Codemap Coverage, Shared-Block Drift) are conditional-on-feature-presence — they omit when the feature doesn't apply to this project, not when findings are empty. Do not collapse or shorten the structured report in pursuit of brevity — empty sections with zero-count confirmations are informational signals that the audit ran the check.
 
 Format:
 
@@ -610,6 +640,15 @@ For each snapshot with extractable content:
 - **Recommended action:** append to appropriate backlog and delete snapshot, or delete without extracting
 
 If no snapshots exist or none had extractable content: omit this section.
+
+### Subagent Captures (from intake/subagent-captures/)
+
+For each capture with extractable content:
+- **Date / Parent session / Agent type:** from the filename
+- **Findings:** extracted insights, decisions, feedback, or references
+- **Recommended action:** append to appropriate backlog and ledger-clear the capture (no bare-delete — sticky retention)
+
+If the directory doesn't exist or no captures had extractable content: omit this section.
 
 ### Category C Items (if any)
 
