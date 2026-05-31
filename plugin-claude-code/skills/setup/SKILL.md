@@ -169,6 +169,7 @@ The summary line precedes the bundle text. If the user later questions "did the 
 > - **Ideas staleness threshold:** 7 days (during `/audit-knowledge`, mark idea files in `intake/ideas/` older than this with `[STALE — still relevant?]` to prompt Accept/Reject/Defer decisions)
 > - **Auto-capture on compaction:** true (save transcript snapshot before context compaction)
 > - **Active knowledge surfacing:** true (when enabled, four hooks — SessionStart, TaskCreated, PreToolUse:Bash with cd, PostCompact — and two skills — /prospect, /retrospect — auto-load context at trigger moments. **Two kinds of context get surfaced (v2.16.1 expansion):** (a) **knowledge files** matched by tag against the user's task/cd-target/skill-input, and (b) **tracked artifacts** — CODEMAP directory + STITCH for the detected project (boundary-detected; not the full CODEMAP). Both surface with staleness annotations against `codemap_staleness_threshold_days` (default 14) and `stitch_staleness_threshold_days` (default 30); grossly-stale artifacts (>2× threshold) refuse to load with a warning. Companion surfaces — /audit-config, /stats, /handoff, /wrapup — also gate their tracked-artifact surfacing on this flag. Set to `false` for passive mode where hooks only suggest `/context <tag>` and all proactive artifact loading is suppressed (users load manually via /context). Active mode honors a session-scoped dedup ledger at `/tmp/aria-active-{session_id}` so the same file/artifact isn't re-Read across triggers. See CONFIG.md for the trigger sites and the ≥2-tag-match threshold + 5-file cap policy.)
+> - **Session state file (`SESSION.md`):** false (when on, aria-knowledge writes a per-project `SESSION.md` — `in-progress` at session start, `wrapup`/`handoff` at close — and offers to resume from it at session start; enables re-entry + the aria-atlas status board. Files are created at project roots only when on. Change later via `session_state` in `~/.claude/aria-knowledge.local.md`.)
 > - **Critical paths:** (empty) comma-separated path patterns that always require HIGH impact assessment (e.g., auth/*,payments/*,migrations/*)
 > - **Ticketing plugins:** (empty) comma-separated `tag:plugin-command` pairs mapping a project tag to its ticket-drafting plugin (e.g., `proj-a:foo-ticket,proj-b:bar-ticket`). When set, `/audit-knowledge` prints a hint to use that plugin's command when an idea's project matches a mapped tag during the `Accept → tracker` disposition. Hint only — never auto-invokes. Leave empty if you don't use a ticketing plugin or prefer to copy ideas into your tracker manually. Plugin commands are bare names — no leading `/`. Validate input: each pair must contain exactly one `:` separating tag from command; project tags cannot contain `:` or `,`; plugin commands cannot start with `/` (strip leading `/` and warn if found).
 > - **Project-specific knowledge tier:** disabled (creates `projects/{tag}/` subdirectories for project-specific decisions and patterns; opt in if you want to organize knowledge by project alongside the cross-project tree. If enabled, you'll be asked an inline follow-up about auto-loading project context on session start.)
@@ -264,6 +265,7 @@ staleness_threshold_months: [value from Step 6, default 6]
 ideas_staleness_threshold_days: [value from Step 6, default 7]
 auto_capture: [true/false from Step 6, default true]
 active_knowledge_surfacing: [true/false from Step 6, default true]
+session_state: [true/false from Step 6, default false]
 critical_paths: [comma-separated patterns from Step 6, default empty]
 ticketing_plugins: [comma-separated tag:plugin-command pairs from Step 6, default empty]
 projects_enabled: [true/false from Step 6, default false]
@@ -326,6 +328,7 @@ After writing the config file, read it back and verify that each value can be ex
    - `ideas_staleness_threshold_days` — confirm it's the integer from Step 6
    - `auto_capture` — confirm it's `true` or `false`
    - `active_knowledge_surfacing` — confirm it's `true` or `false`
+   - `session_state` — confirm it's `true` or `false`
    - `critical_paths` — confirm it's a comma-separated string of path patterns (or empty)
    - `ticketing_plugins` — confirm it's a comma-separated string of `tag:plugin-command` pairs (or empty); validate no project tag contains `:` or `,`; validate plugin-command values do not start with `/`
    - `last_setup_version` — confirm it matches `INSTALLED_VERSION` captured in Step 1 (this run's plugin version); validate it's a semver-shaped string of digits and dots (no `v` prefix, no quotes, no trailing whitespace). If it's missing or doesn't match, rewrite the line and re-verify
