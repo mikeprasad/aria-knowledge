@@ -262,6 +262,18 @@ if [ "$KT_ACTIVE_SURFACING" = "true" ] && [ "$KT_PROJECTS_ENABLED" = "true" ]; t
   fi
 fi
 
+# SESSION.md re-entry + in-progress marking (v2.22.0) — flag-gated on session_state.
+# Instruction-as-output: SessionStart fires before the project is named, so this
+# emits a reactive directive Claude executes once the project resolves (per the aria
+# pattern instruction-as-output-for-pre-input-events). sessionId is best-effort from
+# stdin JSON; omitted from the file when unavailable.
+if [ "$KT_SESSION_STATE" = "true" ]; then
+  SS_SESSION_ID=$(echo "$INPUT" | grep -o '"session_id":"[^"]*"' | head -1 | sed 's/"session_id":"//;s/"//' 2>/dev/null)
+  SS_ID_CLAUSE="omit sessionId"
+  [ -n "$SS_SESSION_ID" ] && SS_ID_CLAUSE="set sessionId: ${SS_SESSION_ID}"
+  MESSAGES="${MESSAGES}SESSION STATE — After the project/sub-project for this session is identified (by the PWD-based project match, or by what the user names in their opening message), locate SESSION.md at that project root (project root = nearest dir with CLAUDE.md/PROGRESS.md). Follow the shape in aria-atlas/docs/TEMPLATE_SESSION.md. (1) If SESSION.md exists with a non-empty '## Next session prompt' block: if the user's opening message included the word 'handoff', open the session by executing that prompt directly (no confirmation); otherwise tell the user a saved resume prompt exists (state its lastEvent + age from the 'at' field) and ask whether to start from it (y/n). (2) Then, regardless — even if no file existed — write or refresh that SESSION.md to lastEvent: in-progress (LIGHT-TOUCH: refresh 'at' to current UTC, ${SS_ID_CLAUSE}, refresh branch + headCommit from git; PRESERVE existing body prose and any existing '## Next session prompt'; if creating fresh, set currentFocus from the user's stated intent and leave body sections minimal). If the existing header is unparseable, prepend a fresh header and preserve the rest below. (3) If no project resolves (e.g. session started at a multi-project root with no named project), stay quiet — take no action until a project is identified later. Offer once per session. "
+fi
+
 # Per-task insight batch capture — gated by auto_capture
 if [ "$KT_AUTO_CAPTURE" != "false" ]; then
   MESSAGES="${MESSAGES}INSIGHT CAPTURE — After completing discrete tasks, batch-append any uncaptured \xe2\x98\x85 Insight blocks to ${KT_KNOWLEDGE_FOLDER}/intake/insights-backlog.md. Do not capture mid-task — only at task completion boundaries. "
