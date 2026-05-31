@@ -39,6 +39,7 @@ if [ -f "$KT_CONFIG" ]; then
   KT_SUBAGENT_CAPTURE=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^subagent_capture:' | sed 's/^subagent_capture: *//')
   KT_SUBAGENT_CAPTURE_TYPES=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^subagent_capture_types:' | sed 's/^subagent_capture_types: *//')
   KT_SUBAGENT_SELFREPORT_TYPES=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^subagent_selfreport_types:' | sed 's/^subagent_selfreport_types: *//')
+  KT_SESSION_STATE=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^session_state:' | sed 's/^session_state: *//')
 
   # Defaults if not set
   KT_CADENCE_KNOWLEDGE=${KT_CADENCE_KNOWLEDGE:-7}
@@ -59,6 +60,7 @@ if [ -f "$KT_CONFIG" ]; then
   KT_SUBAGENT_CAPTURE=${KT_SUBAGENT_CAPTURE:-true}
   KT_SUBAGENT_CAPTURE_TYPES=${KT_SUBAGENT_CAPTURE_TYPES:-general-purpose,Plan,feature-dev:code-architect,feature-dev:code-explorer,feature-dev:code-reviewer}
   KT_SUBAGENT_SELFREPORT_TYPES=${KT_SUBAGENT_SELFREPORT_TYPES:-Explore}
+  KT_SESSION_STATE=${KT_SESSION_STATE:-false}
   # Strip spaces so comma-list membership tests (case ",$LIST," in *",$type,"*) are exact
   KT_SUBAGENT_CAPTURE_TYPES=$(printf '%s' "$KT_SUBAGENT_CAPTURE_TYPES" | tr -d ' ')
   KT_SUBAGENT_SELFREPORT_TYPES=$(printf '%s' "$KT_SUBAGENT_SELFREPORT_TYPES" | tr -d ' ')
@@ -106,6 +108,10 @@ if [ -f "$KT_CONFIG" ]; then
   case "$KT_ACTIVE_SURFACING" in
     true|false) ;; # valid
     *) KT_ACTIVE_SURFACING=true ;;
+  esac
+  case "$KT_SESSION_STATE" in
+    true|false) ;; # valid
+    *) KT_SESSION_STATE=false ;;
   esac
   case "$KT_PROJECTS_ENABLED" in
     true|false) ;; # valid
