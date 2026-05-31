@@ -58,6 +58,9 @@ Hook-parsed fields run on every session start, every edit, every compaction — 
 | `projects_remotes` | `tag:url-substring` pairs | empty | session-start-check.sh |
 | `projects_promotion_threshold` | integer ≥ 1 | 2 | audit-knowledge skill |
 | `auto_load_project_context` | `true` \| `false` | false | session-start-check.sh |
+| `subagent_capture` | `true` \| `false` | true | subagent-stop-capture.sh, subagent-start-selfreport.sh |
+| `subagent_capture_types` | comma-separated agent types | `general-purpose,Plan,feature-dev:code-architect,feature-dev:code-explorer,feature-dev:code-reviewer` | subagent-stop-capture.sh |
+| `subagent_selfreport_types` | comma-separated agent types | `Explore` | subagent-start-selfreport.sh |
 
 ### Format rules (hook-parsed fields)
 

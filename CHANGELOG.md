@@ -2,6 +2,28 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## v2.21.0 — 2026-05-31
+
+**Subagent knowledge capture.** Knowledge generated inside subagent execution was being lost — only a subagent's final message returns to the parent, so its full transcript (discoveries, dead-ends, decisions) was discarded. This release captures it, under the standard capture → govern → promote model.
+
+### Added — A-side: `SubagentStop` transcript archive (plugin-claude-code)
+
+- New `bin/subagent-stop-capture.sh` (registered on `SubagentStop`) copies a finishing subagent's **own** transcript (`agent_transcript_path`, not the parent's `transcript_path`) into a new `intake/subagent-captures/` folder, gated to configured heavyweight `agent_type`s.
+- **Sticky retention:** captures are body-preserved until an extraction processes them — never cleared on sight (distinct from pre-compact snapshots). `/audit-knowledge` gains a Step 2e (digest/detailed/skip, no bare-clear); `/extract` gains a Step 2.5 sweep that folds pending captures into its buckets and ledger-clears the processed ones.
+- `/setup` creates/repairs `intake/subagent-captures/`; `template/intake/subagent-captures/.gitkeep` ships.
+
+### Added — B-side: `SubagentStart` self-report (plugin-claude-code)
+
+- New `bin/subagent-start-selfreport.sh` (registered on `SubagentStart`) injects a "surface durable findings before returning" instruction into configured routine `agent_type`s (default `Explore`), so their findings ride back in the return message for the parent's `/extract`. Validated empirically (2026-05-31) that `SubagentStart` `additionalContext` reaches the subagent's own context.
+
+### Added — config keys
+
+- `subagent_capture` (master toggle, default `true`, also gated by `auto_capture`), `subagent_capture_types` (archive set), `subagent_selfreport_types` (self-report set).
+
+### Scope
+
+- plugin-claude-code only this release. Codex / Cursor / Antigravity ports deferred (each runtime's `SubagentStart`/`SubagentStop` support must be verified first).
+
 ## v2.20.4 — 2026-05-30
 
 **`/handoff` next-session opener now recommends a model + effort.** The current session — which has the most context about what comes next — emits a one-line posture recommendation for the next session.
