@@ -20,6 +20,10 @@ All notable changes to ARIA will be documented in this file.
 
 - `subagent_capture` (master toggle, default `true`, also gated by `auto_capture`), `subagent_capture_types` (archive set), `subagent_selfreport_types` (self-report set).
 
+### Fixed
+
+- `/wrapup` description no longer contains the word "handoff" (it referenced `/handoff` as the alternative). The skill picker matches on description, so typing `/aria-knowledge:handoff` surfaced `/wrapup` first. Reworded to keep the "not for passoff" anti-trigger without naming the skill.
+
 ### Scope
 
 - plugin-claude-code only this release. Codex / Cursor / Antigravity ports deferred (each runtime's `SubagentStart`/`SubagentStop` support must be verified first).
