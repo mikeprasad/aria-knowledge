@@ -119,6 +119,17 @@
           }
         ]
       }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/bin/subagent-start-selfreport.sh",
+            "timeout": 10
+          }
+        ]
+      }
     ]
   }
 }
