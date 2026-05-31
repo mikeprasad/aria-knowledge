@@ -36,6 +36,9 @@ if [ -f "$KT_CONFIG" ]; then
   KT_CODEMAP_STALENESS_DAYS=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^codemap_staleness_threshold_days:' | sed 's/^codemap_staleness_threshold_days: *//')
   KT_STITCH_STALENESS_DAYS=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^stitch_staleness_threshold_days:' | sed 's/^stitch_staleness_threshold_days: *//')
   KT_LAST_SETUP_VERSION=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^last_setup_version:' | sed 's/^last_setup_version: *//')
+  KT_SUBAGENT_CAPTURE=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^subagent_capture:' | sed 's/^subagent_capture: *//')
+  KT_SUBAGENT_CAPTURE_TYPES=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^subagent_capture_types:' | sed 's/^subagent_capture_types: *//')
+  KT_SUBAGENT_SELFREPORT_TYPES=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^subagent_selfreport_types:' | sed 's/^subagent_selfreport_types: *//')
 
   # Defaults if not set
   KT_CADENCE_KNOWLEDGE=${KT_CADENCE_KNOWLEDGE:-7}
@@ -53,6 +56,12 @@ if [ -f "$KT_CONFIG" ]; then
   KT_AUDIT_TRIGGER_THRESHOLD=${KT_AUDIT_TRIGGER_THRESHOLD:-20}
   KT_CODEMAP_STALENESS_DAYS=${KT_CODEMAP_STALENESS_DAYS:-14}
   KT_STITCH_STALENESS_DAYS=${KT_STITCH_STALENESS_DAYS:-30}
+  KT_SUBAGENT_CAPTURE=${KT_SUBAGENT_CAPTURE:-true}
+  KT_SUBAGENT_CAPTURE_TYPES=${KT_SUBAGENT_CAPTURE_TYPES:-general-purpose,Plan,feature-dev:code-architect,feature-dev:code-explorer,feature-dev:code-reviewer}
+  KT_SUBAGENT_SELFREPORT_TYPES=${KT_SUBAGENT_SELFREPORT_TYPES:-Explore}
+  # Strip spaces so comma-list membership tests (case ",$LIST," in *",$type,"*) are exact
+  KT_SUBAGENT_CAPTURE_TYPES=$(printf '%s' "$KT_SUBAGENT_CAPTURE_TYPES" | tr -d ' ')
+  KT_SUBAGENT_SELFREPORT_TYPES=$(printf '%s' "$KT_SUBAGENT_SELFREPORT_TYPES" | tr -d ' ')
   # KT_CRITICAL_PATHS intentionally has no default — empty means no critical paths
   # KT_PROJECTS_LIST and KT_PROJECTS_REMOTES intentionally have no defaults — empty means "no projects configured"
 
@@ -89,6 +98,10 @@ if [ -f "$KT_CONFIG" ]; then
   case "$KT_AUTO_CAPTURE" in
     true|false) ;; # valid
     *) KT_AUTO_CAPTURE=true ;;
+  esac
+  case "$KT_SUBAGENT_CAPTURE" in
+    true|false) ;; # valid
+    *) KT_SUBAGENT_CAPTURE=true ;;
   esac
   case "$KT_ACTIVE_SURFACING" in
     true|false) ;; # valid
