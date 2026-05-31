@@ -2,6 +2,23 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## v2.22.0 — 2026-06-01
+
+**SESSION.md producer (Claude Code only).** Per-project `SESSION.md` current-state snapshot across the session lifecycle, gated by a new `session_state` config key (default **off**, surfaced in `/setup`).
+
+### Added
+
+- **`/wrapup`** writes a `wrapup`-state `SESSION.md` (Step 6.5) — blank next-session prompt.
+- **`/handoff`** writes a `handoff`-state `SESSION.md` (draft 3f) — the next-session opener embedded **verbatim** in the `## Next session prompt` block (single source: same opener as the closing report).
+- **`bin/session-start-check.sh`** injects a flag-gated SESSION RE-ENTRY instruction: after the project resolves, offers resume from a saved prompt (auto-resume when the project utterance includes `handoff`), then **light-touch-marks** `in-progress` (refreshes the header, preserves prior body).
+- New `session_state` config key in `bin/config.sh` (default `false`, validated `true`/`false`); `/setup` surfaces it (Advanced Options bullet + Step 7 template + Step 7b round-trip; Step 7e auto-covers it via config.sh derivation).
+- Contract: `aria-atlas/docs/TEMPLATE_SESSION.md` — three lifecycle states (`in-progress` / `wrapup` / `handoff`). Consumer: **aria-atlas** (read-only; never writes the file).
+
+### Scope
+
+- **plugin-claude-code only.** Codex / Cursor / Cowork / Antigravity ports NOT re-synced — tracked drift (the read-side is a SessionStart hook; per-runtime support unverified, Cowork is skills-only).
+- The live-session JSON registry (`aria-atlas-sessions.json`) is intentionally **not** implemented (removed from aria-atlas; SESSION.md is now the single session-status source).
+
 ## v2.21.0 — 2026-05-31
 
 **Subagent knowledge capture.** Knowledge generated inside subagent execution was being lost — only a subagent's final message returns to the parent, so its full transcript (discoveries, dead-ends, decisions) was discarded. This release captures it, under the standard capture → govern → promote model.
