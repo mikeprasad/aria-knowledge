@@ -65,7 +65,7 @@ Parsing follows the existing `config.sh` pattern (YAML frontmatter `grep`/`sed`,
   4. Match → emit `hookSpecificOutput.additionalContext`:
      - `nudge`: instruct Claude to **offer** `/prospect file <path>` before execution and ask the user.
      - `run`: instruct Claude to **run** `/prospect file <path>` inline now.
-- **Plan-path globs (default):** `*/docs/specs/*.md`, `*/docs/plans/*.md`, `*/docs/superpowers/plans/*.md` — unions the plugin's own convention with the superpowers path the personal hook used.
+- **Plan-path globs (default):** `*/docs/plans/*.md` and `*/docs/superpowers/plans/*.md` — fires whether plans come from `/writing-plans` or the superpowers flow. `*/docs/specs/*.md` is **excluded** (prospect decision B, 2026-06-01): a spec is a pre-plan design and `/prospect` targets a plan about to execute, so including specs would double-fire (once at the spec, once at the following plan).
 - **Debounce:** the `Write`-only matcher means a plan *written* via Write fires once; later *edits* via the Edit tool do not re-trigger. No flag needed.
 
 ## Component 2 — Auto-retrospect hook
@@ -110,10 +110,10 @@ Follow the existing `tests/` harness (feed sample hook-input JSON to each script
 `/prospect file` run — verdict **PROCEED-WITH-CHANGES**. Log: `~/knowledge/logs/prospect/2026-06-01-file-auto-prospect-retrospect-hooks.md`. 7/8 steps pre-validated; evidence pass made 2 upgrades + 1 falsification.
 
 - **Falsified & fixed (applied above):** range is parsed from `tool_response.stderr`, not stdout. Mechanism confirmed via claude-code-guide (docs-cited): `PostToolUse` delivers `tool_response.{stdout,stderr,exit_code}` separately, and `pre-edit-check.sh` already reads `tool_response` in-repo. Multi-entry `PostToolUse` coexistence (matcher `Edit|Write` + `Write`) also confirmed: both fire, both inject.
-- **Open decision A — retrospect default framing:** the personal-hook "inline bloat is free" rationale does **not** transplant to retrospect. Prospect fires before a *fresh* execution session (bloat disposable); retrospect fires *after a push*, when the user keeps working in the same session (bloat NOT disposable). Recommendation: `/setup` frames `nudge` as the sensible retrospect default and `run` as the cost-aware choice. Both values still supported. *(Novel pattern banked: `asymmetric-cost-rationale-transplant`.)*
-- **Open decision B — prospect plan-path globs:** consider dropping `*/docs/specs/*.md` from the defaults. A spec is a pre-plan design; `/prospect` targets a plan about to execute. Keeping specs risks double-prospecting (once at spec, once at the following plan). Recommended default globs: `*/docs/plans/*.md` + `*/docs/superpowers/plans/*.md` only.
+- **Decision A (resolved) — retrospect default framing:** the personal-hook "inline bloat is free" rationale does **not** transplant to retrospect. Prospect fires before a *fresh* execution session (bloat disposable); retrospect fires *after a push*, when the user keeps working in the same session (bloat NOT disposable). Recommendation: `/setup` frames `nudge` as the sensible retrospect default and `run` as the cost-aware choice. Both values still supported. *(Novel pattern banked: `asymmetric-cost-rationale-transplant`.)*
+- **Decision B (resolved) — prospect plan-path globs:** `*/docs/specs/*.md` dropped from the defaults. A spec is a pre-plan design; `/prospect` targets a plan about to execute. Keeping specs would double-prospect (once at spec, once at the following plan). Default globs: `*/docs/plans/*.md` + `*/docs/superpowers/plans/*.md` only.
 
-Decisions A and B are implementation-phase calls (not spec-blocking); resolve them when writing the plan.
+**Both RESOLVED 2026-06-01 (Mike):** A → `nudge` is the recommended retrospect default in `/setup` (`run` offered as the cost-aware choice; both supported). B → `*/docs/specs/*.md` excluded from default prospect globs (applied in Component 1 above). Carried into the implementation plan.
 
 ## Open questions
 
