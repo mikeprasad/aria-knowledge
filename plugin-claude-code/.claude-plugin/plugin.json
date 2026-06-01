@@ -84,6 +84,16 @@
             "timeout": 5
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/bin/post-push-retrospect-check.sh",
+            "timeout": 5
+          }
+        ]
       }
     ],
     "PreCompact": [
