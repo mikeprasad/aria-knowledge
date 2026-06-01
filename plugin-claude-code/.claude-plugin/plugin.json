@@ -74,6 +74,16 @@
             "timeout": 5
           }
         ]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/bin/post-plan-prospect-check.sh",
+            "timeout": 5
+          }
+        ]
       }
     ],
     "PreCompact": [
