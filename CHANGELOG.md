@@ -2,7 +2,7 @@
 
 All notable changes to ARIA will be documented in this file.
 
-## v2.22.2
+## v2.22.2 — 2026-06-02
 
 - **Auto-prospect & auto-retrospect hooks (Claude Code only, opt-in, default off):**
   - `post-plan-prospect-check.sh` (PostToolUse:Write) — when `auto_prospect` is `nudge`/`run`, a plan written to `docs/plans/` or `docs/superpowers/plans/` offers/runs `/prospect file <path>`. `docs/specs/` excluded.
