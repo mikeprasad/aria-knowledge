@@ -12,3 +12,6 @@ aria-cowork*.plugin
 # Local /codemap output. ARIA is a public repo — keep generated codemaps off the source tree
 # unless we want to ship a curated one as an AI-onboarding artifact.
 CODEMAP.md
+
+# Ephemeral per-session state (aria-knowledge producer; atlas reads from disk)
+SESSION.md
