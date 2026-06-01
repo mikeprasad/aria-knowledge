@@ -61,6 +61,10 @@ Hook-parsed fields run on every session start, every edit, every compaction — 
 | `subagent_capture` | `true` \| `false` | true | subagent-stop-capture.sh, subagent-start-selfreport.sh |
 | `subagent_capture_types` | comma-separated agent types | `general-purpose,Plan,feature-dev:code-architect,feature-dev:code-explorer,feature-dev:code-reviewer` | subagent-stop-capture.sh |
 | `subagent_selfreport_types` | comma-separated agent types | `Explore` | subagent-start-selfreport.sh |
+| `auto_prospect` | `off` \| `nudge` \| `run` | off | post-plan-prospect-check.sh |
+| `auto_retrospect` | `off` \| `nudge` \| `run` | off | post-push-retrospect-check.sh |
+| `retrospect_min_commits` | integer | 3 | post-push-retrospect-check.sh |
+| `retrospect_branches` | comma-separated branch names | `main,master,production` | post-push-retrospect-check.sh |
 
 ### Format rules (hook-parsed fields)
 

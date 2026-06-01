@@ -2,6 +2,14 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## v2.22.2
+
+- **Auto-prospect & auto-retrospect hooks (Claude Code only, opt-in, default off):**
+  - `post-plan-prospect-check.sh` (PostToolUse:Write) — when `auto_prospect` is `nudge`/`run`, a plan written to `docs/plans/` or `docs/superpowers/plans/` offers/runs `/prospect file <path>`. `docs/specs/` excluded.
+  - `post-push-retrospect-check.sh` (PostToolUse:Bash) — when `auto_retrospect` is `nudge`/`run`, a `git push` of ≥`retrospect_min_commits` commits to a `retrospect_branches` branch offers/runs `/retrospect range <old>..<new>`. Parses the range from `tool_response.stderr`; skips force-pushes, no-ops, below-threshold, and off-branch pushes.
+  - New config keys: `auto_prospect`, `auto_retrospect`, `retrospect_min_commits`, `retrospect_branches`. Surfaced in `/setup`.
+  - Other 4 ports: tracked drift (not re-synced).
+
 ## v2.22.1 — 2026-06-01
 
 **SESSION.md producer — dogfood fixes (Claude Code only).** Two defects caught by running `/wrapup auto` against the installed v2.22.0:
