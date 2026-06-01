@@ -213,6 +213,8 @@ Skip if `session_state` is not `true` in `~/.claude/aria-knowledge.local.md` (re
 
 The 3e opener is authored once and reused here — single source, no divergence between the closing report's opener and the SESSION.md prompt block.
 
+**Gitignore it, never commit it:** SESSION.md is ephemeral per-session state (atlas reads from disk; PROGRESS.md is the durable log). If `{project_root}` is a git repo and `.gitignore` doesn't already ignore `SESSION.md`, append a `SESSION.md` line to `{project_root}/.gitignore`. **Never stage SESSION.md** — exclude it from the Step 5 / 3d commit.
+
 ## Step 4: Single Combined-Go Review (default mode only)
 
 **Skip this step entirely if `mode = auto`.**

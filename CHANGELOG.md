@@ -2,6 +2,13 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## v2.22.1 — 2026-06-01
+
+**SESSION.md producer — dogfood fixes (Claude Code only).** Two defects caught by running `/wrapup auto` against the installed v2.22.0:
+
+- **Project resolution at a multi-project root.** `/wrapup` Step 1 (and `/handoff` via inheritance) now disambiguates: when cwd resolves to a workspace/multi-project root (e.g. `~/Projects`), it infers the active project from session context (files edited, repos committed, project named) instead of writing `SESSION.md` at the projects-root. Mirrors the SessionStart re-entry instruction's "which project" signal.
+- **`SESSION.md` is gitignored, never committed.** The producer (`/wrapup` Step 6.5, `/handoff` 3f, the SessionStart instruction) now appends `SESSION.md` to the project's `.gitignore` (if a git repo and not already ignored) and never stages it — it's ephemeral per-session state read from disk by atlas; PROGRESS.md remains the durable narrative. Avoids multi-session churn/conflicts.
+
 ## v2.22.0 — 2026-06-01
 
 **SESSION.md producer (Claude Code only).** Per-project `SESSION.md` current-state snapshot across the session lifecycle, gated by a new `session_state` config key (default **off**, surfaced in `/setup`).

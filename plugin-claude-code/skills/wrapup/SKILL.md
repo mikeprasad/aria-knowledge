@@ -54,6 +54,8 @@ Detect the active project by scanning the working directory for project markers:
 2. Also check for `CODEMAP.md` (indicates a mapped codebase)
 3. Check for project-level memory files in `~/.claude/projects/` matching the current path
 
+**Multi-project-root disambiguation (required for correct SESSION.md placement):** if the upward search resolves to a *multi-project/workspace root* — e.g. `~/Projects`, or any directory whose `CLAUDE.md` indexes multiple child projects rather than describing one project, and which has no project-specific `PROGRESS.md` — do NOT treat that root as the project (writing `SESSION.md` there would be wrong). Instead infer the active project from **this session's actual work**: the files edited, the repos committed to, or the project the user named. Use that project's own root (its nearest `CLAUDE.md`/`PROGRESS.md`) for every per-project write, especially `SESSION.md`. This mirrors the SessionStart re-entry instruction's "which project" signal. If the session genuinely spans no single project, skip the SESSION.md write (Step 6.5) and note it.
+
 Record:
 - **Project root** — the directory containing PROGRESS.md and/or CLAUDE.md
 - **PROGRESS.md path** — if it exists
@@ -178,6 +180,8 @@ If no uncommitted changes exist, say "No uncommitted changes" and move on.
 Skip this step entirely unless `session_state: true` in `~/.claude/aria-knowledge.local.md` (the config you read in Step 0). When enabled:
 
 Write `{project_root}/SESSION.md` (project root from Step 1) as a **wrapup-state** snapshot, following the contract at `aria-atlas/docs/TEMPLATE_SESSION.md`. **Full rewrite** (wrapup is an authoritative close). This is a deliberate exception to the "don't create files" rule — create it if absent.
+
+**Gitignore it, never commit it:** SESSION.md is ephemeral per-session state (atlas reads it from disk; PROGRESS.md is the durable log). If `{project_root}` is a git repo and its `.gitignore` doesn't already ignore `SESSION.md`, append a `SESSION.md` line to `{project_root}/.gitignore`. **Never `git add` SESSION.md** — it is intentionally untracked, so it must not appear in the Step 6 commit.
 
 Header fields:
 - `lastEvent: wrapup`
