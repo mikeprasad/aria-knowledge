@@ -58,5 +58,10 @@ NP='{"tool_name":"Bash","tool_input":{"command":"git status"},"tool_response":{"
 OUT=$(printf '%s' "$NP" | KT_CONFIG="$TMP/nudge.md" sh -c "cd $REPO; sh $HOOK")
 assert_empty "non-push → silent" "$OUT"
 
+# Annotated/new tag push — has a `-> ref` line but NO two-dot SHA range → skip
+TAG='{"tool_name":"Bash","tool_input":{"command":"git push origin v1.0"},"tool_response":{"stdout":"","stderr":"To x\n * [new tag]         v1.0 -> v1.0\n","exit_code":0}}'
+OUT=$(printf '%s' "$TAG" | KT_CONFIG="$TMP/nudge.md" sh -c "cd $REPO; sh $HOOK")
+assert_empty "tag push (no range) → silent" "$OUT"
+
 printf '%d pass, %d fail\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
