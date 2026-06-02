@@ -21,6 +21,9 @@ kt_batch_clear_stale 1800
 # The ledger is session-scoped (fresh per session per D4), so anything older
 # than ~24h is debris from crashed/abandoned sessions. Safe no-op if none exist.
 find /tmp -maxdepth 1 -name 'aria-active-*' -mtime +1 -delete 2>/dev/null
+# Clear stale session-inprogress ledgers (>1 day) from prior/crashed sessions
+# (written by post-edit-check.sh's first-edit in-progress marking, v2.23.0).
+find /tmp -maxdepth 1 -name 'aria-session-inprogress-*' -mtime +1 -delete 2>/dev/null
 
 # If config file exists but failed validation, report the specific error
 if [ -n "$KT_CONFIG_ERROR" ]; then
@@ -262,16 +265,14 @@ if [ "$KT_ACTIVE_SURFACING" = "true" ] && [ "$KT_PROJECTS_ENABLED" = "true" ]; t
   fi
 fi
 
-# SESSION.md re-entry + in-progress marking (v2.22.0) — flag-gated on session_state.
-# Instruction-as-output: SessionStart fires before the project is named, so this
-# emits a reactive directive Claude executes once the project resolves (per the aria
-# pattern instruction-as-output-for-pre-input-events). sessionId is best-effort from
-# stdin JSON; omitted from the file when unavailable.
+# SESSION.md re-entry offer (v2.22.0; in-progress write moved to PostToolUse in
+# v2.23.0) — flag-gated on session_state. SessionStart fires before the project is
+# named, so this emits a reactive resume-offer directive Claude executes once the
+# project resolves. The in-progress MARK is now written deterministically by the
+# PostToolUse hook (post-edit-check.sh) on the first edit — not by Claude here —
+# because the soft-instruction write proved unreliable (Claude skipped it).
 if [ "$KT_SESSION_STATE" = "true" ]; then
-  SS_SESSION_ID=$(echo "$INPUT" | grep -o '"session_id":"[^"]*"' | head -1 | sed 's/"session_id":"//;s/"//' 2>/dev/null)
-  SS_ID_CLAUSE="omit sessionId"
-  [ -n "$SS_SESSION_ID" ] && SS_ID_CLAUSE="set sessionId: ${SS_SESSION_ID}"
-  MESSAGES="${MESSAGES}SESSION STATE — After the project/sub-project for this session is identified (by the PWD-based project match, or by what the user names in their opening message), locate SESSION.md at that project root (project root = nearest dir with CLAUDE.md/PROGRESS.md). Follow the shape in aria-atlas/docs/TEMPLATE_SESSION.md. (1) If SESSION.md exists with a non-empty '## Next session prompt' block: if the user's opening message included the word 'handoff', open the session by executing that prompt directly (no confirmation); otherwise tell the user a saved resume prompt exists (state its lastEvent + age from the 'at' field) and ask whether to start from it (y/n). (2) Then, regardless — even if no file existed — write or refresh that SESSION.md to lastEvent: in-progress (LIGHT-TOUCH: refresh 'at' to current UTC, ${SS_ID_CLAUSE}, refresh branch + headCommit from git; PRESERVE existing body prose and any existing '## Next session prompt'; if creating fresh, set currentFocus from the user's stated intent and leave body sections minimal). If the existing header is unparseable, prepend a fresh header and preserve the rest below. Ensure SESSION.md is gitignored: if the project root is a git repo and its .gitignore does not already ignore SESSION.md, append a 'SESSION.md' line to it; never git-add SESSION.md (it is ephemeral per-session state, read from disk, not version-controlled). (3) If no project resolves (e.g. session started at a multi-project root with no named project), stay quiet — take no action until a project is identified later. Offer once per session. "
+  MESSAGES="${MESSAGES}SESSION STATE — After the project/sub-project for this session is identified (by the PWD-based project match, or by what the user names in their opening message), locate SESSION.md at that project root (project root = nearest dir with CLAUDE.md/PROGRESS.md). If it exists with a non-empty '## Next session prompt' block: if the user's opening message included the word 'handoff', open the session by executing that prompt directly (no confirmation); otherwise tell the user a saved resume prompt exists (state its lastEvent + age from the 'at' field) and ask whether to start from it (y/n). If no such prompt exists, stay quiet. The 'in-progress' mark is now written automatically by the PostToolUse hook (post-edit-check.sh) on your first edit — do NOT write SESSION.md yourself here. Offer the resume once per session. "
 fi
 
 # Per-task insight batch capture — gated by auto_capture

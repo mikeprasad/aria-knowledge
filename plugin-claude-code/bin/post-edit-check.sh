@@ -52,3 +52,31 @@ if [ "$IS_PLANNING" = "true" ] && [ "$IS_PROTECTED" = "false" ]; then
 else
   echo '{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"POST-EDIT SCOPE CHECK — Required output after every edit. Verify: (1) scope held, (2) nothing extra touched, (3) no unnecessary rewrites, (4) matches decision, (5) secondary impact on parents/siblings/dependents. Output one of: PASS: [Rule 22 · Scope] PASS — [why + secondary status]. CONDITIONAL: [Rule 22 · Scope] PASS CONDITIONAL — [what done as planned]. Newline: Secondary: [attention]. Newline: Proposed: [action]. FAIL: [Rule 22 · Scope] FAIL — [what failed + affected]. Newline: Proposed: [fix]."}}'
 fi
+
+# SESSION.md in-progress marking (v2.23.0) — first-edit piggyback.
+# Deterministic replacement for v2.22.0's soft SessionStart instruction: derives
+# the project from the EDITED FILE PATH (works even when cwd is the ~/Projects
+# root) and writes lastEvent: in-progress itself, rather than asking Claude to.
+# Runs AFTER the scope-check response is emitted, gated on session_state, guarded
+# once per (session, project) via a /tmp ledger. The write is idempotent and
+# fail-safe (|| true everywhere), so it never blocks or delays an edit, and a
+# missing session_id degrades to a transcript-path key — never corrupts output.
+if [ "$KT_SESSION_STATE" = "true" ] && [ -n "$FILE_PATH" ]; then
+  . "$SCRIPT_DIR/lib-session-state.sh" 2>/dev/null || true
+  SS_ROOT=$(kt_ss_find_root "$FILE_PATH" 2>/dev/null) || SS_ROOT=""
+  if [ -n "$SS_ROOT" ]; then
+    SS_SID=$(echo "$INPUT" | grep -o '"session_id":"[^"]*"' | head -1 | sed 's/"session_id":"//;s/"//')
+    if [ -n "$SS_SID" ]; then
+      SS_KEY="$SS_SID"
+    else
+      SS_TP=$(echo "$INPUT" | grep -o '"transcript_path":"[^"]*"' | head -1 | sed 's/"transcript_path":"//;s/"//')
+      SS_KEY=$(printf '%s' "${SS_TP:-nosession}" | cksum | cut -d' ' -f1)
+    fi
+    SS_LEDGER="/tmp/aria-session-inprogress-${SS_KEY}"
+    if ! { [ -f "$SS_LEDGER" ] && grep -qxF "$SS_ROOT" "$SS_LEDGER" 2>/dev/null; }; then
+      SS_AUTHOR=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" 2>/dev/null | grep '^author_tag:' | sed 's/^author_tag: *//')
+      kt_ss_mark_inprogress "$SS_ROOT" "$SS_SID" "$SS_AUTHOR" 2>/dev/null || true
+      printf '%s\n' "$SS_ROOT" >> "$SS_LEDGER" 2>/dev/null || true
+    fi
+  fi
+fi
