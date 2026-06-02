@@ -29,6 +29,10 @@ kt_ss_find_root() {
   _ss_home="${HOME:-/root}"
   while [ -n "$_ss_dir" ] && [ "$_ss_dir" != "/" ]; do
     if [ -f "$_ss_dir/CLAUDE.md" ] || [ -f "$_ss_dir/PROGRESS.md" ]; then
+      # Reject the top-level projects container — a direct child of $HOME (e.g.
+      # ~/Projects) whose CLAUDE.md is the master index, not a project. Marking it
+      # would write a spurious root SESSION.md. Real projects live inside it.
+      if [ "$(dirname "$_ss_dir" 2>/dev/null)" = "$_ss_home" ]; then return 0; fi
       printf '%s\n' "$_ss_dir"
       return 0
     fi

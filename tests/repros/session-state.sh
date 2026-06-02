@@ -92,5 +92,17 @@ mkdir -p "$TMP/f"
 kt_ss_mark_inprogress "$TMP/f" "sess-f" "mipr"
 if [ -f "$TMP/f/.gitignore" ] && grep -q '^SESSION.md$' "$TMP/f/.gitignore"; then ok "F SESSION.md gitignored"; else bad "F gitignore" "not added"; fi
 
+# --- G: find_root rejects the projects container (direct child of $HOME) ---
+# Bug B regression: the projects root (e.g. ~/Projects) has a master CLAUDE.md;
+# it must NOT be treated as a project. A file directly under it resolves to empty;
+# a file in a real sub-project resolves to that sub-project.
+mkdir -p "$TMP/home/Projects/proj/src"
+: > "$TMP/home/Projects/CLAUDE.md"          # master index at the container
+: > "$TMP/home/Projects/proj/CLAUDE.md"     # a real project inside it
+got=$(HOME="$TMP/home" kt_ss_find_root "$TMP/home/Projects/loose-file.ts")
+[ -z "$got" ] && ok "G container rejected (file directly under projects root)" || bad "G container-reject" "got '$got' want empty"
+got=$(HOME="$TMP/home" kt_ss_find_root "$TMP/home/Projects/proj/src/app.ts")
+[ "$got" = "$TMP/home/Projects/proj" ] && ok "G real sub-project still resolves" || bad "G sub-project" "got '$got' want '$TMP/home/Projects/proj'"
+
 printf "\n%d passed, %d failed\n" "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

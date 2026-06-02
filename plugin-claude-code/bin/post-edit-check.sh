@@ -61,7 +61,10 @@ fi
 # once per (session, project) via a /tmp ledger. The write is idempotent and
 # fail-safe (|| true everywhere), so it never blocks or delays an edit, and a
 # missing session_id degrades to a transcript-path key — never corrupts output.
-if [ "$KT_SESSION_STATE" = "true" ] && [ -n "$FILE_PATH" ]; then
+if [ "$KT_SESSION_STATE" = "true" ] && [ -n "$FILE_PATH" ] && [ "$(basename "$FILE_PATH" 2>/dev/null)" != "SESSION.md" ]; then
+  # Skip when the edited file IS a SESSION.md: marking would clobber a /handoff or
+  # /wrapup write (flipping its handoff/wrapup state back to in-progress) and would
+  # react to the producer's own writes. SESSION.md edits are state, not work.
   . "$SCRIPT_DIR/lib-session-state.sh" 2>/dev/null || true
   SS_ROOT=$(kt_ss_find_root "$FILE_PATH" 2>/dev/null) || SS_ROOT=""
   if [ -n "$SS_ROOT" ]; then
