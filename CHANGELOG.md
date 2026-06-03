@@ -2,6 +2,16 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## v2.23.0 — 2026-06-04
+
+- **Deterministic `SESSION.md` `in-progress` marking via first-edit piggyback (Claude Code only, gated on `session_state`):**
+  - **Why:** v2.22.0 marked `in-progress` by emitting a soft SessionStart instruction for Claude to execute once the project resolved. It proved unreliable — Claude routinely prioritized the user's task and skipped the write, so atlas never showed "in session" (the `handoff`/`wrapup` states worked because they come from explicit skill runs).
+  - **What:** new `bin/lib-session-state.sh` (`kt_ss_find_root` + idempotent, body-preserving `kt_ss_mark_inprogress`) is now invoked from the existing `post-edit-check.sh` (PostToolUse:Edit|Write) **after** the scope-check response. It derives the project from the **edited file path** (works even when cwd is the `~/Projects` root) and writes `lastEvent: in-progress` itself. Guarded **once per (session, project)** via a `/tmp/aria-session-inprogress-<key>` ledger (key = `session_id`, falling back to a `transcript_path` hash), so there is **no per-edit rewrite/churn** and **no added context output**. The write preserves `currentFocus`/`nextAction`/`by` and the entire body (including any `## Next session prompt`), refreshes `at`/`branch`/`headCommit`, and ensures `SESSION.md` is gitignored.
+  - **SessionStart change:** `session-start-check.sh` keeps the resume-offer half of the SESSION STATE directive (it must run before the first turn) and **drops** the now-redundant in-progress-write instruction. Stale ledgers swept (>1 day) alongside `aria-active-*`.
+  - **Two guards (found via live dogfooding before release):** (1) the hook **skips when the edited file is itself a `SESSION.md`** — otherwise it would clobber `/handoff` and `/wrapup`'s own writes, flipping their `handoff`/`wrapup` state back to `in-progress`. (2) `kt_ss_find_root` **rejects the projects container** (a direct child of `$HOME` whose `CLAUDE.md` is the master index, e.g. `~/Projects`) — otherwise a loose file resolves the root as a "project" and writes a spurious root `SESSION.md`.
+  - **Read-only sessions** (no edits) are not marked in-progress by design — the board shows the manifest base status. Other 4 ports: tracked drift (cowork is skills-only, no PostToolUse).
+  - New tests: `tests/repros/session-state.sh` (15 cases — root resolution, container-reject, fresh create, refresh-preserve-body, idempotency, gitignore).
+
 ## v2.22.3 — 2026-06-04
 
 - **`/index` Step 4 — ephemeral-tag exclusion (Claude Code canonical):**
