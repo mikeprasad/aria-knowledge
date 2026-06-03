@@ -2,6 +2,15 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## [Unreleased]
+
+- **`/index` Step 4 — ephemeral-tag exclusion (Claude Code canonical):**
+  - **Why:** Step 4 promoted ANY freeform tag at ≥`freeform_promotion_threshold` files (default 3) to Known Tags. Session/phase/plan stamps (`s82`×8, `s75`×6, `s60`/`s86`/`s88`/`s111`, `phase-3`, `p-23`) recur across files so they hit the threshold, but they are not durable concepts — they surfaced repeatedly as "NEEDS-MIKE" noise in the 2026-06-03 `/audit-knowledge` 70th/71st-pass `/index --deep` runs.
+  - **What:** Step 4 now drops candidates matching ephemeral patterns before applying the threshold — `^s\d+$` (session stamps), `^p-?\d+$` (work-item ids), `^phase-?\d+$`, `^plan-\d+[a-z]?$`, plus a literal denylist (`future-session-plan`, `soft-launch`). Patterns empirically grounded against the live corpus: no `s3`/AWS-S3 collision exists and 1-digit session stamps (`s4`/`s5`/`s6`) are real, so `^s\d+$` (not `\d{2,}`) is correct.
+  - **Safety:** suppresses AUTO-promotion only — not a hard ban. The skipped set is emitted as a one-line note (visible, not silent) so a genuine concept caught by a pattern can be hand-added to Known Tags (a Known tag never re-enters the freeform pool). No config field added (Rule 13 — the hand-add override + documented list cover it).
+  - **Ports:** tracked drift — `plugin-openai-codex`, `plugin-claude-cowork`, `plugin-antigravity` (`skills/index/SKILL.md`) and `plugin-cursor-template` (`.cursor/rules/aria-context.mdc`) NOT re-synced this change (quality-of-life index tweak, not a correctness fix). Re-sync on the next port-parity pass.
+  - **Version/release:** intentionally NOT version-bumped here — v2.23.0 is claimed by the unmerged `feat/session-inprogress-piggyback` branch; final version + merge order is Mike's to sequence. Marketplace re-publish (to update the installed copy) is Mike's step.
+
 ## v2.22.2 — 2026-06-02
 
 - **Auto-prospect & auto-retrospect hooks (Claude Code only, opt-in, default off):**
