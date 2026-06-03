@@ -137,9 +137,19 @@ Before saving manual edits to `~/.claude/aria-knowledge.local.md`:
 3. `tag:` keys consistent across `projects_list`, `projects_groups`, `projects_remotes`, and `ticketing_plugins` (the same tag means the same project everywhere)
 4. Re-run `/setup` afterward — Step 7b round-trip verification catches formatting issues before the next session does
 
+## Status-line meter (`/statusline`)
+
+The CLI status-line meter (context-window bar + rolling 5-hour / 7-day plan-usage %) is **not** configured in this file. The main status line is read only from `~/.claude/settings.json`, so `/statusline` wires it there directly:
+
+- Copies `bin/statusline-meter.sh` to `~/.claude/aria-statusline-meter.sh` (a stable path that survives plugin updates), then
+- Merges a `statusLine` block into `~/.claude/settings.json` pointing at the absolute copy (existing settings preserved; a backup is written to `settings.json.aria-bak`).
+
+It's an opt-in command, not automatic — a plugin manifest cannot register a main `statusLine`. Claude Code only (the status line is a Code feature). The 5h/7d segments render only on Pro/Max sessions, after the first response. Re-run `/statusline` after a plugin update to refresh the meter script; remove with `/statusline off`. See [skills/statusline/SKILL.md](skills/statusline/SKILL.md).
+
 ## Related
 
 - [QUICKSTART.md](QUICKSTART.md) — first-three-sessions guide
 - [skills/setup/SKILL.md](skills/setup/SKILL.md) — `/setup` workflow that writes this file
+- [skills/statusline/SKILL.md](skills/statusline/SKILL.md) — `/statusline` status-line meter (writes `~/.claude/settings.json`, not this file)
 - [skills/distill/SKILL.md](skills/distill/SKILL.md), [skills/stitch/SKILL.md](skills/stitch/SKILL.md) — `projects_groups` consumers
 - ADR 028 (YAML frontmatter for skill fields), ADR 032 (auto-propose bootstrap), ADR 034 (stitch workspace root) — design rationale for the skill-only tier

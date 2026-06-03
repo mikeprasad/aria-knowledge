@@ -2,6 +2,15 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## [Unreleased]
+
+- **`/statusline` — CLI status-line meter (Claude Code only, opt-in):**
+  - **Why:** No at-a-glance context-window or plan-usage readout existed in the CLI. `/context` and `/usage` are on-demand commands; a persistent meter answers "how full is context?" and "how much of my 5-hour window is left?" without typing.
+  - **What:** New `bin/statusline-meter.sh` renders `model │ context-bar % │ 5h % ↺reset │ 7d %` from the Claude Code status-line JSON (`context_window.used_percentage`, `rate_limits.{five_hour,seven_day}.used_percentage`), with green/yellow/red thresholds. New `/statusline [on|off|status]` skill copies the script to `~/.claude/aria-statusline-meter.sh` (stable across plugin updates) and merges a `statusLine` block into `~/.claude/settings.json` (existing keys preserved, backup at `settings.json.aria-bak`, JSON validated post-write). `/help` + `CONFIG.md` updated.
+  - **Constraint:** a plugin manifest cannot register a main `statusLine` (only `agent`/`subagentStatusLine` are plugin-defaultable), so this is a one-time opt-in command, not automatic. jq-preferred with a graceful model-only degrade; 5h/7d render only on Pro/Max sessions after the first response.
+  - **Ports:** tracked drift — the status line is a Claude Code-only surface (Cowork is skills-only; Codex/Cursor/Antigravity are other runtimes). Not ported.
+  - **Version/release:** not version-bumped here — version sequencing + marketplace re-publish is Mike's to sequence (v2.23.0 is claimed by the unmerged `feat/session-inprogress-piggyback` branch).
+
 ## v2.22.2 — 2026-06-02
 
 - **Auto-prospect & auto-retrospect hooks (Claude Code only, opt-in, default off):**
