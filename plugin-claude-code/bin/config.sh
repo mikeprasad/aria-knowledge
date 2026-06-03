@@ -44,6 +44,7 @@ if [ -f "$KT_CONFIG" ]; then
   KT_AUTO_RETROSPECT=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^auto_retrospect:' | sed 's/^auto_retrospect: *//')
   KT_RETROSPECT_MIN_COMMITS=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^retrospect_min_commits:' | sed 's/^retrospect_min_commits: *//')
   KT_RETROSPECT_BRANCHES=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^retrospect_branches:' | sed 's/^retrospect_branches: *//')
+  KT_USAGE_ALERT_THRESHOLD=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^usage_alert_threshold:' | sed 's/^usage_alert_threshold: *//')
 
   # Defaults if not set
   KT_CADENCE_KNOWLEDGE=${KT_CADENCE_KNOWLEDGE:-7}
@@ -71,6 +72,16 @@ if [ -f "$KT_CONFIG" ]; then
   KT_RETROSPECT_BRANCHES=${KT_RETROSPECT_BRANCHES:-main,master,production}
   # Strip spaces so comma-list membership tests are exact
   KT_RETROSPECT_BRANCHES=$(printf '%s' "$KT_RETROSPECT_BRANCHES" | tr -d ' ')
+  KT_USAGE_ALERT_THRESHOLD=${KT_USAGE_ALERT_THRESHOLD:-90}
+  # usage_alert_threshold: percent (1..100) at which the usage-threshold-inject
+  # UserPromptSubmit hook surfaces a context/5h/7d warning into the agent's
+  # context. `off` disables injection (on-demand reading still works). Any other
+  # non-numeric or out-of-range value resets to the 90 default.
+  case "$KT_USAGE_ALERT_THRESHOLD" in
+    off) ;;
+    ''|*[!0-9]*) KT_USAGE_ALERT_THRESHOLD=90 ;;
+    *) if [ "$KT_USAGE_ALERT_THRESHOLD" -lt 1 ] || [ "$KT_USAGE_ALERT_THRESHOLD" -gt 100 ]; then KT_USAGE_ALERT_THRESHOLD=90; fi ;;
+  esac
   # Strip spaces so comma-list membership tests (case ",$LIST," in *",$type,"*) are exact
   KT_SUBAGENT_CAPTURE_TYPES=$(printf '%s' "$KT_SUBAGENT_CAPTURE_TYPES" | tr -d ' ')
   KT_SUBAGENT_SELFREPORT_TYPES=$(printf '%s' "$KT_SUBAGENT_SELFREPORT_TYPES" | tr -d ' ')

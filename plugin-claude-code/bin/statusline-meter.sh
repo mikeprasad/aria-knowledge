@@ -107,4 +107,25 @@ if [ -n "$week_i" ]; then
   out="${out} ${DIM}│${RESET} ${c}7d ${week_i}%${RESET}"
 fi
 
+# --- persist a snapshot so the session's agent (and the usage-alert hook) can
+# read current usage on demand. Atomic (temp + mv), fully error-suppressed, and
+# jq-gated so it never delays or breaks rendering. Only written when jq parsed
+# real usage values; the no-jq degrade path leaves no stale file behind.
+if command -v jq >/dev/null 2>&1; then
+  _state="$HOME/.claude/aria-statusline-state.json"
+  _tmp="$HOME/.claude/.aria-statusline-state.$$.tmp"
+  _at=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null)
+  if jq -n --arg model "$model" --arg ctx "$ctx_i" --arg five "$five_i" \
+        --arg five_reset "$five_reset" --arg seven "$week_i" --arg at "$_at" \
+        '{written_at:$at, model:$model}
+          + (if $ctx != "" then {context_pct:($ctx|tonumber)} else {} end)
+          + (if $five != "" then {five_hour_pct:($five|tonumber)} else {} end)
+          + (if $five_reset != "" then {five_hour_resets_at:($five_reset|tonumber)} else {} end)
+          + (if $seven != "" then {seven_day_pct:($seven|tonumber)} else {} end)' \
+        > "$_tmp" 2>/dev/null; then
+    mv -f "$_tmp" "$_state" 2>/dev/null
+  fi
+  rm -f "$_tmp" 2>/dev/null
+fi
+
 printf '%b' "$out"
