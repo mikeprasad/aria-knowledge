@@ -22,6 +22,7 @@
 #   .rate_limits.five_hour.used_percentage   (Pro/Max only, after 1st response)
 #   .rate_limits.five_hour.resets_at         (unix epoch seconds)
 #   .rate_limits.seven_day.used_percentage   (Pro/Max only)
+#   .rate_limits.seven_day.resets_at         (unix epoch seconds)
 
 input=$(cat)
 [ -z "$input" ] && { printf 'Claude'; exit 0; }
@@ -61,13 +62,27 @@ bar() {
   printf '%b' "$_out"
 }
 
-# reset_clock EPOCH -> "HH:MM" local time, or empty if unparseable
+# reset_clock EPOCH -> "7am" / "7:10am" local 12-hour time, or empty.
+# Formats with portable %I:%M%p then normalizes (no BSD/GNU no-pad or lowercase
+# meridiem specifier exists): drop the leading zero, drop ":00" on the hour,
+# lowercase AM/PM.
 reset_clock() {
   case "$1" in ''|null|*[!0-9]*) return ;; esac
-  date -r "$1" +%H:%M 2>/dev/null || date -d "@$1" +%H:%M 2>/dev/null
+  _c=$(date -r "$1" '+%I:%M%p' 2>/dev/null || date -d "@$1" '+%I:%M%p' 2>/dev/null)
+  [ -z "$_c" ] && return
+  printf '%s' "$_c" | sed -E 's/^0//; s/:00//; s/AM/am/; s/PM/pm/'
 }
 
-model=""; ctx=""; five=""; five_reset=""; week=""
+# reset_when EPOCH -> "Fri 7am" / "Fri 1:30pm" local (weekday + reset_clock time).
+reset_when() {
+  _t=$(reset_clock "$1")
+  [ -z "$_t" ] && return
+  _wd=$(date -r "$1" +%a 2>/dev/null || date -d "@$1" +%a 2>/dev/null)
+  [ -z "$_wd" ] && { printf '%s' "$_t"; return; }
+  printf '%s %s' "$_wd" "$_t"
+}
+
+model=""; ctx=""; five=""; five_reset=""; week=""; week_reset=""
 
 if command -v jq >/dev/null 2>&1; then
   model=$(printf '%s' "$input" | jq -r '.model.display_name // empty' 2>/dev/null)
@@ -75,6 +90,7 @@ if command -v jq >/dev/null 2>&1; then
   five=$(printf '%s' "$input" | jq -r '.rate_limits.five_hour.used_percentage // empty' 2>/dev/null)
   five_reset=$(printf '%s' "$input" | jq -r '.rate_limits.five_hour.resets_at // empty' 2>/dev/null)
   week=$(printf '%s' "$input" | jq -r '.rate_limits.seven_day.used_percentage // empty' 2>/dev/null)
+  week_reset=$(printf '%s' "$input" | jq -r '.rate_limits.seven_day.resets_at // empty' 2>/dev/null)
 else
   # No-jq degrade: model name only (reliable to extract); the meter needs jq.
   model=$(printf '%s' "$input" \
@@ -82,6 +98,11 @@ else
 fi
 
 [ -z "$model" ] && model="Claude"
+
+# Trim Claude Code's verbose "(1M context)" suffix down to "(1M)".
+case "$model" in
+  *" context)") model="${model% context)})" ;;
+esac
 
 # --- assemble segments ---
 out="${CYAN}${model}${RESET}"
@@ -104,7 +125,10 @@ fi
 week_i=$(round_int "$week")
 if [ -n "$week_i" ]; then
   c=$(color_for "$week_i")
-  out="${out} ${DIM}│${RESET} ${c}7d ${week_i}%${RESET}"
+  seg="${c}7d ${week_i}%${RESET}"
+  dy=$(reset_when "$week_reset")
+  [ -n "$dy" ] && seg="${seg} ${DIM}↺${dy}${RESET}"
+  out="${out} ${DIM}│${RESET} ${seg}"
 fi
 
 # --- persist a snapshot so the session's agent (and the usage-alert hook) can

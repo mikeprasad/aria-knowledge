@@ -2,6 +2,15 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## v2.24.1 — 2026-06-04
+
+- **`/statusline` meter — model label trim + am/pm reset clocks (Claude Code only):**
+  - **Why:** Two readability papercuts in the v2.24.0 meter. The model label rendered the full `Opus 4.8 (1M context)` — the ` context` word is redundant in a width-constrained status line. And the 7-day window showed only a bare percentage (`7d 12%`) with no reset time, while the 5-hour window's reset rendered in 24-hour `↺07:00` form.
+  - **What:** (1) The model label trims a trailing ` context)` suffix → `Opus 4.8 (1M)`. (2) Both reset clocks now render in 12-hour am/pm form, dropping `:00` on the hour: `↺7am`, `↺1:30pm` (5h was 24-hour `↺07:00`). (3) The 7-day window now shows its reset as **weekday + time** (`7d 12% ↺Fri 1pm`), reading the newly-consumed `rate_limits.seven_day.resets_at` field — the weekday is the decision-relevant dimension for a days-away window, where the 5-hour window stays time-only. Graceful degrade preserved: a window present without `resets_at` still renders its percentage with no reset suffix.
+  - **Portability:** am/pm formatting is normalized in-script (drop leading zero, drop `:00`, lowercase meridiem) because no BSD/GNU `date` format specifier produces it directly; `reset_clock` (time) is the single formatter and `reset_when` (weekday + time) reuses it. Verified under both `sh` and strict `dash`.
+  - **Tests:** `tests/repros/statusline-usage.sh` grows to 26 cases (model trim, 5h/7d am/pm, on-the-hour `:00`-drop, off-the-hour minutes, no-`resets_at` degrade), TZ-pinned for determinism. Also fixes a latent harness bug surfaced by the new cases — `strip_ansi` used a `\033` literal that BSD sed (macOS) treats as inert, so ANSI was never actually stripped there (older assertions passed only because their needles were ANSI-free substrings); the ESC byte is now injected at runtime.
+  - **Ports:** tracked drift — the status line is a Claude Code-only surface. Not ported.
+
 ## v2.24.0 — 2026-06-04
 
 - **`/statusline` — CLI status-line meter (Claude Code only, opt-in):**
