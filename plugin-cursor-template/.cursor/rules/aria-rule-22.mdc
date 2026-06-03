@@ -4,11 +4,11 @@ globs: ["**/*"]
 alwaysApply: true
 ---
 
-<!-- plugin-managed: /setup diffs this file on plugin updates. Customize it freely — your edits appear as diff prompts on future `/setup` runs (this is how you receive plugin improvements). For customizations you want ARIA to leave alone, use `rules/user-rules.md` or `LOCAL.md` (both user-owned, never diffed). See OVERVIEW.md "Plugin-Managed vs User-Owned Files" for details. -->
+<!-- plugin-managed: /setup diffs this file on plugin updates. Customize freely — diff prompts on future `/setup` runs. User-owned: `rules/user-rules.md`, `LOCAL.md`. -->
 
 # Change Decision Framework
 
-A process discipline system for Claude Code that enforces structured decision-making before code changes and scope verification after. Implemented via hooks in `.cursor/hooks.json`.
+A process discipline system for Cursor that enforces structured decision-making before code changes and scope verification after. Implemented via hooks in `.cursor/hooks.json`.
 
 ---
 
@@ -66,7 +66,7 @@ Not every change requires the full 7-step framework. Assess impact before choosi
 ### High Impact — Full 7-Step Framework
 Applies when:
 - Creating or modifying behavior
-- Editing sensitive files (CSS frameworks, config files, AGENTS.md, rules files, settings)
+- Editing sensitive files (CSS frameworks, config files, CLAUDE.md, rules files, settings)
 - Architecture changes
 - Key logic changes
 - Changes to things with many dependents
@@ -162,21 +162,19 @@ If any answer is no, flag the issue before proceeding.
 
 The Low/High Impact assessment MUST appear in the **same assistant turn as the tool call, above the tool invocation**. Not below. Not in the next turn.
 
-**Cursor-native enforcement: record-edit-intent before each edit.** Before invoking Edit/Write, run `bash scripts/aria/record-edit-intent.sh <filePath> rule22-low|rule22-high "<rationale>"`. This writes a small marker file at `.cursor/aria-edit-intent.json` carrying the filePath, sessionId, marker type, rationale, and timestamp. The `beforeFileEdit` hook checks for a recent (≤10 min) matching marker. Missing / stale / mismatched markers cause the hook to surface a stronger advisory — and for protected files (AGENTS.md, hooks.json, working-rules.md, change-decision-framework.md, enforcement-mechanisms.md, anything inside the knowledge folder, or any user-declared `critical_paths`) the wording calls out the violation explicitly. `afterFileEdit` consumes (deletes) the marker on a successful matching edit, so each Edit/Write requires a fresh `record-edit-intent.sh` call. Order each edit as: emit the [Rule 22] block → `record-edit-intent.sh` → Edit/Write.
+**Cursor-native enforcement: record-edit-intent before each edit.** Before invoking Edit/Write, run `bash scripts/aria/record-edit-intent.sh <filePath> rule22-low|rule22-high "<rationale>"`. This writes `.cursor/aria-edit-intent.json`. The `beforeFileEdit` hook checks for a recent (≤10 min) matching marker. Missing / stale / mismatched markers escalate the advisory — protected files get explicit violation wording. `afterFileEdit` consumes the marker on success. Order: emit `[Rule 22]` block → `record-edit-intent.sh` → Edit/Write.
 
-Every compliance block is marked with a `[Rule 22]` prefix on its header line — `[Rule 22] Low Impact —`, `[Rule 22] High Impact —`, `[Rule 22 · Planning] <file>`, or `[Rule 22 · Batch N/M] <file>`. The marker unambiguously identifies the block as a compliance artifact (not prose about Rule 22) and is the detection target for the PreToolUse hook.
-
-As of v2.10.5, the PreToolUse hook enforces ordering structurally. It parses the current assistant turn's transcript for the `[Rule 22...]` marker in text blocks preceding the Edit/Write tool_use. If the marker is present, the hook allows silently. If absent, the hook returns `permissionDecision: "deny"` with a recovery message naming the expected format, and Claude must retry — this time emitting the block first. The retroactive output path is **unreachable by design** — there is no code path in which Rule 22 compliance is satisfied after the edit lands. The discipline is mechanism-enforced, not Claude-side.
+Every compliance block is marked with a `[Rule 22]` prefix on its header line. The marker is the detection target for instruction discipline; Cursor hooks are **advisory** (no transcript deny).
 
 ### WRONG (retroactive — the assessment rationalizes the write after it happened)
 
 ```
 [assistant turn]
 Let me fix that line.
-[Edit tool call: df/AGENTS.md — removes line 51]
+[Edit tool call: df/CLAUDE.md — removes line 51]
 [tool result + hook-injected CHANGE DECISION CHECK reminder]
 
-[Rule 22] Low Impact — remove aspirational line from df/AGENTS.md.
+[Rule 22] Low Impact — remove aspirational line from df/CLAUDE.md.
 Change — Delete line per cleanup. Solutions — (1) remove [clean]. Execute — done.
 [Rule 22 · Scope] PASS — only target line removed.
 ```
@@ -187,11 +185,11 @@ The edit has already landed. The assessment is performative — there's no way f
 
 ```
 [assistant turn]
-[Rule 22] Low Impact — remove aspirational line from df/AGENTS.md (doc-only, no behavior).
+[Rule 22] Low Impact — remove aspirational line from df/CLAUDE.md (doc-only, no behavior).
 Change — Delete "Goal: zero cx- classes remaining at v1.0." line + blank line, per approved cleanup.
 Solutions — (1) remove line + blank [clean]; (2) keep line, add tracker [rejected: no tracker]; (3) reword [rejected: not scope].
-Execute — Edit removes both lines. Scope: df/AGENTS.md only. No secondary impact.
-[Edit tool call: df/AGENTS.md — removes line 51]
+Execute — Edit removes both lines. Scope: df/CLAUDE.md only. No secondary impact.
+[Edit tool call: df/CLAUDE.md — removes line 51]
 [tool result + hook-injected reminder]
 
 [Rule 22 · Scope] PASS — only target lines removed; cx- migration section preserved.
@@ -225,7 +223,7 @@ The framework is about decision discipline, not edit content. A one-line rename 
 
 ### "Skipping the block for this session is a plugin-config change the user can make"
 
-It isn't. Neither `aria-knowledge.local.md` nor Claude Code settings offer a per-session skip for the framework. If the user has not explicitly disabled the plugin's `PreToolUse` hook in their `.cursor/hooks.json`, the framework is active. Offering the user an "option to skip for this review" is offering an escape hatch that doesn't exist — and even if it did, the correct response to ceremony cost is to shorten the block (LOW is already 3-4 lines) or to declare a batch manifest (per ADR 021), not to skip.
+It isn't. Neither `aria-knowledge.local.md` nor Claude Code settings offer a per-session skip for the framework. If the user has not explicitly disabled the plugin's `PreToolUse` hook in their `.claude/settings.local.json`, the framework is active. Offering the user an "option to skip for this review" is offering an escape hatch that doesn't exist — and even if it did, the correct response to ceremony cost is to shorten the block (LOW is already 3-4 lines) or to declare a batch manifest (per ADR 021), not to skip.
 
 ### If a rationalization seems novel
 
@@ -419,21 +417,22 @@ Proposed: revert wrapper changes; keep card removal
 
 ---
 
-## Hook Implementation
+## Hook Implementation (Cursor port)
 
-These hooks enforce the framework automatically in Claude Code. They are pre-configured in the aria-knowledge plugin and fire without any manual setup.
+These hooks enforce the framework in Cursor via `.cursor/hooks.json`:
 
-- **PreToolUse** — fires before every Edit/Write, requires impact assessment and the appropriate decision process output
-- **PostToolUse** — fires after every Edit/Write, requires scope verification in compact format
+- **beforeFileEdit** — advisory reminder + edit-intent marker check (`scripts/aria/pre-edit-check.sh`)
+- **afterFileEdit** — scope verification reminder + intent marker consumption (`scripts/aria/post-edit-check.sh`)
 
 ### How It Works
 
-1. Developer or Claude initiates a file edit
-2. **PreToolUse fires** → Claude outputs the required pre-edit format (impact assessment + framework steps) → proceeds with edit only if no FLAG
+1. Agent emits `[Rule 22]` block, runs `record-edit-intent.sh`, then Edit/Write
+2. **beforeFileEdit** verifies marker recency / protected-file escalation
 3. Edit is made
-4. **PostToolUse fires** → Claude outputs the required post-edit format (pass/secondary/fail) → flags issues if any
+4. **afterFileEdit** prompts post-edit scope check and consumes the marker
 
-The hooks are prompt-based — they inject context into Claude's reasoning at the right moments and require specific output formats to ensure no steps are skipped. They don't block or reject edits programmatically. The enforcement is through required visible output at each step.
+Cursor does **not** have transcript-based deny (`permissionDecision: deny`). Enforcement is instruction-based + advisory hook wording. See `AGENTS.md` and `audit/ARIA_CURSOR_AUDIT_REPORT.md` §5.
+
 
 ---
 
@@ -472,7 +471,7 @@ This is a conversation-level discipline, not a per-tool hook (too token-intensiv
 ## Customization
 
 ### Sensitive Files
-Adjust the list of high-impact files to match your project. The default examples (df-input.css, df-preset.js, AGENTS.md, working-rules.md, settings files) are project-specific. Replace with your equivalents — database schemas, API route definitions, CI configs, shared component libraries, etc.
+Adjust the list of high-impact files to match your project. The default examples (df-input.css, df-preset.js, CLAUDE.md, working-rules.md, settings files) are project-specific. Replace with your equivalents — database schemas, API route definitions, CI configs, shared component libraries, etc.
 
 ### Impact Criteria
 The high/low impact distinction can be tuned. Some teams may want a third tier (medium impact) or different triggers. The key principle: changes that affect behavior or have many dependents get more scrutiny than content updates.

@@ -10,12 +10,14 @@ This file ports the `/audit-knowledge` and `/audit-config` skill instructions fo
 
 ---
 
-## /audit-knowledge — Knowledge Repository Audit
+---
+
+## /audit-knowledge
 
 
 # /audit-knowledge — Knowledge Repository Audit
 
-Scan the agent memory and plan files, compare against what's already in the knowledge folder and project-level docs, and surface anything worth extracting.
+Scan `~/.claude/` memory and plan files, compare against what's already in the knowledge folder and project-level docs, and surface anything worth extracting.
 
 ## Step 0: Resolve Config
 
@@ -37,7 +39,7 @@ Read `{knowledge_folder}/logs/knowledge-audit-log.md`.
 
 Note the "Last Audit" date and calculate days since.
 
-**Compute the current trigger state** by counting `^### ` entries across the four action-eligible backlogs (insights, decisions, extraction, rules — exclude `intake/ideas/`, which routes out via the Accept submenu rather than promoting directly, and exclude `intake/task-boundary-captures/`, which is a forensic surface written by `/snapshot` and the `stop` hook and is never auto-promoted). Count only entries **below the first `---` separator** per file, matching the convention used by `/stats` and `/backlog`:
+**Compute the current trigger state** by counting `^### ` entries across the four action-eligible backlogs (insights, decisions, extraction, rules — exclude `intake/ideas/`, which routes out via the Accept submenu rather than promoting directly). Count only entries **below the first `---` separator** per file, matching the convention used by `/stats` and `/backlog`:
 
 ```bash
 for f in {knowledge_folder}/intake/insights-backlog.md \
@@ -99,13 +101,15 @@ Read `{knowledge_folder}/intake/extraction-backlog.md`. **If the file is missing
 
 If there are entries below the `---` separator, these are feedback, project context, and reference items captured via `/extract` during work sessions.
 
-For each entry, note it for presentation in Step 6. Feedback items are promoted to the agent memory directory memory as feedback memories. Project context items become project memories. Reference items become reference memories or go to `{knowledge_folder}/references/`. Rejected items get cleared from the backlog.
+For each entry, note it for presentation in Step 6. Feedback items are promoted to `~/.claude/projects/` memory as feedback memories. Project context items become project memories. Reference items become reference memories or go to `{knowledge_folder}/references/`. Rejected items get cleared from the backlog.
 
 **Reclassification check:** If any entry reads as a feature proposal, bug report, or design idea (rather than an observation about what IS), flag it for re-routing to `intake/ideas/` (as a new per-file idea) during Step 7. Common signals: "should", "could be better if", "missing handling for", "UX gap", "would help if". Misclassified proposals will otherwise get promoted into knowledge files where they sit as documentation of things that don't exist — a known drift mode.
 
 ## Step 2c2: Review Ideas Directory
 
 Glob `{knowledge_folder}/intake/ideas/*.md`. **If the directory is missing**, report it in Step 6 and suggest running `/setup` to repair the structure. Do not create it.
+
+**Counting note:** When reporting an idea count (Step 6's `Pending Ideas (N)` header and Step 8's `Plus N ideas` audit-log subfield), filter out `README.md` and `.gitkeep` from the glob result — they're directory-purpose files, not ideas, and inflate counts by 1-2 if included. The reads-and-categorize step below is unaffected since non-idea files lack the required `date:`/`project:`/`type:`/`title:` frontmatter and are skipped during per-file review. Concrete primitive: `ls intake/ideas/*.md 2>/dev/null | grep -v 'README\|\.gitkeep' | wc -l`.
 
 **Legacy-file detection (one-time):** Also check for `{knowledge_folder}/intake/ideas-backlog.md`. If it exists alongside `intake/ideas/`, surface a finding in Step 6 under a "Legacy Ideas Backlog" note: *"Pre-2.11 `ideas-backlog.md` detected. Run `bash scripts/aria/migrate-ideas-backlog.sh {knowledge_folder}` or re-run `/setup` to migrate entries into per-file format."* Do not attempt the migration from within the audit flow.
 
@@ -148,8 +152,8 @@ Edits/revisions during move are expected and welcome — the rule is *no useful 
 **Project-root detection:** for `roadmap`, `todo`, and `backlog` paths, the audit needs to resolve the idea's `project` tag to a filesystem path before probing for files. Resolution rules (in priority order):
 
 1. **Tag in `projects_list`** — if `projects_enabled: true` AND the idea's `project` tag matches a `tag:path` pair in `projects_list`, resolve to that path. Paths in `projects_list` are relative to the parent directory of the knowledge folder (typically `~/Projects/`); the audit converts to absolute by prepending that parent.
-2. **CWD fallback** — if the tag isn't resolvable via `projects_list` (projects tier disabled, tag missing from list, or idea's `project` is `cross` / `no-project`), fall back to the current working directory. Probe the closest ancestor of CWD containing either `.git/` or `AGENTS.md`.
-3. **No resolution possible** — if neither path strategy yields a valid directory (e.g., projects tier disabled AND CWD has no git/AGENTS.md ancestor), omit `roadmap`, `todo`, and `backlog` from the submenu and append a one-line note to that idea's audit entry: *"roadmap/todo/backlog not offered: project path unresolved (project tag not in projects_list, no .git/ or AGENTS.md ancestor of CWD)."* This makes the gap visible rather than silently shrinking the submenu.
+2. **CWD fallback** — if the tag isn't resolvable via `projects_list` (projects tier disabled, tag missing from list, or idea's `project` is `cross` / `no-project`), fall back to the current working directory. Probe the closest ancestor of CWD containing either `.git/` or `CLAUDE.md`.
+3. **No resolution possible** — if neither path strategy yields a valid directory (e.g., projects tier disabled AND CWD has no git/CLAUDE.md ancestor), omit `roadmap`, `todo`, and `backlog` from the submenu and append a one-line note to that idea's audit entry: *"roadmap/todo/backlog not offered: project path unresolved (project tag not in projects_list, no .git/ or CLAUDE.md ancestor of CWD)."* This makes the gap visible rather than silently shrinking the submenu.
 
 Once the project root is resolved, probe for the relevant file in two locations in this order: (1) project root, (2) `docs/` subdirectory of the project root. **Tie-break when both exist:** route to the project root copy; the `docs/` copy is treated as secondary and not modified. Document the chosen path in the audit log entry so users can trace where each idea landed.
 
@@ -207,7 +211,7 @@ Read `{knowledge_folder}/intake/rules-backlog.md`. **If the file is missing**, r
 If there are entries below the `---` separator, these are rule candidates — observations or proposals about *how to work* (rather than *what is*) — staged via the `Accept → rule` path on prior idea audits, or appended directly when feedback in conversation matches a "rule of thumb" shape.
 
 For each entry, note it for presentation in Step 6 alongside other backlogs. Rule candidates have three valid promotion targets, all inside the user memory directory or `{knowledge_folder}` (ARIA never writes to project source):
-- **User memory `feedback_*.md`** — for personal/working-style rules that span projects (matches the existing feedback-memory pattern under the active project's `.cursor/agent-memory/` directory)
+- **User memory `feedback_*.md`** — for personal/working-style rules that span projects (matches the existing feedback-memory pattern under the active project's `~/.claude/projects/{cwd-encoded}/memory/` directory)
 - **Cross-project `{knowledge_folder}/rules/user-rules.md`** — for ARIA-behavior rules that should apply consistently across all the user's work (the user-owned counterpart to plugin-managed `working-rules.md`)
 - **Project-tier `{knowledge_folder}/projects/{tag}/rules/working-rules.md`** — only when `projects_enabled: true` and the entry's `project` tag matches `projects_list`; for project-scoped discipline that doesn't generalize cross-project. Setup's Step 7c scaffolds the parent `rules/` subdirectory so this destination is always available when the projects tier is on.
 
@@ -215,9 +219,56 @@ Rejected entries get cleared from the backlog. All three promotion targets are r
 
 **Reclassification check:** if any entry reads as a feature proposal or bug report (rather than a "how to work" rule), flag it for re-routing to `intake/ideas/` during Step 7. Common signals indicating misclassification: "should add", "should fix", "would be nice if X existed". Rules describe behavior; ideas describe missing features.
 
+## Step 2d: Review Task-Boundary Captures (Cursor port)
+
+Scan `{knowledge_folder}/intake/task-boundary-captures/` for `.md` files. **If the directory doesn't exist or is empty**, skip silently to Step 2e.
+
+**If captures exist**, report the count and total size, then ask the user:
+
+> "Found N task-boundary capture(s) (total ~X KB) from Cursor `stop` hook or `/snapshot`. These are structural snapshots (git + hook state) — **not transcripts**. Options:"
+> 1. **Skim** — read filenames + timestamps for forensic context (default)
+> 2. **Detailed** — read full capture bodies (~1-5K tokens each)
+> 3. **Skip** — leave for a future audit
+> 4. **Clear** — move to `{knowledge_folder}/archive/audit-{date}/task-boundary-captures/` with a brief REMOVED.md ledger, then delete from intake
+
+Do **not** run `digest-transcript.sh` on these files — they are not conversation transcripts.
+
+For each reviewed capture, note findings for Step 6 under a "Task-Boundary Captures" section. Approved structural notes may append to `extraction-backlog.md` if they contain actionable project context; otherwise treat as informational only.
+
+
+## Step 2e: Review Subagent Captures
+
+Scan `{knowledge_folder}/intake/subagent-captures/` for `.md` files. **If the directory doesn't exist or is empty**, skip silently to Step 3.
+
+**If captures exist**, report the count and total size, then ask the user:
+
+> "Found N subagent transcript capture(s) (total ~X KB) archived from heavyweight subagents. A subagent cannot extract its own session, so these are held until reviewed. Options:"
+> 1. **Digest** — extract high-signal content via script, then review (~1-3K tokens per capture; default)
+> 2. **Detailed** — read full transcripts for exhaustive review (~30-50K tokens per capture)
+> 3. **Skip** — leave for the next audit
+
+There is **no bare-Clear option** for subagent captures. Unlike task-boundary captures (derived copies of Claude Code's canonical session `.jsonl`), a subagent capture is held under **sticky retention** — its body is only removed *after* its knowledge is folded into a backlog, because the subagent's source transcript is not assumed to persist.
+
+**Digest mode (default):** for each capture, run:
+
+```
+bash scripts/aria/digest-transcript.sh "{capture_path}" "/tmp/aria-digest-{filename}"
+```
+
+Then read the digest (not the raw transcript). Extract findings into the standard six buckets (insights, decisions, feedback, project context, references, ideas) — same categorization as `/extract`.
+
+**Detailed mode:** read the full capture directly. Use sparingly (a single capture can consume 30-50K+ tokens).
+
+For each reviewed capture:
+- **Approved items** → append to the appropriate backlog (`insights-backlog.md`, `decisions-backlog.md`, or `extraction-backlog.md`), then apply the **ledger-clear pattern**: create `{knowledge_folder}/archive/audit-{date}/subagent-captures/` if needed, append an entry to its `REMOVED.md` (filename + parent-session-id + agent_type + agent_id + capture-timestamp), then `rm` the capture `.md`.
+- **Rejected items** → ledger-clear with `disposition: rejected` and a one-line reason.
+- **Skip** → leave the capture for the next audit.
+
+Note findings for presentation in Step 6 under a "Subagent Captures" section.
+
 ## Step 3: Scan Memory Files
 
-Read all `.md` files in the agent memory directory memory directories for the current project (excluding `MEMORY.md` itself).
+Read all `.md` files in `~/.claude/projects/` memory directories for the current project (excluding `MEMORY.md` itself).
 
 Issue Read calls for all matching files in a single parallel tool-use block. A/B/C categorization runs in the main thread after all reads complete — do not categorize file-by-file serially.
 
@@ -230,7 +281,7 @@ For each file, categorize:
 
 ## Step 4: Scan Plan Files
 
-Read all files in `.cursor/plans/`.
+Read all files in `~/.claude/plans/`.
 
 Issue Read calls for all plan files in a single parallel tool-use block. Categorization runs in the main thread after reads complete.
 
@@ -257,7 +308,7 @@ Expand the glob patterns first (via Glob), then issue Read calls for all resolve
 {knowledge_folder}/references/*.md
 ```
 
-Also check project-level AGENTS.md and docs files in the current working directory for already-captured knowledge.
+Also check project-level CLAUDE.md and docs files in the current working directory for already-captured knowledge.
 
 ## Step 5b: Lint Knowledge Integrity
 
@@ -271,7 +322,7 @@ Check for:
 - **Missing connections** — files that discuss the same concepts, patterns, or components but don't reference each other (e.g., an approach that implements a rule but doesn't cite it, or two decisions about the same system with no cross-link)
 - **Stale entity references** — if `index.md` has an `## Entities` section, check that listed files still exist and still mention the entity. Flag any entries pointing to archived, renamed, or deleted files.
 - **Missing entities** — scan promoted files for named tools, services, or frameworks that appear in 2+ files but are not listed in the entity index. These should be picked up by the next `/index` run, but flagging them during audit ensures awareness.
-- **Skill-knowledge drift** — if `index.md` has a `## Skill Connections` section, check each connection for staleness. For each row in the table: (1) Get the skill file's modification date via `stat` or `ls -l` on `$KT_ROOT/skills/{skill_name}/SKILL.md`. (2) Get the knowledge file's `Last updated` date from its YAML frontmatter. (3) If the skill file is newer than the knowledge file, flag as potential drift — the skill may have evolved past what the knowledge doc describes. Also scan the knowledge file content for terms that may be stale relative to the skill (e.g., old names, deprecated patterns). If no `## Skill Connections` section exists in the index, skip this check silently — it means `/index` hasn't been run with Step 8c yet.
+- **Skill-knowledge drift** — if `index.md` has a `## Skill Connections` section, check each connection for staleness. For each row in the table: (1) Get the skill file's modification date via `stat` or `ls -l` on `${CLAUDE_PLUGIN_ROOT}/skills/{skill_name}/SKILL.md`. (2) Get the knowledge file's `Last updated` date from its YAML frontmatter. (3) If the skill file is newer than the knowledge file, flag as potential drift — the skill may have evolved past what the knowledge doc describes. Also scan the knowledge file content for terms that may be stale relative to the skill (e.g., old names, deprecated patterns). If no `## Skill Connections` section exists in the index, skip this check silently — it means `/index` hasn't been run with Step 8c yet.
 
 **Scope:** Only check files in `{knowledge_folder}/rules/`, `{knowledge_folder}/approaches/`, `{knowledge_folder}/decisions/`, `{knowledge_folder}/guides/`, and `{knowledge_folder}/references/`. Do not lint backlogs, logs, or templates.
 
@@ -283,7 +334,7 @@ Note all findings for presentation in Step 6 under the new "Integrity Issues" se
 
 Some skills inline shared logic (e.g., the group-loader block shared between `/distill` and `/stitch`). Drift between inlined copies is a latent bug — users would see different behavior in each skill.
 
-1. Grep all files under `$KT_ROOT/skills/**/SKILL.md` for `<!-- shared-block: NAME -->` markers.
+1. Grep all files under `${CLAUDE_PLUGIN_ROOT}/skills/**/SKILL.md` for `<!-- shared-block: NAME -->` markers.
 2. For each unique block `NAME`, collect the content between `<!-- shared-block: NAME -->` and `<!-- /shared-block: NAME -->` in every skill that contains it.
 3. Normalize whitespace (collapse multiple spaces and blank lines to single).
 4. If collected contents differ across skills for the same block name, flag as drift.
@@ -423,7 +474,7 @@ If candidates are detected but the user declines all promotions, note in Step 8'
 
 Present a table with ALL files scanned and their category. Only show details for Category C items.
 
-**Output policy:** emit every subsection defined below. Subsections with no findings must emit an explicit zero-state line (e.g., "**Pending Insights:** 0 — none pending.") rather than being omitted. The four subsections that explicitly permit silent omission (Pre-Compact Captures, Codemap Staleness, Codemap Coverage, Shared-Block Drift) are conditional-on-feature-presence — they omit when the feature doesn't apply to this project, not when findings are empty. Do not collapse or shorten the structured report in pursuit of brevity — empty sections with zero-count confirmations are informational signals that the audit ran the check.
+**Output policy:** emit every subsection defined below. Subsections with no findings must emit an explicit zero-state line (e.g., "**Pending Insights:** 0 — none pending.") rather than being omitted. The five subsections that explicitly permit silent omission (Task-Boundary Captures, Subagent Captures, Codemap Staleness, Codemap Coverage, Shared-Block Drift) are conditional-on-feature-presence — they omit when the feature doesn't apply to this project, not when findings are empty. Do not collapse or shorten the structured report in pursuit of brevity — empty sections with zero-count confirmations are informational signals that the audit ran the check.
 
 Format:
 
@@ -516,9 +567,27 @@ If none: emit "**Pending Decisions:** 0 — none pending."
 For each rule entry:
 - **Date / Project(s) / Context:** from the entry header
 - **Rule:** the proposed rule statement (and the "why" / "how to apply" lines if present)
-- **Recommendation:** suggested promotion target — (a) **user memory** (`feedback_*.md` under the active project's `.cursor/agent-memory/`) for personal/working-style rules that span projects; (b) **cross-project ARIA rule** (`{knowledge_folder}/rules/user-rules.md`) for ARIA-behavior rules that apply across all work; (c) **project-tier working rule** (`{knowledge_folder}/projects/{tag}/rules/working-rules.md` — projects tier only) for project-scoped discipline. Or "clear" if already captured elsewhere.
+- **Recommendation:** suggested promotion target — (a) **user memory** (`feedback_*.md` under the active project's `~/.claude/projects/{cwd-encoded}/memory/`) for personal/working-style rules that span projects; (b) **cross-project ARIA rule** (`{knowledge_folder}/rules/user-rules.md`) for ARIA-behavior rules that apply across all work; (c) **project-tier working rule** (`{knowledge_folder}/projects/{tag}/rules/working-rules.md` — projects tier only) for project-scoped discipline. Or "clear" if already captured elsewhere.
 
 If none: emit "**Pending Rules:** 0 — none pending."
+
+### Task-Boundary Captures (from intake/task-boundary-captures/)
+
+For each snapshot with extractable content:
+- **Date / Session:** from the filename
+- **Findings:** extracted insights, decisions, feedback, or references
+- **Recommended action:** append to appropriate backlog and delete snapshot, or delete without extracting
+
+If no snapshots exist or none had extractable content: omit this section.
+
+### Subagent Captures (from intake/subagent-captures/)
+
+For each capture with extractable content:
+- **Date / Parent session / Agent type:** from the filename
+- **Findings:** extracted insights, decisions, feedback, or references
+- **Recommended action:** append to appropriate backlog and ledger-clear the capture (no bare-delete — sticky retention)
+
+If the directory doesn't exist or no captures had extractable content: omit this section.
 
 ### Category C Items (if any)
 
@@ -650,8 +719,8 @@ If any shared block has drifted across skills, present the divergence:
 ## Shared-Block Drift
 
 `group-loader` differs between:
-  - plugin/skills/distill/SKILL.md
-  - plugin/skills/stitch/SKILL.md
+  - plugin-claude-code/skills/distill/SKILL.md
+  - plugin-claude-code/skills/stitch/SKILL.md
 
 Diff: (show the key differing lines — first ~5 differences with line context)
 
@@ -689,7 +758,7 @@ After user approval and *before* executing any promotions, declare a batch manif
 | **low** (compressed directive) | Stubs from Step 5e, cross-reference additions, backlog clears, log appends, new files under `approaches/`, `guides/`, `references/` | Hook emits short acknowledgment-only directive |
 | **high** (full Rule 22 fires) | New `decisions/` ADRs (new architectural commitments), new or modified `rules/` entries, promotions that change guidance/recommendations, cross-project consolidations that create new authoritative files | Full CHANGE DECISION CHECK per edit |
 
-**Safety floor stays active regardless of manifest declaration:** (a) edits to protected paths (`AGENTS.md`, `working-rules.md`, knowledge folder itself, user critical paths) always get full Rule 22; (b) structural signals (`auth/`, `migrations/`, `models.py`, `routes.ts`, external services like `stripe`) on a declared-low op escalate to full Rule 22; (c) any edit to a file not matched by the manifest triggers full Rule 22 as scope-drift detection.
+**Safety floor stays active regardless of manifest declaration:** (a) edits to protected paths (`CLAUDE.md`, `working-rules.md`, knowledge folder itself, user critical paths) always get full Rule 22; (b) structural signals (`auth/`, `migrations/`, `models.py`, `routes.ts`, external services like `stripe`) on a declared-low op escalate to full Rule 22; (c) any edit to a file not matched by the manifest triggers full Rule 22 as scope-drift detection.
 
 **When in doubt about an op's impact, declare `high`** — full Rule 22 is always the safe choice.
 
@@ -713,7 +782,7 @@ Then execute approved promotions below:
 
 - Approved insights → move to the appropriate knowledge file, clear from backlog
 - Approved decisions → create full ADR in `{knowledge_folder}/decisions/`, clear from backlog
-- Approved rules → for each entry, prompt the user to pick the promotion target: (a) **user memory** — write a `feedback_*.md` file under the active project's Claude Code memory directory (typically `.cursor/agent-memory/`, the same location existing `feedback_*.md` files live in) and add a one-line index entry to `MEMORY.md` in that same directory. Mirrors how feedback memories are written manually today; (b) **cross-project knowledge rule** — append to `{knowledge_folder}/rules/user-rules.md` (the user-owned rules file that ARIA never overwrites). Use this when the rule is for ARIA's own behavior across projects rather than personal/working-style; (c) **project-tier working rule** — only available when `projects_enabled: true` AND the idea has a `project` tag matching `projects_list`. Append to `{knowledge_folder}/projects/{tag}/rules/working-rules.md`; if the file or its parent `rules/` directory doesn't exist, create them from the template (see Step 7c of `/setup` for the scaffolding contract). Clear the entry from `intake/rules-backlog.md` after writing. **Never** write to paths outside `{knowledge_folder}` or the user memory directory — destinations like `{project_path}/working-rules.md` (the codebase itself) are out of scope for ARIA promotion since ARIA does not modify project source.
+- Approved rules → for each entry, prompt the user to pick the promotion target: (a) **user memory** — write a `feedback_*.md` file under the active project's Claude Code memory directory (typically `~/.claude/projects/{cwd-encoded}/memory/`, the same location existing `feedback_*.md` files live in) and add a one-line index entry to `MEMORY.md` in that same directory. Mirrors how feedback memories are written manually today; (b) **cross-project knowledge rule** — append to `{knowledge_folder}/rules/user-rules.md` (the user-owned rules file that ARIA never overwrites). Use this when the rule is for ARIA's own behavior across projects rather than personal/working-style; (c) **project-tier working rule** — only available when `projects_enabled: true` AND the idea has a `project` tag matching `projects_list`. Append to `{knowledge_folder}/projects/{tag}/rules/working-rules.md`; if the file or its parent `rules/` directory doesn't exist, create them from the template (see Step 7c of `/setup` for the scaffolding contract). Clear the entry from `intake/rules-backlog.md` after writing. **Never** write to paths outside `{knowledge_folder}` or the user memory directory — destinations like `{project_path}/working-rules.md` (the codebase itself) are out of scope for ARIA promotion since ARIA does not modify project source.
 - Approved project-tier promotions (only if `projects_enabled: true`) → before writing, validate the target project subfolder exists. If `projects/{tag}/` is not in the user's knowledge folder, prompt: *"Project '{tag}' is not in your config (`projects_list`). Add it now? (yes adds the tag to projects_list, creates `projects/{tag}/{decisions,patterns}/` with a per-project README, then writes the file)."* If the user says yes, edit `.cursor/aria-knowledge.local.md` to append the tag to `projects_list` (preserving existing entries), create the directory structure (mirror `/setup` Step 3's project tier scaffolding), then write the promoted file. If the user says no, fall back to the cross-project location (`approaches/` or `decisions/`) and warn that the project context is being lost.
 - Approved cross-project promotion candidates from Step 5e → already handled inline in Step 5e (synthesis + `originally_at` + source disposition). No additional action here.
 - Approved synthesis drafts → create the new file in the appropriate category, clear source entries from backlogs
@@ -828,21 +897,20 @@ Safe to call even if Step 7a's `kt_batch_begin` didn't succeed (e.g., jq missing
 
 - **Never auto-extract** — always present findings for user review first
 - **Be conservative with Category C** — if it's borderline, it's probably Category A or B
-- **Check project docs thoroughly** — knowledge is often already captured in project-level AGENTS.md, PROGRESS.md, or docs/ folders
+- **Check project docs thoroughly** — knowledge is often already captured in project-level CLAUDE.md, PROGRESS.md, or docs/ folders
 - **Convert relative dates** — if a memory or plan references "last Thursday", convert to the actual date
 - **Stale memories are not Category C** — outdated project status doesn't need extraction, it needs cleanup
 - **Prioritize approaches and rules** — these are the highest-value extractions. Debug recipes, implementation plans, and one-time fixes are Category B
 - **Watch for clusters** — individual backlog entries may not justify a knowledge file, but patterns of related entries do. The backlogs are signal generators, not just staging areas
 
-
 ---
 
-## /audit-config — Configuration & Documentation Health Check
+## /audit-config
 
 
 # /audit-config — Configuration & Documentation Health Check
 
-Scan all AGENTS.md files, `.cursor/settings.json` configs, plugin manifests, and knowledge files for drift, broken references, and staleness.
+Scan all AGENTS.md files, `.claude/settings.local.json` configs, plugin manifests, and knowledge files for drift, broken references, and staleness.
 
 ## Step 0: Resolve Config
 
@@ -868,7 +936,7 @@ Note the "Last Audit" date and calculate days since.
 Use agents in parallel to scan these areas:
 
 ### 2a: Settings Files
-Find all `.cursor/settings.json` files in the current working directory. For each:
+Find all `.claude/settings.local.json` files in the current working directory. For each:
 - Validate JSON structure
 - Check all `Bash(...)` permission paths exist on disk
 - Check all `mcp__*` references against currently available MCP tools
@@ -881,11 +949,11 @@ For each plugin referenced in settings files:
 - Verify plugin paths referenced in settings files
 
 ### 2c: Plugin Configs
-Check `.cursor/*.local.md` files:
+Check `.claude/*.local.md` files:
 - Verify referenced IDs and paths are properly formatted
 - Note configuration settings
 
-## Step 3: Scan AGENTS.md Files
+## Step 3: Scan CLAUDE.md Files
 
 Find all AGENTS.md files recursively in the current working directory.
 
@@ -895,7 +963,7 @@ For each file, check:
 - **File references** — do referenced files/paths actually exist?
 - **Cross-references** — do pointers to other AGENTS.md files resolve?
 - **Version claims** — do stated versions match actual manifests/package.json?
-- **Version-stamp ripple** — when a version appears in one AGENTS.md, does the same version appear consistently across sibling AGENTS.md files and memory files that reference the same project? Mismatched versions across surfaces (e.g., root says v2.14.2, sub-project says v2.14.3) signal a post-release update that didn't propagate. See Step 3a for the detection pattern.
+- **Version-stamp ripple** — when a version appears in one CLAUDE.md, does the same version appear consistently across sibling AGENTS.md files and memory files that reference the same project? Mismatched versions across surfaces (e.g., root says v2.14.2, sub-project says v2.14.3) signal a post-release update that didn't propagate. See Step 3a for the detection pattern.
 - **Adoption-state phrases** — does language like "NOT YET BUILT", "(placeholder)", "spec drafted, not yet built", "currently disabled", "still has older prototype", "pipeline built but not yet adopted" contradict the actual state of a referenced artifact (plugin.json exists with non-zero version, config flag is enabled, build output is present)? See Step 3a.
 - **Team roster** — is it consistent across AGENTS.md files?
 - **Stale content** — are there line numbers, dates, or status claims that look outdated?
@@ -907,12 +975,12 @@ Two specific cascade shapes are common enough to warrant dedicated detection. Bo
 
 ### 3a.1: Version-stamp ripple
 
-After a plugin/package release, version references typically touch 5+ surfaces: the manifest itself, the project's AGENTS.md status header, any parent container AGENTS.md table row, the project memory file's description + body + version-row, and the MEMORY.md index entry. Each is small; skipping any creates documentation drift.
+After a plugin/package release, version references typically touch 5+ surfaces: the manifest itself, the project's CLAUDE.md status header, any parent container CLAUDE.md table row, the project memory file's description + body + version-row, and the MEMORY.md index entry. Each is small; skipping any creates documentation drift.
 
 **Detection:**
 
 1. For each plugin manifest (`plugin.json`) or `package.json` found, extract the canonical version string (e.g., `v2.14.4`).
-2. Glob AGENTS.md files in the project + ancestor directories + `.cursor/agent-memory/.../memory/project_*.md` files referencing the project's slug.
+2. Glob AGENTS.md files in the project + ancestor directories + `~/.claude/projects/.../memory/project_*.md` files referencing the project's slug.
 3. For each surface, grep for version strings matching the pattern `v?\d+\.\d+\.\d+` near a mention of the project name.
 4. Flag any surface where the stated version is **older than** the manifest version. Treat "older" by semver comparison, not string comparison.
 5. Do NOT flag surfaces where the version is absent entirely — those are not drift, just under-documentation (out of scope for this check).
@@ -930,7 +998,7 @@ Version-stamp drift for {project-slug}:
 
 When a binary config value flips (e.g., `enabled=0` → `enabled=1` in a deploy script, or a placeholder folder becomes a built artifact), N referenced docs may still describe the prior state.
 
-**Detection patterns to grep against AGENTS.md / README.md / memory files:**
+**Detection patterns to grep against CLAUDE.md / README.md / memory files:**
 
 | Phrase pattern (case-insensitive) | Inverse-state check |
 |-----------------------------------|---------------------|
@@ -940,7 +1008,7 @@ When a binary config value flips (e.g., `enabled=0` → `enabled=1` in a deploy 
 | "still has older prototype" / "render-broken `dist/` not regenerated" | Check `git status` / file mtimes of the referenced folder |
 | "deferred to v{X.Y.Z}+" where X.Y.Z is now in the past | Check current manifest version against X.Y.Z |
 
-Surfaces to scan are the same as 3a.1: AGENTS.md files in the working tree, README.md files, and project memory files in `.cursor/agent-memory/.../memory/`.
+Surfaces to scan are the same as 3a.1: AGENTS.md files in the working tree, README.md files, and project memory files in `~/.claude/projects/.../memory/`.
 
 **Conservative reporting:** Both 3a.1 and 3a.2 are pattern-based heuristics, so false positives are possible. Report under **Should Fix** (not **Critical**) and present the specific surface + the specific contradicting phrase + the underlying state — let the user judge whether each is real drift or intentional historical note.
 
@@ -967,7 +1035,7 @@ After 3a's pattern-based drift checks, run a structural check for config-schema 
 
 4. **Classification:** report under **Should Fix** (consistent with 3a.1/3a.2 conservative reporting). Missing-field detection has effectively zero false-positive rate (deterministic grep) but the FIX is user judgment — a missing field might be intentional (e.g., user removed it to fall back to default behavior).
 
-**Why this check exists (v2.15.2 Origin):** the `/setup` wizard's Step 6 Advanced Options bundle is a *soft instruction* to Claude — it's not hook-enforced, so a fast/quiet `/setup` run can silently skip surfacing new fields. Step 3b runs against the canonical `bin/config.sh` source-of-truth at audit cadence, surfacing gaps regardless of how the wizard got there. Pairs with `/setup` Step 7e (Self-Validation Audit) as the setup-time safety net.
+**Why this check exists (v2.15.2 Origin):** the `/setup` wizard's Step 6 Advanced Options bundle is a *soft instruction* to Claude — it's not hook-enforced, so a fast/quiet `/setup` run can silently skip surfacing new fields. Step 3b runs against the canonical `scripts/aria/config.sh` source-of-truth at audit cadence, surfacing gaps regardless of how the wizard got there. Pairs with `/setup` Step 7e (Self-Validation Audit) as the setup-time safety net.
 
 **Presence-only check:** the field can be present with an empty value (e.g., `critical_paths:` with no value is valid). Step 3b checks for *key presence*, not non-empty value — empty fields are intentional in this schema (per CONFIG.md "Empty values: bare `key:` only").
 
@@ -1065,7 +1133,8 @@ Move the previous "Last Audit" entry to "Previous Audits".
 ## Rules
 
 - **Never auto-fix** — always present findings for user review first
-- **Use agents for parallel scanning** — config, AGENTS.md, and knowledge checks are independent
+- **Use agents for parallel scanning** — config, CLAUDE.md, and knowledge checks are independent
 - **Verify paths on disk** — don't trust that documented paths exist, check them
 - **Compare, don't assume** — cross-reference versions, names, and structures against actual files
 - **Focus on actionable items** — don't flag cosmetic issues or preferences, focus on things that will cause errors or confusion
+

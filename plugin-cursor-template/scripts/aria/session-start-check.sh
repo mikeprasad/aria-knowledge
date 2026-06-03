@@ -15,8 +15,9 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # Debug log: confirms hook fires (Cursor port verification)
 echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) $0 fired" >> /tmp/aria-hook-debug.log 2>/dev/null
 
-# Cursor port — static version string (no plugin manifest in Cursor)
-INSTALLED_VERSION="2.16.1"
+# Cursor port — version from scripts/aria/VERSION (no plugin manifest in Cursor)
+INSTALLED_VERSION=$(cat "$SCRIPT_DIR/VERSION" 2>/dev/null | tr -d '[:space:]')
+[ -z "$INSTALLED_VERSION" ] && INSTALLED_VERSION="unknown"
 
 # Read hook input for sessionId if available (Cursor camelCase, snake_case fallback)
 INPUT=""
@@ -33,6 +34,7 @@ kt_batch_clear_stale 1800
 # The ledger is session-scoped (fresh per session per D4), so anything older
 # than ~24h is debris from crashed/abandoned sessions. Safe no-op if none exist.
 find /tmp -maxdepth 1 -name 'aria-active-*' -mtime +1 -delete 2>/dev/null
+find /tmp -maxdepth 1 -name 'aria-session-inprogress-*' -mtime +1 -delete 2>/dev/null
 
 # If config file exists but failed validation, report the specific error
 if [ -n "$KT_CONFIG_ERROR" ]; then
@@ -254,6 +256,12 @@ if [ "$KT_ACTIVE_SURFACING" = "true" ] && [ "$KT_PROJECTS_ENABLED" = "true" ]; t
       MESSAGES="${MESSAGES}${KT_ARTIFACTS_INSTRUCTION}"
     fi
   fi
+fi
+
+# SESSION.md re-entry offer (v2.22.0+) — flag-gated on session_state.
+# In-progress marking is written by afterFileEdit (post-edit-check.sh), not here.
+if [ "$KT_SESSION_STATE" = "true" ]; then
+  MESSAGES="${MESSAGES}SESSION STATE — After the project/sub-project for this session is identified (by the PWD-based project match, or by what the user names in their opening message), locate SESSION.md at that project root (project root = nearest dir with AGENTS.md/CLAUDE.md/PROGRESS.md). If it exists with a non-empty '## Next session prompt' block: if the user's opening message included the word 'handoff', open the session by executing that prompt directly (no confirmation); otherwise tell the user a saved resume prompt exists (state its lastEvent + age from the 'at' field) and ask whether to start from it (y/n). If no such prompt exists, stay quiet. The 'in-progress' mark is written automatically by afterFileEdit on your first edit — do NOT write SESSION.md yourself here. Offer the resume once per session. "
 fi
 
 # Per-task insight batch capture — gated by auto_capture

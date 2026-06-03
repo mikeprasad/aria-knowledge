@@ -62,8 +62,8 @@ A knowledge base only matters if it shapes future work. Apply is where ARIA's "A
 - **`/context`** loads relevant knowledge by topic using the tag index, with project expansion (`/context {project-tag}` adds project-tier files).
 - **`/rules`** surfaces working rules by number or keyword during reasoning.
 - **`/codemap`** turns a repository into a feature-organized reference; `/stitch` builds cross-repo binding tables for product groups; `/distill` turns raw ticket text into tiered executable task specs that cite real files via optional CODEMAP/STITCH context.
-- **TaskCreated hook** (Claude Code) / **stop event** (Cursor) surfaces relevant knowledge files when tasks are stated or end (tag index matching).
-- **Task-boundary captures** (Cursor): the `stop` hook + `/snapshot` write small markdown snapshots of repo + hook state to `intake/task-boundary-captures/`. This is the Cursor-native parity equivalent for the Claude Code PreCompact/PostCompact path — Cursor does not expose conversation transcripts to hooks, so the legacy `pre-compact-captures/` raw-transcript surface is unavailable on Cursor (historical explanatory mention only).
+- **TaskCreated hook** surfaces relevant knowledge files when tasks are created (tag index matching).
+- **PreCompact / PostCompact hooks** preserve transcripts before context compaction and prompt to review snapshots after.
 
 This phase is what separates ARIA from passive memory systems. Storage answers "what did we learn?" Apply answers "which trusted knowledge applies to this task, this edit, this decision — right now."
 
@@ -173,7 +173,8 @@ The plugin includes hooks that fire automatically during sessions:
 - **Session start** — checks audit cadences and prompts when reviews are overdue; injects per-task insight capture instruction; first-run welcome for new users
 - **Pre-edit (Edit/Write)** — enforces structured decision-making before every code change (impact assessment, alternatives considered, scope defined). Detects planning paths for abbreviated assessment. Protects critical files.
 - **Post-edit (Edit/Write)** — verifies changes stayed within decided scope, checks for secondary impact on parents/siblings/dependents
-- **Task-boundary capture (Cursor)** — the `stop` hook and the `/snapshot` skill write a non-transcript snapshot of repo + hook state to `intake/task-boundary-captures/`. (Legacy mention only: on Claude Code the equivalent path used PreCompact/PostCompact transcript snapshots; Cursor does not expose transcripts to hooks, so that path is unavailable here.)
+- **Pre-compact** — saves transcript snapshot before context compaction to prevent knowledge loss
+- **Post-compact** — prompts to review captured snapshots after compaction
 - **Task created** — matches task keywords against the tag index and surfaces relevant knowledge files
 
 The pre/post edit hooks implement a change decision framework that prevents common failure modes: rewriting code that should have been extended, touching files outside the decision scope, skipping alternatives analysis. The enforcement is prompt-based — it shapes reasoning at the moment of action rather than blocking execution.

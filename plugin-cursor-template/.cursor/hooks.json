@@ -8,13 +8,26 @@
       { "command": "bash scripts/aria/pre-edit-check.sh" }
     ],
     "afterFileEdit": [
-      { "command": "bash scripts/aria/post-edit-check.sh" }
+      { "command": "bash scripts/aria/post-edit-check.sh" },
+      { "command": "bash scripts/aria/post-plan-prospect-check.sh" }
     ],
     "beforeShellExecution": [
       { "command": "bash scripts/aria/bash-cd-check.sh" }
     ],
+    "afterShellExecution": [
+      {
+        "command": "bash scripts/aria/post-push-retrospect-check.sh",
+        "matcher": "git push"
+      }
+    ],
     "beforeReadFile": [
       { "command": "bash scripts/aria/pre-explore-codemap-check.sh" }
+    ],
+    "subagentStart": [
+      { "command": "bash scripts/aria/subagent-start-selfreport.sh" }
+    ],
+    "subagentStop": [
+      { "command": "bash scripts/aria/subagent-stop-capture.sh" }
     ],
     "stop": [
       { "command": "bash scripts/aria/task-context-check.sh" },

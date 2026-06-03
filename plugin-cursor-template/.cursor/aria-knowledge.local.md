@@ -20,7 +20,16 @@ codemap_staleness_threshold_days: 14
 stitch_staleness_threshold_days: 30
 task_boundary_capture: true
 edit_intent: true
-last_setup_version: 2.20.2-cursor.0
+session_state: false
+subagent_capture: true
+subagent_capture_types: generalPurpose,explore,shell,code-reviewer,code-architect,code-explorer
+subagent_selfreport_types: explore
+auto_prospect: off
+auto_retrospect: off
+retrospect_min_commits: 3
+retrospect_branches: main,master,production
+usage_alert_threshold: off
+last_setup_version: 2.24.1-cursor.0
 ---
 
 # ARIA Knowledge Configuration (Cursor Port)

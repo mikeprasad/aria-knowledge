@@ -2,6 +2,39 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## Cursor port 2.24.1-cursor.0 — 2026-06-04
+
+**Cursor port parity pass** — brings `plugin-cursor-template/` to equivalent coverage with `plugin-claude-code` v2.24.1. Release artifact: `aria-knowledge-cursor-2.24.1.zip` via `./release-cursor.sh`.
+
+### Added — hooks (Cursor-native mappings)
+
+- `afterFileEdit` → `post-plan-prospect-check.sh` (auto-prospect on plan writes; config `auto_prospect`)
+- `afterShellExecution` → `post-push-retrospect-check.sh` (auto-retrospect on `git push`; config `auto_retrospect`)
+- `subagentStart` → `subagent-start-selfreport.sh` (weaker than Claude — parent `agentMessage` only)
+- `subagentStop` → `subagent-stop-capture.sh` (archive to `intake/subagent-captures/`)
+
+### Added — scripts + config keys
+
+- `lib-session-state.sh` + SESSION.md in-progress piggyback in `post-edit-check.sh` (gated on `session_state`)
+- Config keys: `session_state`, `subagent_capture*`, `auto_prospect`, `auto_retrospect`, `retrospect_*`, `usage_alert_threshold` (default `off` in Cursor — no statusline)
+
+### Changed
+
+- **`port-skills-to-mdc.py` rewritten** — full-regenerates `aria-commands.mdc`, `aria-audit.mdc`, `aria-context.mdc`, and `aria-rule-22.mdc` from canonical v2.24.1 (preserves Cursor-native `/snapshot` + audit Step 2d + Rule 22 advisory hooks)
+- Skill parity restored: `/index` ephemeral-tag exclusion, `/extract` Step 2.5 subagent sweep, `/wrapup`+`/handoff` SESSION.md + multi-root disambiguation, `/setup` reads `scripts/aria/VERSION`, Step 5b statusline skipped
+- `post-edit-check.sh`: SESSION ledger key falls back to transcript-path hash when `sessionId` absent
+- `knowledge/` template lockstep sync from `plugin-claude-code/template/`
+- Planning-path globs extended to `docs/superpowers/{plans,specs}/`
+- `session-start-check.sh`: reads `scripts/aria/VERSION`, SESSION STATE resume directive, stale in-progress ledger sweep
+
+### Intentional Cursor gaps (no native equivalent)
+
+- `/statusline` + `usage-threshold-inject` — Claude Code CLI status line only
+- Rule 22 `permissionDecision: deny` — advisory edit-intent marker only
+- `PreCompact`/`PostCompact` transcript archival — use `stop` → `task-boundary-captures/` instead
+- `SubagentStart` additionalContext into subagent — Cursor hook surface is weaker
+- `/handoff` model+effort recommendation line — Claude Code model selection concept
+
 ## v2.24.1 — 2026-06-04
 
 - **`/statusline` meter — model label trim + am/pm reset clocks (Claude Code only):**

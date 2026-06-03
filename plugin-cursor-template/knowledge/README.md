@@ -23,7 +23,7 @@ knowledge/
 │   ├── notes/               # Your own notes and rough drafts
 │   ├── attachments/         # Files from elsewhere (screenshots, PDFs)
 │   ├── clippings/           # Saved external content
-│   └── task-boundary-captures/ # Cursor-native snapshots of repo + hook state at task boundaries (/snapshot + stop hook). Not a raw transcript capture.
+│   └── pre-compact-captures/ # Transcript snapshots before context compaction
 ├── logs/                    # Operational logs — audit dates and results
 │   ├── knowledge-audit-log.md
 │   └── config-audit-log.md

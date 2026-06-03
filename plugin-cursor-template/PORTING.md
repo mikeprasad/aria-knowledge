@@ -32,27 +32,47 @@ Cursor-specific files live here:
 - `AGENTS.md` — Cursor's equivalent of `CLAUDE.md`; loaded as persistent context
 - `scripts/aria/*.sh` — hook scripts (Cursor analog of Claude's `plugin-claude-code/bin/`)
 - `scripts/aria/VERSION` — port version file (Cursor has no `plugin.json`)
-- `scripts/port-skills-to-mdc.py` — maintainer script to re-sync skill bodies from `plugin-claude-code/skills/`
+- `scripts/port-skills-to-mdc.py` — maintainer script; **full-regenerates** `aria-commands.mdc`, `aria-audit.mdc`, `aria-context.mdc`, and `aria-rule-22.mdc` from canonical sources (preserves Cursor-native `/snapshot` body and Cursor-specific audit Step 2d + Rule 22 hook sections)
 
 ## Current Parity Notes
 
-- **Canonical parity target:** `plugin-claude-code/` @ **v2.20.2** (2026-05-25).
-- **Cursor port version:** `scripts/aria/VERSION` → `2.20.2-cursor.0`.
+- **Canonical parity target:** `plugin-claude-code/` @ **v2.24.1** (2026-06-04).
+- **Cursor port version:** `scripts/aria/VERSION` → `2.24.1-cursor.0`.
 - **ADR-094 Runtime Gates:** intentionally **omitted** in Cursor — aria-cowork is not loaded in typical Cursor sessions; namespace note lives in `aria-commands.mdc` preamble only.
 - Knowledge folder schema is **fully compatible** with upstream.
 - `intake/pre-compact-captures/` removed by design; `intake/task-boundary-captures/` substitutes via the `stop` hook.
 - Rule 22 transcript scanning isn't available; edit-intent marker + advisory `beforeFileEdit` (see `audit/ARIA_CURSOR_AUDIT_REPORT.md` §5).
 - MCP skills (`/clip-thread`, `/extract-doc`, `/meeting-notes`, `/digest`, `/sync-decisions`) are compiled into `aria-commands.mdc`; connect servers via **Cursor Settings → MCP**. Connector reference: `../plugin-claude-cowork/CONNECTORS.md`.
+- **New in 2.24.1-cursor.0:** `subagentStart`/`subagentStop`, `afterShellExecution` (auto-retrospect), second `afterFileEdit` (auto-prospect), SESSION.md in-progress piggyback, config keys for session_state/subagent/auto_prospect/auto_retrospect. See §Cursor hook parity below.
+
+### Cursor hook parity (v2.24.1)
+
+| Canonical (Claude Code) | Cursor equivalent | Status |
+|---|---|---|
+| `SessionStart` | `sessionStart` | ≈ ported |
+| `PreToolUse: Edit\|Write` | `beforeFileEdit` + edit-intent marker | ⚠ advisory (no transcript deny) |
+| `PostToolUse: Edit\|Write` | `afterFileEdit` | ≈ ported (+ SESSION.md in-progress) |
+| `PostToolUse: Write` (auto-prospect) | `afterFileEdit` → `post-plan-prospect-check.sh` | ≈ ported |
+| `PostToolUse: Bash` (auto-retrospect) | `afterShellExecution` → `post-push-retrospect-check.sh` | ≈ ported |
+| `PreToolUse: Bash` (cd surfacing) | `beforeShellExecution` | ≈ ported |
+| `PreToolUse: Glob\|Grep` | `beforeReadFile` | ≈ (broader trigger) |
+| `TaskCreated` | `stop` → `task-context-check.sh` | ⚠ fires at task end, not start |
+| `SubagentStart` (self-report) | `subagentStart` | ⚠ weaker — parent agentMessage only |
+| `SubagentStop` (archive) | `subagentStop` | ≈ ported (transcript path unverified) |
+| `PreCompact` / `PostCompact` | not wired | ✗ no transcript in hook payload (use `stop` capture) |
+| `UserPromptSubmit` (usage alert) | not wired | ✗ requires Claude Code `/statusline` snapshot |
+| `/statusline` skill | not ported | ✗ Claude Code CLI status line only |
+| Rule 22 transcript deny | not available | ✗ instruction + edit-intent marker only |
 
 ## Drift Tracking
 
 ### A. Knowledge contract sync
 
-**Last synced:** `plugin-claude-code/template/` @ v2.19.2+ (`kt_project_for_path` fix in `scripts/aria/config.sh`). Re-audit template rule files before each release.
+**Last synced:** `plugin-claude-code/template/` @ v2.24.1. Re-audit template rule files before each release.
 
 ### B. Skill → `.mdc` compilation (Cursor-only)
 
-**Last synced:** `plugin-claude-code/skills/` @ **v2.20.2** → `.cursor/rules/aria-commands.mdc` (2026-05-27).
+**Last synced:** `plugin-claude-code/skills/` @ **v2.24.1** → `.cursor/rules/aria-commands.mdc` (2026-06-04).
 
 **27 canonical commands** in `aria-commands.mdc` (22 core + 5 MCP + `/help` + `/audit-share`; aliases documented in preamble / `aria-audit.mdc`).
 

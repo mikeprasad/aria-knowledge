@@ -122,4 +122,13 @@ If any are due, you will receive a prompt. Note the prompt but you do not need t
 | `audit_trigger_threshold` | 20 | Backlog entry count that triggers knowledge audit prompt |
 | `auto_capture` | true | Auto-capture task-boundary insights |
 | `active_knowledge_surfacing` | true | Enable automatic context surfacing on task start |
+| `session_state` | false | Enable SESSION.md producer + resume (atlas integration) |
+| `subagent_capture` | true | Archive subagent transcripts on subagentStop |
+| `subagent_capture_types` | generalPurpose,explore,shell,... | Subagent types to archive |
+| `subagent_selfreport_types` | explore | Subagent types that get self-report nudge |
+| `auto_prospect` | off | nudge/run after plan writes (`docs/plans/`, `docs/superpowers/plans/`) |
+| `auto_retrospect` | off | nudge/run after qualifying `git push` |
+| `retrospect_min_commits` | 3 | Minimum commits in push range to trigger auto-retrospect |
+| `retrospect_branches` | main,master,production | Branches eligible for auto-retrospect |
+| `usage_alert_threshold` | off (Cursor) | Claude Code only — requires `/statusline` meter |
 | `critical_paths` | empty | Comma-separated path patterns always requiring HIGH IMPACT assessment |

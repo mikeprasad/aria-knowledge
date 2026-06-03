@@ -1,6 +1,6 @@
 # ARIA Cursor Port — Audit & Fix Report
 
-> **Historical baseline (2026-05-18, canonical v2.16.1).** Current port status: **`2.20.2-cursor.0`** (2026-05-27 parity pass). See `../PORTING.md` for live sync notes and `../../CHANGELOG.md` (Cursor port 2.20.2-cursor.0 entry). Re-run `./release-cursor.sh` after changes.
+> **Historical baseline (2026-05-18, canonical v2.16.1).** Current port status: **`2.24.1-cursor.0`** (2026-06-04 parity pass). See `../PORTING.md` for live sync notes and `../../CHANGELOG.md` (Cursor port 2.24.1-cursor.0 entry). Re-run `./release-cursor.sh` after changes.
 
 **Audited:** 2026-05-18
 **Port path:** `/home/user/workspace/aria-knowledge`
