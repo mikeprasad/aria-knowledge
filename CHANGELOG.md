@@ -2,6 +2,17 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## v2.24.0 — 2026-06-04
+
+- **`/statusline` — CLI status-line meter (Claude Code only, opt-in):**
+  - **Why:** No at-a-glance context-window or plan-usage readout existed in the CLI. `/context` and `/usage` are on-demand commands; a persistent meter answers "how full is context?" and "how much of my 5-hour window is left?" without typing.
+  - **What:** New `bin/statusline-meter.sh` renders `model │ context-bar % │ 5h % ↺reset │ 7d %` from the Claude Code status-line JSON (`context_window.used_percentage`, `rate_limits.{five_hour,seven_day}.used_percentage`), with green/yellow/red thresholds. New `/statusline [on|off|status]` skill copies the script to `~/.claude/aria-statusline-meter.sh` (stable across plugin updates) and merges a `statusLine` block into `~/.claude/settings.json` (existing keys preserved, backup at `settings.json.aria-bak`, JSON validated post-write). `/help` + `CONFIG.md` updated.
+  - **Agent awareness (the session's Claude can know its own usage):** the meter also persists a snapshot to `~/.claude/aria-statusline-state.json` on each render — the only path by which the agent can see context/5h/7d, since no hook payload carries it. Default is **on-demand**: the SessionStart TASK BUDGET guardrail now tells Claude to read the snapshot when judging budget / before `/handoff`/`/wrapup`/compaction (was previously "Claude can't see usage"). Additive **threshold alert**: new `bin/usage-threshold-inject.sh` (`UserPromptSubmit` hook) injects a warning when context/5h/7d crosses `usage_alert_threshold` (new config key, default 80, `off` disables), band-gated (once per 5-pt band, escalates, rearms on drop) so it never spams. The hook is a silent no-op until the meter is installed.
+  - **Setup integration:** `/setup` gains Step 5b (offer to install/refresh the meter, delegating to `/statusline`) and surfaces `usage_alert_threshold` in Advanced Options + the config template + Step 7b round-trip.
+  - **Constraint:** a plugin manifest cannot register a main `statusLine` (only `agent`/`subagentStatusLine` are plugin-defaultable), so this is a one-time opt-in command, not automatic. jq-preferred with a graceful model-only degrade; 5h/7d render only on Pro/Max sessions after the first response.
+  - **Tests:** `tests/repros/statusline-usage.sh` (17 cases — meter render/degrade/rounding, snapshot write, threshold-inject fire/silence/band-gating/off/no-snapshot).
+  - **Ports:** tracked drift — the status line is a Claude Code-only surface (Cowork is skills-only; Codex/Cursor/Antigravity are other runtimes). Not ported.
+
 ## v2.23.0 — 2026-06-04
 
 - **Deterministic `SESSION.md` `in-progress` marking via first-edit piggyback (Claude Code only, gated on `session_state`):**

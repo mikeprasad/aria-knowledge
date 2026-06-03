@@ -217,12 +217,14 @@ fi
 # literal reading, per the v2.10.6 change notes).
 MESSAGES="${MESSAGES}RULE 22 ORDERING — The Low/High Impact block must appear ABOVE the Edit/Write tool call in the same assistant turn, never below. As of v2.10.5, the PreToolUse hook structurally enforces this: if the [Rule 22] marker is absent from a text block between the previous Edit/Write and this one, the hook returns permissionDecision: deny and blocks the tool call. Retrying without the marker will deny again. Emit the block prospectively, not retroactively — the only valid path is marker-then-edit. Arguments for skipping ('conversation already covered it', 'docs-only edit', 'routine change', 'too trivial') are all invalid — see rules/change-decision-framework.md 'Ordering (required)' and 'Rationalizations that do not apply'. "
 
-# Task budget awareness (v2.10.6). Claude lacks direct visibility into the
-# thinking token budget or context-window usage; the user sees both in Claude
-# Code's UI. Prompt to surface strain and let the user decide rather than
-# Claude wrapping up autonomously (avoids self-defeating /extract during
-# depletion — raw transcript persists via PreCompact anyway).
-MESSAGES="${MESSAGES}TASK BUDGET — Claude Code's UI shows the user actual token usage and context limits; Claude does not see these directly. If strain symptoms appear (responses cutting short, deep session length, compaction warnings), pause and surface them — offer options (finish the current atomic task, call /aria-knowledge:extract, trigger compaction, or continue) and let the user decide based on what they can see. Don't assume depletion or wrap up autonomously. "
+# Task budget awareness (v2.10.6; usage-snapshot pointer added with the
+# status-line meter). The status-line meter (/statusline) persists a fresh
+# context/5h/7d usage snapshot to ~/.claude/aria-statusline-state.json; when it
+# exists Claude can read its own budget on demand. When it doesn't, Claude still
+# lacks direct visibility (only the user's UI shows it) — surface strain and let
+# the user decide rather than wrapping up autonomously (avoids self-defeating
+# /extract during depletion — raw transcript persists via PreCompact anyway).
+MESSAGES="${MESSAGES}TASK BUDGET — If ~/.claude/aria-statusline-state.json exists (written by the aria-knowledge status-line meter), READ it to see your current context-window %, 5-hour, and 7-day plan-usage — do so when judging whether to keep going, and before /handoff, /wrapup, or compacting. (A UserPromptSubmit hook also auto-surfaces a warning when any metric crosses usage_alert_threshold, default 80%.) If that file does NOT exist, you do not see usage directly — Claude Code's UI shows the user; if strain symptoms appear (responses cutting short, deep session length, compaction warnings), surface them and offer options (finish the current atomic task, call /aria-knowledge:extract, trigger compaction, or continue). Either way, don't assume depletion or wrap up autonomously. "
 
 # Knowledge surfacing — passive (suggest /context) vs active (Read matches directly)
 # branches on KT_ACTIVE_SURFACING (default true as of v2.15.0).

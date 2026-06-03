@@ -57,6 +57,7 @@ If `Bash` is available, proceed to Step 0.
 | /wrapup | End-of-session handoff — update PROGRESS/CLAUDE.md, prompt for commit, verify continuity |
 | /handoff [auto\|brief] | Express handoff — same coverage as /wrapup, one combined-go review (or `auto` for silent), always emits a paste-ready next-session opener. `brief` mode produces a copy/paste coworker brief (Hey [coworker]-style prose, 80-150 words) instead of next-session opener — no PROGRESS/CLAUDE/memory/commit/extract side effects |
 | /snapshot | Save the current session transcript to intake/pre-compact-captures/ on demand |
+| /statusline [on\|off\|status] | Install/remove the CLI status-line meter — context-window bar + 5h/7d plan-usage % (Claude Code only) |
 | /help | This command reference |
 
 Run /setup to configure. See QUICKSTART.md for a walkthrough of your first 3 sessions.
@@ -74,7 +75,7 @@ These are recommendations only — ARIA does not force a model. Switch per sessi
 | /ask | Highest-capability Opus, medium-to-high effort (ambiguous topics) or Sonnet (mid-tier) for scoped lookups | Research + draft + categorize. Drop to Sonnet when the question is narrow. |
 | /codemap create | Highest-capability Opus (large-context variant preferred) | Full-repo traversal benefits from a large context window so sections aren't truncated mid-generation. |
 | /codemap update, /codemap section, /wrapup, /handoff, /intake, /distill, /stitch | Sonnet (mid-tier), medium effort | Structured work with clear prescribed output. |
-| /index, /stats, /backlog, /rules, /context, /clip, /snapshot, /help, /setup | Sonnet (mid-tier), low effort | Mechanical or retrieval-only — higher models add no measurable lift. |
+| /index, /stats, /backlog, /rules, /context, /clip, /snapshot, /statusline, /help, /setup | Sonnet (mid-tier), low effort | Mechanical or retrieval-only — higher models add no measurable lift. |
 
 Always pick the latest release within each tier — ARIA pins capability *tiers*, not version numbers, so this guidance survives model updates.
 

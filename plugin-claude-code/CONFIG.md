@@ -65,6 +65,7 @@ Hook-parsed fields run on every session start, every edit, every compaction — 
 | `auto_retrospect` | `off` \| `nudge` \| `run` | off | post-push-retrospect-check.sh |
 | `retrospect_min_commits` | integer | 3 | post-push-retrospect-check.sh |
 | `retrospect_branches` | comma-separated branch names | `main,master,production` | post-push-retrospect-check.sh |
+| `usage_alert_threshold` | integer 1–100 \| `off` | 80 | usage-threshold-inject.sh |
 
 ### Format rules (hook-parsed fields)
 
@@ -137,9 +138,21 @@ Before saving manual edits to `~/.claude/aria-knowledge.local.md`:
 3. `tag:` keys consistent across `projects_list`, `projects_groups`, `projects_remotes`, and `ticketing_plugins` (the same tag means the same project everywhere)
 4. Re-run `/setup` afterward — Step 7b round-trip verification catches formatting issues before the next session does
 
+## Status-line meter (`/statusline`)
+
+The CLI status-line meter (context-window bar + rolling 5-hour / 7-day plan-usage %) is **not** configured in this file. The main status line is read only from `~/.claude/settings.json`, so `/statusline` wires it there directly:
+
+- Copies `bin/statusline-meter.sh` to `~/.claude/aria-statusline-meter.sh` (a stable path that survives plugin updates), then
+- Merges a `statusLine` block into `~/.claude/settings.json` pointing at the absolute copy (existing settings preserved; a backup is written to `settings.json.aria-bak`).
+
+It's an opt-in command, not automatic — a plugin manifest cannot register a main `statusLine`. Claude Code only (the status line is a Code feature). The 5h/7d segments render only on Pro/Max sessions, after the first response. Re-run `/statusline` after a plugin update to refresh the meter script; remove with `/statusline off`.
+
+**Agent awareness.** When installed, the meter also persists a snapshot to `~/.claude/aria-statusline-state.json` (`context_pct`, `five_hour_pct`, `five_hour_resets_at`, `seven_day_pct`) on each render — the only path by which the session's Claude can know its own usage, since no hook payload carries it. Consumption is **on-demand** by default (the SessionStart TASK BUDGET guardrail tells Claude to read it before `/handoff`/compaction). The `usage_alert_threshold` field (above) additionally drives `usage-threshold-inject.sh`, a `UserPromptSubmit` hook that injects a warning when context/5h/7d crosses the threshold (default 80; `off` disables). See [skills/statusline/SKILL.md](skills/statusline/SKILL.md).
+
 ## Related
 
 - [QUICKSTART.md](QUICKSTART.md) — first-three-sessions guide
 - [skills/setup/SKILL.md](skills/setup/SKILL.md) — `/setup` workflow that writes this file
+- [skills/statusline/SKILL.md](skills/statusline/SKILL.md) — `/statusline` status-line meter (writes `~/.claude/settings.json`, not this file)
 - [skills/distill/SKILL.md](skills/distill/SKILL.md), [skills/stitch/SKILL.md](skills/stitch/SKILL.md) — `projects_groups` consumers
 - ADR 028 (YAML frontmatter for skill fields), ADR 032 (auto-propose bootstrap), ADR 034 (stitch workspace root) — design rationale for the skill-only tier
