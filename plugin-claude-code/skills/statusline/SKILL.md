@@ -18,7 +18,7 @@ Opus 4.8 │ ███░░░░░░░ 31% ctx │ 5h 24% ↺01:00 │ 7d 8
 
 The 5h/7d segments render only on Pro/Max subscription sessions and only after the first response of a session. On API-key sessions they're absent and the line shows model + context only.
 
-Installing the meter also lets the **session's Claude** know these numbers: on each render the meter writes a snapshot to `~/.claude/aria-statusline-state.json`, which Claude reads on demand (e.g. before `/handoff` or compaction — see the SessionStart TASK BUDGET guardrail). A `UserPromptSubmit` hook additionally injects a warning when context/5h/7d crosses `usage_alert_threshold` (default 90%, configurable in `/setup`; set `off` to disable). All of this is dormant until the meter is installed.
+Installing the meter also lets the **session's Claude** know these numbers: on each render the meter writes a snapshot to `~/.claude/aria-statusline-state.json`, which Claude reads on demand (e.g. before `/handoff` or compaction — see the SessionStart TASK BUDGET guardrail). A `UserPromptSubmit` hook additionally injects a warning when context/5h/7d crosses `usage_alert_threshold` (default 80%, configurable in `/setup`; set `off` to disable). All of this is dormant until the meter is installed.
 
 ## Why a command and not automatic
 

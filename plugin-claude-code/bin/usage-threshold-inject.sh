@@ -3,7 +3,7 @@
 #
 # Injects a short usage warning into the model's context when context-window,
 # 5-hour, or 7-day usage crosses the configured alert threshold
-# (usage_alert_threshold, default 90). The numbers come from the snapshot the
+# (usage_alert_threshold, default 80). The numbers come from the snapshot the
 # status-line meter persists to ~/.claude/aria-statusline-state.json.
 #
 # Default consumption is ON-DEMAND (the agent reads the snapshot when it matters,
@@ -18,7 +18,7 @@
 #
 # Anti-spam: alerts are gated by 5-point bands tracked per session in
 # /tmp/aria-usage-warn-<session_id>. A metric warns once on entering a band,
-# again only on a higher band (90 -> 95 -> 100), and is rearmed when it drops
+# again only on a higher band (80 -> 85 -> 90), and is rearmed when it drops
 # back below threshold (e.g. after /compact or a 5-hour-window reset).
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -28,7 +28,7 @@ STATE="$HOME/.claude/aria-statusline-state.json"
 [ -f "$STATE" ] || exit 0
 command -v jq >/dev/null 2>&1 || exit 0
 
-# Threshold from config (KT_USAGE_ALERT_THRESHOLD; default 90). `off`/non-numeric
+# Threshold from config (KT_USAGE_ALERT_THRESHOLD; default 80). `off`/non-numeric
 # /out-of-range all mean "injection disabled — on-demand only".
 THRESH="$KT_USAGE_ALERT_THRESHOLD"
 case "$THRESH" in

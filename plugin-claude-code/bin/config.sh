@@ -72,15 +72,15 @@ if [ -f "$KT_CONFIG" ]; then
   KT_RETROSPECT_BRANCHES=${KT_RETROSPECT_BRANCHES:-main,master,production}
   # Strip spaces so comma-list membership tests are exact
   KT_RETROSPECT_BRANCHES=$(printf '%s' "$KT_RETROSPECT_BRANCHES" | tr -d ' ')
-  KT_USAGE_ALERT_THRESHOLD=${KT_USAGE_ALERT_THRESHOLD:-90}
+  KT_USAGE_ALERT_THRESHOLD=${KT_USAGE_ALERT_THRESHOLD:-80}
   # usage_alert_threshold: percent (1..100) at which the usage-threshold-inject
   # UserPromptSubmit hook surfaces a context/5h/7d warning into the agent's
   # context. `off` disables injection (on-demand reading still works). Any other
-  # non-numeric or out-of-range value resets to the 90 default.
+  # non-numeric or out-of-range value resets to the 80 default.
   case "$KT_USAGE_ALERT_THRESHOLD" in
     off) ;;
-    ''|*[!0-9]*) KT_USAGE_ALERT_THRESHOLD=90 ;;
-    *) if [ "$KT_USAGE_ALERT_THRESHOLD" -lt 1 ] || [ "$KT_USAGE_ALERT_THRESHOLD" -gt 100 ]; then KT_USAGE_ALERT_THRESHOLD=90; fi ;;
+    ''|*[!0-9]*) KT_USAGE_ALERT_THRESHOLD=80 ;;
+    *) if [ "$KT_USAGE_ALERT_THRESHOLD" -lt 1 ] || [ "$KT_USAGE_ALERT_THRESHOLD" -gt 100 ]; then KT_USAGE_ALERT_THRESHOLD=80; fi ;;
   esac
   # Strip spaces so comma-list membership tests (case ",$LIST," in *",$type,"*) are exact
   KT_SUBAGENT_CAPTURE_TYPES=$(printf '%s' "$KT_SUBAGENT_CAPTURE_TYPES" | tr -d ' ')

@@ -187,7 +187,7 @@ The summary line precedes the bundle text. If the user later questions "did the 
 > - **Session state file (`SESSION.md`):** false (when on, aria-knowledge writes a per-project `SESSION.md` — `in-progress` at session start, `wrapup`/`handoff` at close — and offers to resume from it at session start; enables re-entry + the aria-atlas status board. Files are created at project roots only when on. Change later via `session_state` in `~/.claude/aria-knowledge.local.md`.)
 > - **Auto-prospect (`auto_prospect`):** off (when `nudge`, writing a plan to `docs/plans/` or `docs/superpowers/plans/` prompts an offer to run `/prospect file <path>`; when `run`, it runs inline. `docs/specs/` is intentionally not a trigger. Change later via `auto_prospect` in `~/.claude/aria-knowledge.local.md`.)
 > - **Auto-retrospect (`auto_retrospect`):** off (when `nudge` [recommended], a `git push` of ≥`retrospect_min_commits` commits to a branch in `retrospect_branches` prompts an offer to run `/retrospect range <old>..<new>`; `run` runs it inline — note the post-push session is not disposable, so `run` adds real cost. Gates: `retrospect_min_commits` default 3, `retrospect_branches` default `main,master,production`.)
-> - **Usage alert threshold (`usage_alert_threshold`):** 90 (the percentage at which the status-line meter's `UserPromptSubmit` hook injects a usage warning into Claude's context when context-window, 5-hour, or 7-day usage crosses it — fires once per 5-point band, escalates, rearms after a drop). Only active when the status-line meter is installed (Step 5b). Set `off` to disable injection — Claude still reads usage on demand from the snapshot. Valid range 1–100.
+> - **Usage alert threshold (`usage_alert_threshold`):** 80 (the percentage at which the status-line meter's `UserPromptSubmit` hook injects a usage warning into Claude's context when context-window, 5-hour, or 7-day usage crosses it — fires once per 5-point band, escalates, rearms after a drop). Only active when the status-line meter is installed (Step 5b). Set `off` to disable injection — Claude still reads usage on demand from the snapshot. Valid range 1–100.
 > - **Critical paths:** (empty) comma-separated path patterns that always require HIGH impact assessment (e.g., auth/*,payments/*,migrations/*)
 > - **Ticketing plugins:** (empty) comma-separated `tag:plugin-command` pairs mapping a project tag to its ticket-drafting plugin (e.g., `proj-a:foo-ticket,proj-b:bar-ticket`). When set, `/audit-knowledge` prints a hint to use that plugin's command when an idea's project matches a mapped tag during the `Accept → tracker` disposition. Hint only — never auto-invokes. Leave empty if you don't use a ticketing plugin or prefer to copy ideas into your tracker manually. Plugin commands are bare names — no leading `/`. Validate input: each pair must contain exactly one `:` separating tag from command; project tags cannot contain `:` or `,`; plugin commands cannot start with `/` (strip leading `/` and warn if found).
 > - **Project-specific knowledge tier:** disabled (creates `projects/{tag}/` subdirectories for project-specific decisions and patterns; opt in if you want to organize knowledge by project alongside the cross-project tree. If enabled, you'll be asked an inline follow-up about auto-loading project context on session start.)
@@ -288,7 +288,7 @@ auto_prospect: [off/nudge/run, default off]
 auto_retrospect: [off/nudge/run, default off]
 retrospect_min_commits: [integer, default 3]
 retrospect_branches: [comma-list, default main,master,production]
-usage_alert_threshold: [value from Step 6, default 90; or `off` to disable usage injection]
+usage_alert_threshold: [value from Step 6, default 80; or `off` to disable usage injection]
 critical_paths: [comma-separated patterns from Step 6, default empty]
 ticketing_plugins: [comma-separated tag:plugin-command pairs from Step 6, default empty]
 projects_enabled: [true/false from Step 6, default false]
@@ -353,7 +353,7 @@ After writing the config file, read it back and verify that each value can be ex
    - `active_knowledge_surfacing` — confirm it's `true` or `false`
    - `session_state` — confirm it's `true` or `false`
    - `auto_prospect` / `auto_retrospect` — confirm each is `off`, `nudge`, or `run`
-   - `usage_alert_threshold` — confirm it's `off` or a plain integer in 1–100 (matches Step 6 input; default 90). Any other value is reset to 90.
+   - `usage_alert_threshold` — confirm it's `off` or a plain integer in 1–100 (matches Step 6 input; default 80). Any other value is reset to 80.
    - `critical_paths` — confirm it's a comma-separated string of path patterns (or empty)
    - `ticketing_plugins` — confirm it's a comma-separated string of `tag:plugin-command` pairs (or empty); validate no project tag contains `:` or `,`; validate plugin-command values do not start with `/`
    - `last_setup_version` — confirm it matches `INSTALLED_VERSION` captured in Step 1 (this run's plugin version); validate it's a semver-shaped string of digits and dots (no `v` prefix, no quotes, no trailing whitespace). If it's missing or doesn't match, rewrite the line and re-verify
