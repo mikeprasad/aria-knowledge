@@ -45,18 +45,24 @@ The `/aria` command included here is a compact command reference for Codex.
 
 ## Hook Parity
 
-Codex hooks currently cover:
+Codex hooks currently cover the 2.24.2 Codex port feature set where Codex has
+a native event or intent surface:
 
 - `SessionStart` cadence and setup prompts through the existing ARIA script
+- `UserPromptSubmit` active knowledge surfacing from the prompt text, using the shared tag index
 - `PreToolUse` Rule 22 checks for Codex `apply_patch`
-- `PostToolUse` scope-check reminders for Codex `apply_patch`
+- `PostToolUse` scope-check reminders, `SESSION.md` in-progress state, and `auto_prospect` nudges for Codex `apply_patch`
+- `PostToolUse` `auto_retrospect` nudges after qualifying `git push` output
 - `PreToolUse` advisory reminders for shell commands that appear to write files
 - `PreToolUse` CODEMAP reminders for broad `rg`, `grep`, and `find` exploration
 - `PreCompact` and `PostCompact` passthrough to the existing ARIA scripts
+- `SubagentStart` self-report instructions and `SubagentStop` durable capture to `intake/subagent-captures/`
 
 Known gaps:
 
-- Claude `TaskCreated` has no direct Codex equivalent yet; the port relies on SessionStart, UserPromptSubmit-compatible guidance, and explicit `/context` use.
+- Claude Code `TaskCreated` has no exact Codex event. The port maps the intent to `UserPromptSubmit` plus `SubagentStart`/`SubagentStop`, which catches prompt intent and subagent boundaries but is not a one-for-one task dispatch hook.
+- Claude Code's `/statusline` meter has no Codex equivalent yet. Codex does not expose a plugin statusline slot or context-window/rate-limit percentages in hook payloads, so this port does not ship `/statusline`, `statusline-meter.sh`, or `usage-threshold-inject.sh`. The shared `usage_alert_threshold` config key is preserved but ignored by Codex.
+- Codex shell interception is narrower than Claude Code Bash hooks. Rule 22 enforcement is strongest on `apply_patch`; shell write detection remains advisory.
 - Some durable knowledge templates intentionally still mention Claude Code because the shared knowledge folder remains cross-port.
 
 ## Development Notes

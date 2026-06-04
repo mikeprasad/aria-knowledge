@@ -42,7 +42,7 @@ TOOL_USE_ID=$(echo "$INPUT" | grep -o '"tool_use_id":"[^"]*"' | head -1 | sed 's
 # Planning paths where abbreviated assessment is permitted
 IS_PLANNING=false
 case "$FILE_PATH" in
-  */docs/specs/*|*/docs/plans/*) IS_PLANNING=true ;;
+  */docs/specs/*|*/docs/plans/*|*/docs/superpowers/specs/*|*/docs/superpowers/plans/*) IS_PLANNING=true ;;
 esac
 
 # Protected filenames that always require full assessment
@@ -224,8 +224,18 @@ PY
   [ -z "$COMPLIANT" ] && COMPLIANT="unknown"
 fi
 
-# Fail-open: allow silently when compliant or when we couldn't verify.
-if [ "$COMPLIANT" = "yes" ] || [ "$COMPLIANT" = "unknown" ]; then
+# Compliant: allow silently.
+if [ "$COMPLIANT" = "yes" ]; then
+  exit 0
+fi
+
+# Fail-open (LOUD): the detector could not evaluate this edit. Allow the edit so
+# a detector/schema break never deadlocks Codex, but surface a visible warning so
+# Rule 22 enforcement is never lost silently.
+if [ "$COMPLIANT" = "unknown" ]; then
+  WARN="aria-knowledge Rule 22: could not verify this edit — enforcement was bypassed for it. The transcript parser may be broken (possible model/harness change). If this appears on every edit, run plugin-openai-codex/tests/run.sh and check pre-edit-check.sh against the current Codex transcript format."
+  WARN_ESCAPED=$(kt_json_escape "$WARN")
+  printf '{"systemMessage":"%s"}\n' "$WARN_ESCAPED"
   exit 0
 fi
 

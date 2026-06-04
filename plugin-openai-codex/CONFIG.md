@@ -50,7 +50,16 @@ Hook-parsed fields run on every session start, every edit, every compaction — 
 | `staleness_threshold_months` | integer | 6 | audit-knowledge skill |
 | `ideas_staleness_threshold_days` | integer | 7 | audit-knowledge skill |
 | `auto_capture` | `true` \| `false` | true | pre-compact-check.sh, extract skill |
-| `active_knowledge_surfacing` | `true` \| `false` | true | session-start-check.sh, task-context-check.sh, bash-cd-check.sh, post-compact-check.sh, /prospect, /retrospect, /audit-config, /stats, /handoff, /wrapup (v2.16.1+ also gates CODEMAP+STITCH tracked-artifact loading) |
+| `active_knowledge_surfacing` | `true` \| `false` | true | session-start-check.sh, bash-cd-check.sh, post-compact-check.sh, codex-hook.py UserPromptSubmit, /prospect, /retrospect, /audit-config, /stats, /handoff, /wrapup (v2.16.1+ also gates CODEMAP+STITCH tracked-artifact loading) |
+| `subagent_capture` | `true` \| `false` | true | subagent-stop-capture.sh, subagent-start-selfreport.sh |
+| `subagent_capture_types` | comma-separated agent types | `general-purpose,Plan,feature-dev:code-architect,feature-dev:code-explorer,feature-dev:code-reviewer` | subagent-stop-capture.sh |
+| `subagent_selfreport_types` | comma-separated agent types | `Explore` | subagent-start-selfreport.sh |
+| `session_state` | `true` \| `false` | false | session-start-check.sh, codex-hook.py PostToolUse:apply_patch |
+| `auto_prospect` | `off` \| `nudge` \| `run` | off | codex-hook.py PostToolUse:apply_patch |
+| `auto_retrospect` | `off` \| `nudge` \| `run` | off | codex-hook.py PostToolUse:shell |
+| `retrospect_min_commits` | integer | 3 | codex-hook.py PostToolUse:shell |
+| `retrospect_branches` | comma-separated branch names | `main,master,production` | codex-hook.py PostToolUse:shell |
+| `usage_alert_threshold` | integer 1-100 \| `off` | 80 | Shared config field for Claude Code statusline only; ignored by Codex |
 | `critical_paths` | comma-separated patterns | empty | pre-edit-check.sh |
 | `ticketing_plugins` | `tag:command` pairs | empty | audit-knowledge skill |
 | `projects_enabled` | `true` \| `false` | false | session-start-check.sh, audit-knowledge skill |
@@ -65,6 +74,9 @@ Hook-parsed fields run on every session start, every edit, every compaction — 
 - Values unquoted: `knowledge_folder: /path` not `"/path"`
 - Empty values: bare `key:` only — `null` / `""` / `none` / `[]` are parsed as literal strings
 - Booleans: lowercase `true` / `false` only (not `True`, `yes`, `1`)
+- `subagent_capture` and `session_state` must be exactly `true` or `false`
+- `auto_prospect` and `auto_retrospect` must be exactly `off`, `nudge`, or `run`
+- `usage_alert_threshold` must be `off` or an integer from 1 to 100. Codex preserves this shared-config field but does not consume it because Codex exposes no status-line usage snapshot to plugin hooks.
 - Cadences and integers: bare digits, no units
 - `last_setup_version`: bare semver (`2.12.2`), no `v` prefix, no quotes
 - `tag:value` pair fields: no spaces around `:` or `,`; tags may not contain `:` or `,` (parser delimiters)
@@ -129,6 +141,12 @@ Before saving manual edits to `~/.claude/aria-knowledge.local.md`:
 2. No quotes on values; no `null` / `""` for empty
 3. `tag:` keys consistent across `projects_list`, `projects_groups`, `projects_remotes`, and `ticketing_plugins` (the same tag means the same project everywhere)
 4. Re-run `/setup` afterward — Step 7b round-trip verification catches formatting issues before the next session does
+
+## Codex Non-Equivalent: Statusline Meter
+
+Claude Code v2.24.x ships an opt-in `/statusline` meter that reads Claude Code status-line JSON and writes a usage snapshot. Codex currently exposes neither a plugin status-line slot nor context-window / rate-limit percentages in hook payloads, so the Codex port does **not** ship `/statusline`, `statusline-meter.sh`, or `usage-threshold-inject.sh`.
+
+The shared `usage_alert_threshold` key remains in the schema so one `~/.claude/aria-knowledge.local.md` can serve both ports. It is inert in Codex.
 
 ## Related
 

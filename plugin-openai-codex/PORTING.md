@@ -38,10 +38,23 @@ unless the user explicitly overrides `KT_CONFIG` or `ARIA_KNOWLEDGE_CONFIG`.
 
 - Skills should keep shared knowledge schemas compatible while using Codex-native
   metadata, config, and hook wording.
-- Rule 22 maps Codex file edits to `apply_patch`.
+- This port tracks Claude Code ARIA `2.24.1` with Codex release label `2.24.2-codex.0`.
+- Rule 22 maps Codex file edits to `apply_patch`; Codex also supports `Edit|Write`
+  matcher aliases for the same canonical tool.
+- `UserPromptSubmit` is the Codex-native active-knowledge intent hook. It scans
+  the prompt against the shared tag index and injects model-visible
+  `additionalContext`.
+- `SubagentStart` and `SubagentStop` map directly to Codex subagent hooks for
+  self-report nudges and durable capture.
+- `SESSION.md` in-progress state, `auto_prospect`, and `auto_retrospect` are
+  implemented in the Python adapter for Codex `apply_patch` and shell outputs.
 - Shell write detection is advisory in this port; use `apply_patch` for edits.
-- Claude `TaskCreated` has no direct Codex equivalent yet. Prefer explicit
-  context-loading skills plus SessionStart/UserPromptSubmit-compatible guidance.
+- Claude Code `TaskCreated` has no exact Codex event. The closest intent-based
+  equivalent is `UserPromptSubmit` plus subagent boundary hooks, not per-task
+  dispatch.
+- Claude Code `/statusline`, `statusline-meter.sh`, and
+  `usage-threshold-inject.sh` are intentionally not ported because Codex exposes
+  no plugin statusline slot or usage/rate-limit percentage payload today.
 - Hooks are enabled by default in current Codex, but plugin-bundled hooks still
   require user trust review before they run.
 

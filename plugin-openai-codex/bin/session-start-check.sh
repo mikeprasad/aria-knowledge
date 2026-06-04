@@ -6,7 +6,7 @@
 # accurately (the v2.10.5 wording claimed "hook cannot enforce" which
 # contradicted the new structural enforcement). Added TASK BUDGET guardrail
 # (prompts Claude to surface strain symptoms to the user who has UI-side
-# visibility) and MEMORY PATHWAY guardrail (routes 4.7's enhanced
+# visibility) and MEMORY PATHWAY guardrail (routes modern agents' enhanced
 # file-system memory through ARIA's intake/extract/clip flow).
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -21,6 +21,9 @@ kt_batch_clear_stale 1800
 # The ledger is session-scoped (fresh per session per D4), so anything older
 # than ~24h is debris from crashed/abandoned sessions. Safe no-op if none exist.
 find /tmp -maxdepth 1 -name 'aria-active-*' -mtime +1 -delete 2>/dev/null
+# Clear stale session-inprogress ledgers (>1 day) from prior/crashed sessions
+# (written by codex-hook.py's first-edit in-progress marking, v2.24.2-codex.0).
+find /tmp -maxdepth 1 -name 'aria-session-inprogress-*' -mtime +1 -delete 2>/dev/null
 
 # If config file exists but failed validation, report the specific error
 if [ -n "$KT_CONFIG_ERROR" ]; then
@@ -227,7 +230,7 @@ MESSAGES="${MESSAGES}TASK BUDGET — Codex's UI shows the user actual token usag
 INDEX_FILE="$KT_KNOWLEDGE_FOLDER/index.md"
 if [ -f "$INDEX_FILE" ]; then
   if [ "$KT_ACTIVE_SURFACING" = "true" ]; then
-    MESSAGES="${MESSAGES}ARIA ACTIVE CONTEXT — Knowledge index at ${KT_KNOWLEDGE_FOLDER}/index.md. After the user states their first task, do this autonomously (do NOT wait for /context): (1) Read index.md and parse the ## Tag Index section for ### tagname headers; (2) tokenize the user's task text (lowercase, alnum-only, dedupe); (3) find tags whose names exactly match any token; (4) if ≥2 tags match, collect file lines under those tag sections, dedupe by path, cap at top-5; (5) Read each matched file; (6) before answering, output 1-2 sentences naming which files loaded and why each is relevant. Offer once per session and again on clear topic change. The TaskCreated / Bash-cd / PostCompact hooks will auto-surface for those triggers — this instruction covers the SessionStart→first-user-message gap. Honors a session ledger at /tmp/aria-active-\${session_id} (paths already there, don't re-Read). "
+    MESSAGES="${MESSAGES}ARIA ACTIVE CONTEXT — Knowledge index at ${KT_KNOWLEDGE_FOLDER}/index.md. After the user states their first task, do this autonomously (do NOT wait for /context): (1) Read index.md and parse the ## Tag Index section for ### tagname headers; (2) tokenize the user's task text (lowercase, alnum-only, dedupe); (3) find tags whose names exactly match any token; (4) if ≥2 tags match, collect file lines under those tag sections, dedupe by path, cap at top-5; (5) Read each matched file; (6) before answering, output 1-2 sentences naming which files loaded and why each is relevant. Offer once per session and again on clear topic change. The shell-cd / PostCompact hooks will auto-surface for those triggers — this instruction covers the SessionStart→first-user-message gap. Honors a session ledger at /tmp/aria-active-\${session_id} (paths already there, don't re-Read). "
   else
     MESSAGES="${MESSAGES}ARIA CONTEXT — Knowledge index available at ${KT_KNOWLEDGE_FOLDER}/index.md. After user states task, check it for relevant tags and suggest a /context with any found relevant tags. Offer once per session and again when changing topics. Do not block. "
   fi
@@ -263,15 +266,24 @@ if [ "$KT_ACTIVE_SURFACING" = "true" ] && [ "$KT_PROJECTS_ENABLED" = "true" ]; t
   fi
 fi
 
+# SESSION.md re-entry offer (ported in 2.24.2-codex.0) — flag-gated on
+# session_state. SessionStart fires before the project is always clear, so this
+# emits a reactive resume-offer directive Codex executes once the project
+# resolves. The in-progress mark is written deterministically by codex-hook.py on
+# the first apply_patch edit; do not write SESSION.md here.
+if [ "$KT_SESSION_STATE" = "true" ]; then
+  MESSAGES="${MESSAGES}SESSION STATE — After the project/sub-project for this session is identified (by PWD, AGENTS.md/CLAUDE.md/PROGRESS.md markers, or by what the user names in their opening message), locate SESSION.md at that project root. If it exists with a non-empty '## Next session prompt' block: if the user's opening message included the word 'handoff', open the session by executing that prompt directly (no confirmation); otherwise tell the user a saved resume prompt exists (state its lastEvent + age from the 'at' field) and ask whether to start from it (y/n). If no such prompt exists, stay quiet. The 'in-progress' mark is written automatically by the PostToolUse hook on your first apply_patch edit — do NOT write SESSION.md yourself here. Offer the resume once per session. "
+fi
+
 # Per-task insight batch capture — gated by auto_capture
 if [ "$KT_AUTO_CAPTURE" != "false" ]; then
   MESSAGES="${MESSAGES}INSIGHT CAPTURE — After completing discrete tasks, batch-append any uncaptured \xe2\x98\x85 Insight blocks to ${KT_KNOWLEDGE_FOLDER}/intake/insights-backlog.md. Do not capture mid-task — only at task completion boundaries. "
 fi
 
-# Memory pathway guardrail (v2.10.6). Claude Opus 4.7 has enhanced
+# Memory pathway guardrail (v2.10.6). Modern Codex models have enhanced
 # file-system memory; route that capability through ARIA's pathways so
 # the knowledge tree stays curated rather than fragmenting into ad-hoc notes.
-MESSAGES="${MESSAGES}MEMORY PATHWAY — ARIA is the structured memory pathway for this session. For notes, use /clip (URLs/snippets), /extract (session insights), /intake (bulk imports), /audit-knowledge (promotion). File-system memory is enhanced in 4.7; route it through ARIA to keep the knowledge tree curated. "
+MESSAGES="${MESSAGES}MEMORY PATHWAY — ARIA is the structured memory pathway for this session. For notes, use /clip (URLs/snippets), /extract (session insights), /intake (bulk imports), /audit-knowledge (promotion). Route file-system memory through ARIA to keep the knowledge tree curated. "
 
 # CODEMAP detection — find codemaps in project directories, annotate with
 # staleness per /audit-knowledge Step 5d criteria so stale maps are visible

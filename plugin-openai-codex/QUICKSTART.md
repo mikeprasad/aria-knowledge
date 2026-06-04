@@ -7,13 +7,15 @@ Your first 3 sessions with aria-knowledge. ARIA's five-phase lifecycle — **Cap
 Run `/setup` to configure your knowledge folder. This creates the folder structure and sets preferences. Everything else is automatic.
 
 **What's immediately active:**
-- **Rule 22 checks** appear before every file edit — a brief impact assessment to keep changes intentional
+- **Rule 22 checks** appear before every `apply_patch` file edit — a brief impact assessment to keep changes intentional
 - **Session start** checks if any audits are due and reminds you
+- **Active knowledge surfacing** checks user prompts against the tag index and can inject relevant context before Codex starts work
+- **Subagent capture** can preserve durable findings from subagent runs into `intake/subagent-captures/`
 - **Insight capture** auto-appends Insight blocks to backlogs at task completion boundaries
 
 ## Session 1: Just Work (Capture phase)
 
-Work normally. ARIA observes in the background. Insight blocks are auto-captured at task boundaries. Rule 22 fires before/after every Edit/Write — that's the Apply phase already running while you work.
+Work normally. ARIA observes in the background. Insight blocks are auto-captured at task boundaries. Rule 22 fires before/after `apply_patch` edits — that's the Apply phase already running while you work.
 
 Before wrapping up, run **`/extract`** to capture decisions, feedback, references, and ideas from the conversation. Items go to intake backlogs for review — nothing is promoted automatically.
 
@@ -36,7 +38,8 @@ With an index built, ARIA surfaces trusted knowledge automatically and the refre
 - **`/context [tags]`** loads knowledge files matching your topic
 - **`/rules [number]`** surfaces working rules during reasoning
 - **`/codemap`** generates feature-organized maps; **`/stitch`** binds cross-repo product groups; **`/distill`** turns raw tickets into executable specs
-- When you create tasks, ARIA checks if related knowledge exists and tells you
+- When you submit a prompt, ARIA checks if related knowledge exists and can add it as Codex developer context
+- **`/prospect`** reviews plans before execution; **`/retrospect`** reviews commits, ranges, PRs, releases, deployments, or sessions after execution
 - **`/stats`** shows your knowledge base health at a glance
 - Audit cadences and staleness thresholds prompt periodic review so the base doesn't quietly rot
 
@@ -58,6 +61,8 @@ With an index built, ARIA surfaces trusted knowledge automatically and the refre
 | `/clip [url or text]` | Quick-save a URL or snippet to intake |
 | `/intake [path or url]` | Bulk import knowledge from files, directories, or URLs |
 | `/codemap [mode]` | Generate or update a feature-organized codebase map |
+| `/prospect [scope]` | Run a pre-execution plan review |
+| `/retrospect [scope]` | Run a post-execution retrospective |
 | `/help` | Command reference |
 
 ## Configuration
@@ -69,6 +74,10 @@ All settings are in `~/.claude/aria-knowledge.local.md`. Run `/setup` to change 
 - `audit_cadence_knowledge` — days between knowledge audit prompts when the entry-count trigger hasn't fired (default: 7). Safety net for low-activity weeks.
 - `audit_cadence_config` — days between config audit prompts (default: 14)
 - `auto_capture` — auto-capture insights at task boundaries and save transcript snapshots before compaction (default: true)
+- `active_knowledge_surfacing` — inject relevant indexed knowledge for matching prompts (default: true)
+- `subagent_capture` — capture durable subagent findings (default: true)
+- `session_state` — maintain `SESSION.md` in-progress state after edits (default: false)
+- `auto_prospect` / `auto_retrospect` — nudge or run review skills after plan writes or qualifying pushes (default: off)
 - `critical_paths` — file patterns that always require full impact assessment (default: empty)
 
 See [OVERVIEW.md](template/OVERVIEW.md) for the full design philosophy and [CONFIG.md](CONFIG.md) for the configuration schema reference.

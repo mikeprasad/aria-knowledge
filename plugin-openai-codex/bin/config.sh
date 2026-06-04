@@ -36,6 +36,15 @@ if [ -f "$KT_CONFIG" ]; then
   KT_CODEMAP_STALENESS_DAYS=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^codemap_staleness_threshold_days:' | sed 's/^codemap_staleness_threshold_days: *//')
   KT_STITCH_STALENESS_DAYS=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^stitch_staleness_threshold_days:' | sed 's/^stitch_staleness_threshold_days: *//')
   KT_LAST_SETUP_VERSION=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^last_setup_version:' | sed 's/^last_setup_version: *//')
+  KT_SUBAGENT_CAPTURE=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^subagent_capture:' | sed 's/^subagent_capture: *//')
+  KT_SUBAGENT_CAPTURE_TYPES=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^subagent_capture_types:' | sed 's/^subagent_capture_types: *//')
+  KT_SUBAGENT_SELFREPORT_TYPES=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^subagent_selfreport_types:' | sed 's/^subagent_selfreport_types: *//')
+  KT_SESSION_STATE=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^session_state:' | sed 's/^session_state: *//')
+  KT_AUTO_PROSPECT=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^auto_prospect:' | sed 's/^auto_prospect: *//')
+  KT_AUTO_RETROSPECT=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^auto_retrospect:' | sed 's/^auto_retrospect: *//')
+  KT_RETROSPECT_MIN_COMMITS=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^retrospect_min_commits:' | sed 's/^retrospect_min_commits: *//')
+  KT_RETROSPECT_BRANCHES=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^retrospect_branches:' | sed 's/^retrospect_branches: *//')
+  KT_USAGE_ALERT_THRESHOLD=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^usage_alert_threshold:' | sed 's/^usage_alert_threshold: *//')
 
   # Defaults if not set
   KT_CADENCE_KNOWLEDGE=${KT_CADENCE_KNOWLEDGE:-7}
@@ -53,6 +62,23 @@ if [ -f "$KT_CONFIG" ]; then
   KT_AUDIT_TRIGGER_THRESHOLD=${KT_AUDIT_TRIGGER_THRESHOLD:-20}
   KT_CODEMAP_STALENESS_DAYS=${KT_CODEMAP_STALENESS_DAYS:-14}
   KT_STITCH_STALENESS_DAYS=${KT_STITCH_STALENESS_DAYS:-30}
+  KT_SUBAGENT_CAPTURE=${KT_SUBAGENT_CAPTURE:-true}
+  KT_SUBAGENT_CAPTURE_TYPES=${KT_SUBAGENT_CAPTURE_TYPES:-general-purpose,Plan,feature-dev:code-architect,feature-dev:code-explorer,feature-dev:code-reviewer}
+  KT_SUBAGENT_SELFREPORT_TYPES=${KT_SUBAGENT_SELFREPORT_TYPES:-Explore}
+  KT_SESSION_STATE=${KT_SESSION_STATE:-false}
+  KT_AUTO_PROSPECT=${KT_AUTO_PROSPECT:-off}
+  KT_AUTO_RETROSPECT=${KT_AUTO_RETROSPECT:-off}
+  KT_RETROSPECT_MIN_COMMITS=${KT_RETROSPECT_MIN_COMMITS:-3}
+  KT_RETROSPECT_BRANCHES=${KT_RETROSPECT_BRANCHES:-main,master,production}
+  KT_RETROSPECT_BRANCHES=$(printf '%s' "$KT_RETROSPECT_BRANCHES" | tr -d ' ')
+  KT_USAGE_ALERT_THRESHOLD=${KT_USAGE_ALERT_THRESHOLD:-80}
+  case "$KT_USAGE_ALERT_THRESHOLD" in
+    off) ;;
+    ''|*[!0-9]*) KT_USAGE_ALERT_THRESHOLD=80 ;;
+    *) if [ "$KT_USAGE_ALERT_THRESHOLD" -lt 1 ] || [ "$KT_USAGE_ALERT_THRESHOLD" -gt 100 ]; then KT_USAGE_ALERT_THRESHOLD=80; fi ;;
+  esac
+  KT_SUBAGENT_CAPTURE_TYPES=$(printf '%s' "$KT_SUBAGENT_CAPTURE_TYPES" | tr -d ' ')
+  KT_SUBAGENT_SELFREPORT_TYPES=$(printf '%s' "$KT_SUBAGENT_SELFREPORT_TYPES" | tr -d ' ')
   # KT_CRITICAL_PATHS intentionally has no default — empty means no critical paths
   # KT_PROJECTS_LIST and KT_PROJECTS_REMOTES intentionally have no defaults — empty means "no projects configured"
 
@@ -90,9 +116,28 @@ if [ -f "$KT_CONFIG" ]; then
     true|false) ;; # valid
     *) KT_AUTO_CAPTURE=true ;;
   esac
+  case "$KT_SUBAGENT_CAPTURE" in
+    true|false) ;; # valid
+    *) KT_SUBAGENT_CAPTURE=true ;;
+  esac
   case "$KT_ACTIVE_SURFACING" in
     true|false) ;; # valid
     *) KT_ACTIVE_SURFACING=true ;;
+  esac
+  case "$KT_SESSION_STATE" in
+    true|false) ;; # valid
+    *) KT_SESSION_STATE=false ;;
+  esac
+  case "$KT_AUTO_PROSPECT" in
+    off|nudge|run) ;; # valid
+    *) KT_AUTO_PROSPECT=off ;;
+  esac
+  case "$KT_AUTO_RETROSPECT" in
+    off|nudge|run) ;; # valid
+    *) KT_AUTO_RETROSPECT=off ;;
+  esac
+  case "$KT_RETROSPECT_MIN_COMMITS" in
+    ''|*[!0-9]*) KT_RETROSPECT_MIN_COMMITS=3 ;;
   esac
   case "$KT_PROJECTS_ENABLED" in
     true|false) ;; # valid

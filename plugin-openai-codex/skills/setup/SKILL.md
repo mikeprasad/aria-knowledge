@@ -52,7 +52,7 @@ If **(b) create new:**
 
 Read the expected structure from `${ARIA_PLUGIN_ROOT}/template/`.
 
-**Expected directories:** `intake/`, `intake/notes/`, `intake/attachments/`, `intake/clippings/`, `intake/pre-compact-captures/`, `intake/ideas/`, `logs/`, `rules/`, `approaches/`, `decisions/`, `guides/`, `references/`, `archive/`
+**Expected directories:** `intake/`, `intake/notes/`, `intake/attachments/`, `intake/clippings/`, `intake/pre-compact-captures/`, `intake/subagent-captures/`, `intake/ideas/`, `logs/`, `rules/`, `approaches/`, `decisions/`, `guides/`, `references/`, `archive/`
 
 **Expected files:** `README.md`, `OVERVIEW.md`, `LOCAL.md`, `aliases.md`, `intake/insights-backlog.md`, `intake/decisions-backlog.md`, `intake/extraction-backlog.md`, `intake/rules-backlog.md`, `intake/ideas/README.md`, `logs/knowledge-audit-log.md`, `logs/config-audit-log.md`, `rules/working-rules.md`, `rules/user-rules.md`, `rules/user-examples.md`, `rules/change-decision-framework.md`, `rules/enforcement-mechanisms.md`, `guides/README.md`, `approaches/README.md`, `decisions/README.md`, `references/README.md`, `archive/README.md`
 
@@ -170,7 +170,12 @@ The summary line precedes the bundle text. If the user later questions "did the 
 > - **Staleness threshold:** 6 months (flag knowledge files not updated within this period)
 > - **Ideas staleness threshold:** 7 days (during `/audit-knowledge`, mark idea files in `intake/ideas/` older than this with `[STALE — still relevant?]` to prompt Accept/Reject/Defer decisions)
 > - **Auto-capture on compaction:** true (save transcript snapshot before context compaction)
-> - **Active knowledge surfacing:** true (when enabled, four hooks — SessionStart, TaskCreated, PreToolUse:Bash with cd, PostCompact — and two skills — /prospect, /retrospect — auto-load context at trigger moments. **Two kinds of context get surfaced (v2.16.1 expansion):** (a) **knowledge files** matched by tag against the user's task/cd-target/skill-input, and (b) **tracked artifacts** — CODEMAP directory + STITCH for the detected project (boundary-detected; not the full CODEMAP). Both surface with staleness annotations against `codemap_staleness_threshold_days` (default 14) and `stitch_staleness_threshold_days` (default 30); grossly-stale artifacts (>2× threshold) refuse to load with a warning. Companion surfaces — /audit-config, /stats, /handoff, /wrapup — also gate their tracked-artifact surfacing on this flag. Set to `false` for passive mode where hooks only suggest `/context <tag>` and all proactive artifact loading is suppressed (users load manually via /context). Active mode honors a session-scoped dedup ledger at `/tmp/aria-active-{session_id}` so the same file/artifact isn't re-Read across triggers. See CONFIG.md for the trigger sites and the ≥2-tag-match threshold + 5-file cap policy.)
+> - **Active knowledge surfacing:** true (when enabled, Codex surfaces context through SessionStart, shell `cd`, PostCompact, and the /prospect and /retrospect skills. **Two kinds of context get surfaced (v2.16.1 expansion):** (a) **knowledge files** matched by tag against the user's task/cd-target/skill-input, and (b) **tracked artifacts** — CODEMAP directory + STITCH for the detected project (boundary-detected; not the full CODEMAP). Both surface with staleness annotations against `codemap_staleness_threshold_days` (default 14) and `stitch_staleness_threshold_days` (default 30); grossly-stale artifacts (>2× threshold) refuse to load with a warning. Companion surfaces — /audit-config, /stats, /handoff, /wrapup — also gate their tracked-artifact surfacing on this flag. Set to `false` for passive mode where hooks only suggest `/context <tag>` and all proactive artifact loading is suppressed (users load manually via /context). Active mode honors a session-scoped dedup ledger at `/tmp/aria-active-{session_id}` so the same file/artifact isn't re-Read across triggers. See CONFIG.md for the trigger sites and the ≥2-tag-match threshold + 5-file cap policy.)
+> - **Subagent capture:** true (Codex `SubagentStop` archives configured heavyweight subagent transcripts to `intake/subagent-captures/`; `SubagentStart` asks configured routine subagents to surface durable findings in their final message. Change the type lists by editing `subagent_capture_types` and `subagent_selfreport_types` directly.)
+> - **Session state file (`SESSION.md`):** false (when on, aria-knowledge writes a per-project `SESSION.md` — `in-progress` on the first `apply_patch` edit, `wrapup`/`handoff` at close — and offers to resume from it at session start; enables re-entry + the aria-atlas status board. Files are created at project roots only when on.)
+> - **Auto-prospect (`auto_prospect`):** off (when `nudge`, writing a plan to `docs/plans/` or `docs/superpowers/plans/` prompts an offer to run `/prospect file <path>`; when `run`, it runs inline. `docs/specs/` is intentionally not a trigger.)
+> - **Auto-retrospect (`auto_retrospect`):** off (when `nudge` [recommended], a `git push` of ≥`retrospect_min_commits` commits to a branch in `retrospect_branches` prompts an offer to run `/retrospect range <old>..<new>`; `run` runs it inline. Gates: `retrospect_min_commits` default 3, `retrospect_branches` default `main,master,production`.)
+> - **Usage alert threshold (`usage_alert_threshold`):** 80 (shared config field for the Claude Code statusline meter. Codex currently has no status-line or hook payload carrying context/rate-limit percentages, so this field is preserved but ignored by the Codex port. Set `off` if you do not want the Claude Code meter's alert hook active when using the same config there.)
 > - **Critical paths:** (empty) comma-separated path patterns that always require HIGH impact assessment (e.g., auth/*,payments/*,migrations/*)
 > - **Ticketing plugins:** (empty) comma-separated `tag:plugin-command` pairs mapping a project tag to its ticket-drafting plugin (e.g., `proj-a:foo-ticket,proj-b:bar-ticket`). When set, `/audit-knowledge` prints a hint to use that plugin's command when an idea's project matches a mapped tag during the `Accept → tracker` disposition. Hint only — never auto-invokes. Leave empty if you don't use a ticketing plugin or prefer to copy ideas into your tracker manually. Plugin commands are bare names — no leading `/`. Validate input: each pair must contain exactly one `:` separating tag from command; project tags cannot contain `:` or `,`; plugin commands cannot start with `/` (strip leading `/` and warn if found).
 > - **Project-specific knowledge tier:** disabled (creates `projects/{tag}/` subdirectories for project-specific decisions and patterns; opt in if you want to organize knowledge by project alongside the cross-project tree. If enabled, you'll be asked an inline follow-up about auto-loading project context on session start.)
@@ -266,6 +271,15 @@ staleness_threshold_months: [value from Step 6, default 6]
 ideas_staleness_threshold_days: [value from Step 6, default 7]
 auto_capture: [true/false from Step 6, default true]
 active_knowledge_surfacing: [true/false from Step 6, default true]
+subagent_capture: [true/false from Step 6, default true]
+subagent_capture_types: [comma-list, default general-purpose,Plan,feature-dev:code-architect,feature-dev:code-explorer,feature-dev:code-reviewer]
+subagent_selfreport_types: [comma-list, default Explore]
+session_state: [true/false from Step 6, default false]
+auto_prospect: [off/nudge/run, default off]
+auto_retrospect: [off/nudge/run, default off]
+retrospect_min_commits: [integer, default 3]
+retrospect_branches: [comma-list, default main,master,production]
+usage_alert_threshold: [value from Step 6, default 80; or `off` for shared-config Claude Code statusline alerts]
 critical_paths: [comma-separated patterns from Step 6, default empty]
 ticketing_plugins: [comma-separated tag:plugin-command pairs from Step 6, default empty]
 projects_enabled: [true/false from Step 6, default false]
@@ -297,12 +311,15 @@ In **update mode:** preserve any user-added content in the markdown body below t
 - `knowledge_folder` must be an absolute path (starts with `/`) and must not contain `..`
 - Cadence values must be plain integers (no units, no quotes)
 - `projects_enabled` must be exactly `true` or `false` (not `True`, `yes`, `1`, etc.)
+- `subagent_capture` and `session_state` must be exactly `true` or `false`
+- `auto_prospect` and `auto_retrospect` must be exactly `off`, `nudge`, or `run`
+- `usage_alert_threshold` must be `off` or an integer from 1 to 100. Codex preserves this shared-config field but does not consume it.
 - `projects_shared_knowledge` is a comma-separated tag list (e.g., `cs,ss`) — empty/missing = feature disabled. Each tag must already exist in `projects_list`. No spaces around commas. Tags cannot contain `:` or `,` (same as `projects_list`). A legacy literal `true` value is treated as empty (triggers `/setup` to repopulate the list properly). Requires `projects_enabled: true` to take effect.
 - `author_tag` is a 1-12 char string of alphanumerics + hyphens (used in shared-knowledge filenames); leave empty if `projects_shared_knowledge` is empty
 - `projects_list`, `projects_remotes`, and `ticketing_plugins`: comma-separated `tag:value` pairs, no spaces around the colon or comma (e.g., `proj-a:path/to/proj-a,proj-b:proj-b` for paths; `proj-a:foo-ticket,proj-b:bar-ticket` for plugin commands)
 - Project tags (used in `projects_list`, `projects_remotes`, `ticketing_plugins`) cannot contain colons or commas (the parser splits on these)
 - `ticketing_plugins` plugin-command values are bare command names without the leading `/` (e.g., `foo-ticket`, not `/foo-ticket`) — `/audit-knowledge` prepends the slash when printing the hint
-- `last_setup_version` is a semver string read from `${ARIA_PLUGIN_ROOT}/.codex-plugin/plugin.json` at Step 1 — write it as bare digits-and-dots plus any Codex prerelease suffix (e.g., `2.20.2-codex.0`), not quoted, not prefixed with `v`. The session-start hook compares this against the installed plugin version to detect upgrades since the user's last `/setup`
+- `last_setup_version` is a semver string read from `${ARIA_PLUGIN_ROOT}/.codex-plugin/plugin.json` at Step 1 — write it as bare digits-and-dots plus any Codex prerelease suffix (e.g., `2.24.2-codex.0`), not quoted, not prefixed with `v`. The session-start hook compares this against the installed plugin version to detect upgrades since the user's last `/setup`
 - `projects_promotion_threshold` must be a plain integer ≥ 1 (no units, no quotes)
 - `auto_load_project_context` must be exactly `true` or `false` (not `True`, `yes`, `1`, etc.)
 - No blank lines between frontmatter entries
@@ -328,6 +345,13 @@ After writing the config file, read it back and verify that each value can be ex
    - `ideas_staleness_threshold_days` — confirm it's the integer from Step 6
    - `auto_capture` — confirm it's `true` or `false`
    - `active_knowledge_surfacing` — confirm it's `true` or `false`
+   - `subagent_capture` — confirm it's `true` or `false`
+   - `subagent_capture_types` / `subagent_selfreport_types` — confirm each is a comma-separated string (or default)
+   - `session_state` — confirm it's `true` or `false`
+   - `auto_prospect` / `auto_retrospect` — confirm each is `off`, `nudge`, or `run`
+   - `retrospect_min_commits` — confirm it's a plain integer ≥ 1
+   - `retrospect_branches` — confirm it's a comma-separated branch-name string (or empty = any branch)
+   - `usage_alert_threshold` — confirm it's `off` or a plain integer in 1–100 (shared-config Claude Code field; Codex ignores it)
    - `critical_paths` — confirm it's a comma-separated string of path patterns (or empty)
    - `ticketing_plugins` — confirm it's a comma-separated string of `tag:plugin-command` pairs (or empty); validate no project tag contains `:` or `,`; validate plugin-command values do not start with `/`
    - `last_setup_version` — confirm it matches `INSTALLED_VERSION` captured in Step 1 (this run's plugin version); validate it's a semver-shaped string of digits and dots (no `v` prefix, no quotes, no trailing whitespace). If it's missing or doesn't match, rewrite the line and re-verify
