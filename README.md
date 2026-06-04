@@ -85,7 +85,7 @@ Convert raw capture into reviewable candidates.
 
 Move reviewed knowledge into the trusted layer.
 
-- `/promote` — Promote a backlog entry into the indexed knowledge base.
+- `/audit-knowledge` (alias `/knowledge-audit`) — Review staged backlog entries and promote the ones worth trusting into the indexed knowledge base. Promotion happens *inside* the audit — there is no standalone `/promote` command.
 - Organize by tag, project tier, and cross-project patterns.
 - Optional project-specific tier (v2.8.0+) for architecture decisions and patterns.
 
