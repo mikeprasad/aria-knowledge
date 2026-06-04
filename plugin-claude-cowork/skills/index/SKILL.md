@@ -120,6 +120,20 @@ For each user-confirmed normalization, edit the source files to update their `ta
 
 Identify freeform tags (not in Known Tags) that appear on `freeform_promotion_threshold` or more files.
 
+**Exclude ephemeral tags before applying the threshold.** Session/phase/plan stamps recur across many files (so they hit the threshold) but are NOT durable concepts and should never become Known Tags. Drop any candidate whose **whole tag** matches one of these patterns (case-insensitive) before counting:
+
+- `^s\d+$` — session stamps (`s4`, `s60`, `s82`)
+- `^p-?\d+$` — plan / work-item ids (`p-23`, `p23`)
+- `^phase-?\d+$` — phase stamps (`phase-3`, `phase3`)
+- `^plan-\d+[a-z]?$` — plan ids (`plan-01a`)
+- literal denylist: `future-session-plan`, `soft-launch`
+
+This suppresses AUTO-promotion suggestions only — **not a hard ban** (a user can still hand-add any of these to Known Tags, and a Known tag never re-enters the freeform pool). Because a pattern could occasionally match a real concept, **surface the skipped set** (not silent) so a false-positive can be rescued:
+
+```
+Skipped N ephemeral tag(s) from promotion (session/phase/plan stamps): s82, s75, phase-3, … — hand-add to Known Tags if any is actually a durable concept.
+```
+
 ```
 ## Freeform Tag Promotions
 

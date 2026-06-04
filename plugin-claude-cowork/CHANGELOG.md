@@ -4,6 +4,27 @@ All notable changes to aria-cowork are documented here. Format follows [Keep a C
 
 Cross-plugin parity callouts (per ADR-006) note when changes coordinate with aria-knowledge releases.
 
+## [1.1.5] — 2026-06-04
+
+**Patch release — skill-logic parity catch-up with aria-knowledge.** Two pure skill-content fixes ported from the canonical Code port; no schema, MCP, or manifest-shape changes. Hook/Bash/CLI-dependent canonical features since v1.1.4 (subagent capture, SESSION.md producer, auto-prospect/retrospect, the `/statusline` meter) are **not** ported — Cowork is skills-only with no hooks API and no CLI status line.
+
+### Added — `/aria-cowork:index` Step 4 ephemeral-tag exclusion (parity with aria-knowledge v2.22.3)
+
+- Step 4 now drops ephemeral candidates before applying the freeform-promotion threshold: session stamps (`^s\d+$`), work-item ids (`^p-?\d+$`), phase stamps (`^phase-?\d+$`), plan ids (`^plan-\d+[a-z]?$`), plus a literal denylist (`future-session-plan`, `soft-launch`). Session/phase/plan stamps recur across many files (so they hit the threshold) but are not durable concepts and were surfacing as promotion noise.
+- Suppresses AUTO-promotion only — not a hard ban (hand-add still works; a Known tag never re-enters the freeform pool). The skipped set is surfaced (not silent) so a false-positive can be rescued.
+
+### Fixed — `/aria-cowork:wrapup` description no longer trips the skill picker (parity with aria-knowledge v2.21.0)
+
+- The `/aria-cowork:wrapup` description named `"/aria-cowork:handoff"` as the alternative, so the picker (which matches on description) surfaced `/wrapup` when the user typed `/aria-cowork:handoff`. Reworded to keep the "not for passoff" anti-trigger without naming the skill.
+
+### Coordinated release pairing
+
+- Parity with **aria-knowledge v2.21.0** (`/wrapup` picker) and **v2.22.3** (`/index` ephemeral exclusion). The v2.24.1 `/statusline` refinements that prompted this sync pass are Code-only and have no Cowork surface.
+
+## [1.1.4] — 2026-05-29
+
+**Patch release — Opus 4.8 readiness, coordinated with aria-knowledge v2.20.3.** `template/rules/working-rules.md` `Why`-clause model references de-versioned (a bare family name denotes the latest model, so the rule text never goes stale on a model release), mirroring plugin-claude-code. Cowork is skills-only, so aria-knowledge v2.20.3's hook-hardening changes do not apply here. No new skills, no schema changes, no MCP changes. (Backfilled 2026-06-04 — the version shipped in `plugin.json` ahead of this entry.)
+
 ## [1.1.3] — 2026-05-25
 
 **Patch release — wrapup/handoff spec fixes coordinated with aria-knowledge v2.20.2.** No new skills, no schema changes, no MCP changes. Two latent bugs in `/aria-cowork:wrapup` + `/aria-cowork:handoff` skill bodies — latent since v1.1.0 (2026-05-19) intent split.
