@@ -267,6 +267,80 @@ ARIA is for developers and teams using AI coding tools who want:
 
 It is especially useful when AI is not just answering questions but actively shaping code, architecture, tasks, and product decisions.
 
+## Feature Map
+
+Everything ARIA ships, organized by the four problems it solves — plus the operational layer that keeps the system itself healthy. **Skills** are slash commands you invoke; **hooks** run automatically in the background (Claude Code only — other ports vary); **features** are config-gated behaviors. Aliases are noted inline. MCP-consuming skills are marked `(MCP)` and degrade gracefully when no connector is present.
+
+### Agent Memory — persistent capture across sessions and tools
+
+| Capability | Type | What it does |
+|------------|------|--------------|
+| `/extract` | Skill | Scan the conversation for uncaptured insights, decisions, feedback, references, and ideas; deduplicate against existing entries. |
+| `/clip` | Skill | Quick-save a URL or text snippet to intake without leaving the session. |
+| `/clip-thread` `(MCP)` | Skill | Capture a Slack / Teams / Gmail / MS365 thread with per-message structure, reactions, and attachment notes. |
+| `/intake` (+ `/intake doc`) | Skill | Bulk import from files, directories, or URLs with preview; `doc` mode captures one structured artifact per page. |
+| `/extract-doc` `(MCP)` | Skill | Pull insights from a single Notion / Confluence / Google Doc / Box / Egnyte page. |
+| `/meeting-notes` `(MCP)` | Skill | Fold a meeting transcript or notes into structured intake (paste-text fallback works without an MCP). |
+| `/ask` | Skill | Research a question, check existing knowledge first, save the answer as a knowledge doc. |
+| `/backlog` | Skill | View and manage pending intake items across the four backlogs. |
+| `/snapshot` | Skill | Save the current session transcript to `intake/pre-compact-captures/` on demand. |
+| PreCompact hook | Hook | Save a transcript snapshot before context compaction erases it. |
+| PostCompact hook | Hook | Prompt to review the captured snapshot after compaction. |
+| SubagentStop capture | Hook | Archive heavyweight subagent transcripts to `intake/subagent-captures/` (sticky retention). |
+| SubagentStart self-report | Hook | Nudge routine subagents to self-report capturable knowledge. |
+| Ideas Lifecycle | Feature | One file per idea in `intake/ideas/`; stale-first surfacing; seven-destination accept submenu (v2.12+). |
+| `auto_capture` toggle | Feature | Master gate for all automatic capture behaviors. |
+
+### Context Engineering — load the right knowledge before action
+
+| Capability | Type | What it does |
+|------------|------|--------------|
+| `/context [tags]` | Skill | Load relevant knowledge files into the session by topic (AND/OR, project expansion). |
+| `/rules [number]` | Skill | Surface working rules that apply to the current task, by number or keyword. |
+| `/index` | Skill | Rebuild the tag-based knowledge index with cross-references — the retrieval substrate `/context` reads. |
+| `/codemap [mode]` | Skill | Feature-organized `CODEMAP.md` for any repo; traces routes → hooks → state → views → models → integrations. Modes: create / inventory / update / section. |
+| `/stitch <mode> <group>` | Skill | Cross-repo binding artifact for a product group (auth, endpoints, entities, integrations, drift log). |
+| TaskCreated hook | Hook | Surface matching knowledge files when a task is created (tag-index match). |
+| PreToolUse (Glob/Grep) hook | Hook | Remind to read `CODEMAP.md` before exploring a codebase directly; fires once per project per session. |
+| Shared Knowledge Tier | Feature | Per-repo `_project-knowledge/` folders so teammates discover team-promoted knowledge (v2.13+). |
+
+### Planning & Reasoning — continuity for long-horizon work
+
+| Capability | Type | What it does |
+|------------|------|--------------|
+| `/distill [text or path]` | Skill | Turn raw ticket text into an executable task spec (`TASK.schema.md`); auto-tiers micro / standard / full; `--group` loads CODEMAP + STITCH for cited-path specs. |
+| `/prospect` | Skill | Forward-looking pre-mortem on a plan before execution. Per-step verdicts: PROCEED / SHRINK / SPLIT / DEFER / KILL. Saved to `logs/prospect/`. |
+| `/retrospect` | Skill | Structured retrospective on a commit range, PR, release, or session; per-fix validation, simpler-alternative discipline, failure-mode pattern check. Saved to `logs/retrospect/`. |
+| `/handoff [auto\|brief]` | Skill | Express session handoff with the same coverage as `/wrapup`; always emits a paste-ready next-session opener (`brief` produces a coworker prose brief instead). |
+| `/wrapup [auto]` | Skill | End-of-session closeout — update PROGRESS / CLAUDE.md, prompt for commit, capture knowledge, verify continuity. No passoff opener. |
+| `/digest` `(MCP)` | Skill | Cross-tool rollup of what's pending / shipped / blocked across chat, email, project tracker, and docs. |
+| auto-prospect hook | Hook | Offer/run `/prospect file <path>` when a plan is written to a plans folder (opt-in, default off). |
+| auto-retrospect hook | Hook | Offer/run `/retrospect range <old>..<new>` on a qualifying `git push` (opt-in, default off). |
+| SESSION.md producer | Feature | `/wrapup` + `/handoff` write a per-project `SESSION.md` across an in-progress / handoff / wrapup lifecycle (gated on `session_state`). |
+
+### Human-in-the-Loop Governance — review, promote, audit, trust
+
+| Capability | Type | What it does |
+|------------|------|--------------|
+| `/audit-knowledge` (alias `/knowledge-audit`) | Skill | Review backlogs, **promote** reviewed candidates into the indexed knowledge base, rebuild the index. |
+| `/audit-config` (alias `/config-audit`) | Skill | Check project configs and CLAUDE.md files for drift, staleness, and broken references. |
+| `/audit-share` (alias `/share-audit`) | Skill | Batch-review personal knowledge for promotion to per-repo team-shared knowledge; sanitization warn-prompt before public-repo writes. |
+| `/sync-decisions` `(MCP)` | Skill | Mirror approved decisions out to a connected docs MCP (write-side; Rule 22 advisory preamble + per-write go-gate). |
+| Rule 22 enforcement | Hook | Pre-edit + post-edit change-decision framework — visible impact assessment and scope verification before and after every file edit. |
+| Govern phase (backlog gate) | Feature | Nothing enters the trusted layer automatically; human review is the gate between capture and promotion, with provenance preserved. |
+| Audit cadences | Feature | SessionStart hook prompts when `/audit-knowledge` or `/audit-config` is due; staleness thresholds force review of aging entries. |
+
+### Setup, Health & Observability — keeping the system itself healthy
+
+| Capability | Type | What it does |
+|------------|------|--------------|
+| `/setup` | Skill | Create or validate the knowledge folder, check dependencies, set audit cadences, write config. |
+| `/stats` | Skill | Knowledge-base health dashboard — file counts, backlog depth, audit status, codemap dates, tag stats, coverage gaps. |
+| `/statusline [on\|off\|status]` | Skill | Install/remove the CLI status-line meter — context-window bar + 5h/7d plan-usage % (Claude Code only). |
+| `/help` | Skill | The command reference with per-skill model recommendations. |
+| statusline meter | Hook | Renders model · context bar · 5h · 7d usage; persists per-account usage state for threshold alerts. |
+| usage-threshold alert | Hook | Inject a usage warning when plan usage crosses `usage_alert_threshold` (default 80; per-account scoped). |
+
 ## Philosophy
 
 ARIA takes the position that **the LLM captures, the human promotes, trusted knowledge acts.** AI is excellent at noticing and structuring knowledge during sessions. Deciding what is load-bearing versus noise requires human judgment. And once trusted, that knowledge is most useful when it actively shapes the next decision — through context loading, rules surfacing, codebase mapping, task distillation, and Rule 22 edit-time discipline.
@@ -313,4 +387,4 @@ Install ARIA, run `/setup`, work normally. Rule 22 is active immediately. Run `/
 
 ---
 
-*Last reviewed: 2026-05-27 — current as of plugin-claude-code v2.20.2 / plugin-claude-cowork v1.1.3 / plugin-cursor-template 2.20.2-cursor.0.*
+*Last reviewed: 2026-06-05 — current as of plugin-claude-code v2.24.2 / plugin-claude-cowork v1.1.5 / plugin-openai-codex 2.24.2-codex.0 / plugin-antigravity 2.24.2 / plugin-cursor-template 2.24.2-cursor.0 (all ports at 2.24.2 parity).*
