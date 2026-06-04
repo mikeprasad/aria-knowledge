@@ -32,7 +32,12 @@ mkdir -p "$(dirname "$LOG_FILE")" 2>/dev/null || true
 if [ -x "$CANONICAL" ]; then
   {
     echo "--- $(date -u '+%Y-%m-%dT%H:%M:%SZ') stepIdx=$ARIA_STEP_IDX error=${ERROR_FIELD:-none}"
-    "$CANONICAL" 2>&1
+    jq -cn \
+      --arg fp "$ARIA_TOOL_TARGET_FILE" \
+      --arg sid "$ARIA_CONVERSATION_ID" \
+      --arg tp "$ARIA_TRANSCRIPT_PATH" \
+      --arg err "$ERROR_FIELD" \
+      '{file_path: $fp, session_id: $sid, transcript_path: $tp, error: $err}' | "$CANONICAL" 2>&1
   } >> "$LOG_FILE" || true
 fi
 

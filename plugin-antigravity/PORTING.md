@@ -95,29 +95,33 @@ All 5 ship at full strength in this port:
 
 ## Pending sync items
 
-_(none as of v2.19.2 — initial Antigravity port)_
-
-When canonical drifts, add one line per item: `[date] [skill or file]: [description of drift]`.
+_(none as of v2.24.1 — synced to canonical v2.24.1)_
 
 ---
 
 ## Known drift
 
-_(none as of v2.20 — Phase D port-aware rewrites complete.)_
-
-Three skills carry port-specific overlays at `overlays/skills/<name>/SKILL.md` that replace the canonical-derived bodies after `build.sh` runs:
-
 - `skills/snapshot/SKILL.md` — reads cached `transcriptPath` instead of grep-walking `~/.claude/projects/`
-- `skills/audit-knowledge/SKILL.md` — scans cached transcript + artifact-directory paths instead of Claude Code's memory + plans dirs
-- `skills/audit-config/SKILL.md` — audits Antigravity surfaces (hooks.json, mcp_config.json, GEMINI.md, .agents/rules/, ARIA local config) instead of Claude Code's `.claude/settings.local.json`
-
-Drift between canonical and overlay is detected via `diff plugin-claude-code/skills/<name>/SKILL.md plugin-antigravity/overlays/skills/<name>/SKILL.md`. When canonical evolves, the overlay needs a corresponding hand-update.
+- `skills/audit-knowledge/SKILL.md` — scans cached transcript + artifact-directory paths instead of Claude Code's memory + plans dirs. Steps updated for `Step 2e` Subagent Captures directory check.
+- `skills/audit-config/SKILL.md` — audits Antigravity surfaces (hooks.json, mcp_config.json, GEMINI.md, .agents/rules/, ARIA local config) instead of Claude Code's `.claude/settings.local.json`. Updated to check for the new prospect and retrospect wrappers.
 
 ---
 
-## v2.20 closure summary
+## Platform Gaps
 
-Initial port (v2.19.2) shipped 18 plan tasks across the manifest, hook layer, MCP config, GEMINI.md, 30 skills, knowledge folder template, build script, probe-hook, and docs. The v2.20 arc closed every documented Known Drift item plus surfaced 5 schema-level findings from a primary-source verification pass against `~/Projects/knowledge/intake/clippings/Google Antigravity Documentation{,1-4}.md`.
+- **Subagent Hooks (`SubagentStart`, `SubagentStop`):** Antigravity lacks subagent lifecycle hooks. Automated capture of subagent knowledge during subagent runs is not supported natively. As a workaround, the files under `intake/subagent-captures/` can still be audited and extracted manually using `/audit-knowledge` (Step 2e), but automatic hook-driven capture is a platform gap.
+- **Statusline and Prompt Submission Hooks:** Claude Code-only hooks/scripts (`/statusline`, `UserPromptSubmit` hooks) are skipped entirely as they have no Antigravity-equivalent surfaces.
+- **PostToolUse context injection:** Antigravity's `PostToolUse` hooks return `{}` and cannot inject context (like nudges/reminders) directly. This port handles `auto_prospect` and `auto_retrospect` via wrappers (`post-plan-prospect-aria.sh` and `post-push-retrospect-aria.sh`) that log findings to `~/.gemini/antigravity/aria-knowledge-scope-check.log`. The `pre-invocation-aria.sh` hook then drains this log and injects the context as an `ephemeralMessage` on the next turn.
+
+---
+
+## Version history
+
+| Port version | Canonical synced from | Date | Notes |
+|---|---|---|---|
+| 2.19.2 | `plugin-claude-code/` @ v2.19.2 | 2026-05-24 | Initial Antigravity port. |
+| 2.20.0 | `plugin-claude-code/` @ v2.19.2 | 2026-05-24 | Primary-source verification pass closed all Known Drift items + restored 3 behavioral parities via new PreInvocation hook + introduced overlay pattern for 3 misfitting skills + version.txt sidecar. |
+| 2.24.2 | `plugin-claude-code/` @ v2.24.2 | 2026-06-04 | Sync to canonical v2.24.2. Sourced canonical v2.24.2 (version bump/no statusline). Implemented wrapper scripts for plan prospecting and push retrospection. Configured `post-edit-aria.sh` wrapper to pass JSON input (`file_path`, `session_id`, `transcript_path`). Synced pre-invocation session start message and resolved subagent captures in setup and audit-knowledge overlays. |
 
 ### v2.20 commits
 
@@ -135,12 +139,3 @@ Initial port (v2.19.2) shipped 18 plan tasks across the manifest, hook layer, MC
 - **Workflows surface** — ship `.agents/workflows/<command>.md` for the ~10 most-used user-invoked commands (`/setup`, `/handoff`, `/wrapup`, `/extract`, `/context`, `/snapshot`, `/audit-knowledge`, `/audit-config`, `/help`, `/stats`) to enable true slash-command invocation. Skills' description-activation works for now but requires the agent to recognize intent rather than the user typing the command directly.
 - **Plugin-bundled rules** — per docs/plugins, plugins can ship a `rules/` subdirectory. ARIA's `template/rules/working-rules.md` could ALSO live at `plugin-antigravity/rules/working-rules.md` for Antigravity's "Always On" rule-activation mode. Optional convenience.
 - **Probe-hook empirical closure** — OQ-1/2/3 (env var availability, CWD assumption, jq path) still gated on a real Antigravity install. First-session probe at `~/aria-antigravity-probe.log` resolves all three on first use; smoke test in `SMOKE-TEST.md`.
-
----
-
-## Version history
-
-| Port version | Canonical synced from | Date | Notes |
-|---|---|---|---|
-| 2.19.2 | `plugin-claude-code/` @ v2.19.2 | 2026-05-24 | Initial Antigravity port. Prior draft (`plugin-antigravity.archive-2026-05-24-draft/`) was built on incorrect contract assumptions; this is the verified rebuild. |
-| 2.20.0 | `plugin-claude-code/` @ v2.19.2 | 2026-05-24 | Primary-source verification pass closed all Known Drift items + restored 3 behavioral parities via new PreInvocation hook + introduced overlay pattern for 3 misfitting skills + version.txt sidecar. 6 commits 8acc86a..cafe2bc. |

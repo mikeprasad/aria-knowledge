@@ -33,6 +33,7 @@ Print the command reference table. No config or file access needed.
 | /wrapup | End-of-session handoff — update PROGRESS/CLAUDE.md, prompt for commit, verify continuity |
 | /handoff [auto\|brief] | Express handoff — same coverage as /wrapup, one combined-go review (or `auto` for silent), always emits a paste-ready next-session opener. `brief` mode produces a copy/paste coworker brief (Hey [coworker]-style prose, 80-150 words) instead of next-session opener — no PROGRESS/CLAUDE/memory/commit/extract side effects |
 | /snapshot | Save the current session transcript to intake/pre-compact-captures/ on demand |
+| /statusline [on\|off\|status] | Install/remove the CLI status-line meter — context-window bar + 5h/7d plan-usage % (Claude Code only) |
 | /help | This command reference |
 
 Run /setup to configure. See QUICKSTART.md for a walkthrough of your first 3 sessions.
@@ -43,16 +44,18 @@ These are recommendations only — ARIA does not force a model. Switch per sessi
 
 | Skill | Recommended Model | Why |
 |-------|-------------------|-----|
-| /extract | Opus 4.6 (1M context), medium-to-high effort | Judgment-heavy: distinguishing reusable signal from ephemeral noise, writing non-obvious Why/How-to-apply lines. |
-| /audit-knowledge | Opus 4.6 (1M context), medium-to-high effort | Cross-references backlogs against the promoted index, decides promotion vs. discard, detects emerging themes. |
-| /audit-config | Opus 4.6 (1M context), medium-to-high effort | Reads across CLAUDE.md files and configs to detect drift and broken references. |
-| /retrospect | Opus 4.6 (1M context), medium-to-high effort | Multi-stage judgment per fix: validation status assignment, simpler-alternative identification, hypothesis generation, failure-mode pattern matching, action verdict synthesis. Highest leverage from stronger models. |
-| /ask | Opus 4.6 (1M context), medium-to-high effort (ambiguous topics) or Sonnet 4.6 (scoped lookups) | Research + draft + categorize. Drop to Sonnet when the question is narrow. |
-| /codemap create | Opus 4.6 (1M context) minimum | Full-repo traversal needs the large context window so sections aren't truncated mid-generation. |
-| /codemap update, /codemap section, /wrapup, /handoff, /intake, /distill, /stitch | Sonnet 4.6, medium effort | Structured work with clear prescribed output. |
-| /index, /stats, /backlog, /rules, /context, /clip, /snapshot, /help, /setup | Sonnet 4.6, low effort | Mechanical or retrieval-only — higher models add no measurable lift. |
+| /extract | Highest-capability Opus, medium-to-high effort | Judgment-heavy: distinguishing reusable signal from ephemeral noise, writing non-obvious Why/How-to-apply lines. |
+| /audit-knowledge | Highest-capability Opus, medium-to-high effort | Cross-references backlogs against the promoted index, decides promotion vs. discard, detects emerging themes. |
+| /audit-config | Highest-capability Opus, medium-to-high effort | Reads across CLAUDE.md files and configs to detect drift and broken references. |
+| /retrospect | Highest-capability Opus, medium-to-high effort | Multi-stage judgment per fix: validation status assignment, simpler-alternative identification, hypothesis generation, failure-mode pattern matching, action verdict synthesis. Highest leverage from stronger models. |
+| /ask | Highest-capability Opus, medium-to-high effort (ambiguous topics) or Sonnet (mid-tier) for scoped lookups | Research + draft + categorize. Drop to Sonnet when the question is narrow. |
+| /codemap create | Highest-capability Opus (large-context variant preferred) | Full-repo traversal benefits from a large context window so sections aren't truncated mid-generation. |
+| /codemap update, /codemap section, /wrapup, /handoff, /intake, /distill, /stitch | Sonnet (mid-tier), medium effort | Structured work with clear prescribed output. |
+| /index, /stats, /backlog, /rules, /context, /clip, /snapshot, /statusline, /help, /setup | Sonnet (mid-tier), low effort | Mechanical or retrieval-only — higher models add no measurable lift. |
 
-Haiku is not recommended for any ARIA skill — the judgment/cross-reference demands exceed its strengths.
+Always pick the latest release within each tier — ARIA pins capability *tiers*, not version numbers, so this guidance survives model updates.
+
+Any model below Sonnet-equivalent capability is not recommended for any ARIA skill — the judgment/cross-reference demands exceed its strengths.
 
 The honest test: will a stronger model change what ends up in the knowledge base? For `/extract` and `/audit-knowledge`, yes, measurably. For `/index` and `/stats`, no.
 ```

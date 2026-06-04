@@ -47,6 +47,14 @@ if [ "$INVOCATION_NUM" = "0" ]; then
 
 3. **Knowledge surfacing.** If `active_knowledge_surfacing: true` and the user prompt contains project tags or topic keywords, suggest /context <tags> before answering substantively.
 
+4. **Task budget awareness.** If ~/.gemini/antigravity/aria-statusline-state.json exists, READ it to see your current context-window %, 5-hour, and 7-day plan-usage. If it does not exist, watch for strain symptoms (compaction warnings, responses cutting short) and discuss options with the user.
+
+5. **Session state re-entry.** If `session_state` is true in config: identify project root (nearest ancestor with CLAUDE.md/PROGRESS.md) and check for SESSION.md. If a resume prompt exists: if the user said "handoff", run it directly; otherwise offer to resume from it. Note: the "in-progress" mark is written automatically by the PostToolUse hook on your first edit — do not write it here.
+
+6. **Rule 22 ordering.** The Low/High Impact block must appear ABOVE any file edit (write_to_file / replace_file_content / multi_replace_file_content) in the same turn. The hook will fail closed if the marker is missing.
+
+7. **Memory pathway.** Route all findings, notes, and decisions through ARIA (/clip, /extract, /intake, /audit-knowledge) to keep the knowledge tree curated.
+
 Do these checks at most once per session, in your first response.'
   INJECT_STEPS_JSON=$(jq -c --arg msg "$SESSION_START_MSG" '. + [{"ephemeralMessage": $msg}]' <<<"$INJECT_STEPS_JSON")
 fi

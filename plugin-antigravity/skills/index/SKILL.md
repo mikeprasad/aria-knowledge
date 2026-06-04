@@ -167,7 +167,23 @@ If no similar tags found, skip this step silently.
 
 Identify tags that are NOT in the Known Tags set but appear on `{freeform_promotion_threshold}` or more files (default: 3).
 
-**Present suggestions:**
+**Exclude ephemeral tags before applying the threshold.** Session/phase/plan stamps recur across many files (so they hit the threshold) but are NOT durable concepts and should never become canonical Known Tags. Drop any candidate whose **whole tag** matches one of these patterns (case-insensitive) before counting:
+
+- `^s\d+$` — session stamps (`s4`, `s60`, `s82`, `s111`)
+- `^p-?\d+$` — plan / work-item ids (`p-23`, `p23`)
+- `^phase-?\d+$` — phase stamps (`phase-3`, `phase3`)
+- `^plan-\d+[a-z]?$` — plan ids (`plan-01a`)
+- literal denylist: `future-session-plan`, `soft-launch`
+
+This **suppresses AUTO-promotion suggestions only — it is not a hard ban.** A user can still hand-add any of these to Known Tags (Step 9 writes whatever is in the set, and a tag in Known Tags never re-enters the freeform pool). Because a pattern could occasionally match a genuine concept (e.g. a future `s3` meaning AWS S3 — note `s3` is not a session stamp in the current corpus, but `^s\d+$` would match it), the skipped set is **surfaced, not silent**. Emit a one-line note so a false-positive can be rescued:
+
+```
+Skipped N ephemeral tag(s) from promotion (session/phase/plan stamps): s82, s75, phase-3, … — hand-add to Known Tags if any is actually a durable concept.
+```
+
+To make an exclusion permanent for a real concept, hand-add that tag to Known Tags (it then never re-enters the freeform pool). To tune the patterns, edit this list — there is intentionally no config field for it (Rule 13: the hand-add override + this documented list cover the need without a new setting).
+
+**Present suggestions:** (candidates remaining after the ephemeral-exclusion filter)
 
 ```
 ## Freeform Tag Promotion

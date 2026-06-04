@@ -34,7 +34,7 @@ Use agents in parallel to scan these areas:
 ### 2a: Hooks Configuration
 Find `hooks.json` files at workspace `.agents/hooks.json` (if present), global `~/.gemini/config/hooks.json` (if present), and plugin-bundled `~/.gemini/config/plugins/*/hooks.json`. For each:
 - Validate JSON structure (run `jq . <file>` and check exit code)
-- Verify every referenced script command path resolves (e.g., `bash ./bin/antigravity/foo.sh` → does the file exist?)
+- Verify every referenced script command path resolves (e.g., `bash ./bin/antigravity/post-plan-prospect-aria.sh`, `bash ./bin/antigravity/post-push-retrospect-aria.sh` → do the files exist?)
 - Check matchers against the documented Antigravity tool vocabulary (`write_to_file`, `replace_file_content`, `multi_replace_file_content`, `grep_search`, `find_by_name`, `run_command`, `view_file`, etc.). Flag any matchers using Claude Code tool names (`Edit`, `Write`, `Glob`, `Grep`, `Bash`, `Read`) — those are non-functional in Antigravity.
 - Verify timeouts are reasonable (default per docs is 30s; flag any 5s or lower as overly tight).
 

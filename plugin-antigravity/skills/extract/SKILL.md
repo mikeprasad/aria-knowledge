@@ -87,6 +87,22 @@ Review the conversation and categorize findings into six buckets. The first five
 - **Classification signal:** phrases like "should", "could be", "missing handling for", "UX gap", "would help if", "this is broken" typically indicate an idea rather than an observation
 - **Soft routing:** classification is a suggestion, not a hard rule. An item can legitimately be both observation and proposal — if so, put the observation in its appropriate bucket (insights/decisions/etc.) AND a separate file in `intake/ideas/` covering just the proposal. The audit step can refine routing if needed.
 
+## Step 2.5: Sweep Subagent Captures
+
+Scan `{knowledge_folder}/intake/subagent-captures/` for **all** pending `.md` captures (transcripts archived by the `SubagentStop` hook from heavyweight subagents). If the directory is absent or empty, skip silently to Step 3.
+
+> **Why sweep all, not just this session's:** a skill does not receive the runtime `session_id`, so `/extract` cannot reliably match captures to "the current session" by their `{parent-session-8}` filename prefix (`save-transcript.sh` documents this same limitation). The prefix stays useful for provenance/audit, but it is not a skill-side filter. Sweeping all pending captures is safe — they are sticky and governed regardless of origin, and each is ledger-cleared once folded in, so nothing is double-processed.
+
+For each capture, digest it for cheap review:
+
+```
+bash ${CLAUDE_PLUGIN_ROOT}/bin/digest-transcript.sh "{capture_path}" "/tmp/aria-digest-{filename}"
+```
+
+Fold any findings from the digest into the SAME six buckets from Step 2 (insights, decisions, feedback, project context, references, ideas). They then flow through Step 3 (dedup) and Step 4 (append) with the conversation's own findings.
+
+**Ledger-clear after Step 4:** once a capture's findings have been appended to a backlog, create `{knowledge_folder}/archive/extract-{date}/subagent-captures/` if needed, append an entry to its `REMOVED.md` (filename + parent-session-id + agent_type + agent_id), then `rm` the capture `.md`. Leave any captures you did not process (no extractable content, or skipped) for `/audit-knowledge`.
+
 ## Step 3: Deduplicate
 
 For each finding, check against:
