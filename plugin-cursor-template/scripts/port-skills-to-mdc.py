@@ -246,7 +246,7 @@ def adapt_cursor(text: str) -> str:
     # Setup Step 1 — VERSION from scripts/aria/VERSION (plain text)
     setup_ver_block = (
         "**Read the installed port version first.** Parse `scripts/aria/VERSION` "
-        "(plain text, one line — e.g. `2.24.1-cursor.0`):\n\n"
+        "(plain text, one line — e.g. `2.24.2-cursor.0`):\n\n"
         "```bash\n"
         'INSTALLED_VERSION=$(cat "scripts/aria/VERSION" 2>/dev/null | tr -d \'[:space:]\')\n'
         '[ -z "$INSTALLED_VERSION" ] && INSTALLED_VERSION="unknown"\n'

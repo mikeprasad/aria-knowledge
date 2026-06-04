@@ -5090,7 +5090,7 @@ Walk the user through configuring their knowledge folder and plugin settings. Sa
 
 ## Step 1: Check for Existing Config
 
-**Read the installed port version first.** Parse `scripts/aria/VERSION` (plain text, one line — e.g. `2.24.1-cursor.0`):
+**Read the installed port version first.** Parse `scripts/aria/VERSION` (plain text, one line — e.g. `2.24.2-cursor.0`):
 
 ```bash
 INSTALLED_VERSION=$(cat "scripts/aria/VERSION" 2>/dev/null | tr -d '[:space:]')

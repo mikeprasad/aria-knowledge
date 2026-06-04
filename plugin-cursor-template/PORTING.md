@@ -36,8 +36,8 @@ Cursor-specific files live here:
 
 ## Current Parity Notes
 
-- **Canonical parity target:** `plugin-claude-code/` @ **v2.24.1** (2026-06-04).
-- **Cursor port version:** `scripts/aria/VERSION` → `2.24.1-cursor.0`.
+- **Canonical parity target:** `plugin-claude-code/` @ **v2.24.2** (2026-06-04).
+- **Cursor port version:** `scripts/aria/VERSION` → `2.24.2-cursor.0`.
 - **ADR-094 Runtime Gates:** intentionally **omitted** in Cursor — aria-cowork is not loaded in typical Cursor sessions; namespace note lives in `aria-commands.mdc` preamble only.
 - Knowledge folder schema is **fully compatible** with upstream.
 - `intake/pre-compact-captures/` removed by design; `intake/task-boundary-captures/` substitutes via the `stop` hook.
@@ -45,7 +45,7 @@ Cursor-specific files live here:
 - MCP skills (`/clip-thread`, `/extract-doc`, `/meeting-notes`, `/digest`, `/sync-decisions`) are compiled into `aria-commands.mdc`; connect servers via **Cursor Settings → MCP**. Connector reference: `../plugin-claude-cowork/CONNECTORS.md`.
 - **New in 2.24.1-cursor.0:** `subagentStart`/`subagentStop`, `afterShellExecution` (auto-retrospect), second `afterFileEdit` (auto-prospect), SESSION.md in-progress piggyback, config keys for session_state/subagent/auto_prospect/auto_retrospect. See §Cursor hook parity below.
 
-### Cursor hook parity (v2.24.1)
+### Cursor hook parity (v2.24.2)
 
 | Canonical (Claude Code) | Cursor equivalent | Status |
 |---|---|---|
@@ -68,11 +68,11 @@ Cursor-specific files live here:
 
 ### A. Knowledge contract sync
 
-**Last synced:** `plugin-claude-code/template/` @ v2.24.1. Re-audit template rule files before each release.
+**Last synced:** `plugin-claude-code/template/` @ v2.24.2. Re-audit template rule files before each release.
 
 ### B. Skill → `.mdc` compilation (Cursor-only)
 
-**Last synced:** `plugin-claude-code/skills/` @ **v2.24.1** → `.cursor/rules/aria-commands.mdc` (2026-06-04).
+**Last synced:** `plugin-claude-code/skills/` @ **v2.24.2** → `.cursor/rules/aria-commands.mdc` (2026-06-04). v2.24.2 canonical delta is statusline-only (Claude Code) — no Cursor resync required.
 
 **27 canonical commands** in `aria-commands.mdc` (22 core + 5 MCP + `/help` + `/audit-share`; aliases documented in preamble / `aria-audit.mdc`).
 
