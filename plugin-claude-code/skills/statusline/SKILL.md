@@ -18,7 +18,9 @@ Opus 4.8 │ ███░░░░░░░ 31% ctx │ 5h 24% ↺01:00 │ 7d 8
 
 The 5h/7d segments render only on Pro/Max subscription sessions and only after the first response of a session. On API-key sessions they're absent and the line shows model + context only.
 
-Installing the meter also lets the **session's Claude** know these numbers: on each render the meter writes a snapshot to `~/.claude/aria-statusline-state.json`, which Claude reads on demand (e.g. before `/handoff` or compaction — see the SessionStart TASK BUDGET guardrail). A `UserPromptSubmit` hook additionally injects a warning when context/5h/7d crosses `usage_alert_threshold` (default 80%, configurable in `/setup`; set `off` to disable). All of this is dormant until the meter is installed.
+The meter's last segment is the **account email** (read from `~/.claude.json`), placed last so a width-truncated line only ever clips the email, not the usage — and so you can tell which account a terminal belongs to when running more than one.
+
+Installing the meter also lets the **session's Claude** know these numbers: on each render the meter writes a snapshot, **keyed by account**, to `~/.claude/aria-statusline-state-<accountUuid>.json`, which Claude reads on demand (e.g. before `/handoff` or compaction — see the SessionStart TASK BUDGET guardrail). Per-account keying means a second logged-in account never clobbers the first's usage (which previously caused the alert to fire on the wrong account). A `UserPromptSubmit` hook additionally injects a warning when context/5h/7d crosses `usage_alert_threshold` (default 80%, configurable in `/setup`; set `off` to disable). All of this is dormant until the meter is installed.
 
 ## Why a command and not automatic
 
@@ -137,7 +139,7 @@ If `jq` was missing, append the install hint and note the line will show model-o
 1. Read `~/.claude/settings.json`. If it has no `statusLine` key, report "No status-line meter is configured." and stop.
 2. If the `statusLine.command` does **not** reference `aria-statusline-meter.sh`, it's not ours — **stop and ask** before removing: *"The configured status line isn't the aria-knowledge meter (`<command>`). Remove it anyway? (y/n)"*.
 3. Back up (`cp settings.json settings.json.aria-bak`), then rewrite settings.json with the `statusLine` key removed, preserving all other keys. Validate the result is valid JSON (restore backup on failure).
-4. Offer to delete the staged script + snapshot: *"Also delete the meter script (`~/.claude/aria-statusline-meter.sh`) and its usage snapshot (`~/.claude/aria-statusline-state.json`)? (y/n)"* — on `y`, `rm -f` both, plus any `/tmp/aria-usage-warn-*` band-state files.
+4. Offer to delete the staged script + snapshots: *"Also delete the meter script (`~/.claude/aria-statusline-meter.sh`) and its per-account usage snapshots (`~/.claude/aria-statusline-state-*.json`)? (y/n)"* — on `y`, `rm -f` the script plus the `aria-statusline-state-*.json` glob (and the legacy `aria-statusline-state.json` if present), plus any `/tmp/aria-usage-warn-*` band-state files.
 5. Confirm: "Status-line meter removed. Backup at ~/.claude/settings.json.aria-bak." (The usage-alert hook stays registered but is now a silent no-op with no snapshot to read.)
 
 ---

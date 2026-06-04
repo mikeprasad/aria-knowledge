@@ -46,8 +46,10 @@ assert_contains "meter: renders ctx label"            "$OUT" "ctx"
 assert_contains "meter: renders 5h segment"           "$OUT" "5h 88%"
 assert_contains "meter: renders 7d segment"           "$OUT" "7d 12%"
 
-# state snapshot — the only channel by which the agent can read its own usage
-SNAP="$H/.claude/aria-statusline-state.json"
+# state snapshot — the only channel by which the agent can read its own usage.
+# No ~/.claude.json in the test HOME, so the meter + hook resolve the account key
+# to "default" and use the default-keyed file (per-account keying tested below).
+SNAP="$H/.claude/aria-statusline-state-default.json"
 if [ -f "$SNAP" ]; then PASS=$((PASS+1)); else FAIL=$((FAIL+1)); printf 'FAIL: meter writes a state snapshot\n'; fi
 # jq -n pretty-prints (space after colon); match that form
 assert_contains "meter: snapshot carries context_pct 43"   "$(cat "$SNAP" 2>/dev/null)" '"context_pct": 43'
@@ -117,6 +119,41 @@ assert_empty "inject: threshold=off is silent even at 99%" "$OUT"
 rm -f "$SNAP"
 OUT=$(printf '%s' '{"session_id":"'"${SP}"'-c"}' | HOME="$H" KT_CONFIG="$TMP/default.md" sh "$INJECT")
 assert_empty "inject: no state snapshot is silent" "$OUT"
+
+# ---- v2.24.2: per-account state files + account-email segment ----
+# Separate HOME so the synthetic ~/.claude.json doesn't disturb the default-key
+# cases above (which rely on no ~/.claude.json being present).
+H2="$TMP/home2"; mkdir -p "$H2/.claude"
+
+# Account A (the "other" account) at 100%. Switching account == rewriting
+# ~/.claude.json, exactly as /login does.
+printf '{"oauthAccount":{"accountUuid":"AAAA-1111","emailAddress":"work@x.com"}}' > "$H2/.claude.json"
+OUT=$(printf '{"model":{"display_name":"Opus 4.8"},"rate_limits":{"five_hour":{"used_percentage":100,"resets_at":1900000000},"seven_day":{"used_percentage":40}}}' | HOME="$H2" sh "$METER" | strip_ansi)
+assert_contains "meter: renders account email as last segment"      "$OUT" "work@x.com"
+A_SNAP="$H2/.claude/aria-statusline-state-AAAA-1111.json"
+if [ -f "$A_SNAP" ]; then PASS=$((PASS+1)); else FAIL=$((FAIL+1)); printf 'FAIL: meter writes per-account snapshot for A\n'; fi
+assert_contains "meter: account snapshot carries account_email"     "$(cat "$A_SNAP" 2>/dev/null)" '"account_email": "work@x.com"'
+assert_contains "meter: account snapshot carries five_hour_pct 100" "$(cat "$A_SNAP" 2>/dev/null)" '"five_hour_pct": 100'
+
+# Switch to account B (fine, 12%).
+printf '{"oauthAccount":{"accountUuid":"BBBB-2222","emailAddress":"me@y.com"}}' > "$H2/.claude.json"
+OUT=$(printf '{"model":{"display_name":"Opus 4.8"},"rate_limits":{"five_hour":{"used_percentage":12,"resets_at":1900000000},"seven_day":{"used_percentage":5}}}' | HOME="$H2" sh "$METER" | strip_ansi)
+assert_contains "meter: switched account shows B's email" "$OUT" "me@y.com"
+if [ -f "$H2/.claude/aria-statusline-state-BBBB-2222.json" ]; then PASS=$((PASS+1)); else FAIL=$((FAIL+1)); printf 'FAIL: meter writes per-account snapshot for B\n'; fi
+
+# THE BUG: logged in as B (12%, fine), the hook must NOT fire account A's 100%.
+cfg "$TMP/acct.md" 80
+OUT=$(printf '%s' '{"session_id":"'"${SP}"'-acctB"}' | HOME="$H2" KT_CONFIG="$TMP/acct.md" sh "$INJECT")
+assert_empty   "inject: as B (fine) does NOT fire other account A's 100%" "$OUT"
+
+# Sanity: logged in as A (100%), the hook DOES fire its own alert.
+printf '{"oauthAccount":{"accountUuid":"AAAA-1111","emailAddress":"work@x.com"}}' > "$H2/.claude.json"
+OUT=$(printf '%s' '{"session_id":"'"${SP}"'-acctA"}' | HOME="$H2" KT_CONFIG="$TMP/acct.md" sh "$INJECT")
+assert_contains "inject: as A (100%) fires its own alert" "$OUT" "5-hour plan usage at 100%"
+
+# Degrade: no ~/.claude.json → no email segment (default-keyed snapshot path).
+OUT=$(printf '{"model":{"display_name":"Opus 4.8"},"rate_limits":{"five_hour":{"used_percentage":20,"resets_at":1900000000}}}' | HOME="$H" sh "$METER" | strip_ansi)
+assert_absent  "meter: no ~/.claude.json renders no email segment" "$OUT" "@"
 
 printf '%d pass, %d fail\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

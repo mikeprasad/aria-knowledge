@@ -82,7 +82,7 @@ reset_when() {
   printf '%s %s' "$_wd" "$_t"
 }
 
-model=""; ctx=""; five=""; five_reset=""; week=""; week_reset=""
+model=""; ctx=""; five=""; five_reset=""; week=""; week_reset=""; acct_email=""; acct_uuid=""
 
 if command -v jq >/dev/null 2>&1; then
   model=$(printf '%s' "$input" | jq -r '.model.display_name // empty' 2>/dev/null)
@@ -91,6 +91,13 @@ if command -v jq >/dev/null 2>&1; then
   five_reset=$(printf '%s' "$input" | jq -r '.rate_limits.five_hour.resets_at // empty' 2>/dev/null)
   week=$(printf '%s' "$input" | jq -r '.rate_limits.seven_day.used_percentage // empty' 2>/dev/null)
   week_reset=$(printf '%s' "$input" | jq -r '.rate_limits.seven_day.resets_at // empty' 2>/dev/null)
+  # Current account identity — NOT from the status-line payload (which carries no
+  # account field) but from ~/.claude.json, which updates on every /login switch.
+  # Used to scope the state snapshot per-account and to display the email.
+  if [ -f "$HOME/.claude.json" ]; then
+    acct_email=$(jq -r '.oauthAccount.emailAddress // empty' "$HOME/.claude.json" 2>/dev/null)
+    acct_uuid=$(jq -r '.oauthAccount.accountUuid // empty' "$HOME/.claude.json" 2>/dev/null)
+  fi
 else
   # No-jq degrade: model name only (reliable to extract); the meter needs jq.
   model=$(printf '%s' "$input" \
@@ -131,17 +138,30 @@ if [ -n "$week_i" ]; then
   out="${out} ${DIM}│${RESET} ${seg}"
 fi
 
+# Account email — LAST segment so a width-truncated status line only ever clips
+# the email, never the usage data. Omitted for API-key users (no oauthAccount).
+if [ -n "$acct_email" ]; then
+  out="${out} ${DIM}│ ${acct_email}${RESET}"
+fi
+
 # --- persist a snapshot so the session's agent (and the usage-alert hook) can
 # read current usage on demand. Atomic (temp + mv), fully error-suppressed, and
 # jq-gated so it never delays or breaks rendering. Only written when jq parsed
 # real usage values; the no-jq degrade path leaves no stale file behind.
 if command -v jq >/dev/null 2>&1; then
-  _state="$HOME/.claude/aria-statusline-state.json"
+  # Per-account file: keyed by accountUuid so concurrent/alternating accounts
+  # never clobber each other's usage (the usage-alert hook reads the file for the
+  # session's own account). Falls back to "default" for API-key users.
+  _key="${acct_uuid:-default}"
+  _state="$HOME/.claude/aria-statusline-state-${_key}.json"
   _tmp="$HOME/.claude/.aria-statusline-state.$$.tmp"
   _at=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null)
   if jq -n --arg model "$model" --arg ctx "$ctx_i" --arg five "$five_i" \
         --arg five_reset "$five_reset" --arg seven "$week_i" --arg at "$_at" \
+        --arg acct_email "$acct_email" --arg acct_uuid "$acct_uuid" \
         '{written_at:$at, model:$model}
+          + (if $acct_email != "" then {account_email:$acct_email} else {} end)
+          + (if $acct_uuid  != "" then {account_uuid:$acct_uuid} else {} end)
           + (if $ctx != "" then {context_pct:($ctx|tonumber)} else {} end)
           + (if $five != "" then {five_hour_pct:($five|tonumber)} else {} end)
           + (if $five_reset != "" then {five_hour_resets_at:($five_reset|tonumber)} else {} end)

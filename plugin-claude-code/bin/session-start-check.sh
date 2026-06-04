@@ -219,12 +219,21 @@ MESSAGES="${MESSAGES}RULE 22 ORDERING — The Low/High Impact block must appear 
 
 # Task budget awareness (v2.10.6; usage-snapshot pointer added with the
 # status-line meter). The status-line meter (/statusline) persists a fresh
-# context/5h/7d usage snapshot to ~/.claude/aria-statusline-state.json; when it
-# exists Claude can read its own budget on demand. When it doesn't, Claude still
+# context/5h/7d usage snapshot per account to ~/.claude/aria-statusline-state-<accountUuid>.json;
+# when it exists Claude can read its own budget on demand. When it doesn't, Claude still
 # lacks direct visibility (only the user's UI shows it) — surface strain and let
 # the user decide rather than wrapping up autonomously (avoids self-defeating
 # /extract during depletion — raw transcript persists via PreCompact anyway).
-MESSAGES="${MESSAGES}TASK BUDGET — If ~/.claude/aria-statusline-state.json exists (written by the aria-knowledge status-line meter), READ it to see your current context-window %, 5-hour, and 7-day plan-usage — do so when judging whether to keep going, and before /handoff, /wrapup, or compacting. (A UserPromptSubmit hook also auto-surfaces a warning when any metric crosses usage_alert_threshold, default 80%.) If that file does NOT exist, you do not see usage directly — Claude Code's UI shows the user; if strain symptoms appear (responses cutting short, deep session length, compaction warnings), surface them and offer options (finish the current atomic task, call /aria-knowledge:extract, trigger compaction, or continue). Either way, don't assume depletion or wrap up autonomously. "
+# Resolve the CURRENT account's snapshot path (meter writes one file per account,
+# keyed by accountUuid from ~/.claude.json) so Claude reads its own usage, not a
+# second account's.
+_uk="default"
+if command -v jq >/dev/null 2>&1 && [ -f "$HOME/.claude.json" ]; then
+  _uku=$(jq -r '.oauthAccount.accountUuid // empty' "$HOME/.claude.json" 2>/dev/null)
+  [ -n "$_uku" ] && _uk="$_uku"
+fi
+USAGE_SNAP="~/.claude/aria-statusline-state-${_uk}.json"
+MESSAGES="${MESSAGES}TASK BUDGET — If ${USAGE_SNAP} exists (written by the aria-knowledge status-line meter), READ it to see your current context-window %, 5-hour, and 7-day plan-usage — do so when judging whether to keep going, and before /handoff, /wrapup, or compacting. (A UserPromptSubmit hook also auto-surfaces a warning when any metric crosses usage_alert_threshold, default 80%.) If that file does NOT exist, you do not see usage directly — Claude Code's UI shows the user; if strain symptoms appear (responses cutting short, deep session length, compaction warnings), surface them and offer options (finish the current atomic task, call /aria-knowledge:extract, trigger compaction, or continue). Either way, don't assume depletion or wrap up autonomously. "
 
 # Knowledge surfacing — passive (suggest /context) vs active (Read matches directly)
 # branches on KT_ACTIVE_SURFACING (default true as of v2.15.0).

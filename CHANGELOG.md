@@ -2,6 +2,10 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## Cursor port 2.24.2-cursor.0 — 2026-06-04
+
+**Version alignment** — tracks `plugin-claude-code` v2.24.2. Canonical delta is **statusline-only** (per-account usage snapshot + email segment; Claude Code CLI). No Cursor port code or `.mdc` resync required. Release artifact: `aria-knowledge-cursor-2.24.2.zip` via `./release-cursor.sh`.
+
 ## Cursor port 2.24.1-cursor.0 — 2026-06-04
 
 **Cursor port parity pass** — brings `plugin-cursor-template/` to equivalent coverage with `plugin-claude-code` v2.24.1. Release artifact: `aria-knowledge-cursor-2.24.1.zip` via `./release-cursor.sh`.
@@ -34,6 +38,15 @@ All notable changes to ARIA will be documented in this file.
 - `PreCompact`/`PostCompact` transcript archival — use `stop` → `task-boundary-captures/` instead
 - `SubagentStart` additionalContext into subagent — Cursor hook surface is weaker
 - `/handoff` model+effort recommendation line — Claude Code model selection concept
+
+## v2.24.2 — 2026-06-04
+
+- **`/statusline` meter — per-account usage state + account email label (Claude Code only):**
+  - **Why:** Running two Claude accounts on one machine (e.g. Desktop on one, CLI `/login`-switched to another) shared a single `~/.claude/aria-statusline-state.json`. Last-writer-wins meant the `usage-threshold-inject` hook could read the *other* account's usage and fire a false "5-hour at 100%" alert in a session that was actually fine. The meter also gave no way to tell which account a status-line window belonged to.
+  - **What:** (1) The meter now writes its snapshot to a **per-account** file, `~/.claude/aria-statusline-state-<accountUuid>.json`, keyed by `oauthAccount.accountUuid` read from `~/.claude.json` (which updates on every `/login` switch). `usage-threshold-inject.sh` and the SessionStart TASK BUDGET guidance resolve the same key, so each session only ever reads its own account's usage — the false cross-account alert is gone. (2) The meter appends the full **account email** as the last status-line segment (`… │ you@example.com`), placed last so a width-truncated line clips only the email, never the usage. Both degrade cleanly: API-key users (no `oauthAccount`) fall back to a `default` key and render no email.
+  - **Why `~/.claude.json`, not `claude auth status`:** the status-line payload carries no account field (verified against the docs); a file read avoids spawning the Node CLI on every render.
+  - **Tests:** `tests/repros/statusline-usage.sh` → 35 cases (per-account write, account-correct inject incl. the cross-account false-alert repro, email-segment render, no-`oauthAccount` degrade).
+  - **Ports:** **all four ports synced to v2.24.2 parity this release.** The statusline feature is Claude Code-only (no status bar in the other runtimes) and rides dormant where a port mirrors all skills. plugin-antigravity (2.20.2 → 2.24.2) and plugin-openai-codex (2.20.2 → 2.24.2-codex.0) take a full multi-version catch-up (subagent capture, SESSION.md, auto-prospect/retrospect — all port-tested green); plugin-cursor-template → 2.24.2-cursor.0 (version alignment — see its own entry); plugin-claude-cowork → v1.1.5 (skills-only: `/index` ephemeral-tag exclusion + `/wrapup` picker fix; statusline + hook features N/A).
 
 ## v2.24.1 — 2026-06-04
 

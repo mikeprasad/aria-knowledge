@@ -4,7 +4,8 @@
 # Injects a short usage warning into the model's context when context-window,
 # 5-hour, or 7-day usage crosses the configured alert threshold
 # (usage_alert_threshold, default 80). The numbers come from the snapshot the
-# status-line meter persists to ~/.claude/aria-statusline-state.json.
+# status-line meter persists per account to ~/.claude/aria-statusline-state-<accountUuid>.json
+# (the account is resolved from ~/.claude.json so we never read another account's usage).
 #
 # Default consumption is ON-DEMAND (the agent reads the snapshot when it matters,
 # per the SessionStart TASK BUDGET guardrail). This hook is the additive
@@ -24,9 +25,18 @@
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$SCRIPT_DIR/config.sh"
 
-STATE="$HOME/.claude/aria-statusline-state.json"
-[ -f "$STATE" ] || exit 0
 command -v jq >/dev/null 2>&1 || exit 0
+
+# Read the snapshot for the CURRENTLY logged-in account. The meter writes one
+# file per account (keyed by accountUuid from ~/.claude.json) so an alternating /
+# concurrent second account never makes us alert on the wrong account's usage.
+ACCT_KEY="default"
+if [ -f "$HOME/.claude.json" ]; then
+  _u=$(jq -r '.oauthAccount.accountUuid // empty' "$HOME/.claude.json" 2>/dev/null)
+  [ -n "$_u" ] && ACCT_KEY="$_u"
+fi
+STATE="$HOME/.claude/aria-statusline-state-${ACCT_KEY}.json"
+[ -f "$STATE" ] || exit 0
 
 # Threshold from config (KT_USAGE_ALERT_THRESHOLD; default 80). `off`/non-numeric
 # /out-of-range all mean "injection disabled — on-demand only".
@@ -85,7 +95,7 @@ printf 'context=%s\nfive_hour=%s\nseven_day=%s\n' "$cb" "$fb" "$sb" > "$WARNFILE
 
 [ -z "$ALERTS" ] && exit 0
 
-MSG="ARIA usage alert (threshold ${THRESH}%): ${ALERTS}Full current snapshot: ~/.claude/aria-statusline-state.json."
+MSG="ARIA usage alert (threshold ${THRESH}%): ${ALERTS}Full current snapshot: ${STATE}."
 ESC=$(kt_json_escape "$MSG")
 printf '{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":"%s"}}' "$ESC"
 exit 0
