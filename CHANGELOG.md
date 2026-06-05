@@ -2,6 +2,18 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.25.0 — 2026-06-06
+
+**ARIA Assist — morning product-management review across your portfolio (`/aria-assist`).** Incorporates the standalone aria-pm assistant into the plugin as a generic, publishable skill + `pm-*` bin scripts.
+
+- **Add:** `/aria-assist` skill (`generate` / `review` modes). `generate` (headless-safe) reads a deterministic facts scan, deep-reviews **ACTIVE** projects (state · next action · ideas · proposed operator actions), applies logged light-writes, and writes a dated digest. `review` (interactive) walks the digest and executes approved proposals. A bare `/aria-assist` auto-decides via `pm-mode.sh`.
+- **Add:** `bin/pm-{lib,collect,notify,mode,morning-run,schedule}.sh` (POSIX sh). `pm-collect.sh` scans the **`projects_list`** roster (the full portfolio = the scan universe) and tier-classifies each project from git/PROGRESS recency + `SESSION.md` state into `facts.json` (`~/.claude/aria-pm-facts.json`); the tier filter narrows deep review to ACTIVE ones.
+- **Add:** settings via new **`pm_*` keys** in `~/.claude/aria-knowledge.local.md`, read by a local `pm_cfg` helper (the shared `config.sh` is unchanged): `pm_active_max_days`, `pm_warm_max_days`, `pm_dormant_nudge_days`, `pm_light_writes`, `pm_idea_count`, `pm_digest_dir`, `pm_notify_desktop`, `pm_notify_imessage`, `pm_imessage_handle`, `pm_schedule_time`.
+- **Add:** per-project **`PM-REVIEW.md`** producer output (ACTIVE projects only) — an atlas-readable sibling of `SESSION.md` (consumed read-only by aria-atlas; contract `aria-atlas/docs/TEMPLATE_PMREVIEW.md`).
+- **Add:** optional `/setup` step + `bin/pm-schedule.sh` to install a macOS launchd morning job (`com.aria.morning`). **Claude Code / macOS only** — other ports run `/aria-assist generate|review` manually (no scheduler). Desktop banner is the always-works notifier; iMessage is best-effort (one-time Automation grant).
+- **Authority model preserved:** light-writes (IDEAS-BACKLOG appends) are logged under "Auto-applied this run" and checkpoint-before-write (named-path commit, never `git add -A`); operator actions are only ever *proposed* in `generate` and execute in `review` after approval; never touches application code; won't propose acting on an `in-progress` (live) project.
+- **Ports:** Claude-Code-canonical this release; codex/cursor/antigravity/cowork manual-only variants tracked-drift (separate sync pass).
+
 ## 2.24.3 — 2026-06-05
 
 **Runtime-aware statusline account resolution + staleness/scope guards (ADR-099).** Fixes false/cross-account usage alerts when Claude Code runs **hosted inside Claude Desktop**.
