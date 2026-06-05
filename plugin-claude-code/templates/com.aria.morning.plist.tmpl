@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.aria.morning</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/sh</string>
+    <string>-lc</string>
+    <string>__RUN__ &gt;&gt; __LOG__ 2&gt;&amp;1</string>
+  </array>
+  <key>StartCalendarInterval</key>
+  <dict><key>Hour</key><integer>__HOUR__</integer><key>Minute</key><integer>__MIN__</integer></dict>
+  <key>StandardErrorPath</key><string>__ERRLOG__</string>
+  <key>RunAtLoad</key><false/>
+</dict>
+</plist>
