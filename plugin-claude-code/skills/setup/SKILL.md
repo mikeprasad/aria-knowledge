@@ -487,3 +487,15 @@ Two habits that make ARIA most effective:
 - Respond to "Knowledge audit due" prompts — promotes pending items so /context can surface them later
 Everything else runs automatically via hooks.
 ```
+
+## Step (optional): Schedule the morning PM review (Claude Code, macOS only)
+
+If the user wants `/aria-assist` to run automatically each morning, offer to install the launchd job:
+
+> "Want me to schedule the morning PM review? It runs `/aria-assist generate` at your
+> `pm_schedule_time` (default 07:30) and notifies you. macOS only; you can remove it later with
+> `sh <plugin>/bin/pm-schedule.sh --uninstall`."
+
+On yes (Bash available): `sh ${CLAUDE_PLUGIN_ROOT}/bin/pm-schedule.sh`.
+The iMessage notification path needs a one-time **Automation permission** grant
+(System Settings → Privacy & Security → Automation); the desktop banner always works.
