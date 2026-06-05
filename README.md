@@ -387,4 +387,4 @@ Install ARIA, run `/setup`, work normally. Rule 22 is active immediately. Run `/
 
 ---
 
-*Last reviewed: 2026-06-05 — current as of plugin-claude-code v2.24.2 / plugin-claude-cowork v1.1.5 / plugin-openai-codex 2.24.2-codex.0 / plugin-antigravity 2.24.2 / plugin-cursor-template 2.24.2-cursor.0 (all ports at 2.24.2 parity).*
+*Last reviewed: 2026-06-05 — current as of plugin-claude-code **v2.24.3** / plugin-claude-cowork v1.1.5 / plugin-openai-codex 2.24.2-codex.0 / plugin-antigravity 2.24.2 / plugin-cursor-template 2.24.2-cursor.0. v2.24.3 is a **Claude-Code-only** statusline fix (runtime-aware account resolution, ADR-099); the other ports don't ship the statusline scripts (antigravity is exempt — different credential store), so they remain at 2.24.2 (tracked-drift, statusline delta not ported).*
