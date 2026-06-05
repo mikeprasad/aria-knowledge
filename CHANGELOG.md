@@ -2,6 +2,14 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.25.2 — 2026-06-06
+
+**Superpowers is now a recommended companion, surfaced in `/setup`.** ARIA is the knowledge + edit-discipline layer; [Superpowers](https://github.com/obra/superpowers) is the complementary process-discipline layer (brainstorming, `writing-plans`, `executing-plans`, TDD, subagent-driven development). They interlock into a full plan → `/prospect` → build → `/retrospect` loop, and ARIA already stores plans/specs in the `docs/superpowers/{plans,specs}/` convention.
+
+- **Add:** `/setup` **Step 5c** — detects whether Superpowers is installed (same idiom as the explanatory-output-style check), recommends it if absent with the verified install command (`/plugin install superpowers@claude-plugins-official`), and reports the outcome in the Step 8 summary. **Strongly recommended but optional** — ARIA never depends on Superpowers and no skill is gated on it.
+- **Add:** README "Works Well With Superpowers" section describing the interlock.
+- **Ports:** Claude-Code-canonical only; other ports tracked-drift (separate parity pass).
+
 ## 2.25.1 — 2026-06-06
 
 **SessionStart token trim — ~11% smaller injection, zero enforcement/behavior change.** The SessionStart guidance block had grown to ~1,270 tokens as features shipped; this trims it to ~1,120 with no loss of any rule.

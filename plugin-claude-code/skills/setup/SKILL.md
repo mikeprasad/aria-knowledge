@@ -148,6 +148,21 @@ Offer the CLI status-line meter — a persistent bottom-of-screen readout of con
 
 This step never edits `settings.json` directly — it delegates to `/statusline` so the wiring logic lives in one place. If `jq` is missing, mention the meter needs it (it'll show model-only otherwise) but still allow install.
 
+## Step 5c: Superpowers (strongly recommended companion)
+
+Check whether the **Superpowers** plugin is installed:
+
+```bash
+find ~/.claude/plugins -name "superpowers" -type d 2>/dev/null | head -1
+```
+
+- **If found:** *"Superpowers detected — its process skills pair with ARIA's discipline layer."* No action needed.
+- **If not found:** *"ARIA governs **knowledge and edit discipline**; Superpowers ([github.com/obra/superpowers](https://github.com/obra/superpowers)) governs **process discipline** — brainstorming, `writing-plans`, `executing-plans`, TDD, systematic-debugging, and subagent-driven development. They interlock: Superpowers' `writing-plans` produces a plan, ARIA's `/prospect` pre-mortems it before execution, Superpowers executes it, and ARIA's `/retrospect` closes the loop with per-fix validation. ARIA even stores plans/specs in the `docs/superpowers/{plans,specs}/` convention. **Strongly recommended, but optional** — ARIA works standalone; the two together are a full plan→build→verify→learn discipline. Install it? (y/n)"*
+
+  - This step does **not** install Superpowers itself (it's a separate plugin). On `y`, point the user to the install command — *"Install it with `/plugin install superpowers@claude-plugins-official` (the official Claude plugins marketplace), then restart the session. If that marketplace isn't registered yet, run `/plugin` to browse and add it."* On `n`, skip — *"Skipped. You can add Superpowers anytime; ARIA doesn't require it."*
+
+This is a recommendation only — ARIA never depends on Superpowers being present, and no ARIA skill is gated on it. Note the outcome in the Step 8 summary (*"Superpowers: detected / recommended (not installed)"*).
+
 ## Step 6: Cadence Configuration
 
 Present current or default cadences:

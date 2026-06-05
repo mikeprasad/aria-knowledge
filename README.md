@@ -241,6 +241,12 @@ All ports share the same `~/Projects/knowledge/` folder, working rules, change-d
 | `plugin-openai-codex/` | Codex (OpenAI) | Production | Codex plugin marketplace or `.agents/plugins/marketplace.json` |
 | `plugin-cursor-template/` | Cursor | Production — `2.20.2-cursor.0` (parity w/ Code v2.20.2) | Unzip `aria-knowledge-cursor-*.zip` into project root |
 
+## Works Well With Superpowers
+
+ARIA is the **knowledge and edit-discipline** layer; [Superpowers](https://github.com/obra/superpowers) is the **process-discipline** layer — and they interlock into a full plan → build → verify → learn loop. Superpowers' `writing-plans` produces a plan; ARIA's `/prospect` pre-mortems it before any file is touched; Superpowers' `executing-plans` / `subagent-driven-development` / TDD build it; ARIA's `/retrospect` closes the loop with per-fix validation and feeds the failure-pattern library. ARIA even stores plans and specs in the `docs/superpowers/{plans,specs}/` convention.
+
+**Strongly recommended, though optional** — ARIA works standalone and never depends on Superpowers being present, but the two together are the intended full discipline. `/setup` checks for it and points you to the install if it's missing.
+
 ## Works Well With Obsidian
 
 The knowledge folder is plain markdown — it works great as an Obsidian vault. Use [Obsidian Web Clipper](https://obsidian.md/clipper) to save articles and references directly into `intake/clippings/`, where ARIA's audit process can review and promote them.
