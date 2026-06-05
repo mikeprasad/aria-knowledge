@@ -5,6 +5,7 @@ set -eu
 BIN="$(cd "$(dirname "$0")" && pwd)"
 . "$BIN/config.sh"
 . "$BIN/pm-lib.sh"
+KT_KNOWLEDGE_FOLDER="${KT_KNOWLEDGE_FOLDER:-}"   # config.sh leaves it unset when unconfigured; keep set -u safe
 FACTS="$HOME/.claude/aria-pm-facts.json"
 CLAUDE_BIN=$(command -v claude || echo "$HOME/.claude/local/claude")
 OUTDIR=$(apm_expand_tilde "$(pm_cfg pm_digest_dir "$KT_KNOWLEDGE_FOLDER/pm-reviews")")
