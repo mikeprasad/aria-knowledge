@@ -224,16 +224,14 @@ MESSAGES="${MESSAGES}RULE 22 ORDERING — The Low/High Impact block must appear 
 # lacks direct visibility (only the user's UI shows it) — surface strain and let
 # the user decide rather than wrapping up autonomously (avoids self-defeating
 # /extract during depletion — raw transcript persists via PreCompact anyway).
-# Resolve the CURRENT account's snapshot path (meter writes one file per account,
-# keyed by accountUuid from ~/.claude.json) so Claude reads its own usage, not a
-# second account's.
-_uk="default"
-if command -v jq >/dev/null 2>&1 && [ -f "$HOME/.claude.json" ]; then
-  _uku=$(jq -r '.oauthAccount.accountUuid // empty' "$HOME/.claude.json" 2>/dev/null)
-  [ -n "$_uku" ] && _uk="$_uku"
-fi
+# Resolve the CURRENT session's snapshot path via the shared runtime-aware resolver
+# (config.sh kt_resolve_account) so Claude reads its OWN account's usage under both
+# the CLI and Claude-Desktop-hosted runtimes — not the wrong runtime's account.
+_uk=$(kt_resolve_account | cut -f1)
+[ -z "$_uk" ] && _uk="default"
 USAGE_SNAP="~/.claude/aria-statusline-state-${_uk}.json"
 MESSAGES="${MESSAGES}TASK BUDGET — If ${USAGE_SNAP} exists (written by the aria-knowledge status-line meter), READ it to see your current context-window %, 5-hour, and 7-day plan-usage — do so when judging whether to keep going, and before /handoff, /wrapup, or compacting. (A UserPromptSubmit hook also auto-surfaces a warning when any metric crosses usage_alert_threshold, default 80%.) If that file does NOT exist, you do not see usage directly — Claude Code's UI shows the user; if strain symptoms appear (responses cutting short, deep session length, compaction warnings), surface them and offer options (finish the current atomic task, call /aria-knowledge:extract, trigger compaction, or continue). Either way, don't assume depletion or wrap up autonomously. "
+MESSAGES="${MESSAGES}When you read ${USAGE_SNAP}, RE-READ it fresh at decision time (do not rely on usage numbers mentioned earlier in this conversation). Treat the 5-hour/7-day figures as STALE if the current time is past five_hour_resets_at / seven_day_resets_at (that window has reset — the stored % is not current). Treat context_pct as valid only if the snapshot's session_id matches this session AND context_pct is present (a null/absent value means just after /compact — unknown, not the old high value). If a figure is stale or unknown and a decision depends on it, say so and check the live status line rather than asserting the stored number. "
 
 # Knowledge surfacing — passive (suggest /context) vs active (Read matches directly)
 # branches on KT_ACTIVE_SURFACING (default true as of v2.15.0).
