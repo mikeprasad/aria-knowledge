@@ -91,11 +91,14 @@ Then write `~/.claude/settings.json` with the `statusLine` block merged in, **pr
 ```json
 "statusLine": {
   "type": "command",
-  "command": "<HOME>/.claude/aria-statusline-meter.sh"
+  "command": "<HOME>/.claude/aria-statusline-meter.sh",
+  "refreshInterval": 30
 }
 ```
 
 Substitute `<HOME>` with the literal absolute path captured in Step 1 (e.g. `/Users/alice/.claude/aria-statusline-meter.sh`). If the file didn't exist, the whole file is just `{ "statusLine": { … } }`.
+
+`refreshInterval: 30` re-runs the meter every ~30s **in addition to** the event-driven renders, so the persisted usage snapshot stays current even while the session is idle or just after a resume (when no assistant message has fired a render yet). It re-runs only the meter — a local ~5ms script with **no API token cost** — and does **not** change how often the usage *alert* fires (that's the `UserPromptSubmit` hook, band-gated on your prompt). On a refresh/repair where settings already has a `statusLine` pointing at the aria meter, set `refreshInterval` to `30` if it's absent, but **preserve a user's existing smaller (higher-frequency) value**.
 
 **Validate the written JSON** before declaring success:
 
