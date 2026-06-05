@@ -82,7 +82,63 @@ reset_when() {
   printf '%s %s' "$_wd" "$_t"
 }
 
-model=""; ctx=""; five=""; five_reset=""; week=""; week_reset=""; acct_email=""; acct_uuid=""
+# >>> kt_resolve_account — KEEP BYTE-IDENTICAL with the statusline-meter.sh inline mirror
+# Resolves the session's account key for usage-snapshot scoping. POSIX sh, no awk
+# intervals (macOS awk lacks them). Echoes TAB-separated "<key>\t<runtime>\t<email>";
+# runtime in {cli, desktop, desktop-unknown}. $1 = session id (falls back to env).
+kt_resolve_account() {
+  _kra_sid="${1:-${CLAUDE_CODE_SESSION_ID:-}}"
+  _kra_cl="$HOME/Library/Application Support/Claude"
+  _kra_acct=""; _kra_org=""
+
+  # Tier 1: env-only PATH parse of local-agent-mode-sessions/<acct>/<org>
+  _kra_oifs=$IFS; IFS=:
+  for _kra_p in $PATH; do
+    case "$_kra_p" in
+      */local-agent-mode-sessions/*)
+        _kra_seg=${_kra_p#*local-agent-mode-sessions/}
+        _kra_a=${_kra_seg%%/*}
+        _kra_r=${_kra_seg#*/}; _kra_b=${_kra_r%%/*}
+        case "$_kra_a" in skills-plugin|'') continue ;; esac
+        _kra_acct=$_kra_a; _kra_org=$_kra_b; break ;;
+    esac
+  done
+  IFS=$_kra_oifs
+  if [ -n "$_kra_acct" ] && [ -d "$_kra_cl/claude-code-sessions/$_kra_acct/$_kra_org" ]; then
+    printf '%s\tdesktop\t' "$_kra_acct"; return 0
+  fi
+
+  # Desktop-hosting signal (positive, false-positive-safe)
+  _kra_desktop=0
+  case "${CLAUDE_CODE_ENTRYPOINT:-}" in claude-desktop) _kra_desktop=1 ;; esac
+  case "${CLAUDE_CODE_EXECPATH:-}" in *claude-code-vm*|*/Claude/claude-code/*) _kra_desktop=1 ;; esac
+  case "${__CFBundleIdentifier:-}" in *claudefordesktop*) _kra_desktop=1 ;; esac
+
+  # Tier 2: authoritative FS lookup by session id — gated on Desktop signal
+  if [ "$_kra_desktop" = 1 ] && [ -n "$_kra_sid" ] && [ -d "$_kra_cl/claude-code-sessions" ]; then
+    _kra_hit=$(grep -rl "$_kra_sid" "$_kra_cl/claude-code-sessions" 2>/dev/null | head -1)
+    if [ -n "$_kra_hit" ]; then
+      _kra_acct=$(basename "$(dirname "$(dirname "$_kra_hit")")")
+      printf '%s\tdesktop\t' "$_kra_acct"; return 0
+    fi
+  fi
+
+  # Tier 3: Desktop but unresolved -> degrade (never assert an account)
+  if [ "$_kra_desktop" = 1 ]; then
+    printf 'desktop-unknown\tdesktop-unknown\t'; return 0
+  fi
+
+  # Tier 4: CLI / VS Code / API-key -> ~/.claude.json (v2.24.2 behavior, unchanged)
+  _kra_uuid=""; _kra_email=""
+  if command -v jq >/dev/null 2>&1 && [ -f "$HOME/.claude.json" ]; then
+    _kra_uuid=$(jq -r '.oauthAccount.accountUuid // empty' "$HOME/.claude.json" 2>/dev/null)
+    _kra_email=$(jq -r '.oauthAccount.emailAddress // empty' "$HOME/.claude.json" 2>/dev/null)
+  fi
+  printf '%s\tcli\t%s' "${_kra_uuid:-default}" "$_kra_email"
+}
+# <<< kt_resolve_account
+
+model=""; ctx=""; five=""; five_reset=""; week=""; week_reset=""; acct_email=""; acct_uuid=""; runtime=""; sid=""
 
 if command -v jq >/dev/null 2>&1; then
   model=$(printf '%s' "$input" | jq -r '.model.display_name // empty' 2>/dev/null)
@@ -91,13 +147,15 @@ if command -v jq >/dev/null 2>&1; then
   five_reset=$(printf '%s' "$input" | jq -r '.rate_limits.five_hour.resets_at // empty' 2>/dev/null)
   week=$(printf '%s' "$input" | jq -r '.rate_limits.seven_day.used_percentage // empty' 2>/dev/null)
   week_reset=$(printf '%s' "$input" | jq -r '.rate_limits.seven_day.resets_at // empty' 2>/dev/null)
-  # Current account identity — NOT from the status-line payload (which carries no
-  # account field) but from ~/.claude.json, which updates on every /login switch.
-  # Used to scope the state snapshot per-account and to display the email.
-  if [ -f "$HOME/.claude.json" ]; then
-    acct_email=$(jq -r '.oauthAccount.emailAddress // empty' "$HOME/.claude.json" 2>/dev/null)
-    acct_uuid=$(jq -r '.oauthAccount.accountUuid // empty' "$HOME/.claude.json" 2>/dev/null)
-  fi
+  # Account identity via the shared runtime-aware resolver (inlined mirror above) —
+  # correct under both the CLI and Claude-Desktop-hosted runtimes. The resolver
+  # returns a non-empty email ONLY on the CLI tier, so the email segment renders
+  # only when ~/.claude.json is the real session account.
+  sid=$(printf '%s' "$input" | jq -r '.session_id // empty' 2>/dev/null)
+  _resolved=$(kt_resolve_account "$sid")
+  acct_uuid=$(printf '%s' "$_resolved" | cut -f1)
+  runtime=$(printf '%s' "$_resolved" | cut -f2)
+  acct_email=$(printf '%s' "$_resolved" | cut -f3)
 else
   # No-jq degrade: model name only (reliable to extract); the meter needs jq.
   model=$(printf '%s' "$input" \
@@ -159,13 +217,17 @@ if command -v jq >/dev/null 2>&1; then
   if jq -n --arg model "$model" --arg ctx "$ctx_i" --arg five "$five_i" \
         --arg five_reset "$five_reset" --arg seven "$week_i" --arg at "$_at" \
         --arg acct_email "$acct_email" --arg acct_uuid "$acct_uuid" \
+        --arg seven_reset "$week_reset" --arg runtime "$runtime" --arg sid "$sid" \
         '{written_at:$at, model:$model}
+          + (if $runtime != "" then {runtime:$runtime} else {} end)
+          + (if $sid != "" then {session_id:$sid} else {} end)
           + (if $acct_email != "" then {account_email:$acct_email} else {} end)
           + (if $acct_uuid  != "" then {account_uuid:$acct_uuid} else {} end)
           + (if $ctx != "" then {context_pct:($ctx|tonumber)} else {} end)
           + (if $five != "" then {five_hour_pct:($five|tonumber)} else {} end)
           + (if $five_reset != "" then {five_hour_resets_at:($five_reset|tonumber)} else {} end)
-          + (if $seven != "" then {seven_day_pct:($seven|tonumber)} else {} end)' \
+          + (if $seven != "" then {seven_day_pct:($seven|tonumber)} else {} end)
+          + (if $seven_reset != "" then {seven_day_resets_at:($seven_reset|tonumber)} else {} end)' \
         > "$_tmp" 2>/dev/null; then
     mv -f "$_tmp" "$_state" 2>/dev/null
   fi
