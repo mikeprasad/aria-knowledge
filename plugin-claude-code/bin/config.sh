@@ -12,6 +12,62 @@ kt_json_escape() {
   printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' -e 's/	/\\t/g' | tr '\n' ' '
 }
 
+# >>> kt_resolve_account — KEEP BYTE-IDENTICAL with the statusline-meter.sh inline mirror
+# Resolves the session's account key for usage-snapshot scoping. POSIX sh, no awk
+# intervals (macOS awk lacks them). Echoes TAB-separated "<key>\t<runtime>\t<email>";
+# runtime in {cli, desktop, desktop-unknown}. $1 = session id (falls back to env).
+kt_resolve_account() {
+  _kra_sid="${1:-${CLAUDE_CODE_SESSION_ID:-}}"
+  _kra_cl="$HOME/Library/Application Support/Claude"
+  _kra_acct=""; _kra_org=""
+
+  # Tier 1: env-only PATH parse of local-agent-mode-sessions/<acct>/<org>
+  _kra_oifs=$IFS; IFS=:
+  for _kra_p in $PATH; do
+    case "$_kra_p" in
+      */local-agent-mode-sessions/*)
+        _kra_seg=${_kra_p#*local-agent-mode-sessions/}
+        _kra_a=${_kra_seg%%/*}
+        _kra_r=${_kra_seg#*/}; _kra_b=${_kra_r%%/*}
+        case "$_kra_a" in skills-plugin|'') continue ;; esac
+        _kra_acct=$_kra_a; _kra_org=$_kra_b; break ;;
+    esac
+  done
+  IFS=$_kra_oifs
+  if [ -n "$_kra_acct" ] && [ -d "$_kra_cl/claude-code-sessions/$_kra_acct/$_kra_org" ]; then
+    printf '%s\tdesktop\t' "$_kra_acct"; return 0
+  fi
+
+  # Desktop-hosting signal (positive, false-positive-safe)
+  _kra_desktop=0
+  case "${CLAUDE_CODE_ENTRYPOINT:-}" in claude-desktop) _kra_desktop=1 ;; esac
+  case "${CLAUDE_CODE_EXECPATH:-}" in *claude-code-vm*|*/Claude/claude-code/*) _kra_desktop=1 ;; esac
+  case "${__CFBundleIdentifier:-}" in *claudefordesktop*) _kra_desktop=1 ;; esac
+
+  # Tier 2: authoritative FS lookup by session id — gated on Desktop signal
+  if [ "$_kra_desktop" = 1 ] && [ -n "$_kra_sid" ] && [ -d "$_kra_cl/claude-code-sessions" ]; then
+    _kra_hit=$(grep -rl "$_kra_sid" "$_kra_cl/claude-code-sessions" 2>/dev/null | head -1)
+    if [ -n "$_kra_hit" ]; then
+      _kra_acct=$(basename "$(dirname "$(dirname "$_kra_hit")")")
+      printf '%s\tdesktop\t' "$_kra_acct"; return 0
+    fi
+  fi
+
+  # Tier 3: Desktop but unresolved -> degrade (never assert an account)
+  if [ "$_kra_desktop" = 1 ]; then
+    printf 'desktop-unknown\tdesktop-unknown\t'; return 0
+  fi
+
+  # Tier 4: CLI / VS Code / API-key -> ~/.claude.json (v2.24.2 behavior, unchanged)
+  _kra_uuid=""; _kra_email=""
+  if command -v jq >/dev/null 2>&1 && [ -f "$HOME/.claude.json" ]; then
+    _kra_uuid=$(jq -r '.oauthAccount.accountUuid // empty' "$HOME/.claude.json" 2>/dev/null)
+    _kra_email=$(jq -r '.oauthAccount.emailAddress // empty' "$HOME/.claude.json" 2>/dev/null)
+  fi
+  printf '%s\tcli\t%s' "${_kra_uuid:-default}" "$_kra_email"
+}
+# <<< kt_resolve_account
+
 if [ -f "$KT_CONFIG" ]; then
   KT_CONFIGURED=true
 
