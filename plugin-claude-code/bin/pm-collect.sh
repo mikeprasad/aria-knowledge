@@ -17,6 +17,10 @@ fi
 
 AMAX=$(pm_cfg pm_active_max_days 3)
 WMAX=$(pm_cfg pm_warm_max_days 9)
+# projects_list paths may be relative tails (config.sh suffix-matches them against cwd).
+# Resolve relative entries against pm_projects_root (default ~/Projects) so git -C / SESSION.md reads
+# work regardless of cwd; absolute and ~-prefixed entries pass through unchanged.
+PROOT=$(apm_expand_tilde "$(pm_cfg pm_projects_root "$HOME/Projects")")
 
 _items=""; _n=0
 _old_ifs="$IFS"; IFS=','
@@ -26,7 +30,10 @@ for _entry in $KT_PROJECTS_LIST; do
   name="${_entry%%:*}"
   rawp="${_entry#*:}"
   [ -z "$rawp" ] && continue
-  path=$(apm_expand_tilde "$rawp")
+  case "$rawp" in
+    /*|"~"/*) path=$(apm_expand_tilde "$rawp") ;;   # absolute or ~-prefixed: use as-is
+    *)        path="$PROOT/$rawp" ;;                # relative tail: resolve against projects root
+  esac
   rec=$(apm_recency_days "$path")
   st=$(apm_session_state "$path")
   nx=$(apm_session_next "$path")
