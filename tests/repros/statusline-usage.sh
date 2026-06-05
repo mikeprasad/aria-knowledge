@@ -31,6 +31,14 @@ assert_empty()    { if [ -z "$2" ]; then PASS=$((PASS+1)); else FAIL=$((FAIL+1))
 # the real ~/.claude.
 H="$TMP/home"; mkdir -p "$H/.claude"
 
+# Pin the runtime to CLI/default: drop Claude-Desktop hosting signals so the shared
+# account resolver (config.sh kt_resolve_account, used by the meter + inject hook)
+# deterministically takes the CLI tier and keys the snapshot "default" — regardless
+# of whether this repro runs inside a Desktop-hosted session (where those env vars
+# are present). PATH is left intact so jq stays reachable; the isolated HOME makes
+# any inherited local-agent-mode-sessions PATH entry fail Tier-1 validation.
+unset CLAUDE_CODE_ENTRYPOINT CLAUDE_CODE_EXECPATH __CFBundleIdentifier 2>/dev/null || true
+
 # ---------- statusline-meter.sh ----------
 OUT=$(printf '' | HOME="$H" sh "$METER" | strip_ansi)
 assert_contains "meter: empty input degrades to 'Claude'" "$OUT" "Claude"
@@ -86,9 +94,11 @@ usage_alert_threshold: $2
 EOF
 mkdir -p "$TMP/kn"; }
 
-# state: ctx / 5h / 7d driven per case
+# state: ctx / 5h / 7d driven per case. session_id matches the ${SP}-a queries below
+# so the inject hook's per-session context guard trusts the snapshot's context_pct
+# (the meter stamps session_id as of v2.24.3).
 snap() { cat > "$SNAP" <<EOF
-{"written_at":"2026-06-03T17:00:00Z","model":"Opus 4.8","context_pct":$1,"five_hour_pct":$2,"five_hour_resets_at":1900000000,"seven_day_pct":$3}
+{"written_at":"2026-06-03T17:00:00Z","model":"Opus 4.8","session_id":"${SP}-a","context_pct":$1,"five_hour_pct":$2,"five_hour_resets_at":1900000000,"seven_day_pct":$3}
 EOF
 }
 
