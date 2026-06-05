@@ -230,8 +230,16 @@ MESSAGES="${MESSAGES}RULE 22 ORDERING — The Low/High Impact block must appear 
 _uk=$(kt_resolve_account | cut -f1)
 [ -z "$_uk" ] && _uk="default"
 USAGE_SNAP="~/.claude/aria-statusline-state-${_uk}.json"
-MESSAGES="${MESSAGES}TASK BUDGET — If ${USAGE_SNAP} exists (written by the aria-knowledge status-line meter), READ it to see your current context-window %, 5-hour, and 7-day plan-usage — do so when judging whether to keep going, and before /handoff, /wrapup, or compacting. (A UserPromptSubmit hook also auto-surfaces a warning when any metric crosses usage_alert_threshold, default 80%.) If that file does NOT exist, you do not see usage directly — Claude Code's UI shows the user; if strain symptoms appear (responses cutting short, deep session length, compaction warnings), surface them and offer options (finish the current atomic task, call /aria-knowledge:extract, trigger compaction, or continue). Either way, don't assume depletion or wrap up autonomously. "
-MESSAGES="${MESSAGES}When you read ${USAGE_SNAP}, RE-READ it fresh at decision time (do not rely on usage numbers mentioned earlier in this conversation). Treat the 5-hour/7-day figures as STALE if the current time is past five_hour_resets_at / seven_day_resets_at (that window has reset — the stored % is not current). Treat context_pct as valid only if the snapshot's session_id matches this session AND context_pct is present (a null/absent value means just after /compact — unknown, not the old high value). If a figure is stale or unknown and a decision depends on it, say so and check the live status line rather than asserting the stored number. "
+# Emit only the branch that matches reality. The usage snapshot is account-keyed
+# and sticky (persists across sessions), so the presence of ANY such file means
+# the status-line meter is installed. Emitting both the exists/not-exists branches
+# every session wasted ~600B on the inapplicable counterfactual and read as
+# self-contradictory ("you can see usage" + "you can't") — gate on installed.
+if ls "$HOME"/.claude/aria-statusline-state-*.json >/dev/null 2>&1; then
+  MESSAGES="${MESSAGES}TASK BUDGET — Read ${USAGE_SNAP} (written by the aria-knowledge status-line meter) for your current context-window %, 5-hour, and 7-day plan-usage; consult it when judging whether to keep going, and before /handoff, /wrapup, or compacting. Re-read it fresh at decision time (do not rely on usage numbers mentioned earlier in this conversation). Treat the 5-hour/7-day figures as STALE if the current time is past five_hour_resets_at / seven_day_resets_at, and treat context_pct as unknown if the snapshot's session_id doesn't match this session or is null/absent (just after /compact — not the old high value). If a figure is stale or unknown and a decision depends on it, say so and check the live status line rather than asserting the stored number. (A UserPromptSubmit hook also warns when any metric crosses usage_alert_threshold, default 80%.) "
+else
+  MESSAGES="${MESSAGES}TASK BUDGET — You do not see usage directly (only the user's UI shows it). If strain symptoms appear (responses cutting short, deep session length, compaction warnings), surface them and offer options (finish the current atomic task, call /aria-knowledge:extract, trigger compaction, or continue). Don't assume depletion or wrap up autonomously. "
+fi
 
 # Knowledge surfacing — passive (suggest /context) vs active (Read matches directly)
 # branches on KT_ACTIVE_SURFACING (default true as of v2.15.0).
@@ -302,12 +310,15 @@ MESSAGES="${MESSAGES}MEMORY PATHWAY — ARIA is the structured memory pathway fo
 CODEMAPS=$(find "$PWD" -maxdepth 2 -name "CODEMAP.md" 2>/dev/null | head -5)
 if [ -n "$CODEMAPS" ]; then
   CM_MSG=""
+  CM_CUR_NAMES=""
+  CM_CUR_N=0
   CM_TODAY_EPOCH=$(date +%s)
   _cm_old_ifs="$IFS"
   IFS='
 '
   for cm in $CODEMAPS; do
     CM_REL=$(echo "$cm" | sed "s|$PWD/||")
+    CM_IS_CURRENT=0
 
     # Parse "> Last updated: YYYY-MM-DD" from CODEMAP header; fall back to mtime
     CM_DATE=$(grep -m1 -E '^> Last updated: [0-9]{4}-[0-9]{2}-[0-9]{2}' "$cm" 2>/dev/null \
@@ -341,18 +352,30 @@ if [ -n "$CODEMAPS" ]; then
           CM_CLASS="possibly stale"
         else
           CM_CLASS="current"
+          CM_IS_CURRENT=1
         fi
 
         CM_ENTRY="$CM_REL (updated ${CM_DAYS}d ago, ${CM_FILES} files changed — ${CM_CLASS})"
       fi
     fi
 
-    [ -z "$CM_MSG" ] && CM_MSG="$CM_ENTRY" || CM_MSG="$CM_MSG, $CM_ENTRY"
+    # Current codemaps need no action — collapse them to a name-only tail and
+    # show full staleness detail only for stale/possibly-stale/unknown-date maps.
+    if [ "$CM_IS_CURRENT" = "1" ]; then
+      CM_CUR_N=$((CM_CUR_N + 1))
+      [ -z "$CM_CUR_NAMES" ] && CM_CUR_NAMES="$CM_REL" || CM_CUR_NAMES="$CM_CUR_NAMES, $CM_REL"
+    else
+      [ -z "$CM_MSG" ] && CM_MSG="$CM_ENTRY" || CM_MSG="$CM_MSG, $CM_ENTRY"
+    fi
   done
   IFS="$_cm_old_ifs"
 
-  if [ -n "$CM_MSG" ]; then
-    MESSAGES="${MESSAGES}CODEMAP Found: ${CM_MSG}. Before exploring a project's codebase, read its CODEMAP Directory section first. "
+  CM_FULL="$CM_MSG"
+  if [ "$CM_CUR_N" -gt 0 ]; then
+    [ -n "$CM_FULL" ] && CM_FULL="${CM_FULL}; +${CM_CUR_N} current: ${CM_CUR_NAMES}" || CM_FULL="${CM_CUR_N} current: ${CM_CUR_NAMES}"
+  fi
+  if [ -n "$CM_FULL" ]; then
+    MESSAGES="${MESSAGES}CODEMAP Found: ${CM_FULL}. Before exploring a project's codebase, read its CODEMAP Directory section first. "
   fi
 fi
 

@@ -2,6 +2,15 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.25.1 — 2026-06-06
+
+**SessionStart token trim — ~11% smaller injection, zero enforcement/behavior change.** The SessionStart guidance block had grown to ~1,270 tokens as features shipped; this trims it to ~1,120 with no loss of any rule.
+
+- **Change:** the **TASK BUDGET** guidance emitted *both* the "usage snapshot exists → read it" and the "no snapshot → watch for strain" branches every session, but only one is ever true — and the two read as self-contradictory. The hook now gates on whether the (account-keyed, sticky) status-line snapshot exists and emits only the applicable branch; the UUID-bearing path is stated once instead of twice, and the staleness/scope rules (re-read fresh; 5h/7d stale past `resets_at`; `context_pct` unknown on `session_id` mismatch or null) are preserved verbatim-in-meaning but tightened. ~588 B saved on this segment.
+- **Change:** the **CODEMAP Found** report now shows full staleness detail only for stale / possibly-stale / unknown-date maps and collapses current maps to a `+N current: name, name` tail (current maps need no action). Preserves the "read its CODEMAP Directory section first" instruction.
+- **Untouched:** the RULE 22 ORDERING enforcement block, the PreToolUse deny mechanism, and all INSIGHT CAPTURE / MEMORY PATHWAY / ARIA ACTIVE CONTEXT / SESSION STATE guidance.
+- **Ports:** Claude-Code-canonical only; codex/cursor/antigravity SessionStart equivalents tracked-drift (separate sync pass).
+
 ## 2.25.0 — 2026-06-06
 
 **ARIA Assist — morning product-management review across your portfolio (`/aria-assist`).** Incorporates the standalone aria-pm assistant into the plugin as a generic, publishable skill + `pm-*` bin scripts.
