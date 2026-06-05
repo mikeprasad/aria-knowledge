@@ -6,7 +6,7 @@ This document summarizes measured and estimated evidence for whether ARIA is *ob
 
 > **Limits up front:** All evidence below is from the plugin author's own multi-project work, run on high-capability reasoning models (historically Opus 4.7 High; recent sessions span into Opus 4.8). No controlled A/B study, no inter-developer variance data, no cross-model comparison. Treat these as **calibration anchors for high-capability reasoning models**, not universal claims — results on lower-tier models may differ.
 
-> **What changed since the 2026-05-19 (v2.18.x) revision:** the corpus is now 10–13× larger (183 `/prospect` logs and 68 `/retrospect` logs vs 14 and 15). The headline plan-quality claim *held up* under the larger sample and is now far more robust. Three things needed honest correction: (1) the **total per-session fixed cost drifted ~1.6× higher for all users** (~3,150 → ~5,000 tokens), split across *both* fixed surfaces — the skill-discovery surface grew ~1.4× (~2,700 → ~3,875 tokens; more skills, not bytes-per-skill) and the SessionStart guidance block grew ~2.4× (~450 → ~1,100 tokens; more always-on guidance bytes as features shipped). The 1.6× is the combined figure; the "guidance bytes" cause applies only to the SessionStart component. (v2.25.1 has since trimmed the SessionStart block ~11% — reflected below.) (2) the "only 1 of 14 plans was clean" framing was small-sample noise — the clean-pass rate is now ~20% and *rising over time*; (3) the retrospect-outcome finding was reframed (see finding #3). Where larger samples revealed a time trend, it is reported with its confounds named.
+> **What changed since the 2026-05-19 (v2.18.x) revision:** the corpus is now 10–13× larger (183 `/prospect` logs and 68 `/retrospect` logs vs 14 and 15). The headline plan-quality claim *held up* under the larger sample and is now far more robust. Three things needed honest correction: (1) the **total per-session fixed cost drifted ~1.6× higher for all users** (~3,150 → ~5,000 tokens), split across *both* fixed surfaces — the skill-discovery surface grew ~1.4× (~2,700 → ~3,875 tokens; more skills, not bytes-per-skill) and the SessionStart guidance block grew ~2.4× (~450 → ~1,100 tokens; more always-on guidance bytes as features shipped). The 1.6× is the combined figure; the "guidance bytes" cause applies only to the SessionStart component. (v2.25.1 has since trimmed the SessionStart block ~11% — reflected below.) (2) the "only 1 of 14 plans was clean" framing was small-sample noise — on the larger sample (n=171) the clean-pass rate is ~20% (35 of 171) and *rising over time*; (3) the retrospect-outcome finding was reframed (see finding #3). Where larger samples revealed a time trend, it is reported with its confounds named.
 
 ---
 
@@ -137,7 +137,7 @@ These are counterfactual estimates — "what ARIA replaces vs what would otherwi
 
 ## Measured quality findings
 
-This is the most important dimension and the hardest to measure rigorously. ARIA produces several auditable artifacts that allow proxy measurement of output quality. Sample sizes below are 4–12× larger than the v2.18.x revision.
+This is the most important dimension and the hardest to measure rigorously. ARIA produces several auditable artifacts that allow proxy measurement of output quality. Sample sizes below are 4–12× larger than the v2.18.x revision (171 `/prospect` runs and 68 `/retrospect` logs, vs 14 and 15).
 
 ### 1. Plan-quality intervention (`/prospect` verdicts)
 
@@ -151,7 +151,7 @@ Of 171 `/prospect` runs carrying a verdict (183 logs total):
 
 **Interpretation:** ~77% of plans needed pre-execution corrections, ~20% shipped clean, and under 3% were rejected outright. Without `/prospect`, the corrections would have been discovered *during* execution — at higher cost.
 
-**The v2.18.x revision reported 78.6% PROCEED-WITH-CHANGES on n=14.** The larger sample confirms that headline (76.6%) with far better signal strength. It also corrects a small-sample artifact: the old "only 1 of 14 plans was clean" (7%) framing was noise — the clean-pass rate is ~20% and *rising* (below).
+**The v2.18.x revision reported 78.6% PROCEED-WITH-CHANGES on n=14.** The larger sample (n=171, a ~12× increase) confirms that headline (76.6%, 131 of 171) with far better signal strength. It also corrects a small-sample artifact: the old "only 1 of 14 plans was clean" (1 of 14 = 7%) framing was noise — on n=171 the clean-pass rate is ~20% (35 of 171) and *rising* (below).
 
 **Trend over time** — bucketed by month:
 
