@@ -1,12 +1,12 @@
 # ARIA Value Analysis — Evidence Digest
 
-**Last updated:** 2026-06-06 · **Plugin version analyzed:** v2.25.0 · **Evidence base:** N=1 (plugin author's projects)
+**Last updated:** 2026-06-06 · **Plugin version analyzed:** v2.25.0 (cost surface re-measured at v2.25.1) · **Evidence base:** N=1 (plugin author's projects)
 
 This document summarizes measured and estimated evidence for whether ARIA is *objectively valuable* when added to Claude Code. It accompanies the [README](../README.md)'s "Evidence and limits" framing with concrete numbers.
 
 > **Limits up front:** All evidence below is from the plugin author's own multi-project work, run on high-capability reasoning models (historically Opus 4.7 High; recent sessions span into Opus 4.8). No controlled A/B study, no inter-developer variance data, no cross-model comparison. Treat these as **calibration anchors for high-capability reasoning models**, not universal claims — results on lower-tier models may differ.
 
-> **What changed since the 2026-05-19 (v2.18.x) revision:** the corpus is now 10–13× larger (183 `/prospect` logs and 68 `/retrospect` logs vs 14 and 15). The headline plan-quality claim *held up* under the larger sample and is now far more robust. Three things needed honest correction: (1) the per-session **cost surface drifted ~1.6× higher for all users** because every shipped feature adds always-on guidance bytes; (2) the "only 1 of 14 plans was clean" framing was small-sample noise — the clean-pass rate is now ~20% and *rising over time*; (3) the retrospect-outcome finding was reframed (see finding #3). Where larger samples revealed a time trend, it is reported with its confounds named.
+> **What changed since the 2026-05-19 (v2.18.x) revision:** the corpus is now 10–13× larger (183 `/prospect` logs and 68 `/retrospect` logs vs 14 and 15). The headline plan-quality claim *held up* under the larger sample and is now far more robust. Three things needed honest correction: (1) the **total per-session fixed cost drifted ~1.6× higher for all users** (~3,150 → ~5,000 tokens), split across *both* fixed surfaces — the skill-discovery surface grew ~1.4× (~2,700 → ~3,875 tokens; more skills, not bytes-per-skill) and the SessionStart guidance block grew ~2.4× (~450 → ~1,100 tokens; more always-on guidance bytes as features shipped). The 1.6× is the combined figure; the "guidance bytes" cause applies only to the SessionStart component. (v2.25.1 has since trimmed the SessionStart block ~11% — reflected below.) (2) the "only 1 of 14 plans was clean" framing was small-sample noise — the clean-pass rate is now ~20% and *rising over time*; (3) the retrospect-outcome finding was reframed (see finding #3). Where larger samples revealed a time trend, it is reported with its confounds named.
 
 ---
 
@@ -16,7 +16,7 @@ This document summarizes measured and estimated evidence for whether ARIA is *ob
 |---|---|
 | **What's the core value?** | **Better code, fewer errors, fewer turns.** Higher accuracy + better reasoning + early error catching, compounding into less rework. Without ARIA, the same errors get shipped, then debugged, then re-fixed, then re-verified — each cycle is multiples of the token cost of catching it pre-execution. |
 | **Does ARIA measurably improve Claude Code's output?** | **Yes — across multiple axes, now on a 12× larger sample.** 76.6% of plans submitted to `/prospect` (131 of 171) needed pre-execution corrections; only 2.9% were killed outright. ~67 canonical failure-mode patterns (plus project-scoped libraries) catch repeat drift modes. Plan cleanliness is **improving over time** (see trend below). |
-| **What does ARIA cost per session?** | **~5,100 tokens fixed + ~325 tokens per edit.** On heavy edit sessions: ~37K tokens total. (Up from the v2.18.x estimate — the fixed surface grew as features shipped; see "Measured cost surface.") |
+| **What does ARIA cost per session?** | **~5,000 tokens fixed + ~325 tokens per edit.** On heavy edit sessions: ~37K tokens total. (Up from the v2.18.x estimate — the fixed surface grew as features shipped; v2.25.1 trimmed the SessionStart portion ~11%; see "Measured cost surface.") |
 | **What does ARIA save per session?** | **Direct: 0 to ~150K tokens** (depending on knowledge intersection — typically 20–60K for corpus-engaged sessions). **Indirect (much larger): the cost of work-shipped-wrong avoided.** A single `/prospect` catch (~3K tokens to run) typically prevents a 15K+ token do-wrong → fix-after → re-verify cycle. At a ~77% needs-changes rate on non-trivial plans, avoided-rework dominates the direct savings. |
 | **What's the wall-clock impact?** | **Under 1% from hooks.** Per-edit hooks are unchanged (~90–110 ms); net positive when codemap orientation or revision-avoidance kicks in. |
 | **When does ARIA pay off?** | Multi-session work, established codebase, critical-path edits, or domains with 5+ relevant promoted knowledge files. |
@@ -49,14 +49,14 @@ This document summarizes measured and estimated evidence for whether ARIA is *ob
 Two fixed surfaces dominate, both paid by every session (modulo prompt caching):
 
 1. **Skill-discovery surface** — descriptions of all installed skills, used by Claude Code's natural-language dispatch. At 32 skills this is **~15,500 bytes (~3,875 tokens)** per session (was ~10,800 bytes / ~2,700 tokens at the smaller skill count).
-2. **SessionStart guidance block** — the hook injects Rule 22 ordering, task-budget awareness, memory pathway, and insight-capture instructions. Steady-state floor ≈ **~4,980 bytes (~1,240 tokens)** (was ~1,800 bytes / ~450 tokens). A backlog-due prefix adds ~110 bytes; first-run welcome is a one-time ~260 bytes.
+2. **SessionStart guidance block** — the hook injects Rule 22 ordering, task-budget awareness, memory pathway, and insight-capture instructions. Steady-state floor ≈ **~4,400 bytes (~1,100 tokens)** as of v2.25.1 (was ~4,980 bytes / ~1,240 tokens at v2.25.0; ~1,800 bytes / ~450 tokens at v2.18.x). v2.25.1 trimmed ~11% by gating the TASK BUDGET block to emit only the applicable statusline branch and collapsing current (non-stale) codemaps to a name-only list — no enforcement or behavior rule removed. A backlog-due prefix adds ~110 bytes; first-run welcome is a one-time ~260 bytes.
 
 | Per-session fixed cost | Tokens |
 |---|---:|
 | Skill-discovery surface (32 skills) | ~3,875 |
-| SessionStart guidance floor | ~1,240 |
-| **Steady-state total** | **~5,100** |
-| Worst-case (audit overdue + multi-pass + config-audit + version-upgrade) | ~5,400 |
+| SessionStart guidance floor (v2.25.1) | ~1,100 |
+| **Steady-state total** | **~5,000** |
+| Worst-case (audit overdue + multi-pass + config-audit + version-upgrade) | ~5,300 |
 
 ### Per-edit variable overhead
 
@@ -68,10 +68,10 @@ The PreEdit hook is **silent on compliant edits** (0 bytes) — only emits its d
 
 | Edit count | Approximate total ARIA token cost |
 |---:|---:|
-| 10 (light session) | ~8,350 |
-| 50 (moderate) | ~21,350 |
-| 100 (heavy edit day) | ~37,600 |
-| 200 (large refactor) | ~70,100 |
+| 10 (light session) | ~8,250 |
+| 50 (moderate) | ~21,250 |
+| 100 (heavy edit day) | ~37,500 |
+| 200 (large refactor) | ~70,000 |
 
 Most of the fixed portion is cache-eligible if the session stays warm, reducing the effective input cost by roughly 10× for those segments.
 
@@ -271,11 +271,11 @@ ARIA is **net-positive in token cost, wall-clock, AND output quality** when sess
 
 1. **Single-file or scratch work.** Small one-off scripts, throwaway prototypes, isolated bug investigations. The Rule 22 ceremony cost outweighs benefit for trivial changes.
 2. **Greenfield + first-time domain — *only for token math*.** No existing codemap, no related ADRs, no relevant approaches/references means the corpus-based savings aren't there yet. **However:** if the work is non-trivial enough to benefit from a Rule 22 impact assessment or a `/prospect` pre-mortem, those quality interventions fire from session 1 and are typically worth the modest token overhead on their own. The "doesn't pay off" case is specifically about token economics, not output quality.
-3. **No-edit conversational work.** Q&A sessions, design exploration, architectural debates without code output. Most of ARIA's per-edit cost doesn't fire, but the per-session fixed cost (~5,100 tokens, mostly cache-eligible) remains.
+3. **No-edit conversational work.** Q&A sessions, design exploration, architectural debates without code output. Most of ARIA's per-edit cost doesn't fire, but the per-session fixed cost (~5,000 tokens, mostly cache-eligible) remains.
 
 ### Early-adopter tax
 
-For new users, **quality is net-positive from session 1; only token-arithmetic catches up at ~2–4 weeks.** The full per-session cost lands immediately (typically ~8,400–70,100 tokens depending on edit volume, mostly cache-eligible); corpus-based token savings (codemap orientation, `/context` retrieval, ADR avoidance) require a corpus that doesn't exist yet.
+For new users, **quality is net-positive from session 1; only token-arithmetic catches up at ~2–4 weeks.** The full per-session cost lands immediately (typically ~8,250–70,000 tokens depending on edit volume, mostly cache-eligible); corpus-based token savings (codemap orientation, `/context` retrieval, ADR avoidance) require a corpus that doesn't exist yet.
 
 **Quality benefits do *not* have an early-adopter tax.** Rule 22 edit discipline, `/prospect` plan pre-mortems, `/retrospect` per-fix validation, and the ~67-pattern retrospect-patterns library all ship with the plugin and apply from session 1. The ~77% needs-changes rate measured on `/prospect` runs does not depend on corpus size. If your work involves non-trivial plans or critical-path edits, the quality interventions typically pay for the modest token overhead on their own — well before any corpus accumulates.
 
@@ -314,7 +314,7 @@ This analysis would need to be re-evaluated if:
 - Audit cadence stretches beyond ~14 days (operational discipline failing)
 - A future Claude Code version ships a competing memory primitive (e.g., first-class persistent context native to the harness) that makes ARIA's capture pipeline partially redundant
 - Anthropic ships a `~~category`-aware MCP capability-probe API that obsoletes ARIA's prose-only probe pattern (the underlying ADR-015 explicitly anticipates this revision trigger)
-- The fixed per-session cost surface grows materially again (it rose ~1.6× from v2.18 → v2.25 as features shipped; re-measure the skill-discovery + SessionStart bytes each major release)
+- The fixed per-session cost surface grows materially again (total rose ~1.6× — ~3,150 → ~5,000 tok — from v2.18 → v2.25 as features shipped; skill-discovery ~1.4× (~2,700 → ~3,875 tok) from more skills, SessionStart ~2.4× (~450 → ~1,100 tok) from guidance bytes; v2.25.1 trimmed SessionStart ~11% (~1,240 → ~1,100 tok) back. Re-measure the skill-discovery + SessionStart bytes each major release)
 
 ---
 
@@ -352,7 +352,7 @@ grep -lE '✅|KEEP|REVERT|REVISE' ~/Projects/knowledge/logs/retrospect/*.md | wc
 grep -cE '^## [a-z0-9]+(-[a-z0-9]+)+$' ~/Projects/knowledge/rules/retrospect-patterns.md
 ```
 
-> **Note on the SessionStart byte count:** the figure is **state-dependent** — a backlog-due audit prefix, a config-audit prompt, or a version-upgrade notice each add bytes. The ~4,980-byte floor reported above is the steady-state guidance block that every user receives; subtract any "audit suggested/recommended/overdue" prefix to compare against it.
+> **Note on the SessionStart byte count:** the figure is **state-dependent** — a backlog-due audit prefix, a config-audit prompt, or a version-upgrade notice each add bytes. The ~4,400-byte floor (v2.25.1) reported above is the steady-state guidance block that every user receives; subtract any "audit suggested/recommended/overdue" prefix to compare against it. (It also varies slightly with the CODEMAP staleness report, which depends on git state.)
 
 ---
 
