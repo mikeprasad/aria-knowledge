@@ -22,13 +22,13 @@ specific, and honest. Recommend the single best next action per ACTIVE project, 
 ## Determine mode
 - Explicit argument `generate` or `review` → use it. (The launchd wrapper always passes `generate`.)
 - **Bare `/aria-assist`** → auto-decide. When Bash is available, run
-  `sh <plugin>/bin/pm-mode.sh`; use whatever it prints (`review` iff a <24h digest exists that you
+  `sh ${CLAUDE_PLUGIN_ROOT}/bin/pm-mode.sh`; use whatever it prints (`review` iff a <24h digest exists that you
   haven't reviewed since it was generated, else `generate`). If Bash is unavailable, default to `generate`.
 
 ## Mode: generate  (headless, unattended)
 1. Read `~/.claude/aria-pm-facts.json` (the launchd wrapper `pm-morning-run.sh` pre-generates it).
    If missing/stale AND Bash is available (a manual run), regenerate it:
-   `sh <plugin>/bin/pm-collect.sh ~/.claude/aria-pm-facts.json`. In headless runs Bash is disallowed —
+   `sh ${CLAUDE_PLUGIN_ROOT}/bin/pm-collect.sh ~/.claude/aria-pm-facts.json`. In headless runs Bash is disallowed —
    rely on the wrapper-generated facts.
 2. For each **ACTIVE** project: read its `CLAUDE.md`, `PROGRESS.md` (latest entries), `SESSION.md`,
    recent git history if available, `IDEAS-BACKLOG.md` if present, and any plan files under
@@ -74,7 +74,7 @@ specific, and honest. Recommend the single best next action per ACTIVE project, 
    c. **Summary sentinel** → `<pm_digest_dir>/.last-summary`, one line
       (e.g. `3 active · 5 ideas · 2 proposals`) for the notifier.
 7. Notify: if Bash is available (manual run), run
-   `sh <plugin>/bin/pm-notify.sh "Morning review ready" "$(cat <pm_digest_dir>/.last-summary)"`.
+   `sh ${CLAUDE_PLUGIN_ROOT}/bin/pm-notify.sh "Morning review ready" "$(cat <pm_digest_dir>/.last-summary)"`.
    In headless runs the wrapper fires notify after you exit. Never fail the run if you can't notify.
 8. Print a one-line heartbeat: `aria-assist generate OK <date> -> <digest path>`.
 
@@ -85,7 +85,7 @@ specific, and honest. Recommend the single best next action per ACTIVE project, 
    `approve all / numbers / modify / skip`. Execute only approved ones. Report what you did.
 4. Surface the "Auto-applied this run" list so the user sees what changed unattended.
 5. **Mark reviewed** (when Bash is available): stamp the digest as acted-on so a bare `/aria-assist`
-   won't re-offer it — `sh -c '. <plugin>/bin/pm-lib.sh; apm_mark_reviewed "<pm_digest_dir>"'`.
+   won't re-offer it — `sh -c '. ${CLAUDE_PLUGIN_ROOT}/bin/pm-lib.sh; apm_mark_reviewed "<pm_digest_dir>"'`.
 
 ## Digest file format
 ```
