@@ -2,6 +2,17 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.24.3 — 2026-06-05
+
+**Runtime-aware statusline account resolution + staleness/scope guards (ADR-099).** Fixes false/cross-account usage alerts when Claude Code runs **hosted inside Claude Desktop**.
+
+- **Fix:** the meter, the `UserPromptSubmit` inject hook, and the SessionStart TASK BUDGET reader resolved the account from `~/.claude.json` — the *CLI* credential store, which is wrong under Desktop hosting (it reports the CLI login, not the session account). They now share `kt_resolve_account` (in `config.sh`, byte-mirrored into the standalone-copied meter), which keys the per-user account from runtime signals (`$PATH` `local-agent-mode-sessions` → `claude-code-sessions/<acct>/` lookup) under Desktop, and falls back to `~/.claude.json` for the CLI (v2.24.2 behavior preserved). Graceful-degrades (suppress) when Desktop-hosted but unresolvable.
+- **Fix:** the inject hook no longer alerts on a 5h/7d figure whose window already reset (`now > resets_at`); `context_pct` (per-session) is trusted only for the matching `session_id` and a non-null (non-post-`/compact`) measurement.
+- **Fix:** the SessionStart TASK BUDGET guidance now tells the agent to re-read the snapshot fresh and apply the same staleness/scope rules (closes the resume-after-hours stale-read + the context confabulation).
+- **Add:** `refreshInterval: 30` in the `/statusline` wiring keeps 5h/7d values current during idle (no token cost, no extra alerts).
+- Snapshot schema gains `runtime`, `session_id`, `seven_day_resets_at`; the account-email status-line segment renders only on the CLI runtime.
+- **Ports:** statusline scripts ship only in `plugin-claude-code` (+ `plugin-antigravity`, which targets `~/.gemini/antigravity.json` and has no Claude-Desktop hosting → exempt). codex/cursor/cowork don't ship these scripts.
+
 ## Cursor port 2.24.2-cursor.0 — 2026-06-04
 
 **Version alignment** — tracks `plugin-claude-code` v2.24.2. Canonical delta is **statusline-only** (per-account usage snapshot + email segment; Claude Code CLI). No Cursor port code or `.mdc` resync required. Release artifact: `aria-knowledge-cursor-2.24.2.zip` via `./release-cursor.sh`.
