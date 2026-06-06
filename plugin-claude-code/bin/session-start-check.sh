@@ -260,6 +260,23 @@ if [ "$KT_PROJECTS_ENABLED" = "true" ] && [ "$KT_AUTO_LOAD_PROJECT_CONTEXT" = "t
   fi
 fi
 
+# SessionStart project picker — opt-in, non-blocking (spec 2026-06-06).
+# Gated: projects_enabled + session_start_project_picker. Emits nothing unless both true.
+# Suggests a project menu (generated from projects_list) only when CWD is NOT already
+# inside a configured project (that CWD case is auto_load_project_context's job above).
+if [ "$KT_PROJECTS_ENABLED" = "true" ] && [ "$KT_SESSION_START_PROJECT_PICKER" = "true" ]; then
+  if [ -z "$(kt_project_for_path "$PWD")" ]; then
+    PICKER_MENU=$(kt_project_menu)
+    if [ -n "$PICKER_MENU" ]; then
+      # Option 3 (ADR-pending unify): inline pm_projects_root read; same key as ARIA Assist.
+      PICKER_ROOT=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^pm_projects_root:' | sed 's/^pm_projects_root: *//')
+      [ -z "$PICKER_ROOT" ] && PICKER_ROOT="$HOME/Projects"
+      case "$PICKER_ROOT" in "~"/*) PICKER_ROOT="$HOME/${PICKER_ROOT#\~/}" ;; esac
+      MESSAGES="${MESSAGES}ARIA Project Picker — If the user's opening message does NOT already name a project (or a task within one), suggest ONCE: 'Which project today? ${PICKER_MENU} — or name one / just start working.' When the user picks or names a project, resolve its tag to the matching projects_list path, then read ${PICKER_ROOT}/<that-path>/CLAUDE.md and ${PICKER_ROOT}/<that-path>/PROGRESS.md if present. Do NOT block — if the user already named a project or task, proceed without asking. Offer once per session. "
+    fi
+  fi
+fi
+
 # v2.16.1: tracked-artifacts active load — fires when active_knowledge_surfacing
 # is enabled AND PWD substring-matches a configured project. Surfaces CODEMAP
 # directory + (if multi-repo) STITCH with staleness annotation. Complementary
