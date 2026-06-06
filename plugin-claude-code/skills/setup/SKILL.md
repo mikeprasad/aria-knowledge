@@ -225,17 +225,21 @@ This block is read-only — `/setup` never writes new entries here. See **Step 7
 
 ### Project Setup (only if user enables the project-specific knowledge tier)
 
-If the user enables (or keeps enabled) the project-specific knowledge tier in Advanced Options, ask four follow-up questions. In **update mode** where values already exist in the config, show the current value for each question and let the user keep it (press enter) or enter a new value — this is the discoverable path for toggling `auto_load_project_context` on a re-run when the tier was previously enabled:
+If the user enables (or keeps enabled) the project-specific knowledge tier in Advanced Options, ask six follow-up questions. In **update mode** where values already exist in the config, show the current value for each question and let the user keep it (press enter) or enter a new value — this is the discoverable path for toggling `auto_load_project_context` on a re-run when the tier was previously enabled:
 
 1. **Project list** — "Comma-separated `tag:relative-path` pairs (e.g., `proj-a:path/to/proj-a,proj-b:proj-b,lib:shared-lib`). Paths are relative to the parent of your knowledge folder (typically `~/Projects/`). Press enter to defer adding projects:"
 2. **Project remotes (optional)** — "Optional git-remote URL patterns for fallback project detection when CWD doesn't match a configured path. Comma-separated `tag:url-substring` pairs (e.g., `proj-a:myorg/proj-a-repo`). Press enter to skip:"
 3. **Promotion threshold** — "Minimum number of projects that must share a similar pattern before `/audit-knowledge` suggests cross-project promotion (default 2):"
 4. **Auto-load project context on session start** — "When your CWD matches a configured project, should SessionStart automatically suggest `/context {tag}`? This is a runtime convenience — the project tier works fine without it, and you can change this later by editing `auto_load_project_context` in `~/.claude/aria-knowledge.local.md`. (y/n, default n):"
+5. **SessionStart project picker** — "When you open a session from a multi-project parent directory (no project chosen yet), should ARIA suggest a project menu generated from your `projects_list`? Non-blocking — you can always just name a project or start working. (y/n, default n):" → writes `session_start_project_picker`.
+6. **Project display labels (optional)** — "Optional friendly names for the picker menu. Comma-separated `tag:Label` pairs (e.g., `cs:Commonspace,ss:Seersite`). Empty = bare tags. Press enter to skip:" → writes `projects_labels`.
 
 **Validate input:**
 - Project tags cannot contain `:` or `,` (these are the parser delimiters). If invalid, show the offending tag and re-prompt.
 - Promotion threshold must be a plain integer ≥ 1. If invalid, re-prompt.
 - Auto-load answer must be `y`/`n` (or empty for default). If invalid, re-prompt.
+- SessionStart project picker answer must be `y`/`n` (or empty for default). If invalid, re-prompt.
+- `projects_labels` is comma-separated `tag:Label` pairs, or empty. Warn (don't error) if a label's tag is not in `projects_list`.
 - For each `tag:path` pair, warn (don't error) if the resolved path doesn't exist on disk yet — the user may be configuring projects they haven't created.
 
 **Existing-folder detection:**
@@ -250,18 +254,18 @@ Before prompting, scan the user's knowledge folder for an existing `projects/` s
 
 ### Shared Knowledge Setup (only if user enables the project tier)
 
-After Project Setup completes (questions 1-4), if `projects_enabled: true` AND `projects_list` is non-empty, ask two follow-up questions about the shared-knowledge feature. In **update mode** where values exist, show current values and let the user keep (press enter) or change.
+After Project Setup completes (questions 1-6), if `projects_enabled: true` AND `projects_list` is non-empty, ask two follow-up questions about the shared-knowledge feature. In **update mode** where values exist, show current values and let the user keep (press enter) or change.
 
-5. **Which projects do you want to enable shared knowledge for?** — *"This is an opt-in extension that lets you promote selected personal knowledge into per-repo `_project-knowledge/` folders so teammates can see what you've learned. Personal knowledge stays in your own knowledge folder; team copies are independent records committed to your project repos via your normal git workflow. Most users have many repos but only a few with teams to share with — pick only the ones with teammates who'd benefit. Your configured projects: {projects_list tag enumeration}. Enter comma-separated tags (default: empty = feature disabled, all projects stay personal-only):"*
+7. **Which projects do you want to enable shared knowledge for?** — *"This is an opt-in extension that lets you promote selected personal knowledge into per-repo `_project-knowledge/` folders so teammates can see what you've learned. Personal knowledge stays in your own knowledge folder; team copies are independent records committed to your project repos via your normal git workflow. Most users have many repos but only a few with teams to share with — pick only the ones with teammates who'd benefit. Your configured projects: {projects_list tag enumeration}. Enter comma-separated tags (default: empty = feature disabled, all projects stay personal-only):"*
 
-6. **Author tag for shared-knowledge filenames** — only ask if Q5 returned a non-empty tag list. *"Shared-knowledge files use `{YYYY-MM-DD}-{author-tag}-{slug}.md` naming. Pick a short author tag (e.g., `init`, or initials, or first2+last2 of your name). Default: derived from `git config user.name` (first 2 chars of first name + first 2 chars of last name) → '{auto-derived}':"*
+8. **Author tag for shared-knowledge filenames** — only ask if Q7 returned a non-empty tag list. *"Shared-knowledge files use `{YYYY-MM-DD}-{author-tag}-{slug}.md` naming. Pick a short author tag (e.g., `init`, or initials, or first2+last2 of your name). Default: derived from `git config user.name` (first 2 chars of first name + first 2 chars of last name) → '{auto-derived}':"*
 
 **Validate input:**
-- Q5 answer is a comma-separated tag list, or empty (= feature disabled). Each tag must already exist in `projects_list`. If a tag is not in `projects_list`, show the offending tag and re-prompt: *"Tag '{tag}' is not in projects_list. Available: {projects_list tags}. Re-enter:"*. Empty input is valid and means feature disabled.
-- Q6 author_tag must be 1-12 characters, alphanumerics + hyphens only (the value will appear in filenames). If invalid, show offending characters and re-prompt.
-- If Q5 returned a non-empty list but Q6 produces an empty value AND no derivable git user.name exists, warn: *"Author tag is required for shared knowledge. You can set `author_tag` later in `~/.claude/aria-knowledge.local.md`, but `/audit-share` will refuse to run until it's set."* Continue setup with `author_tag:` empty.
+- Q7 answer is a comma-separated tag list, or empty (= feature disabled). Each tag must already exist in `projects_list`. If a tag is not in `projects_list`, show the offending tag and re-prompt: *"Tag '{tag}' is not in projects_list. Available: {projects_list tags}. Re-enter:"*. Empty input is valid and means feature disabled.
+- Q8 author_tag must be 1-12 characters, alphanumerics + hyphens only (the value will appear in filenames). If invalid, show offending characters and re-prompt.
+- If Q7 returned a non-empty list but Q8 produces an empty value AND no derivable git user.name exists, warn: *"Author tag is required for shared knowledge. You can set `author_tag` later in `~/.claude/aria-knowledge.local.md`, but `/audit-share` will refuse to run until it's set."* Continue setup with `author_tag:` empty.
 
-**Schema note:** the config field `projects_shared_knowledge` is itself the comma-separated tag list (the value IS the scope). Empty/missing = feature disabled. There is no separate boolean toggle; the field's presence and content together encode "enabled and for which projects." A legacy value of `true` (from pre-publish v2.13.0 stubs) is treated the same as empty and triggers Q5 to populate the list properly on `/setup` re-run.
+**Schema note:** the config field `projects_shared_knowledge` is itself the comma-separated tag list (the value IS the scope). Empty/missing = feature disabled. There is no separate boolean toggle; the field's presence and content together encode "enabled and for which projects." A legacy value of `true` (from pre-publish v2.13.0 stubs) is treated the same as empty and triggers Q7 to populate the list properly on `/setup` re-run.
 
 **CLAUDE.md reference handling deferred to first-write.** Earlier drafts of this spec offered to append `_project-knowledge/` references to project CLAUDE.md files at setup time. That has been removed: documenting a convention before the folder exists is aspirational, batch-applying across all projects loses per-repo nuance (different repos may have different teams / visibility), and a default-`y` prompt for a teammate-affecting change is more aggressive than ARIA's normal posture. The CLAUDE.md reference offer now happens inside `/audit-share` Step 6.5 the first time a file is actually written to a repo's `_project-knowledge/` folder — at that moment the folder + README exist, the user has just made an active sharing decision, and per-repo confirmation with git-tracked detection can be presented in context. Step 6.5b additionally handles the multi-repo container CLAUDE.md case for tags with `projects_groups` entries.
 
@@ -274,7 +278,7 @@ Before completing this section, scan for existing `_project-knowledge/` folders.
 
 For each scan location where a `_project-knowledge/` folder is found:
 
-- **If found AND its parent project tag is NOT in the user's `projects_shared_knowledge` list:** Note in verbose output: *"An existing `_project-knowledge/` folder was detected at `<scan-location>` (parent project tag `{tag}`) but `{tag}` is not in your shared-knowledge list. Add `{tag}` to the list now? (y/n)"* — if yes, append the tag to the Q5 answer and continue.
+- **If found AND its parent project tag is NOT in the user's `projects_shared_knowledge` list:** Note in verbose output: *"An existing `_project-knowledge/` folder was detected at `<scan-location>` (parent project tag `{tag}`) but `{tag}` is not in your shared-knowledge list. Add `{tag}` to the list now? (y/n)"* — if yes, append the tag to the Q7 answer and continue.
 - **If found AND its parent project tag IS in the list:** No action; the folder will be picked up by `/index` Phase 5 on next rebuild.
 - **If found AND `projects_shared_knowledge` is empty:** Note: *"An existing `_project-knowledge/` folder was detected at `<scan-location>` but the shared-knowledge feature is disabled (empty list). Folder is preserved; `/index` and `/context` won't surface it until you enable the feature for tag `{tag}` via `/setup`."*
 
@@ -311,8 +315,10 @@ projects_list: [comma-separated tag:path pairs from Step 6, default empty]
 projects_remotes: [comma-separated tag:url-pattern pairs from Step 6, default empty]
 projects_promotion_threshold: [integer from Step 6, default 2]
 auto_load_project_context: [true/false from Step 6, default false]
-projects_shared_knowledge: [comma-separated tag list from Shared Knowledge Setup Q5, default empty = feature disabled; each tag must exist in projects_list]
-author_tag: [string from Shared Knowledge Setup Q6, default empty when projects_shared_knowledge is empty]
+session_start_project_picker: [true/false from Step 6, default false]
+projects_labels: [comma-separated tag:Label pairs from Step 6, default empty]
+projects_shared_knowledge: [comma-separated tag list from Shared Knowledge Setup Q7, default empty = feature disabled; each tag must exist in projects_list]
+author_tag: [string from Shared Knowledge Setup Q8, default empty when projects_shared_knowledge is empty]
 ---
 ```
 

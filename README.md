@@ -88,6 +88,7 @@ Move reviewed knowledge into the trusted layer.
 - `/audit-knowledge` (alias `/knowledge-audit`) — Review staged backlog entries and promote the ones worth trusting into the indexed knowledge base. Promotion happens *inside* the audit — there is no standalone `/promote` command.
 - Organize by tag, project tier, and cross-project patterns.
 - Optional project-specific tier (v2.8.0+) for architecture decisions and patterns.
+- Optional non-blocking SessionStart project picker (v2.26.0+) — for multi-project parent dirs, suggests a project menu generated from `projects_list` and reads the chosen project's `CLAUDE.md`/`PROGRESS.md`.
 
 ### Apply
 

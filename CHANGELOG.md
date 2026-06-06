@@ -2,6 +2,18 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.26.0 — 2026-06-06
+
+**Opt-in, non-blocking SessionStart project picker.** Multi-project users (a parent dir like `~/Projects` holding sibling project folders) can have ARIA suggest a project menu at session start, generated from `projects_list` — replacing hand-written `settings.local.json` SessionStart hooks that duplicated and drifted from the configured roster.
+
+- **Add:** two config fields, both gated by existing `projects_enabled`: `session_start_project_picker` (bool, default `false`) and `projects_labels` (optional `tag:Label` display map; empty ⇒ bare-tag menu).
+- **Add:** `kt_project_menu` helper in `config.sh` (pure function: `projects_list` + `projects_labels` → menu string).
+- **Add:** gated, **non-blocking** picker block in `session-start-check.sh` — suggests `'Which project today? …'` only when the opening message doesn't already name a project/task AND CWD isn't already inside a configured project (that case stays `auto_load_project_context`'s). On selection, reads the project's `CLAUDE.md`/`PROGRESS.md`. Never blocks.
+- **Add:** `/setup` questions for both fields (project tier); `CONFIG.md` + README documentation; ADR-100.
+- **Path resolution:** inline `pm_projects_root` read (default `~/Projects`), the same key ARIA Assist uses; a canonical `KT_PROJECTS_ROOT` unification is deferred to its own coordinated ADR (backlogged).
+- **Migration:** after enabling, remove any custom SessionStart project-prompt hook from `.claude/settings.local.json` (ARIA does not edit personal settings).
+- **Ports:** Claude-Code-canonical only; other ports inherit the inert config keys safely (named-key parse ignores unknowns) — hook-block port-out is tracked-drift.
+
 ## 2.25.2 — 2026-06-06
 
 **Superpowers is now a recommended companion, surfaced in `/setup`.** ARIA is the knowledge + edit-discipline layer; [Superpowers](https://github.com/obra/superpowers) is the complementary process-discipline layer (brainstorming, `writing-plans`, `executing-plans`, TDD, subagent-driven development). They interlock into a full plan → `/prospect` → build → `/retrospect` loop, and ARIA already stores plans/specs in the `docs/superpowers/{plans,specs}/` convention.
