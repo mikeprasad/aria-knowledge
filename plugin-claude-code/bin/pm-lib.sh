@@ -107,3 +107,26 @@ apm_checkpoint_backlog() {
     && echo "checkpointed $_d"
   return 0
 }
+
+# apm_assist_status_path -> absolute path of the global .aria-assist.json overlay (next to digests)
+apm_assist_status_path() {
+  _kf="${KT_KNOWLEDGE_FOLDER:-}"
+  _dir=$(apm_expand_tilde "$(pm_cfg pm_digest_dir "$_kf/pm-reviews")")
+  printf '%s/.aria-assist.json' "$_dir"
+}
+
+# apm_write_assist_status SECTION_KEY JSON_OBJECT
+# Deep-merge {SECTION_KEY: JSON_OBJECT} into the overlay (create with {"schema":1} if absent).
+# Preserves sibling keys and prior fields within the section. Best-effort; never errors out a caller.
+apm_write_assist_status() {
+  _f=$(apm_assist_status_path); _d=$(dirname "$_f")
+  mkdir -p "$_d" 2>/dev/null || return 0
+  [ -f "$_f" ] || printf '{"schema":1}\n' > "$_f"
+  _tmp="$_f.tmp.$$"
+  if jq --arg k "$1" --argjson v "$2" \
+       '.[$k] = ((.[$k] // {}) + $v) | .schema = (.schema // 1)' "$_f" > "$_tmp" 2>/dev/null; then
+    mv "$_tmp" "$_f"
+  else
+    rm -f "$_tmp" 2>/dev/null || true
+  fi
+}
