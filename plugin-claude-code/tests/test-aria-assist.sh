@@ -28,3 +28,14 @@ assert_eq "schedule: install time"    "08:30" "$(jq -r '.schedule.time' "$SCF" 2
 ( export HOME="$SC/home"; export KT_CONFIG="$SC/cfg.md"; PATH="$STUB:$PATH"; sh "$BIN/pm-schedule.sh" --uninstall ) >/dev/null 2>&1
 assert_eq "schedule: uninstall flips" "false" "$(jq -r '.schedule.enabled' "$SCF" 2>/dev/null)"
 assert_eq "schedule: time preserved"  "08:30" "$(jq -r '.schedule.time' "$SCF" 2>/dev/null)"
+
+# --- pm-morning-run.sh writes a lastRun block (claude stubbed, hermetic) ---
+MR="$APM_TMP/mrun"; mkdir -p "$MR/home/.claude/logs" "$MR/knowledge/pm-reviews"
+printf -- '---\nknowledge_folder: %s/knowledge\npm_light_writes: false\n---\n' "$MR" > "$MR/cfg.md"
+printf '2 active\n' > "$MR/knowledge/pm-reviews/.last-summary"
+MSTUB="$MR/stub"; mkdir -p "$MSTUB"
+for b in claude osascript; do printf '#!/bin/sh\nexit 0\n' > "$MSTUB/$b"; chmod +x "$MSTUB/$b"; done
+MRF="$MR/knowledge/pm-reviews/.aria-assist.json"
+( export HOME="$MR/home"; export KT_CONFIG="$MR/cfg.md"; PATH="$MSTUB:$PATH"; sh "$BIN/pm-morning-run.sh" ) >/dev/null 2>&1
+assert_eq "morning: lastRun result"  "ok" "$(jq -r '.lastRun.result' "$MRF" 2>/dev/null)"
+assert_eq "morning: lastRun digest"  "1"  "$( [ -n "$(jq -r '.lastRun.digest // empty' "$MRF" 2>/dev/null)" ] && echo 1 || echo 0 )"

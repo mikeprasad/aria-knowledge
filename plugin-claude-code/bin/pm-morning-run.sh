@@ -41,4 +41,11 @@ fi
 BODY="Morning review ready"
 [ -f "$OUTDIR/.last-summary" ] && BODY="$(cat "$OUTDIR/.last-summary")"
 sh "$BIN/pm-notify.sh" "Morning review ready" "$BODY" || true
+
+# 4. record last-run status into the .aria-assist.json overlay (best-effort; atlas reads this)
+apm_write_assist_status lastRun "$(jq -n \
+  --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg r "ok" \
+  --arg d "$(date -u +%Y-%m-%d)" --arg s "$(cat "$OUTDIR/.last-summary" 2>/dev/null || echo '')" \
+  '{at:$at, result:$r, digest:$d, summary:$s}')" || true
+
 echo "pm-morning-run OK $(date -u +%Y-%m-%dT%H:%M:%SZ)"
