@@ -520,3 +520,6 @@ If the user wants `/aria-assist` to run automatically each morning, offer to ins
 On yes (Bash available): `sh ${CLAUDE_PLUGIN_ROOT}/bin/pm-schedule.sh`.
 The iMessage notification path needs a one-time **Automation permission** grant
 (System Settings → Privacy & Security → Automation); the desktop banner always works.
+The schedule also surfaces as a read-only "Morning run" card in aria-atlas (if you use it),
+which reads the status from `<knowledge_folder>/pm-reviews/.aria-assist.json` (written by
+`pm-schedule.sh` on install/uninstall and refreshed by each run).
