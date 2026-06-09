@@ -79,7 +79,7 @@ These are recommendations only — ARIA does not force a model. Switch per sessi
 
 Always pick the latest release within each tier — ARIA pins capability *tiers*, not version numbers, so this guidance survives model updates.
 
-`Fable` (displayed "Fable 5") is the tier above Opus, with a native 1M-token context window. Treat it as a step-up option for the most judgment-heavy runs (`/extract`, `/audit-knowledge`, `/retrospect` on hard sessions) and for `/codemap create` on very large repos — on Fable the "large-context variant preferred" qualifier above is moot, since the 1M window fits a full-repo traversal without truncation. It costs ~2× Opus, so reach for it when the lift justifies the spend; the Opus rows otherwise stand.
+`Fable` (displayed "Fable 5") is the tier above Opus. Its edge is raw capability/judgment, **not** context size — Fable and Opus share the same 1M-token window. Treat it as a step-up only for the most judgment-heavy, high-stakes runs where a wrong or shallow answer is costly (`/extract`, `/audit-knowledge`, `/retrospect` on genuinely hard sessions). It costs ~2× Opus, so reach for it when difficulty — not data volume — justifies the spend; the Opus rows otherwise stand. (Note: the "large-context variant preferred" qualifier on `/codemap create` above is legacy — any current top-tier model, Opus 4.8 included, already carries the 1M window, so full-repo traversal no longer needs a special variant.)
 
 Any model below Sonnet-equivalent capability is not recommended for any ARIA skill — the judgment/cross-reference demands exceed its strengths.
 

@@ -203,7 +203,7 @@ Rules for the line:
 - **Effort ladder:** `low · medium · high · xhigh · max` (Fable, Opus, and Sonnet support effort; `Haiku` does **not** — emit `Haiku` with no `· effort` suffix). `opusplan` (Opus plans → Sonnet executes) is its own token, no effort suffix.
 - **Uncertain / no strong signal → `Opus · high`**, rationale "general session, no strong signal."
 - **Spans tiers → recommend the higher tier** and say so in the rationale.
-- **`Fable` is the tier above Opus** (1M-token context; displayed "Fable 5"). Recommend `Fable · xhigh` in place of the top row's `Opus · xhigh` when the hardest first action is at the extreme end of difficulty *and* would also benefit from the 1M window (large-repo `/codemap`, multi-document synthesis). It costs ~2× Opus, so the `Opus` rows otherwise stand and the uncertainty fallback stays `Opus · high`.
+- **`Fable` is the tier above Opus** (displayed "Fable 5"). Recommend `Fable · xhigh` in place of the top row's `Opus · xhigh` only when the hardest first action is at the extreme end of *difficulty* — novel architecture, gnarly cross-system debugging, high-asymmetric-failure-cost reasoning — where a wrong/shallow answer is costly enough to justify ~2× Opus's price. Context size is **not** the trigger: Fable and Opus share the same 1M window, so a large-but-tractable task (big `/codemap`, multi-doc synthesis) stays on `Opus`. The `Opus` rows otherwise stand and the uncertainty fallback stays `Opus · high`.
 
 This line is advisory — it does not set the model. The user selects via `/model` and `/effort`; a running next-session model uses the effort cue + a mismatch self-check.
 

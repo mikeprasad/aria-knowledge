@@ -2,6 +2,14 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.27.2 — 2026-06-10
+
+**Fix the Fable-5 guidance: difficulty is the trigger, not context size.** The v2.27.1 notes justified reaching for Fable 5 partly via "the 1M window" — but Opus 4.8 *also* has a 1M context window, so window size is not a Fable-vs-Opus differentiator and the framing would mis-route large-but-tractable work to a 2×-cost model. Re-anchored both notes on raw capability/judgment.
+
+- **Docs:** `/handoff` skill — the Fable rubric note now triggers on extreme *difficulty* (novel architecture, gnarly cross-system debugging, high-asymmetric-failure-cost reasoning), explicitly states Fable and Opus share the same 1M window, and keeps large-but-tractable tasks on `Opus`.
+- **Docs:** `/help` skill — the Fable note now leads with capability/judgment (not context), and reframes the `/codemap create` "large-context variant preferred" qualifier as legacy (any current top-tier model, Opus 4.8 included, already carries 1M).
+- **Ports:** Claude-Code-canonical only (same scope as 2.27.1).
+
 ## 2.27.1 — 2026-06-10
 
 **Fable 5 readiness — model-tier prose updated for the new tier above Opus.** Anthropic's Fable 5 (`claude-fable-5`, displayed "Fable 5", 1M-token context) is the first capability tier *inserted* above Opus since ARIA's model-recommendation prose was written. The plugin's runtime is already model-agnostic (the statusline meter reads `model.display_name` dynamically; usage/context hooks are percentage-based), so this is a docs-only pass with no code changes.
