@@ -198,11 +198,12 @@ The recommendation is the current session's judgment about what the **next sessi
 | Trivial lookups / status checks | `Haiku` |
 
 Rules for the line:
-- **De-version.** Write only the model family (`Opus` / `Sonnet` / `Haiku`) — a bare family name means the **latest version** of that family. Never write a version number.
+- **De-version.** Write only the model family (`Fable` / `Opus` / `Sonnet` / `Haiku`) — a bare family name means the **latest version** of that family. Never write a version number.
 - **Always include a one-line rationale** on the indented line below, grounded in the first action.
-- **Effort ladder:** `low · medium · high · xhigh · max` (Opus and Sonnet support effort; `Haiku` does **not** — emit `Haiku` with no `· effort` suffix). `opusplan` (Opus plans → Sonnet executes) is its own token, no effort suffix.
+- **Effort ladder:** `low · medium · high · xhigh · max` (Fable, Opus, and Sonnet support effort; `Haiku` does **not** — emit `Haiku` with no `· effort` suffix). `opusplan` (Opus plans → Sonnet executes) is its own token, no effort suffix.
 - **Uncertain / no strong signal → `Opus · high`**, rationale "general session, no strong signal."
 - **Spans tiers → recommend the higher tier** and say so in the rationale.
+- **`Fable` is the tier above Opus** (1M-token context; displayed "Fable 5"). Recommend `Fable · xhigh` in place of the top row's `Opus · xhigh` when the hardest first action is at the extreme end of difficulty *and* would also benefit from the 1M window (large-repo `/codemap`, multi-document synthesis). It costs ~2× Opus, so the `Opus` rows otherwise stand and the uncertainty fallback stays `Opus · high`.
 
 This line is advisory — it does not set the model. The user selects via `/model` and `/effort`; a running next-session model uses the effort cue + a mismatch self-check.
 
@@ -310,7 +311,7 @@ Read on resume: {primary CLAUDE.md path} for current state.
 
 - **/wrapup is the interactive default; /handoff is the express lane.** Don't deprecate or replace /wrapup. They serve different cadences.
 - **Always emit the next-session opener (default + auto modes only).** In default + auto, even when nothing else changed (no PROGRESS update, no commit, no memory edit), the opener is the headline deliverable. Brief mode emits the coworker brief instead — different artifact, different audience.
-- **The opener always carries a `Suggested next session:` line (default + auto modes only).** De-versioned model family (`Opus`/`Sonnet`/`Haiku`, never a version number) + effort level + a one-line rationale grounded in the first action. It is advisory, not model-setting. Brief mode does not carry it. See Step 3e's rubric for the row mapping.
+- **The opener always carries a `Suggested next session:` line (default + auto modes only).** De-versioned model family (`Fable`/`Opus`/`Sonnet`/`Haiku`, never a version number) + effort level + a one-line rationale grounded in the first action. It is advisory, not model-setting. Brief mode does not carry it. See Step 3e's rubric for the row mapping.
 - **`auto` mode applies everything without confirmation.** The user explicitly opted into that risk by typing `auto`. Do not introduce confirmation gates in auto mode — that defeats the purpose.
 - **`brief` mode produces output only — no side effects.** No PROGRESS update, no CLAUDE.md edit, no memory write, no commit, no /extract. The brief is a copy/paste artifact for a person, not durable state. Users who want both a brief AND state updates run `/handoff brief` then `/handoff` (or `/handoff auto`) separately — two passes, two artifacts.
 - **Brief mode keeps `[coworker]` as a literal placeholder.** Don't prompt the user for a recipient name. They'll fill it at paste time. This avoids friction and supports "send to multiple people" use cases.

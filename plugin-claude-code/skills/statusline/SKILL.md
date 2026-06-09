@@ -9,7 +9,7 @@ allowed-tools: Read, Write, Edit, Bash, Glob
 Wire up (or remove) a persistent status line at the bottom of the Claude Code CLI showing:
 
 ```
-Opus 4.8 │ ███░░░░░░░ 31% ctx │ 5h 24% ↺01:00 │ 7d 88%
+Fable 5 │ ███░░░░░░░ 31% ctx │ 5h 24% ↺01:00 │ 7d 88%
 ```
 
 - **context bar + %** — how full the context window is (input-only percentage, green → yellow → red).
@@ -115,7 +115,7 @@ If validation fails, restore from `settings.json.aria-bak` and report the error 
 Prove it works by piping a representative payload through the installed copy (don't ask the user to eyeball the CLI — show them the rendered output):
 
 ```bash
-echo '{"model":{"display_name":"Opus 4.8"},"context_window":{"used_percentage":31},"rate_limits":{"five_hour":{"used_percentage":24,"resets_at":0},"seven_day":{"used_percentage":12}}}' | "$HOME/.claude/aria-statusline-meter.sh"; echo
+echo '{"model":{"display_name":"Fable 5"},"context_window":{"used_percentage":31},"rate_limits":{"five_hour":{"used_percentage":24,"resets_at":0},"seven_day":{"used_percentage":12}}}' | "$HOME/.claude/aria-statusline-meter.sh"; echo
 ```
 
 ### Step 6 — Confirm

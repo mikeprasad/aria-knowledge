@@ -2,6 +2,15 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.27.1 — 2026-06-10
+
+**Fable 5 readiness — model-tier prose updated for the new tier above Opus.** Anthropic's Fable 5 (`claude-fable-5`, displayed "Fable 5", 1M-token context) is the first capability tier *inserted* above Opus since ARIA's model-recommendation prose was written. The plugin's runtime is already model-agnostic (the statusline meter reads `model.display_name` dynamically; usage/context hooks are percentage-based), so this is a docs-only pass with no code changes.
+
+- **Docs:** `/handoff` skill — added `Fable` to the de-version family list (both copies) and the effort-ladder support clause; added one advisory note that `Fable · xhigh` replaces the top row's `Opus · xhigh` when the hardest first action also needs the 1M window (large-repo `/codemap`, multi-doc synthesis). Rubric rows unchanged; `Opus · high` stays the uncertainty fallback.
+- **Docs:** `/help` skill — added a note after the Model Recommendations table positioning Fable as the step-up top tier (and noting the "large-context variant preferred" `/codemap create` qualifier is moot on Fable's 1M window). Table rows unchanged.
+- **Docs:** `/statusline` skill — refreshed the example output + test payload from `Opus 4.8` to `Fable 5` (cosmetic; the meter script is dynamic and untouched).
+- **Ports:** Claude-Code-canonical only. The `plugin-antigravity` skill mirror (handoff/help/statusline) is tracked-drift for a later parity pass; codex/cursor/cowork carry no model tables.
+
 ## 2.27.0 — 2026-06-10
 
 **ARIA Assist morning-run schedule surfaces in aria-atlas (read-only) + a global status overlay.** The `/aria-assist` launchd schedule now writes a small global `.aria-assist.json` overlay next to the digests, which aria-atlas reads to render a read-only "Morning run" card (ON/OFF · time · last-run). Enable/disable stays on the aria side (`pm-schedule.sh` via `/setup`); atlas never shells to `launchctl` — preserving its standalone portability.
