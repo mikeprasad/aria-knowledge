@@ -2,6 +2,19 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.27.0 — 2026-06-10
+
+**ARIA Assist morning-run schedule surfaces in aria-atlas (read-only) + a global status overlay.** The `/aria-assist` launchd schedule now writes a small global `.aria-assist.json` overlay next to the digests, which aria-atlas reads to render a read-only "Morning run" card (ON/OFF · time · last-run). Enable/disable stays on the aria side (`pm-schedule.sh` via `/setup`); atlas never shells to `launchctl` — preserving its standalone portability.
+
+- **Add:** `apm_write_assist_status` (+ `apm_assist_status_path`) in `pm-lib.sh` — `jq` deep-merge writer for `<pm_digest_dir>/.aria-assist.json` (create-if-absent, preserves sibling sections).
+- **Add:** `pm-schedule.sh` writes the `schedule` section on install (`enabled:true` + time + label) and flips `enabled:false` on `--uninstall` (file retained so atlas can show OFF).
+- **Add:** `pm-morning-run.sh` records a `lastRun` section (timestamp, result, digest date, summary) after each run.
+- **Fix:** `pm-schedule.sh` install crashed at any hour ≥ 08 (`printf '%d'` treated a leading-zero hour like `08` as invalid octal); now base-10 coerced via `$((10#$HOUR))`. Latent because the shipped default `07:30` parses as valid octal.
+- **Fix:** removed the `/wrapup` token from the `/handoff` skill description so typing `/wrapup` no longer surfaces `/handoff` in the slash-command picker.
+- **Test:** revived the `pm-*` repro harness into `plugin-claude-code/tests/` (it had shipped untested since v2.25.0) — 35 assertions green, incl. the new overlay cases.
+- **Docs:** `/setup` schedule step notes the aria-atlas surfacing. The aria-atlas reader/endpoint/card live in the aria-atlas repo.
+- **Ports:** Claude-Code-canonical only (the schedule is Bash + macOS launchd); other ports tracked-drift.
+
 ## 2.26.0 — 2026-06-06
 
 **Opt-in, non-blocking SessionStart project picker.** Multi-project users (a parent dir like `~/Projects` holding sibling project folders) can have ARIA suggest a project menu at session start, generated from `projects_list` — replacing hand-written `settings.local.json` SessionStart hooks that duplicated and drifted from the configured roster.
