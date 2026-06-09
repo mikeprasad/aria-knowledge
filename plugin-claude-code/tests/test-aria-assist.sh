@@ -15,3 +15,16 @@ assert_eq "assist: enabled flipped"  "false"      "$(jq -r '.schedule.enabled' "
 assert_eq "assist: time preserved"   "08:30"      "$(jq -r '.schedule.time' "$ASF" 2>/dev/null)"
 assert_eq "assist: label preserved"  "com.aria.morning" "$(jq -r '.schedule.label' "$ASF" 2>/dev/null)"
 assert_eq "assist: sibling lastRun"  "2026-06-09" "$(jq -r '.lastRun.digest' "$ASF" 2>/dev/null)"
+
+# --- pm-schedule.sh writes schedule status on install + flips enabled on --uninstall ---
+SC="$APM_TMP/sched"; mkdir -p "$SC/home/Library/LaunchAgents" "$SC/knowledge"
+printf -- '---\nknowledge_folder: %s/knowledge\npm_schedule_time: 08:30\n---\n' "$SC" > "$SC/cfg.md"
+STUB="$SC/stub"; mkdir -p "$STUB"
+for b in launchctl plutil osascript; do printf '#!/bin/sh\nexit 0\n' > "$STUB/$b"; chmod +x "$STUB/$b"; done
+SCF="$SC/knowledge/pm-reviews/.aria-assist.json"
+( export HOME="$SC/home"; export KT_CONFIG="$SC/cfg.md"; PATH="$STUB:$PATH"; sh "$BIN/pm-schedule.sh" ) >/dev/null 2>&1
+assert_eq "schedule: install enabled" "true"  "$(jq -r '.schedule.enabled' "$SCF" 2>/dev/null)"
+assert_eq "schedule: install time"    "08:30" "$(jq -r '.schedule.time' "$SCF" 2>/dev/null)"
+( export HOME="$SC/home"; export KT_CONFIG="$SC/cfg.md"; PATH="$STUB:$PATH"; sh "$BIN/pm-schedule.sh" --uninstall ) >/dev/null 2>&1
+assert_eq "schedule: uninstall flips" "false" "$(jq -r '.schedule.enabled' "$SCF" 2>/dev/null)"
+assert_eq "schedule: time preserved"  "08:30" "$(jq -r '.schedule.time' "$SCF" 2>/dev/null)"

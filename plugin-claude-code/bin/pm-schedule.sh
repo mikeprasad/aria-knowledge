@@ -10,12 +10,15 @@ PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
 LOGDIR="$HOME/.claude/logs"; mkdir -p "$LOGDIR"
 
 if [ "${1:-}" = "--uninstall" ]; then
-  launchctl unload "$PLIST" 2>/dev/null || true; rm -f "$PLIST"; echo "uninstalled $LABEL"; exit 0
+  launchctl unload "$PLIST" 2>/dev/null || true; rm -f "$PLIST"
+  apm_write_assist_status schedule "$(jq -n --arg u "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '{enabled:false, updatedAt:$u}')" || true
+  echo "uninstalled $LABEL"; exit 0
 fi
 
 TIME=$(pm_cfg pm_schedule_time "07:30")
 HOUR=${TIME%%:*}; MIN=${TIME##*:}
-HOUR=$(printf '%d' "$HOUR"); MIN=$(printf '%d' "$MIN")
+# base-10 coercion: a leading-zero hour like "08"/"09" is NOT valid octal — printf '%d' would error
+HOUR=$((10#$HOUR)); MIN=$((10#$MIN))
 RUN="sh \"$BIN/pm-morning-run.sh\""
 
 mkdir -p "$HOME/Library/LaunchAgents"
@@ -28,4 +31,7 @@ sed -e "s#__RUN__#$RUN#g" \
 plutil -lint "$PLIST"
 launchctl unload "$PLIST" 2>/dev/null || true
 launchctl load "$PLIST"
-echo "installed $LABEL at $HOUR:$MIN -> $PLIST"
+TIMEFMT=$(printf '%02d:%02d' "$HOUR" "$MIN")
+apm_write_assist_status schedule "$(jq -n --arg t "$TIMEFMT" --arg l "$LABEL" --arg u "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+  '{enabled:true, time:$t, label:$l, updatedAt:$u}')" || true
+echo "installed $LABEL at $TIMEFMT -> $PLIST"
