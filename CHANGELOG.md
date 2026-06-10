@@ -2,6 +2,16 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.28.1 — 2026-06-10
+
+**Statusline shows the reasoning-effort level after the model name.** The `/effort` setting (low/medium/high/xhigh/max) now renders as a compact letter suffix on the model segment — e.g. `Opus 4.8 (1M) H` at `/effort high`. Verified the Claude Code statusline JSON exposes `.effort.level` (reflects live mid-session `/effort` changes; absent when the model has no effort parameter).
+
+- **Add:** `statusline-meter.sh` parses `.effort.level` (jq tier) and maps it to `L` · `M` · `H` · `XH` · `MX` (max→`MX` to avoid colliding with medium's `M`), appended after the model name in the model-colored segment. No suffix renders when `.effort.level` is absent.
+- **Correctness:** the suffix is display-only — `$model` stays bare so the state-snapshot (`{model:…}` consumed by the usage-inject + SessionStart readers) records the raw model name, not the effort-suffixed one.
+- **Docs:** `/statusline` skill example now shows `Fable 5 H` + a bullet documenting the `L/M/H/XH/MX` mapping; demo payload gains an `effort` field. Script header documents the new consumed field.
+- **Install:** re-run `/statusline` to refresh the installed copy (`~/.claude/aria-statusline-meter.sh`) — the running status line uses that mirror, not the repo source.
+- **Ports:** Claude-Code-only (the status line is a Code feature; antigravity/codex/cursor/cowork don't ship the meter).
+
 ## 2.28.0 — 2026-06-10
 
 **`snap` mode for `/wrapup` + `/handoff` — defer knowledge synthesis when context is high.** A new mode that runs the full silent close-out/handoff (summary, PROGRESS, CLAUDE.md, memory, commit — plus the next-session opener for `/handoff`) but archives the raw transcript via `/snapshot` for later extraction **instead of** running `/extract` now. `/extract` is the expensive, compaction-risky step; when context is near-full, snap preserves the transcript cheaply (a bash file copy) so a later `/extract` or the next `/audit-knowledge` digest pass can synthesize knowledge when context isn't a constraint. Definitionally minimal: **`snap` ≡ `auto` + one swap** (`/extract` → `/snapshot`); it inherits all of auto's silent/implicit-yes behavior and overrides exactly the capture step.

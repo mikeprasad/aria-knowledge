@@ -23,6 +23,8 @@
 #   .rate_limits.five_hour.resets_at         (unix epoch seconds)
 #   .rate_limits.seven_day.used_percentage   (Pro/Max only)
 #   .rate_limits.seven_day.resets_at         (unix epoch seconds)
+#   .effort.level                            (low|medium|high|xhigh|max; absent
+#                                             when the model has no effort param)
 
 input=$(cat)
 [ -z "$input" ] && { printf 'Claude'; exit 0; }
@@ -138,10 +140,11 @@ kt_resolve_account() {
 }
 # <<< kt_resolve_account
 
-model=""; ctx=""; five=""; five_reset=""; week=""; week_reset=""; acct_email=""; acct_uuid=""; runtime=""; sid=""
+model=""; ctx=""; five=""; five_reset=""; week=""; week_reset=""; acct_email=""; acct_uuid=""; runtime=""; sid=""; eff=""
 
 if command -v jq >/dev/null 2>&1; then
   model=$(printf '%s' "$input" | jq -r '.model.display_name // empty' 2>/dev/null)
+  eff=$(printf '%s' "$input" | jq -r '.effort.level // empty' 2>/dev/null)
   ctx=$(printf '%s' "$input" | jq -r '.context_window.used_percentage // empty' 2>/dev/null)
   five=$(printf '%s' "$input" | jq -r '.rate_limits.five_hour.used_percentage // empty' 2>/dev/null)
   five_reset=$(printf '%s' "$input" | jq -r '.rate_limits.five_hour.resets_at // empty' 2>/dev/null)
@@ -169,8 +172,23 @@ case "$model" in
   *" context)") model="${model% context)})" ;;
 esac
 
+# Compact reasoning-effort suffix after the model name: L·M·H·XH·MX
+# (e.g. "Opus 4.8 (1M) H" at /effort high). .effort.level is absent when the
+# current model doesn't support the effort parameter — then no suffix renders.
+eff_letter=""
+case "$eff" in
+  low)    eff_letter="L" ;;
+  medium) eff_letter="M" ;;
+  high)   eff_letter="H" ;;
+  xhigh)  eff_letter="XH" ;;
+  max)    eff_letter="MX" ;;
+esac
+# Display-only: keep $model bare (the state snapshot below records the raw name).
+model_disp="$model"
+[ -n "$eff_letter" ] && model_disp="${model} ${eff_letter}"
+
 # --- assemble segments ---
-out="${CYAN}${model}${RESET}"
+out="${CYAN}${model_disp}${RESET}"
 
 ctx_i=$(round_int "$ctx")
 if [ -n "$ctx_i" ]; then

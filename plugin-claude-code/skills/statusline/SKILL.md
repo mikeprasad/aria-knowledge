@@ -9,9 +9,10 @@ allowed-tools: Read, Write, Edit, Bash, Glob
 Wire up (or remove) a persistent status line at the bottom of the Claude Code CLI showing:
 
 ```
-Fable 5 │ ███░░░░░░░ 31% ctx │ 5h 24% ↺01:00 │ 7d 88%
+Fable 5 H │ ███░░░░░░░ 31% ctx │ 5h 24% ↺01:00 │ 7d 88%
 ```
 
+- **model + effort** — the model name, with a compact reasoning-effort suffix when the model supports `/effort`: `L` low · `M` medium · `H` high · `XH` xhigh · `MX` max (e.g. `Fable 5 H`). Reflects live mid-session `/effort` changes; no suffix renders when the current model has no effort parameter.
 - **context bar + %** — how full the context window is (input-only percentage, green → yellow → red).
 - **5h NN% ↺HH:MM** — rolling 5-hour plan-usage window + when it resets (Pro/Max plans only).
 - **7d NN%** — rolling 7-day window (Pro/Max plans only).
@@ -115,7 +116,7 @@ If validation fails, restore from `settings.json.aria-bak` and report the error 
 Prove it works by piping a representative payload through the installed copy (don't ask the user to eyeball the CLI — show them the rendered output):
 
 ```bash
-echo '{"model":{"display_name":"Fable 5"},"context_window":{"used_percentage":31},"rate_limits":{"five_hour":{"used_percentage":24,"resets_at":0},"seven_day":{"used_percentage":12}}}' | "$HOME/.claude/aria-statusline-meter.sh"; echo
+echo '{"model":{"display_name":"Fable 5"},"effort":{"level":"high"},"context_window":{"used_percentage":31},"rate_limits":{"five_hour":{"used_percentage":24,"resets_at":0},"seven_day":{"used_percentage":12}}}' | "$HOME/.claude/aria-statusline-meter.sh"; echo
 ```
 
 ### Step 6 — Confirm
