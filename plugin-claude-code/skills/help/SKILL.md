@@ -42,6 +42,8 @@ If `Bash` is available, proceed to Step 0.
 | /audit-knowledge (alias: /knowledge-audit) | Review backlogs, promote to knowledge files, rebuild index |
 | /audit-config (alias: /config-audit) | Check project configs and docs for drift and broken references |
 | /retrospect [--range/--pr/--session/--commit] | Structured retrospective on a shipped commit range — per-fix validation, simpler-alternative discipline, re-diagnosis, action verdicts, failure-mode pattern check |
+| /foundational-review <scope-root> [--decision "..."] [--extend] | Foundational review chain before an irreversible decision (freeze/tag/flip/re-scope): verdict + premises + A–F → design spec → cold-executable plan → composed /prospect → kickoff. Requires a named irreversible decision (else redirects). |
+| /readiness-audit <scope-root> [--for "<event>"] | Surface readiness audit (sibling of /foundational-review): parallel exploration → controller re-verification of agent claims → tiered evidence-celled findings → phased remediation. Read-only probes; no decision anchor needed. |
 | /context [tags] | Load relevant knowledge files by topic (supports AND/OR, project expansion) |
 | /index | Rebuild the tag-based knowledge index with cross-references |
 | /rules [number] | Look up a working rule by number or keyword |
@@ -72,6 +74,7 @@ These are recommendations only — ARIA does not force a model. Switch per sessi
 | /audit-knowledge | Highest-capability Opus, medium-to-high effort | Cross-references backlogs against the promoted index, decides promotion vs. discard, detects emerging themes. |
 | /audit-config | Highest-capability Opus, medium-to-high effort | Reads across CLAUDE.md files and configs to detect drift and broken references. |
 | /retrospect | Highest-capability Opus, medium-to-high effort | Multi-stage judgment per fix: validation status assignment, simpler-alternative identification, hypothesis generation, failure-mode pattern matching, action verdict synthesis. Highest leverage from stronger models. |
+| /foundational-review, /readiness-audit | Highest-ceiling available (Fable at extreme stakes, else Opus), xhigh effort | The reviewer model is spent on alternatives-steelmanning, portfolio/product judgment, and the irreversibility inventory; semi-agentic read-trace-reason loop benefits from xhigh. Executor tasks the chain emits route to Opus by default. |
 | /ask | Highest-capability Opus, medium-to-high effort (ambiguous topics) or Sonnet (mid-tier) for scoped lookups | Research + draft + categorize. Drop to Sonnet when the question is narrow. |
 | /codemap create | Highest-capability Opus (large-context variant preferred) | Full-repo traversal benefits from a large context window so sections aren't truncated mid-generation. |
 | /codemap update, /codemap section, /wrapup, /handoff, /intake, /distill, /stitch | Sonnet (mid-tier), medium effort | Structured work with clear prescribed output. |

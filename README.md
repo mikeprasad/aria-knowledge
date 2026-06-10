@@ -106,6 +106,8 @@ Make trusted knowledge shape real work.
 - `/distill` — Turns raw ticket text into an executable task spec following a `TASK.schema.md` contract. Auto-tiers by complexity (micro / standard / full). Optional `--group` flag loads CODEMAP + STITCH context for cited-path specs.
 - `/prospect` — Forward-looking pre-mortem on a plan before execution. Per-step actions: PROCEED / SHRINK / SPLIT / DEFER / KILL. Output saved to `logs/prospect/`.
 - `/retrospect` — Structured retrospective on a shipped commit range, single commit, PR, release, or session. Enforces per-fix validation, surfaces simpler alternatives, runs failure-mode pattern checks. Output saved to `logs/retrospect/`.
+- `/foundational-review` — The foundational review chain, run before an irreversible decision (version freeze, format/spec tag, public flip, major re-scope): verdict + named premises + sections A–F → design spec → cold-executable plan with owner routing → composed `/prospect` (amendments applied in place) → paste-ready executor kickoff. Requires a named irreversible decision (else redirects to `/prospect` or `/readiness-audit`). `--extend` adds the system-design assessment + roadmap chain.
+- `/readiness-audit` — The recurring sibling: a checklist-against-a-surface audit answering "is it clean/legal/consistent to ship for THIS event?" Controller re-verifies every load-bearing agent claim (correction trail), read-only probes only with a mandatory artifact diff-check, tiered evidence-celled findings, phased remediation. No decision anchor needed.
 
 **Hooks make application continuous in the background.**
 
@@ -318,6 +320,8 @@ Everything ARIA ships, organized by the four problems it solves — plus the ope
 | `/distill [text or path]` | Skill | Turn raw ticket text into an executable task spec (`TASK.schema.md`); auto-tiers micro / standard / full; `--group` loads CODEMAP + STITCH for cited-path specs. |
 | `/prospect` | Skill | Forward-looking pre-mortem on a plan before execution. Per-step verdicts: PROCEED / SHRINK / SPLIT / DEFER / KILL. Saved to `logs/prospect/`. |
 | `/retrospect` | Skill | Structured retrospective on a commit range, PR, release, or session; per-fix validation, simpler-alternative discipline, failure-mode pattern check. Saved to `logs/retrospect/`. |
+| `/foundational-review <scope-root>` | Skill | Foundational review chain before an irreversible decision: verdict + premises + A–F → design spec → cold-executable plan → composed `/prospect` → kickoff. Requires a named irreversible decision; `--extend` adds the system-design chain. |
+| `/readiness-audit <scope-root>` | Skill | Recurring surface readiness audit (sibling of `/foundational-review`): controller-verified agent claims, read-only probes + artifact diff-check, tiered evidence-celled findings, phased remediation. |
 | `/handoff [auto\|brief]` | Skill | Express session handoff with the same coverage as `/wrapup`; always emits a paste-ready next-session opener (`brief` produces a coworker prose brief instead). |
 | `/wrapup [auto]` | Skill | End-of-session closeout — update PROGRESS / CLAUDE.md, prompt for commit, capture knowledge, verify continuity. No passoff opener. |
 | `/digest` `(MCP)` | Skill | Cross-tool rollup of what's pending / shipped / blocked across chat, email, project tracker, and docs. |

@@ -2,6 +2,16 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.29.0 — 2026-06-11
+
+**Two new review skills — `/foundational-review` + `/readiness-audit` — productizing the foundational review chain.** A decision-anchored foundational review genre (distinct from code review, retrospective, and plain audit) plus its recurring surface-audit sibling. Both mirror `/prospect`'s structure and **transclude a single canonical process doc** rather than forking its content into the SKILL bodies.
+
+- **Add: `/foundational-review <scope-root> [--decision "..."] [--extend]`** — verdict-led foundational review (sections A–F + named premises + irreversibility inventory) → design spec (D-decisions + gates) → cold-executable plan (owner routing, default executor) → composed `/prospect` with amendments applied **in place** → commit + paste-ready executor kickoff. **Requires a named irreversible decision** (freeze / format-or-spec tag / public flip / major re-scope) — with none, it redirects to `/prospect` or `/readiness-audit` rather than running. Bakes in: the reviewer-model effort ladder, the coupling-mechanism grouping heuristic for multi-repo families, a pairing check (run the audit first on ship/freeze/flip), and a pre-commit failure-mode self-check. `--extend` adds the system-design assessment + waves roadmap chain.
+- **Add: `/readiness-audit <scope-root> [--for "<event>"]`** — "is it clean/legal/consistent to ship for THIS event?" Parallel per-surface exploration → **controller re-verification of every load-bearing agent claim** with a correction trail → tiered (Tier 0/High/Medium/Low) findings each with a verified Evidence cell → conceptual observations → phased remediation (findings are **not** a shipping list) → end-to-end verification recipe → gates via `AskUserQuestion`. **Read-only probes only**, with a mandatory artifact `git diff --stat` check before staging. No decision anchor required.
+- **Add:** plugin-bundled canonical process doc at `skills/foundational-review/foundational-review-chain.md` (genericized, public-clean). Both skills read it at Step 1, **preferring a user's richer copy at `<knowledge_root>/approaches/foundational-review-chain.md`** when present, else the bundled copy — so a fresh install is self-contained (no broken reference) and a user's promoted version still wins.
+- **Docs:** `/help` command table + Model Recommendations row; README prose + capability table.
+- **Ports:** Claude-Code-canonical only. The cowork/codex/cursor/antigravity ports are tracked-drift for a later parity pass (the cowork port's 9000-char summed-description cap is full — a cowork variant needs a coordinated trim pass).
+
 ## 2.28.1 — 2026-06-10
 
 **Statusline shows the reasoning-effort level after the model name.** The `/effort` setting (low/medium/high/xhigh/max) now renders as a compact letter suffix on the model segment — e.g. `Opus 4.8 (1M) H` at `/effort high`. Verified the Claude Code statusline JSON exposes `.effort.level` (reflects live mid-session `/effort` changes; absent when the model has no effort parameter).
