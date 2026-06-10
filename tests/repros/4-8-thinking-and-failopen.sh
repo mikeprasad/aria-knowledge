@@ -21,6 +21,11 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 HOOK="$REPO_ROOT/plugin-claude-code/bin/pre-edit-check.sh"
 FIXTURES="$REPO_ROOT/tests/fixtures"
 
+# Isolate the deny-rate breaker's per-session counter (v2.30.0) to a fresh
+# scratch dir so repeated suite runs never accumulate denials across runs.
+export TMPDIR=$(mktemp -d)
+trap 'rm -rf "$TMPDIR"' EXIT
+
 PASS=0
 FAIL=0
 

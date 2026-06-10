@@ -14,6 +14,14 @@
 # preserved because the walk stops at the previous Edit/Write tool_use, so
 # each edit still needs its own dedicated marker emitted after the prior edit.
 #
+# v2.30.0: deny-rate circuit breaker. A per-session counter trips after 3
+# consecutive denials with zero intervening compliant edits, after which edits
+# are ALLOWED with a loud degraded-mode warning instead of deadlocking. This
+# converts the "confident-no deny loop" failure class (a transcript-format
+# change that parses fine but shifts semantics, yielding "no" -> deny -> deadlock)
+# into self-healing fail-open: a single compliant edit deletes the counter and
+# restores blocking enforcement. Model-agnostic — no per-model parser patch.
+#
 # Decision hierarchy (path classification — unchanged from v2.10.x):
 #   1. Planning path (and not protected)              -> abbreviated variant expected
 #   2. Protected path                                  -> full variant expected
@@ -38,6 +46,17 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 FILE_PATH=$(echo "$INPUT" | grep -o '"file_path":"[^"]*"' | head -1 | sed 's/"file_path":"//;s/"//')
 TRANSCRIPT=$(echo "$INPUT" | grep -o '"transcript_path":"[^"]*"' | head -1 | sed 's/"transcript_path":"//;s/"//')
 TOOL_USE_ID=$(echo "$INPUT" | grep -o '"tool_use_id":"[^"]*"' | head -1 | sed 's/"tool_use_id":"//;s/"//')
+
+# Circuit-breaker session key (v2.30.0): prefer session_id, fall back to the
+# transcript basename. Sanitized to a safe filename. If neither resolves, the
+# breaker is disabled (BREAKER_STATE empty) and the hook degrades to its prior
+# behavior — never a shared cross-session counter.
+SESSION_ID=$(echo "$INPUT" | grep -o '"session_id":"[^"]*"' | head -1 | sed 's/"session_id":"//;s/"//')
+SESSION_KEY="$SESSION_ID"
+[ -z "$SESSION_KEY" ] && [ -n "$TRANSCRIPT" ] && SESSION_KEY=$(basename "$TRANSCRIPT" .jsonl 2>/dev/null)
+SESSION_KEY=$(printf '%s' "$SESSION_KEY" | tr -cd 'A-Za-z0-9._-')
+BREAKER_STATE=""
+[ -n "$SESSION_KEY" ] && BREAKER_STATE="${TMPDIR:-/tmp}/aria-r22-denies-${SESSION_KEY}"
 
 # Planning paths where abbreviated assessment is permitted
 IS_PLANNING=false
@@ -224,8 +243,10 @@ PY
   [ -z "$COMPLIANT" ] && COMPLIANT="unknown"
 fi
 
-# Compliant: allow silently.
+# Compliant: allow silently. A compliant edit resets the deny-rate breaker
+# (v2.30.0) — enforcement self-heals the moment detectable markers resume.
 if [ "$COMPLIANT" = "yes" ]; then
+  [ -n "$BREAKER_STATE" ] && rm -f "$BREAKER_STATE" 2>/dev/null
   exit 0
 fi
 
@@ -242,6 +263,28 @@ if [ "$COMPLIANT" = "unknown" ]; then
   WARN_ESCAPED=$(kt_json_escape "$WARN")
   printf '{"systemMessage":"%s"}\n' "$WARN_ESCAPED"
   exit 0
+fi
+
+# Deny-rate circuit breaker (v2.30.0). At this point the edit is genuinely
+# non-compliant (a located edit resolved to "no"). Count consecutive denials in
+# this session; once 3 have accrued with no intervening compliant edit, degrade
+# to allow-with-loud-warning instead of denying forever. This is the same
+# fail-open-LOUD philosophy as the "unknown" branch above, extended to cover a
+# transcript-format change that parses cleanly but shifts semantics (the
+# "confident no" deadlock the plain unknown-guard cannot catch). Disabled when
+# no session key resolved (BREAKER_STATE empty) — falls straight through to deny.
+if [ -n "$BREAKER_STATE" ]; then
+  DENY_COUNT=0
+  [ -f "$BREAKER_STATE" ] && DENY_COUNT=$(cat "$BREAKER_STATE" 2>/dev/null)
+  case "$DENY_COUNT" in *[!0-9]*|"") DENY_COUNT=0 ;; esac
+  if [ "$DENY_COUNT" -ge 3 ]; then
+    WARN="aria-knowledge Rule 22: enforcement is in DEGRADED mode. ${DENY_COUNT} consecutive edits were denied for a missing [Rule 22] marker with no compliant edit between them — this usually means a transcript-format change has made the marker undetectable (cf. prior model/harness deadlocks), not that the marker is being skipped. The edit is ALLOWED so the editor does not deadlock; marker discipline is still expected, and a single compliant edit restores blocking enforcement. If this persists, run tests/run.sh and check pre-edit-check.sh against the current transcript format."
+    WARN_ESCAPED=$(kt_json_escape "$WARN")
+    printf '{"systemMessage":"%s"}\n' "$WARN_ESCAPED"
+    exit 0
+  fi
+  # Below the trip threshold — record this denial, then fall through to deny.
+  printf '%s' "$((DENY_COUNT + 1))" > "$BREAKER_STATE" 2>/dev/null || true
 fi
 
 # Non-compliant: deny with a concise recovery message naming the expected format
