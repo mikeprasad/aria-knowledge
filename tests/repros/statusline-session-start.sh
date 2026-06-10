@@ -15,6 +15,12 @@ mkdir -p "$HOME/.claude/k/logs"   # folder must exist or session-start short-cir
 # A non-first-run audit log (not "(no audits yet)") so the script passes the welcome
 # branch and reaches the TASK BUDGET section we're testing.
 echo "# knowledge audit log" > "$HOME/.claude/k/logs/knowledge-audit-log.md"
+# Statusline meter installed: a state file keyed by the resolved (CLI) account must
+# exist for the hook to emit the snapshot-pointer TASK BUDGET branch this repro asserts
+# (the v2.25.1 branch-gating at session-start-check.sh:238 gates on file presence).
+cat > "$HOME/.claude/aria-statusline-state-cli-uuid-1.json" <<'JSON'
+{"session_id":"S1","context_pct":12,"five_hour_pct":8,"seven_day_pct":21,"five_hour_resets_at":"2026-06-11T18:00:00Z","seven_day_resets_at":"2026-06-15T00:00:00Z"}
+JSON
 printf -- '---\nknowledge_folder: %s/.claude/k\n---\n' "$HOME" > "$KT_CONFIG"
 unset CLAUDE_CODE_ENTRYPOINT CLAUDE_CODE_EXECPATH __CFBundleIdentifier 2>/dev/null || true
 
