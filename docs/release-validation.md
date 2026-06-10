@@ -63,9 +63,25 @@ If the release changes config schema, run validation against both a fresh `~/.cl
 
 - [ ] `release.sh` runs cleanly with no errors.
 - [ ] Generated zip contains `plugin-claude-code/.claude-plugin/plugin.json` exactly once.
-- [ ] Generated zip excludes `.DS_Store`, `__MACOSX`, `.claude/settings*`.
+- [ ] Generated zip excludes `.DS_Store`, `__MACOSX`, `.claude/settings*`, and `tests/` (the suite is dev-only; `release.sh` verifies zero `tests/` entries).
 - [ ] `marketplace.json` synced to `plugin.json` version (auto-sync confirmed by `release.sh` log).
 - [ ] CHANGELOG entry exists for the new version with date, narrative, sections, and upgrade notes.
+
+## Release gates (`release.sh`)
+
+`release.sh` runs three gates after reading the manifest and before staging (parity with `release-codex.sh`). The build aborts on Gate A or B; Gate C is report-only until v2.31.0.
+
+| Gate | Checks | Fatal? | Reproduce locally |
+|------|--------|--------|-------------------|
+| **A — tests** | `tests/run.sh` and `plugin-claude-code/tests/run.sh` both pass | yes | `sh tests/run.sh && sh plugin-claude-code/tests/run.sh` |
+| **B — skill-discovery budget** | summed frontmatter-`description:` bytes across `skills/*/SKILL.md` ≤ `ARIA_SKILL_BUDGET` (default **18944**) | yes | `for f in plugin-claude-code/skills/*/SKILL.md; do awk '/^description:/{flag=1;print;next} flag&&/^[a-z_-]+:/{flag=0} flag{print}' "$f"; done \| wc -c` |
+| **C — port drift** | `bin/check-port-drift.sh` (report-only this release; TODO v2.31.0 makes it fatal) | no | `sh plugin-claude-code/bin/check-port-drift.sh` |
+
+**Budget note:** 18944 B re-baselines the v2.28.1-era 16384 after v2.29.0's `/foundational-review` + `/readiness-audit` skills landed (live ≈17979 B). Adding a skill that breaches it means trimming a description or raising the default **deliberately in the same commit** that adds the skill (`ARIA_SKILL_BUDGET=<n>` overrides only for emergencies and warns loudly). On a breach the gate prints the total and the 3 largest descriptions.
+
+**Tests-exclusion invariant:** the zip must contain zero `tests/` entries. Enforced two ways — `--exclude='tests/'` in the rsync staging block, and a verify step (`grep -c "$PLUGIN_NAME/tests/"` must be 0). The zip is `rm`-ed before building so it is a clean rebuild, not an append onto a stale archive.
+
+**Seeded-failure checks** (prove the gates bite): `ARIA_SKILL_BUDGET=1000 ./release.sh` must abort at Gate B with the 3-largest report; a repro that `exit 1`s under `tests/repros/` must abort at Gate A naming the failing suite.
 
 ## After validation
 
