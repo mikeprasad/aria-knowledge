@@ -1,14 +1,14 @@
 ---
 name: handoff
-description: 'Generate a passoff package — for future-you (context is high, need to restart) or a coworker (via brief mode). Default + auto emit a paste-ready next-session opener plus PROGRESS/CLAUDE/memory updates, a commit message, and "/aria-cowork:extract"; brief mode emits an 80-150 word coworker prose brief only. For done-with-no-passoff, use "/aria-cowork:wrapup". Triggers — "/aria-cowork:handoff", "/aria-cowork:handoff auto", "/aria-cowork:handoff brief", "hand it off", "pass off to next session", "brief a coworker on this". (Cowork variant — namespaced-only.)'
-argument-hint: '[auto|brief]'
+description: 'Generate a passoff package — for future-you (context is high, need to restart) or a coworker (via brief mode). Default + auto emit a paste-ready next-session opener plus PROGRESS/CLAUDE/memory updates, a commit message, and "/aria-cowork:extract"; brief mode emits an 80-150 word coworker prose brief only; snap = auto but defers /extract via a snapshot (context high). For done-with-no-passoff, use "/aria-cowork:wrapup". Triggers — "/aria-cowork:handoff", "/aria-cowork:handoff auto", "/aria-cowork:handoff brief", "hand it off", "pass off to next session", "brief a coworker on this". (Cowork variant — namespaced-only.)'
+argument-hint: '[auto|brief|snap]'
 ---
 
 # /handoff — Express Session Handoff (cowork variant)
 
-Three modes covering two distinct handoff shapes:
+Four modes covering two distinct handoff shapes:
 
-- **Next-session handoff** (default + `auto`) — Same end-of-session coverage as `/aria-cowork:wrapup` (review work → update PROGRESS.md / CLAUDE.md / memory → emit commit message → run `/extract` → verify continuity) compressed into a single combined-go review. Always emits a paste-ready next-session opener at the end.
+- **Next-session handoff** (default + `auto` + `snap`) — Same end-of-session coverage as `/aria-cowork:wrapup` (review work → update PROGRESS.md / CLAUDE.md / memory → emit commit message → run `/extract` → verify continuity) compressed into a single combined-go review. Always emits a paste-ready next-session opener at the end. (`snap` is the auto variant that snapshots for later extraction instead of running /extract now — see the mode list below.)
 - **Coworker brief** (`brief`) — Produces a copy/paste prose block (Slack/email-ready) summarizing the session for another person. Does NOT update PROGRESS/CLAUDE/memory, does NOT emit a commit message, does NOT run /extract. Output-only — paste it and you're done.
 
 **Cowork variant of aria-knowledge's `/handoff`.** Behavior is byte-aligned where Cowork's runtime permits; three divergences shared with `/aria-cowork:wrapup`:
@@ -37,17 +37,20 @@ Wait for an explicit reply:
 - **`n` / `no`** — Proceed with this (aria-cowork) variant anyway despite the runtime mismatch. The user has explicitly opted in.
 - **No response / any other reply** — Treat as "do not proceed" and exit cleanly without running either variant.
 
-**This gate applies even when `mode = auto`** per ADR-094 §Part 3. Auto mode's "implicit-yes on all gates" rule is suspended for the runtime-mismatch check — auto trusts that the user invoked the correct variant, and this gate enforces that precondition. All other auto-mode gates remain bypassed. The friction cost is now low: on `y`, the auto-redirect runs the correct variant with the original args.
+**This gate applies even when `mode = auto` or `mode = snap`** per ADR-094 §Part 3. Auto/snap's "implicit-yes on all gates" rule is suspended for the runtime-mismatch check — they trust that the user invoked the correct variant, and this gate enforces that precondition. All other auto/snap-mode gates remain bypassed. The friction cost is now low: on `y`, the auto-redirect runs the correct variant with the original args.
 
 If `Bash` is NOT available (normal Cowork runtime), proceed to Step 0.
 
-**Three modes:**
+**Four modes:**
 
 - **Default (`/handoff`)** — Generate ALL drafts (session summary, PROGRESS entry, CLAUDE.md edits, memory updates, commit message, next-session prompt) into one scroll, ask once for combined-go, then apply atomically. Per-item edits allowed.
 - **`auto` (`/handoff auto`)** — Implicit-yes on all gates. Run silently. Apply all drafts without confirmation. Emit final report only. Use when the session is short and unambiguous.
 - **`brief` (`/handoff brief`)** — Generate a coworker-facing prose brief (80-150 words, copy/paste-ready). Skips PROGRESS/CLAUDE/memory/commit/extract entirely. Emits the brief as the only artifact.
+- **`snap` (`/handoff snap`)** — Like `auto` (silent, apply all drafts, emit the next-session opener), but archives the conversation via `/aria-cowork:snapshot` for later extraction **instead of** running `/aria-cowork:extract` now. Use when context is high: you still get the full handoff package + opener + commit message, but defer the expensive, compaction-risky knowledge synthesis to a later session (or the next `/aria-cowork:audit-knowledge` digest pass).
 
-**Coverage matches `/aria-cowork:wrapup`** for default + auto modes. Brief mode is a different shape — handoff to a person, not to a session.
+**Coverage matches `/aria-cowork:wrapup`** for default + auto + snap modes. Brief mode is a different shape — handoff to a person, not to a session.
+
+**`snap` is `auto` plus one swap.** snap follows auto's behavior exactly (silent, implicit-yes, apply all drafts, emit the opener) — wherever a step below applies to `auto`, it applies identically to `snap`. The single difference is the capture step (Step 6): `snap` runs `/aria-cowork:snapshot` (archive for later) while `auto` runs `/aria-cowork:extract` (synthesize now). Nothing else differs. (snap is NOT brief — it produces the full next-session package, not a coworker prose block.)
 
 ## Step 0: Resolve Config and Parse Mode
 
@@ -57,7 +60,8 @@ Parse the argument:
 - No arg, or arg is empty → `mode = combined-go` (default)
 - Arg matches `auto` (case-insensitive) → `mode = auto`
 - Arg matches `brief` (case-insensitive) → `mode = brief`
-- Any other arg → stop: "Unknown argument '{arg}'. Use '/handoff', '/handoff auto', or '/handoff brief'."
+- Arg matches `snap` (case-insensitive) → `mode = snap`
+- Any other arg → stop: "Unknown argument '{arg}'. Use '/handoff', '/handoff auto', '/handoff brief', or '/handoff snap'."
 
 Use `{knowledge_folder}` as the base path for all file operations.
 
@@ -188,7 +192,7 @@ The opener is always produced, even when the session was short or no other artif
 
 ## Step 4: Single Combined-Go Review (default mode only)
 
-**Skip this step entirely if `mode = auto`.**
+**Skip this step entirely if `mode = auto` or `mode = snap`.** (Both run silently with implicit-yes — no review gate.)
 
 In default mode, present all drafts together in one scroll under clear section headers, then ask **once**:
 
@@ -214,7 +218,7 @@ Wait for explicit response. Allow multiple `edit` / `skip` directives in sequenc
 
 ## Step 5: Apply Drafts
 
-Apply approved drafts in order. For `auto` mode, this runs immediately after Step 3 with no review gate.
+Apply approved drafts in order. For `auto` and `snap` modes, this runs immediately after Step 3 with no review gate.
 
 1. **3a:** Append the PROGRESS.md entry (or merge into today's existing entry)
 2. **3b:** Edit CLAUDE.md per the diffs
@@ -238,9 +242,11 @@ Apply approved drafts in order. For `auto` mode, this runs immediately after Ste
 
 If a non-git step fails (e.g., file write error on PROGRESS.md), surface the failure inline and stop — do not silently continue. Commit-message emission can't fail (it's just text output).
 
-## Step 6: Run /extract
+## Step 6: Capture Session Knowledge
 
-ALWAYS invoke `/aria-cowork:extract` programmatically. This applies to default mode (after the user has approved the combined-go review in Step 4) AND `auto` mode unconditionally. No judgment-skip allowed — even if the session feels short, conversational, or seems to have nothing new to extract, run `/aria-cowork:extract` anyway. The handoff skill must not pre-judge whether extraction is worthwhile; `/extract` has its own dedup logic (per its Rules section: "Never ask for confirmation — scan and dump") that correctly handles the "nothing to add" case by reporting `No uncaptured knowledge found`. Auto mode's "implicit-yes on all gates" rule converts to **"extract always runs"** here — there is no skip path. Capture `/extract`'s summary report for inclusion in Step 8.
+**If `mode = snap`:** Do NOT run `/aria-cowork:extract`. Instead invoke the `/aria-cowork:snapshot` skill to archive the conversation to `intake/pre-compact-captures/` for later extraction. This is snap mode's defining difference: capture is deferred, not synthesized now. Like auto's "extract always runs" invariant, the snapshot ALWAYS runs — there is no skip path. The snapshot is the deferred-extraction handoff: a later `/aria-cowork:extract`, or the next `/aria-cowork:audit-knowledge` digest pass (which reads `intake/pre-compact-captures/` automatically), synthesizes knowledge from it when context isn't a constraint. Capture `/aria-cowork:snapshot`'s output (the snapshot path) for inclusion in Step 8. Use snap when context is high and running `/aria-cowork:extract` now would risk compaction mid-synthesis. (Cowork's `/snapshot` uses 3-path source acquisition — no shell access needed.)
+
+**Otherwise (default + `auto` modes):** ALWAYS invoke `/aria-cowork:extract` programmatically. This applies to default mode (after the user has approved the combined-go review in Step 4) AND `auto` mode unconditionally. No judgment-skip allowed — even if the session feels short, conversational, or seems to have nothing new to extract, run `/aria-cowork:extract` anyway. The handoff skill must not pre-judge whether extraction is worthwhile; `/extract` has its own dedup logic (per its Rules section: "Never ask for confirmation — scan and dump") that correctly handles the "nothing to add" case by reporting `No uncaptured knowledge found`. Auto mode's "implicit-yes on all gates" rule converts to **"extract always runs"** here — there is no skip path. Capture `/extract`'s summary report for inclusion in Step 8.
 
 (Brief mode never reaches Step 6 — it exits at Step 2B before any handoff side-effects, per the Rules section.)
 
@@ -254,10 +260,8 @@ Run the same checklist `/wrapup` Step 7 uses:
 - PROGRESS.md — [updated / already current / not found / skipped]
 - CLAUDE.md — [current / updated / not found / skipped]
 - Memory — [updated / already current / not found / skipped]
-- Git — [committed N file(s) / no changes / uncommitted (skipped)]
-- /extract — [N items captured / nothing new]
 - Git — [commit message emitted / no changes detected / skipped]
-- /extract — [run / skipped]
+- /extract — [run / nothing new / deferred: snapshotted for later extraction (snap mode)]
 - Next-session opener — [emitted below]
 ```
 
@@ -270,7 +274,7 @@ Flag any gaps but don't block — the user may have skipped sections intentional
 Emit the closing report. **The next-session opener is the headline artifact** — surface it prominently and inside a code fence so it copies cleanly.
 
 ```
-## Handoff Complete — {default | auto} mode
+## Handoff Complete — {default | auto | snap} mode
 
 [Handoff Checklist from Step 7]
 
@@ -290,7 +294,7 @@ Read on resume: {primary CLAUDE.md path} for current state.
 ## Rules
 
 - **/wrapup is the interactive default; /handoff is the express lane.** Don't deprecate or replace /wrapup. They serve different cadences.
-- **Always emit the next-session opener (default + auto modes only).** In default + auto, even when nothing else changed (no PROGRESS update, no commit, no memory edit), the opener is the headline deliverable. Brief mode emits the coworker brief instead — different artifact, different audience.
+- **Always emit the next-session opener (default + auto + snap modes; not brief).** In default + auto + snap, even when nothing else changed (no PROGRESS update, no commit, no memory edit), the opener is the headline deliverable. Brief mode emits the coworker brief instead — different artifact, different audience.
 - **`auto` mode applies everything without confirmation.** The user explicitly opted into that risk by typing `auto`. Do not introduce confirmation gates in auto mode — that defeats the purpose.
 - **`brief` mode produces output only — no side effects.** No PROGRESS update, no CLAUDE.md edit, no memory write, no commit, no /extract. The brief is a copy/paste artifact for a person, not durable state. Users who want both a brief AND state updates run `/handoff brief` then `/handoff` (or `/handoff auto`) separately — two passes, two artifacts.
 - **Brief mode keeps `[coworker]` as a literal placeholder.** Don't prompt the user for a recipient name. They'll fill it at paste time. This avoids friction and supports "send to multiple people" use cases.
@@ -301,5 +305,6 @@ Read on resume: {primary CLAUDE.md path} for current state.
 - **Match existing formats** — when appending to PROGRESS.md or editing CLAUDE.md, match the heading style, date format, and structure of existing entries. Don't impose a new format.
 - **Skip gracefully** — if a file doesn't exist (no PROGRESS.md, no CLAUDE.md, no memory), skip that step and note it. Don't create files that aren't already part of the project's conventions.
 - **Don't invent work** — the session synthesis must reflect what actually happened in the conversation. If the session is short or unclear, say so in the synthesis (default + auto) or in the brief's "What happened" line (brief) rather than padding.
-- **Delegate extraction** — /handoff calls /extract for capture in default + auto modes; it does not duplicate /extract's dedup or routing logic. Brief mode skips /extract entirely.
+- **Delegate extraction** — /handoff calls /extract for capture in default + auto modes; it does not duplicate /extract's dedup or routing logic. Brief mode skips /extract entirely. Snap mode calls /aria-cowork:snapshot instead of /extract (see below).
+- **`snap` defers, never drops, capture.** In snap mode Step 6 runs `/aria-cowork:snapshot` instead of `/aria-cowork:extract` — the snapshot ALWAYS runs (no skip path, same as auto's "extract always runs" invariant). The conversation is preserved so a later /extract or /audit-knowledge digest can synthesize it; snap never means "skip knowledge capture," only "capture cheaply now, synthesize later." snap is otherwise byte-for-byte auto behavior: silent, implicit-yes, emit the next-session opener, commit-message-only (never runs git). snap is NOT brief — it produces the full next-session package, not a coworker prose block, and unlike brief it DOES update PROGRESS/CLAUDE/memory and emit a commit message.
 - **One handoff per session** — if the user runs /handoff again in the same session, check what was already done in the prior run and skip completed work. Don't duplicate PROGRESS entries or commits. Multiple `/handoff brief` runs are fine (each produces a fresh brief reflecting current state).

@@ -1,17 +1,20 @@
 ---
 name: wrapup
-description: 'Close out cleanly when work is done — no passoff intended. updates PROGRESS / CLAUDE / memory in the attached knowledge folder, emits a commit message for you to run, runs "/aria-cowork:extract". Not for passoff to a future session or coworker. Triggers — "/aria-cowork:wrapup", "/aria-cowork:wrapup auto", "wrap up", "I am done", "close out", "end session". Auto mode skips per-step gates. (Cowork variant — namespaced-only.)'
-argument-hint: '[auto]'
+description: 'Close out cleanly when work is done — no passoff intended. updates PROGRESS / CLAUDE / memory in the attached knowledge folder, emits a commit message for you to run, runs "/aria-cowork:extract". Not for passoff to a future session or coworker. Triggers — "/aria-cowork:wrapup", "/aria-cowork:wrapup auto", "wrap up", "I am done", "close out", "end session". Auto skips per-step gates; snap = auto but defers /extract via a snapshot (context high). (Cowork variant — namespaced-only.)'
+argument-hint: '[auto|snap]'
 ---
 
 # /wrapup — Session Close-Out (cowork variant)
 
 Close out the current session cleanly: review what got done, update project tracking files, emit a commit message for you to run, capture session knowledge, and confirm everything is documented. This is the "I'm done" skill — no next-session opener is produced. For passoff (future-you in a new session, or a coworker), use `/aria-cowork:handoff` instead.
 
-**Two modes:**
+**Three modes:**
 
 - **Default (`/wrapup`)** — Per-step gated review. Each tracked surface (session summary, PROGRESS, CLAUDE.md, memory, /extract prompt) prompts for explicit confirmation before writing. The commit-message step is informational only (always emits a copy-paste block — never runs git).
 - **`auto` (`/wrapup auto`)** — Implicit-yes on all gates. Run silently. Apply all drafts and chain `/aria-cowork:extract` without confirmation. The commit-message copy-paste block still emits (Cowork has no shell access to commit directly). Emit final report only. Use when the session is short and unambiguous, or when you've already authorized a combined-go (`yes to all`, `yes to all with extract`).
+- **`snap` (`/wrapup snap`)** — Like `auto`, but archives the conversation via `/aria-cowork:snapshot` for later extraction **instead of** running `/aria-cowork:extract` now. Use when context is high: you still get the full silent close-out + commit message, but defer the expensive, compaction-risky knowledge synthesis to a later session (or the next `/aria-cowork:audit-knowledge` digest pass, which reads the snapshot automatically).
+
+**`snap` is `auto` plus one swap.** Everywhere a step below says "If `mode = auto` (or `snap`)", `snap` follows auto's behavior exactly — implicit-yes, silent, apply all drafts, no per-step prompts. The single difference is the capture step (Step 8): `snap` runs `/aria-cowork:snapshot` (archive for later) while `auto` runs `/aria-cowork:extract` (synthesize now). Nothing else differs.
 
 **Cowork variant of aria-knowledge's `/wrapup`.** Behavior is byte-aligned where Cowork's runtime permits; three divergences:
 
@@ -39,7 +42,7 @@ Wait for an explicit reply:
 - **`n` / `no`** — Proceed with this (aria-cowork) variant anyway despite the runtime mismatch. The user has explicitly opted in.
 - **No response / any other reply** — Treat as "do not proceed" and exit cleanly without running either variant.
 
-**This gate applies even when `mode = auto`** per ADR-094 §Part 3. Auto mode's "implicit-yes on all gates" rule is suspended for the runtime-mismatch check — auto trusts that the user invoked the correct variant, and this gate enforces that precondition. All other auto-mode gates remain bypassed. The friction cost is now low: on `y`, the auto-redirect runs the correct variant with the original args.
+**This gate applies even when `mode = auto` or `mode = snap`** per ADR-094 §Part 3. Auto/snap's "implicit-yes on all gates" rule is suspended for the runtime-mismatch check — they trust that the user invoked the correct variant, and this gate enforces that precondition. All other auto/snap-mode gates remain bypassed. The friction cost is now low: on `y`, the auto-redirect runs the correct variant with the original args.
 
 If `Bash` is NOT available (normal Cowork runtime), proceed to Step 0.
 
@@ -50,7 +53,8 @@ The default knowledge folder is `~/Projects/knowledge/` (expand `~` to your home
 Parse the argument:
 - No arg, or arg is empty → `mode = gated` (default)
 - Arg matches `auto` (case-insensitive) → `mode = auto`
-- Any other arg → stop: *"Unknown argument '{arg}'. Use `/wrapup` or `/wrapup auto`."*
+- Arg matches `snap` (case-insensitive) → `mode = snap`
+- Any other arg → stop: *"Unknown argument '{arg}'. Use `/wrapup`, `/wrapup auto`, or `/wrapup snap`."*
 
 Use `<knowledge_folder>` for all file operations during this session.
 
@@ -99,7 +103,7 @@ Present this summary to the user:
 - [what follows from here]
 ```
 
-**If `mode = auto`:** skip the prompt and proceed with the drafted summary as-is.
+**If `mode = auto` (or `snap`):** skip the prompt and proceed with the drafted summary as-is.
 
 **Otherwise (gated mode):** Ask: *"Does this summary look right? (yes / edit)"*
 
@@ -114,7 +118,7 @@ If a PROGRESS.md exists for this project:
 3. If no entry exists, draft a new session entry using the project's existing format (match the heading style, content structure, and level of detail of previous entries)
 4. Show the draft to the user
 
-**If `mode = auto`:** append the drafted entry without prompting (equivalent to **yes**).
+**If `mode = auto` (or `snap`):** append the drafted entry without prompting (equivalent to **yes**).
 
 **Otherwise (gated mode):** Ask: *"Add this session entry to PROGRESS.md? (yes / edit / skip)"*
 
@@ -138,7 +142,7 @@ If a CLAUDE.md exists for this project and is reachable through the attached kno
    - Tool/integration changes
 3. If updates are needed, show the proposed changes
 
-**If `mode = auto`:** apply the drafted CLAUDE.md updates without prompting (equivalent to **yes**). If the relevant CLAUDE.md is unreachable, emit the copy-paste block per the Cowork-specific note below — auto mode does not change reachability constraints. If no updates are needed, note that in the final report and move on.
+**If `mode = auto` (or `snap`):** apply the drafted CLAUDE.md updates without prompting (equivalent to **yes**). If the relevant CLAUDE.md is unreachable, emit the copy-paste block per the Cowork-specific note below — auto mode does not change reachability constraints. If no updates are needed, note that in the final report and move on.
 
 **Otherwise (gated mode):** Ask: *"Update CLAUDE.md with these changes? (yes / edit / skip)"*
 
@@ -154,7 +158,7 @@ Check if project memory files in the **reachable knowledge folder** need updatin
 2. Compare against the session summary — is the memory's *"Current State"* still accurate?
 3. If the memory is stale, draft an update
 
-**If `mode = auto`:** apply the drafted memory update without prompting (equivalent to **yes**). If no memory file exists in the reachable knowledge folder or no update is needed, note that in the final report and move on.
+**If `mode = auto` (or `snap`):** apply the drafted memory update without prompting (equivalent to **yes**). If no memory file exists in the reachable knowledge folder or no update is needed, note that in the final report and move on.
 
 **Otherwise (gated mode):** Ask: *"Update project memory? (yes / edit / skip)"*
 
@@ -202,14 +206,16 @@ Run through a checklist and report status:
 - CLAUDE.md — [current / updated (in-place) / updated (copy-paste emitted) / not found / skipped]
 - Memory — [updated / already current / not found (cowork can't reach) / skipped]
 - Git — [commit message emitted / no changes / skipped]
-- /extract — [run / skipped]
+- /extract — [run / skipped / deferred: snapshotted for later extraction (snap mode)]
 ```
 
 **Tracked artifacts check (CODEMAP/STITCH staleness):** SKIPPED in cowork per ADR-005. aria-knowledge runs this check in its Step 7; cowork omits because `/codemap` and `/stitch` are not ported. If you want tracked-artifact staleness reporting, run aria-knowledge's `/wrapup` from Claude Code.
 
 If any item shows a gap (commit-message emitted but not yet run, PROGRESS.md not updated), flag it — but don't block. The user may have good reasons to defer.
 
-## Step 8: Prompt extract
+## Step 8: Capture session knowledge
+
+**If `mode = snap`:** Do NOT run `/aria-cowork:extract`. Instead invoke the `/aria-cowork:snapshot` skill to archive the conversation to `intake/pre-compact-captures/` for later extraction. This is snap mode's defining difference: capture is deferred, not synthesized now. Like auto, this always runs — there is no skip path. The snapshot is the deferred-extraction handoff: a later `/aria-cowork:extract`, or the next `/aria-cowork:audit-knowledge` digest pass (which reads `intake/pre-compact-captures/` automatically), synthesizes knowledge from it when context isn't a constraint. Use snap when context is high and running `/aria-cowork:extract` now would risk compaction mid-synthesis. (Cowork's `/snapshot` uses 3-path source acquisition — no shell access needed.)
 
 **If `mode = auto`:** ALWAYS invoke the `/aria-cowork:extract` skill. No judgment-skip allowed — even if the session feels short, conversational, or seems to have nothing new to extract, run `/aria-cowork:extract` anyway. The model running this step must not pre-judge whether extraction is worthwhile; `/extract` has its own dedup logic (per its Rules section: "Never ask for confirmation — scan and dump") that correctly handles the "nothing to add" case by reporting `No uncaptured knowledge found`. The wrapup skill must not make that judgment on `/extract`'s behalf. Auto mode's "implicit-yes on all gates" rule converts to **"extract always runs"** here — there is no skip path in auto mode.
 
@@ -229,6 +235,7 @@ Output a brief closing summary:
 
 **Next session pickup:** Read [path to PROGRESS.md or CLAUDE.md]
 [If commit message was emitted but not yet run: "Reminder: commit message awaiting your terminal run."]
+[If mode = snap: "Knowledge capture: conversation snapshotted to intake/pre-compact-captures/ for later extraction (run /aria-cowork:extract in a fresh session, or let the next /aria-cowork:audit-knowledge digest pass synthesize it). /extract was NOT run this session."]
 ```
 
 Use the heading **`Session Wrapup Complete`** for `/aria-cowork:wrapup` runs — distinct from `/aria-cowork:handoff`'s **`Session Handoff Complete`** heading. The two skills have distinct intents per the v1.1.0 intent split (wrapup = close-out with no passoff; handoff = passoff package) and their closing-report headings should reflect that.
@@ -241,6 +248,7 @@ Use the heading **`Session Wrapup Complete`** for `/aria-cowork:wrapup` runs —
 - **Git is user-driven in Cowork** — cowork generates commit messages but never shells `git`. Push is always explicit by the user from their terminal. Never `git add -A` in the suggested commands (avoid capturing sensitive files); stage specific files only.
 - **Skip gracefully** — if a file doesn't exist (no PROGRESS.md, no CLAUDE.md, no memory), skip that step and note it. Don't create files that don't already exist as part of the project's conventions.
 - **Delegate extraction** — /wrapup prompts for `/aria-cowork:extract` but does not perform extraction itself. The /extract skill has its own deduplication and formatting logic.
+- **`snap` defers, never drops, capture.** In snap mode /wrapup runs `/aria-cowork:snapshot` instead of `/aria-cowork:extract` — the snapshot always runs (no skip path, same as auto's "extract always runs" invariant). The conversation is preserved so a later /extract or /audit-knowledge digest can synthesize it; snap never means "skip knowledge capture," only "capture cheaply now, synthesize later." snap is otherwise byte-for-byte auto behavior (silent, implicit-yes, commit-message-only — never runs git).
 - **One passoff per session** — if the user runs /wrapup again in the same session, check what was already done and skip completed steps. Don't duplicate entries.
 - **Schema-identical PROGRESS.md output** — cowork's /wrapup writes PROGRESS.md entries in the same format as aria-knowledge's /wrapup. Mixed-source PROGRESS.md files (some entries from cowork, some from aria-knowledge) read uniformly.
 - **Use Cowork's native I/O** — never invoke a Filesystem MCP connector (per ADR-003).

@@ -4,6 +4,27 @@ All notable changes to aria-cowork are documented here. Format follows [Keep a C
 
 Cross-plugin parity callouts (per ADR-006) note when changes coordinate with aria-knowledge releases.
 
+## [1.2.0] — 2026-06-10
+
+**Minor release — `snap` mode for `/wrapup` + `/handoff` (parity with aria-knowledge v2.28.0).** A new mode that runs the full silent close-out/handoff (summary, PROGRESS, CLAUDE.md, memory, commit message — plus the next-session opener for `/handoff`) but archives the conversation via `/aria-cowork:snapshot` for later extraction **instead of** running `/aria-cowork:extract` now. Use when context is high: `/extract` is the expensive, compaction-risky step, so snap preserves the conversation and defers knowledge synthesis to a later session (or the next `/aria-cowork:audit-knowledge` digest pass, which reads `intake/pre-compact-captures/`). Definitionally minimal: **`snap` ≡ `auto` + one swap** (`/extract` → `/snapshot`). New mode parallels the v1.1.0 `auto`-mode addition (minor bump).
+
+### Added — `snap` mode
+
+- **`/aria-cowork:wrapup snap`** — third mode (peer to default + `auto`). Parses in Step 0; every per-step auto-conditional now reads `If mode = auto (or snap)`; Step 8 (renamed "Capture session knowledge") branches snap→`/aria-cowork:snapshot`, auto→`/aria-cowork:extract`. Runtime gate, checklist, report, and Rules updated.
+- **`/aria-cowork:handoff snap`** — fourth mode (peer to default + `auto` + `brief`). Parses in Step 0; Step 4 review + Step 5 apply include snap; Step 6 (renamed "Capture Session Knowledge") branches snap→`/aria-cowork:snapshot`. Next-session opener still emitted (snap is NOT brief — it produces the full package + opener + commit message).
+- **`/help`** table advertises `/wrapup [auto|snap]` and `/handoff [auto|brief|snap]`.
+
+### Cowork adaptation notes
+
+- **No Bash dependency** — unlike aria-knowledge's snap (which leans on `save-transcript.sh`), cowork's `/snapshot` uses 3-path source acquisition (transcript MCP → user-paste → Claude-recall), so snap works in cowork's no-shell runtime. The canonical "snap especially needs Bash" gate note is intentionally omitted here.
+- **Invariant preserved** — snap defers, never drops, capture: the snapshot always runs (no skip path, same as auto's "extract always runs" rule). snap is otherwise byte-for-byte auto behavior (silent, commit-message-only — never runs git).
+- **Fix (in-scope):** `/handoff` Step 7 checklist had duplicated canonical Git/extract rows (a stale copy-paste artifact the explanatory note claimed were "replaced"); collapsed to the cowork-correct rows.
+- **Description budget:** summed SKILL.md descriptions at 8460 chars (well under the 9000 target / 9233 fail-point); `release.sh` aggregate-description preflight gates the build.
+
+### Not ported (tracked-drift)
+
+- aria-knowledge's `/handoff` model-recommendation rubric (the `Suggested next session:` line + Fable-5 tier prose, canonical v2.27.x) — cowork's `/handoff` never carried the rubric, and porting it raises Cowork-specific model/effort-selection UX questions. Flagged for a future parity pass; out of scope for the snap addition.
+
 ## [1.1.5] — 2026-06-04
 
 **Patch release — skill-logic parity catch-up with aria-knowledge.** Two pure skill-content fixes ported from the canonical Code port; no schema, MCP, or manifest-shape changes. Hook/Bash/CLI-dependent canonical features since v1.1.4 (subagent capture, SESSION.md producer, auto-prospect/retrospect, the `/statusline` meter) are **not** ported — Cowork is skills-only with no hooks API and no CLI status line.

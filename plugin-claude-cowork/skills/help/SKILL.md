@@ -48,11 +48,11 @@ If `Bash` is NOT available (normal Cowork runtime), proceed to Step 0.
 | /backlog [type] | View and manage pending intake items (insights, decisions, rules); /backlog clear archives-then-removes per audit-cohort conventions |
 | **/extract** | Capture insights, decisions, feedback, project context, references, and ideas from the current conversation |
 | **/snapshot** | Save a snapshot of the current Cowork conversation to intake/pre-compact-captures/ (3-path source: MCP / user-paste / Claude-recall fallback) |
-| **/wrapup** | End-of-session handoff: review work, update PROGRESS/CLAUDE/memory, generate commit message, prompt /extract |
+| **/wrapup [auto\|snap]** | End-of-session close-out: review work, update PROGRESS/CLAUDE/memory, generate commit message, prompt /extract. `auto` runs silently; `snap` runs like auto but snapshots for later extraction instead of /extract (use when context is high) |
 | **/audit-knowledge** (alias: **/knowledge-audit**) | Review intake backlogs, route ideas via Accept submenu, archive cleared content per audit-cohort conventions, rebuild index |
 | **/audit-config** (alias: **/config-audit**) | Check the knowledge folder for drift, broken references, version-stamp ripple, adoption-state cascade, and missing config fields |
 | **/intake doc [url or title]** | Capture a single doc with 5-section structured body (claims/keeping/contested/action/reaction) → intake/docs/ (v2.17.0 doc mode) |
-| **/handoff [auto\|brief]** | Express handoff with three modes — combined-go default, silent auto, copy/paste coworker brief (`brief` mode is parity with aria-knowledge v2.17.0) |
+| **/handoff [auto\|brief\|snap]** | Express handoff with four modes — combined-go default, silent auto, copy/paste coworker brief (`brief` mode is parity with aria-knowledge v2.17.0), and `snap` (like auto but snapshots for later extraction instead of /extract — use when context is high) |
 | **/prospect [scope] [arg]** | Forward-looking pre-mortem on a plan before execution. Per-step risk enforcement, Evidence-Sourcing Pass, action verdicts. Scopes: plan / session / todos / file / linear / branch |
 | **/retrospect [scope] [arg]** | Retrospective on shipped work. Per-fix validation, Evidence-Sourcing Pass, simpler-alternative discipline. Scopes: session / decision (native) / commit / range / pr / release / deployment (cowork uses user-paste fallback for git-bound scopes) |
 
