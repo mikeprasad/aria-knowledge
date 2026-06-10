@@ -54,8 +54,8 @@ If `Bash` is available, proceed to Step 0.
 | /codemap [mode] | Feature-organized CODEMAP.md for any codebase (create/inventory/update/section) |
 | /distill [text or path] | Tiered task spec from raw text; optional --group for CODEMAP-loaded context |
 | /stitch <mode> <group> | Cross-repo binding (auth/endpoints/entities/drift) for a product group |
-| /wrapup | End-of-session handoff — update PROGRESS/CLAUDE.md, prompt for commit, verify continuity |
-| /handoff [auto\|brief] | Express handoff — same coverage as /wrapup, one combined-go review (or `auto` for silent), always emits a paste-ready next-session opener. `brief` mode produces a copy/paste coworker brief (Hey [coworker]-style prose, 80-150 words) instead of next-session opener — no PROGRESS/CLAUDE/memory/commit/extract side effects |
+| /wrapup [auto\|snap] | End-of-session close-out — update PROGRESS/CLAUDE.md, prompt for commit, verify continuity. `auto` runs silently; `snap` runs like auto but archives the transcript via /snapshot for later extraction instead of /extract (use when context is high) |
+| /handoff [auto\|brief\|snap] | Express handoff — same coverage as /wrapup, one combined-go review (or `auto` for silent), always emits a paste-ready next-session opener. `brief` mode produces a copy/paste coworker brief (Hey [coworker]-style prose, 80-150 words) instead of next-session opener — no PROGRESS/CLAUDE/memory/commit/extract side effects. `snap` mode runs like auto but archives the transcript via /snapshot for later extraction instead of /extract (use when context is high) |
 | /snapshot | Save the current session transcript to intake/pre-compact-captures/ on demand |
 | /statusline [on\|off\|status] | Install/remove the CLI status-line meter — context-window bar + 5h/7d plan-usage % (Claude Code only) |
 | /help | This command reference |

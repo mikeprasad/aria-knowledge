@@ -2,6 +2,16 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.28.0 — 2026-06-10
+
+**`snap` mode for `/wrapup` + `/handoff` — defer knowledge synthesis when context is high.** A new mode that runs the full silent close-out/handoff (summary, PROGRESS, CLAUDE.md, memory, commit — plus the next-session opener for `/handoff`) but archives the raw transcript via `/snapshot` for later extraction **instead of** running `/extract` now. `/extract` is the expensive, compaction-risky step; when context is near-full, snap preserves the transcript cheaply (a bash file copy) so a later `/extract` or the next `/audit-knowledge` digest pass can synthesize knowledge when context isn't a constraint. Definitionally minimal: **`snap` ≡ `auto` + one swap** (`/extract` → `/snapshot`); it inherits all of auto's silent/implicit-yes behavior and overrides exactly the capture step.
+
+- **Add:** `/wrapup snap` — third mode (peer to default + `auto`). Parses in Step 0; every per-step auto-conditional now reads `If mode = auto (or snap)`; Step 8 (renamed "Capture Session Knowledge") branches snap→`/snapshot`, auto→`/extract`. Runtime gate and Rules updated; closing report notes the deferred capture.
+- **Add:** `/handoff snap` — fourth mode (peer to default + `auto` + `brief`). Parses in Step 0; Step 4 review + Step 5 apply now include snap alongside auto; Step 6 (renamed "Capture Session Knowledge") branches snap→`/snapshot`, auto→`/extract`. The next-session opener is still the headline artifact (snap is NOT brief — it produces the full package + opener + commit). Checklist + report + Rules updated.
+- **Invariant:** snap **defers, never drops** capture — the snapshot always runs (no skip path, same as auto's "extract always runs" rule). snap is otherwise byte-for-byte auto behavior (silent, local commit only, never push). `/snapshot` requires Bash, which the existing Step-0 runtime gate already guarantees.
+- **Docs:** `/help` table advertises `/wrapup [auto|snap]` and `/handoff [auto|brief|snap]`.
+- **Ports:** Claude-Code-canonical only. The cowork/codex/cursor/antigravity `/wrapup`+`/handoff` are tracked-drift for a later parity pass (cowork's snap would call its 3-path `/snapshot`).
+
 ## 2.27.2 — 2026-06-10
 
 **Fix the Fable-5 guidance: difficulty is the trigger, not context size.** The v2.27.1 notes justified reaching for Fable 5 partly via "the 1M window" — but Opus 4.8 *also* has a 1M context window, so window size is not a Fable-vs-Opus differentiator and the framing would mis-route large-but-tractable work to a 2×-cost model. Re-anchored both notes on raw capability/judgment.
