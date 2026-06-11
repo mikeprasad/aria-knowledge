@@ -1,6 +1,6 @@
 ---
 name: prospect
-description: 'Run a structured pre-mortem on a plan or approach BEFORE execution. Per-step risk enforcement, active evidence-sourcing pass (autonomous lookups + targeted user-asks for anything that could become objective), simpler-alternative discipline, plan-formation diagnosis, action verdicts (PROCEED/SHRINK/SPLIT/DEFER/KILL), and a growing failure-mode. (Cowork variant — namespaced-only.)'
+description: 'Structured pre-mortem on a plan BEFORE execution: per-step risk verdicts (PROCEED/SHRINK/SPLIT/DEFER/KILL), evidence-sourcing pass, simpler-alternative discipline, growing failure-mode library. Triggers — "/aria-cowork:prospect", "pre-mortem this plan". (Cowork variant — namespaced-only.)'
 argument-hint: '[<scope>] [<scope-arg>] [--linear-post] [--no-source]'
 ---
 

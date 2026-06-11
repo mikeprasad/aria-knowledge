@@ -1,6 +1,6 @@
 ---
 name: intake
-description: 'Bulk import knowledge from files, directories, URLs, or pasted content into the intake backlogs, OR capture a single doc with structured 5-section template (doc mode). Use when user says "/aria-cowork:intake", "/aria-cowork:intake doc", "intake from", "import knowledge from", "scan this file for knowledge", "extract from these docs", "onboard this. (Cowork variant — namespaced-only.)'
+description: 'Bulk-import knowledge from files/dirs/URLs/pasted content into the intake backlogs, OR capture one doc via a 5-section template (doc mode). Triggers — "/aria-cowork:intake", "/aria-cowork:intake doc", "import knowledge from", "scan this for knowledge", "onboard this". (Cowork variant — namespaced-only.)'
 argument-hint: '[doc <url-or-title>] | <path|directory|glob|url> [path2] [path3]'
 ---
 

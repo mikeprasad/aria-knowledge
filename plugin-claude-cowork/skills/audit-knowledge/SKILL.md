@@ -1,6 +1,6 @@
 ---
 name: audit-knowledge
-description: 'Scan the attached knowledge folder for extractable items, run idea-routing dispositions, archive cleared content per the cohort conventions, and rebuild the index. Use when user says "/aria-cowork:audit-knowledge", "/aria-cowork:knowledge-audit", "audit knowledge", "knowledge audit", "check for extractable knowledge", "scan intake", or at. (Cowork variant — namespaced-only.)'
+description: 'Scan the attached knowledge folder for extractable items, run idea-routing dispositions, archive cleared content, and rebuild the index. Triggers — "/aria-cowork:audit-knowledge", "/aria-cowork:knowledge-audit", "audit knowledge", "scan intake". (Cowork variant — namespaced-only.)'
 argument-hint: '[detailed]'
 ---
 

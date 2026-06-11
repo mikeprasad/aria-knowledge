@@ -1,6 +1,6 @@
 ---
 name: retrospect
-description: 'Run a structured retrospective on a shipped commit range, release, deployment, PR, commit, or session. Per-fix validation enforcement, active evidence-sourcing pass (autonomous lookups + targeted user-asks for anything that could become objective), simpler-alternative discipline, re-diagnosis, action verdicts, and a growing failure-mode pattern. (Cowork variant — namespaced-only.)'
+description: 'Structured retrospective on a shipped commit range, release, PR, commit, or session: per-fix validation, evidence-sourcing pass, re-diagnosis, action verdicts, growing failure-mode library. Triggers — "/aria-cowork:retrospect", "retrospect this". (Cowork variant — namespaced-only.)'
 argument-hint: '[<scope>] [<scope-arg>] [--linear-post] [--no-source]'
 ---
 

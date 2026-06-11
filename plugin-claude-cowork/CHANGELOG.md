@@ -4,6 +4,16 @@ All notable changes to aria-cowork are documented here. Format follows [Keep a C
 
 Cross-plugin parity callouts (per ADR-006) note when changes coordinate with aria-knowledge releases.
 
+## [1.3.0] — 2026-06-11
+
+**Two new review skills — `/aria-cowork:foundational-review` + `/aria-cowork:readiness-audit`** — porting aria-knowledge v2.29.0's foundational review chain to Cowork. Parity catch-up with aria-knowledge through v2.30.0 (whose other changes — the Rule 22 deny-rate circuit breaker, canonical `release.sh` gates, and the port-parity ledger — are hooks + Code-side release tooling that don't apply to skills-only Cowork).
+
+- **Add: `/aria-cowork:foundational-review <scope-root> [--decision "..."] [--extend]`** — verdict-led foundational review before an irreversible decision (verdict + premises + sections A–F + irreversibility inventory → design spec → cold-executable plan → composed `/aria-cowork:prospect` → kickoff). Requires a named irreversible decision (else redirects to `/aria-cowork:prospect` or `/aria-cowork:readiness-audit`). **Cowork-adapted:** conversational, no parallel subagents and no Bash — reads via file tools and asks the user to paste anything it can't reach; no `git` (describes the commit instead).
+- **Add: `/aria-cowork:readiness-audit <scope-root> [--for "<event>"]`** — the recurring surface-audit sibling: sequential per-surface probes → re-verify every load-bearing claim (the reviewer is both explorer and controller in Cowork) → tiered evidence-celled findings (Tier 0/High/Med/Low) → phased remediation (findings are not a shipping list) → verification recipe. Read-only; no decision anchor required.
+- **Bundles** the genericized canonical process doc at `skills/foundational-review/foundational-review-chain.md` (read via `${CLAUDE_PLUGIN_ROOT}`, preferring a user's richer `<knowledge_root>/approaches/` copy when reachable).
+- **Coordinated description trim (the 9000-char cap pass flagged at v2.29.0):** to fit the two new skills under Cowork's summed-SKILL.md-description cap, trimmed the descriptions of `/handoff`, `/wrapup`, `/intake`, `/prospect`, `/retrospect`, and `/audit-knowledge` to tight routing signals (behaviors unchanged — the detail lives in each skill body). Also tidied three dangling/truncated trigger phrases. Summed descriptions: 8844 chars (under the 9000 hard cap). Skill manifest 26 → 28 (26 distinct + 2 aliases).
+- **Parity:** coordinated with aria-knowledge v2.30.0. Claude-Cowork port only.
+
 ## [1.2.0] — 2026-06-10
 
 **Minor release — `snap` mode for `/wrapup` + `/handoff` (parity with aria-knowledge v2.28.0).** A new mode that runs the full silent close-out/handoff (summary, PROGRESS, CLAUDE.md, memory, commit message — plus the next-session opener for `/handoff`) but archives the conversation via `/aria-cowork:snapshot` for later extraction **instead of** running `/aria-cowork:extract` now. Use when context is high: `/extract` is the expensive, compaction-risky step, so snap preserves the conversation and defers knowledge synthesis to a later session (or the next `/aria-cowork:audit-knowledge` digest pass, which reads `intake/pre-compact-captures/`). Definitionally minimal: **`snap` ≡ `auto` + one swap** (`/extract` → `/snapshot`). New mode parallels the v1.1.0 `auto`-mode addition (minor bump).
