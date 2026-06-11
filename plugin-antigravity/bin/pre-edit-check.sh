@@ -14,6 +14,14 @@
 # preserved because the walk stops at the previous Edit/Write tool_use, so
 # each edit still needs its own dedicated marker emitted after the prior edit.
 #
+# v2.30.0: deny-rate circuit breaker. A per-session counter trips after 3
+# consecutive denials with zero intervening compliant edits, after which edits
+# are ALLOWED with a loud degraded-mode warning instead of deadlocking. This
+# converts the "confident-no deny loop" failure class (a transcript-format
+# change that parses fine but shifts semantics, yielding "no" -> deny -> deadlock)
+# into self-healing fail-open: a single compliant edit deletes the counter and
+# restores blocking enforcement. Model-agnostic — no per-model parser patch.
+#
 # Decision hierarchy (path classification — unchanged from v2.10.x):
 #   1. Planning path (and not protected)              -> abbreviated variant expected
 #   2. Protected path                                  -> full variant expected
@@ -38,6 +46,19 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 FILE_PATH=$(echo "$INPUT" | grep -o '"file_path":"[^"]*"' | head -1 | sed 's/"file_path":"//;s/"//')
 TRANSCRIPT=$(echo "$INPUT" | grep -o '"transcript_path":"[^"]*"' | head -1 | sed 's/"transcript_path":"//;s/"//')
 TOOL_USE_ID=$(echo "$INPUT" | grep -o '"tool_use_id":"[^"]*"' | head -1 | sed 's/"tool_use_id":"//;s/"//')
+STEP_INDEX=$(echo "$INPUT" | grep -o '"step_index":[0-9]*' | head -1 | cut -d':' -f2)
+export STEP_INDEX
+
+# Circuit-breaker session key (v2.30.0): prefer session_id, fall back to the
+# transcript basename. Sanitized to a safe filename. If neither resolves, the
+# breaker is disabled (BREAKER_STATE empty) and the hook degrades to its prior
+# behavior — never a shared cross-session counter.
+SESSION_ID=$(echo "$INPUT" | grep -o '"session_id":"[^"]*"' | head -1 | sed 's/"session_id":"//;s/"//')
+SESSION_KEY="$SESSION_ID"
+[ -z "$SESSION_KEY" ] && [ -n "$TRANSCRIPT" ] && SESSION_KEY=$(basename "$TRANSCRIPT" .jsonl 2>/dev/null)
+SESSION_KEY=$(printf '%s' "$SESSION_KEY" | tr -cd 'A-Za-z0-9._-')
+BREAKER_STATE=""
+[ -n "$SESSION_KEY" ] && BREAKER_STATE="${TMPDIR:-/tmp}/aria-r22-denies-${SESSION_KEY}"
 
 # Planning paths where abbreviated assessment is permitted
 IS_PLANNING=false
@@ -106,111 +127,142 @@ fi
 # under 4.7's split-message harness spans multiple assistant messages.
 COMPLIANT="unknown"
 if [ -n "$TRANSCRIPT" ] && [ -n "$TOOL_USE_ID" ] && [ -f "$TRANSCRIPT" ]; then
-  COMPLIANT=$(TRANSCRIPT="$TRANSCRIPT" TOOL_USE_ID="$TOOL_USE_ID" python3 - <<'PY' 2>/dev/null
+  COMPLIANT=$(TRANSCRIPT="$TRANSCRIPT" TOOL_USE_ID="$TOOL_USE_ID" STEP_INDEX="$STEP_INDEX" python3 - <<'PY' 2>/dev/null
 import json, os, re, sys
 try:
     path = os.environ["TRANSCRIPT"]
-    tool_use_id = os.environ["TOOL_USE_ID"]
+    tool_use_id = os.environ.get("TOOL_USE_ID", "")
+    step_index_str = os.environ.get("STEP_INDEX", "")
+    step_index = int(step_index_str) if step_index_str else None
     MARKER = re.compile(r"\[Rule 22(\s\xb7\s[^\]]+)?\]")
     with open(path) as f:
         lines = f.readlines()
 
-    # First pass: find the assistant message containing our tool_use_id.
-    # Record its line index and the position of the tool_use within its content.
     target_line_idx = None
-    target_content_idx = None
-    for i, line in enumerate(lines):
-        try:
-            evt = json.loads(line)
-        except Exception:
-            continue
-        if evt.get("type") != "assistant":
-            continue
-        content = evt.get("message", {}).get("content", [])
-        if not isinstance(content, list):
-            continue
-        for j, b in enumerate(content):
-            if isinstance(b, dict) and b.get("type") == "tool_use" and b.get("id") == tool_use_id:
+
+    if step_index is not None:
+        # Antigravity branch: find step by step_index
+        for i, line in enumerate(lines):
+            try:
+                evt = json.loads(line)
+            except Exception:
+                continue
+            if evt.get("step_index") == step_index and evt.get("source") == "MODEL":
                 target_line_idx = i
-                target_content_idx = j
                 break
-        if target_line_idx is not None:
-            break
+        
+        if target_line_idx is None:
+            # Fallback to last MODEL event
+            for i in range(len(lines) - 1, -1, -1):
+                try:
+                    evt = json.loads(lines[i])
+                except Exception:
+                    continue
+                if evt.get("source") == "MODEL":
+                    target_line_idx = i
+                    break
 
-    if target_line_idx is None:
-        print("unknown")
-        sys.exit(0)
+        if target_line_idx is None:
+            print("unknown")
+            sys.exit(0)
 
-    # Second pass: walk backward collecting text blocks from the turn window.
-    # Turn window = from target tool_use back to either the previous Edit/Write
-    # tool_use or a user message (whichever is encountered first).
-    #
-    # Within the target message, scan content[:target_content_idx] for text
-    # blocks and also check for a previous Edit/Write tool_use that would
-    # cap the walk early.
-    found_prior_edit_in_target_msg = False
-    text_blocks = []
+        text_blocks = []
+        target_evt = json.loads(lines[target_line_idx])
+        target_content = target_evt.get("content", "")
+        if target_content:
+            text_blocks.append(target_content)
 
-    target_evt = json.loads(lines[target_line_idx])
-    target_content = target_evt["message"]["content"]
-    for b in target_content[:target_content_idx]:
-        if isinstance(b, dict):
-            if b.get("type") == "tool_use" and b.get("name") in ("Edit", "Write"):
-                # A prior Edit/Write in the same message caps the walk.
-                # Reset collected text blocks (none of them belong to this edit).
-                text_blocks = []
-                found_prior_edit_in_target_msg = True
-            elif b.get("type") == "text":
-                text_blocks.append(b.get("text", ""))
-
-    # If the target message didn't already cap the walk, walk backward through
-    # prior lines until we hit a user message or a previous Edit/Write tool_use.
-    if not found_prior_edit_in_target_msg:
+        # Walk backward to collect text blocks within the same assistant turn
         for i in range(target_line_idx - 1, -1, -1):
             try:
                 evt = json.loads(lines[i])
             except Exception:
                 continue
-            evt_type = evt.get("type")
-            if evt_type == "user":
-                # v2.15.2: tool_results are also encoded as type:"user" in Claude
-                # Code transcripts. They carry tool_result content blocks rather
-                # than user-authored text. Walk past them — they're not turn
-                # boundaries. Only stop at actual user prompts.
-                user_content = evt.get("message", {}).get("content", [])
-                if isinstance(user_content, list) and user_content and \
-                   all(isinstance(b, dict) and b.get("type") == "tool_result" for b in user_content):
-                    continue  # tool_result only — not a real user message
-                # Actual user prompt → hit the turn boundary going backward.
+            if evt.get("source") == "USER_EXPLICIT" or evt.get("type") == "USER_INPUT":
                 break
-            if evt_type != "assistant":
+            
+            has_prior_edit = False
+            for tc in evt.get("tool_calls", []):
+                if tc.get("name") in ("write_to_file", "replace_file_content", "multi_replace_file_content", "Edit", "Write"):
+                    has_prior_edit = True
+                    break
+            if has_prior_edit:
+                break
+                
+            if evt.get("source") == "MODEL":
+                content = evt.get("content", "")
+                if content:
+                    text_blocks.insert(0, content)
+
+    else:
+        # Claude Code branch: find step by tool_use_id
+        target_content_idx = None
+        for i, line in enumerate(lines):
+            try:
+                evt = json.loads(line)
+            except Exception:
+                continue
+            if evt.get("type") != "assistant":
                 continue
             content = evt.get("message", {}).get("content", [])
             if not isinstance(content, list):
                 continue
-            # Walk this message's content in order. If it contains a prior
-            # Edit/Write, only text blocks AFTER that Edit/Write belong to
-            # our current turn window. Since we're walking backward across
-            # messages but forward within each message, we collect this
-            # message's blocks into a local list, then prepend.
-            msg_text_blocks = []
-            cap_reached = False
-            for b in content:
-                if isinstance(b, dict):
-                    if b.get("type") == "tool_use" and b.get("name") in ("Edit", "Write"):
-                        # Previous Edit/Write — walk stops. Discard anything
-                        # collected BEFORE this Edit/Write in the same message
-                        # (those belong to the prior turn window).
-                        msg_text_blocks = []
-                        cap_reached = True
-                    elif b.get("type") == "text":
-                        msg_text_blocks.append(b.get("text", ""))
-            # Prepend this message's post-cap text blocks to the overall list.
-            text_blocks = msg_text_blocks + text_blocks
-            if cap_reached:
+            for j, b in enumerate(content):
+                if isinstance(b, dict) and b.get("type") == "tool_use" and b.get("id") == tool_use_id:
+                    target_line_idx = i
+                    target_content_idx = j
+                    break
+            if target_line_idx is not None:
                 break
 
-    # Scan collected text blocks for the marker.
+        if target_line_idx is None:
+            print("unknown")
+            sys.exit(0)
+
+        found_prior_edit_in_target_msg = False
+        text_blocks = []
+
+        target_evt = json.loads(lines[target_line_idx])
+        target_content = target_evt["message"]["content"]
+        for b in target_content[:target_content_idx]:
+            if isinstance(b, dict):
+                if b.get("type") == "tool_use" and b.get("name") in ("Edit", "Write"):
+                    text_blocks = []
+                    found_prior_edit_in_target_msg = True
+                elif b.get("type") == "text":
+                    text_blocks.append(b.get("text", ""))
+
+        if not found_prior_edit_in_target_msg:
+            for i in range(target_line_idx - 1, -1, -1):
+                try:
+                    evt = json.loads(lines[i])
+                except Exception:
+                    continue
+                evt_type = evt.get("type")
+                if evt_type == "user":
+                    user_content = evt.get("message", {}).get("content", [])
+                    if isinstance(user_content, list) and user_content and \
+                       all(isinstance(b, dict) and b.get("type") == "tool_result" for b in user_content):
+                        continue
+                    break
+                if evt_type != "assistant":
+                    continue
+                content = evt.get("message", {}).get("content", [])
+                if not isinstance(content, list):
+                    continue
+                msg_text_blocks = []
+                cap_reached = False
+                for b in content:
+                    if isinstance(b, dict):
+                        if b.get("type") == "tool_use" and b.get("name") in ("Edit", "Write"):
+                            msg_text_blocks = []
+                            cap_reached = True
+                        elif b.get("type") == "text":
+                            msg_text_blocks.append(b.get("text", ""))
+                text_blocks = msg_text_blocks + text_blocks
+                if cap_reached:
+                    break
+
     for txt in text_blocks:
         if MARKER.search(txt):
             print("yes")
@@ -224,8 +276,10 @@ PY
   [ -z "$COMPLIANT" ] && COMPLIANT="unknown"
 fi
 
-# Compliant: allow silently.
+# Compliant: allow silently. A compliant edit resets the deny-rate breaker
+# (v2.30.0) — enforcement self-heals the moment detectable markers resume.
 if [ "$COMPLIANT" = "yes" ]; then
+  [ -n "$BREAKER_STATE" ] && rm -f "$BREAKER_STATE" 2>/dev/null
   exit 0
 fi
 
@@ -242,6 +296,28 @@ if [ "$COMPLIANT" = "unknown" ]; then
   WARN_ESCAPED=$(kt_json_escape "$WARN")
   printf '{"systemMessage":"%s"}\n' "$WARN_ESCAPED"
   exit 0
+fi
+
+# Deny-rate circuit breaker (v2.30.0). At this point the edit is genuinely
+# non-compliant (a located edit resolved to "no"). Count consecutive denials in
+# this session; once 3 have accrued with no intervening compliant edit, degrade
+# to allow-with-loud-warning instead of denying forever. This is the same
+# fail-open-LOUD philosophy as the "unknown" branch above, extended to cover a
+# transcript-format change that parses cleanly but shifts semantics (the
+# "confident no" deadlock the plain unknown-guard cannot catch). Disabled when
+# no session key resolved (BREAKER_STATE empty) — falls straight through to deny.
+if [ -n "$BREAKER_STATE" ]; then
+  DENY_COUNT=0
+  [ -f "$BREAKER_STATE" ] && DENY_COUNT=$(cat "$BREAKER_STATE" 2>/dev/null)
+  case "$DENY_COUNT" in *[!0-9]*|"") DENY_COUNT=0 ;; esac
+  if [ "$DENY_COUNT" -ge 3 ]; then
+    WARN="aria-knowledge Rule 22: enforcement is in DEGRADED mode. ${DENY_COUNT} consecutive edits were denied for a missing [Rule 22] marker with no compliant edit between them — this usually means a transcript-format change has made the marker undetectable (cf. prior model/harness deadlocks), not that the marker is being skipped. The edit is ALLOWED so the editor does not deadlock; marker discipline is still expected, and a single compliant edit restores blocking enforcement. If this persists, run tests/run.sh and check pre-edit-check.sh against the current transcript format."
+    WARN_ESCAPED=$(kt_json_escape "$WARN")
+    printf '{"systemMessage":"%s"}\n' "$WARN_ESCAPED"
+    exit 0
+  fi
+  # Below the trip threshold — record this denial, then fall through to deny.
+  printf '%s' "$((DENY_COUNT + 1))" > "$BREAKER_STATE" 2>/dev/null || true
 fi
 
 # Non-compliant: deny with a concise recovery message naming the expected format

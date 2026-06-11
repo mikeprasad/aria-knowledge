@@ -27,14 +27,16 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 command -v jq >/dev/null 2>&1 || exit 0
 
-# Read the snapshot for the CURRENTLY logged-in account. The meter writes one
-# file per account (keyed by accountUuid from ~/.gemini/antigravity.json) so an alternating /
-# concurrent second account never makes us alert on the wrong account's usage.
-ACCT_KEY="default"
-if [ -f "$HOME/.gemini/antigravity.json" ]; then
-  _u=$(jq -r '.oauthAccount.accountUuid // empty' "$HOME/.gemini/antigravity.json" 2>/dev/null)
-  [ -n "$_u" ] && ACCT_KEY="$_u"
-fi
+# Read stdin ONCE; derive the session id (used for both the snapshot key and the
+# anti-spam WARNFILE). Resolve the account key via the shared runtime-aware resolver
+# (config.sh kt_resolve_account) so CLI vs Claude-Desktop-hosted sessions each read
+# their own per-account snapshot, never the wrong runtime's.
+INPUT=$(cat)
+SID=$(printf '%s' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null)
+[ -z "$SID" ] && SID="default"
+_resolved=$(kt_resolve_account "$SID")
+ACCT_KEY=$(printf '%s' "$_resolved" | cut -f1)
+RUNTIME=$(printf '%s' "$_resolved" | cut -f2)
 STATE="$HOME/.gemini/antigravity/aria-statusline-state-${ACCT_KEY}.json"
 [ -f "$STATE" ] || exit 0
 
@@ -47,15 +49,31 @@ esac
 [ "$THRESH" -lt 1 ] && exit 0
 [ "$THRESH" -gt 100 ] && exit 0
 
-INPUT=$(cat)
-SID=$(printf '%s' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null)
-[ -z "$SID" ] && SID="default"
 WARNFILE="/tmp/aria-usage-warn-${SID}"
 
 ctx=$(jq -r '.context_pct // empty' "$STATE" 2>/dev/null)
 five=$(jq -r '.five_hour_pct // empty' "$STATE" 2>/dev/null)
 five_reset=$(jq -r '.five_hour_resets_at // empty' "$STATE" 2>/dev/null)
 seven=$(jq -r '.seven_day_pct // empty' "$STATE" 2>/dev/null)
+seven_reset=$(jq -r '.seven_day_resets_at // empty' "$STATE" 2>/dev/null)
+snap_sid=$(jq -r '.session_id // empty' "$STATE" 2>/dev/null)
+ctx_raw=$(jq -r '.context_pct' "$STATE" 2>/dev/null)   # "null" when absent / post-/compact
+_now=$(date +%s 2>/dev/null)
+
+# 5h/7d staleness: a window already past its reset is expired — ignore that metric
+# (the stored % predates the reset; the real current value is lower/unknown).
+_expired() { case "$1" in ''|*[!0-9]*) return 1 ;; esac; [ -n "$_now" ] && [ "$_now" -gt "$1" ]; }
+_expired "$five_reset"  && five=""
+_expired "$seven_reset" && seven=""
+
+# context is per-session: trust it only for THIS session AND a real (non-null)
+# measurement (null/absent = just after /compact — unknown, not the old high value).
+if [ "$snap_sid" != "$SID" ] || [ "$ctx_raw" = "null" ] || [ -z "$ctx_raw" ]; then
+  ctx=""
+fi
+
+# Desktop-hosted but account unresolved: never assert an unattributable account.
+[ "$RUNTIME" = "desktop-unknown" ] && exit 0
 
 # band PCT -> floor-to-5 if >= threshold, else 0 (no alert)
 band() {

@@ -55,15 +55,19 @@ if [ ! -x "$CANONICAL" ]; then
   exit 0
 fi
 
-# Canonical script reads Claude Code env vars. Translate Antigravity's tool
-# names into the file path the canonical script expects to scan.
+# Construct JSON containing file_path, session_id, transcript_path, tool_use_id, and step_index to pass to canonical script on stdin.
+# Translate Antigravity's tool names into the file path the canonical script expects to scan.
 export CLAUDE_TOOL_NAME="$ARIA_TOOL_NAME"
 export CLAUDE_TARGET_FILE="$ARIA_TOOL_TARGET_FILE"
 export CLAUDE_TRANSCRIPT_PATH="$ARIA_TRANSCRIPT_PATH"
 
-# Capture canonical script's stdout + stderr; advisory output goes to stderr in
-# the canonical impl (visible to the agent in Claude Code via the hook log).
-ADVISORY=$("$CANONICAL" 2>&1)
+ADVISORY=$(jq -cn \
+  --arg fp "$ARIA_TOOL_TARGET_FILE" \
+  --arg sid "$ARIA_CONVERSATION_ID" \
+  --arg tp "$ARIA_TRANSCRIPT_PATH" \
+  --arg tuid "mock-tool-use-id" \
+  --argjson sidx "$ARIA_STEP_IDX" \
+  '{file_path: $fp, session_id: $sid, transcript_path: $tp, tool_use_id: $tuid, step_index: $sidx}' | "$CANONICAL" 2>&1)
 CANONICAL_EXIT=$?
 
 if [ $CANONICAL_EXIT -eq 0 ]; then

@@ -7,9 +7,10 @@ description: "Install or remove the aria-knowledge status-line meter — a conte
 Wire up (or remove) a persistent status line at the bottom of the Claude Code CLI showing:
 
 ```
-Opus 4.8 │ ███░░░░░░░ 31% ctx │ 5h 24% ↺01:00 │ 7d 88%
+Fable 5 H │ ███░░░░░░░ 31% ctx │ 5h 24% ↺01:00 │ 7d 88%
 ```
 
+- **model + effort** — the model name, with a compact reasoning-effort suffix when the model supports `/effort`: `L` low · `M` medium · `H` high · `XH` xhigh · `MX` max (e.g. `Fable 5 H`). Reflects live mid-session `/effort` changes; no suffix renders when the current model has no effort parameter.
 - **context bar + %** — how full the context window is (input-only percentage, green → yellow → red).
 - **5h NN% ↺HH:MM** — rolling 5-hour plan-usage window + when it resets (Pro/Max plans only).
 - **7d NN%** — rolling 7-day window (Pro/Max plans only).
@@ -89,11 +90,14 @@ Then write `~/.gemini/antigravity/settings.json` with the `statusLine` block mer
 ```json
 "statusLine": {
   "type": "command",
-  "command": "<HOME>/.claude/aria-statusline-meter.sh"
+  "command": "<HOME>/.claude/aria-statusline-meter.sh",
+  "refreshInterval": 30
 }
 ```
 
 Substitute `<HOME>` with the literal absolute path captured in Step 1 (e.g. `/Users/alice/.claude/aria-statusline-meter.sh`). If the file didn't exist, the whole file is just `{ "statusLine": { … } }`.
+
+`refreshInterval: 30` re-runs the meter every ~30s **in addition to** the event-driven renders, so the persisted usage snapshot stays current even while the session is idle or just after a resume (when no assistant message has fired a render yet). It re-runs only the meter — a local ~5ms script with **no API token cost** — and does **not** change how often the usage *alert* fires (that's the `UserPromptSubmit` hook, band-gated on your prompt). On a refresh/repair where settings already has a `statusLine` pointing at the aria meter, set `refreshInterval` to `30` if it's absent, but **preserve a user's existing smaller (higher-frequency) value**.
 
 **Validate the written JSON** before declaring success:
 
@@ -110,7 +114,7 @@ If validation fails, restore from `settings.json.aria-bak` and report the error 
 Prove it works by piping a representative payload through the installed copy (don't ask the user to eyeball the CLI — show them the rendered output):
 
 ```bash
-echo '{"model":{"display_name":"Opus 4.8"},"context_window":{"used_percentage":31},"rate_limits":{"five_hour":{"used_percentage":24,"resets_at":0},"seven_day":{"used_percentage":12}}}' | "$HOME/.claude/aria-statusline-meter.sh"; echo
+echo '{"model":{"display_name":"Fable 5"},"effort":{"level":"high"},"context_window":{"used_percentage":31},"rate_limits":{"five_hour":{"used_percentage":24,"resets_at":0},"seven_day":{"used_percentage":12}}}' | "$HOME/.claude/aria-statusline-meter.sh"; echo
 ```
 
 ### Step 6 — Confirm

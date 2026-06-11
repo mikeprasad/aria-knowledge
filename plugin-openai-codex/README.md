@@ -45,7 +45,7 @@ The `/aria` command included here is a compact command reference for Codex.
 
 ## Hook Parity
 
-Codex hooks currently cover the 2.24.2 Codex port feature set where Codex has
+Codex hooks currently cover the 2.30.0 Codex port feature set where Codex has
 a native event or intent surface:
 
 - `SessionStart` cadence and setup prompts through the existing ARIA script
@@ -57,11 +57,13 @@ a native event or intent surface:
 - `PreToolUse` CODEMAP reminders for broad `rg`, `grep`, and `find` exploration
 - `PreCompact` and `PostCompact` passthrough to the existing ARIA scripts
 - `SubagentStart` self-report instructions and `SubagentStop` durable capture to `intake/subagent-captures/`
+- `/foundational-review` and `/readiness-audit` ship as Codex-native skills with the canonical process document bundled in the plugin
 
 Known gaps:
 
 - Claude Code `TaskCreated` has no exact Codex event. The port maps the intent to `UserPromptSubmit` plus `SubagentStart`/`SubagentStop`, which catches prompt intent and subagent boundaries but is not a one-for-one task dispatch hook.
 - Claude Code's `/statusline` meter has no Codex equivalent yet. Codex does not expose a plugin statusline slot or context-window/rate-limit percentages in hook payloads, so this port does not ship `/statusline`, `statusline-meter.sh`, or `usage-threshold-inject.sh`. The shared `usage_alert_threshold` config key is preserved but ignored by Codex.
+- Claude Code's `/aria-assist` scheduler and PM helper scripts remain non-equivalent in this port. Codex has no bundled launchd/headless scheduler path in this plugin surface yet.
 - Codex shell interception is narrower than Claude Code Bash hooks. Rule 22 enforcement is strongest on `apply_patch`; shell write detection remains advisory.
 - Some durable knowledge templates intentionally still mention Claude Code because the shared knowledge folder remains cross-port.
 

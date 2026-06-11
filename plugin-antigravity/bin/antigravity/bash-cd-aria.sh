@@ -21,7 +21,10 @@ fi
 export CLAUDE_BASH_COMMAND="$ARIA_TOOL_COMMANDLINE"
 export CLAUDE_BASH_CWD="$ARIA_TOOL_CWD"
 
-ADVISORY=$("$CANONICAL" 2>&1)
+ADVISORY=$(jq -cn \
+  --arg cmd "$ARIA_TOOL_COMMANDLINE" \
+  --arg sid "$ARIA_CONVERSATION_ID" \
+  '{command: $cmd, session_id: $sid}' | "$CANONICAL" 2>&1)
 CANONICAL_EXIT=$?
 
 if [ $CANONICAL_EXIT -eq 0 ]; then

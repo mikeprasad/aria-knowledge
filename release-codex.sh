@@ -48,6 +48,15 @@ log "codex:   $CODEX_NAME v$CODEX_VERSION (canonical $CANONICAL_VERSION)"
 log "testing: plugin-openai-codex"
 sh "$REPO_ROOT/plugin-openai-codex/tests/run.sh"
 
+# Gate C parity with the canonical release path: report port drift during Codex
+# releases too, without making pre-existing cross-port lag fatal yet.
+log "gate C: port drift (report-only)"
+if [[ -x "$REPO_ROOT/plugin-claude-code/bin/check-port-drift.sh" ]]; then
+    sh "$REPO_ROOT/plugin-claude-code/bin/check-port-drift.sh" || true
+else
+    warn "gate C skipped: plugin-claude-code/bin/check-port-drift.sh not found"
+fi
+
 # --- stage ------------------------------------------------------------------
 STAGING=$(mktemp -d -t "aria-codex-release.XXXXXX")
 trap 'rm -rf "$STAGING"' EXIT
@@ -65,7 +74,10 @@ rsync -a \
 
 # --- zip --------------------------------------------------------------------
 ZIP_PATH="$REPO_ROOT/$CODEX_NAME-codex-$CANONICAL_VERSION.zip"
-[[ -f "$ZIP_PATH" ]] && warn "overwriting existing $ZIP_PATH"
+if [[ -f "$ZIP_PATH" ]]; then
+    warn "removing existing $ZIP_PATH (clean rebuild)"
+    rm -f "$ZIP_PATH"
+fi
 
 log "zipping: $(basename "$ZIP_PATH")"
 (cd "$STAGING" && zip -rXq "$ZIP_PATH" "$CODEX_NAME")

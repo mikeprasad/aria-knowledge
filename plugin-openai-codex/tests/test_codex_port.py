@@ -118,9 +118,22 @@ def test_codex_skills_do_not_ship_adr094_runtime_gate_sections() -> None:
         assert "/aria-cowork:" not in body, f"{skill} still routes to cowork runtime"
 
 
+def test_review_skills_are_ported_with_bundled_process_doc() -> None:
+    foundational = PORT_ROOT / "skills" / "foundational-review" / "SKILL.md"
+    readiness = PORT_ROOT / "skills" / "readiness-audit" / "SKILL.md"
+    chain = PORT_ROOT / "skills" / "foundational-review" / "foundational-review-chain.md"
+    assert foundational.exists()
+    assert readiness.exists()
+    assert chain.exists()
+    assert "Runtime Gate (per ADR-094)" not in read(foundational)
+    assert "Runtime Gate (per ADR-094)" not in read(readiness)
+    assert "${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}" in read(foundational)
+    assert "${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}" in read(readiness)
+
+
 def test_manifest_and_hook_commands_use_codex_plugin_root() -> None:
     manifest = json.loads(read(PORT_ROOT / ".codex-plugin" / "plugin.json"))
-    assert manifest["version"] == "2.24.2-codex.0"
+    assert manifest["version"] == "2.30.0-codex.0"
     assert manifest["hooks"] == "./hooks.json"
     assert manifest["mcpServers"] == "./.mcp.json"
 
@@ -151,6 +164,13 @@ def test_statusline_feature_is_documented_as_non_equivalent() -> None:
     assert not (PORT_ROOT / "bin" / "usage-threshold-inject.sh").exists()
     assert "Codex Non-Equivalent: Statusline Meter" in read(PORT_ROOT / "CONFIG.md")
     assert "usage_alert_threshold" in read(PORT_ROOT / "CONFIG.md")
+
+
+def test_aria_assist_scheduler_is_documented_as_non_equivalent() -> None:
+    assert not (PORT_ROOT / "skills" / "aria-assist").exists()
+    assert not (PORT_ROOT / "bin" / "pm-morning-run.sh").exists()
+    assert not (PORT_ROOT / "bin" / "pm-schedule.sh").exists()
+    assert "Codex Non-Equivalent: ARIA Assist Scheduler" in read(PORT_ROOT / "CONFIG.md")
 
 
 def test_codex_docs_and_setup_prefer_shared_config() -> None:

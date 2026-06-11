@@ -38,7 +38,7 @@ unless the user explicitly overrides `KT_CONFIG` or `ARIA_KNOWLEDGE_CONFIG`.
 
 - Skills should keep shared knowledge schemas compatible while using Codex-native
   metadata, config, and hook wording.
-- This port tracks Claude Code ARIA `2.24.1` with Codex release label `2.24.2-codex.0`.
+- This port tracks Claude Code ARIA `2.30.0` with Codex release label `2.30.0-codex.0` for shared knowledge templates, review skills, and Codex-supported hook behavior.
 - Rule 22 maps Codex file edits to `apply_patch`; Codex also supports `Edit|Write`
   matcher aliases for the same canonical tool.
 - `UserPromptSubmit` is the Codex-native active-knowledge intent hook. It scans
@@ -49,12 +49,14 @@ unless the user explicitly overrides `KT_CONFIG` or `ARIA_KNOWLEDGE_CONFIG`.
 - `SESSION.md` in-progress state, `auto_prospect`, and `auto_retrospect` are
   implemented in the Python adapter for Codex `apply_patch` and shell outputs.
 - Shell write detection is advisory in this port; use `apply_patch` for edits.
+- `/foundational-review` and `/readiness-audit` are ported as Codex-native skills. ADR-094 Claude/Cowork runtime gates are stripped, and the bundled canonical process doc is read from `${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/skills/foundational-review/foundational-review-chain.md`.
 - Claude Code `TaskCreated` has no exact Codex event. The closest intent-based
   equivalent is `UserPromptSubmit` plus subagent boundary hooks, not per-task
   dispatch.
 - Claude Code `/statusline`, `statusline-meter.sh`, and
   `usage-threshold-inject.sh` are intentionally not ported because Codex exposes
   no plugin statusline slot or usage/rate-limit percentage payload today.
+- Claude Code `/aria-assist`, launchd scheduler scripts, and PM helper scripts are intentionally not ported in this pass because Codex has no equivalent bundled headless scheduler path in the plugin surface.
 - Hooks are enabled by default in current Codex, but plugin-bundled hooks still
   require user trust review before they run.
 

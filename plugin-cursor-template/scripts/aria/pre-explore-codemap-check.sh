@@ -1,26 +1,15 @@
 #!/bin/sh
-# pre-explore-codemap-check.sh — beforeReadFile hook for Cursor (port of PreToolUse:Glob|Grep)
+# pre-explore-codemap-check.sh — PreToolUse hook for Glob|Grep
 # Reminds to read CODEMAP.md Directory section before exploring a project codebase.
 # Fires once per project per session (cooldown via temp file).
-#
-# Cursor port notes:
-#   - Cursor payload uses camelCase (sessionId, filePath); fallback to snake_case during testing.
-#   - Output uses agentMessage rather than systemMessage / additionalContext.
 
 # Read the tool input to get the target path
 INPUT=$(cat)
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-. "$SCRIPT_DIR/config.sh"
 
-# Debug log: confirms hook fires (Cursor port verification)
-echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) $0 fired" >> /tmp/aria-hook-debug.log 2>/dev/null
+# Extract path from Glob (path field) or Grep (path field)
+TARGET_PATH=$(echo "$INPUT" | grep -o '"path":"[^"]*"' | head -1 | sed 's/"path":"//;s/"//')
 
-# Cursor's beforeReadFile uses filePath; fallback to path / file_path during testing
-TARGET_PATH=$(echo "$INPUT" | grep -o '"filePath":"[^"]*"' | head -1 | sed 's/"filePath":"//;s/"//')
-[ -z "$TARGET_PATH" ] && TARGET_PATH=$(echo "$INPUT" | grep -o '"path":"[^"]*"' | head -1 | sed 's/"path":"//;s/"//')
-[ -z "$TARGET_PATH" ] && TARGET_PATH=$(echo "$INPUT" | grep -o '"file_path":"[^"]*"' | head -1 | sed 's/"file_path":"//;s/"//')
-
-# If no explicit path, target is cwd — skip (sessionStart already covers cwd)
+# If no explicit path, target is cwd — skip (SessionStart already covers cwd)
 if [ -z "$TARGET_PATH" ]; then
   exit 0
 fi
@@ -56,9 +45,8 @@ if [ -z "$CODEMAP_PATH" ]; then
   exit 0
 fi
 
-# Extract sessionId for cooldown scoping — Cursor camelCase with snake_case fallback
-SESSION_ID=$(echo "$INPUT" | grep -o '"sessionId":"[^"]*"' | head -1 | sed 's/"sessionId":"//;s/"//')
-[ -z "$SESSION_ID" ] && SESSION_ID=$(echo "$INPUT" | grep -o '"session_id":"[^"]*"' | head -1 | sed 's/"session_id":"//;s/"//')
+# Extract session_id for cooldown scoping
+SESSION_ID=$(echo "$INPUT" | grep -o '"session_id":"[^"]*"' | head -1 | sed 's/"session_id":"//;s/"//')
 if [ -z "$SESSION_ID" ]; then
   # Fallback: use parent PID as session proxy
   SESSION_ID="$$"
@@ -80,6 +68,9 @@ date +%s > "$COOLDOWN_FILE" 2>/dev/null
 # Make path relative to cwd for cleaner display
 DISPLAY_PATH=$(echo "$CODEMAP_PATH" | sed "s|$PWD/||")
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+. "$SCRIPT_DIR/config.sh"
+
 # Check for sibling STITCH.md (cross-repo stitch artifact)
 STITCH_SIBLING="$(dirname "$CODEMAP_PATH")/STITCH.md"
 STITCH_EXTRA=""
@@ -89,4 +80,4 @@ if [ -f "$STITCH_SIBLING" ]; then
 fi
 
 MSG=$(kt_json_escape "CODEMAP exists at ${DISPLAY_PATH} — Read Directory section before exploring further.${STITCH_EXTRA} This fires once per project per session.")
-printf '{"agentMessage":"%s"}\n' "$MSG"
+echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","additionalContext":"'"$MSG"'"}}'

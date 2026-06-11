@@ -36,16 +36,16 @@ Cursor-specific files live here:
 
 ## Current Parity Notes
 
-- **Canonical parity target:** `plugin-claude-code/` @ **v2.24.2** (2026-06-04).
-- **Cursor port version:** `scripts/aria/VERSION` → `2.24.2-cursor.0`.
+- **Canonical parity target:** `plugin-claude-code/` @ **v2.30.0** (2026-06-11).
+- **Cursor port version:** `scripts/aria/VERSION` → `2.30.0-cursor.0`.
 - **ADR-094 Runtime Gates:** intentionally **omitted** in Cursor — aria-cowork is not loaded in typical Cursor sessions; namespace note lives in `aria-commands.mdc` preamble only.
 - Knowledge folder schema is **fully compatible** with upstream.
 - `intake/pre-compact-captures/` removed by design; `intake/task-boundary-captures/` substitutes via the `stop` hook.
 - Rule 22 transcript scanning isn't available; edit-intent marker + advisory `beforeFileEdit` (see `audit/ARIA_CURSOR_AUDIT_REPORT.md` §5).
 - MCP skills (`/clip-thread`, `/extract-doc`, `/meeting-notes`, `/digest`, `/sync-decisions`) are compiled into `aria-commands.mdc`; connect servers via **Cursor Settings → MCP**. Connector reference: `../plugin-claude-cowork/CONNECTORS.md`.
-- **New in 2.24.1-cursor.0:** `subagentStart`/`subagentStop`, `afterShellExecution` (auto-retrospect), second `afterFileEdit` (auto-prospect), SESSION.md in-progress piggyback, config keys for session_state/subagent/auto_prospect/auto_retrospect. See §Cursor hook parity below.
+- **New in 2.30.0-cursor.0:** `/foundational-review`, `/readiness-audit`, `/wrapup snap` + `/handoff snap`, `session_start_project_picker` + `projects_labels` (SessionStart project menu), path-boundary fix in `kt_project_for_path`. Canonical v2.30.0 deny-rate circuit breaker **not ported** (Cursor advisory Rule 22). `/statusline` remains Claude Code-only.
 
-### Cursor hook parity (v2.24.2)
+### Cursor hook parity (v2.30.0)
 
 | Canonical (Claude Code) | Cursor equivalent | Status |
 |---|---|---|
@@ -68,17 +68,17 @@ Cursor-specific files live here:
 
 ### A. Knowledge contract sync
 
-**Last synced:** `plugin-claude-code/template/` @ v2.24.2. Re-audit template rule files before each release.
+**Last synced:** `plugin-claude-code/template/` @ v2.30.0. Re-audit template rule files before each release.
 
 ### B. Skill → `.mdc` compilation (Cursor-only)
 
-**Last synced:** `plugin-claude-code/skills/` @ **v2.24.2** → `.cursor/rules/aria-commands.mdc` (2026-06-04). v2.24.2 canonical delta is statusline-only (Claude Code) — no Cursor resync required.
+**Last synced:** `plugin-claude-code/skills/` @ **v2.30.0** → `.cursor/rules/*.mdc` (2026-06-11). Adds `/foundational-review`, `/readiness-audit`, wrapup/handoff `snap` modes; ships `knowledge/approaches/foundational-review-chain.md` for the review chain doc.
 
-**27 canonical commands** in `aria-commands.mdc` (22 core + 5 MCP + `/help` + `/audit-share`; aliases documented in preamble / `aria-audit.mdc`).
+**29 canonical commands** in `aria-commands.mdc` (24 core + 5 MCP + `/help` + `/audit-share`; aliases documented in preamble / `aria-audit.mdc`).
 
 | Canonical skill | Cursor `.mdc` | Section |
 |---|---|---|
-| `setup` … `wrapup` (22 core) | `aria-commands.mdc` | `#/…` |
+| `setup` … `wrapup` (24 core incl. foundational-review, readiness-audit) | `aria-commands.mdc` | `#/…` |
 | `clip-thread`, `extract-doc`, `meeting-notes`, `digest`, `sync-decisions` | `aria-commands.mdc` | `#/…` |
 | `audit-knowledge`, `audit-config` (+ aliases) | `aria-audit.mdc` | `#/…` |
 | `context`, `rules` | `aria-context.mdc` | `#/…` |

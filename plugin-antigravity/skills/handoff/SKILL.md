@@ -1,5 +1,5 @@
 ---
-description: "Generate a passoff package so the next reader can pick up cleanly — for future-you in a new session (typically when context is high and you need to restart) or for a coworker (via brief mode). Default + `auto` modes emit a paste-ready next-session opener as the headline artifact, alongside PROGRESS / CLAUDE / memory updates, commit, and /extract; `brief` mode emits an 80-150 word coworker-facing prose brief instead (Slack/email-ready, no file writes). Use when handing off — not when finishing for the day with nothing pending (closing out a finished session with no passoff is a different skill). Triggers: '/handoff', '/handoff auto', '/handoff brief', 'hand it off', 'handoff and extract', 'context is full, restart this', 'pass off to next session', 'brief a coworker on this', 'wrap and prompt'."
+description: "Generate a passoff package so the next reader can pick up cleanly — for future-you in a new session (typically when context is high and you need to restart) or for a coworker (via brief mode). Default + `auto` modes emit a paste-ready next-session opener as the headline artifact, alongside PROGRESS / CLAUDE / memory updates, commit, and /extract; `brief` mode emits an 80-150 word coworker-facing prose brief instead (Slack/email-ready, no file writes); `snap` mode runs like auto but archives the transcript via /snapshot for later extraction instead of running /extract now — use when context is high. Use when handing off — not when finishing for the day with nothing pending (closing out a finished session with no passoff is a different skill). Triggers: '/handoff', '/handoff auto', '/handoff brief', '/handoff snap', 'hand it off', 'handoff and extract', 'context is full, restart this', 'pass off to next session', 'brief a coworker on this', 'wrap and prompt'."
 ---
 
 # /handoff — Express Session Handoff
@@ -11,13 +11,16 @@ Generate a passoff package so the next reader can pick up cleanly. Two audiences
 
 For "I'm done, close it out cleanly" with no passoff intent, use `/wrapup` instead.
 
-**Three modes:**
+**Four modes:**
 
 - **Default (`/handoff`)** — Generate ALL drafts (session summary, PROGRESS entry, CLAUDE.md edits, memory updates, commit message, next-session prompt) into one scroll, ask once for combined-go, then apply atomically. Per-item edits allowed.
 - **`auto` (`/handoff auto`)** — Implicit-yes on all gates. Run silently. Apply all drafts without confirmation. Emit final report only. Use when the session is short and unambiguous.
 - **`brief` (`/handoff brief`)** — Generate a coworker-facing prose brief (80-150 words, copy/paste-ready). Skips PROGRESS/CLAUDE/memory/commit/extract entirely. Emits the brief as the only artifact.
+- **`snap` (`/handoff snap`)** — Like `auto` (silent, apply all drafts, emit the next-session opener), but archives the raw transcript via `/snapshot` for later extraction **instead of** running `/extract` now. Use when context is high: you still get the full handoff package + opener + commit, but defer the expensive, compaction-risky knowledge synthesis to a later session (or the next `/audit-knowledge` digest pass, which reads the snapshot automatically).
 
-**The next-session opener is the headline artifact** in default + auto modes — always produced, even when no other surface changed. That is what distinguishes `/handoff` from `/wrapup`. Brief mode is a different shape — handoff to a person, not to a session.
+**The next-session opener is the headline artifact** in default + auto + snap modes — always produced, even when no other surface changed. That is what distinguishes `/handoff` from `/wrapup`. Brief mode is a different shape — handoff to a person, not to a session.
+
+**`snap` is `auto` plus one swap.** snap follows auto's behavior exactly (silent, implicit-yes, apply all drafts, emit the opener) — wherever a step below applies to `auto`, it applies identically to `snap`. The single difference is the capture step (Step 6): `snap` runs `/snapshot` (archive the transcript for later) while `auto` runs `/extract` (synthesize now). Nothing else differs. (snap is NOT brief — it produces the full next-session package, not a coworker prose block.)
 
 ## Step 0: Resolve Config and Parse Mode
 
@@ -27,7 +30,8 @@ Parse the argument:
 - No arg, or arg is empty → `mode = combined-go` (default)
 - Arg matches `auto` (case-insensitive) → `mode = auto`
 - Arg matches `brief` (case-insensitive) → `mode = brief`
-- Any other arg → stop: "Unknown argument '{arg}'. Use '/handoff', '/handoff auto', or '/handoff brief'."
+- Arg matches `snap` (case-insensitive) → `mode = snap`
+- Any other arg → stop: "Unknown argument '{arg}'. Use '/handoff', '/handoff auto', '/handoff brief', or '/handoff snap'."
 
 Use `{knowledge_folder}` as the base path for all file operations.
 
@@ -174,11 +178,12 @@ The recommendation is the current session's judgment about what the **next sessi
 | Trivial lookups / status checks | `Haiku` |
 
 Rules for the line:
-- **De-version.** Write only the model family (`Opus` / `Sonnet` / `Haiku`) — a bare family name means the **latest version** of that family. Never write a version number.
+- **De-version.** Write only the model family (`Fable` / `Opus` / `Sonnet` / `Haiku`) — a bare family name means the **latest version** of that family. Never write a version number.
 - **Always include a one-line rationale** on the indented line below, grounded in the first action.
-- **Effort ladder:** `low · medium · high · xhigh · max` (Opus and Sonnet support effort; `Haiku` does **not** — emit `Haiku` with no `· effort` suffix). `opusplan` (Opus plans → Sonnet executes) is its own token, no effort suffix.
+- **Effort ladder:** `low · medium · high · xhigh · max` (Fable, Opus, and Sonnet support effort; `Haiku` does **not** — emit `Haiku` with no `· effort` suffix). `opusplan` (Opus plans → Sonnet executes) is its own token, no effort suffix.
 - **Uncertain / no strong signal → `Opus · high`**, rationale "general session, no strong signal."
 - **Spans tiers → recommend the higher tier** and say so in the rationale.
+- **`Fable` is the tier above Opus** (displayed "Fable 5"). Recommend `Fable · xhigh` in place of the top row's `Opus · xhigh` only when the hardest first action is at the extreme end of *difficulty* — novel architecture, gnarly cross-system debugging, high-asymmetric-failure-cost reasoning — where a wrong/shallow answer is costly enough to justify ~2× Opus's price. Context size is **not** the trigger: Fable and Opus share the same 1M window, so a large-but-tractable task (big `/codemap`, multi-doc synthesis) stays on `Opus`. The `Opus` rows otherwise stand and the uncertainty fallback stays `Opus · high`.
 
 This line is advisory — it does not set the model. The user selects via `/model` and `/effort`; a running next-session model uses the effort cue + a mismatch self-check.
 
@@ -193,7 +198,7 @@ The 3e opener is authored once and reused here — single source, no divergence 
 
 ## Step 4: Single Combined-Go Review (default mode only)
 
-**Skip this step entirely if `mode = auto`.**
+**Skip this step entirely if `mode = auto` or `mode = snap`.** (Both run silently with implicit-yes — no review gate.)
 
 In default mode, present all drafts together in one scroll under clear section headers, then ask **once**:
 
@@ -220,7 +225,7 @@ Wait for explicit response. Allow multiple `edit` / `skip` directives in sequenc
 
 ## Step 5: Apply Drafts
 
-Apply approved drafts in order. For `auto` mode, this runs immediately after Step 3 with no review gate.
+Apply approved drafts in order. For `auto` and `snap` modes, this runs immediately after Step 3 with no review gate.
 
 1. **3a:** Append the PROGRESS.md entry (or merge into today's existing entry)
 2. **3b:** Edit CLAUDE.md per the diffs
@@ -233,9 +238,11 @@ Apply approved drafts in order. For `auto` mode, this runs immediately after Ste
 
 If any step fails (e.g., commit hook rejects), surface the failure inline and stop — do not silently continue.
 
-## Step 6: Run /extract
+## Step 6: Capture Session Knowledge
 
-ALWAYS invoke `/extract` programmatically. This applies to default mode (after the user has approved the combined-go review in Step 4) AND `auto` mode unconditionally. No judgment-skip allowed — even if the session feels short, conversational, or seems to have nothing new to extract, run `/extract` anyway. The handoff skill must not pre-judge whether extraction is worthwhile; `/extract` has its own dedup logic (per its Rules section: "Never ask for confirmation — scan and dump") that correctly handles the "nothing to add" case by reporting `No uncaptured knowledge found`. Auto mode's "implicit-yes on all gates" rule converts to **"extract always runs"** here — there is no skip path. Capture `/extract`'s summary report for inclusion in Step 8.
+**If `mode = snap`:** Do NOT run `/extract`. Instead invoke the `/snapshot` skill to archive the raw transcript to `intake/pre-compact-captures/` for later extraction. This is snap mode's defining difference: capture is deferred, not synthesized now. Like auto's "extract always runs" invariant, the snapshot ALWAYS runs — there is no skip path. The snapshot is the deferred-extraction handoff: a later `/extract`, or the next `/audit-knowledge` digest pass (which reads `intake/pre-compact-captures/` automatically), synthesizes knowledge from it when context isn't a constraint. Capture `/snapshot`'s output (the snapshot path) for inclusion in Step 8. Use snap when context is high and running `/extract` now would risk compaction mid-synthesis. (`/snapshot` requires Bash, which the Step-0 runtime gate already guaranteed.)
+
+**Otherwise (default + `auto` modes):** ALWAYS invoke `/extract` programmatically. This applies to default mode (after the user has approved the combined-go review in Step 4) AND `auto` mode unconditionally. No judgment-skip allowed — even if the session feels short, conversational, or seems to have nothing new to extract, run `/extract` anyway. The handoff skill must not pre-judge whether extraction is worthwhile; `/extract` has its own dedup logic (per its Rules section: "Never ask for confirmation — scan and dump") that correctly handles the "nothing to add" case by reporting `No uncaptured knowledge found`. Auto mode's "implicit-yes on all gates" rule converts to **"extract always runs"** here — there is no skip path. Capture `/extract`'s summary report for inclusion in Step 8.
 
 (Brief mode never reaches Step 6 — it exits at Step 2B before any handoff side-effects, per the Rules section.)
 
@@ -250,7 +257,7 @@ Run the same checklist `/wrapup` Step 7 uses:
 - CLAUDE.md — [current / updated / not found / skipped]
 - Memory — [updated / already current / not found / skipped]
 - Git — [committed N file(s) / no changes / uncommitted (skipped)]
-- /extract — [N items captured / nothing new]
+- /extract — [N items captured / nothing new / deferred: transcript snapshotted to intake/pre-compact-captures/ for later extraction (snap mode)]
 - SESSION.md — [written: handoff (prompt embedded) / skipped (session_state off)]
 - Tracked artifacts — [all fresh / N stale (consider /codemap update or /stitch verify for {tags}) / not checked]
 - Next-session opener — [emitted below]
@@ -265,7 +272,7 @@ Flag any gaps but don't block — the user may have skipped sections intentional
 Emit the closing report. **The next-session opener is the headline artifact** — surface it prominently and inside a code fence so it copies cleanly.
 
 ```
-## Handoff Complete — {default | auto} mode
+## Handoff Complete — {default | auto | snap} mode
 
 [Handoff Checklist from Step 7]
 
@@ -285,8 +292,8 @@ Read on resume: {primary CLAUDE.md path} for current state.
 ## Rules
 
 - **/wrapup is the interactive default; /handoff is the express lane.** Don't deprecate or replace /wrapup. They serve different cadences.
-- **Always emit the next-session opener (default + auto modes only).** In default + auto, even when nothing else changed (no PROGRESS update, no commit, no memory edit), the opener is the headline deliverable. Brief mode emits the coworker brief instead — different artifact, different audience.
-- **The opener always carries a `Suggested next session:` line (default + auto modes only).** De-versioned model family (`Opus`/`Sonnet`/`Haiku`, never a version number) + effort level + a one-line rationale grounded in the first action. It is advisory, not model-setting. Brief mode does not carry it. See Step 3e's rubric for the row mapping.
+- **Always emit the next-session opener (default + auto + snap modes; not brief).** In default + auto + snap, even when nothing else changed (no PROGRESS update, no commit, no memory edit), the opener is the headline deliverable. Brief mode emits the coworker brief instead — different artifact, different audience.
+- **The opener always carries a `Suggested next session:` line (default + auto + snap modes; not brief).** De-versioned model family (`Fable`/`Opus`/`Sonnet`/`Haiku`, never a version number) + effort level + a one-line rationale grounded in the first action. It is advisory, not model-setting. Brief mode does not carry it. See Step 3e's rubric for the row mapping.
 - **`auto` mode applies everything without confirmation.** The user explicitly opted into that risk by typing `auto`. Do not introduce confirmation gates in auto mode — that defeats the purpose.
 - **`brief` mode produces output only — no side effects.** No PROGRESS update, no CLAUDE.md edit, no memory write, no commit, no /extract. The brief is a copy/paste artifact for a person, not durable state. Users who want both a brief AND state updates run `/handoff brief` then `/handoff` (or `/handoff auto`) separately — two passes, two artifacts.
 - **Brief mode keeps `[coworker]` as a literal placeholder.** Don't prompt the user for a recipient name. They'll fill it at paste time. This avoids friction and supports "send to multiple people" use cases.
@@ -297,5 +304,6 @@ Read on resume: {primary CLAUDE.md path} for current state.
 - **Match existing formats** — when appending to PROGRESS.md or editing CLAUDE.md, match the heading style, date format, and structure of existing entries. Don't impose a new format.
 - **Skip gracefully** — if a file doesn't exist (no PROGRESS.md, no CLAUDE.md, no memory), skip that step and note it. Don't create files that aren't already part of the project's conventions.
 - **Don't invent work** — the session synthesis must reflect what actually happened in the conversation. If the session is short or unclear, say so in the synthesis (default + auto) or in the brief's "What happened" line (brief) rather than padding.
-- **Delegate extraction** — /handoff calls /extract for capture in default + auto modes; it does not duplicate /extract's dedup or routing logic. Brief mode skips /extract entirely.
+- **Delegate extraction** — /handoff calls /extract for capture in default + auto modes; it does not duplicate /extract's dedup or routing logic. Brief mode skips /extract entirely. Snap mode calls /snapshot instead of /extract (see below).
+- **`snap` defers, never drops, capture.** In snap mode Step 6 runs `/snapshot` instead of `/extract` — the snapshot ALWAYS runs (no skip path, same as auto's "extract always runs" invariant). The raw transcript is preserved so a later /extract or /audit-knowledge digest can synthesize it; snap never means "skip knowledge capture," only "capture cheaply now, synthesize later." snap is otherwise byte-for-byte auto behavior: silent, implicit-yes, emit the next-session opener, local commit only, never push. snap is NOT brief — it produces the full next-session package, not a coworker prose block, and unlike brief it DOES update PROGRESS/CLAUDE/memory and commit.
 - **One handoff per session** — if the user runs /handoff again in the same session, check what was already done in the prior run and skip completed work. Don't duplicate PROGRESS entries or commits. Multiple `/handoff brief` runs are fine (each produces a fresh brief reflecting current state).

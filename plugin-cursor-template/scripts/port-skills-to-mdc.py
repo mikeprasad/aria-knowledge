@@ -36,6 +36,8 @@ COMMAND_SKILLS = [
     "wrapup",
     "prospect",
     "retrospect",
+    "foundational-review",
+    "readiness-audit",
     "snapshot",
     "setup",
     "help",
@@ -97,7 +99,7 @@ For each reviewed capture, note findings for Step 6 under a "Task-Boundary Captu
 """
 
 COMMANDS_PREAMBLE = """---
-description: "ARIA workflow commands — /extract, /index, /backlog, /stats, /ask, /clip, /clip-thread, /intake, /extract-doc, /meeting-notes, /digest, /sync-decisions, /wrapup, /codemap, /distill, /stitch, /handoff, /prospect, /retrospect, /snapshot, /setup, /help, /audit-share. Use when the user invokes any of these slash commands or their natural-language equivalents."
+description: "ARIA workflow commands — /extract, /index, /backlog, /stats, /ask, /clip, /clip-thread, /intake, /extract-doc, /meeting-notes, /digest, /sync-decisions, /wrapup, /codemap, /distill, /stitch, /handoff, /prospect, /retrospect, /foundational-review, /readiness-audit, /snapshot, /setup, /help, /audit-share. Use when the user invokes any of these slash commands or their natural-language equivalents."
 globs: ["knowledge/**/*", "CODEMAP.md", "STITCH-*.md"]
 alwaysApply: false
 ---
@@ -191,6 +193,7 @@ def adapt_cursor(text: str) -> str:
             "${CLAUDE_PLUGIN_ROOT}/template/intake/intake-doc.md",
             "knowledge/intake/docs/_TEMPLATE.md (or inline structure from Step D3 below if missing)",
         ),
+        ("${CLAUDE_PLUGIN_ROOT}/skills/foundational-review/foundational-review-chain.md", "knowledge/approaches/foundational-review-chain.md"),
         ("${CLAUDE_PLUGIN_ROOT}/template/", "knowledge/"),
         ("${CLAUDE_PLUGIN_ROOT}/bin/", "scripts/aria/"),
         ("bin/config.sh", "scripts/aria/config.sh"),
@@ -246,7 +249,7 @@ def adapt_cursor(text: str) -> str:
     # Setup Step 1 — VERSION from scripts/aria/VERSION (plain text)
     setup_ver_block = (
         "**Read the installed port version first.** Parse `scripts/aria/VERSION` "
-        "(plain text, one line — e.g. `2.24.2-cursor.0`):\n\n"
+        "(plain text, one line — e.g. `2.30.0-cursor.0`):\n\n"
         "```bash\n"
         'INSTALLED_VERSION=$(cat "scripts/aria/VERSION" 2>/dev/null | tr -d \'[:space:]\')\n'
         '[ -z "$INSTALLED_VERSION" ] && INSTALLED_VERSION="unknown"\n'
@@ -320,8 +323,14 @@ def patch_help_table(text: str) -> str:
     if old_clip in text:
         text = text.replace(old_clip, new_clip)
     old_wrap = "| /wrapup | End-of-session handoff — update PROGRESS/AGENTS.md, prompt for commit, verify continuity |\n| /handoff [auto] | Express handoff — same coverage as /wrapup, one combined-go review (or `auto` for silent), always emits a paste-ready next-session opener |"
-    new_wrap = "| /wrapup [auto] | Session close-out — update PROGRESS/AGENTS.md, commit, always-run /extract in auto mode |\n| /handoff [auto\\|brief] | Passoff package with paste-ready next-session opener (or coworker brief) |"
+    new_wrap = "| /wrapup [auto\\|snap] | Session close-out — update PROGRESS/AGENTS.md, commit; auto runs /extract, snap runs /snapshot for deferred capture |\n| /handoff [auto\\|brief\\|snap] | Passoff package with paste-ready next-session opener (or coworker brief; snap defers /extract) |"
     text = text.replace(old_wrap, new_wrap)
+    old_review = "| /retrospect [scope] | Structured retrospective on shipped work — per-fix validation, evidence pass, action verdicts |"
+    new_review = """| /retrospect [scope] | Structured retrospective on shipped work — per-fix validation, evidence pass, action verdicts |
+| /foundational-review <root> | Verdict-led foundational review chain before irreversible decisions |
+| /readiness-audit <root> | Checklist audit for release/public-flip/handover readiness (alias: /audit-ready) |"""
+    if old_review in text:
+        text = text.replace(old_review, new_review)
     text = text.replace(
         "| /snapshot | Save the current session transcript to intake/task-boundary-captures/ on demand |",
         "| /snapshot | On-demand task-boundary capture (git + hook state) to intake/task-boundary-captures/ |",
@@ -395,6 +404,9 @@ def verify_markers() -> None:
         ("SESSION.md wrapup", "SESSION.md" in cmds),
         ("Wrapup Checklist", "Wrapup Checklist" in cmds),
         ("index Step 4 filter", "^s\\d+$" in cmds or "`^s\\d+$`" in cmds),
+        ("wrapup snap mode", "mode = snap" in cmds or "/wrapup snap" in cmds),
+        ("foundational-review skill", "## /foundational-review" in cmds),
+        ("readiness-audit skill", "## /readiness-audit" in cmds),
     ]
     audit = AUDIT_MDC.read_text(encoding="utf-8")
     checks += [

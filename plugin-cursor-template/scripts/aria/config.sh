@@ -32,6 +32,8 @@ if [ -f "$KT_CONFIG" ]; then
   KT_PROJECTS_REMOTES=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^projects_remotes:' | sed 's/^projects_remotes: *//')
   KT_PROJECTS_PROMOTION_THRESHOLD=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^projects_promotion_threshold:' | sed 's/^projects_promotion_threshold: *//')
   KT_AUTO_LOAD_PROJECT_CONTEXT=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^auto_load_project_context:' | sed 's/^auto_load_project_context: *//')
+  KT_SESSION_START_PROJECT_PICKER=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^session_start_project_picker:' | sed 's/^session_start_project_picker: *//')
+  KT_PROJECTS_LABELS=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^projects_labels:' | sed 's/^projects_labels: *//')
   KT_IDEAS_STALENESS_DAYS=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^ideas_staleness_threshold_days:' | sed 's/^ideas_staleness_threshold_days: *//')
   KT_AUDIT_TRIGGER_THRESHOLD=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^audit_trigger_threshold:' | sed 's/^audit_trigger_threshold: *//')
   KT_CODEMAP_STALENESS_DAYS=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^codemap_staleness_threshold_days:' | sed 's/^codemap_staleness_threshold_days: *//')
@@ -61,6 +63,7 @@ if [ -f "$KT_CONFIG" ]; then
   KT_PROJECTS_ENABLED=${KT_PROJECTS_ENABLED:-false}
   KT_PROJECTS_PROMOTION_THRESHOLD=${KT_PROJECTS_PROMOTION_THRESHOLD:-2}
   KT_AUTO_LOAD_PROJECT_CONTEXT=${KT_AUTO_LOAD_PROJECT_CONTEXT:-false}
+  KT_SESSION_START_PROJECT_PICKER=${KT_SESSION_START_PROJECT_PICKER:-false}
   KT_IDEAS_STALENESS_DAYS=${KT_IDEAS_STALENESS_DAYS:-21}
   KT_AUDIT_TRIGGER_THRESHOLD=${KT_AUDIT_TRIGGER_THRESHOLD:-20}
   KT_CODEMAP_STALENESS_DAYS=${KT_CODEMAP_STALENESS_DAYS:-14}
@@ -142,6 +145,10 @@ if [ -f "$KT_CONFIG" ]; then
     true|false) ;; # valid
     *) KT_AUTO_LOAD_PROJECT_CONTEXT=false ;;
   esac
+  case "$KT_SESSION_START_PROJECT_PICKER" in
+    true|false) ;; # valid
+    *) KT_SESSION_START_PROJECT_PICKER=false ;;
+  esac
   case "$KT_IDEAS_STALENESS_DAYS" in
     ''|*[!0-9]*) KT_IDEAS_STALENESS_DAYS=21 ;;
   esac
@@ -199,7 +206,7 @@ kt_project_for_path() {
     _kt_proj_path="${_kt_entry#*:}"
     [ -z "$_kt_proj_path" ] && continue
     case "$_kt_path" in
-      *"$_kt_proj_path"*)
+      */"$_kt_proj_path"/*|*/"$_kt_proj_path")
         _kt_len=${#_kt_proj_path}
         if [ "$_kt_len" -gt "$_kt_best_len" ]; then
           _kt_best_tag="$_kt_tag"
@@ -235,6 +242,36 @@ kt_project_for_path() {
     esac
   done
   IFS="$_kt_old_ifs"
+}
+
+# kt_project_menu
+# Build the SessionStart picker menu display string from KT_PROJECTS_LIST (+ optional
+# KT_PROJECTS_LABELS). Each entry renders "tag (Label)" when a label exists for the tag,
+# else bare "tag". Comma-space joined. Empty list -> empty string. Pure function.
+kt_project_menu() {
+  [ -z "$KT_PROJECTS_LIST" ] && return
+  _kt_menu=""
+  _kt_old_ifs="$IFS"
+  IFS=','
+  for _kt_entry in $KT_PROJECTS_LIST; do
+    case "$_kt_entry" in *:*) ;; *) continue ;; esac
+    _kt_tag="${_kt_entry%%:*}"
+    [ -z "$_kt_tag" ] && continue
+    _kt_label=""
+    for _kt_lentry in $KT_PROJECTS_LABELS; do
+      case "$_kt_lentry" in
+        "$_kt_tag":*) _kt_label="${_kt_lentry#*:}"; break ;;
+      esac
+    done
+    if [ -n "$_kt_label" ]; then
+      _kt_item="$_kt_tag ($_kt_label)"
+    else
+      _kt_item="$_kt_tag"
+    fi
+    if [ -z "$_kt_menu" ]; then _kt_menu="$_kt_item"; else _kt_menu="$_kt_menu, $_kt_item"; fi
+  done
+  IFS="$_kt_old_ifs"
+  printf '%s' "$_kt_menu"
 }
 
 # kt_detect_signals FILE_PATH

@@ -144,9 +144,13 @@ Before saving manual edits to `~/.claude/aria-knowledge.local.md`:
 
 ## Codex Non-Equivalent: Statusline Meter
 
-Claude Code v2.24.x ships an opt-in `/statusline` meter that reads Claude Code status-line JSON and writes a usage snapshot. Codex currently exposes neither a plugin status-line slot nor context-window / rate-limit percentages in hook payloads, so the Codex port does **not** ship `/statusline`, `statusline-meter.sh`, or `usage-threshold-inject.sh`.
+Claude Code v2.24+ ships an opt-in `/statusline` meter that reads Claude Code status-line JSON and writes a usage snapshot. Codex currently exposes neither a plugin status-line slot nor context-window / rate-limit percentages in hook payloads, so the Codex port does **not** ship `/statusline`, `statusline-meter.sh`, or `usage-threshold-inject.sh`.
 
 The shared `usage_alert_threshold` key remains in the schema so one `~/.claude/aria-knowledge.local.md` can serve both ports. It is inert in Codex.
+
+## Codex Non-Equivalent: ARIA Assist Scheduler
+
+Claude Code v2.27+ ships `/aria-assist` plus launchd-oriented PM helper scripts for unattended morning reviews. Codex does not expose the same bundled headless scheduler path in this plugin surface yet, so the Codex port does **not** ship `/aria-assist` or the `pm-*` scripts in this pass.
 
 ## Related
 

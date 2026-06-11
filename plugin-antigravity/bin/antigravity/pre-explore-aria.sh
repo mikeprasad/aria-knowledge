@@ -29,7 +29,10 @@ case "$ARIA_TOOL_NAME" in
     ;;
 esac
 
-ADVISORY=$("$CANONICAL" 2>&1)
+ADVISORY=$(jq -cn \
+  --arg path "$CLAUDE_SEARCH_PATH" \
+  --arg sid "$ARIA_CONVERSATION_ID" \
+  '{path: $path, session_id: $sid}' | "$CANONICAL" 2>&1)
 CANONICAL_EXIT=$?
 
 if [ $CANONICAL_EXIT -eq 0 ]; then

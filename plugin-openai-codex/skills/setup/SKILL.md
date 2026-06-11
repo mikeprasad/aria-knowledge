@@ -319,7 +319,7 @@ In **update mode:** preserve any user-added content in the markdown body below t
 - `projects_list`, `projects_remotes`, and `ticketing_plugins`: comma-separated `tag:value` pairs, no spaces around the colon or comma (e.g., `proj-a:path/to/proj-a,proj-b:proj-b` for paths; `proj-a:foo-ticket,proj-b:bar-ticket` for plugin commands)
 - Project tags (used in `projects_list`, `projects_remotes`, `ticketing_plugins`) cannot contain colons or commas (the parser splits on these)
 - `ticketing_plugins` plugin-command values are bare command names without the leading `/` (e.g., `foo-ticket`, not `/foo-ticket`) — `/audit-knowledge` prepends the slash when printing the hint
-- `last_setup_version` is a semver string read from `${ARIA_PLUGIN_ROOT}/.codex-plugin/plugin.json` at Step 1 — write it as bare digits-and-dots plus any Codex prerelease suffix (e.g., `2.24.2-codex.0`), not quoted, not prefixed with `v`. The session-start hook compares this against the installed plugin version to detect upgrades since the user's last `/setup`
+- `last_setup_version` is a semver string read from `${ARIA_PLUGIN_ROOT}/.codex-plugin/plugin.json` at Step 1 — write it as bare digits-and-dots plus any Codex prerelease suffix (e.g., `2.30.0-codex.0`), not quoted, not prefixed with `v`. The session-start hook compares this against the installed plugin version to detect upgrades since the user's last `/setup`
 - `projects_promotion_threshold` must be a plain integer ≥ 1 (no units, no quotes)
 - `auto_load_project_context` must be exactly `true` or `false` (not `True`, `yes`, `1`, etc.)
 - No blank lines between frontmatter entries

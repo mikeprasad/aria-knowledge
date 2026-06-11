@@ -2,6 +2,28 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.30.0-codex.0 — 2026-06-11
+
+**Codex parity pass for the v2.29/v2.30 review-and-release surfaces.** The OpenAI Codex port now tracks canonical `plugin-claude-code` v2.30.0 where Codex has an equivalent runtime surface.
+
+- **Add:** `/foundational-review` and `/readiness-audit` to `plugin-openai-codex/skills/`, with ADR-094 Claude/Cowork runtime gates stripped and the canonical process doc bundled at `skills/foundational-review/foundational-review-chain.md`.
+- **Keep explicit non-equivalents:** `/statusline` remains absent because Codex has no plugin statusline/usage-percentage payload. `/aria-assist` and the `pm-*` scheduler scripts remain absent because this Codex plugin surface has no bundled launchd/headless scheduler equivalent yet.
+- **Release path:** `release-codex.sh` now runs the port-drift report gate like the canonical release path and removes an existing zip before rebuild so removed files cannot linger in an appended archive.
+- **Drift checker:** `check-port-drift.sh` normalizes `-codex.N` and `-cursor.N` prerelease suffixes when comparing a port version against its canonical parity target, avoiding false `lag` rows for parity-aligned port releases.
+- **Tests:** Codex port suite expanded to assert the review skills ship, ADR-094 gates do not leak, `/aria-assist` remains documented as non-equivalent, and statusline remains documented as non-equivalent. Focused `port-drift-check.sh` repro covers prerelease suffix normalization.
+- **Build:** `./release-codex.sh` produced `aria-knowledge-codex-2.30.0.zip` plus stable alias `aria-knowledge-codex.zip` (149 files, tests excluded).
+
+## Cursor port 2.30.0-cursor.0 — 2026-06-11
+
+**Cursor parity pass for canonical v2.30.0.** Brings `plugin-cursor-template/` to equivalent skill + hook coverage with `plugin-claude-code` v2.30.0 where Cursor has an equivalent runtime surface.
+
+- **Add:** `/foundational-review`, `/readiness-audit` compiled into `aria-commands.mdc`; bundled process doc at `knowledge/approaches/foundational-review-chain.md`.
+- **Add:** `/wrapup snap` + `/handoff snap` (snap runs Cursor-native `/snapshot` task-boundary capture instead of `/extract`).
+- **Add:** `session_start_project_picker` + `projects_labels` config keys + SessionStart project menu in `session-start-check.sh`; path-boundary fix in `kt_project_for_path`.
+- **Sync:** hook scripts from canonical (excluding Code-only: PreCompact, statusline, pm-*, deny circuit breaker); `knowledge/` template rsync @ v2.30.0.
+- **Keep explicit non-equivalents:** `/statusline`, Rule 22 `permissionDecision: deny`, v2.30 deny-rate circuit breaker (Cursor advisory enforcement only).
+- **Build:** `./release-cursor.sh` → `aria-knowledge-cursor-2.30.0.zip` + stable alias `aria-knowledge-cursor.zip` (95 files).
+
 ## 2.30.0 — 2026-06-11
 
 **Structural consolidation — self-enforcing gates replace prose-and-vigilance at the three points where failure had already recurred.** A foundational review found the two highest-stakes surfaces (Rule 22 enforcement; the five-port distribution) governed by hand-vigilance rather than mechanical checks. This release adds the structure, with no user-visible change except a degraded-mode warning banner.

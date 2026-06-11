@@ -1,5 +1,5 @@
 ---
-description: "ARIA workflow commands — /extract, /index, /backlog, /stats, /ask, /clip, /clip-thread, /intake, /extract-doc, /meeting-notes, /digest, /sync-decisions, /wrapup, /codemap, /distill, /stitch, /handoff, /prospect, /retrospect, /snapshot, /setup, /help, /audit-share. Use when the user invokes any of these slash commands or their natural-language equivalents."
+description: "ARIA workflow commands — /extract, /index, /backlog, /stats, /ask, /clip, /clip-thread, /intake, /extract-doc, /meeting-notes, /digest, /sync-decisions, /wrapup, /codemap, /distill, /stitch, /handoff, /prospect, /retrospect, /foundational-review, /readiness-audit, /snapshot, /setup, /help, /audit-share. Use when the user invokes any of these slash commands or their natural-language equivalents."
 globs: ["knowledge/**/*", "CODEMAP.md", "STITCH-*.md"]
 alwaysApply: false
 ---
@@ -3291,13 +3291,16 @@ Generate a passoff package so the next reader can pick up cleanly. Two audiences
 
 For "I'm done, close it out cleanly" with no passoff intent, use `/wrapup` instead.
 
-**Three modes:**
+**Four modes:**
 
 - **Default (`/handoff`)** — Generate ALL drafts (session summary, PROGRESS entry, CLAUDE.md edits, memory updates, commit message, next-session prompt) into one scroll, ask once for combined-go, then apply atomically. Per-item edits allowed.
 - **`auto` (`/handoff auto`)** — Implicit-yes on all gates. Run silently. Apply all drafts without confirmation. Emit final report only. Use when the session is short and unambiguous.
 - **`brief` (`/handoff brief`)** — Generate a coworker-facing prose brief (80-150 words, copy/paste-ready). Skips PROGRESS/CLAUDE/memory/commit/extract entirely. Emits the brief as the only artifact.
+- **`snap` (`/handoff snap`)** — Like `auto` (silent, apply all drafts, emit the next-session opener), but archives the raw transcript via `/snapshot` for later extraction **instead of** running `/extract` now. Use when context is high: you still get the full handoff package + opener + commit, but defer the expensive, compaction-risky knowledge synthesis to a later session (or the next `/audit-knowledge` digest pass, which reads the snapshot automatically).
 
-**The next-session opener is the headline artifact** in default + auto modes — always produced, even when no other surface changed. That is what distinguishes `/handoff` from `/wrapup`. Brief mode is a different shape — handoff to a person, not to a session.
+**The next-session opener is the headline artifact** in default + auto + snap modes — always produced, even when no other surface changed. That is what distinguishes `/handoff` from `/wrapup`. Brief mode is a different shape — handoff to a person, not to a session.
+
+**`snap` is `auto` plus one swap.** snap follows auto's behavior exactly (silent, implicit-yes, apply all drafts, emit the opener) — wherever a step below applies to `auto`, it applies identically to `snap`. The single difference is the capture step (Step 6): `snap` runs `/snapshot` (archive the transcript for later) while `auto` runs `/extract` (synthesize now). Nothing else differs. (snap is NOT brief — it produces the full next-session package, not a coworker prose block.)
 
 ## Step 0: Resolve Config and Parse Mode
 
@@ -3307,7 +3310,8 @@ Parse the argument:
 - No arg, or arg is empty → `mode = combined-go` (default)
 - Arg matches `auto` (case-insensitive) → `mode = auto`
 - Arg matches `brief` (case-insensitive) → `mode = brief`
-- Any other arg → stop: "Unknown argument '{arg}'. Use '/handoff', '/handoff auto', or '/handoff brief'."
+- Arg matches `snap` (case-insensitive) → `mode = snap`
+- Any other arg → stop: "Unknown argument '{arg}'. Use '/handoff', '/handoff auto', '/handoff brief', or '/handoff snap'."
 
 Use `{knowledge_folder}` as the base path for all file operations.
 
@@ -3454,11 +3458,12 @@ The recommendation is the current session's judgment about what the **next sessi
 | Trivial lookups / status checks | `Haiku` |
 
 Rules for the line:
-- **De-version.** Write only the model family (`Opus` / `Sonnet` / `Haiku`) — a bare family name means the **latest version** of that family. Never write a version number.
+- **De-version.** Write only the model family (`Fable` / `Opus` / `Sonnet` / `Haiku`) — a bare family name means the **latest version** of that family. Never write a version number.
 - **Always include a one-line rationale** on the indented line below, grounded in the first action.
-- **Effort ladder:** `low · medium · high · xhigh · max` (Opus and Sonnet support effort; `Haiku` does **not** — emit `Haiku` with no `· effort` suffix). `opusplan` (Opus plans → Sonnet executes) is its own token, no effort suffix.
+- **Effort ladder:** `low · medium · high · xhigh · max` (Fable, Opus, and Sonnet support effort; `Haiku` does **not** — emit `Haiku` with no `· effort` suffix). `opusplan` (Opus plans → Sonnet executes) is its own token, no effort suffix.
 - **Uncertain / no strong signal → `Opus · high`**, rationale "general session, no strong signal."
 - **Spans tiers → recommend the higher tier** and say so in the rationale.
+- **`Fable` is the tier above Opus** (displayed "Fable 5"). Recommend `Fable · xhigh` in place of the top row's `Opus · xhigh` only when the hardest first action is at the extreme end of *difficulty* — novel architecture, gnarly cross-system debugging, high-asymmetric-failure-cost reasoning — where a wrong/shallow answer is costly enough to justify ~2× Opus's price. Context size is **not** the trigger: Fable and Opus share the same 1M window, so a large-but-tractable task (big `/codemap`, multi-doc synthesis) stays on `Opus`. The `Opus` rows otherwise stand and the uncertainty fallback stays `Opus · high`.
 
 This line is advisory — it does not set the model. The user selects via `/model` and `/effort`; a running next-session model uses the effort cue + a mismatch self-check.
 
@@ -3473,7 +3478,7 @@ The 3e opener is authored once and reused here — single source, no divergence 
 
 ## Step 4: Single Combined-Go Review (default mode only)
 
-**Skip this step entirely if `mode = auto`.**
+**Skip this step entirely if `mode = auto` or `mode = snap`.** (Both run silently with implicit-yes — no review gate.)
 
 In default mode, present all drafts together in one scroll under clear section headers, then ask **once**:
 
@@ -3500,7 +3505,7 @@ Wait for explicit response. Allow multiple `edit` / `skip` directives in sequenc
 
 ## Step 5: Apply Drafts
 
-Apply approved drafts in order. For `auto` mode, this runs immediately after Step 3 with no review gate.
+Apply approved drafts in order. For `auto` and `snap` modes, this runs immediately after Step 3 with no review gate.
 
 1. **3a:** Append the PROGRESS.md entry (or merge into today's existing entry)
 2. **3b:** Edit AGENTS.md per the diffs
@@ -3513,9 +3518,11 @@ Apply approved drafts in order. For `auto` mode, this runs immediately after Ste
 
 If any step fails (e.g., commit hook rejects), surface the failure inline and stop — do not silently continue.
 
-## Step 6: Run /extract
+## Step 6: Capture Session Knowledge
 
-ALWAYS invoke `/extract` programmatically. This applies to default mode (after the user has approved the combined-go review in Step 4) AND `auto` mode unconditionally. No judgment-skip allowed — even if the session feels short, conversational, or seems to have nothing new to extract, run `/extract` anyway. The handoff skill must not pre-judge whether extraction is worthwhile; `/extract` has its own dedup logic (per its Rules section: "Never ask for confirmation — scan and dump") that correctly handles the "nothing to add" case by reporting `No uncaptured knowledge found`. Auto mode's "implicit-yes on all gates" rule converts to **"extract always runs"** here — there is no skip path. Capture `/extract`'s summary report for inclusion in Step 8.
+**If `mode = snap`:** Do NOT run `/extract`. Instead invoke the `/snapshot` skill to archive the raw transcript to `intake/task-boundary-captures/` for later extraction. This is snap mode's defining difference: capture is deferred, not synthesized now. Like auto's "extract always runs" invariant, the snapshot ALWAYS runs — there is no skip path. The snapshot is the deferred-extraction handoff: a later `/extract`, or the next `/audit-knowledge` digest pass (which reads `intake/task-boundary-captures/` automatically), synthesizes knowledge from it when context isn't a constraint. Capture `/snapshot`'s output (the snapshot path) for inclusion in Step 8. Use snap when context is high and running `/extract` now would risk compaction mid-synthesis. (`/snapshot` requires Bash, which the Step-0 runtime gate already guaranteed.)
+
+**Otherwise (default + `auto` modes):** ALWAYS invoke `/extract` programmatically. This applies to default mode (after the user has approved the combined-go review in Step 4) AND `auto` mode unconditionally. No judgment-skip allowed — even if the session feels short, conversational, or seems to have nothing new to extract, run `/extract` anyway. The handoff skill must not pre-judge whether extraction is worthwhile; `/extract` has its own dedup logic (per its Rules section: "Never ask for confirmation — scan and dump") that correctly handles the "nothing to add" case by reporting `No uncaptured knowledge found`. Auto mode's "implicit-yes on all gates" rule converts to **"extract always runs"** here — there is no skip path. Capture `/extract`'s summary report for inclusion in Step 8.
 
 (Brief mode never reaches Step 6 — it exits at Step 2B before any handoff side-effects, per the Rules section.)
 
@@ -3530,7 +3537,7 @@ Run the same checklist `/wrapup` Step 7 uses:
 - CLAUDE.md — [current / updated / not found / skipped]
 - Memory — [updated / already current / not found / skipped]
 - Git — [committed N file(s) / no changes / uncommitted (skipped)]
-- /extract — [N items captured / nothing new]
+- /extract — [N items captured / nothing new / deferred: transcript snapshotted to intake/task-boundary-captures/ for later extraction (snap mode)]
 - SESSION.md — [written: handoff (prompt embedded) / skipped (session_state off)]
 - Tracked artifacts — [all fresh / N stale (consider /codemap update or /stitch verify for {tags}) / not checked]
 - Next-session opener — [emitted below]
@@ -3545,7 +3552,7 @@ Flag any gaps but don't block — the user may have skipped sections intentional
 Emit the closing report. **The next-session opener is the headline artifact** — surface it prominently and inside a code fence so it copies cleanly.
 
 ```
-## Handoff Complete — {default | auto} mode
+## Handoff Complete — {default | auto | snap} mode
 
 [Handoff Checklist from Step 7]
 
@@ -3565,8 +3572,8 @@ Read on resume: {primary AGENTS.md path} for current state.
 ## Rules
 
 - **/wrapup is the interactive default; /handoff is the express lane.** Don't deprecate or replace /wrapup. They serve different cadences.
-- **Always emit the next-session opener (default + auto modes only).** In default + auto, even when nothing else changed (no PROGRESS update, no commit, no memory edit), the opener is the headline deliverable. Brief mode emits the coworker brief instead — different artifact, different audience.
-- **The opener always carries a `Suggested next session:` line (default + auto modes only).** De-versioned model family (`Opus`/`Sonnet`/`Haiku`, never a version number) + effort level + a one-line rationale grounded in the first action. It is advisory, not model-setting. Brief mode does not carry it. See Step 3e's rubric for the row mapping.
+- **Always emit the next-session opener (default + auto + snap modes; not brief).** In default + auto + snap, even when nothing else changed (no PROGRESS update, no commit, no memory edit), the opener is the headline deliverable. Brief mode emits the coworker brief instead — different artifact, different audience.
+- **The opener always carries a `Suggested next session:` line (default + auto + snap modes; not brief).** De-versioned model family (`Fable`/`Opus`/`Sonnet`/`Haiku`, never a version number) + effort level + a one-line rationale grounded in the first action. It is advisory, not model-setting. Brief mode does not carry it. See Step 3e's rubric for the row mapping.
 - **`auto` mode applies everything without confirmation.** The user explicitly opted into that risk by typing `auto`. Do not introduce confirmation gates in auto mode — that defeats the purpose.
 - **`brief` mode produces output only — no side effects.** No PROGRESS update, no CLAUDE.md edit, no memory write, no commit, no /extract. The brief is a copy/paste artifact for a person, not durable state. Users who want both a brief AND state updates run `/handoff brief` then `/handoff` (or `/handoff auto`) separately — two passes, two artifacts.
 - **Brief mode keeps `[coworker]` as a literal placeholder.** Don't prompt the user for a recipient name. They'll fill it at paste time. This avoids friction and supports "send to multiple people" use cases.
@@ -3577,7 +3584,8 @@ Read on resume: {primary AGENTS.md path} for current state.
 - **Match existing formats** — when appending to PROGRESS.md or editing CLAUDE.md, match the heading style, date format, and structure of existing entries. Don't impose a new format.
 - **Skip gracefully** — if a file doesn't exist (no PROGRESS.md, no CLAUDE.md, no memory), skip that step and note it. Don't create files that aren't already part of the project's conventions.
 - **Don't invent work** — the session synthesis must reflect what actually happened in the conversation. If the session is short or unclear, say so in the synthesis (default + auto) or in the brief's "What happened" line (brief) rather than padding.
-- **Delegate extraction** — /handoff calls /extract for capture in default + auto modes; it does not duplicate /extract's dedup or routing logic. Brief mode skips /extract entirely.
+- **Delegate extraction** — /handoff calls /extract for capture in default + auto modes; it does not duplicate /extract's dedup or routing logic. Brief mode skips /extract entirely. Snap mode calls /snapshot instead of /extract (see below).
+- **`snap` defers, never drops, capture.** In snap mode Step 6 runs `/snapshot` instead of `/extract` — the snapshot ALWAYS runs (no skip path, same as auto's "extract always runs" invariant). The raw transcript is preserved so a later /extract or /audit-knowledge digest can synthesize it; snap never means "skip knowledge capture," only "capture cheaply now, synthesize later." snap is otherwise byte-for-byte auto behavior: silent, implicit-yes, emit the next-session opener, local commit only, never push. snap is NOT brief — it produces the full next-session package, not a coworker prose block, and unlike brief it DOES update PROGRESS/CLAUDE/memory and commit.
 - **One handoff per session** — if the user runs /handoff again in the same session, check what was already done in the prior run and skip completed work. Don't duplicate PROGRESS entries or commits. Multiple `/handoff brief` runs are fine (each produces a fresh brief reflecting current state).
 
 ---
@@ -3589,10 +3597,13 @@ Read on resume: {primary AGENTS.md path} for current state.
 
 Close out the current session cleanly: review what got done, update project tracking files, commit changes, capture session knowledge, and confirm everything is documented. This is the "I'm done" skill — no next-session opener is produced. For passoff (future-you or a coworker), use `/handoff` instead.
 
-**Two modes:**
+**Three modes:**
 
 - **Default (`/wrapup`)** — Per-step gated review. Each tracked surface (session summary, PROGRESS, CLAUDE.md, memory, commit, /extract prompt) prompts for explicit confirmation before writing.
 - **`auto` (`/wrapup auto`)** — Implicit-yes on all gates. Run silently. Apply all drafts and chain `/extract` without confirmation. Emit final report only. Use when the session is short and unambiguous, or when you've already authorized a combined-go (`yes to all`, `yes to all with extract`).
+- **`snap` (`/wrapup snap`)** — Like `auto`, but archives the raw transcript via `/snapshot` for later extraction **instead of** running `/extract` now. Use when context is high: you still get the full silent close-out + commit, but defer the expensive, compaction-risky knowledge synthesis to a later session (or the next `/audit-knowledge` digest pass, which reads the snapshot automatically).
+
+**`snap` is `auto` plus one swap.** Everywhere a step below says "If `mode = auto` (or `snap`)", `snap` follows auto's behavior exactly — implicit-yes, silent, apply all drafts, no per-step prompts. The single difference is the capture step (Step 8): `snap` runs `/snapshot` (archive the transcript for later) while `auto` runs `/extract` (synthesize now). Nothing else differs.
 
 ## Step 0: Resolve Config and Parse Mode
 
@@ -3601,7 +3612,8 @@ Read `.cursor/aria-knowledge.local.md` and extract `knowledge_folder`. If the fi
 Parse the argument:
 - No arg, or arg is empty → `mode = gated` (default)
 - Arg matches `auto` (case-insensitive) → `mode = auto`
-- Any other arg → stop: "Unknown argument '{arg}'. Use '/wrapup' or '/wrapup auto'."
+- Arg matches `snap` (case-insensitive) → `mode = snap`
+- Any other arg → stop: "Unknown argument '{arg}'. Use '/wrapup', '/wrapup auto', or '/wrapup snap'."
 
 Use `{knowledge_folder}` as the base path for all file operations in subsequent steps.
 
@@ -3651,7 +3663,7 @@ Present this summary to the user:
 - [what follows from here]
 ```
 
-**If `mode = auto`:** skip the prompt and proceed with the drafted summary as-is.
+**If `mode = auto` (or `snap`):** skip the prompt and proceed with the drafted summary as-is.
 
 **Otherwise (gated mode):** Ask: "Does this summary look right? (yes / edit)"
 
@@ -3666,7 +3678,7 @@ If a PROGRESS.md exists for this project:
 3. If no entry exists, draft a new session entry using the project's existing format (match the heading style, content structure, and level of detail of previous entries)
 4. Show the draft to the user
 
-**If `mode = auto`:** append the drafted entry without prompting (equivalent to **yes**).
+**If `mode = auto` (or `snap`):** append the drafted entry without prompting (equivalent to **yes**).
 
 **Otherwise (gated mode):** Ask: "Add this session entry to PROGRESS.md? (yes / edit / skip)"
 
@@ -3688,7 +3700,7 @@ If a CLAUDE.md exists for this project:
    - Tool/integration changes
 3. If updates are needed, show the proposed changes
 
-**If `mode = auto`:** apply the drafted CLAUDE.md updates without prompting (equivalent to **yes**). If no updates are needed, note that in the final report and move on.
+**If `mode = auto` (or `snap`):** apply the drafted CLAUDE.md updates without prompting (equivalent to **yes**). If no updates are needed, note that in the final report and move on.
 
 **Otherwise (gated mode):** Ask: "Update CLAUDE.md with these changes? (yes / edit / skip)"
 
@@ -3702,7 +3714,7 @@ Check if project memory files (in `~/.claude/projects/` for the current project 
 2. Compare against the session summary — is the memory's "Current State" still accurate?
 3. If the memory is stale, draft an update
 
-**If `mode = auto`:** apply the drafted memory update without prompting (equivalent to **yes**). If no memory file exists or no update is needed, note that in the final report and move on.
+**If `mode = auto` (or `snap`):** apply the drafted memory update without prompting (equivalent to **yes**). If no memory file exists or no update is needed, note that in the final report and move on.
 
 **Otherwise (gated mode):** Ask: "Update project memory? (yes / edit / skip)"
 
@@ -3722,7 +3734,7 @@ For each git repository detected in Step 1:
    [list the file names]
    ```
 
-**If `mode = auto`:** stage all changes (per-file, not `git add -A` — exclude anything that looks like a secret or unrelated work-in-progress), draft a conventional commit message from the session work, and commit without prompting. Skip the message-confirmation step. Still **local commit only — never push.**
+**If `mode = auto` (or `snap`):** stage all changes (per-file, not `git add -A` — exclude anything that looks like a secret or unrelated work-in-progress), draft a conventional commit message from the session work, and commit without prompting. Skip the message-confirmation step. Still **local commit only — never push.**
 
 **Otherwise (gated mode):** Ask: "Want to commit these changes? (yes / no / select files)"
 
@@ -3756,7 +3768,7 @@ Body:
 - `## Next session pickup` — 2-4 sentences
 - `## Next session prompt` — **leave the fenced block empty** (wrapup carries no opener; that's what distinguishes it from `/handoff`)
 
-**If `mode = auto`:** write without prompting. **Otherwise (gated):** show the drafted file and ask "Write SESSION.md (wrapup state)? (yes / edit / skip)".
+**If `mode = auto` (or `snap`):** write without prompting. **Otherwise (gated):** show the drafted file and ask "Write SESSION.md (wrapup state)? (yes / edit / skip)".
 
 ## Step 7: Verify Wrapup Readiness
 
@@ -3777,7 +3789,9 @@ Run through a checklist and report status:
 
 If any item shows a gap (uncommitted changes skipped, PROGRESS.md not updated), flag it — but don't block. The user may have good reasons to defer.
 
-## Step 8: Prompt Extract
+## Step 8: Capture Session Knowledge
+
+**If `mode = snap`:** Do NOT run `/extract`. Instead invoke the `/snapshot` skill to archive the raw transcript to `intake/task-boundary-captures/` for later extraction. This is snap mode's defining difference: capture is deferred, not synthesized now. Like auto, this always runs — there is no skip path. The snapshot is the deferred-extraction handoff: a later `/extract`, or the next `/audit-knowledge` digest pass (which reads `intake/task-boundary-captures/` automatically), synthesizes knowledge from it when context isn't a constraint. Use snap when context is high and running `/extract` now would risk compaction mid-synthesis. (`/snapshot` requires Bash, which the Step-0 runtime gate already guaranteed.)
 
 **If `mode = auto`:** ALWAYS invoke the `/extract` skill. No judgment-skip allowed — even if the session feels short, conversational, or seems to have nothing new to extract, run `/extract` anyway. The model running this step must not pre-judge whether extraction is worthwhile; `/extract` has its own dedup logic (per its Rules section: "Never ask for confirmation — scan and dump") that correctly handles the "nothing to add" case by reporting `No uncaptured knowledge found`. The wrapup skill must not make that judgment on `/extract`'s behalf. Auto mode's "implicit-yes on all gates" rule converts to **"extract always runs"** here — there is no skip path in auto mode.
 
@@ -3795,6 +3809,8 @@ Output a brief closing summary:
 
 [1-2 lines: what was updated]
 
+[If mode = snap: **Knowledge capture:** transcript snapshotted to intake/task-boundary-captures/ for later extraction (run /extract in a fresh session, or let the next /audit-knowledge digest pass synthesize it). /extract was NOT run this session.]
+
 **Next session pickup:** Read [path to PROGRESS.md or CLAUDE.md]
 ```
 
@@ -3809,6 +3825,7 @@ Use the heading **`Session Wrapup Complete`** for `/wrapup` runs — distinct fr
 - **Skip gracefully** — if a file doesn't exist (no PROGRESS.md, no CLAUDE.md, no memory), skip that step and note it. Don't create files that don't already exist as part of the project's conventions.
 - **SESSION.md is the one create-exception.** Unlike PROGRESS.md/CLAUDE.md/memory (skip-gracefully if absent), SESSION.md is *always written* when `session_state` is on — created at the project root if it doesn't exist. It's a new convention that must bootstrap. This is the only file /wrapup creates rather than skips.
 - **Delegate extraction** — /wrapup prompts for /extract but does not perform extraction itself. The /extract skill has its own deduplication and formatting logic.
+- **`snap` defers, never drops, capture.** In snap mode /wrapup runs `/snapshot` instead of `/extract` — it must always run the snapshot (no skip path, same as auto's "extract always runs" invariant). The raw transcript is preserved so a later /extract or /audit-knowledge digest can synthesize it; snap never means "skip knowledge capture," only "capture cheaply now, synthesize later." snap is otherwise byte-for-byte auto behavior (silent, implicit-yes, local commit only, never push).
 - **One passoff per session** — if the user runs /wrapup again in the same session, check what was already done and skip completed steps. Don't duplicate entries.
 
 ---
@@ -5043,6 +5060,346 @@ If any check fails, self-correct once. If self-correction can't close the gap (e
 
 ---
 
+## /foundational-review
+
+
+# /foundational-review — "Is this the right thing, built the right way?"
+
+Run a repeatable, model-agnostic review of a project at the FOUNDATIONS — problem–solution fit, architecture soundness, product coherence — and convert the findings into a prospect-hardened, cold-executable plan with owner routing. This is the productized form of the foundational review chain (the canonical process doc this skill reads at Step 1).
+
+This skill is **orchestration + artifact templates only**. The substance — the A–F review questions, the operating rules, the failure-mode library, the pairing contract — lives in the canonical process doc, which Step 1 reads in full. Do not reproduce that doc's content from memory; read it live every run so the chain evolves in one place.
+
+**What this is NOT** (the process doc opens with this — internalize it):
+- **Not a code review** — code review asks "are these changes correct?" on a diff. This asks "should this shape exist?" on a decision.
+- **Not a readiness audit** — `/readiness-audit` checks a surface against a checklist and produces a findings list. This produces a VERDICT resting on named PREMISES plus the full execution handoff. Siblings, not substitutes (see the pairing contract in the Step 1 doc and Step 0's pairing check).
+- **Not a retrospective** — `/retrospect` validates shipped work backward. This judges a standing architecture/product forward, before an expensive-to-undo step.
+
+## When to use
+
+Run it before any IRREVERSIBLE decision — the anchor:
+- A version freeze or stable-contract claim
+- A format / schema / spec tag (e.g., a `v1.0` spec freeze)
+- A public API surface or a repo public-flip
+- A major re-scope, pivot, or "should we keep building this at all" moment
+
+**No irreversible decision named → do not run this chain.** Redirect:
+- A plan that's about to execute → `/prospect`
+- A surface to check clean/legal/consistent for shipping → `/readiness-audit`
+- Already-shipped work to validate backward → `/retrospect`
+
+## Step 0: Invocation Block
+
+Parse `<scope-root>` (first positional), `--decision "<text>"`, and `--extend`. Then assemble the invocation block. If args are thin, collect interactively — **one ask at a time**:
+
+```
+Invocation:
+  Scope root:           <path — the project/workspace under review>
+  Read-first:           <docs to read before judging: CLAUDE.md, PROGRESS.md, specs, prior audits>
+  THE irreversible decision:  <the single expensive-to-undo step this review gates — REQUIRED>
+  Section-F inputs:     <strategy/positioning/licensing docs; mark CONFIDENTIAL ones>
+  Constraints:          <read-only repos, build rules, no-push, team-owned repos needing tickets>
+  Reviewer model:       <highest-ceiling available; see Model Routing below>
+  Extend?:              <yes if --extend — runs the system-design extension loop after Step 6>
+```
+
+**Hard gate — the decision anchor.** If no irreversible decision can be named (the `--decision` arg is absent AND the user can't state one when asked), STOP and redirect:
+
+> This chain is decision-anchored — it needs one expensive-to-undo step to anchor the verdict and the irreversibility inventory. You haven't named one. Did you mean:
+>   1) `/prospect <plan>` — pre-mortem a plan that's about to execute
+>   2) `/readiness-audit <scope-root> --for "<event>"` — audit a surface for ship-readiness
+>   3) I'll name the irreversible decision now: <reply with it>
+
+Do not invent a decision to keep the chain running.
+
+**Pairing check.** If THE irreversible decision is a SHIP / FREEZE / PUBLIC-FLIP, the canonical pairing rule says run BOTH the audit (for the surface) and the chain (for the decision). Ask:
+
+> This decision is a ship/freeze/flip. The pairing contract recommends running `/readiness-audit` first (cheaper, produces the evidence base the review can lean on). Run `/readiness-audit <scope-root> --for "<event>"` now, then resume this chain? (`y` / `n` / `already-have-one`)
+
+On `y`, invoke `/readiness-audit` via the `Skill` tool, then resume at Step 1 with the audit as admissible evidence (per the composition contract — the review re-derives every inherited claim, never trusts the audit's attributions/counts without a fresh sweep).
+
+### Model Routing
+
+- **Reviewer = the highest-ceiling model available** (escalate to the top tier only when the decision is extreme-stakes; the default top model otherwise). The ceiling is spent on alternatives steelmanning (§A), portfolio/product judgment (§F), and the irreversibility inventory. **The default model can run the full chain** — it compensates with stricter evidence-sourcing in the /prospect passes.
+- **Executor = the default model by default.** Every plan task (Step 4) carries `OWNER: <default model>` unless its *execution* needs extreme judgment — justify any top-tier owner in one line, or it's rewritten to the default.
+- **Gate owner = the human.** Anything needing sign-off becomes a named gate `G-A..` in the spec (Step 3), never an inline assumption.
+- **Effort ladder (when the reviewer is the top-tier model):** default `xhigh` for every substantive review — these passes are semi-agentic (read files, trace seams) and `xhigh` is built for that read-trace-reason loop; it also matches *why* you escalated to the ceiling. Use `high` only for light surfaces (small/on-hold/PRD-only projects). Reserve `max` for the single hardest correctness-dominated pass (e.g. auth-across-tenancy, ledger/tax invariants) — elsewhere it over-deliberates without adding signal. Running the top model at plain `high` is the worst-value point: if `high` feels like enough, the default model at `high` would have sufficed.
+
+## Step 1: Load the Canonical Process & Survey
+
+1. **Load the canonical chain.** Read the canonical process doc, preferring a user copy when present:
+   - If `<knowledge_root>/approaches/foundational-review-chain.md` exists (resolve `<knowledge_root>` from `.cursor/aria-knowledge.local.md`), read THAT — a user may keep a richer, project-specific copy there.
+   - Otherwise read the plugin-bundled copy at `knowledge/approaches/foundational-review-chain.md` (always present).
+
+   It carries the operating rules, the A–F questions, the artifact conventions, the failure-mode library, and the pairing/extension specs. Hold it in context — every later step references it by section rather than restating it.
+2. **Load the failure-mode libraries** (mirrors /prospect Step 2): `<knowledge_root>/rules/retrospect-patterns.md`, and `<knowledge_root>/rules/prospect-patterns.md` + `<knowledge_root>/projects/<tag>/{retrospect,prospect}-patterns.md` if they exist for the detected project.
+3. **Survey the tree.** Read the read-first docs, then walk the actual source tree. **READ BEFORE JUDGING** (operating rule 1): every load-bearing claim is cited as `file:line`, verified THIS session — never asserted from memory, docs, or prior-session summaries.
+4. **Bound the scope** (operating rule 2): state in-scope and out-of-scope explicitly; fence sibling workstreams by reference. For a multi-repo family, **group by coupling mechanism**: shared-runtime repos → review as ONE super-project (hub-out from the shared dependency, ~20% grounding / ~80% on the seams); protocol- or file-contract repos → review each side standalone + review the *contract* once from the producer side; a vendored copy → not a review seam at all. The same portfolio can contain all three.
+5. **Run empirical probes** read-only (`git log`, `grep`, file-existence). **VERIFY FORMATS, NOT JUST LOCATIONS** (operating rule 6): any later plan step that parses/renames/sweeps is preceded by an enumeration sweep at planning time.
+
+## Step 2: Findings Document
+
+Write `<scope-root>/FABLE-REVIEW-<YYYY-MM-DD>.md` (keep the reviewer-named filename for provenance even when the default model runs it; state the actual model in the header). Structure:
+
+```
+# Foundational Review — <project> — <YYYY-MM-DD>
+Reviewer model: <actual model>   |   THE irreversible decision: <text>
+
+## Verdict
+<foundationally-sound | sound-with-changes | re-scope | reconsider>
++ the single most important reason (one sentence).
+
+## Premises
+| ID | Premise the verdict rests on | If it changes… |
+|----|------------------------------|----------------|
+| P1 | …                            | …              |
+
+## A. Problem–Solution Fit
+Steelman 2–3 alternative framings (include "do nothing / minimal" and "kill / fold elsewhere");
+for each: wins, costs, verdict + PRESERVED rationale (why-rejected stays answerable).
+
+## B. Foundational Correctness
+Name each weak premise being patched around + the fix-at-base.
+
+## C. Built Right
+Data model · abstraction layers (flag any beyond ~3 that don't earn their cost) · coupling/seams ·
+testing & validation · characteristic failure modes (especially SILENT ones).
+
+## D. Gaps
+Smallest set of missing capabilities that makes it "v-next worthy." Assign existing owners; don't re-own.
+
+## E. Over-build
+What exists that the use case doesn't justify. Cut = archive-with-pointer or policy-freeze, not deletion.
+Includes DOC decay (stale plans, falsified bug reports a cold executor would burn time on).
+
+## F. Product / Portfolio Coherence
+Boundaries (free/premium, public/private) · monetization/positioning · family coherence · licensing/IP posture.
+
+## Irreversibility Inventory
+| What becomes expensive after the tag | Why | Precision the handoff needs |
+
+## Uncertainty Flags
+Predictions ≠ findings — say which is which.
+```
+
+**Scale to the finding:** one change → findings + a short plan; large review → findings + several specs + plans. A re-scope/reconsider verdict's spec/plan may be a wind-down or pivot plan — that's a valid output.
+
+## Step 3: Design Spec(s)
+
+Per substantive change, write `docs/superpowers/specs/<date>-<topic>-design.md` (use the project's existing `docs/superpowers/` convention):
+
+```
+## Decisions
+D1: what · why · smallest version · rejected alternatives (with preserved rationale)
+…
+## Gates
+G-A: decision needed · what it blocks · default-if-unanswered (or "hard gate, no default")
+…
+## Non-goals
+## Sibling-workstream fencing
+"<sibling plan> owns <X> — not duplicated here."
+```
+
+Minor items stay as plan rows; only substantive changes get a spec.
+
+## Step 4: Plan(s)
+
+Per spec, write `docs/superpowers/plans/<date>-<topic>.md`. Tasks must be COLD-EXECUTABLE with no access to the reviewer's reasoning:
+- Exact paths, supplied code/content, commands + expected output, acceptance criteria, dependency sequence.
+- `OWNER:` per task (default executor; justify any top-tier owner in one line).
+- An **execution-notes preamble**: build rules, restore steps, no-push, named-path commits, known-baseline counts (test counts, file counts).
+- **Team-owned repos:** the unit of execution is a tracker ticket (Product + Technical Intake), NOT a code edit.
+
+## Step 5: Compose /prospect
+
+Run `/prospect` on each plan (file scope) via the `Skill` tool:
+
+> Use the `Skill` tool to invoke `prospect` with `file <plan-path>`.
+
+Then **APPLY verdict-changing amendments IN PLACE** — don't just score the plan. Validated runs' /prospect passes falsified *format* assumptions (line-anchored tokens that were `var()` indirections; hex colors that were RGB triplets; a 4-file rename that was a 14-file surface). After amending, stamp the verdict + amendment list into the plan header. The prospect log lands in `<knowledge_root>/logs/prospect/` via the composed skill — do not duplicate that routing here.
+
+## Step 6: Failure-Mode Self-Check, Commit & Kickoff
+
+**Pre-commit self-check (mandatory).** Run the plan(s) against the "Failure modes this process has already caught" list in the Step 1 process doc — this is the chain's equivalent of /prospect's pattern check. At minimum confirm:
+- `fix-without-call-site-audit` — no rename/sweep step written only from the sites the review happened to verify
+- Un-sourced FORMAT assumptions — every parse/rename/sweep preceded by an enumeration sweep
+- Misattributed file claims inherited from a sibling audit — re-derived by sweep, never inherited
+- "Verification" runs that mutate build artifacts — every test-build step carries an explicit RESTORE + `git diff --stat` check
+- Plan/idea-dump decay — no stale/falsified backlog items inside the plan
+- History rewriting in mechanical sweeps — live-vs-historical surfaces split before any `sed`
+
+**Commit** the artifacts (named paths, no push — pushing is the owner's separate gate per operating rule 8). If `Bash`/`git` is unavailable, emit copy-paste commit messages instead.
+
+**Kickoff.** End with a paste-ready executor kickoff:
+
+```
+## Executor Kickoff
+Plan(s):        <path(s)>
+Task order:     <#1 → #2 → …, note dependency gates>
+Owner routing:  <default executor; any top-tier tasks + one-line justification>
+Definition of done: <observable signals>
+Open gates:     <G-A.. that must be answered before/at which task>
+Report back:    <what to surface on completion>
+```
+
+## Step 7 (optional): Extension Loop  `--extend`
+
+Run only when the owner wants the deeper "is the SYSTEM itself good engineering?" layer. Follow the process doc's "extension loop" section:
+1. **System-design assessment** appended to the findings doc (§11-style): novelty ranked by defensibility; honest weaknesses; abstraction-architecture verdict; ranked improvement ladder; assessment uncertainties (mark untested claims benchmarkable). Look for ONE unifying critique — a single lens explaining all improvements signals the analysis converged.
+2. **Durable capture** — the unifying critique → a canonical pattern file (`projects/<tag>/patterns/` or `approaches/`); session arc → project memory + memory index. Reuse `/extract` routing rather than duplicating it.
+3. **Second chain** — improvement ladder → roadmap SPEC (waves W0 enforce-existing · W1 evidence probes each with a NAMED FALSIFICATION OUTCOME · W2 architecture evolutions gated on W1) → `/prospect` → wave-executable PLAN → `/prospect` → commit. Probes-before-architecture is the spine.
+
+## Step 8: Outputs & Intake
+
+- **Findings:** `<scope-root>/FABLE-REVIEW-<YYYY-MM-DD>.md`
+- **Specs/plans:** the project's `docs/superpowers/{specs,plans}/`
+- **Prospect logs:** via the composed `/prospect` (Step 5), in `<knowledge_root>/logs/prospect/`
+- **Extension captures:** via `/extract` (Step 7), if `--extend`
+- **Aria intake:** suggest backlog entries (insights / decisions / approaches) per the standard intake confirmation flow — suggest, user reviews, write on approval.
+
+## Step 9: Validation Gates
+
+Before declaring the chain complete, verify:
+1. **Decision anchor present?** THE irreversible decision is named in the findings header. (If absent, the chain should have redirected at Step 0.)
+2. **Read-before-judging honored?** Every load-bearing claim in the findings cites `file:line` verified this session.
+3. **Verdict from the fixed vocabulary?** One of foundationally-sound · sound-with-changes · re-scope · reconsider, with its single most-important reason.
+4. **Premises table present** with "if it changes" for each.
+5. **Sections A–F all answered** (or marked N/A with reason) + irreversibility inventory + uncertainty flags.
+6. **Specs carry D-decisions + gates;** plans are cold-executable with OWNER per task + execution-notes preamble.
+7. **/prospect composed on every plan,** amendments applied IN PLACE, verdict stamped into the plan header.
+8. **Pre-commit failure-mode self-check ran** against the process doc's list.
+9. **Artifacts committed (named paths, no push);** kickoff emitted.
+10. **Pairing honored** — if the decision was a ship/freeze/flip, either a `/readiness-audit` was run/referenced or the user explicitly declined.
+
+If any check fails, self-correct once; if it can't be closed (e.g., a gate is unanswered), surface the gap explicitly rather than silently skipping.
+
+---
+
+## /readiness-audit
+
+
+# /readiness-audit — "Is it clean / legal / consistent to ship?"
+
+A checklist-against-a-surface audit that recurs, needs no irreversible-decision anchor, and answers "is it ready to ship for THIS event," not "should this shape exist." The companion format is canonicalized in the **"Companion format: the readiness audit"** section of the foundational review chain process doc (read at Step 1).
+
+This skill is **orchestration + artifact templates only**. The format spec and the pairing contract live in the canonical process doc, which Step 1 reads. Do not reproduce them from memory.
+
+**Sibling of `/foundational-review`** — audit = recurring, checklist-shaped, surface-anchored; chain = per-decision, verdict-shaped. When the event is a SHIP / FREEZE / PUBLIC-FLIP, the pairing contract says run BOTH: this audit for the surface, the chain for the decision (audit first — cheaper, produces the evidence base). Step 8 surfaces that pairing.
+
+## When to use
+
+- Before a release, a public-repo flip, a handover, or any "is this ready for X" moment that's about the *surface* (clean, legal, consistent), not the *shape*.
+- As the recurring instrument — re-runnable whenever the surface changes; no decision anchor needed.
+
+If the question is "should this shape exist / is this the right thing built the right way" before an expensive-to-undo step → use `/foundational-review`. If it's a plan about to execute → `/prospect`.
+
+## Step 0: Inputs
+
+Parse `<scope-root>` (first positional) and `--for "<event>"`. If thin, collect interactively:
+
+```
+Inputs:
+  Scope root:   <path under audit>
+  Ready for WHAT:  <the event: public release | repo public-flip | handover | v1.0 tag | …>
+  Locked decisions:  <any already-decided constraints that become audit premises>
+  Inherited audits:  <prior audits whose findings/claims this one re-derives, never trusts>
+```
+
+"Ready for WHAT" is the frame that makes a finding a blocker vs. a nice-to-have — get it explicit before exploring.
+
+## Step 1: Load Canonical Companion Format & Bound Scope
+
+1. Read the **"Companion format: the readiness audit"** section of the canonical process doc, preferring a user copy when present:
+   - If `<knowledge_root>/approaches/foundational-review-chain.md` exists (resolve `<knowledge_root>` from `.cursor/aria-knowledge.local.md`), read THAT.
+   - Otherwise read the plugin-bundled copy at `knowledge/approaches/foundational-review-chain.md` (always present).
+
+   It defines the tier structure, the agent-claim-correction discipline, and the composition contract with the chain.
+2. State in-scope / out-of-scope explicitly. Fence sibling workstreams ("the chain's plan owns architecture-freeze risks — not duplicated here").
+
+## Step 2: Parallel Exploration (read-only)
+
+Dispatch exploration agents per surface — typically:
+- **source/build** — what builds, what's dead, what the artifact actually contains
+- **licensing/hygiene** — license headers, secrets, internal URLs, third-party-asset rights
+- **docs/tooling** — stale docs, broken references, release pipeline presence
+
+Use the `Task` tool (Explore agent type) per surface, in parallel. **Guardrail — read-only verification probes only.** No probe may mutate a build artifact. (A real incident: an agent "verified a build" by RUNNING it and overwrote a generated source file.) If a check would require building/running, the agent reports *what it would run + expected output*, and the controller decides whether to run it under the diff-check discipline in Step 3.
+
+## Step 3: Controller Re-Verification (the defining discipline)
+
+This is what separates a readiness audit from a pile of agent claims. **Re-verify every load-bearing agent claim with a direct controller-level check** before it enters the findings. In real runs, multiple agent claims were corrected by direct checks.
+
+For each claim an agent surfaced:
+- Re-derive it yourself (`Read`/`Grep`/`git`), at `file:line`.
+- If it holds → it becomes a finding with a verified Evidence cell.
+- If it's wrong → record the correction as a **decision-trail row**: `Agent claimed X → direct check showed Y → corrected.`
+- **Inherited claims from prior audits are re-derived, never trusted** (per the composition contract — a real review corrected an inherited file misattribution and a mis-scoped variable claim).
+
+**Artifact diff-check (mandatory).** If any verification required building or running anything, immediately run `git diff --stat` (and restore) to prove no tracked artifact was mutated. Record the diff-check result in the audit. A test-build step that can't show a clean diff is a finding against the audit itself.
+
+## Step 4: Tiered Findings
+
+Each finding carries a **verified Evidence cell** (citation from Step 3, not an agent assertion):
+
+```
+## Tier 0 — Blockers (must fix before the event)
+| # | Finding | Evidence (file:line / probe result) | Owner |
+## High
+## Medium
+## Low (hygiene)
+```
+
+The tier is set by the "ready for WHAT" frame from Step 0 — a stale internal URL is Tier 0 for a public flip, Low for an internal handover.
+
+## Step 5: Conceptual Observations (no code change)
+
+Observations worth recording that don't propose a code change — design smells, future risks, "we should decide X someday." Kept separate from findings so the remediation plan stays actionable.
+
+## Step 6: Phased Remediation Plan
+
+**Findings are NOT a shipping list** (cite `audit-findings-as-shipping-list-without-triage`). Triage them into phases with owners:
+
+```
+## Remediation Plan
+Phase 1 (pre-event): <Tier 0 + the High items that block the event> — owners
+Phase 2 (fast-follow): <remaining High + Medium> — owners
+Phase 3 (backlog): <Low / hygiene> — owners
+```
+
+One owner per item. If the chain (`/foundational-review`) is also running, fence by reference: each item has exactly one owning document.
+
+## Step 7: End-to-End Verification Recipe
+
+The exact sequence to prove the surface is ready *after* remediation — the commands/checks + expected output a cold executor runs to confirm. This is the audit's definition-of-done.
+
+## Step 8: Gates & Pairing
+
+- **Gates** — for genuine decisions, surface via `AskUserQuestion`: the decision, the options, the consequence of each. Don't bake a default for a real decision.
+- **Pairing** — if the event is a SHIP / FREEZE / PUBLIC-FLIP, note that the pairing contract recommends running `/foundational-review --decision "<event>"` on the *decision*, with this audit's verified findings as admissible evidence and its locked decisions as review premises. Gates from both should land in ONE gate table (the chain's spec) so nothing ships on a gate answered in only one document.
+
+## Step 9: Output & Commit
+
+- Write `<scope-root>/…/audit-<YYYY-MM-DD>-<event>-readiness.md` (match the project's docs convention for the location).
+- Commit local (named path, no push). If `Bash`/`git` is unavailable, emit a copy-paste commit message.
+- Suggest aria intake entries (insights / decisions) per the standard confirmation flow.
+
+## Step 10: Validation Gates
+
+Before declaring the audit complete, verify:
+1. **"Ready for WHAT" stated** and used to set tier severity.
+2. **Every finding has a verified Evidence cell** sourced at Step 3, not an unverified agent claim.
+3. **Controller re-verification ran** — agent claims re-derived; corrections recorded as a decision trail.
+4. **Artifact diff-check recorded** if any verification built/ran anything (`git diff --stat` clean + restore).
+5. **Inherited claims re-derived,** never trusted from a prior audit.
+6. **Findings tiered,** not flat; remediation is PHASED with one owner per item (not a shipping list).
+7. **End-to-end verification recipe present.**
+8. **Real decisions surfaced as gates** (AskUserQuestion), no fabricated defaults.
+9. **Pairing surfaced** if the event is a ship/freeze/flip.
+10. **Report committed** (named path, no push).
+
+If any check fails, self-correct once; if it can't be closed, surface the gap explicitly.
+
+---
+
 ## /snapshot
 
 
@@ -5090,7 +5447,7 @@ Walk the user through configuring their knowledge folder and plugin settings. Sa
 
 ## Step 1: Check for Existing Config
 
-**Read the installed port version first.** Parse `scripts/aria/VERSION` (plain text, one line — e.g. `2.24.2-cursor.0`):
+**Read the installed port version first.** Parse `scripts/aria/VERSION` (plain text, one line — e.g. `2.30.0-cursor.0`):
 
 ```bash
 INSTALLED_VERSION=$(cat "scripts/aria/VERSION" 2>/dev/null | tr -d '[:space:]')
@@ -5280,17 +5637,21 @@ This block is read-only — `/setup` never writes new entries here. See **Step 7
 
 ### Project Setup (only if user enables the project-specific knowledge tier)
 
-If the user enables (or keeps enabled) the project-specific knowledge tier in Advanced Options, ask four follow-up questions. In **update mode** where values already exist in the config, show the current value for each question and let the user keep it (press enter) or enter a new value — this is the discoverable path for toggling `auto_load_project_context` on a re-run when the tier was previously enabled:
+If the user enables (or keeps enabled) the project-specific knowledge tier in Advanced Options, ask six follow-up questions. In **update mode** where values already exist in the config, show the current value for each question and let the user keep it (press enter) or enter a new value — this is the discoverable path for toggling `auto_load_project_context` on a re-run when the tier was previously enabled:
 
 1. **Project list** — "Comma-separated `tag:relative-path` pairs (e.g., `proj-a:path/to/proj-a,proj-b:proj-b,lib:shared-lib`). Paths are relative to the parent of your knowledge folder (typically `~/Projects/`). Press enter to defer adding projects:"
 2. **Project remotes (optional)** — "Optional git-remote URL patterns for fallback project detection when CWD doesn't match a configured path. Comma-separated `tag:url-substring` pairs (e.g., `proj-a:myorg/proj-a-repo`). Press enter to skip:"
 3. **Promotion threshold** — "Minimum number of projects that must share a similar pattern before `/audit-knowledge` suggests cross-project promotion (default 2):"
 4. **Auto-load project context on session start** — "When your CWD matches a configured project, should SessionStart automatically suggest `/context {tag}`? This is a runtime convenience — the project tier works fine without it, and you can change this later by editing `auto_load_project_context` in `.cursor/aria-knowledge.local.md`. (y/n, default n):"
+5. **SessionStart project picker** — "When you open a session from a multi-project parent directory (no project chosen yet), should ARIA suggest a project menu generated from your `projects_list`? Non-blocking — you can always just name a project or start working. (y/n, default n):" → writes `session_start_project_picker`.
+6. **Project display labels (optional)** — "Optional friendly names for the picker menu. Comma-separated `tag:Label` pairs (e.g., `cs:Commonspace,ss:Seersite`). Empty = bare tags. Press enter to skip:" → writes `projects_labels`.
 
 **Validate input:**
 - Project tags cannot contain `:` or `,` (these are the parser delimiters). If invalid, show the offending tag and re-prompt.
 - Promotion threshold must be a plain integer ≥ 1. If invalid, re-prompt.
 - Auto-load answer must be `y`/`n` (or empty for default). If invalid, re-prompt.
+- SessionStart project picker answer must be `y`/`n` (or empty for default). If invalid, re-prompt.
+- `projects_labels` is comma-separated `tag:Label` pairs, or empty. Warn (don't error) if a label's tag is not in `projects_list`.
 - For each `tag:path` pair, warn (don't error) if the resolved path doesn't exist on disk yet — the user may be configuring projects they haven't created.
 
 **Existing-folder detection:**
@@ -5305,18 +5666,18 @@ Before prompting, scan the user's knowledge folder for an existing `projects/` s
 
 ### Shared Knowledge Setup (only if user enables the project tier)
 
-After Project Setup completes (questions 1-4), if `projects_enabled: true` AND `projects_list` is non-empty, ask two follow-up questions about the shared-knowledge feature. In **update mode** where values exist, show current values and let the user keep (press enter) or change.
+After Project Setup completes (questions 1-6), if `projects_enabled: true` AND `projects_list` is non-empty, ask two follow-up questions about the shared-knowledge feature. In **update mode** where values exist, show current values and let the user keep (press enter) or change.
 
-5. **Which projects do you want to enable shared knowledge for?** — *"This is an opt-in extension that lets you promote selected personal knowledge into per-repo `_project-knowledge/` folders so teammates can see what you've learned. Personal knowledge stays in your own knowledge folder; team copies are independent records committed to your project repos via your normal git workflow. Most users have many repos but only a few with teams to share with — pick only the ones with teammates who'd benefit. Your configured projects: {projects_list tag enumeration}. Enter comma-separated tags (default: empty = feature disabled, all projects stay personal-only):"*
+7. **Which projects do you want to enable shared knowledge for?** — *"This is an opt-in extension that lets you promote selected personal knowledge into per-repo `_project-knowledge/` folders so teammates can see what you've learned. Personal knowledge stays in your own knowledge folder; team copies are independent records committed to your project repos via your normal git workflow. Most users have many repos but only a few with teams to share with — pick only the ones with teammates who'd benefit. Your configured projects: {projects_list tag enumeration}. Enter comma-separated tags (default: empty = feature disabled, all projects stay personal-only):"*
 
-6. **Author tag for shared-knowledge filenames** — only ask if Q5 returned a non-empty tag list. *"Shared-knowledge files use `{YYYY-MM-DD}-{author-tag}-{slug}.md` naming. Pick a short author tag (e.g., `init`, or initials, or first2+last2 of your name). Default: derived from `git config user.name` (first 2 chars of first name + first 2 chars of last name) → '{auto-derived}':"*
+8. **Author tag for shared-knowledge filenames** — only ask if Q7 returned a non-empty tag list. *"Shared-knowledge files use `{YYYY-MM-DD}-{author-tag}-{slug}.md` naming. Pick a short author tag (e.g., `init`, or initials, or first2+last2 of your name). Default: derived from `git config user.name` (first 2 chars of first name + first 2 chars of last name) → '{auto-derived}':"*
 
 **Validate input:**
-- Q5 answer is a comma-separated tag list, or empty (= feature disabled). Each tag must already exist in `projects_list`. If a tag is not in `projects_list`, show the offending tag and re-prompt: *"Tag '{tag}' is not in projects_list. Available: {projects_list tags}. Re-enter:"*. Empty input is valid and means feature disabled.
-- Q6 author_tag must be 1-12 characters, alphanumerics + hyphens only (the value will appear in filenames). If invalid, show offending characters and re-prompt.
-- If Q5 returned a non-empty list but Q6 produces an empty value AND no derivable git user.name exists, warn: *"Author tag is required for shared knowledge. You can set `author_tag` later in `.cursor/aria-knowledge.local.md`, but `/audit-share` will refuse to run until it's set."* Continue setup with `author_tag:` empty.
+- Q7 answer is a comma-separated tag list, or empty (= feature disabled). Each tag must already exist in `projects_list`. If a tag is not in `projects_list`, show the offending tag and re-prompt: *"Tag '{tag}' is not in projects_list. Available: {projects_list tags}. Re-enter:"*. Empty input is valid and means feature disabled.
+- Q8 author_tag must be 1-12 characters, alphanumerics + hyphens only (the value will appear in filenames). If invalid, show offending characters and re-prompt.
+- If Q7 returned a non-empty list but Q8 produces an empty value AND no derivable git user.name exists, warn: *"Author tag is required for shared knowledge. You can set `author_tag` later in `.cursor/aria-knowledge.local.md`, but `/audit-share` will refuse to run until it's set."* Continue setup with `author_tag:` empty.
 
-**Schema note:** the config field `projects_shared_knowledge` is itself the comma-separated tag list (the value IS the scope). Empty/missing = feature disabled. There is no separate boolean toggle; the field's presence and content together encode "enabled and for which projects." A legacy value of `true` (from pre-publish v2.13.0 stubs) is treated the same as empty and triggers Q5 to populate the list properly on `/setup` re-run.
+**Schema note:** the config field `projects_shared_knowledge` is itself the comma-separated tag list (the value IS the scope). Empty/missing = feature disabled. There is no separate boolean toggle; the field's presence and content together encode "enabled and for which projects." A legacy value of `true` (from pre-publish v2.13.0 stubs) is treated the same as empty and triggers Q7 to populate the list properly on `/setup` re-run.
 
 **CLAUDE.md reference handling deferred to first-write.** Earlier drafts of this spec offered to append `_project-knowledge/` references to project AGENTS.md files at setup time. That has been removed: documenting a convention before the folder exists is aspirational, batch-applying across all projects loses per-repo nuance (different repos may have different teams / visibility), and a default-`y` prompt for a teammate-affecting change is more aggressive than ARIA's normal posture. The CLAUDE.md reference offer now happens inside `/audit-share` Step 6.5 the first time a file is actually written to a repo's `_project-knowledge/` folder — at that moment the folder + README exist, the user has just made an active sharing decision, and per-repo confirmation with git-tracked detection can be presented in context. Step 6.5b additionally handles the multi-repo container CLAUDE.md case for tags with `projects_groups` entries.
 
@@ -5329,7 +5690,7 @@ Before completing this section, scan for existing `_project-knowledge/` folders.
 
 For each scan location where a `_project-knowledge/` folder is found:
 
-- **If found AND its parent project tag is NOT in the user's `projects_shared_knowledge` list:** Note in verbose output: *"An existing `_project-knowledge/` folder was detected at `<scan-location>` (parent project tag `{tag}`) but `{tag}` is not in your shared-knowledge list. Add `{tag}` to the list now? (y/n)"* — if yes, append the tag to the Q5 answer and continue.
+- **If found AND its parent project tag is NOT in the user's `projects_shared_knowledge` list:** Note in verbose output: *"An existing `_project-knowledge/` folder was detected at `<scan-location>` (parent project tag `{tag}`) but `{tag}` is not in your shared-knowledge list. Add `{tag}` to the list now? (y/n)"* — if yes, append the tag to the Q7 answer and continue.
 - **If found AND its parent project tag IS in the list:** No action; the folder will be picked up by `/index` Phase 5 on next rebuild.
 - **If found AND `projects_shared_knowledge` is empty:** Note: *"An existing `_project-knowledge/` folder was detected at `<scan-location>` but the shared-knowledge feature is disabled (empty list). Folder is preserved; `/index` and `/context` won't surface it until you enable the feature for tag `{tag}` via `/setup`."*
 
@@ -5366,8 +5727,10 @@ projects_list: [comma-separated tag:path pairs from Step 6, default empty]
 projects_remotes: [comma-separated tag:url-pattern pairs from Step 6, default empty]
 projects_promotion_threshold: [integer from Step 6, default 2]
 auto_load_project_context: [true/false from Step 6, default false]
-projects_shared_knowledge: [comma-separated tag list from Shared Knowledge Setup Q5, default empty = feature disabled; each tag must exist in projects_list]
-author_tag: [string from Shared Knowledge Setup Q6, default empty when projects_shared_knowledge is empty]
+session_start_project_picker: [true/false from Step 6, default false]
+projects_labels: [comma-separated tag:Label pairs from Step 6, default empty]
+projects_shared_knowledge: [comma-separated tag list from Shared Knowledge Setup Q7, default empty = feature disabled; each tag must exist in projects_list]
+author_tag: [string from Shared Knowledge Setup Q8, default empty when projects_shared_knowledge is empty]
 ---
 ```
 
@@ -5558,6 +5921,21 @@ Two habits that make ARIA most effective:
 Everything else runs automatically via hooks.
 ```
 
+## Step (optional): Schedule the morning PM review (Claude Code, macOS only)
+
+If the user wants `/aria-assist` to run automatically each morning, offer to install the launchd job:
+
+> "Want me to schedule the morning PM review? It runs `/aria-assist generate` at your
+> `pm_schedule_time` (default 07:30) and notifies you. macOS only; you can remove it later with
+> `sh <plugin>/bin/pm-schedule.sh --uninstall`."
+
+On yes (Bash available): `sh scripts/aria/pm-schedule.sh`.
+The iMessage notification path needs a one-time **Automation permission** grant
+(System Settings → Privacy & Security → Automation); the desktop banner always works.
+The schedule also surfaces as a read-only "Morning run" card in aria-atlas (if you use it),
+which reads the status from `<knowledge_folder>/pm-reviews/.aria-assist.json` (written by
+`pm-schedule.sh` on install/uninstall and refreshed by each run).
+
 ---
 
 ## /help
@@ -5579,6 +5957,8 @@ Print the command reference table. No config or file access needed.
 | /audit-knowledge (alias: /knowledge-audit) | Review backlogs, promote to knowledge files, rebuild index |
 | /audit-config (alias: /config-audit) | Check project configs and docs for drift and broken references |
 | /retrospect [--range/--pr/--session/--commit] | Structured retrospective on a shipped commit range — per-fix validation, simpler-alternative discipline, re-diagnosis, action verdicts, failure-mode pattern check |
+| /foundational-review <scope-root> [--decision "..."] [--extend] | Foundational review chain before an irreversible decision (freeze/tag/flip/re-scope): verdict + premises + A–F → design spec → cold-executable plan → composed /prospect → kickoff. Requires a named irreversible decision (else redirects). |
+| /readiness-audit <scope-root> [--for "<event>"] | Surface readiness audit (sibling of /foundational-review): parallel exploration → controller re-verification of agent claims → tiered evidence-celled findings → phased remediation. Read-only probes; no decision anchor needed. |
 | /context [tags] | Load relevant knowledge files by topic (supports AND/OR, project expansion) |
 | /index | Rebuild the tag-based knowledge index with cross-references |
 | /rules [number] | Look up a working rule by number or keyword |
@@ -5597,8 +5977,8 @@ Print the command reference table. No config or file access needed.
 | /codemap [mode] | Feature-organized CODEMAP.md for any codebase (create/inventory/update/section) |
 | /distill [text or path] | Tiered task spec from raw text; optional --group for CODEMAP-loaded context |
 | /stitch <mode> <group> | Cross-repo binding (auth/endpoints/entities/drift) for a product group |
-| /wrapup | End-of-session handoff — update PROGRESS/CLAUDE.md, prompt for commit, verify continuity |
-| /handoff [auto\|brief] | Express handoff — same coverage as /wrapup, one combined-go review (or `auto` for silent), always emits a paste-ready next-session opener. `brief` mode produces a copy/paste coworker brief (Hey [coworker]-style prose, 80-150 words) instead of next-session opener — no PROGRESS/CLAUDE/memory/commit/extract side effects |
+| /wrapup [auto\|snap] | End-of-session close-out — update PROGRESS/CLAUDE.md, prompt for commit, verify continuity. `auto` runs silently; `snap` runs like auto but archives the transcript via /snapshot for later extraction instead of /extract (use when context is high) |
+| /handoff [auto\|brief\|snap] | Express handoff — same coverage as /wrapup, one combined-go review (or `auto` for silent), always emits a paste-ready next-session opener. `brief` mode produces a copy/paste coworker brief (Hey [coworker]-style prose, 80-150 words) instead of next-session opener — no PROGRESS/CLAUDE/memory/commit/extract side effects. `snap` mode runs like auto but archives the transcript via /snapshot for later extraction instead of /extract (use when context is high) |
 | /snapshot | On-demand task-boundary capture (git + hook state) to intake/task-boundary-captures/ |
 | /statusline [on\|off\|status] | Install/remove the CLI status-line meter — context-window bar + 5h/7d plan-usage % (Claude Code only) |
 | /help | This command reference |
@@ -5615,12 +5995,15 @@ These are recommendations only — ARIA does not force a model. Switch per sessi
 | /audit-knowledge | Highest-capability Opus, medium-to-high effort | Cross-references backlogs against the promoted index, decides promotion vs. discard, detects emerging themes. |
 | /audit-config | Highest-capability Opus, medium-to-high effort | Reads across AGENTS.md files and configs to detect drift and broken references. |
 | /retrospect | Highest-capability Opus, medium-to-high effort | Multi-stage judgment per fix: validation status assignment, simpler-alternative identification, hypothesis generation, failure-mode pattern matching, action verdict synthesis. Highest leverage from stronger models. |
+| /foundational-review, /readiness-audit | Highest-ceiling available (Fable at extreme stakes, else Opus), xhigh effort | The reviewer model is spent on alternatives-steelmanning, portfolio/product judgment, and the irreversibility inventory; semi-agentic read-trace-reason loop benefits from xhigh. Executor tasks the chain emits route to Opus by default. |
 | /ask | Highest-capability Opus, medium-to-high effort (ambiguous topics) or Sonnet (mid-tier) for scoped lookups | Research + draft + categorize. Drop to Sonnet when the question is narrow. |
 | /codemap create | Highest-capability Opus (large-context variant preferred) | Full-repo traversal benefits from a large context window so sections aren't truncated mid-generation. |
 | /codemap update, /codemap section, /wrapup, /handoff, /intake, /distill, /stitch | Sonnet (mid-tier), medium effort | Structured work with clear prescribed output. |
 | /index, /stats, /backlog, /rules, /context, /clip, /snapshot, /statusline, /help, /setup | Sonnet (mid-tier), low effort | Mechanical or retrieval-only — higher models add no measurable lift. |
 
 Always pick the latest release within each tier — ARIA pins capability *tiers*, not version numbers, so this guidance survives model updates.
+
+`Fable` (displayed "Fable 5") is the tier above Opus. Its edge is raw capability/judgment, **not** context size — Fable and Opus share the same 1M-token window. Treat it as a step-up only for the most judgment-heavy, high-stakes runs where a wrong or shallow answer is costly (`/extract`, `/audit-knowledge`, `/retrospect` on genuinely hard sessions). It costs ~2× Opus, so reach for it when difficulty — not data volume — justifies the spend; the Opus rows otherwise stand. (Note: the "large-context variant preferred" qualifier on `/codemap create` above is legacy — any current top-tier model, Opus 4.8 included, already carries the 1M window, so full-repo traversal no longer needs a special variant.)
 
 Any model below Sonnet-equivalent capability is not recommended for any ARIA skill — the judgment/cross-reference demands exceed its strengths.
 

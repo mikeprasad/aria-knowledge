@@ -29,7 +29,7 @@ auto_retrospect: off
 retrospect_min_commits: 3
 retrospect_branches: main,master,production
 usage_alert_threshold: off
-last_setup_version: 2.24.2-cursor.0
+last_setup_version: 2.30.0-cursor.0
 ---
 
 # ARIA Knowledge Configuration (Cursor Port)

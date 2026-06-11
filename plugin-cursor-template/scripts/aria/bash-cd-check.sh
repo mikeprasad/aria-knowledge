@@ -1,28 +1,22 @@
 #!/bin/sh
-# bash-cd-check.sh — beforeShellExecution hook for Cursor (port of PreToolUse:Bash)
+# bash-cd-check.sh — PreToolUse:Bash hook for aria-knowledge
 # Detects `cd <path>` invocations (including in compound commands), derives
 # a tag query from the destination path's basename(s), and surfaces matched
 # knowledge files via the shared lib-index-match.sh helper.
-#
-# Cursor port notes:
-#   - Cursor payload uses camelCase (sessionId, command); fallback to snake_case during testing.
-#   - Output uses agentMessage rather than systemMessage / additionalContext.
 #
 # Scope: knowledge-surfacing only. Does NOT block the cd. Does NOT validate
 # the path. Returns silently (exit 0, no output) on any unfit input —
 # non-cd commands, paths we can't parse, no index, threshold not met.
 #
-# Cooldown: per-project-per-session via /tmp/aria-bashcd-{sessionId}-{key}
+# Cooldown: per-project-per-session via /tmp/aria-bashcd-{session_id}-{key}
 # so repeated cd into the same project doesn't re-prompt.
 #
 # Ledger: in active mode, surfaced paths get appended to /tmp/aria-active-
-# {sessionId} for cross-trigger dedup (read by task-context-check).
+# {session_id} for cross-trigger dedup (read by post-compact, filtered by
+# task-context).
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$SCRIPT_DIR/config.sh"
-
-# Debug log: confirms hook fires (Cursor port verification)
-echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) $0 fired" >> /tmp/aria-hook-debug.log 2>/dev/null
 
 # Skip if not configured, config invalid, or knowledge folder missing.
 if [ "$KT_CONFIGURED" = "false" ] || [ -n "$KT_CONFIG_ERROR" ]; then
@@ -37,7 +31,7 @@ fi
 
 INPUT=$(cat)
 
-# Extract the Bash/shell command. We pull the command field from the JSON input.
+# Extract the Bash command. We pull the command field from the JSON input.
 COMMAND=$(echo "$INPUT" | grep -o '"command":"[^"]*"' | head -1 | sed 's/"command":"//;s/"$//')
 [ -z "$COMMAND" ] && exit 0
 
@@ -76,9 +70,8 @@ QUERY="$PARENT $LAST"
 QUERY=$(printf '%s' "$QUERY" | sed 's/^ *//;s/ *$//')
 [ -z "$QUERY" ] && exit 0
 
-# Session id for cooldown + ledger — Cursor uses camelCase; fallback to snake_case
-SESSION_ID=$(echo "$INPUT" | grep -o '"sessionId":"[^"]*"' | head -1 | sed 's/"sessionId":"//;s/"//')
-[ -z "$SESSION_ID" ] && SESSION_ID=$(echo "$INPUT" | grep -o '"session_id":"[^"]*"' | head -1 | sed 's/"session_id":"//;s/"//')
+# Session id for cooldown + ledger
+SESSION_ID=$(echo "$INPUT" | grep -o '"session_id":"[^"]*"' | head -1 | sed 's/"session_id":"//;s/"//')
 [ -z "$SESSION_ID" ] && exit 0
 
 # Per-project-per-session cooldown — same project shouldn't re-prompt.
@@ -133,15 +126,15 @@ if [ "$KT_ACTIVE_SURFACING" = "true" ] && [ "$KT_ARTIFACTS_COUNT" -gt 0 ]; then
   kt_artifact_record_ledger "$LEDGER"
 fi
 
-# Emit via agentMessage — does not block the cd, just adds context for the
-# agent's next turn. Branch wording on active mode + presence.
+# Emit via additionalContext (PreToolUse) — does not block the cd, just adds
+# context for Claude's next turn. Branch wording on active mode + presence.
 COMBINED_MSG=""
 
 if [ "$KT_MATCH_COUNT" -gt 0 ]; then
   if [ "$KT_ACTIVE_SURFACING" = "true" ]; then
     COMBINED_MSG="ARIA ACTIVE — switching into ${LAST} (tags matched: ${KT_MATCH_TAGS}). Read these ${KT_MATCH_COUNT} knowledge file(s) before exploring the new directory, then summarize what loaded in 1-2 sentences: ${FILE_LIST}. (Recorded to session ledger.) "
   else
-    COMBINED_MSG="ARIA: Detected cd into ${LAST}. ${KT_MATCH_COUNT} relevant knowledge file(s) match tags: ${KT_MATCH_TAGS}. ${FILE_LIST}. Ask 'load knowledge about ${KT_MATCH_TAGS}' to load, or proceed without. "
+    COMBINED_MSG="ARIA: Detected cd into ${LAST}. ${KT_MATCH_COUNT} relevant knowledge file(s) match tags: ${KT_MATCH_TAGS}. ${FILE_LIST}. Run /context ${KT_MATCH_TAGS} to load, or proceed without. "
   fi
 fi
 
@@ -151,4 +144,4 @@ if [ "$KT_ARTIFACTS_COUNT" -gt 0 ]; then
 fi
 
 MSG=$(kt_json_escape "$COMBINED_MSG")
-printf '{"agentMessage":"%s"}\n' "$MSG"
+echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","additionalContext":"'"$MSG"'"}}'

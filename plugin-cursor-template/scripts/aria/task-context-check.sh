@@ -1,18 +1,9 @@
 #!/bin/sh
-# task-context-check.sh — stop hook for Cursor (approximate port of TaskCreated)
-# Checks knowledge index for tags matching the new task and surfaces relevant files.
-#
-# Cursor port notes:
-#   - Cursor payload uses camelCase (sessionId); fallback to snake_case during testing.
-#   - Output uses agentMessage rather than systemMessage.
-#   - Cursor has no TaskCreated equivalent; this fires on `stop` (agent completion).
-#     AGENTS.md instructs the agent to self-trigger context lookup at task statement.
+# task-context-check.sh — TaskCreated hook for aria-knowledge
+# Checks knowledge index for tags matching the new task and surfaces relevant files
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$SCRIPT_DIR/config.sh"
-
-# Debug log: confirms hook fires (Cursor port verification)
-echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) $0 fired" >> /tmp/aria-hook-debug.log 2>/dev/null
 
 # Skip if not configured or config invalid
 if [ "$KT_CONFIGURED" = "false" ] || [ -n "$KT_CONFIG_ERROR" ]; then
@@ -32,9 +23,8 @@ fi
 # Read hook input from stdin
 INPUT=$(cat)
 
-# Extract sessionId for cooldown — Cursor camelCase with snake_case fallback
-SESSION_ID=$(echo "$INPUT" | grep -o '"sessionId":"[^"]*"' | head -1 | sed 's/"sessionId":"//;s/"//')
-[ -z "$SESSION_ID" ] && SESSION_ID=$(echo "$INPUT" | grep -o '"session_id":"[^"]*"' | head -1 | sed 's/"session_id":"//;s/"//')
+# Extract session_id for cooldown
+SESSION_ID=$(echo "$INPUT" | grep -o '"session_id":"[^"]*"' | head -1 | sed 's/"session_id":"//;s/"//')
 if [ -z "$SESSION_ID" ]; then
   exit 0
 fi
@@ -58,12 +48,9 @@ if [ ! -f "$INDEX_FILE" ]; then
   exit 0
 fi
 
-# Extract task subject and description (Cursor may not provide these on `stop`;
-# fields are best-effort and the hook silently no-ops if absent)
-TASK_SUBJECT=$(echo "$INPUT" | grep -o '"taskSubject":"[^"]*"' | head -1 | sed 's/"taskSubject":"//;s/"//')
-[ -z "$TASK_SUBJECT" ] && TASK_SUBJECT=$(echo "$INPUT" | grep -o '"task_subject":"[^"]*"' | head -1 | sed 's/"task_subject":"//;s/"//')
-TASK_DESCRIPTION=$(echo "$INPUT" | grep -o '"taskDescription":"[^"]*"' | head -1 | sed 's/"taskDescription":"//;s/"//')
-[ -z "$TASK_DESCRIPTION" ] && TASK_DESCRIPTION=$(echo "$INPUT" | grep -o '"task_description":"[^"]*"' | head -1 | sed 's/"task_description":"//;s/"//')
+# Extract task subject and description
+TASK_SUBJECT=$(echo "$INPUT" | grep -o '"task_subject":"[^"]*"' | head -1 | sed 's/"task_subject":"//;s/"//')
+TASK_DESCRIPTION=$(echo "$INPUT" | grep -o '"task_description":"[^"]*"' | head -1 | sed 's/"task_description":"//;s/"//')
 
 # Delegate tokenize→match→collect to the shared helper. Threshold (≥2 tags)
 # and emission cap (5 files) are policy enforced by the helper; cooldown,
@@ -121,7 +108,7 @@ if [ "$KT_MATCH_COUNT" -gt 0 ]; then
   if [ "$KT_ACTIVE_SURFACING" = "true" ]; then
     COMBINED_MSG="ARIA ACTIVE — ${KT_MATCH_COUNT} knowledge file(s) match this task (tags: ${KT_MATCH_TAGS}). Read each, then summarize what loaded in 1-2 sentences before composing the subagent prompt or proceeding. Files: ${FILE_LIST}. (Recorded to session ledger — won't re-surface.) "
   else
-    COMBINED_MSG="ARIA: Found ${KT_MATCH_COUNT} relevant knowledge file(s) matching tags: ${KT_MATCH_TAGS}. ${FILE_LIST}. Ask 'load knowledge about ${KT_MATCH_TAGS}' to load, or proceed without. "
+    COMBINED_MSG="ARIA: Found ${KT_MATCH_COUNT} relevant knowledge file(s) matching tags: ${KT_MATCH_TAGS}. ${FILE_LIST}. Run /context ${KT_MATCH_TAGS} to load, or proceed without. "
   fi
 fi
 
@@ -130,4 +117,4 @@ if [ "$KT_ARTIFACTS_COUNT" -gt 0 ]; then
 fi
 
 MSG=$(kt_json_escape "$COMBINED_MSG")
-printf '{"agentMessage":"%s"}\n' "$MSG"
+echo '{"systemMessage":"'"$MSG"'"}'

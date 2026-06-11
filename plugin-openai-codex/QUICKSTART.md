@@ -63,6 +63,8 @@ With an index built, ARIA surfaces trusted knowledge automatically and the refre
 | `/codemap [mode]` | Generate or update a feature-organized codebase map |
 | `/prospect [scope]` | Run a pre-execution plan review |
 | `/retrospect [scope]` | Run a post-execution retrospective |
+| `/readiness-audit <scope> --for "<event>"` | Audit a surface for release, public flip, or handover readiness |
+| `/foundational-review <scope> --decision "<decision>"` | Review whether a major irreversible decision is sound |
 | `/help` | Command reference |
 
 ## Configuration

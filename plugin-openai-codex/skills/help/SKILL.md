@@ -22,6 +22,8 @@ Print the command reference table. No config or file access needed.
 | /audit-config (alias: /config-audit) | Check project configs and docs for drift and broken references |
 | /retrospect [<scope>] [<scope-arg>] | Structured retrospective on a commit, range, PR, release, deployment, or session — per-fix validation, simpler-alternative discipline, re-diagnosis, action verdicts, failure-mode pattern check |
 | /prospect [<scope>] [<scope-arg>] | Structured pre-mortem on a plan, task, branch, file, ticket, or session before execution |
+| /readiness-audit <scope-root> --for "<event>" | Readiness audit for release, public flip, handover, or other ship-readiness events; verifies every finding with evidence and phases remediation |
+| /foundational-review <scope-root> --decision "<decision>" | Foundational review before an irreversible decision; produces verdict, premises, irreversibility inventory, specs, prospect-hardened plans, and kickoff |
 | /context [tags] | Load relevant knowledge files by topic (supports AND/OR, project expansion) |
 | /index | Rebuild the tag-based knowledge index with cross-references |
 | /rules [number] | Look up a working rule by number or keyword |
@@ -50,7 +52,7 @@ These are recommendations only — ARIA does not force a model. In Codex, choose
 | /extract | Highest-capability Codex model, medium-to-high effort | Judgment-heavy: distinguishing reusable signal from ephemeral noise, writing non-obvious Why/How-to-apply lines. |
 | /audit-knowledge | Highest-capability Codex model, high effort | Cross-references backlogs against the promoted index, decides promotion vs. discard, detects emerging themes. |
 | /audit-config | Highest-capability Codex model, medium-to-high effort | Reads across AGENTS/CLAUDE docs and configs to detect drift and broken references. |
-| /prospect, /retrospect | Highest-capability Codex model, high or xhigh effort | Multi-stage judgment: validation status assignment, simpler-alternative identification, hypothesis generation, failure-mode pattern matching, action verdict synthesis. |
+| /prospect, /retrospect, /readiness-audit, /foundational-review | Highest-capability Codex model, high or xhigh effort | Multi-stage judgment: validation status assignment, simpler-alternative identification, hypothesis generation, failure-mode pattern matching, action verdict synthesis, and decision-quality review. |
 | /ask | Highest-capability Codex model, medium-to-high effort for ambiguous topics; current default Codex model for scoped lookups | Research + draft + categorize. Drop effort when the question is narrow. |
 | /codemap create | Highest-capability Codex model, high effort | Full-repo traversal needs sustained context and synthesis so sections aren't truncated mid-generation. |
 | /codemap update, /codemap section, /wrapup, /handoff, /intake, /distill, /stitch | Current default Codex model, medium effort | Structured work with clear prescribed output. |

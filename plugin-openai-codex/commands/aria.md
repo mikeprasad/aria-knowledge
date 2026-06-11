@@ -10,6 +10,8 @@ Use ARIA Knowledge in Codex.
 - `run aria knowledge audit` - review backlogs and promote knowledge
 - `run aria prospect on this plan` - review a plan before execution
 - `run aria retrospect on this branch` - review a shipped or drafted change set
+- `run aria readiness audit for this release` - audit whether a surface is clean to ship
+- `run aria foundational review for this decision` - review whether an irreversible decision is sound
 - `run aria wrapup` - produce an end-of-session handoff
 
 ## Codex Notes

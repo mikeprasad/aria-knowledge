@@ -77,4 +77,21 @@ printf '2.0.0\n' > "$ROOT_AG/plugin-antigravity/version.txt"
 PORT_LEDGER="$LEDGER_AG" PORT_LEDGER_ROOT="$ROOT_AG" sh "$SCRIPT" --quiet \
   || fail "matching version pair should be clean"
 
+# ---------------------------------------------------------------------------
+# Part D — port prerelease suffixes do not create false version lag
+# ---------------------------------------------------------------------------
+ROOT_V="$TMP/v"; mkdir -p "$ROOT_V"
+LEDGER_V="$TMP/ledger-v.json"
+cat > "$LEDGER_V" <<'JSON'
+{
+  "openai-codex":{"version":"2.30.0-codex.0","parity_target":"2.30.0","last_parity_pass":"2026-06-11","sla":"undeclared","surfaces":{}},
+  "cursor-template":{"version":"2.30.0-cursor.0","parity_target":"2.30.0","last_parity_pass":"2026-06-11","sla":"undeclared","surfaces":{}},
+  "someport":{"version":"1.0.0","parity_target":"2.0.0","last_parity_pass":"2026-06-11","sla":"undeclared","surfaces":{}}
+}
+JSON
+outv=$(PORT_LEDGER="$LEDGER_V" PORT_LEDGER_ROOT="$ROOT_V" sh "$SCRIPT")
+printf '%s' "$outv" | grep -q "openai-codex.*lag" && fail "codex prerelease suffix produced false lag"
+printf '%s' "$outv" | grep -q "cursor-template.*lag" && fail "cursor prerelease suffix produced false lag"
+printf '%s' "$outv" | grep -q "someport.*lag" || fail "real version lag should still be reported"
+
 echo "PASS port-drift-check"
