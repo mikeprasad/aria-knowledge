@@ -1,6 +1,6 @@
 ---
 name: audit-share
-description: "Review personal ARIA knowledge for promotion to team-shared _project-knowledge folders. Trigger on /audit-share, share knowledge, promote to team, or sync shared knowledge."
+description: "Review personal ARIA knowledge for promotion to team-shared _project-knowledge folders. Trigger on /audit-share, /share-audit, share knowledge, promote to team, or sync shared knowledge."
 argument-hint: ""
 allowed-tools: Read, Glob, Grep, Write, Edit, Bash
 ---

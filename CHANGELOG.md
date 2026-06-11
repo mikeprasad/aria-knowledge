@@ -12,6 +12,7 @@ All notable changes to ARIA will be documented in this file.
 - **Drift checker:** `check-port-drift.sh` normalizes `-codex.N` and `-cursor.N` prerelease suffixes when comparing a port version against its canonical parity target, avoiding false `lag` rows for parity-aligned port releases.
 - **Tests:** Codex port suite expanded to assert the review skills ship, ADR-094 gates do not leak, `/aria-assist` remains documented as non-equivalent, and statusline remains documented as non-equivalent. Focused `port-drift-check.sh` repro covers prerelease suffix normalization.
 - **Build:** `./release-codex.sh` produced `aria-knowledge-codex-2.30.0.zip` plus stable alias `aria-knowledge-codex.zip` (149 files, tests excluded).
+- **Remove the alias skills across all ports** (`/knowledge-audit`, `/config-audit`, `/share-audit` — pure aliases of `/audit-knowledge` / `/audit-config` / `/audit-share`). They charged every session's skill-discovery surface for zero capability. The slash-forms still route — folded into each canonical audit skill's description trigger list (`Also invoked as '/knowledge-audit'.`) — so muscle memory is preserved; only the separate skill dirs are gone. Canonical surface 17,979 → 17,458 B; cowork summed descriptions → 8,489 (under the 8,500 warn). Antigravity + cursor regenerated from canonical; codex folded in-port. Same version numbers (folded into this release, no bump).
 
 ## Cursor port 2.30.0-cursor.0 — 2026-06-11
 

@@ -1,5 +1,5 @@
 ---
-description: "Scan Claude memory and plans for extractable knowledge. Use when user asks for 'knowledge audit', 'audit knowledge', 'check for extractable knowledge', 'scan memory', or at session start when audit cadence is exceeded. (Claude Code variant — bare-slash canonical when both ports loaded; see ADR-094.)"
+description: "Scan Claude memory and plans for extractable knowledge. Use when user asks for 'knowledge audit', 'audit knowledge', 'check for extractable knowledge', 'scan memory', or at session start when audit cadence is exceeded. Also invoked as '/knowledge-audit'. (Claude Code variant — bare-slash canonical when both ports loaded; see ADR-094.)"
 argument-hint: "[detailed]"
 allowed-tools: Read, Glob, Grep, Write, Edit, Bash
 ---

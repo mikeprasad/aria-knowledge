@@ -1,6 +1,6 @@
 ---
 name: audit-config
-description: "Audit ARIA configuration and project documentation for drift, stale references, broken links, and setup issues. Trigger on /audit-config, config audit, docs audit, or check setup."
+description: "Audit ARIA configuration and project documentation for drift, stale references, broken links, and setup issues. Trigger on /audit-config, /config-audit, config audit, docs audit, or check setup."
 argument-hint: ""
 allowed-tools: Read, Glob, Grep, Write, Edit, Agent
 ---

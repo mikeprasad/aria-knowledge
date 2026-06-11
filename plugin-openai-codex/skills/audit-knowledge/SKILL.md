@@ -1,6 +1,6 @@
 ---
 name: audit-knowledge
-description: "Run an ARIA knowledge audit: review intake backlogs, memory, plans, ideas, rules, CODEMAP/STITCH freshness, and promotion candidates. Trigger on /audit-knowledge or knowledge audit."
+description: "Run an ARIA knowledge audit: review intake backlogs, memory, plans, ideas, rules, CODEMAP/STITCH freshness, and promotion candidates. Trigger on /audit-knowledge, /knowledge-audit, or knowledge audit."
 argument-hint: "[detailed]"
 allowed-tools: Read, Glob, Grep, Write, Edit, Bash
 ---
