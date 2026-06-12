@@ -18,6 +18,10 @@
 #
 # All operations are fail-safe: any error is swallowed so the host hook never
 # blocks an edit or errors out.
+#
+# Contract conformance: the SESSION.md shape written here is pinned to the canonical
+# fixtures at tests/fixtures/session-contract-vendored/ (owned by aria-atlas); see
+# that dir's VENDORED-FROM.md, and tests/repros/session-state.sh §H which asserts it.
 
 # Walk up from the edited file's directory to the nearest project root.
 kt_ss_find_root() {

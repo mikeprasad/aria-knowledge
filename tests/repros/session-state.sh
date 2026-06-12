@@ -104,5 +104,40 @@ got=$(HOME="$TMP/home" kt_ss_find_root "$TMP/home/Projects/loose-file.ts")
 got=$(HOME="$TMP/home" kt_ss_find_root "$TMP/home/Projects/proj/src/app.ts")
 [ "$got" = "$TMP/home/Projects/proj" ] && ok "G real sub-project still resolves" || bad "G sub-project" "got '$got' want '$TMP/home/Projects/proj'"
 
+# --- H: SESSION.md contract conformance against vendored fixtures ---
+# The canonical contract fixtures are OWNED by aria-atlas (the consumer) and
+# vendored here verbatim (tests/fixtures/session-contract-vendored/). This pins
+# the producer (lib-session-state.sh) to the contract: the header keys it emits
+# must all be declared by the canonical in-progress fixture, the three lifecycle
+# lastEvent values must match the fixtures' enum, and the body heading must match.
+# (A byte-diff is intentionally too strict — bodies differ by content; the
+# contract is header keys + state enum + heading names.)
+VEND="$REPO_ROOT/tests/fixtures/session-contract-vendored"
+hdr_keys() { awk 'NR>1 && /^---$/{exit} /^[A-Za-z][A-Za-z]*:/{sub(/:.*/,""); print}' "$1" | sort -u; }
+
+if [ -d "$VEND" ] && [ -f "$VEND/in-progress.SESSION.md" ]; then
+  # H1: every header key the producer emits is declared by the in-progress fixture.
+  mkdir -p "$TMP/h"
+  : > "$TMP/h/CLAUDE.md"
+  ( cd "$TMP/h" && git init -q && git config user.email t@t && git config user.name t && git commit -q --allow-empty -m init ) 2>/dev/null
+  kt_ss_mark_inprogress "$TMP/h" "sess-h" "mipr"
+  fixture_keys=$(hdr_keys "$VEND/in-progress.SESSION.md")
+  missing=""
+  for k in $(hdr_keys "$TMP/h/SESSION.md"); do
+    printf '%s\n' "$fixture_keys" | grep -qx "$k" || missing="$missing $k"
+  done
+  [ -z "$missing" ] && ok "H1 producer header keys subset of contract fixture keys" || bad "H1 header-keys" "undeclared:$missing"
+
+  # H2: the three lifecycle lastEvent values == the three the fixtures enumerate.
+  enum=$(grep -hE '^lastEvent: (in-progress|wrapup|handoff)$' "$VEND"/*.SESSION.md | sed 's/^lastEvent: //' | sort -u | tr '\n' ' ')
+  [ "$enum" = "handoff in-progress wrapup " ] && ok "H2 lifecycle enum matches fixtures (in-progress/wrapup/handoff)" || bad "H2 enum" "got '$enum'"
+
+  # H3: the body heading the producer writes is part of the contract fixture shape.
+  grep -q '## Where we left off' "$TMP/h/SESSION.md" && grep -q '## Where we left off' "$VEND/in-progress.SESSION.md" \
+    && ok "H3 body heading matches contract" || bad "H3 heading" "'## Where we left off' mismatch"
+else
+  bad "H vendored-fixtures" "missing $VEND/in-progress.SESSION.md"
+fi
+
 printf "\n%d passed, %d failed\n" "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
