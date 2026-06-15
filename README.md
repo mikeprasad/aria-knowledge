@@ -176,19 +176,63 @@ ARIA is designed to improve context efficiency over time, not guarantee lower to
 
 The goal is not fewer tokens overall — it is fewer tokens spent re-learning the same things, and more tokens applying trusted knowledge to the next task, decision, and code change.
 
+## Recommended Setup
+
+`/setup` runs ARIA with safe defaults. Below is the maintainer's own setup — the low-effort, high-outcome way ARIA is meant to be used day to day. All settings live in `~/.claude/aria-knowledge.local.md` and can change any time.
+
+### Folder layout
+
+Keep a single **`Projects/`** folder with your **`knowledge/` folder inside it** and **every project as a sibling** underneath:
+
+```
+Projects/
+├── knowledge/          ← ARIA's corpus (back this up / version-control it)
+├── project-a/
+├── project-b/
+└── ...
+```
+
+Run `/setup` with **projects enabled** and map each project in `projects_list`. This one-time layout is what makes `/context <tag>`, project-scoped knowledge, and CODEMAP/STITCH surfacing "just work" — knowledge is routed to the right project automatically instead of pooling into one undifferentiated heap.
+
+### A session, start to finish
+
+1. **Start at the `Projects/` folder level**, naming the project: `project-name` — or **`project-name handoff`** if you're continuing from a previous session (ARIA resumes from the `SESSION.md` it wrote last time).
+2. **Spec & plan with [Superpowers](https://github.com/obra/superpowers)**, then **`/prospect`** the plan before executing. Superpowers brings the planning discipline; ARIA's pre-mortem catches the ~3-in-4 plans that need a correction before any code lands.
+3. **Execute.** Rule 22 runs on every edit automatically — no action needed.
+4. **`/retrospect`** after big or critical executions (auth, migrations, releases, anything with asymmetric cost). Skip it for trivial changes — match the ceremony to the risk.
+5. **Close the session:**
+   - **`/handoff auto`** if work continues next session — runs the full close-out (PROGRESS / CLAUDE / memory / commit) plus a paste-ready next-session opener, and captures knowledge via `/extract`. Silent, one command.
+   - **`/wrapup auto`** if there's nothing to carry forward — same close-out, no handoff opener.
+
+### Keep the corpus healthy
+
+ARIA's value compounds only if the knowledge stays signal-dense:
+
+- **`/audit-knowledge` + `/index`** regularly — about **weekly, or every 25+ sessions**. This promotes staged captures into the reviewed corpus and rebuilds the tag index. A corpus that's captured but never promoted is just noise with extra steps.
+- **`/audit-config`** occasionally — catches drift and stale references in your setup and CLAUDE.md files.
+
+ARIA prompts you on these cadences (`audit_cadence_knowledge`, `audit_cadence_config`) — don't dismiss them indefinitely.
+
+### Worth enabling
+
+- **`active_knowledge_surfacing: true`** (default) — surfaces relevant knowledge before plans and edits.
+- **`/statusline`** — context-window + 5-hour / 7-day usage meter; worth it for long or back-to-back sessions.
+- **`auto_prospect: nudge` + `auto_retrospect: nudge`** — surface the `/prospect` step when you write a plan to `docs/plans/`, and the `/retrospect` step after a qualifying push, so the disciplines become prompts rather than things to remember. Start with `nudge` before `run`.
+- **Obsidian** — open `knowledge/` as a vault for graph navigation. See [Works Well With Obsidian](#works-well-with-obsidian).
+
 ## Model Recommendations
 
 ARIA skills vary in how much they benefit from stronger models. These are recommendations only — nothing is enforced.
 
-- **Opus 4.6 (1M context), medium-to-high effort** — `/extract`, `/audit-knowledge`, `/audit-config`. Judgment-heavy skills where a weaker model over-captures (backlog noise) or under-captures (misses non-obvious feedback).
-- **Opus 4.6 (1M context) minimum** — `/codemap create`. Full-repo traversal needs the large context window.
+- **Opus-tier (1M context), high effort** — `/extract`, `/audit-knowledge`, `/audit-config`, `/foundational-review`, `/prospect`, `/retrospect`. Judgment-heavy skills where a weaker model over-captures (backlog noise) or under-captures (misses non-obvious feedback). Opus 4.8 is the current default.
+- **Opus-tier (1M context) minimum** — `/codemap create`. Full-repo traversal needs the large context window.
 - **Sonnet 4.6** — `/codemap update/section`, `/wrapup`, `/intake`, `/ask`, `/distill`, `/stitch`, and all lightweight skills. Structured or retrieval-only work — higher models add no measurable lift.
 
-Haiku is not recommended for any ARIA skill. Run `/help` for the full table.
+Haiku is not recommended for any ARIA skill. The runtime is model-agnostic (statusline reads the live model name; usage/context hooks are percentage-based), so these are guidance, not gates. Run `/help` for the full table.
 
-### Opus 4.7: batch manifests for multi-file work
+### Batch manifests for multi-file work
 
-Under Opus 4.7's tokenizer (1.0–1.35× inflation vs 4.6) and adaptive thinking token budgets, multi-file refactors benefit from declaring a **batch manifest** via `/distill` with the group loader. A batch manifest compresses each in-scope file's Rule 22 assessment to the `[Rule 22 · Batch N/M]` marker, preserving enforcement while significantly reducing per-edit token cost. Structural signals (auth, migration, model, routing, external-service paths) still override the batch low-impact declaration automatically. For 3+ file refactors, declare a batch manifest before starting edits.
+On the current Opus tier, multi-file refactors benefit from declaring a **batch manifest** via `/distill` with the group loader. A batch manifest compresses each in-scope file's Rule 22 assessment to the `[Rule 22 · Batch N/M]` marker, preserving enforcement while significantly reducing per-edit token cost. Structural signals (auth, migration, model, routing, external-service paths) still override the batch low-impact declaration automatically. For 3+ file refactors, declare a batch manifest before starting edits.
 
 ## Known Issues
 
