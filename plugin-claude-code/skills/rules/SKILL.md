@@ -1,5 +1,5 @@
 ---
-description: "Quick lookup into working rules. Use when user says '/rules', '/rules 22', '/rules dependencies', 'look up rule about...', 'what rule covers...', or references a specific rule number. (Claude Code variant — bare-slash canonical when both ports loaded; see ADR-094.)"
+description: "Quick lookup into working rules. Use when user says '/rules', '/rules 22', '/rules dependencies', 'look up rule about...', 'what rule covers...', or references a specific rule number. (Code port — ADR-094.)"
 argument-hint: "[number or keyword]"
 allowed-tools: Read, Grep
 ---

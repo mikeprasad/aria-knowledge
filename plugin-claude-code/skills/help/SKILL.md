@@ -1,5 +1,5 @@
 ---
-description: "Show available aria-knowledge commands. Use when user says '/help', 'aria help', 'what commands are available', 'list commands', 'what can aria do'. (Claude Code variant — bare-slash canonical when both ports loaded; see ADR-094.)"
+description: "Show available aria-knowledge commands. Use when user says '/help', 'aria help', 'what commands are available', 'list commands', 'what can aria do'. (Code port — ADR-094.)"
 argument-hint: ""
 allowed-tools:
 ---

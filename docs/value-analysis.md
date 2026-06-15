@@ -1,12 +1,14 @@
 # ARIA Value Analysis — Evidence Digest
 
-**Last updated:** 2026-06-06 · **Plugin version analyzed:** v2.25.0 (cost surface re-measured at v2.25.1) · **Evidence base:** N=1 (plugin author's projects)
+**Last updated:** 2026-06-15 · **Plugin version analyzed:** v2.30.1 · **Evidence base:** N=1 (plugin author's projects)
 
 This document summarizes measured and estimated evidence for whether ARIA is *objectively valuable* when added to Claude Code. It accompanies the [README](../README.md)'s "Evidence and limits" framing with concrete numbers.
 
 > **Limits up front:** All evidence below is from the plugin author's own multi-project work, run on high-capability reasoning models (historically Opus 4.7 High; recent sessions span into Opus 4.8). No controlled A/B study, no inter-developer variance data, no cross-model comparison. Treat these as **calibration anchors for high-capability reasoning models**, not universal claims — results on lower-tier models may differ.
 
-> **What changed since the 2026-05-19 (v2.18.x) revision:** the corpus is now 10–13× larger (183 `/prospect` logs and 68 `/retrospect` logs vs 14 and 15). The headline plan-quality claim *held up* under the larger sample and is now far more robust. Three things needed honest correction: (1) the **total per-session fixed cost drifted ~1.6× higher for all users** (~3,150 → ~5,000 tokens), split across *both* fixed surfaces — the skill-discovery surface grew ~1.4× (~2,700 → ~3,875 tokens; more skills, not bytes-per-skill) and the SessionStart guidance block grew ~2.4× (~450 → ~1,100 tokens; more always-on guidance bytes as features shipped). The 1.6× is the combined figure; the "guidance bytes" cause applies only to the SessionStart component. (v2.25.1 has since trimmed the SessionStart block ~11% — reflected below.) (2) the "only 1 of 14 plans was clean" framing was small-sample noise — on the larger sample (n=171) the clean-pass rate is ~20% (35 of 171) and *rising over time*; (3) the retrospect-outcome finding was reframed (see finding #3). Where larger samples revealed a time trend, it is reported with its confounds named.
+> **What changed since the 2026-06-06 (v2.25.x) revision:** the corpus grew again — **282 `/prospect` logs and 101 `/retrospect` logs** (vs 171 and 68; +65% and +49%). Every headline held up under the larger sample and is now more robust still. Three things moved: (1) the headline **PROCEED-WITH-CHANGES rate settled at 74.5%** (210 of 282), within noise of the prior 76.6% — the "~3/4 of plans need pre-execution correction" claim is now anchored on a ~20× sample vs the original v2.18.x cohort of 14; (2) the **improving-cleanliness trend strengthened** — clean first-pass rose to ~28% (June) and outright kills fell to ~1%, while retrospect "closed" outcomes became a clear plurality (54% overall, ~68% in June); (3) the **per-session fixed cost drifted up to ~5,470 tokens at v2.30.0** (~5,000 → ~5,470) — entirely on the skill-discovery surface (~3,875 → ~4,364 tok), driven by v2.29.0's two verbose review skills (`/foundational-review`, `/readiness-audit`), *not* bytes-per-skill creep (skill count actually fell 32 → 31) — then **v2.30.1 deliberately trimmed it back to ~4,990 tokens** by relocating non-dispatch bytes (the repeated ADR-094 parenthetical + two skills' internal pipeline narration) out of skill descriptions into skill bodies, cutting the skill-discovery surface ~4,364 → ~3,884 tok with zero capability loss. The SessionStart floor held flat throughout (~1,100 → ~1,107 tok) — the v2.25.1 trim stuck. Where larger samples revealed a time trend, it is reported with its confounds named.
+>
+> *(Prior lineage, retained for the decision trail: the v2.18.x → v2.25.x revision grew the corpus 10–13× and corrected the per-session fixed cost ~1.6× upward (~3,150 → ~5,000 tok) plus retired a small-sample "only 1 of 14 was clean" artifact. v2.25.1 trimmed the SessionStart block ~11%.)*
 
 ---
 
@@ -15,9 +17,9 @@ This document summarizes measured and estimated evidence for whether ARIA is *ob
 | Question | Answer |
 |---|---|
 | **What's the core value?** | **Better code, fewer errors, fewer turns.** Higher accuracy + better reasoning + early error catching, compounding into less rework. Without ARIA, the same errors get shipped, then debugged, then re-fixed, then re-verified — each cycle is multiples of the token cost of catching it pre-execution. |
-| **Does ARIA measurably improve Claude Code's output?** | **Yes — across multiple axes, now on a 12× larger sample.** 76.6% of plans submitted to `/prospect` (131 of 171) needed pre-execution corrections; only 2.9% were killed outright. ~67 canonical failure-mode patterns (plus project-scoped libraries) catch repeat drift modes. Plan cleanliness is **improving over time** (see trend below). |
-| **What does ARIA cost per session?** | **~5,000 tokens fixed + ~325 tokens per edit.** On heavy edit sessions: ~37K tokens total. (Up from the v2.18.x estimate — the fixed surface grew as features shipped; v2.25.1 trimmed the SessionStart portion ~11%; see "Measured cost surface.") |
-| **What does ARIA save per session?** | **Direct: 0 to ~150K tokens** (depending on knowledge intersection — typically 20–60K for corpus-engaged sessions). **Indirect (much larger): the cost of work-shipped-wrong avoided.** A single `/prospect` catch (~3K tokens to run) typically prevents a 15K+ token do-wrong → fix-after → re-verify cycle. At a ~77% needs-changes rate on non-trivial plans, avoided-rework dominates the direct savings. |
+| **Does ARIA measurably improve Claude Code's output?** | **Yes — across multiple axes, now on a ~20× larger sample.** 74.5% of plans submitted to `/prospect` (210 of 282) needed pre-execution corrections; only 2.5% were killed outright. 88 canonical failure-mode patterns (plus project-scoped libraries) catch repeat drift modes. Plan cleanliness is **improving over time** (see trend below). |
+| **What does ARIA cost per session?** | **~4,990 tokens fixed + ~325 tokens per edit.** On heavy edit sessions: ~37.5K tokens total. (v2.29.0's two review skills grew the skill-discovery surface; v2.30.1 trimmed it back by moving non-dispatch bytes into skill bodies; the SessionStart floor held flat throughout; see "Measured cost surface.") |
+| **What does ARIA save per session?** | **Direct: 0 to ~150K tokens** (depending on knowledge intersection — typically 20–60K for corpus-engaged sessions). **Indirect (much larger): the cost of work-shipped-wrong avoided.** A single `/prospect` catch (~3K tokens to run) typically prevents a 15K+ token do-wrong → fix-after → re-verify cycle. At a ~75% needs-changes rate on non-trivial plans, avoided-rework dominates the direct savings. |
 | **What's the wall-clock impact?** | **Under 1% from hooks.** Per-edit hooks are unchanged (~90–110 ms); net positive when codemap orientation or revision-avoidance kicks in. |
 | **When does ARIA pay off?** | Multi-session work, established codebase, critical-path edits, or domains with 5+ relevant promoted knowledge files. |
 | **When does ARIA NOT pay off?** | One-off scratch sessions, greenfield-first-session work, no-edit conversational sessions. |
@@ -42,21 +44,21 @@ This document summarizes measured and estimated evidence for whether ARIA is *ob
 
 ## Measured cost surface
 
-> **Important:** the per-session fixed cost grew since the v2.18.x revision, and the growth is **universal, not author-specific**. Each feature shipped across v2.19→v2.25 added a few hundred bytes of always-on guidance to the SessionStart block. Only a small audit-cadence prefix (~110 bytes) is state-dependent. Every plugin user pays the larger fixed surface.
+> **Important:** the per-session fixed cost is **universal, not author-specific** — every plugin user pays it. Since the v2.25.x revision the growth shifted surfaces: the SessionStart block held flat (the v2.25.1 trim stuck), while the **skill-discovery surface grew** as v2.29.0 shipped two verbose review skills (`/foundational-review`, `/readiness-audit`) — peaking at ~4,364 tok at v2.30.0 — then **v2.30.1 trimmed it ~11% back to ~3,884 tok** by relocating non-dispatch bytes (a repeated ADR-094 signpost + two skills' internal pipeline narration) into skill bodies, with no capability removed. Only a small audit-cadence prefix (~110 bytes) is state-dependent.
 
 ### Per-session fixed overhead
 
 Two fixed surfaces dominate, both paid by every session (modulo prompt caching):
 
-1. **Skill-discovery surface** — descriptions of all installed skills, used by Claude Code's natural-language dispatch. At 32 skills this is **~15,500 bytes (~3,875 tokens)** per session (was ~10,800 bytes / ~2,700 tokens at the smaller skill count).
-2. **SessionStart guidance block** — the hook injects Rule 22 ordering, task-budget awareness, memory pathway, and insight-capture instructions. Steady-state floor ≈ **~4,400 bytes (~1,100 tokens)** as of v2.25.1 (was ~4,980 bytes / ~1,240 tokens at v2.25.0; ~1,800 bytes / ~450 tokens at v2.18.x). v2.25.1 trimmed ~11% by gating the TASK BUDGET block to emit only the applicable statusline branch and collapsing current (non-stale) codemaps to a name-only list — no enforcement or behavior rule removed. A backlog-due prefix adds ~110 bytes; first-run welcome is a one-time ~260 bytes.
+1. **Skill-discovery surface** — descriptions of all installed skills, used by Claude Code's natural-language dispatch. At 31 skills this is **~15,540 bytes (~3,884 tokens)** per session as of v2.30.1 (was ~17,460 B / ~4,364 tok at v2.30.0; ~15,500 B / ~3,875 tok at the 32-skill v2.25.x). The v2.30.0 peak came from v2.29.0's two review skills (long, example-rich descriptions — bytes-per-description, not count); **v2.30.1 trimmed ~1,920 B (~480 tok)** by shortening the repeated ADR-094 parenthetical across 24 skills (the cross-port rule is enforced by each skill's *body* Runtime Gate, not the description) and compressing two skills' internal `→` pipeline narration into the body. No trigger or capability removed. (`release.sh` enforces a skill-discovery byte budget, baselined at 18,944; live ≈15,540 — well under.)
+2. **SessionStart guidance block** — the hook injects Rule 22 ordering, task-budget awareness, memory pathway, and insight-capture instructions. Steady-state floor ≈ **~4,430 bytes (~1,107 tokens)** as of v2.30.0 — flat versus v2.25.1 (~4,400 B / ~1,100 tok); the v2.25.1 trim (TASK BUDGET branch-gating + current-codemap collapse) held. (Was ~4,980 B / ~1,240 tok at v2.25.0; ~1,800 B / ~450 tok at v2.18.x.) A backlog-due prefix adds ~110 bytes; first-run welcome is a one-time ~260 bytes.
 
 | Per-session fixed cost | Tokens |
 |---|---:|
-| Skill-discovery surface (32 skills) | ~3,875 |
-| SessionStart guidance floor (v2.25.1) | ~1,100 |
-| **Steady-state total** | **~5,000** |
-| Worst-case (audit overdue + multi-pass + config-audit + version-upgrade) | ~5,300 |
+| Skill-discovery surface (31 skills, v2.30.1) | ~3,884 |
+| SessionStart guidance floor (v2.30.1) | ~1,107 |
+| **Steady-state total** | **~4,990** |
+| Worst-case (audit overdue + multi-pass + config-audit + version-upgrade) | ~5,290 |
 
 ### Per-edit variable overhead
 
@@ -68,10 +70,10 @@ The PreEdit hook is **silent on compliant edits** (0 bytes) — only emits its d
 
 | Edit count | Approximate total ARIA token cost |
 |---:|---:|
-| 10 (light session) | ~8,250 |
-| 50 (moderate) | ~21,250 |
-| 100 (heavy edit day) | ~37,500 |
-| 200 (large refactor) | ~70,000 |
+| 10 (light session) | ~8,240 |
+| 50 (moderate) | ~21,240 |
+| 100 (heavy edit day) | ~37,490 |
+| 200 (large refactor) | ~69,990 |
 
 Most of the fixed portion is cache-eligible if the session stays warm, reducing the effective input cost by roughly 10× for those segments.
 
@@ -108,7 +110,7 @@ These are counterfactual estimates — "what ARIA replaces vs what would otherwi
 
 ### `/context` selective load vs naive folder read
 
-**Alternative without `/context`:** Load whole knowledge folder (now ~1,180 promoted files) or load nothing and ask blindly.
+**Alternative without `/context`:** Load whole knowledge folder (now ~1,300 promoted files) or load nothing and ask blindly.
 **With `/context <tag>`:** Selective load of 3–7 tagged files = ~30–60 KB.
 **Per-event delta:** large reduction in tokens spent on knowledge surfacing per use; the ratio grows as the corpus does.
 
@@ -137,31 +139,30 @@ These are counterfactual estimates — "what ARIA replaces vs what would otherwi
 
 ## Measured quality findings
 
-This is the most important dimension and the hardest to measure rigorously. ARIA produces several auditable artifacts that allow proxy measurement of output quality. Sample sizes below are 4–12× larger than the v2.18.x revision (171 `/prospect` runs and 68 `/retrospect` logs, vs 14 and 15).
+This is the most important dimension and the hardest to measure rigorously. ARIA produces several auditable artifacts that allow proxy measurement of output quality. Sample sizes below are now ~6–20× larger than the v2.18.x revision (282 `/prospect` runs and 101 `/retrospect` logs, vs 14 and 15).
 
 ### 1. Plan-quality intervention (`/prospect` verdicts)
 
-Of 171 `/prospect` runs carrying a verdict (183 logs total):
+Of 282 `/prospect` runs carrying a verdict:
 
 | Verdict | Count | % |
 |---|---:|---:|
-| **PROCEED-WITH-CHANGES** | 131 | **76.6%** |
-| PROCEED (clean) | 35 | 20.5% |
-| HOLD / kill | 5 | 2.9% |
+| **PROCEED-WITH-CHANGES** | 210 | **74.5%** |
+| PROCEED (clean) | 65 | 23.0% |
+| HOLD / kill | 7 | 2.5% |
 
-**Interpretation:** ~77% of plans needed pre-execution corrections, ~20% shipped clean, and under 3% were rejected outright. Without `/prospect`, the corrections would have been discovered *during* execution — at higher cost.
+**Interpretation:** ~75% of plans needed pre-execution corrections, ~23% shipped clean, and under 3% were rejected outright. Without `/prospect`, the corrections would have been discovered *during* execution — at higher cost.
 
-**The v2.18.x revision reported 78.6% PROCEED-WITH-CHANGES on n=14.** The larger sample (n=171, a ~12× increase) confirms that headline (76.6%, 131 of 171) with far better signal strength. It also corrects a small-sample artifact: the old "only 1 of 14 plans was clean" (1 of 14 = 7%) framing was noise — on n=171 the clean-pass rate is ~20% (35 of 171) and *rising* (below).
+**The v2.18.x revision reported 78.6% PROCEED-WITH-CHANGES on n=14; the v2.25.x revision reported 76.6% on n=171.** The now-282 sample (a ~20× increase over the original cohort) confirms that headline (74.5%) with progressively better signal strength — the rate is stable inside a tight band across three revisions. The clean-pass rate ticked up again (20.5% → 23.0%) and kills stayed near-floor (2.9% → 2.5%), both consistent with the improving trend below.
 
 **Trend over time** — bucketed by month:
 
 | Window | n | PROCEED-WITH-CHANGES | Clean PROCEED | HOLD / kill |
 |---|---:|---:|---:|---:|
-| Early May (≈ the v2.18.x cohort) | 24 | 79% | 8% | **12%** |
-| Late May | 58 | 86% | 10% | 3% |
-| June | 89 | 70% | **30%** | **0%** |
+| May | 82 | 84% | 10% | **6%** |
+| June | 200 | 70% | **28%** | **1%** |
 
-Plans entering `/prospect` are getting cleaner: outright kills fell 12% → 0% and first-pass-clean rose 8% → 30%.
+Plans entering `/prospect` are getting cleaner: outright kills fell 6% → 1% and first-pass-clean rose 10% → 28% (now on a 200-log June sample). The direction matches the prior revision's reading; the June clean-rate is no longer a small-month artifact.
 
 **Caveats (this trend does NOT isolate ARIA as the cause):**
 - **Author learning** — the plan author got better at writing plans over the same period; inseparable from "ARIA made plans better."
@@ -176,12 +177,13 @@ The honest claim is that the trend is **consistent with ARIA improving plan form
 
 | Metric | Value |
 |---|---:|
-| Canonical patterns in the cross-cutting library | **~67** |
+| Canonical patterns in the cross-cutting library | **88** |
 | Pattern count at v2.13.5 (origin) | 12 |
 | Count at the v2.18.x revision | 27 |
-| Plus project-scoped pattern libraries | `cs-builder/`, `df/`, `aria/` (new since the revision) |
+| Count at the v2.25.x revision | ~67 |
+| Plus project-scoped pattern libraries | `cs-builder/`, `df/`, `aria/` |
 
-The library more than doubled (27 → ~67 canonical) **and was architecturally split**: cross-cutting patterns live in `rules/retrospect-patterns.md`; project-specific ones live in `projects/<name>/retrospect-patterns.md`. Each canonical pattern was added because a retrospect identified the same failure mode at least twice. The library is calibrated against real shipped work, not theoretical anti-patterns.
+The library grew again (~67 → 88 canonical) and remains **architecturally split**: cross-cutting patterns live in `rules/retrospect-patterns.md`; project-specific ones live in `projects/<name>/retrospect-patterns.md`. Each canonical pattern was added because a retrospect identified the same failure mode at least twice. The library is calibrated against real shipped work, not theoretical anti-patterns. The ~7×-from-origin growth tracks the retrospect-log count (now 101), as expected for a library that grows only on observed recurrence.
 
 **Signal strength: HIGH** for shipped work — pattern recurrence proves the library catches real drift modes.
 
@@ -189,18 +191,18 @@ The library more than doubled (27 → ~67 canonical) **and was architecturally s
 
 Two distinct things are measured here, and the v2.18.x revision conflated them.
 
-**(a) Validation honesty — per-fix verdicts.** Of 68 retrospects, **66 (97%) record explicit per-fix verdicts** (✅/KEEP/REVERT/REVISE) — "no fix marked shipped without named evidence." This is the durable signal of validation rigor, and it holds steady regardless of how the aggregate outcome lands. Compare to vanilla Claude Code, where "done" means done because the assistant said so.
+**(a) Validation honesty — per-fix verdicts.** Of 101 retrospects, **98 (97%) record explicit per-fix verdicts** (✅/KEEP/REVERT/REVISE) — "no fix marked shipped without named evidence." The rate is identical to the prior revision's 97% (66/68) at a 50% larger sample — a stable, structural measure of validation rigor, unaffected by how the aggregate outcome lands. Compare to vanilla Claude Code, where "done" means done because the assistant said so.
 
-**(b) Aggregate outcome distribution.** Of 61 retrospects carrying an `overall_outcome`:
+**(b) Aggregate outcome distribution.** Of 93 retrospects carrying an `overall_outcome`:
 
 | `overall_outcome` | Count | % |
 |---|---:|---:|
-| closed | 25 | 41% |
-| partial | 23 | 38% |
-| mixed | 12 | 20% |
-| unresolved | 1 | 2% |
+| closed | 50 | 54% |
+| partial | 26 | 28% |
+| mixed | 16 | 17% |
+| unresolved | 1 | 1% |
 
-By month, clean "closed" outcomes rose **31% (May) → 56% (June)**.
+"closed" is now the clear plurality (was 41%). By month, clean "closed" outcomes rose **31% (May, 11/36) → 68% (June, 39/57)** — a sharper version of the trend the prior revision reported (it had read 31% → 56%).
 
 **Reframe from the v2.18.x revision:** the old finding read "almost no retrospect claims a clean shipped outcome" as evidence of validation honesty. That inference was weak — outcome-label distribution measures *how much work shipped clean*, not *how rigorously it was checked*. With "closed" now the plurality (and a June majority), the old framing is retired. The rising closed-rate is *consistent with* work shipping cleaner over time (same confounds as finding #1), while the **97% per-fix-verdict rate** is the real, steady measure of validation discipline.
 
@@ -210,8 +212,8 @@ By month, clean "closed" outcomes rose **31% (May) → 56% (June)**.
 
 | Metric | Value |
 |---|---:|
-| Audit passes logged (cumulative) | **77** (was 24 in a 4-week window) |
-| Total canonical corpus | **~1,180 files** |
+| Audit passes logged (cumulative) | **77+** (was 24 in a 4-week window) |
+| Total canonical corpus | **~1,300 files** (was ~1,180) |
 
 The gate continues to operate as "the human is the gate." A deeper parse of the audit log (77 passes) shows the prior revision's single "~5% promotion rate" actually blended **two non-commensurable intake streams**, which is why it can't be reproduced as one clean number:
 
@@ -239,10 +241,10 @@ No new controlled convergence data has been gathered since.
 
 ### Summary — what ARIA measurably improves
 
-1. **Pre-execution plan rigor.** `/prospect` flagged ~77% of plans (n=171) for correction before they shipped as written; outright kills are near zero and falling.
-2. **Post-ship verification honesty.** 97% of retrospects carry explicit per-fix verdicts — "claimed done, shipped half" is structurally resisted.
-3. **Failure-mode pattern recognition.** ~67 canonical patterns (plus project-scoped libraries) catch repeat drift modes the second+ time they appear.
-4. **Knowledge accumulation discipline.** 77 audit passes; a conservative human-gated promotion model keeps the corpus signal-dense.
+1. **Pre-execution plan rigor.** `/prospect` flagged ~75% of plans (n=282) for correction before they shipped as written; outright kills are near zero (~1% in June) and falling.
+2. **Post-ship verification honesty.** 97% of retrospects (98/101) carry explicit per-fix verdicts — "claimed done, shipped half" is structurally resisted.
+3. **Failure-mode pattern recognition.** 88 canonical patterns (plus project-scoped libraries) catch repeat drift modes the second+ time they appear.
+4. **Knowledge accumulation discipline.** A conservative human-gated promotion model over ~1,300 corpus files keeps the corpus signal-dense.
 5. **Diagnostic convergence speed.** Active Knowledge Surfacing reduced turn-count by 44% on at least one real session.
 
 ### Summary — what ARIA does NOT measurably improve
@@ -271,20 +273,20 @@ ARIA is **net-positive in token cost, wall-clock, AND output quality** when sess
 
 1. **Single-file or scratch work.** Small one-off scripts, throwaway prototypes, isolated bug investigations. The Rule 22 ceremony cost outweighs benefit for trivial changes.
 2. **Greenfield + first-time domain — *only for token math*.** No existing codemap, no related ADRs, no relevant approaches/references means the corpus-based savings aren't there yet. **However:** if the work is non-trivial enough to benefit from a Rule 22 impact assessment or a `/prospect` pre-mortem, those quality interventions fire from session 1 and are typically worth the modest token overhead on their own. The "doesn't pay off" case is specifically about token economics, not output quality.
-3. **No-edit conversational work.** Q&A sessions, design exploration, architectural debates without code output. Most of ARIA's per-edit cost doesn't fire, but the per-session fixed cost (~5,000 tokens, mostly cache-eligible) remains.
+3. **No-edit conversational work.** Q&A sessions, design exploration, architectural debates without code output. Most of ARIA's per-edit cost doesn't fire, but the per-session fixed cost (~4,990 tokens, mostly cache-eligible) remains.
 
 ### Early-adopter tax
 
-For new users, **quality is net-positive from session 1; only token-arithmetic catches up at ~2–4 weeks.** The full per-session cost lands immediately (typically ~8,250–70,000 tokens depending on edit volume, mostly cache-eligible); corpus-based token savings (codemap orientation, `/context` retrieval, ADR avoidance) require a corpus that doesn't exist yet.
+For new users, **quality is net-positive from session 1; only token-arithmetic catches up at ~2–4 weeks.** The full per-session cost lands immediately (typically ~8,240–69,990 tokens depending on edit volume, mostly cache-eligible); corpus-based token savings (codemap orientation, `/context` retrieval, ADR avoidance) require a corpus that doesn't exist yet.
 
-**Quality benefits do *not* have an early-adopter tax.** Rule 22 edit discipline, `/prospect` plan pre-mortems, `/retrospect` per-fix validation, and the ~67-pattern retrospect-patterns library all ship with the plugin and apply from session 1. The ~77% needs-changes rate measured on `/prospect` runs does not depend on corpus size. If your work involves non-trivial plans or critical-path edits, the quality interventions typically pay for the modest token overhead on their own — well before any corpus accumulates.
+**Quality benefits do *not* have an early-adopter tax.** Rule 22 edit discipline, `/prospect` plan pre-mortems, `/retrospect` per-fix validation, and the 88-pattern retrospect-patterns library all ship with the plugin and apply from session 1. The ~75% needs-changes rate measured on `/prospect` runs does not depend on corpus size. If your work involves non-trivial plans or critical-path edits, the quality interventions typically pay for the modest token overhead on their own — well before any corpus accumulates.
 
 **Where the token-savings curve crosses** — roughly when the corpus reaches:
 - **~50+ promoted knowledge files** in the corpus
 - **3+ CODEMAPs** across active projects
 - **Audit cadence sustained** at ≤14 days
 
-Once the corpus crosses those thresholds, savings reliably exceed cost on engaged sessions. (The author's corpus is now well past all three — ~1,180 files, multiple CODEMAPs, sustained cadence — which is the regime the savings estimates above assume.)
+Once the corpus crosses those thresholds, savings reliably exceed cost on engaged sessions. (The author's corpus is now well past all three — ~1,300 files, multiple CODEMAPs, sustained cadence — which is the regime the savings estimates above assume.)
 
 **Net:** for non-trivial work, ARIA is value-positive from day one. The early window is "quality is already net-positive while token-arithmetic catches up." Token-side break-even arrives at ~2–4 weeks.
 
@@ -294,7 +296,7 @@ Once the corpus crosses those thresholds, savings reliably exceed cost on engage
 
 The token math above only captures *direct context costs and savings.* It does not capture the decision-quality benefits — the prevented re-ship cycles, the architectural-claim corrections, the failure-mode pattern recognition.
 
-The ~77% needs-changes rate on `/prospect` runs (n=171) — with outright kills falling to zero over time — is the strongest evidence that ARIA improves *what Claude does*, not just *how cheaply Claude does it.* For workflows where decision quality matters more than token cost — which is most operationally applied AI coding work — the case for ARIA is stronger than the token-only math suggests.
+The ~75% needs-changes rate on `/prospect` runs (n=282) — with outright kills falling toward zero over time (~1% in June) — is the strongest evidence that ARIA improves *what Claude does*, not just *how cheaply Claude does it.* For workflows where decision quality matters more than token cost — which is most operationally applied AI coding work — the case for ARIA is stronger than the token-only math suggests.
 
 ---
 
@@ -314,7 +316,7 @@ This analysis would need to be re-evaluated if:
 - Audit cadence stretches beyond ~14 days (operational discipline failing)
 - A future Claude Code version ships a competing memory primitive (e.g., first-class persistent context native to the harness) that makes ARIA's capture pipeline partially redundant
 - Anthropic ships a `~~category`-aware MCP capability-probe API that obsoletes ARIA's prose-only probe pattern (the underlying ADR-015 explicitly anticipates this revision trigger)
-- The fixed per-session cost surface grows materially again (total rose ~1.6× — ~3,150 → ~5,000 tok — from v2.18 → v2.25 as features shipped; skill-discovery ~1.4× (~2,700 → ~3,875 tok) from more skills, SessionStart ~2.4× (~450 → ~1,100 tok) from guidance bytes; v2.25.1 trimmed SessionStart ~11% (~1,240 → ~1,100 tok) back. Re-measure the skill-discovery + SessionStart bytes each major release)
+- The fixed per-session cost surface grows materially again. History to date: total rose ~1.6× (~3,150 → ~5,000 tok) from v2.18 → v2.25 as features shipped, then to **~5,470 tok at v2.30.0** (skill-discovery ~3,875 → ~4,364 tok from v2.29.0's two review skills), then **back to ~4,990 tok at v2.30.1** when the skill-discovery surface was deliberately trimmed (~4,364 → ~3,884 tok) by moving non-dispatch bytes into skill bodies. The SessionStart floor held flat throughout (~1,100 → ~1,107 tok; the v2.25.1 ~11% trim stuck). **Re-measure the skill-discovery + SessionStart bytes each major release** (reproduction recipe below). `release.sh`'s `ARIA_SKILL_BUDGET` gate (default 18,944) is the early-warning tripwire for skill-discovery growth — and the gate that verifies a deliberate trim like v2.30.1's.
 
 ---
 

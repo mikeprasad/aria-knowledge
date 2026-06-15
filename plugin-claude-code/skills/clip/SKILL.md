@@ -1,5 +1,5 @@
 ---
-description: "Save a URL or text snippet to the knowledge intake for later review. Use when user says '/clip', '/save', 'clip this', 'save this link', 'save this snippet', 'capture this URL'. Quick capture without leaving the session — clipped items are reviewed at the next /audit-knowledge run. (Claude Code variant — bare-slash canonical when both ports loaded; see ADR-094.)"
+description: "Save a URL or text snippet to the knowledge intake for later review. Use when user says '/clip', '/save', 'clip this', 'save this link', 'save this snippet', 'capture this URL'. Quick capture without leaving the session — clipped items are reviewed at the next /audit-knowledge run. (Code port — ADR-094.)"
 argument-hint: "<url or text> [tags]"
 allowed-tools: Read, Write, WebFetch, Glob
 ---

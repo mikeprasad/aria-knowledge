@@ -1,5 +1,5 @@
 ---
-description: "Audit project configuration and documentation for drift, staleness, and broken references. Use when user asks for 'config audit', 'docs audit', 'check setup', 'audit configs', 'review CLAUDE.md files', or at session start when audit cadence is exceeded. Also invoked as '/config-audit'. (Claude Code variant — bare-slash canonical when both ports loaded; see ADR-094.)"
+description: "Audit project configuration and documentation for drift, staleness, and broken references. Use when user asks for 'config audit', 'docs audit', 'check setup', 'audit configs', 'review CLAUDE.md files', or at session start when audit cadence is exceeded. Also invoked as '/config-audit'. (Code port — ADR-094.)"
 argument-hint: ""
 allowed-tools: Read, Glob, Grep, Write, Edit, Agent
 ---

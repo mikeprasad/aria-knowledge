@@ -1,5 +1,5 @@
 ---
-description: "Save the current Claude Code transcript to the knowledge intake on demand. Use when user says '/snapshot', 'snapshot the session', 'save this conversation', 'capture the transcript', 'archive this session'. Same archival output as the pre-compact hook, but triggered explicitly. Distinct from /extract (which synthesizes knowledge) and /clip (which captures a URL or snippet). (Claude Code variant — bare-slash canonical when both ports loaded; see ADR-094.)"
+description: "Save the current Claude Code transcript to the knowledge intake on demand. Use when user says '/snapshot', 'snapshot the session', 'save this conversation', 'capture the transcript', 'archive this session'. Same archival output as the pre-compact hook, but triggered explicitly. Distinct from /extract (which synthesizes knowledge) and /clip (which captures a URL or snippet). (Code port — ADR-094.)"
 allowed-tools: Bash
 ---
 

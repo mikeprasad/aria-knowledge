@@ -1,5 +1,5 @@
 ---
-description: "Extract uncaptured knowledge from the current conversation before it's lost to compaction. Use after completing a task, before switching context, before large exploratory work (multi-file reads, codebase scans), or when the user signals session end. Trigger: '/extract', 'extract knowledge', 'capture session knowledge'. Also prompt mid-session: 'Task complete — want me to run /extract?' and 'Switching context — want me to run /extract first?'. (Claude Code variant — bare-slash canonical when both ports loaded; see ADR-094.)"
+description: "Extract uncaptured knowledge from the current conversation before it's lost to compaction. Use after completing a task, before switching context, before large exploratory work (multi-file reads, codebase scans), or when the user signals session end. Trigger: '/extract', 'extract knowledge', 'capture session knowledge'. Also prompt mid-session: 'Task complete — want me to run /extract?' and 'Switching context — want me to run /extract first?'. (Code port — ADR-094.)"
 argument-hint: ""
 allowed-tools: Read, Glob, Grep, Write, Edit
 ---

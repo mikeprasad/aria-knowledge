@@ -1,5 +1,5 @@
 ---
-description: "Research a question, check existing knowledge first, draft a knowledge doc from the answer, and save directly to the appropriate category. Use when user says '/ask', 'ask about', 'research and save', 'I want to learn about', 'what is the pattern for'. Skips backlogs — the user reviews the answer in real-time before saving. (Claude Code variant — bare-slash canonical when both ports loaded; see ADR-094.)"
+description: "Research a question, check existing knowledge first, draft a knowledge doc from the answer, and save directly to the appropriate category. Use when user says '/ask', 'ask about', 'research and save', 'I want to learn about', 'what is the pattern for'. Skips backlogs — the user reviews the answer in real-time before saving. (Code port — ADR-094.)"
 argument-hint: "<question>"
 allowed-tools: Read, Write, Glob, Grep, WebSearch, WebFetch
 ---

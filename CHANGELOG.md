@@ -2,6 +2,16 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.30.1 — 2026-06-15
+
+**Skill-discovery surface trim (~480 tok / ~11%), zero capability loss.** Continues the v2.30.0-codex.0 alias-skill removal: the per-session skill-discovery fixed cost had grown to ~4,364 tok (largest fixed cost, driven by v2.29.0's two review skills). This trims it back to ~3,884 tok by relocating non-dispatch bytes out of frontmatter `description:` fields — the descriptions exist for natural-language dispatch; documentation belongs in the skill body (read only when the skill fires, off the per-session surface).
+
+- **Tier 1 — ADR-094 parenthetical (24 skills):** shortened the repeated `(Claude Code variant — bare-slash canonical when both ports loaded; see ADR-094.)` (~84 B each) to `(Code port — ADR-094.)` (~22 B). The cross-port ownership rule is *enforced by the Runtime Gate in each skill body* (verified present 24/24), not by the description text — so no enforcement is lost. `aria-assist` keeps its scheduler-specific variant (carries dispatch-relevant info).
+- **Tier 2 — mechanism-narration (2 skills):** compressed the internal `→` pipeline narration in `/readiness-audit` and `/foundational-review` descriptions to one-clause summaries; the full pipelines remain documented in each skill's body (verified). Kept all dispatch-critical content: intent, sibling-contrast clauses, and the complete Triggers lists.
+- **Verified:** skill-discovery surface 17,458 → 15,537 B (~4,364 → ~3,884 tok); `release.sh` Gate B passes (15,537 ≤ 18,944 budget). Pre-mortemed via `/prospect` (PROCEED-WITH-CHANGES; the one guard — body-pipeline-coverage before trimming Tier 2 descriptions — was verified before execution).
+- **Ports:** Claude-Code-canonical only; cowork/codex/cursor/antigravity stay tracked-drift (re-sync in a coordinated parity pass).
+- **Docs:** `docs/value-analysis.md` cost surface refreshed to the post-trim figure.
+
 ## 2.30.0-codex.0 — 2026-06-11
 
 **Codex parity pass for the v2.29/v2.30 review-and-release surfaces.** The OpenAI Codex port now tracks canonical `plugin-claude-code` v2.30.0 where Codex has an equivalent runtime surface.

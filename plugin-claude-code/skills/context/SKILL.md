@@ -1,5 +1,5 @@
 ---
-description: "Load relevant knowledge by topic. Queries the tag index and presents matching promoted files for selective loading into context. Use when user says '/context stripe', '/context api pagination', '/context ss', 'load knowledge about...', 'what do we know about...'. (Claude Code variant — bare-slash canonical when both ports loaded; see ADR-094.)"
+description: "Load relevant knowledge by topic. Queries the tag index and presents matching promoted files for selective loading into context. Use when user says '/context stripe', '/context api pagination', '/context ss', 'load knowledge about...', 'what do we know about...'. (Code port — ADR-094.)"
 argument-hint: "<tag1> [tag2] [AND tag3]"
 allowed-tools: Read, Glob, Grep
 ---

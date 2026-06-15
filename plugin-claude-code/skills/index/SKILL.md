@@ -1,5 +1,5 @@
 ---
-description: "Rebuild the knowledge tag index. Scans promoted files, normalizes tags, flags untagged files, suggests freeform-to-known promotions, detects stale files, suggests cross-references, updates project-to-tag mappings, and regenerates index.md. Use when user says '/index', 'rebuild index', 'update index', 'reindex knowledge'. Also called automatically by /audit-knowledge. (Claude Code variant — bare-slash canonical when both ports loaded; see ADR-094.)"
+description: "Rebuild the knowledge tag index. Scans promoted files, normalizes tags, flags untagged files, suggests freeform-to-known promotions, detects stale files, suggests cross-references, updates project-to-tag mappings, and regenerates index.md. Use when user says '/index', 'rebuild index', 'update index', 'reindex knowledge'. Also called automatically by /audit-knowledge. (Code port — ADR-094.)"
 argument-hint: ""
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---

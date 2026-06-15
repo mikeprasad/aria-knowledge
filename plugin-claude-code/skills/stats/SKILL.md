@@ -1,5 +1,5 @@
 ---
-description: "Show knowledge base health metrics — file counts, backlog depth, audit status, codemap dates, tag stats, and coverage gaps. Use when user says '/stats', 'knowledge stats', 'how is my knowledge base', 'show stats', 'knowledge health', 'dashboard'. (Claude Code variant — bare-slash canonical when both ports loaded; see ADR-094.)"
+description: "Show knowledge base health metrics — file counts, backlog depth, audit status, codemap dates, tag stats, and coverage gaps. Use when user says '/stats', 'knowledge stats', 'how is my knowledge base', 'show stats', 'knowledge health', 'dashboard'. (Code port — ADR-094.)"
 argument-hint: ""
 allowed-tools: Read, Glob, Grep
 ---
