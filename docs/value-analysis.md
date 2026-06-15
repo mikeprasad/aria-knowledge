@@ -23,7 +23,7 @@ This document summarizes measured and estimated evidence for whether ARIA is *ob
 | **What's the wall-clock impact?** | **Under 1% from hooks.** Per-edit hooks are unchanged (~90–110 ms); net positive when codemap orientation or revision-avoidance kicks in. |
 | **When does ARIA pay off?** | Multi-session work, established codebase, critical-path edits, or domains with 5+ relevant promoted knowledge files. |
 | **When does ARIA NOT pay off?** | One-off scratch sessions, greenfield-first-session work, no-edit conversational sessions. |
-| **What's the early-adopter tax?** | **Small.** Quality is net-positive from session 1 — Rule 22, `/prospect`, `/retrospect` ship day-one and don't require a corpus. Token-arithmetic catches up at ~2–4 weeks, then turns positive as the corpus builds. |
+| **What's the early-adopter cost?** | **Small.** Quality is net-positive from session 1 — Rule 22, `/prospect`, `/retrospect` ship day-one and don't require a corpus. Token-arithmetic catches up at ~2–4 weeks, then turns positive as the corpus builds. |
 
 ---
 
@@ -94,7 +94,7 @@ Most of the fixed portion is cache-eligible if the session stays warm, reducing 
 
 ## Estimated savings surface
 
-These are counterfactual estimates — "what ARIA replaces vs what would otherwise be done." Each is calibrated against a stated alternative. (These are unchanged in method from the v2.18.x revision; the corpus has since grown well past the break-even thresholds noted under "Early-adopter tax.")
+These are counterfactual estimates — "what ARIA replaces vs what would otherwise be done." Each is calibrated against a stated alternative. (These are unchanged in method from the v2.18.x revision; the corpus has since grown well past the break-even thresholds noted under "Early-adopters.")
 
 ### CODEMAP precision savings
 
@@ -275,11 +275,11 @@ ARIA is **net-positive in token cost, wall-clock, AND output quality** when sess
 2. **Greenfield + first-time domain — *only for token math*.** No existing codemap, no related ADRs, no relevant approaches/references means the corpus-based savings aren't there yet. **However:** if the work is non-trivial enough to benefit from a Rule 22 impact assessment or a `/prospect` pre-mortem, those quality interventions fire from session 1 and are typically worth the modest token overhead on their own. The "doesn't pay off" case is specifically about token economics, not output quality.
 3. **No-edit conversational work.** Q&A sessions, design exploration, architectural debates without code output. Most of ARIA's per-edit cost doesn't fire, but the per-session fixed cost (~4,990 tokens, mostly cache-eligible) remains.
 
-### Early-adopter tax
+### Early-adopters
 
 For new users, **quality is net-positive from session 1; only token-arithmetic catches up at ~2–4 weeks.** The full per-session cost lands immediately (typically ~8,240–69,990 tokens depending on edit volume, mostly cache-eligible); corpus-based token savings (codemap orientation, `/context` retrieval, ADR avoidance) require a corpus that doesn't exist yet.
 
-**Quality benefits do *not* have an early-adopter tax.** Rule 22 edit discipline, `/prospect` plan pre-mortems, `/retrospect` per-fix validation, and the 88-pattern retrospect-patterns library all ship with the plugin and apply from session 1. The ~75% needs-changes rate measured on `/prospect` runs does not depend on corpus size. If your work involves non-trivial plans or critical-path edits, the quality interventions typically pay for the modest token overhead on their own — well before any corpus accumulates.
+**Quality benefits do *not* carry an early-adopter cost.** Rule 22 edit discipline, `/prospect` plan pre-mortems, `/retrospect` per-fix validation, and the 88-pattern retrospect-patterns library all ship with the plugin and apply from session 1. The ~75% needs-changes rate measured on `/prospect` runs does not depend on corpus size. If your work involves non-trivial plans or critical-path edits, the quality interventions typically pay for the modest token overhead on their own — well before any corpus accumulates.
 
 **Where the token-savings curve crosses** — roughly when the corpus reaches:
 - **~50+ promoted knowledge files** in the corpus
