@@ -55,6 +55,7 @@ If `Bash` is available, proceed to Step 0.
 | /clip [url or text] | Quick-save a URL or text snippet to intake for later review |
 | /intake [path or url] | Bulk import knowledge from files, directories, or URLs |
 | /intake doc [url or title] | Capture a single doc with 5-section structured body (claims/keeping/contested/action/reaction) → intake/docs/ |
+| /interview <mode> | Elicit knowledge via dialogue (project / knowledge / deep-dive); chooses cadence in-session; stages to intake/ for manual review |
 | /codemap [mode] | Feature-organized CODEMAP.md for any codebase (create/inventory/update/section) |
 | /distill [text or path] | Tiered task spec from raw text; optional --group for CODEMAP-loaded context |
 | /stitch <mode> <group> | Cross-repo binding (auth/endpoints/entities/drift) for a product group |
@@ -78,6 +79,7 @@ These are recommendations only — ARIA does not force a model. Switch per sessi
 | /retrospect | Highest-capability Opus, medium-to-high effort | Multi-stage judgment per fix: validation status assignment, simpler-alternative identification, hypothesis generation, failure-mode pattern matching, action verdict synthesis. Highest leverage from stronger models. |
 | /foundational-review, /readiness-audit | Highest-ceiling available (Fable at extreme stakes, else Opus), xhigh effort | The reviewer model is spent on alternatives-steelmanning, portfolio/product judgment, and the irreversibility inventory; semi-agentic read-trace-reason loop benefits from xhigh. Executor tasks the chain emits route to Opus by default. |
 | /ask | Highest-capability Opus, medium-to-high effort (ambiguous topics) or Sonnet (mid-tier) for scoped lookups | Research + draft + categorize. Drop to Sonnet when the question is narrow. |
+| /interview | Highest-capability Opus for deep-dive/battery (ambiguous, evidence-cited, leverage-clustered question generation) or Sonnet (mid-tier) for focused socratic project/knowledge runs | The deep-dive battery cadence is judgment-heavy (cite evidence, cluster by leverage, hunt negative space); focused socratic elicitation is lighter. Spans tiers like /ask. |
 | /codemap create | Highest-capability Opus (large-context variant preferred) | Full-repo traversal benefits from a large context window so sections aren't truncated mid-generation. |
 | /codemap update, /codemap section, /wrapup, /handoff, /intake, /distill, /stitch | Sonnet (mid-tier), medium effort | Structured work with clear prescribed output. |
 | /index, /stats, /backlog, /rules, /context, /clip, /snapshot, /statusline, /help, /setup | Sonnet (mid-tier), low effort | Mechanical or retrieval-only — higher models add no measurable lift. |
