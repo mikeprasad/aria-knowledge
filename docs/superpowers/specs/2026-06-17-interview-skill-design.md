@@ -12,7 +12,7 @@
 
 `/interview` is a new canonical skill that **elicits** knowledge through dialogue, rather than **harvesting** it from existing sources. It sits *upstream* of the existing intake family (`/extract`, `/intake`, `/clip`, `/meeting-notes`), which are all pull-based (they read a conversation, file, or URL). `/interview` is push-based: it interviews the user, and the answers *become* the knowledge — modeled on the `grill-with-docs` / `deep-interview` prior art and, more directly, on the 2026-05-01 Designframe strategic deep-dive session (`df/docs/session-transcript-2026-05-01-strategic-deep-dive.md`) that the user flagged as the gold standard.
 
-The skill writes structured markdown into the `intake/` tree (exactly like `/meeting-notes`); it **never auto-promotes**. Classification and promotion stay owned by `/audit-knowledge` and `/extract`. The skill's single job: get what's in the user's head (and in their artifacts) onto disk as reviewable raw material.
+The skill writes structured markdown into the `intake/` tree (exactly like `/meeting-notes`); it **never auto-promotes**. **Review path (verified 2026-06-17):** `/audit-knowledge` scans a *fixed* set — the four named backlog files + `intake/ideas/` — and does NOT glob `intake/` subfolders (it doesn't sweep `intake/meetings/` or `intake/docs/` either). So `/interview` output is **manually reviewed staged material** (the `/meeting-notes` model): the user promotes it later by hand or via `/extract`. It is not auto-swept. The skill's single job: get what's in the user's head (and in their artifacts) onto disk as reviewable raw material.
 
 ## 2. Placement in the knowledge family
 
