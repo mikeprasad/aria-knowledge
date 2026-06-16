@@ -2,6 +2,21 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.31.0 — 2026-06-17
+
+**New skill: `/interview` — elicit knowledge through dialogue.** The existing capture family is all *harvest*-based — `/extract` reads the current conversation, `/intake` scans files/URLs, `/clip` saves a snippet, `/meeting-notes` folds a transcript. None of them draw out knowledge that lives only in your head. `/interview` fills that gap: it *asks you questions*, and the answers become the staged knowledge. Modeled on the `grill-with-docs` / `deep-interview` Socratic pattern.
+
+- **Three modes** (`/interview <mode>`):
+  - `project` — scope a new project/build (problem · users · scope-in/out · constraints · stack · success · risks) → `intake/projects/{date}-{slug}.md`
+  - `knowledge` — get a topic out of your head into the KB (claim · basis · confidence · contested · connections · what-would-change-my-mind) → `intake/interviews/{date}-{slug}.md`
+  - `deep-dive` — comprehensively extract the rationale behind an existing-but-undocumented system you built; questions are evidence-cited, clustered by leverage, and hunt negative space ("what did you deliberately NOT build?") → `intake/interviews/{date}-{slug}.md`
+- **Cadence chosen in-session** (not a flag): `socratic` (one question at a time, adaptive) or `battery` (research-then-present a full clustered question set you answer at once). The skill recommends a cadence and accepts an override.
+- **`deep-dive` requires a basis** (`--ground=<path|glob|url>[,...]`) — an explicit early-return gate stops it from asking questions until you point it at code, a doc, a plan, a project, a data file, or a URL. The gate *is* deep-dive's identity; without a basis it would just be `knowledge` mode.
+- **Stages for manual review**, never auto-promotes. `/audit-knowledge` scans a fixed set (the four backlogs + `intake/ideas/`) and does not sweep `intake/projects|interviews/` — so `/interview` output follows the `/meeting-notes` model: you promote it later by hand or via `/extract`.
+- **Process:** brainstormed → spec → `/prospect` (PROCEED-WITH-CHANGES) → plan → `/prospect` (PROCEED) → executed. The pre-mortems caught a falsified spec claim (the `/audit-knowledge` review path) and prevented an unnecessary second file (banks are ~10 lines; the skill is 148 lines total, single-file).
+- **Skill-budget Gate B:** summed skill-discovery surface 15,846 B (budget 18,944) — 3,098 B headroom.
+- **Ports:** Claude-Code-canonical only; cowork/codex/cursor/antigravity stay tracked-drift (re-sync in a coordinated parity pass).
+
 ## 2.30.1 — 2026-06-15
 
 **Skill-discovery surface trim (~480 tok / ~11%), zero capability loss.** Continues the v2.30.0-codex.0 alias-skill removal: the per-session skill-discovery fixed cost had grown to ~4,364 tok (largest fixed cost, driven by v2.29.0's two review skills). This trims it back to ~3,884 tok by relocating non-dispatch bytes out of frontmatter `description:` fields — the descriptions exist for natural-language dispatch; documentation belongs in the skill body (read only when the skill fires, off the per-session surface).

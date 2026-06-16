@@ -72,6 +72,7 @@ Preserve session knowledge before context evaporates.
 - `/ask` — Research a question, check existing knowledge first, save the answer directly as a knowledge doc.
 - `/intake` — Bulk import from files, directories, or URLs with preview before staging. Doc mode (v2.17.0+): `/intake doc <url-or-title>` captures one structured artifact per doc with 5-section body + user reaction.
 - `/extract-doc` (v2.18.0+) — Pull insights from a single Notion / Confluence / Google Doc / Box / Egnyte page via a connected `~~docs` MCP.
+- `/interview <mode>` (v2.31.0+) — Elicit knowledge through dialogue rather than harvesting it. Three modes: `project` (scope a new build), `knowledge` (get a topic out of your head into the KB), `deep-dive` (extract the rationale behind something you already built — requires a basis via `--ground`). Cadence (one-at-a-time `socratic` vs research-then-batch `battery`) is chosen in-session. Stages to `intake/projects|interviews/` for manual review.
 
 ### Govern
 
