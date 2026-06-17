@@ -58,7 +58,7 @@ aria-cowork/
 ├── QUICKSTART.md
 ├── README.md
 ├── release.sh               ← + aggregate-description preflight (v1.0.1+)
-├── skills/                  ← 26 skills (24 distinct + 2 aliases as of v1.0.0)
+├── skills/                  ← 27 skills (27 distinct as of v1.4.0; v1.3.0 dropped 2 aliases, v1.4.0 added /interview)
 └── template/                ← knowledge-folder templates (schema mirror of aria-knowledge)
 ```
 
