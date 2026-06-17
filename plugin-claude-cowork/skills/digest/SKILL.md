@@ -1,6 +1,6 @@
 ---
 name: digest
-description: 'Cross-tool rollup of what is pending, what shipped, and what is blocked across chat / email / project tracker / docs. Use when user says "/aria-cowork:digest", "weekly digest", "cross-tool rollup", "what is pending across my tools", "summarize this week", "standup digest". Probes all 4 ~~categories and degrades gracefully — produces a. (Cowork variant — namespaced-only.)'
+description: 'Cross-tool rollup of what is pending, what shipped, and what is blocked across chat / email / project tracker / docs. Use when user says "/aria-cowork:digest", "weekly digest", "cross-tool rollup", "what is pending across my tools", "summarize this week", "standup digest". Probes all 4 ~~categories and degrades gracefully. (Cowork variant — namespaced-only.)'
 argument-hint: '[--week | --since YYYY-MM-DD | --until YYYY-MM-DD]'
 ---
 
