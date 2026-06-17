@@ -4,6 +4,16 @@ All notable changes to aria-cowork are documented here. Format follows [Keep a C
 
 Cross-plugin parity callouts (per ADR-006) note when changes coordinate with aria-knowledge releases.
 
+## [1.4.0] — 2026-06-18
+
+**Port `/interview` to Cowork (parity with aria-knowledge v2.31.0).** The 3-mode knowledge-elicitation skill — `project` (scope a new build), `knowledge` (get a topic into the KB), `deep-dive` (extract the rationale behind an existing system; requires a basis) — now ships in Cowork as `/aria-cowork:interview`. This closes the one genuine parity gap with canonical v2.31.0; ADR-094 had documented the Cowork variant as a deferred follow-on.
+
+- **Add: `/aria-cowork:interview <project|knowledge|deep-dive> [topic] [--ground=...]`** — interviews the user to elicit knowledge through dialogue, then stages it to `intake/projects/` or `intake/interviews/` for **manual review** (never auto-promoted). In-session cadence choice (socratic one-at-a-time vs research-then-batch). The skill body — modes, cadence logic, deep-dive basis-gate, question banks, and output templates — is **byte-identical** to the canonical Code skill per ADR-013; only three surfaces diverge.
+- **Cowork adaptations (the three diverging surfaces):** (1) cowork-side Runtime Gate — bare `/interview` resolves to aria-knowledge per ADR-094; this variant is `/aria-cowork:interview`; (2) **no Bash** — Step 0 reads `~/.claude/aria-knowledge.local.md` directly via the `Read` tool and falls back to asking the user to paste their knowledge-folder path when the runtime can't reach it; (3) `allowed-tools` drops `Bash`. Grounding ingestion uses Read/Glob/Grep/WebFetch (all available in Cowork).
+- **Coordinated description trim (cap-relief).** Adding `/interview` pushed the summed SKILL.md description chars over the 9000 install-fail cap. Trimmed `/interview`'s own description to a tight routing signal and fixed three pre-existing **dangling/truncated** description clauses left mid-sentence by v1.3.0's trim pass (`clip-thread`, `digest`, `meeting-notes`). `release.sh` aggregate-description preflight: **summed = 8864 chars** (under the 9000 cap). Skill manifest: 26 → **27 distinct** (v1.3.0 had already removed the 2 aliases).
+- **Out of scope (not gaps):** ADR-005's permanent exclusions — `/codemap`, `/stitch`, `/distill`, `/audit-share` — remain Code-only by design, each with a documented revisit-condition.
+- **Parity:** coordinates with aria-knowledge v2.31.0. Claude-Cowork port only.
+
 ## [1.3.0] — 2026-06-11
 
 **Two new review skills — `/aria-cowork:foundational-review` + `/aria-cowork:readiness-audit`** — porting aria-knowledge v2.29.0's foundational review chain to Cowork. Parity catch-up with aria-knowledge through v2.30.0 (whose other changes — the Rule 22 deny-rate circuit breaker, canonical `release.sh` gates, and the port-parity ledger — are hooks + Code-side release tooling that don't apply to skills-only Cowork).

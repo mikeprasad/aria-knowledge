@@ -206,7 +206,7 @@ manifest=$(unzip -l "$ZIP_PATH" | grep -c "$PLUGIN_NAME/\.claude-plugin/plugin\.
 # --- expected-content sanity check ------------------------------------------
 # v0.3.0 ships 20 skills + intake-doc.md template + 14 template files.
 # Quick existence checks (release-time, not exhaustive).
-expected_skills="ask audit-config audit-knowledge context extract handoff index intake prospect retrospect rules snapshot stats wrapup aria-setup help backlog clip foundational-review readiness-audit"
+expected_skills="ask audit-config audit-knowledge context extract handoff index intake prospect retrospect rules snapshot stats wrapup aria-setup help backlog clip foundational-review readiness-audit interview"
 missing_skills=""
 # Capture unzip listing once — avoids SIGPIPE+pipefail false-positives when
 # grep -q early-exits inside a piped pipeline (kills unzip, pipefail trips).
