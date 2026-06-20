@@ -2,6 +2,16 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.32.0 — 2026-06-21
+
+**SESSION.md multi-session ledger + nested-workspace routing fix.** Two changes to the `SESSION.md` producer (Claude-Code-only; gated on `session_state`).
+
+- **Multi-session ledger.** A project's `SESSION.md` now holds N sessions instead of last-writer-wins clobbering. The newest unconsumed handoff stays in the front-matter + `## Next session prompt` (atlas's single-active view, unchanged); prior sessions are demoted into a new `## Prior sessions` body section that the aria-atlas parser ignores by construction (it stops at the first `## ` after the prompt). **Keep-until-consumed:** a `/handoff` demotes the prior active entry and prunes any already-`consumed` entry; a resume (first-edit on the project) stamps the prior handoff `consumed`; `/wrapup` prunes consumed entries without adding one for itself. **Nothing unconsumed is silently lost.** New `lib-session-state.sh` helpers: `kt_ss_ledger_add` / `kt_ss_ledger_mark_consumed` / `kt_ss_ledger_prune` / `kt_ss_read_active_sid` (all temp-file+mv, fail-safe). The consume-stamp lives in `post-edit-check.sh` inside the existing once-per-(session,project) guard, so it fires once per resumed root, not per edit.
+- **Age relevance prompt.** A saved resume prompt older than the new `session_stale_days` config key (default 7) triggers a "still relevant? [resume / archive / keep]" prompt at session start instead of being presented as live. Prompt-only — never auto-evicts (latched-state discipline). `archive` moves the entry under a `## Archived sessions` heading (also atlas-ignored).
+- **Nested-workspace routing fix.** `kt_ss_find_root` previously only rejected a `$HOME`-direct-child container, so nested workspace-index roots (a directory that indexes child projects) wrongly received a `SESSION.md`. Now a root carrying an `aria_workspace_root: true` CLAUDE.md line or a `.aria-workspace-root` sentinel is skipped; the walk continues to the nearer real sub-project root. The wrapup/handoff Step 1 skill prose already used the equivalent semantic check — the hook and skill now agree.
+- **Contract-safe by construction:** zero aria-atlas changes; existing session-contract fixtures untouched (only a new `handoff-multi-session.SESSION.md` fixture added). New repro sections I (routing), J (ledger), K (consume), L (atlas-isolation guard). 19 repro suites green.
+- **Ports:** Claude-Code-canonical only; cowork/codex/cursor/antigravity tracked-drift (SESSION.md producer is Bash + Claude-Code-only, as since v2.22.0).
+
 ## 2.31.0 — 2026-06-17
 
 **New skill: `/interview` — elicit knowledge through dialogue.** The existing capture family is all *harvest*-based — `/extract` reads the current conversation, `/intake` scans files/URLs, `/clip` saves a snippet, `/meeting-notes` folds a transcript. None of them draw out knowledge that lives only in your head. `/interview` fills that gap: it *asks you questions*, and the answers become the staged knowledge. Modeled on the `grill-with-docs` / `deep-interview` Socratic pattern.

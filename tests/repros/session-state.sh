@@ -139,5 +139,114 @@ else
   bad "H vendored-fixtures" "missing $VEND/in-progress.SESSION.md"
 fi
 
+# --- I: find_root skips a workspace-index root (marker) and finds the nearer child ---
+# I1: sentinel-file marker. ws/ has CLAUDE.md + .aria-workspace-root; ws/child/ is the real root.
+mkdir -p "$TMP/wsfile/child/src"
+: > "$TMP/wsfile/CLAUDE.md"
+: > "$TMP/wsfile/.aria-workspace-root"
+: > "$TMP/wsfile/child/CLAUDE.md"
+got=$(kt_ss_find_root "$TMP/wsfile/child/src/app.ts")
+[ "$got" = "$TMP/wsfile/child" ] && ok "I1 sentinel-marked workspace skipped; child wins" || bad "I1 sentinel" "got '$got'"
+
+# I2: CLAUDE.md line marker (no sentinel file).
+mkdir -p "$TMP/wsline/child/src"
+printf 'aria_workspace_root: true\n' > "$TMP/wsline/CLAUDE.md"
+: > "$TMP/wsline/child/CLAUDE.md"
+got=$(kt_ss_find_root "$TMP/wsline/child/src/app.ts")
+[ "$got" = "$TMP/wsline/child" ] && ok "I2 line-marked workspace skipped; child wins" || bad "I2 line" "got '$got'"
+
+# I3: a marked root with NO deeper real root -> empty (don't write SESSION.md in a workspace index).
+mkdir -p "$TMP/wsonly/loose"
+: > "$TMP/wsonly/CLAUDE.md"
+: > "$TMP/wsonly/.aria-workspace-root"
+got=$(kt_ss_find_root "$TMP/wsonly/loose/x.ts")
+[ -z "$got" ] && ok "I3 marked-only container -> empty" || bad "I3 marked-only" "got '$got'"
+
+# --- J: ## Prior sessions ledger add / mark-consumed / prune ---
+mkdir -p "$TMP/j"
+cat > "$TMP/j/SESSION.md" <<'EOF'
+---
+lastEvent: handoff
+at: 2026-06-20T10:00:00Z
+sessionId: sess-active
+---
+
+## Next session prompt
+```
+do the thing
+```
+EOF
+
+# J1: add prepends a ### block under a created ## Prior sessions heading.
+kt_ss_ledger_add "$TMP/j" "sess-old1" "2026-06-19T09:00:00Z" "old focus 1" "old next 1" "old prompt 1"
+grep -q '^## Prior sessions$' "$TMP/j/SESSION.md" && ok "J1 heading created" || bad "J1 heading" "no ## Prior sessions"
+grep -q '^### sess-old1 · 2026-06-19T09:00:00Z · handoff · unconsumed$' "$TMP/j/SESSION.md" && ok "J1 block added" || bad "J1 block" "no sess-old1 block"
+
+# J2: a second add prepends newest-first (sess-old2 appears before sess-old1).
+kt_ss_ledger_add "$TMP/j" "sess-old2" "2026-06-20T08:00:00Z" "old focus 2" "old next 2" "old prompt 2"
+order=$(grep -n '^### ' "$TMP/j/SESSION.md" | head -2 | sed 's/:.*sess-/sess-/')
+printf '%s\n' "$order" | head -1 | grep -q 'sess-old2' && ok "J2 newest-first" || bad "J2 order" "got '$order'"
+
+# J3: mark_consumed flips the token for the named session only.
+kt_ss_ledger_mark_consumed "$TMP/j" "sess-old1" "2026-06-20T09:30:00Z" "sess-active"
+grep -q '^### sess-old1 · .* · handoff · consumed 2026-06-20T09:30:00Z by sess-active$' "$TMP/j/SESSION.md" && ok "J3 consumed stamped" || bad "J3 consumed" "old1 not consumed"
+grep -q '^### sess-old2 · .* · unconsumed$' "$TMP/j/SESSION.md" && ok "J3 other untouched" || bad "J3 untouched" "old2 changed"
+
+# J4: prune drops consumed blocks, keeps unconsumed.
+kt_ss_ledger_prune "$TMP/j"
+grep -q 'sess-old1' "$TMP/j/SESSION.md" && bad "J4 prune" "consumed sess-old1 survived" || ok "J4 consumed pruned"
+grep -q '^### sess-old2 · .* · unconsumed$' "$TMP/j/SESSION.md" && ok "J4 unconsumed kept" || bad "J4 keep" "old2 lost"
+
+# J5: the active header + Next session prompt are untouched by all ledger ops.
+grep -q '^sessionId: sess-active$' "$TMP/j/SESSION.md" && grep -q 'do the thing' "$TMP/j/SESSION.md" && ok "J5 active slot intact" || bad "J5 active" "header/prompt disturbed"
+
+# --- K: read_active_sid + first-edit consumes a prior handoff's ledger block ---
+mkdir -p "$TMP/k"
+cat > "$TMP/k/SESSION.md" <<'EOF'
+---
+lastEvent: handoff
+at: 2026-06-19T10:00:00Z
+sessionId: sess-prev
+---
+
+## Where we left off
+prev work
+
+## Prior sessions
+
+### sess-prev · 2026-06-19T10:00:00Z · handoff · unconsumed
+- focus: prev focus
+- next: prev next
+- prompt: prev prompt
+EOF
+
+# K1: read_active_sid returns the header sessionId.
+got=$(kt_ss_read_active_sid "$TMP/k")
+[ "$got" = "sess-prev" ] && ok "K1 read_active_sid" || bad "K1 read_active_sid" "got '$got'"
+
+# K2: simulate the post-edit consume — a new session marks the prior block consumed.
+prev_sid=$(kt_ss_read_active_sid "$TMP/k")
+prev_event=$(awk -F': ' '/^lastEvent:/{print $2; exit}' "$TMP/k/SESSION.md")
+if [ "$prev_event" = "handoff" ] && [ "$prev_sid" != "sess-new" ]; then
+  kt_ss_ledger_mark_consumed "$TMP/k" "$prev_sid" "2026-06-20T09:00:00Z" "sess-new"
+fi
+grep -q '^### sess-prev · .* · handoff · consumed 2026-06-20T09:00:00Z by sess-new$' "$TMP/k/SESSION.md" && ok "K2 prior consumed on new-session edit" || bad "K2 consume" "prev not consumed"
+
+# --- L: atlas-isolation — ## Prior sessions must not leak into the Next session prompt block ---
+# Reimplement atlas's parse boundary (parse-session.ts): block under "## Next session prompt"
+# up to the next "## " heading, then strip one optional surrounding fence.
+MS="$REPO_ROOT/tests/fixtures/session-contract-vendored/handoff-multi-session.SESSION.md"
+if [ -f "$MS" ]; then
+  prompt=$(awk '
+    /^## Next session prompt[[:space:]]*$/ { grab=1; next }
+    grab && /^## / { exit }
+    grab { print }
+  ' "$MS" | sed '1{/^```/d;}; ${/^```/d;}')
+  printf '%s' "$prompt" | grep -q 'ACTIVE-OPENER' && ok "L active opener present in prompt block" || bad "L active" "active opener missing"
+  printf '%s' "$prompt" | grep -q 'OLD-OPENER' && bad "L isolation" "prior-session opener leaked into prompt block" || ok "L prior sessions isolated from prompt block"
+else
+  bad "L fixture" "missing $MS"
+fi
+
 printf "\n%d passed, %d failed\n" "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

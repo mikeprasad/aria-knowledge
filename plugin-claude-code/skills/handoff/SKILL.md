@@ -218,6 +218,12 @@ Skip if `session_state` is not `true` in `~/.claude/aria-knowledge.local.md` (re
 
 The 3e opener is authored once and reused here — single source, no divergence between the closing report's opener and the SESSION.md prompt block.
 
+**Multi-session ledger (preserve a prior unconsumed handoff — nothing silently lost):** if the existing SESSION.md already has `lastEvent: handoff` with a `sessionId` *different* from this session, DEMOTE it before overwriting the active slot. Source `bin/lib-session-state.sh` and, reading the prior file's values first, call:
+- `kt_ss_ledger_add "{project_root}" "<prior sessionId>" "<prior at>" "<prior currentFocus>" "<prior nextAction>" "<prior next-session-prompt collapsed to ONE line>"` — demotes the prior active entry into `## Prior sessions` (newest-first). **The prompt MUST be a single line** (strip newlines) — the prune step's correctness depends on it.
+- `kt_ss_ledger_prune "{project_root}"` — drops any `## Prior sessions` entry a resume already marked `consumed`. Unconsumed entries survive.
+
+THEN write the new active header + `## Next session prompt` (the full rewrite below). The `## Prior sessions` section is managed by these helpers — the rewrite replaces only the front-matter + active body, never the ledger.
+
 **Gitignore it, never commit it:** SESSION.md is ephemeral per-session state (atlas reads from disk; PROGRESS.md is the durable log). If `{project_root}` is a git repo and `.gitignore` doesn't already ignore `SESSION.md`, append a `SESSION.md` line to `{project_root}/.gitignore`. **Never stage SESSION.md** — exclude it from the Step 5 / 3d commit.
 
 ## Step 4: Single Combined-Go Review (default mode only)
@@ -258,7 +264,7 @@ Apply approved drafts in order. For `auto` and `snap` modes, this runs immediate
    - Stage the listed files (specific paths, never `git add -A`)
    - Commit with the drafted message
    - **Never push.** This applies in both modes regardless of how the repo is hosted.
-5. **3f:** Write `{project_root}/SESSION.md` (handoff state, full rewrite, create if absent). Skip if `session_state` is off or the user `skip`-ped 3f.
+5. **3f:** If a prior unconsumed `handoff` entry exists (different `sessionId`), run `kt_ss_ledger_add` (single-line prompt) + `kt_ss_ledger_prune` FIRST (demote + prune), THEN write `{project_root}/SESSION.md` (handoff state — full rewrite of front-matter + active body + `## Next session prompt`, create if absent; the `## Prior sessions` ledger is managed by the helpers, not the rewrite). Skip if `session_state` is off or the user `skip`-ped 3f.
 
 If any step fails (e.g., commit hook rejects), surface the failure inline and stop — do not silently continue.
 
