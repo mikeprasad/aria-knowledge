@@ -40,15 +40,19 @@ Rewrite Step 2f in `plugin-claude-code/skills/audit-knowledge/SKILL.md`:
   5. No-minable-content: still graduate source; ledger `graduated (source only, no fragments mined)`.
 - Update the Step 6 "Clippings" presentation section to reflect graduate-not-clear.
 
-### Surface 2 — `/index` (so graduated sources are discoverable)
+### Surface 2 — `/index` (so graduated sources are discoverable) — CONFIRMED MANDATORY
 
-The indexer must walk `references/sources/` in addition to top-level `references/`, so graduated sources are tag-indexed in `index.md` and surfaced via `/context`. Without this, graduated sources sit unindexed — the exact "is it indexed?" gap this work exists to avoid. Confirm `/index`'s reference-scanning glob includes the new subdir; extend it if it currently globs only `references/*.md`.
+**Sourced during /prospect (2026-06-21):** `index/SKILL.md` Step 1 scans `approaches/`, `decisions/`, `guides/ (recursive — includes subdirectories)`, `references/`. Only `guides/` carries the recursive annotation — `references/` is scanned **flat (top-level only)**. Therefore `references/sources/*.md` is **invisible to `/index` today**, and graduated sources would sit unindexed (the exact gap this work exists to avoid). This is not "confirm/maybe" — it is a required edit.
 
-### Surface 3 — `references/README.md` + convention
+**The edit:** add the `(recursive — includes subdirectories)` annotation to the `references/` line in `index/SKILL.md` Step 1, mirroring the existing `guides/` idiom, so the indexer walks `references/sources/`.
 
-Document the two tiers in the template's `references/README.md` (and the user-folder copy if it diverges):
+### Surface 3 — `references/README.md` + convention (TEMPLATE ONLY)
+
+Document the two tiers in the **plugin template's** `references/README.md` only:
 - `references/sources/` — verbatim graduated clippings (raw artifacts; preserved whole).
 - top-level `references/` — curated fragments / notes / research docs.
+
+**Scope resolved during /prospect (2026-06-21):** update the plugin template `references/README.md` ONLY. The user's live `knowledge/references/README.md` is user-owned (file-class model — never auto-synced from template changes) and is explicitly OUT of scope for this change; Mike updates it separately if/when desired (or `/setup` surfaces the template diff).
 
 ## Components & data flow
 
@@ -62,10 +66,20 @@ intake/clippings/{file}.md
         └─► ledger ─► archive/audit-{date}/clippings/REMOVED.md  (disposition: graduated, dest path)
 ```
 
-## Out of scope (recorded, not dropped)
+## Corpus-schema is canonical now; Cowork step-port is deferred (per ADR-013 + ADR-014)
 
-- **Cowork-port parity:** `plugin-claude-cowork` has NO clippings step at all (its Step 2 sequence ends at 2d — missing both 2e Subagent Captures and 2f Clippings). Bringing Cowork to parity is a separate, larger job (porting a missing feature, and Cowork lacks Bash file ops). Filed as a follow-up idea.
-- **antigravity / openai-codex ports** (currently 2.30.x, version-skewed behind code's 2.35.0): out of scope; follow their normal sync cadence.
+This change introduces a new **output-schema** element to the shared knowledge corpus: the `references/sources/` destination directory and the `graduated` ledger disposition. Per **ADR-013** (Cowork-modified skills produce schema-identical outputs — *input-discovery is per-surface; output-schema is per-corpus*), this schema is **canonical across the corpus the moment it ships in Code**, regardless of which plugin writes it. Any future Cowork clippings step MUST graduate to the same `references/sources/` path with the same `graduated` ledger shape — it may NOT invent a divergent destination.
+
+Per **ADR-014** (bidirectional feature flow), clippings-graduation is a **row-3 (bidirectional)** capability: it solves a corpus-level workflow that benefits both Code and Cowork users. aria-knowledge ships first (schema source-of-truth per ADR-014 step 2); Cowork ports later in a parity-sync release. So Cowork parity is a *sanctioned, scheduled* follow-up, not an open question.
+
+What is **deferred** (the step port), not the schema:
+
+- **Cowork-port parity:** `plugin-claude-cowork` has NO clippings step at all (its Step 2 sequence ends at 2d — missing both 2e Subagent Captures and 2f Clippings). Porting the clippings step to Cowork is a separate, larger job (porting a missing feature; Cowork lacks Bash file ops, so the `git mv` graduation must become a copy-or-MCP equivalent per ADR-013's input-discovery-diverges rule). Filed as a follow-up idea. **The `references/sources/` schema this spec defines is what that future port must conform to.**
+- **antigravity / openai-codex ports** (currently 2.30.x, version-skewed behind code's 2.35.0): step-port out of scope; follow their normal sync cadence; same corpus-schema applies when they port.
+
+## CHANGELOG attribution (per ADR-014)
+
+Code-port CHANGELOG notes this as an aria-knowledge-originated corpus-schema addition. When Cowork ports the step, its CHANGELOG references this spec as the schema source.
 
 ## Versioning
 
