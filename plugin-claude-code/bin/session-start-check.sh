@@ -396,6 +396,18 @@ if [ -n "$CODEMAPS" ]; then
   fi
 fi
 
+# Autonomy posture directive (decision-routing, Rule 35) — gated + scaled by the `autonomy`
+# config key. default (or unset/unknown): inject nothing — zero behavior change, zero context
+# cost (the safe failure mode). Rule 35 in working-rules.md carries the universal logic; this
+# block is the active per-session push. KT_AUTONOMY is parsed by config.sh (sourced above),
+# defaulting to "default" when the key is absent.
+if [ "$KT_AUTONOMY" = "balanced" ]; then
+  MESSAGES="${MESSAGES}DECISION ROUTING (balanced) — Before asking OR auto-deciding, classify (per Rule 35): resolvable by read/grep/diff/git/config/web → investigate first, then act; objectively validatable → decide and show the validation; mechanical/already-decided → act; the user's intent/preference/judgment with no gainable visibility, or anything needing ungranted explicit approval → ask. Investigate the resolvable parts first; ask only the residual that's genuinely about the user. "
+elif [ "$KT_AUTONOMY" = "autonomous" ]; then
+  MESSAGES="${MESSAGES}DECISION ROUTING (autonomous) — The user's decision budget is the scarce resource; your speed/context is cheap. Exhaust self-resolvable investigation before spending a human turn. Per Rule 35: decide objectively-validatable forks YOURSELF (checked against ground truth and the build-philosophy bar, Rules 13/14/18 — simplest/robust/clean, no unneeded abstraction). Run quality gates (/prospect pre-code, /retrospect post-ship) as checks, not stops. Stop and ask ONLY when it is a judgment call with no gainable visibility (and none can be gained), or it requires explicit approval not already granted (push, destructive op, scope change, credentials). "
+fi
+# autonomy = default (or unset/unknown): no directive injected.
+
 # Output only if there are messages
 if [ -n "$MESSAGES" ]; then
   MESSAGES_ESCAPED=$(kt_json_escape "$MESSAGES")

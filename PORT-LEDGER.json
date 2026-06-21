@@ -1,7 +1,7 @@
 {
   "claude-code": {
-    "version": "2.34.0",
-    "parity_target": "2.34.0",
+    "version": "2.35.0",
+    "parity_target": "2.35.0",
     "last_parity_pass": "2026-06-21",
     "sla": "undeclared",
     "surfaces": {}

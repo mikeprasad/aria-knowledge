@@ -2,6 +2,17 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.35.0 — 2026-06-21
+
+**New Rule 35 (decision routing) + `autonomy` config posture — make the ask-vs-decide policy binding.**
+
+The decision-routing policy (investigate-first; spend the human's decision budget only on what the agent can't resolve) previously lived only in scattered non-binding `feedback` memories, so it had to be hand-restated each session. This promotes it to the binding tiers.
+
+- **Rule 35 (`template/rules/working-rules.md`, universal):** consolidates the calibration into one operative rule — the decision-budget economics (the human's attention is the scarce resource; agent speed/context is cheap) + the routing table (resolvable→investigate→act · objectively-validatable→decide+show · mechanical/already-decided→act · intent/preference/judgment-with-no-gainable-visibility→ask · ungranted-explicit-approval→ask) + sequential composition. The quality bar for a validatable decision is the existing Rules 13/14/18 (referenced, not duplicated). Always-on for every user; ships via `/setup`'s plugin-managed diff.
+- **`autonomy` config key (`default` | `balanced` | `autonomous`, ship default `default`):** gates a scaled SessionStart directive in `session-start-check.sh`. `default` injects **nothing** (zero behavior change, zero context cost — the safe failure mode). `balanced` injects a light investigate-first directive. `autonomous` injects the full posture: decide objectively-validatable forks yourself (checked against Rules 13/14/18), quality gates as checks-not-stops, stop only on a no-visibility judgment call or ungranted explicit approval. Parsed by `config.sh` (so Step 7e self-validation recognizes it; the hook reads `$KT_AUTONOMY`). Surfaced in `/setup`.
+- New repro `tests/repros/autonomy-posture.sh` (Rule 35 presence + default=no-injection + balanced/autonomous directive emission, driven via the picker-gating KT_CONFIG-stub technique); 22 repro suites green.
+- **Distribution note:** editing the plugin-managed `working-rules.md` means every existing user sees a Rule 35 diff prompt on their next `/setup` — intended, benign, not silent. **Ports:** Rule 35 reaches all ports via the shared template; the SessionStart injection is Claude-Code-canonical.
+
 ## 2.34.0 — 2026-06-21
 
 **New skill: `/recap` — read-only orientation.** A scannable `What / Where / Status` table of *what just happened*, to situate the user at a glance. The orient-side counterpart to `/handoff` (which packages state for the next reader) — `/recap` re-orients the *current* reader. Distinct from `/retrospect`: recap summarizes, never validates/judges (it may *offer* to escalate to `/retrospect`, never runs verdict work).
