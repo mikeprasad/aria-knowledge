@@ -2,6 +2,19 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.35.1 — 2026-06-21
+
+**Clippings graduate to `references/` — `intake/clippings/` becomes a durable-source on-ramp.**
+
+Previously `/audit-knowledge` Step 2f mined a clipping then *deleted* the source (ledger-clear). There was no path to preserve a clipping as a citable reference. This makes graduation the default: every processed clipping is preserved whole AND mined.
+
+- **Step 2f (`plugin-claude-code/skills/audit-knowledge/SKILL.md`):** disposition menu is now **Graduate (default) / Skip**; the mine-and-discard path is removed. Graduate derives+confirms tags, `git mv`s the whole clipping to `references/sources/{file}.md`, mines all six buckets to the backlogs, and ledgers `disposition: graduated` (not deleted). No-minable-content clippings still graduate their source.
+- **Two-tier `references/`:** top-level = curated fragments/notes; `references/sources/` = verbatim graduated clippings (raw artifacts). Documented in the template `references/README.md`.
+- **`/index` (`plugin-claude-code/skills/index/SKILL.md`):** Step 1 now scans `references/` **recursively**, so `references/sources/` is indexed (without this, graduated sources would be invisible — confirmed via /prospect).
+- New repro `tests/repros/clippings-graduate.sh`; suite count 22 → 23.
+- **Corpus-schema (ADR-013 / ADR-014):** the `references/sources/` path + `graduated` ledger disposition are canonical corpus-wide now; this is a row-3 bidirectional feature. **Ports:** Code-canonical this round — Cowork has no clippings step (its Step 2 ends at 2d); porting it (and the missing 2e/2f) is deferred and must conform to this schema. antigravity/codex follow their normal sync.
+- **Distribution note:** the template `references/README.md` change surfaces as a `/setup` diff for existing users; benign, not silent.
+
 ## 2.35.0 — 2026-06-21
 
 **New Rule 35 (decision routing) + `autonomy` config posture — make the ask-vs-decide policy binding.**
