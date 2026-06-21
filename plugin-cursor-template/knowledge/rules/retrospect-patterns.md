@@ -236,14 +236,14 @@ Negative-existence claims about your own system survive the highest plausibility
 Before any architectural claim about how an existing system works (or doesn't work), grep for the candidate enforcement layer and read it. If the claim is negative-existence ("doesn't enforce X"), the source-trace is mandatory — the wrong-claim cost asymmetry is too high. CODEMAP enforcement-point one-liners are the standing defense; absent them, an in-line trace pass before the architectural turn is required. Aligns with Rule 34 (validate plan before executing) — the rule-text catches the trigger prospectively, this pattern catches the failure shape retrospectively.
 
 ### References
-- *(seeded — first canonical reference is the 2026-05-05 cs-builder Stage 1 close-out gate retrospective in the plugin author's environment)*
+- *(seeded — first canonical reference is a 2026-05-05 close-out gate retrospective in the plugin author's environment)*
 
 ---
 
 ## fix-without-call-site-audit
 
 **Tier:** canonical
-**First identified:** 2026-05-05 in a real-use cs-builder Stage 1 close-out cycle (four instances within hours of each other — the strongest single-session calibration in the canonical library).
+**First identified:** 2026-05-05 in a real-use close-out cycle (four instances within hours of each other — the strongest single-session calibration in the canonical library).
 **One-line summary:** Fixing a function-contract bug at one call site without auditing all sibling call sites of the same function for the identical gap, leading to the same defect re-shipping at the next call site discovered.
 
 ### Detection cues
@@ -254,20 +254,20 @@ Before any architectural claim about how an existing system works (or doesn't wo
 - Phrase fragments in narrative or commit body: "this fixes [the case]…", "specifically [path]…", "for [this component]…" — without "audited all callers"
 
 ### Why it's a problem
-Single-call-site fixes pass type-checking, pass tests targeting the fixed path, and ship cleanly. The sibling call site continues to fail silently until human testing surfaces it. Each missed sibling becomes a separate user-visible bug with separate deploy + retest + rollback cost. The first calibration cycle was four sequential fixes in cs-builder Stage 1: gallery merge missing pageIndex, tool-use rehost missing, action-chip render missing, and Discovery onBlur rehost missing — each fixing one call site of a recurring function-contract gap, each shipping before the next call site was audited.
+Single-call-site fixes pass type-checking, pass tests targeting the fixed path, and ship cleanly. The sibling call site continues to fail silently until human testing surfaces it. Each missed sibling becomes a separate user-visible bug with separate deploy + retest + rollback cost. The first calibration cycle was four sequential fixes in a single close-out — each a missing field or rehosted handler at one call site of the same recurring function-contract gap, each shipping before the next call site was audited.
 
 ### Counter-discipline
 Before claiming a function-contract fix complete, grep all call sites of the function and audit each for the same gap. If any sibling call site is left unmodified, name explicitly *why* it doesn't need the same fix (e.g., "Phase 3 generation auto-applies the missing field downstream"). Treat the fix as incomplete until either every sibling is patched or every unpatched sibling has a documented exemption. The audit pass is cheap (one grep, one read per match); the alternative is sequential retest cycles each costing minutes-to-hours.
 
 ### References
-- *(seeded — first canonical reference is the 2026-05-05 cs-builder Stage 1 close-out cycle in the plugin author's environment, four instances)*
+- *(seeded — first canonical reference is a 2026-05-05 close-out cycle in the plugin author's environment, four instances)*
 
 ---
 
 ## new-artifact-without-consumer-trace
 
 **Tier:** canonical
-**First identified:** 2026-05-05 in the same cs-builder Stage 1 close-out cycle as `fix-without-call-site-audit`, immediately after the four call-site instances — a distinct sub-shape sharing the broader completion-claim-without-trace family.
+**First identified:** 2026-05-05 in the same close-out cycle as `fix-without-call-site-audit`, immediately after the four call-site instances — a distinct sub-shape sharing the broader completion-claim-without-trace family.
 **One-line summary:** Creating a new artifact (file, route, blueprint, skill) that is consumed by an enumerator (registry, manifest, dispatch table, type union) and claiming the artifact will work end-to-end without verifying or updating the enumerator.
 
 ### Detection cues
@@ -284,4 +284,4 @@ Most registries are static. A new file plus a missing registry entry produces a 
 Before claiming a new artifact complete, identify its consumer and grep the consumer for analogous entries. If the consumer is a static registry, a manifest, a type union, or a dispatch table, deploying the artifact alone is incomplete — the consumer must also be updated, and the verification claim should name the consumer explicitly. Inverse of the call-site discipline: where `fix-without-call-site-audit` covers existing-function → multiple-callers, this pattern covers new-artifact → existing-enumerator.
 
 ### References
-- *(seeded — first canonical reference is the 2026-05-05 cs-builder Stage 1 close-out cycle in the plugin author's environment, bar blueprint instance)*
+- *(seeded — first canonical reference is a 2026-05-05 close-out cycle in the plugin author's environment, new-artifact-vs-registry instance)*

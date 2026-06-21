@@ -11,7 +11,7 @@ cat > "$KT_CONFIG" <<'EOF'
 ---
 knowledge_folder: /tmp/knowledge
 projects_enabled: true
-projects_list: cs:/Users/x/Projects/cs,df:/Users/x/Projects/df/df-ui
+projects_list: alpha:/Users/x/Projects/alpha,beta:/Users/x/Projects/beta/beta-ui
 pm_active_max_days: 3
 pm_warm_max_days: 9
 pm_notify_desktop: true

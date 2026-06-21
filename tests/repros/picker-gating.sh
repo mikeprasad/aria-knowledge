@@ -19,8 +19,8 @@ knowledge_root: $KN
 configured: true
 projects_enabled: true
 session_start_project_picker: true
-projects_list: cs:cs,df:df
-projects_labels: cs:Commonspace
+projects_list: alpha:alpha,beta:beta
+projects_labels: alpha:Alpha App
 pm_projects_root: ~/Projects
 active_knowledge_surfacing: false
 ---
@@ -29,7 +29,7 @@ EOF
 # Run from a non-project dir so the picker is not skipped by a CWD match.
 out=$(cd "$TMP" && KT_CONFIG="$CFG" sh "$HOOK" 2>/dev/null || true)
 echo "$out" | grep -q "ARIA Project Picker" || { echo "FAIL: picker absent when enabled"; echo "--out--"; echo "$out"; rm -rf "$TMP"; exit 1; }
-echo "$out" | grep -q "cs (Commonspace), df" || { echo "FAIL: menu string missing/incorrect"; echo "$out"; rm -rf "$TMP"; exit 1; }
+echo "$out" | grep -q "alpha (Alpha App), beta" || { echo "FAIL: menu string missing/incorrect"; echo "$out"; rm -rf "$TMP"; exit 1; }
 
 # Disable the flag -> picker must be silent.
 sed 's/session_start_project_picker: true/session_start_project_picker: false/' "$CFG" > "$CFG.off"

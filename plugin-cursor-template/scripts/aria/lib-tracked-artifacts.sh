@@ -69,9 +69,9 @@ kt_artifact_compute_for_path() {
 
   # Resolve project root: iterate projects_list looking for first tag:path
   # entry whose path_part appears as substring in input_path. First match wins
-  # (same semantics as config.sh's kt_project_for_path). Mike-style projects_list
-  # ordering matters — put more-specific entries (e.g., cs-builder:cs/cs-space-builder)
-  # BEFORE less-specific ones (cs:cs) to disambiguate sub-projects.
+  # (same semantics as config.sh's kt_project_for_path). projects_list
+  # ordering matters — put more-specific entries (e.g., webapp:web/web-app)
+  # BEFORE less-specific ones (web:web) to disambiguate sub-projects.
   _kt_proj_tag=""
   _kt_proj_root=""
   _kt_old_ifs="$IFS"

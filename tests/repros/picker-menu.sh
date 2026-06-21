@@ -5,17 +5,17 @@ DIR="$(cd "$(dirname "$0")/../.." && pwd)"   # repo root
 . "$DIR/plugin-claude-code/bin/config.sh"
 
 fail=0
-KT_PROJECTS_LIST='cs:cs,df:df,shopsource:shopsource'
+KT_PROJECTS_LIST='alpha:alpha,beta:beta,gamma:gamma'
 
 # Case A: no labels -> bare tags, comma-space joined
 KT_PROJECTS_LABELS=''
 got=$(kt_project_menu)
-[ "$got" = "cs, df, shopsource" ] || { echo "A FAIL: got [$got]"; fail=1; }
+[ "$got" = "alpha, beta, gamma" ] || { echo "A FAIL: got [$got]"; fail=1; }
 
 # Case B: partial labels -> "tag (Label)" only where present
-KT_PROJECTS_LABELS='cs:Commonspace,shopsource:ShopSource'
+KT_PROJECTS_LABELS='alpha:Alpha App,gamma:Gamma Service'
 got=$(kt_project_menu)
-[ "$got" = "cs (Commonspace), df, shopsource (ShopSource)" ] || { echo "B FAIL: got [$got]"; fail=1; }
+[ "$got" = "alpha (Alpha App), beta, gamma (Gamma Service)" ] || { echo "B FAIL: got [$got]"; fail=1; }
 
 # Case C: empty list -> empty string
 KT_PROJECTS_LIST=''

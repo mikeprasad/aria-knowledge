@@ -181,7 +181,7 @@ The honest claim is that the trend is **consistent with ARIA improving plan form
 | Pattern count at v2.13.5 (origin) | 12 |
 | Count at the v2.18.x revision | 27 |
 | Count at the v2.25.x revision | ~67 |
-| Plus project-scoped pattern libraries | `cs-builder/`, `df/`, `aria/` |
+| Plus project-scoped pattern libraries | one per active project |
 
 The library grew again (~67 → 88 canonical) and remains **architecturally split**: cross-cutting patterns live in `rules/retrospect-patterns.md`; project-specific ones live in `projects/<name>/retrospect-patterns.md`. Each canonical pattern was added because a retrospect identified the same failure mode at least twice. The library is calibrated against real shipped work, not theoretical anti-patterns. The ~7×-from-origin growth tracks the retrospect-log count (now 101), as expected for a library that grows only on observed recurrence.
 
@@ -228,7 +228,7 @@ The capture-fold rate (~10–12%) is the closest clean measure of gate conservat
 
 ### 5. Convergence speedup (single real-session example)
 
-In one documented production session (cs-builder may18pm AUTO-PRESELECT-PROFILE-IMAGE fix):
+In one documented production session (a UI-fix close-out in the plugin author's environment):
 
 | Metric | With ARIA's Active Knowledge Surfacing | Pre-fix baseline |
 |---|---:|---:|

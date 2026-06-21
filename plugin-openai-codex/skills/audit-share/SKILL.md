@@ -76,7 +76,7 @@ For each candidate, determine:
        - Score = count of matching keywords per role (case-insensitive whole-word match against body + tags).
        - **Single dominant role** (one role's score is ≥2× the next, AND ≥3 hits): recommend that role's sub-repo, repo-scoped destination.
        - **Multiple roles tied or all low scores**: recommend cross-stack → **primary sub-repo's `_project-knowledge/cross/`**.
-       - **Primary sub-repo** = first role declared in `projects_groups[tag]` (declaration order, NOT alphabetical), OR an explicit `primary:` field if user has added one to the group entry. For Mike's example `cs: { backend: commonspace-app, web: commonspace-ui-v3, mobile: commonspace-mobile-ui }`, primary is `commonspace-app`.
+       - **Primary sub-repo** = first role declared in `projects_groups[tag]` (declaration order, NOT alphabetical), OR an explicit `primary:` field if user has added one to the group entry. For example, given `webapp: { backend: api-server, web: web-client, mobile: mobile-app }`, primary is `api-server`.
      - Multi-repo paths:
        - Repo-scoped (dominant role detected): `<project-root>/<role-sub-repo>/_project-knowledge/<YYYY-MM-DD>-<author_tag>-<slug>.md`
        - Cross-stack (no dominant role): `<project-root>/<primary-sub-repo>/_project-knowledge/cross/<YYYY-MM-DD>-<author_tag>-<slug>.md`

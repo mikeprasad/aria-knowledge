@@ -62,7 +62,7 @@ CD_PATH="${CD_PATH%/}"
 [ -z "$CD_PATH" ] && exit 0
 
 # Build a query from path basenames. We take the last 2 path components so
-# `cd cs/cs-builder` → query "cs cs-builder", which lines up with how
+# `cd web/web-app` → query "web web-app", which lines up with how
 # project tags are typically named in your index (one tag per directory).
 LAST=$(basename "$CD_PATH" 2>/dev/null)
 PARENT=$(basename "$(dirname "$CD_PATH")" 2>/dev/null)

@@ -203,7 +203,7 @@ Examples:
 ```
 To confirm Hypothesis A (stale shadow flush):
   - Add console.log in flushShadowIfPresent showing the shadow payload pre-flush
-  - Inspect localStorage for cs-builder-shadow-* keys after logout
+  - Inspect localStorage for app-shadow-* keys after logout
   - Network tab: capture PUT body during active session AND post-reopen
 
 To confirm Hypothesis B (buildPayload mid-logout race):

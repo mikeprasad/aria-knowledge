@@ -32,9 +32,9 @@ account is the *Desktop* login. Result:
 **Confirmed empirically (2026-06-05, this session):**
 - `CLAUDE_CODE_ENTRYPOINT=claude-desktop`, `__CFBundleIdentifier=com.anthropic.claudefordesktop`,
   `claude-code-vm/2.1.161/` present → Desktop-hosted.
-- `~/.claude.json` reports `58780584-…` / `yukawamichael@gmail.com` (CLI login).
-- This session's real account is `c3d95d5d-…` (a *different* user).
-- The snapshot `aria-statusline-state-58780584-….json` showed `five_hour_pct: 100` —
+- `~/.claude.json` reports the CLI login account (`<cli-account-uuid>` / the CLI user's email).
+- This session's real account is a *different* user (`<session-account-uuid>`).
+- The snapshot `aria-statusline-state-<cli-account-uuid>.json` showed `five_hour_pct: 100` —
   correct for the CLI account, **wrong for this Desktop session** (real usage much lower) —
   and the inject hook fired a false "5-hour 100%" alert.
 
@@ -119,9 +119,9 @@ Claude Desktop organizes its session state by account in **plain folder names**:
 ```
 
 - The first path segment is the **per-user account UUID**; the second is the org UUID.
-  Proof: `58780584-…` (the CLI user's `accountUuid` from `~/.claude.json`) appears as a
-  first-level folder, sibling to the other user accounts; orgs (`577ecffe-…`=Commonspace,
-  `7b7c4749-…`, `b24d5341-…`) appear only at the second level, shared across user folders.
+  Proof: the CLI user's `accountUuid` (from `~/.claude.json`) appears as a first-level
+  folder, sibling to the other user accounts; org UUIDs appear only at the second level,
+  shared across user folders.
 - Each Desktop session file stores the live session id as `cliSessionId`, which equals the
   `.session_id` in both the statusline payload and the hook payload. Grepping for the
   current `session_id` resolves to exactly one `<account>/<org>/` path in **~9 ms** over

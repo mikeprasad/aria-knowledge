@@ -10,7 +10,7 @@
 
 ## 1. Summary
 
-`/interview` is a new canonical skill that **elicits** knowledge through dialogue, rather than **harvesting** it from existing sources. It sits *upstream* of the existing intake family (`/extract`, `/intake`, `/clip`, `/meeting-notes`), which are all pull-based (they read a conversation, file, or URL). `/interview` is push-based: it interviews the user, and the answers *become* the knowledge — modeled on the `grill-with-docs` / `deep-interview` prior art and, more directly, on the 2026-05-01 Designframe strategic deep-dive session (`df/docs/session-transcript-2026-05-01-strategic-deep-dive.md`) that the user flagged as the gold standard.
+`/interview` is a new canonical skill that **elicits** knowledge through dialogue, rather than **harvesting** it from existing sources. It sits *upstream* of the existing intake family (`/extract`, `/intake`, `/clip`, `/meeting-notes`), which are all pull-based (they read a conversation, file, or URL). `/interview` is push-based: it interviews the user, and the answers *become* the knowledge — modeled on the `grill-with-docs` / `deep-interview` prior art and, more directly, on a strategic deep-dive session the user flagged as the gold standard.
 
 The skill writes structured markdown into the `intake/` tree (exactly like `/meeting-notes`); it **never auto-promotes**. **Review path (verified 2026-06-17):** `/audit-knowledge` scans a *fixed* set — the four named backlog files + `intake/ideas/` — and does NOT glob `intake/` subfolders (it doesn't sweep `intake/meetings/` or `intake/docs/` either). So `/interview` output is **manually reviewed staged material** (the `/meeting-notes` model): the user promotes it later by hand or via `/extract`. It is not auto-swept. The skill's single job: get what's in the user's head (and in their artifacts) onto disk as reviewable raw material.
 
@@ -37,11 +37,11 @@ Invoked as `/interview <mode>`. Same engine, distinct question bank + framing + 
 | **`knowledge`** | Getting a topic out of your head into the KB | *Topical* — a focused subject you hold a position on | `intake/interviews/{YYYY-MM-DD}-{slug}.md` |
 | **`deep-dive`** | Comprehensively extracting an *existing-but-undocumented* system you built | *Archaeological* — reverse-engineers rationale behind something already built | `intake/interviews/{YYYY-MM-DD}-{slug}.md` |
 
-**`deep-dive` signature moves** (from the DF transcript): cluster questions by leverage (highest-impact first), tie every question to observed evidence, and explicitly hunt **negative space** ("what was considered and deliberately NOT built?").
+**`deep-dive` signature moves** (from the example transcript): cluster questions by leverage (highest-impact first), tie every question to observed evidence, and explicitly hunt **negative space** ("what was considered and deliberately NOT built?").
 
 ## 4. Grounding (`--ground`)
 
-`/interview <mode> [--ground=<artifacts>]` — optional input pointing the skill at a basis to read *before* asking, so questions can cite evidence. Basis can be: source code / a directory / a glob, a design doc / plan / spec, a project folder (reads its CLAUDE.md + structure), a data file (e.g. the DF `.xlsx`), or a URL (via WebFetch).
+`/interview <mode> [--ground=<artifacts>]` — optional input pointing the skill at a basis to read *before* asking, so questions can cite evidence. Basis can be: source code / a directory / a glob, a design doc / plan / spec, a project folder (reads its CLAUDE.md + structure), a data file (e.g. a data spreadsheet), or a URL (via WebFetch).
 
 | Mode | Grounding | If no `--ground` |
 |---|---|---|
@@ -58,7 +58,7 @@ Cadence is **asked at the start of every interview**, after mode + grounding res
 | Cadence | How it runs | Best for |
 |---|---|---|
 | **`socratic`** | One question at a time; next adapts to the last answer; live convergence | Focused topics; thinking *with* the AI; answers not yet known |
-| **`battery`** | Researches + thinks, then presents a full **clustered, leverage-ordered, numbered** question set at once (the DF pattern); answered async in prose | Comprehensive extraction; knowledge already held; deep-dives |
+| **`battery`** | Researches + thinks, then presents a full **clustered, leverage-ordered, numbered** question set at once (the clustered-battery pattern); answered async in prose | Comprehensive extraction; knowledge already held; deep-dives |
 
 **Auto-recommend with override** (decide-and-surface-the-fork): `deep-dive` → battery; `project`/`knowledge` with grounding or a broad topic → battery; focused + ungrounded → socratic. The skill states the recommendation in one line and accepts an override.
 
@@ -94,8 +94,8 @@ cadence: socratic | battery
 date: YYYY-MM-DD
 slug: <kebab-topic>
 grounding:            # artifacts ingested, if any (deep-dive always has ≥1)
-  - df-input.css
-  - docs/grid-calculator-v1.4.xlsx
+  - src/styles.css
+  - docs/metrics-v1.4.xlsx
 status: staged        # not yet promoted; reviewed at /audit-knowledge
 ---
 ```
@@ -124,7 +124,7 @@ status: staged        # not yet promoted; reviewed at /audit-knowledge
 ## What would change my mind
 ```
 
-**Body — `deep-dive`** (mirrors the DF session structure):
+**Body — `deep-dive`** (mirrors the example session structure):
 ```
 # Deep-Dive: <system>
 ## Grounding reviewed            ← what was ingested + key observations
@@ -160,7 +160,7 @@ Split rationale: SKILL.md owns mechanism; question banks are content that will g
 Prompt-skill (markdown), so validation = exercising each branch once with real inputs and reading staged output:
 - `project` (socratic, no grounding) → stages a project file.
 - `knowledge` (battery) → produces clustered output.
-- `deep-dive` grounded on a real artifact (e.g. the DF spreadsheet or a small doc) → produces evidence-cited clustered questions.
+- `deep-dive` grounded on a real artifact (e.g. a spreadsheet or a small doc) → produces evidence-cited clustered questions.
 - **Highest-value single test — the deep-dive gate:** invoke `/interview deep-dive` with **no** `--ground` and confirm it *refuses to proceed* and asks for a basis. That gate is the mode's whole identity; a prompt that only "mostly" enforces it is the classic prompt-skill regression.
 
 ## 10. Out of scope (v1)

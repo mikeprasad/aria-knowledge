@@ -52,8 +52,8 @@ tags: [api, pagination, django]
 **Project-to-tag mappings** associate each project with its relevant tags:
 
 ```
-### cs — Commonspace
-Relevant tags: api, django, react, react-native, css, tailwind, stripe, supabase, database, deployment
+### webapp — Web App
+Relevant tags: api, backend, frontend, css, payments, database, deployment
 ```
 
 These are maintained in the index file and updated by `/index` (scanning project CLAUDE.md files).
@@ -71,14 +71,14 @@ Last rebuilt: 2026-04-06
 
 ## Projects
 
-### cs — Commonspace
-Relevant tags: api, django, react, react-native, css, tailwind, stripe, supabase, database, deployment
+### webapp — Web App
+Relevant tags: api, backend, frontend, css, payments, database, deployment
 
-### ss — Seersite
-Relevant tags: api, django, nextjs, stripe, supabase, database, deployment
+### portal — Customer Portal
+Relevant tags: api, backend, frontend, payments, database, deployment
 
-### df — Designframe
-Relevant tags: css, tailwind, accessibility
+### designkit — Design Kit
+Relevant tags: css, accessibility
 
 ### aria — ARIA
 Relevant tags: claude-code, process, decision-framework, enforcement
@@ -97,7 +97,7 @@ decision-framework, enforcement, cs, ss, df, aria
 - decisions/003-cursor-vs-offset.md — Why we chose cursor pagination
 
 ### css
-- approaches/combo-class-pattern.md — Designframe combo class methodology
+- approaches/combo-class-pattern.md — CSS combo class methodology
 
 ### stripe
 - references/stripe-webhook-patterns.md — Webhook signature verification
@@ -238,7 +238,7 @@ Only suggest once per session. Don't block — just offer.
 **Behavior flow:**
 
 1. Session starts — hook fires, outputs audit cadence checks (existing) plus the knowledge surfacing instruction
-2. User states their task: "lets work on the Seersite API pagination"
+2. User states their task: "lets work on the portal API pagination"
 3. Claude (prompted by the hook instruction) reads `index.md`, identifies relevant tags from the user's message (`api`, `pagination`, `ss`)
 4. Claude suggests: "Before we start — you have knowledge docs that may be relevant. Want me to run `/context api pagination ss`?"
 5. User accepts or declines — either way, the suggestion doesn't repeat
