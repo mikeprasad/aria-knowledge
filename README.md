@@ -381,6 +381,7 @@ Everything ARIA ships, organized by the four problems it solves — plus the ope
 | Rule 22 enforcement | Hook | Pre-edit + post-edit change-decision framework — visible impact assessment and scope verification before and after every file edit. |
 | Govern phase (backlog gate) | Feature | Nothing enters the trusted layer automatically; human review is the gate between capture and promotion, with provenance preserved. |
 | Audit cadences | Feature | SessionStart hook prompts when `/audit-knowledge` or `/audit-config` is due; staleness thresholds force review of aging entries. |
+| Autonomy posture (`autonomy`) | Feature | Config-gated decision-routing (Rule 35): `default` (off, no injection) / `balanced` / `autonomous`. At `balanced`+, a SessionStart directive sets the ask-vs-decide posture — investigate-first, decide objectively-validatable forks, ask only on no-visibility judgment calls or ungranted approval. |
 
 ### Setup, Health & Observability — keeping the system itself healthy
 
