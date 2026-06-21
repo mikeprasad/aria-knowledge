@@ -2,6 +2,15 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.34.0 — 2026-06-21
+
+**New skill: `/recap` — read-only orientation.** A scannable `What / Where / Status` table of *what just happened*, to situate the user at a glance. The orient-side counterpart to `/handoff` (which packages state for the next reader) — `/recap` re-orients the *current* reader. Distinct from `/retrospect`: recap summarizes, never validates/judges (it may *offer* to escalate to `/retrospect`, never runs verdict work).
+
+- **Five modes** dispatched by input: `/recap` (this session — conversation synthesis) · `/recap arc` (the last product arc — from the nearest `PROGRESS.md`'s most recent heading; states the inferred boundary) · `/recap commit [<hash>]` (`git show`) · `/recap push` (`git log @{push}..HEAD` — what I sent up) · `/recap pull` (`git log ORIG_HEAD..HEAD`, reflog fallback if stale — what came down to me; always prints the resolved range).
+- **push vs pull** are surfaced as opposites: push = my commits sent up; pull = others' commits I merged.
+- **Read-only by construction:** `allowed-tools: Read, Glob, Grep, Bash` — `Write`/`Edit` deliberately excluded so the runtime cannot write even if prose drifts. No logs, no files; the one pure-read skill in the orient/capture family.
+- New repro `tests/repros/recap-modes.sh` (asserts 5 modes + pull resolution + the consistent table + the no-Write invariant); 21 repro suites green. **Ports:** Claude-Code-canonical (git modes are Bash-native); not added to other ports this round.
+
 ## 2.33.0 — 2026-06-21
 
 **`/intake` consolidation — `/clip`, `/clip-thread`, `/extract-doc` retired into `/intake`; clippings review gap closed.**
