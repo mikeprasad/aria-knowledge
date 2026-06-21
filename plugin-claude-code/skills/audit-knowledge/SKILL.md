@@ -334,15 +334,20 @@ Scan `{knowledge_folder}/intake/clippings/` for `.md` files. **If the directory 
 **If clippings exist**, report the count and total size, then ask the user:
 
 > "Found N clipping(s) (total ~X KB) — saved URLs / snippets / threads (captured via `/intake` or dropped into the folder by hand). Options:"
-> 1. **Review** — scan each for extractable content, route to backlogs (default)
+> 1. **Graduate** (default) — preserve each clipping whole as a durable source in `references/sources/` AND mine it for knowledge
 > 2. **Skip** — leave for the next audit
 
-Under **Review**, for each clipping: scan for the same six buckets as `/extract` (insights, decisions, feedback, project context, references, ideas).
-- **Approved items** → append to the appropriate backlog (`insights-backlog.md` / `decisions-backlog.md` / `extraction-backlog.md`), then apply the **ledger-clear pattern**: create `{knowledge_folder}/archive/audit-{date}/clippings/` if needed, append an entry to its `REMOVED.md` (filename + source + clip-date), then `rm` the clipping `.md`.
-- **Nothing extractable** → ledger-clear with `disposition: rejected` and a one-line reason.
-- **Skip** → leave the clipping for the next audit.
+Under **Graduate**, for each clipping:
 
-Note findings for presentation in Step 6 under a "Clippings" section.
+1. **Derive tags.** Propose tags from the clipping's content, matched against the existing tag vocabulary in `index.md` (mirror `/index`'s tagging). If the clipping already carries `/intake` frontmatter `tags:`, carry them over. **Show the proposed tags for confirm/edit** before writing.
+2. **Preserve the source.** Ensure the clipping has `Last updated:` + the confirmed `tags:` frontmatter, then move the whole file to `{knowledge_folder}/references/sources/{filename}.md` (create `references/sources/` if absent). Use `git mv` when the knowledge folder is a git repo, else `mv`.
+3. **Mine all six buckets** (insights, decisions, feedback, project context, references, ideas) — same scan as `/extract`. Append findings to the appropriate backlog (`insights-backlog.md` / `decisions-backlog.md` / `extraction-backlog.md`) and route ideas to `intake/ideas/`. Reference-type fragments become curated notes destined for **top-level** `references/` (a distinct tier from the raw source now in `references/sources/`). Because the whole source is preserved in `references/sources/`, dedup any reference fragment against it before promoting — promote a fragment only when it is a distinct, smaller, independently-useful note, not a restatement of the source.
+4. **Ledger as graduated.** Create `{knowledge_folder}/archive/audit-{date}/clippings/` if needed; append an entry to its `REMOVED.md`: filename + source + clip-date + `disposition: graduated` + destination `references/sources/{filename}.md`.
+5. **No minable content:** the source STILL graduates to `references/sources/` (archival value). Ledger note `disposition: graduated (source only, no fragments mined)`.
+
+There is no discard-the-source path: every processed clipping graduates. "Skip" defers an uncertain clipping to the next audit.
+
+Note findings for presentation in Step 6 under a "Clippings" section (report each as `graduated → references/sources/{filename}` plus any mined items).
 
 ## Step 3: Scan Memory Files
 
