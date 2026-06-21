@@ -49,7 +49,7 @@ Scan these directories for `.md` files (excluding directory README stubs that on
 - `{knowledge_folder}/approaches/`
 - `{knowledge_folder}/decisions/`
 - `{knowledge_folder}/guides/` (recursive — includes subdirectories)
-- `{knowledge_folder}/references/`
+- `{knowledge_folder}/references/` (recursive — includes `sources/` and other subdirectories)
 
 **Do NOT scan:** `archive/`, `intake/`, `rules/`, top-level `logs/*.md` (audit-log files like `config-audit-log.md`, `knowledge-audit-log.md`, `hook-debug.log`), or root-level files (`README.md`, `LOCAL.md`, `OVERVIEW.md`, `index.md`).
 
