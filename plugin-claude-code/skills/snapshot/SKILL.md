@@ -1,5 +1,5 @@
 ---
-description: "Save the current Claude Code transcript to the knowledge intake on demand. Use when user says '/snapshot', 'snapshot the session', 'save this conversation', 'capture the transcript', 'archive this session'. Same archival output as the pre-compact hook, but triggered explicitly. Distinct from /extract (which synthesizes knowledge) and /clip (which captures a URL or snippet). (Code port — ADR-094.)"
+description: "Save the current Claude Code transcript to the knowledge intake on demand. Use when user says '/snapshot', 'snapshot the session', 'save this conversation', 'capture the transcript', 'archive this session'. Same archival output as the pre-compact hook, but triggered explicitly. Distinct from /extract (which synthesizes knowledge) and /intake (which captures a URL or snippet). (Code port — ADR-094.)"
 allowed-tools: Bash
 ---
 
@@ -29,11 +29,11 @@ Wait for an explicit reply:
 
 If `Bash` is available, proceed to Step 0.
 
-## When To Use This vs. /extract vs. /clip
+## When To Use This vs. /extract vs. /intake
 
 - **/snapshot** — raw archive, no synthesis. Use before switching context, before a risky operation, or any time you want the full conversation preserved.
 - **/extract** — synthesizes knowledge from the current conversation into backlogs/ideas. Use when you want captured *insights*, not the full transcript.
-- **/clip** — saves a single URL or snippet. Unrelated to session transcripts.
+- **/intake** — captures a single URL or snippet (clip-whole), or scans files/URLs. Unrelated to session transcripts.
 
 `/snapshot` is intentionally orthogonal: it preserves the raw record so `/extract` (or a human review) can work from it later.
 

@@ -2,6 +2,17 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.33.0 — 2026-06-21
+
+**`/intake` consolidation — `/clip`, `/clip-thread`, `/extract-doc` retired into `/intake`; clippings review gap closed.**
+
+- **One capture command.** `/intake` now dispatches by input shape: a single URL or text snippet **clips whole** to `intake/clippings/`; files/dirs/globs **bulk-scan** into the backlogs; `/intake extract <source>` **decomposes** a source (incl. a `~~docs`-MCP doc) into backlog entries; `/intake doc <source>` captures the 5-section reflection artifact; `/intake thread <id>` pulls a chat/email thread via `~~chat`/`~~email` MCP (and auto-detects a chat/email URL). Only `extract`/`doc`/`thread` need a keyword — sources with a detectable shape route automatically.
+- **Behavior change:** a bare URL now CLIPS WHOLE (previously `/intake <url>` mined into backlogs). Mine a single URL via `/intake extract <url>`, or let `/audit-knowledge` decompose the clipping later.
+- **Retired (archived per Rule 6, not deleted):** `/clip`, `/clip-thread`, `/extract-doc` moved to `skills/.archived/` with pointer headers; their trigger phrases are absorbed into `/intake`'s description so discovery survives. Bare-slash collision set drops 24 → 21.
+- **`/audit-knowledge` Step 2f (Review Clippings) — NEW.** Audit never scanned `intake/clippings/`, so clipped items (and hand-dropped files) were never reviewed — `/clip`'s "reviewed at next audit" was a dead-end. Step 2f (modeled on the subagent-captures step) now scans clippings, routes extractable content to the backlogs, and ledger-clears processed clippings to `archive/audit-{date}/clippings/`.
+- **MCP modes are Code-native** once the bundled `~~chat`/`~~docs` MCP is authenticated — `thread`/MCP-doc surface an authenticate prompt (not a Cowork redirect).
+- New repro `tests/repros/intake-dispatch.sh` (grammar precedence + Step 2f presence + retirement + no-dangling-ref gate); 20 repro suites green. **Ports:** Claude-Code-canonical; the bare-slash removal must propagate to cowork/codex/cursor/antigravity at the next parity pass.
+
 ## 2.32.0 — 2026-06-21
 
 **SESSION.md multi-session ledger + nested-workspace routing fix.** Two changes to the `SESSION.md` producer (Claude-Code-only; gated on `session_state`).

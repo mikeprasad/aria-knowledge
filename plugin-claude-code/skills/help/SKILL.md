@@ -52,9 +52,11 @@ If `Bash` is available, proceed to Step 0.
 | /backlog [type] | View and manage pending intake items |
 | /stats | Knowledge base health dashboard — file counts, backlogs, audit status |
 | /ask [question] | Research a question, check existing knowledge, save answer as a knowledge doc |
-| /clip [url or text] | Quick-save a URL or text snippet to intake for later review |
-| /intake [path or url] | Bulk import knowledge from files, directories, or URLs |
+| /intake [url or text] | Clip a single URL/snippet whole → intake/clippings/ (reviewed at next /audit-knowledge) |
+| /intake [path or dir or glob] | Bulk import knowledge from files, directories, or globs into the backlogs |
+| /intake extract [source] | Decompose a source (URL/file/doc via ~~docs MCP) into backlog entries |
 | /intake doc [url or title] | Capture a single doc with 5-section structured body (claims/keeping/contested/action/reaction) → intake/docs/ |
+| /intake thread [id] | Pull a chat/email thread via ~~chat/~~email MCP → intake/clippings/ |
 | /interview <mode> | Elicit knowledge via dialogue (project / knowledge / deep-dive); chooses cadence in-session; stages to intake/ for manual review |
 | /codemap [mode] | Feature-organized CODEMAP.md for any codebase (create/inventory/update/section) |
 | /distill [text or path] | Tiered task spec from raw text; optional --group for CODEMAP-loaded context |
@@ -82,7 +84,7 @@ These are recommendations only — ARIA does not force a model. Switch per sessi
 | /interview | Highest-capability Opus for deep-dive/battery (ambiguous, evidence-cited, leverage-clustered question generation) or Sonnet (mid-tier) for focused socratic project/knowledge runs | The deep-dive battery cadence is judgment-heavy (cite evidence, cluster by leverage, hunt negative space); focused socratic elicitation is lighter. Spans tiers like /ask. |
 | /codemap create | Highest-capability Opus (large-context variant preferred) | Full-repo traversal benefits from a large context window so sections aren't truncated mid-generation. |
 | /codemap update, /codemap section, /wrapup, /handoff, /intake, /distill, /stitch | Sonnet (mid-tier), medium effort | Structured work with clear prescribed output. |
-| /index, /stats, /backlog, /rules, /context, /clip, /snapshot, /statusline, /help, /setup | Sonnet (mid-tier), low effort | Mechanical or retrieval-only — higher models add no measurable lift. |
+| /index, /stats, /backlog, /rules, /context, /intake, /snapshot, /statusline, /help, /setup | Sonnet (mid-tier), low effort | Mechanical or retrieval-only — higher models add no measurable lift. |
 
 Always pick the latest release within each tier — ARIA pins capability *tiers*, not version numbers, so this guidance survives model updates.
 

@@ -1,12 +1,12 @@
 ---
-description: "Interview the user to ELICIT knowledge through dialogue, then stage it to the intake/ tree (the elicit-side counterpart to /extract /intake /clip which HARVEST existing sources). Three modes: '/interview project' (scope a new project/build), '/interview knowledge' (get a topic out of your head into the KB), '/interview deep-dive' (comprehensively extract the rationale behind an existing-but-undocumented system you built — REQUIRES a basis to review). Cadence (one-at-a-time socratic vs research-then-batch-of-questions) is chosen in-session. Use when user says '/interview', 'interview me about X', 'grill me on X', 'deep dive on X', 'scope this project', 'ask me questions about X'. Stages to intake/projects/ or intake/interviews/ for manual review; never auto-promotes. (Code port — ADR-094.)"
+description: "Interview the user to ELICIT knowledge through dialogue, then stage it to the intake/ tree (the elicit-side counterpart to /extract and /intake which HARVEST existing sources). Three modes: '/interview project' (scope a new project/build), '/interview knowledge' (get a topic out of your head into the KB), '/interview deep-dive' (comprehensively extract the rationale behind an existing-but-undocumented system you built — REQUIRES a basis to review). Cadence (one-at-a-time socratic vs research-then-batch-of-questions) is chosen in-session. Use when user says '/interview', 'interview me about X', 'grill me on X', 'deep dive on X', 'scope this project', 'ask me questions about X'. Stages to intake/projects/ or intake/interviews/ for manual review; never auto-promotes. (Code port — ADR-094.)"
 argument-hint: "<project|knowledge|deep-dive> [topic] [--ground=<path|glob|url>[,...]]"
 allowed-tools: Read, Glob, Grep, Write, Edit, WebFetch, Bash
 ---
 
 # /interview — Elicit Knowledge Through Dialogue
 
-Interview the user to draw out knowledge that lives in their head (and in their artifacts), then stage it as structured markdown in the `intake/` tree. Unlike `/extract` (reads the current conversation), `/intake` (scans files/URLs), or `/clip` (saves a snippet), `/interview` *asks questions* — the answers become the knowledge. Output is staged for **manual review** (the `/meeting-notes` model), never auto-promoted.
+Interview the user to draw out knowledge that lives in their head (and in their artifacts), then stage it as structured markdown in the `intake/` tree. Unlike `/extract` (reads the current conversation) or `/intake` (captures/scans external sources — URLs, snippets, files), `/interview` *asks questions* — the answers become the knowledge. Output is staged for **manual review** (the `/meeting-notes` model), never auto-promoted.
 
 ## Runtime Gate (per ADR-094)
 

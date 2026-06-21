@@ -327,6 +327,23 @@ For each reviewed capture:
 
 Note findings for presentation in Step 6 under a "Subagent Captures" section.
 
+## Step 2f: Review Clippings
+
+Scan `{knowledge_folder}/intake/clippings/` for `.md` files. **If the directory doesn't exist or is empty**, skip silently to Step 3.
+
+**If clippings exist**, report the count and total size, then ask the user:
+
+> "Found N clipping(s) (total ~X KB) — saved URLs / snippets / threads (captured via `/intake` or dropped into the folder by hand). Options:"
+> 1. **Review** — scan each for extractable content, route to backlogs (default)
+> 2. **Skip** — leave for the next audit
+
+Under **Review**, for each clipping: scan for the same six buckets as `/extract` (insights, decisions, feedback, project context, references, ideas).
+- **Approved items** → append to the appropriate backlog (`insights-backlog.md` / `decisions-backlog.md` / `extraction-backlog.md`), then apply the **ledger-clear pattern**: create `{knowledge_folder}/archive/audit-{date}/clippings/` if needed, append an entry to its `REMOVED.md` (filename + source + clip-date), then `rm` the clipping `.md`.
+- **Nothing extractable** → ledger-clear with `disposition: rejected` and a one-line reason.
+- **Skip** → leave the clipping for the next audit.
+
+Note findings for presentation in Step 6 under a "Clippings" section.
+
 ## Step 3: Scan Memory Files
 
 Read all `.md` files in `~/.claude/projects/` memory directories for the current project (excluding `MEMORY.md` itself).

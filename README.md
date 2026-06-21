@@ -67,11 +67,8 @@ Knowledge moves through a five-phase lifecycle: **Capture → Govern → Promote
 Preserve session knowledge before context evaporates.
 
 - `/extract` — Scan conversations for uncaptured insights, decisions, feedback, references, and ideas. Deduplicates against existing entries.
-- `/clip` — Quick-save URLs or text snippets to intake without leaving the session.
-- `/clip-thread` (v2.18.0+) — Capture a chat or email thread from a connected `~~chat` or `~~email` MCP. Source-type detection (Slack archives / Teams messages / Gmail threads / MS365); per-message structure + reactions + attachment notes; user-fill reaction section.
 - `/ask` — Research a question, check existing knowledge first, save the answer directly as a knowledge doc.
-- `/intake` — Bulk import from files, directories, or URLs with preview before staging. Doc mode (v2.17.0+): `/intake doc <url-or-title>` captures one structured artifact per doc with 5-section body + user reaction.
-- `/extract-doc` (v2.18.0+) — Pull insights from a single Notion / Confluence / Google Doc / Box / Egnyte page via a connected `~~docs` MCP.
+- `/intake` — Capture knowledge from outside the conversation. A single URL or text snippet clips whole to `intake/clippings/`; files/dirs/globs bulk-scan into the backlogs; `/intake extract <source>` decomposes a source (incl. a Notion/Confluence/Google Doc via a connected `~~docs` MCP) into backlog entries; `/intake doc <url-or-title>` (v2.17.0+) captures one structured 5-section artifact + user reaction; `/intake thread <id>` (v2.33.0+) pulls a chat/email thread via a connected `~~chat`/`~~email` MCP. (v2.33.0 consolidated three former standalone capture skills — quick-clip, thread-capture, and doc-extract — into these `/intake` modes.)
 - `/interview <mode>` (v2.31.0+) — Elicit knowledge through dialogue rather than harvesting it. Three modes: `project` (scope a new build), `knowledge` (get a topic out of your head into the KB), `deep-dive` (extract the rationale behind something you already built — requires a basis via `--ground`). Cadence (one-at-a-time `socratic` vs research-then-batch `battery`) is chosen in-session. Stages to `intake/projects|interviews/` for manual review.
 
 ### Govern
@@ -330,10 +327,7 @@ Everything ARIA ships, organized by the four problems it solves — plus the ope
 | Capability | Type | What it does |
 |------------|------|--------------|
 | `/extract` | Skill | Scan the conversation for uncaptured insights, decisions, feedback, references, and ideas; deduplicate against existing entries. |
-| `/clip` | Skill | Quick-save a URL or text snippet to intake without leaving the session. |
-| `/clip-thread` `(MCP)` | Skill | Capture a Slack / Teams / Gmail / MS365 thread with per-message structure, reactions, and attachment notes. |
-| `/intake` (+ `/intake doc`) | Skill | Bulk import from files, directories, or URLs with preview; `doc` mode captures one structured artifact per page. |
-| `/extract-doc` `(MCP)` | Skill | Pull insights from a single Notion / Confluence / Google Doc / Box / Egnyte page. |
+| `/intake` (+ `extract` / `doc` / `thread`) | Skill | Capture from outside the conversation: a single URL/text clips whole; files/dirs bulk-scan; `extract <src>` decomposes to backlogs (incl. a Notion/Confluence/GDoc via `~~docs` MCP); `doc <src>` captures a 5-section artifact; `thread <id>` pulls a Slack/Teams/Gmail/MS365 thread via `~~chat`/`~~email` MCP. (v2.33.0 consolidated three former standalone capture skills into these modes.) |
 | `/meeting-notes` `(MCP)` | Skill | Fold a meeting transcript or notes into structured intake (paste-text fallback works without an MCP). |
 | `/ask` | Skill | Research a question, check existing knowledge first, save the answer as a knowledge doc. |
 | `/backlog` | Skill | View and manage pending intake items across the four backlogs. |
