@@ -2,6 +2,18 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.35.2 — 2026-06-22
+
+**Step 2f handles image clippings — `/audit-knowledge` stops silently skipping images.**
+
+v2.35.1 made clippings graduate to `references/sources/` but scanned `.md` only — image clippings (`.png/.jpg/.jpeg/.gif/.webp`) were invisible (caught when `karpathy-kb-map.jpeg` had sat unprocessed in clippings since April, logged as "kept" across ~7 audits but mechanically unreadable).
+
+- **Step 2f image sub-flow:** images are now scanned and, under Graduate, vision-read (model-native, no OCR) → transcribed to text → tier-decided per image (faithful-twin → `references/sources/`, distilled → top-level `references/`) → asset graduated → transcription mined into the six buckets → ledgered `graduated (image; transcribed → …)`. Decorative images graduate source-only.
+- **Cost guard:** >5 images triggers a review-all / review-N / defer-rest prompt (vision reads are non-trivial).
+- **Shared fix:** graduation's move rule now uses `git mv` only when the *specific file* is tracked (`git ls-files --error-unmatch`), else plain `mv` — corrects a v2.35.1 bug where `git mv` failed on untracked files (the FB-Instagram clipping hit it). Applies to `.md` and image graduation alike.
+- New repro `tests/repros/image-extraction.sh`; suite count 23 → 24.
+- **Ports:** Code-canonical. Cowork has no Step 2f (N/A); antigravity/codex normal sync. `/intake` image branch + bulk-dir image pickup deferred (recorded in the spec).
+
 ## 2.35.1 — 2026-06-21
 
 **Clippings graduate to `references/` — `intake/clippings/` becomes a durable-source on-ramp.**
