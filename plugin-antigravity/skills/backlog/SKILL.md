@@ -1,5 +1,5 @@
 ---
-description: "View and manage pending backlog items. Use when user says '/backlog', '/backlog insights', '/backlog clear', 'what's pending', 'show backlogs', 'check backlog status'."
+description: "View and manage pending backlog items. Use when user says '/backlog', '/backlog insights', '/backlog clear', 'what's pending', 'show backlogs', 'check backlog status'. (Code port — ADR-094.)"
 ---
 
 # /backlog — Backlog Viewer & Manager

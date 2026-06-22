@@ -1,8 +1,10 @@
 ---
-description: "Save a URL or text snippet to the knowledge intake for later review. Use when user says '/clip', '/save', 'clip this', 'save this link', 'save this snippet', 'capture this URL'. Quick capture without leaving the session — clipped items are reviewed at the next /audit-knowledge run."
+description: "Save a URL or text snippet to the knowledge intake for later review. Use when user says '/clip', '/save', 'clip this', 'save this link', 'save this snippet', 'capture this URL'. Quick capture without leaving the session — clipped items are reviewed at the next /audit-knowledge run. (Code port — ADR-094.)"
 ---
 
 # /clip — Quick Capture to Intake
+
+> **RETIRED 2026-06-21 (v2.33.0).** Folded into `/intake`: clip → `/intake <url|text>` (auto clip-whole). Kept for reference only — not a live skill (archived under `skills/.archived/`, excluded from discovery).
 
 Save a URL or text snippet to `intake/clippings/` for later review and promotion.
 

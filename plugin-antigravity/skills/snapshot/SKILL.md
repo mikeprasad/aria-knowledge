@@ -1,5 +1,5 @@
 ---
-description: "Save the current Antigravity transcript to the knowledge intake on demand. Use when user says '/snapshot', 'snapshot the session', 'save this conversation', 'capture the transcript', 'archive this session'. Same archival output as the canonical pre-compact hook, just triggered explicitly (Antigravity has no PreCompact event). Distinct from /extract (synthesizes knowledge) and /clip (URL/snippet)."
+description: "Save the current Antigravity transcript to the knowledge intake on demand. Use when user says '/snapshot', 'snapshot the session', 'save this conversation', 'capture the transcript', or 'archive this session'. Same archival output as the canonical pre-compact hook, but explicit because Antigravity has no PreCompact event. Distinct from /extract and /intake."
 ---
 
 # /snapshot — On-Demand Transcript Snapshot (Antigravity)
@@ -12,11 +12,11 @@ The `aria-pre-invocation` hook (fires before every model call) caches `transcrip
 
 If the cache doesn't exist yet, the most likely cause is that the agent hasn't completed a model call in this session — `transcriptPath` only becomes available once the pre-invocation hook has fired at least once. Solution: have the agent respond to one message first, then re-run `/snapshot`.
 
-## When to use this vs. /extract vs. /clip
+## When to use this vs. /extract vs. /intake
 
 - **/snapshot** — raw archive, no synthesis. Use before switching context, before a risky operation, or any time you want the full conversation preserved.
 - **/extract** — synthesizes knowledge from the current conversation into backlogs/ideas. Use when you want captured *insights*, not the full transcript.
-- **/clip** — saves a single URL or snippet. Unrelated to session transcripts.
+- **/intake** — captures a single URL or snippet (clip-whole), or scans files/URLs. Unrelated to session transcripts.
 
 `/snapshot` is intentionally orthogonal: it preserves the raw record so `/extract` (or a human review) can work from it later.
 

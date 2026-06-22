@@ -48,12 +48,18 @@ kt_index_match() {
   _kt_index="$KT_KNOWLEDGE_FOLDER/index.md"
   [ ! -f "$_kt_index" ] && return 0
 
-  # Tokenize: lowercase, strip punctuation to spaces, split, dedupe.
-  _kt_words=$(printf '%s' "$_kt_query" \
-              | tr '[:upper:]' '[:lower:]' \
-              | tr -cs '[:alnum:]' ' ' \
-              | tr ' ' '\n' \
-              | sort -u)
+  # Tokenize: lowercase, then emit TWO kinds of tokens, deduped together:
+  #   1. hyphen-preserving whole tokens — so a multi-word directory/tag name
+  #      like `web-app` survives as ONE token and can match its exact
+  #      `### web-app` known tag (otherwise the hyphen is destroyed and only
+  #      the broad parent token `web` matches → wrong files surface).
+  #   2. fully-split alnum words — preserves the original single-word matching
+  #      (`web`, `app`) for backward compatibility.
+  # Both passes feed one deduped set; the matcher still does exact word==tag.
+  _kt_lower=$(printf '%s' "$_kt_query" | tr '[:upper:]' '[:lower:]')
+  _kt_whole=$(printf '%s' "$_kt_lower" | tr -cs '[:alnum:]-' ' ' | tr ' ' '\n')
+  _kt_split=$(printf '%s' "$_kt_lower" | tr -cs '[:alnum:]' ' ' | tr ' ' '\n')
+  _kt_words=$(printf '%s\n%s\n' "$_kt_whole" "$_kt_split" | grep -v '^-*$' | sort -u)
   [ -z "$_kt_words" ] && return 0
 
   # Extract "### tagname" headers from the ## Tag Index section only.
@@ -87,7 +93,13 @@ kt_index_match() {
   _kt_raw=$(mktemp /tmp/aria-match-raw.XXXXXX) || return 0
   _kt_files=$(mktemp /tmp/aria-match-files.XXXXXX) || { rm -f "$_kt_raw"; return 0; }
 
-  for _kt_tag in $_kt_matched; do
+  # Most-specific-tag-first: a longer tag name is a more specific match
+  # (`web-app` > `web`/`app`), so its files should fill the 5-cap BEFORE a
+  # broad parent tag dilutes them. Sort matched tags by length desc.
+  _kt_ordered=$(printf '%s\n' $_kt_matched \
+                | awk '{ print length, $0 }' | sort -rn -k1,1 | cut -d' ' -f2-)
+
+  for _kt_tag in $_kt_ordered; do
     awk "/^### ${_kt_tag}\$/{found=1; next} /^##/{found=0} found && /^- /" "$_kt_index" \
       | sed 's/^- //' >> "$_kt_raw"
   done

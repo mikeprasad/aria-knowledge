@@ -1,5 +1,5 @@
 ---
-description: "Bulk import knowledge from files, directories, or URLs into the intake backlogs, OR capture a single doc with structured 5-section template (doc mode). Use when user says '/intake', '/intake doc', 'intake from', 'import knowledge from', 'scan this file for knowledge', 'extract from these docs', 'onboard this project', 'capture a doc', 'doc-anchored intake', 'log notes on this doc'. Unlike /extract (current conversation) or /clip (single item), /intake scans external sources in bulk and previews findings before staging. Doc mode produces one structured entry under intake/docs/ with claims / worth-keeping / contested / action / reaction sections."
+description: "Capture external knowledge into ARIA: clip a URL/snippet whole, bulk-scan files/dirs/globs, decompose one source with `extract`, capture a 5-section doc reflection with `doc`, or pull chat/email via `thread`. Trigger on /intake, clip this, save this link, import knowledge, scan this file, extract from this doc, or clip this thread."
 ---
 
 # /intake — Bulk Knowledge Import + Doc-Anchored Capture
@@ -15,7 +15,17 @@ Read `~/.gemini/antigravity/aria-knowledge.local.md` and extract `knowledge_fold
 
 Use `{knowledge_folder}` as the base path for all file operations in subsequent steps.
 
-**Mode detection:** If the first argument matches `doc` (case-insensitive), this is a doc-mode capture. Set `mode = doc`; the remaining arguments (if any) are the source URL, file path, or title. Jump to "Doc Mode Steps" below. Otherwise set `mode = bulk` and proceed to Step 1.
+**Mode detection (first match wins):**
+
+1. First arg `== extract` (case-insensitive) → `mode = extract`. The remaining arg is ONE source (URL / file / dir / doc-URL); decompose it into backlog entries by running the bulk-scan logic (Step 1 onward) on that single source. `extract` is **standalone** — it does NOT combine with `doc`/`thread` (no `/intake extract doc …`); a doc to decompose is just `/intake extract <doc-url>` (extract fetches it). If the arg after `extract` is literally `doc` or `thread`, treat as malformed and prompt for clarification.
+2. First arg `== doc` → `mode = doc`. Jump to "Doc Mode Steps" (D1–D6), unchanged.
+3. First arg `== thread` → `mode = thread`. Jump to "Thread Mode Steps" (T1–T3) below.
+4. *(auto)* Single arg whose host is a chat/email service (`slack.com`, `teams.microsoft.com`, `mail.google.com`, outlook/office) → `mode = thread` (no keyword needed).
+5. *(auto)* Single arg matching `^https?://` OR free text (not an existing path) → `mode = clip-whole`. Jump to "Clip-Whole Steps" (C1–C3) below.
+6. *(auto)* Args are existing file paths / directories / globs, OR multiple sources → `mode = bulk`. Proceed to Step 1 (bulk scan, unchanged).
+7. No args → ask: "What would you like to intake? (a URL, text, file/dir/glob; or `extract <src>` to decompose, `doc <src>` for a reflection capture, `thread <id>` for a chat/email thread)".
+
+The mental model: default = *capture this whole*; `extract` = *decompose it*; `doc` = *reflect on it (5-section)*; `thread` = the one source that needs naming (or auto-detected from a chat URL). **Note (behavior change from prior versions):** a bare URL now CLIPS WHOLE — it no longer auto-mines into backlogs. To mine a single URL, use `/intake extract <url>` (or let `/audit-knowledge` Step 2f decompose the clipping later).
 
 ---
 
@@ -99,6 +109,63 @@ Entry staged in intake/docs/ for next /audit-knowledge to review and promote.
 ```
 
 **Exit after report.** Doc mode runs D1 → D6 only; bulk-mode steps (Step 1 onward) are not executed.
+
+---
+
+## Clip-Whole Steps (mode = clip-whole)
+
+Capture the source **whole** as one clipping for later review at `/audit-knowledge` Step 2f. Runs C1–C3 and exits. (Absorbs the retired `/clip`.)
+
+### C1: Acquire content
+- **URL:** WebFetch; extract the page title + a summary (do NOT copy full page content — respect copyright). Capture the URL as `source`.
+- **Text snippet:** use the provided text verbatim as the body; title = first line.
+
+### C2: Write the clipping
+Resolve target `{knowledge_folder}/intake/clippings/{slug}.md` (slug from title; append `-2`/`-3` until unique). Write:
+
+```
+---
+source: [URL or "manual"]
+date: YYYY-MM-DD
+tags: [user-provided tags, or auto-detected from index.md, or empty array]
+---
+
+# [Title or first line of text]
+
+[Summary for URLs, full text for snippets]
+```
+
+**Tag detection:** if the user didn't provide tags, match title/content words against known tags in `{knowledge_folder}/index.md` (if it exists). Only high-confidence matches — don't guess.
+
+### C3: Confirm
+```
+Clipped to intake/clippings/{slug}.md
+Tags: [tags or "none"]
+Reviewed at the next /audit-knowledge run (Step 2f).
+```
+
+**Exit after C3.**
+
+---
+
+## Thread Mode Steps (mode = thread)
+
+Pull a chat/email thread via a `~~chat` (Slack/Teams) or `~~email` (Gmail/MS365) MCP into one clipping. Runs T1–T3 and exits. (This mode absorbs the former standalone thread-capture skill, retired v2.33.0.)
+
+### T1: MCP availability check
+If no `~~chat`/`~~email` MCP is connected/authenticated, surface:
+
+> "`thread` mode needs a chat or email MCP connected. These are bundled with the plugin — run the MCP's authenticate flow (e.g. Slack auth), or connect it via your MCP config, then retry. Thread mode runs in Antigravity once the MCP is authed."
+
+Then exit. **Do NOT redirect to Cowork** — the capability is Code-native once the MCP is authenticated. (The ADR-094 Bash-availability runtime gate is separate and only fires on a genuine runtime mismatch, not on an unauthenticated MCP.)
+
+### T2: Pull the thread
+Fetch thread content + metadata (participants, timestamps, channel/subject) via the connected MCP.
+
+### T3: Write the clipping
+Write to `{knowledge_folder}/intake/clippings/{slug}.md` with the same frontmatter shape as C2 (`source` = thread URL/id; body = thread metadata + messages). Confirm as in C3.
+
+**Exit after T3.**
 
 ---
 

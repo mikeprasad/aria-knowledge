@@ -1,5 +1,5 @@
 ---
-description: "Show available aria-knowledge commands. Use when user says '/help', 'aria help', 'what commands are available', 'list commands', 'what can aria do'."
+description: "Show available aria-knowledge commands. Use when user says '/help', 'aria help', 'what commands are available', 'list commands', 'what can aria do'. (Code port — ADR-094.)"
 ---
 
 # /help — aria-knowledge Commands
@@ -20,6 +20,7 @@ Print the command reference table. No config or file access needed.
 | /audit-share | Promote personal knowledge to the team-shared `_project-knowledge/` tier |
 | /prospect [plan/session/todos/file/linear/branch] | Forward-looking pre-mortem on a plan before any code — per-step risk verdicts (PROCEED/SHRINK/SPLIT/DEFER/KILL), evidence-sourcing pass, simpler-alternative discipline |
 | /retrospect [--range/--pr/--session/--commit] | Structured retrospective on a shipped commit range — per-fix validation, simpler-alternative discipline, re-diagnosis, action verdicts, failure-mode pattern check |
+| /recap [arc\|commit\|push\|pull] | Read-only orientation — a scannable What/Where/Status table of recent work (this session by default; or the last arc/commit/push/pull). Summarizes, never validates; writes nothing |
 | /foundational-review <scope-root> [--decision "..."] [--extend] | Foundational review chain before an irreversible decision (freeze/tag/flip/re-scope): verdict + premises + A–F → design spec → cold-executable plan → composed /prospect → kickoff. Requires a named irreversible decision (else redirects). |
 | /readiness-audit <scope-root> [--for "<event>"] | Surface readiness audit (sibling of /foundational-review): parallel exploration → controller re-verification of agent claims → tiered evidence-celled findings → phased remediation. Read-only probes; no decision anchor needed. |
 | /context [tags] | Load relevant knowledge files by topic (supports AND/OR, project expansion) |
@@ -28,9 +29,12 @@ Print the command reference table. No config or file access needed.
 | /backlog [type] | View and manage pending intake items |
 | /stats | Knowledge base health dashboard — file counts, backlogs, audit status |
 | /ask [question] | Research a question, check existing knowledge, save answer as a knowledge doc |
-| /clip [url or text] | Quick-save a URL or text snippet to intake for later review |
-| /intake [path or url] | Bulk import knowledge from files, directories, or URLs |
+| /intake [url or text] | Clip a single URL/snippet whole → intake/clippings/ (reviewed at next /audit-knowledge) |
+| /intake [path or dir or glob] | Bulk import knowledge from files, directories, or globs into the backlogs |
+| /intake extract [source] | Decompose a source (URL/file/doc via ~~docs MCP) into backlog entries |
 | /intake doc [url or title] | Capture a single doc with 5-section structured body (claims/keeping/contested/action/reaction) → intake/docs/ |
+| /intake thread [id] | Pull a chat/email thread via ~~chat/~~email MCP → intake/clippings/ |
+| /interview <mode> | Elicit knowledge via dialogue (project / knowledge / deep-dive); chooses cadence in-session; stages to intake/ for manual review |
 | /codemap [mode] | Feature-organized CODEMAP.md for any codebase (create/inventory/update/section) |
 | /distill [text or path] | Tiered task spec from raw text; optional --group for CODEMAP-loaded context |
 | /stitch <mode> <group> | Cross-repo binding (auth/endpoints/entities/drift) for a product group |
@@ -54,9 +58,10 @@ These are recommendations only — ARIA does not force a model. Switch per sessi
 | /retrospect | Highest-capability Opus, medium-to-high effort | Multi-stage judgment per fix: validation status assignment, simpler-alternative identification, hypothesis generation, failure-mode pattern matching, action verdict synthesis. Highest leverage from stronger models. |
 | /foundational-review, /readiness-audit | Highest-ceiling available (Fable at extreme stakes, else Opus), xhigh effort | The reviewer model is spent on alternatives-steelmanning, portfolio/product judgment, and the irreversibility inventory; semi-agentic read-trace-reason loop benefits from xhigh. Executor tasks the chain emits route to Opus by default. |
 | /ask | Highest-capability Opus, medium-to-high effort (ambiguous topics) or Sonnet (mid-tier) for scoped lookups | Research + draft + categorize. Drop to Sonnet when the question is narrow. |
+| /interview | Highest-capability Opus for deep-dive/battery (ambiguous, evidence-cited, leverage-clustered question generation) or Sonnet (mid-tier) for focused socratic project/knowledge runs | The deep-dive battery cadence is judgment-heavy (cite evidence, cluster by leverage, hunt negative space); focused socratic elicitation is lighter. Spans tiers like /ask. |
 | /codemap create | Highest-capability Opus (large-context variant preferred) | Full-repo traversal benefits from a large context window so sections aren't truncated mid-generation. |
 | /codemap update, /codemap section, /wrapup, /handoff, /intake, /distill, /stitch | Sonnet (mid-tier), medium effort | Structured work with clear prescribed output. |
-| /index, /stats, /backlog, /rules, /context, /clip, /snapshot, /statusline, /help, /setup | Sonnet (mid-tier), low effort | Mechanical or retrieval-only — higher models add no measurable lift. |
+| /index, /stats, /backlog, /rules, /context, /intake, /snapshot, /statusline, /help, /setup | Sonnet (mid-tier), low effort | Mechanical or retrieval-only — higher models add no measurable lift. |
 
 Always pick the latest release within each tier — ARIA pins capability *tiers*, not version numbers, so this guidance survives model updates.
 

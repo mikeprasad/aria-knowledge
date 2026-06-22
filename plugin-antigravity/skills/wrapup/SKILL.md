@@ -1,5 +1,5 @@
 ---
-description: "Close out a session cleanly when the work is done — no passoff intended. Reviews session work, updates PROGRESS.md / CLAUDE.md / memory, commits changes, captures session knowledge via /extract, and confirms everything is wrapped up, captured, and documented. Use when the task is complete and nothing needs to carry into a next session — not for passing work off to a future session or coworker. Triggers: '/wrapup', '/wrapup auto', '/wrapup snap', 'wrap up', 'wrap it up', \"I'm done\", 'close out', 'finish session', 'end session', 'saying goodbye'. Auto mode applies implicit-yes on all gates and runs silently. Snap mode runs like auto but archives the transcript via /snapshot for later extraction instead of running /extract now — use when context is high."
+description: "Close out a session cleanly when the work is done — no passoff intended. Reviews session work, updates PROGRESS.md / CLAUDE.md / memory, commits changes, captures session knowledge via /extract, and confirms everything is wrapped up, captured, and documented. Use when the task is complete and nothing needs to carry into a next session — not for passing work off to a future session or coworker. Triggers: '/wrapup', '/wrapup auto', '/wrapup snap', 'wrap up', 'wrap it up', \"I'm done\", 'close out', 'finish session', 'end session', 'saying goodbye'. Auto mode applies implicit-yes on all gates and runs silently. Snap mode runs like auto but archives the transcript via /snapshot for later extraction instead of running /extract now — use when context is high. (Code port — ADR-094.)"
 ---
 
 # /wrapup — Session Close-Out
@@ -160,6 +160,8 @@ If no uncommitted changes exist, say "No uncommitted changes" and move on.
 Skip this step entirely unless `session_state: true` in `~/.gemini/antigravity/aria-knowledge.local.md` (the config you read in Step 0). When enabled:
 
 Write `{project_root}/SESSION.md` (project root from Step 1) as a **wrapup-state** snapshot, following the contract at `aria-atlas/docs/TEMPLATE_SESSION.md`. **Full rewrite** (wrapup is an authoritative close). This is a deliberate exception to the "don't create files" rule — create it if absent.
+
+**Consume on clean close (multi-session ledger):** a `/wrapup` is a clean close, not a handoff — it adds NO `## Prior sessions` entry for the wrapped session itself (there is no next-session prompt to retain). If the existing SESSION.md has a `## Prior sessions` block, source `bin/lib-session-state.sh` and call `kt_ss_ledger_prune "{project_root}"` to drop any entries a resume already marked `consumed`. Unconsumed prior handoffs survive — wrapping up one session never silently discards another's pending pickup.
 
 **Gitignore it, never commit it:** SESSION.md is ephemeral per-session state (atlas reads it from disk; PROGRESS.md is the durable log). If `{project_root}` is a git repo and its `.gitignore` doesn't already ignore `SESSION.md`, append a `SESSION.md` line to `{project_root}/.gitignore`. **Never `git add` SESSION.md** — it is intentionally untracked, so it must not appear in the Step 6 commit.
 

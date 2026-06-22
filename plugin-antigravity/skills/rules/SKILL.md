@@ -1,5 +1,5 @@
 ---
-description: "Quick lookup into working rules. Use when user says '/rules', '/rules 22', '/rules dependencies', 'look up rule about...', 'what rule covers...', or references a specific rule number."
+description: "Quick lookup into working rules. Use when user says '/rules', '/rules 22', '/rules dependencies', 'look up rule about...', 'what rule covers...', or references a specific rule number. (Code port — ADR-094.)"
 ---
 
 # /rules — Quick Rule Lookup

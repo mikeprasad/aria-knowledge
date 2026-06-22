@@ -1,8 +1,10 @@
 ---
-description: "NOTE: this skill requires ~~chat or ~~email MCPs, which are typically only connected in Cowork — the Code variant exists for parity but most users will want the Cowork variant. Capture a chat or email thread from a connected MCP to the knowledge intake. Use when user says '/clip-thread', 'clip this thread', 'save this Slack thread', 'capture this email chain', 'archive this conversation'. Pulls thread content from ~~chat (Slack, Teams) or ~~email (Gmail, MS365) MCP, composes a clipping with thread metadata + body, writes to intake/clippings/ for review at next /audit-knowledge."
+description: "NOTE: this skill requires ~~chat or ~~email MCPs, which are typically only connected in Cowork — the Code variant exists for parity but most users will want the Cowork variant. Capture a chat or email thread from a connected MCP to the knowledge intake. Use when user says '/clip-thread', 'clip this thread', 'save this Slack thread', 'capture this email chain', 'archive this conversation'. Pulls thread content from ~~chat (Slack, Teams) or ~~email (Gmail, MS365) MCP, composes a clipping with thread metadata + body, writes to intake/clippings/ for review at next /audit-knowledge. (Code port — ADR-094.)"
 ---
 
 # /clip-thread — Capture Chat/Email Thread to Intake
+
+> **RETIRED 2026-06-21 (v2.33.0).** Folded into `/intake`: clip-thread → `/intake thread <id>` (or auto-detected from a chat/email URL). Kept for reference only — not a live skill (archived under `skills/.archived/`, excluded from discovery).
 
 Save a chat thread or email conversation to `intake/clippings/{YYYY-MM-DD}-{slug}.md` for review and promotion. Unlike `/clip` (URL/snippet) or `/intake` (bulk/doc-anchored), `/clip-thread` is shaped specifically for *threaded* conversations — Slack threads, Teams channel discussions, Gmail conversation chains, MS365 email threads.
 

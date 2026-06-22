@@ -40,9 +40,9 @@ teardown() {
 @test "first-call (invocationNum=0) injects session-start ephemeralMessage" {
   PAYLOAD='{"conversationId":"abc","workspacePaths":["/tmp"],"transcriptPath":"/tmp/t","artifactDirectoryPath":"/tmp/art","invocationNum":0,"initialNumSteps":0}'
   result=$(echo "$PAYLOAD" | bash "$WRAPPER" 2>/dev/null)
-  # Should have injectSteps with at least one ephemeralMessage containing "ARIA"
+  # Should have injectSteps with at least one ephemeralMessage containing "ARIA" or "aria-knowledge"
   steps=$(echo "$result" | jq -r '.injectSteps[0].ephemeralMessage // ""')
-  [[ "$steps" =~ ARIA ]]
+  [[ "$steps" =~ ARIA || "$steps" =~ aria-knowledge ]]
 }
 
 @test "subsequent calls (invocationNum>0) with empty log do not inject anything" {

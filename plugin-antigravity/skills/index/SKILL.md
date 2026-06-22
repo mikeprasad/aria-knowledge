@@ -1,5 +1,5 @@
 ---
-description: "Rebuild the knowledge tag index. Scans promoted files, normalizes tags, flags untagged files, suggests freeform-to-known promotions, detects stale files, suggests cross-references, updates project-to-tag mappings, and regenerates index.md. Use when user says '/index', 'rebuild index', 'update index', 'reindex knowledge'. Also called automatically by /audit-knowledge."
+description: "Rebuild the knowledge tag index. Scans promoted files, normalizes tags, flags untagged files, suggests freeform-to-known promotions, detects stale files, suggests cross-references, updates project-to-tag mappings, and regenerates index.md. Use when user says '/index', 'rebuild index', 'update index', 'reindex knowledge'. Also called automatically by /audit-knowledge. (Code port — ADR-094.)"
 ---
 
 # /index — Knowledge Index Builder
@@ -25,7 +25,7 @@ Scan these directories for `.md` files (excluding directory README stubs that on
 - `{knowledge_folder}/approaches/`
 - `{knowledge_folder}/decisions/`
 - `{knowledge_folder}/guides/` (recursive — includes subdirectories)
-- `{knowledge_folder}/references/`
+- `{knowledge_folder}/references/` (recursive — includes `sources/` and other subdirectories)
 
 **Do NOT scan:** `archive/`, `intake/`, `rules/`, top-level `logs/*.md` (audit-log files like `config-audit-log.md`, `knowledge-audit-log.md`, `hook-debug.log`), or root-level files (`README.md`, `LOCAL.md`, `OVERVIEW.md`, `index.md`).
 

@@ -23,6 +23,16 @@
 # fixtures at tests/fixtures/session-contract-vendored/ (owned by aria-atlas); see
 # that dir's VENDORED-FROM.md, and tests/repros/session-state.sh §H which asserts it.
 
+# Returns 0 (true) if DIR is a workspace-index root that must NOT own a SESSION.md
+# (it indexes multiple child projects rather than describing one). Two opt-in markers:
+# a `.aria-workspace-root` sentinel file, or an `aria_workspace_root: true` line in CLAUDE.md.
+kt_ss_is_workspace_root() {
+  _ss_d="$1"
+  [ -f "$_ss_d/.aria-workspace-root" ] && return 0
+  [ -f "$_ss_d/CLAUDE.md" ] && grep -qE '^aria_workspace_root:[[:space:]]*true[[:space:]]*$' "$_ss_d/CLAUDE.md" 2>/dev/null && return 0
+  return 1
+}
+
 # Walk up from the edited file's directory to the nearest project root.
 kt_ss_find_root() {
   _ss_fp="$1"
@@ -37,6 +47,17 @@ kt_ss_find_root() {
       # ~/Projects) whose CLAUDE.md is the master index, not a project. Marking it
       # would write a spurious root SESSION.md. Real projects live inside it.
       if [ "$(dirname "$_ss_dir" 2>/dev/null)" = "$_ss_home" ]; then return 0; fi
+      # Reject an explicit workspace-index root (a nested container like collab/ or
+      # aria/ that indexes child projects); keep walking up toward the real root.
+      # The walk starts at the edited file, so the first UNMARKED root is the deepest
+      # one — the actual sub-project. A marked-only container yields empty (correct).
+      if kt_ss_is_workspace_root "$_ss_dir"; then
+        [ "$_ss_dir" = "$_ss_home" ] && return 0
+        _ss_parent=$(dirname "$_ss_dir" 2>/dev/null)
+        [ "$_ss_parent" = "$_ss_dir" ] && return 0
+        _ss_dir="$_ss_parent"
+        continue
+      fi
       printf '%s\n' "$_ss_dir"
       return 0
     fi
@@ -114,5 +135,88 @@ kt_ss_mark_inprogress() {
       printf 'SESSION.md\n' >> "$_ss_root/.gitignore" 2>/dev/null
     fi
   fi
+  return 0
+}
+
+# --- Multi-session ledger (## Prior sessions) ---------------------------------
+# The active session lives in the front-matter + "## Next session prompt" (atlas's
+# single view). Demoted/prior sessions live under a "## Prior sessions" heading,
+# which the atlas parser ignores (it stops at the first "## " after the prompt).
+# All three helpers write via temp-file + mv and swallow errors (return 0).
+
+# Prepend a ### block under "## Prior sessions" (created if absent). Newest-first.
+kt_ss_ledger_add() {
+  _ss_f="$1/SESSION.md"; _ss_sid="$2"; _ss_at="$3"; _ss_focus="$4"; _ss_next="$5"; _ss_prompt="$6"
+  [ -f "$_ss_f" ] || return 0
+  _ss_blk="### $_ss_sid · $_ss_at · handoff · unconsumed
+- focus: $_ss_focus
+- next: $_ss_next
+- prompt: $_ss_prompt
+"
+  _ss_tmp="$_ss_f.$$.tmp"
+  if grep -q '^## Prior sessions$' "$_ss_f" 2>/dev/null; then
+    # Insert the block immediately after the heading line (newest-first). Split the
+    # file at the heading via awk (single-zone: head = through the heading + a blank
+    # line; tail = the rest), then reassemble with the block via printf — NEVER pass
+    # the multi-line block through awk -v (POSIX awk errors on "newline in string").
+    _ss_head="$_ss_f.$$.head"; _ss_tail="$_ss_f.$$.tail"
+    # head = lines through the "## Prior sessions" heading + one blank; tail = the rest.
+    # The block is injected between head and tail by printf (not awk -v).
+    awk 'BEGIN{z=0}
+      z==1 {print > t; next}
+      {print > h}
+      /^## Prior sessions$/ && z==0 {print "" > h; z=1}
+    ' h="$_ss_head" t="$_ss_tail" "$_ss_f" 2>/dev/null
+    { cat "$_ss_head" 2>/dev/null; printf '%s' "$_ss_blk"; cat "$_ss_tail" 2>/dev/null; } > "$_ss_tmp" 2>/dev/null && mv "$_ss_tmp" "$_ss_f" 2>/dev/null
+    rm -f "$_ss_head" "$_ss_tail" 2>/dev/null
+  else
+    # append a new heading + block at EOF
+    { cat "$_ss_f"; printf '\n## Prior sessions\n\n%s' "$_ss_blk"; } > "$_ss_tmp" 2>/dev/null && mv "$_ss_tmp" "$_ss_f" 2>/dev/null
+  fi
+  rm -f "$_ss_tmp" 2>/dev/null
+  return 0
+}
+
+# Flip "### <SID> … · unconsumed" to "· consumed <TS> by <BY>" for the named session only.
+kt_ss_ledger_mark_consumed() {
+  _ss_f="$1/SESSION.md"; _ss_sid="$2"; _ss_ts="$3"; _ss_by="$4"
+  [ -f "$_ss_f" ] || return 0
+  _ss_tmp="$_ss_f.$$.tmp"
+  awk -v sid="$_ss_sid" -v ts="$_ss_ts" -v by="$_ss_by" '
+    $0 ~ ("^### " sid " ") && /· unconsumed$/ {
+      sub(/· unconsumed$/, "· consumed " ts " by " by); print; next
+    }
+    { print }
+  ' "$_ss_f" > "$_ss_tmp" 2>/dev/null && mv "$_ss_tmp" "$_ss_f" 2>/dev/null
+  rm -f "$_ss_tmp" 2>/dev/null
+  return 0
+}
+
+# Remove every ### block (header + its following non-### lines up to the next ### or ## or EOF)
+# whose header line carries a "· consumed " token.
+# CORRECTNESS INVARIANT (prospect §8): the prune resets `drop` on /^## / (a new top-level
+# heading) but NOT on /^### / (3 hashes — /^## / requires "## " + space, which "### " fails).
+# This is only safe because kt_ss_ledger_add collapses the opener to a SINGLE `- prompt:` line —
+# a multi-line prompt containing an embedded "## " line would falsely reset `drop` mid-block.
+# Keep the prompt single-line in kt_ss_ledger_add; do NOT store multi-line prompt prose here.
+kt_ss_ledger_prune() {
+  _ss_f="$1/SESSION.md"
+  [ -f "$_ss_f" ] || return 0
+  _ss_tmp="$_ss_f.$$.tmp"
+  awk '
+    /^### / { drop = ($0 ~ /· consumed /) ? 1 : 0; if (drop) next }
+    /^## / && $0 !~ /^### / { drop = 0 }
+    { if (!drop) print }
+  ' "$_ss_f" > "$_ss_tmp" 2>/dev/null && mv "$_ss_tmp" "$_ss_f" 2>/dev/null
+  rm -f "$_ss_tmp" 2>/dev/null
+  return 0
+}
+
+# Echo the active sessionId from ROOT/SESSION.md front-matter (empty if none).
+# Scans only the first --- ... --- block; stops at the closing fence.
+kt_ss_read_active_sid() {
+  _ss_f="$1/SESSION.md"
+  [ -f "$_ss_f" ] || return 0
+  awk 'NR==1 && $0!="---"{exit} /^---$/ && NR>1{exit} /^sessionId:[[:space:]]*/{sub(/^sessionId:[[:space:]]*/,""); print; exit}' "$_ss_f" 2>/dev/null
   return 0
 }

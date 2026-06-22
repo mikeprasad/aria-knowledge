@@ -1,8 +1,10 @@
 ---
-description: "NOTE: this skill requires connected ~~docs MCPs (Notion, Google Docs, Confluence, Box, Egnyte), which are typically only present in Cowork — the Code variant exists for parity but most users will want the Cowork variant. Pull insights from a single doc or page (Notion, Google Doc, Confluence, etc.) into the standard intake backlog. Use when user says '/extract-doc', 'extract insights from this doc', 'pull learnings from this page', 'mine this Notion page for knowledge', 'extract from this Confluence'. Differs from /intake doc (which captures one structured doc artifact with reaction) — extract-doc decomposes a doc into multiple intake-backlog entries for audit routing."
+description: "NOTE: this skill requires connected ~~docs MCPs (Notion, Google Docs, Confluence, Box, Egnyte), which are typically only present in Cowork — the Code variant exists for parity but most users will want the Cowork variant. Pull insights from a single doc or page (Notion, Google Doc, Confluence, etc.) into the standard intake backlog. Use when user says '/extract-doc', 'extract insights from this doc', 'pull learnings from this page', 'mine this Notion page for knowledge', 'extract from this Confluence'. Differs from /intake doc (which captures one structured doc artifact with reaction) — extract-doc decomposes a doc into multiple intake-backlog entries for audit routing. (Code port — ADR-094.)"
 ---
 
 # /extract-doc — Extract Insights from a Doc to Intake Backlog
+
+> **RETIRED 2026-06-21 (v2.33.0).** Folded into `/intake`: extract-doc → `/intake extract <doc-url>` (decompose a source into backlog entries). Kept for reference only — not a live skill (archived under `skills/.archived/`, excluded from discovery).
 
 Pull knowledge-worthy items from a single connected `~~docs` source (Notion page, Google Doc, Confluence page, Box doc, Egnyte file) into `intake/insights-backlog.md`. Unlike `/intake doc` (which captures the doc itself as one structured artifact for later reaction), `/extract-doc` **decomposes** the doc into N intake entries — one per insight, decision, or question worth surfacing at audit.
 
