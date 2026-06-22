@@ -22,10 +22,7 @@ COMMAND_SKILLS = [
     "backlog",
     "stats",
     "ask",
-    "clip",
-    "clip-thread",
     "intake",
-    "extract-doc",
     "meeting-notes",
     "digest",
     "sync-decisions",
@@ -38,6 +35,8 @@ COMMAND_SKILLS = [
     "retrospect",
     "foundational-review",
     "readiness-audit",
+    "interview",
+    "recap",
     "snapshot",
     "setup",
     "help",
@@ -99,7 +98,7 @@ For each reviewed capture, note findings for Step 6 under a "Task-Boundary Captu
 """
 
 COMMANDS_PREAMBLE = """---
-description: "ARIA workflow commands — /extract, /index, /backlog, /stats, /ask, /clip, /clip-thread, /intake, /extract-doc, /meeting-notes, /digest, /sync-decisions, /wrapup, /codemap, /distill, /stitch, /handoff, /prospect, /retrospect, /foundational-review, /readiness-audit, /snapshot, /setup, /help, /audit-share. Use when the user invokes any of these slash commands or their natural-language equivalents."
+description: "ARIA workflow commands — /extract, /index, /backlog, /stats, /ask, /intake, /meeting-notes, /digest, /sync-decisions, /wrapup, /codemap, /distill, /stitch, /handoff, /prospect, /retrospect, /foundational-review, /readiness-audit, /interview, /recap, /snapshot, /setup, /help, /audit-share. Use when the user invokes any of these slash commands or their natural-language equivalents."
 globs: ["knowledge/**/*", "CODEMAP.md", "STITCH-*.md"]
 alwaysApply: false
 ---
@@ -108,7 +107,7 @@ alwaysApply: false
 
 This file ports ARIA skill instructions for the **Cursor** port. Triggers are natural-language (e.g., "extract session knowledge", "map the codebase", "wrap up session") in addition to slash-command names. Skill aliases: `/share-audit` → `/audit-share`, `/knowledge-audit` → `/audit-knowledge`, `/config-audit` → `/audit-config`.
 
-**Cursor port notes:** Config lives at `.cursor/aria-knowledge.local.md` (per-repo). Rule 22 uses the edit-intent marker (`scripts/aria/record-edit-intent.sh`) — see `AGENTS.md`. Connect MCP servers in **Cursor Settings → MCP** for `/clip-thread`, `/extract-doc`, `/meeting-notes`, `/digest`, and `/sync-decisions`. ADR-094 dual-port Runtime Gates are **not** used in Cursor (no aria-cowork collision in typical Cursor sessions).
+**Cursor port notes:** Config lives at `.cursor/aria-knowledge.local.md` (per-repo). Rule 22 uses the edit-intent marker (`scripts/aria/record-edit-intent.sh`) — see `AGENTS.md`. Connect MCP servers in **Cursor Settings → MCP** for `/intake thread`, `/intake extract` (~~docs MCP), `/meeting-notes`, `/digest`, and `/sync-decisions`. Retired `/clip`, `/clip-thread`, `/extract-doc` are folded into `/intake`. ADR-094 dual-port Runtime Gates are **not** used in Cursor (no aria-cowork collision in typical Cursor sessions).
 
 ---
 """
@@ -241,6 +240,9 @@ def adapt_cursor(text: str) -> str:
         ("Pre-Compact Captures", "Task-Boundary Captures"),
         ("pre-compact snapshot", "task-boundary capture"),
         ("pre-compaction transcript snapshot", "task-boundary capture"),
+        ("`/clip`", "`/intake`"),
+        ("Run `/clip`", "Run `/intake`"),
+        ("intake/clippings/", "references/sources/"),
     ]
     for old, new in replacements:
         text = text.replace(old, new)
@@ -249,7 +251,7 @@ def adapt_cursor(text: str) -> str:
     # Setup Step 1 — VERSION from scripts/aria/VERSION (plain text)
     setup_ver_block = (
         "**Read the installed port version first.** Parse `scripts/aria/VERSION` "
-        "(plain text, one line — e.g. `2.30.0-cursor.0`):\n\n"
+        "(plain text, one line — e.g. `2.35.2-cursor.0`):\n\n"
         "```bash\n"
         'INSTALLED_VERSION=$(cat "scripts/aria/VERSION" 2>/dev/null | tr -d \'[:space:]\')\n'
         '[ -z "$INSTALLED_VERSION" ] && INSTALLED_VERSION="unknown"\n'
@@ -311,29 +313,14 @@ def skill_section(name: str, title: str | None = None) -> str:
 
 
 def patch_help_table(text: str) -> str:
-    old_clip = "| /clip [url or text] | Quick-save a URL or text snippet to intake for later review |\n| /intake [path or url] | Bulk import knowledge from files, directories, or URLs |"
-    new_clip = """| /clip [url or text] | Quick-save a URL or text snippet to intake for later review |
-| /clip-thread [url or id] | Capture a Slack/Teams/Gmail thread via connected MCP to intake/clippings/ |
-| /intake [path or url] | Bulk import knowledge from files, directories, or URLs |
-| /intake doc [url or title] | Structured single-doc capture under intake/docs/ |
-| /extract-doc [url] | Decompose one external doc into intake backlog entries (~~docs MCP) |
-| /meeting-notes [url or paste] | Fold meeting transcript into intake/meetings/ (MCP or paste) |
-| /digest [--week] | Cross-tool weekly rollup into intake/digests/ (MCP composite) |
-| /sync-decisions [slug] | Mirror approved decisions to external wiki (~~docs WRITE MCP) |"""
-    if old_clip in text:
-        text = text.replace(old_clip, new_clip)
-    old_wrap = "| /wrapup | End-of-session handoff — update PROGRESS/AGENTS.md, prompt for commit, verify continuity |\n| /handoff [auto] | Express handoff — same coverage as /wrapup, one combined-go review (or `auto` for silent), always emits a paste-ready next-session opener |"
-    new_wrap = "| /wrapup [auto\\|snap] | Session close-out — update PROGRESS/AGENTS.md, commit; auto runs /extract, snap runs /snapshot for deferred capture |\n| /handoff [auto\\|brief\\|snap] | Passoff package with paste-ready next-session opener (or coworker brief; snap defers /extract) |"
-    text = text.replace(old_wrap, new_wrap)
-    old_review = "| /retrospect [scope] | Structured retrospective on shipped work — per-fix validation, evidence pass, action verdicts |"
-    new_review = """| /retrospect [scope] | Structured retrospective on shipped work — per-fix validation, evidence pass, action verdicts |
-| /foundational-review <root> | Verdict-led foundational review chain before irreversible decisions |
-| /readiness-audit <root> | Checklist audit for release/public-flip/handover readiness (alias: /audit-ready) |"""
-    if old_review in text:
-        text = text.replace(old_review, new_review)
+    # Help table is regenerated from canonical /help; only patch Cursor-specific rows.
     text = text.replace(
-        "| /snapshot | Save the current session transcript to intake/task-boundary-captures/ on demand |",
+        "| /snapshot | Save the current session transcript to intake/pre-compact-captures/ on demand |",
         "| /snapshot | On-demand task-boundary capture (git + hook state) to intake/task-boundary-captures/ |",
+    )
+    text = text.replace(
+        "Run /context [tags]",
+        "Run /context [tags]",
     )
     return text
 
@@ -407,10 +394,14 @@ def verify_markers() -> None:
         ("wrapup snap mode", "mode = snap" in cmds or "/wrapup snap" in cmds),
         ("foundational-review skill", "## /foundational-review" in cmds),
         ("readiness-audit skill", "## /readiness-audit" in cmds),
+        ("interview skill", "## /interview" in cmds),
+        ("recap skill", "## /recap" in cmds),
+        ("intake extract mode", "/intake extract" in cmds or "intake extract" in cmds),
     ]
     audit = AUDIT_MDC.read_text(encoding="utf-8")
     checks += [
         ("audit Step 2e", "Step 2e: Review Subagent Captures" in audit),
+        ("audit Step 2f", "Step 2f: Review Clippings" in audit),
         ("audit Step 2d cursor", "Step 2d: Review Task-Boundary" in audit),
     ]
     setup_version = 'scripts/aria/VERSION' in cmds and 'cat "scripts/aria/VERSION"' in cmds

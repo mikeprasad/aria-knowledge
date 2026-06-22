@@ -46,6 +46,7 @@ if [ -f "$KT_CONFIG" ]; then
   KT_SUBAGENT_SELFREPORT_TYPES=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^subagent_selfreport_types:' | sed 's/^subagent_selfreport_types: *//')
   KT_SESSION_STATE=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^session_state:' | sed 's/^session_state: *//')
   KT_AUTO_PROSPECT=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^auto_prospect:' | sed 's/^auto_prospect: *//')
+  KT_AUTONOMY=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^autonomy:' | sed 's/^autonomy: *//' | tr -d ' ')
   KT_AUTO_RETROSPECT=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^auto_retrospect:' | sed 's/^auto_retrospect: *//')
   KT_RETROSPECT_MIN_COMMITS=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^retrospect_min_commits:' | sed 's/^retrospect_min_commits: *//')
   KT_RETROSPECT_BRANCHES=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^retrospect_branches:' | sed 's/^retrospect_branches: *//')
@@ -73,6 +74,7 @@ if [ -f "$KT_CONFIG" ]; then
   KT_SUBAGENT_SELFREPORT_TYPES=${KT_SUBAGENT_SELFREPORT_TYPES:-explore}
   KT_SESSION_STATE=${KT_SESSION_STATE:-false}
   KT_AUTO_PROSPECT=${KT_AUTO_PROSPECT:-off}
+  KT_AUTONOMY=${KT_AUTONOMY:-default}
   KT_AUTO_RETROSPECT=${KT_AUTO_RETROSPECT:-off}
   KT_RETROSPECT_MIN_COMMITS=${KT_RETROSPECT_MIN_COMMITS:-3}
   KT_RETROSPECT_BRANCHES=${KT_RETROSPECT_BRANCHES:-main,master,production}
@@ -148,6 +150,10 @@ if [ -f "$KT_CONFIG" ]; then
   case "$KT_SESSION_START_PROJECT_PICKER" in
     true|false) ;; # valid
     *) KT_SESSION_START_PROJECT_PICKER=false ;;
+  esac
+  case "$KT_AUTONOMY" in
+    default|balanced|autonomous) ;;
+    *) KT_AUTONOMY=default ;;
   esac
   case "$KT_IDEAS_STALENESS_DAYS" in
     ''|*[!0-9]*) KT_IDEAS_STALENESS_DAYS=21 ;;

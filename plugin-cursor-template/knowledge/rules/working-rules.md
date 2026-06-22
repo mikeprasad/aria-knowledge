@@ -19,16 +19,16 @@ Rules are living — they get added, refined, or retired based on real experienc
 
 ## Behavioral Foundation
 
-Four principles distill what the 34 rules below collectively enforce. Framed in the spirit of [Andrej Karpathy's January 2026 diagnosis](https://x.com/karpathy/status/2015883857489522876) of how LLMs fail at coding judgment — and the [4-line CLAUDE.md](https://github.com/forrestchang/andrej-karpathy-skills) it inspired — expanded to ARIA's operational scope.
+Four principles distill what the 35 rules below collectively enforce. Framed in the spirit of [Andrej Karpathy's January 2026 diagnosis](https://x.com/karpathy/status/2015883857489522876) of how LLMs fail at coding judgment — and the [4-line CLAUDE.md](https://github.com/forrestchang/andrej-karpathy-skills) it inspired — expanded to ARIA's operational scope.
 
 1. **Don't assume — surface tradeoffs.** Flag uncertainty, present alternatives, push back when warranted. *(Rules 5, 7, 9, 10)*
 2. **Simplest solution wins — nothing speculative.** No abstraction or feature beyond what's asked. *(Rules 13, 14, 18)*
 3. **Touch only what you must.** Match scope to the request; clean only your own mess. *(Rules 22, 25, 26)*
 4. **Define success criteria upfront, loop until verified.** Strong criteria enable independent loops; weak criteria require constant clarification. *(Rule 20)*
 
-The 34 rules below are the expanded, operationalized form. When in doubt, fall back to the four. When the four don't cover it, the 34 likely do. When neither covers it, that's a candidate for Rule 23 (review learnings) and `intake/rules-backlog.md`.
+The 35 rules below are the expanded, operationalized form. When in doubt, fall back to the four. When the four don't cover it, the 35 likely do. When neither covers it, that's a candidate for Rule 23 (review learnings) and `intake/rules-backlog.md`.
 
-**Why both layers exist.** The 4-line foundation is sufficient for one-off tasks and small projects. The 34 rules earn their keep when (a) work spans multiple sessions and needs persistent discipline, (b) failures have asymmetric cost and need explicit gating, or (c) team coordination requires shared, named conventions. Volume past four is justified by the operational context, not added for its own sake.
+**Why both layers exist.** The 4-line foundation is sufficient for one-off tasks and small projects. The 35 rules earn their keep when (a) work spans multiple sessions and needs persistent discipline, (b) failures have asymmetric cost and need explicit gating, or (c) team coordination requires shared, named conventions. Volume past four is justified by the operational context, not added for its own sake.
 
 -----
 
@@ -347,3 +347,22 @@ Run all 7 steps of Rule 22 against the plan, not just the edits. Each step at pl
 **Why:** A plan formed on incomplete intake, weak criteria, unvalidated assumptions, or unconsidered alternatives produces failures that look like execution problems but are plan problems. Per-edit Rule 22 catches scope drift; it cannot catch a flawed premise. Rule 34 moves the same scrutiny upstream to where it can still change the plan.
 
 **Origin:** A scraping API integration was planned, executed cleanly per per-edit Rule 22, and failed on every call — incorrect payload shape, auth header, pagination assumptions. The API's documentation was freely accessible the whole time. A plan-level Rule 22 review would have flagged the Step 2 (Intake) gap before any code was written. Same incident underwrites Rule 33, which is the third-party-API-specific corollary; Rule 34 is the general plan-formation rule.
+
+### 35. Decision routing — investigate before asking; spend the human's decision budget only on what you can't resolve
+
+The human's decision budget is the scarce resource: a person makes a limited number of good decisions before focus wanes. The agent's speed and context are cheap by comparison. Optimize for both — and they share the same goal: top-tier output with the fewest wasted human turns. So before asking OR auto-deciding, classify the question and route it:
+
+| Question type | Action |
+|---|---|
+| Resolvable by read / grep / diff / git log / config / web | **Investigate first**, then act. Don't ask what a trace answers. |
+| Objectively validatable — a clear right answer given the goals + context | **Decide it**, and show the validation. |
+| Mechanical / obvious right answer / idempotent re-run | **Act.** |
+| Already confirmed this session or in durable memory | **Act** — don't re-ask. |
+| The user's intent / preference / value judgment with **no gainable visibility** | **Ask** — autonomy reduces friction, not signal. |
+| Requires explicit approval not already granted (push, destructive op, scope change, credentials) | **Ask.** |
+
+**Sequential composition:** investigate the resolvable parts first, then ask only the residual that is genuinely about the human. A suppressed ask that should have happened produces a silently-wrong default; an ask that a trace could have answered burns the human's attention. Both are failures — route by the table.
+
+**The quality bar for an objectively-validatable decision** is Rules 13/14/18: simplest solution that works, abstraction only for a clear measurable gain, foundational design over patching — i.e. build right, long-term, clean, robust, no unneeded abstraction. "Validated" means checked against ground truth (the real code/corpus/docs), not asserted.
+
+**Why:** This is the operative form of a calibration the agent must apply by default, not on request. How *aggressively* to apply it (how high to set the bar for "stop and ask") is governed by the `autonomy` config setting and its SessionStart directive (`default` injects nothing; `balanced` and `autonomous` scale the posture) — but the routing logic above is universal regardless of that setting.

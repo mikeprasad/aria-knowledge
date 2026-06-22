@@ -105,6 +105,18 @@ The decision-routing policy (investigate-first; spend the human's decision budge
 - **Build:** `./release-codex.sh` produced `aria-knowledge-codex-2.30.0.zip` plus stable alias `aria-knowledge-codex.zip` (149 files, tests excluded).
 - **Remove the alias skills across all ports** (`/knowledge-audit`, `/config-audit`, `/share-audit` — pure aliases of `/audit-knowledge` / `/audit-config` / `/audit-share`). They charged every session's skill-discovery surface for zero capability. The slash-forms still route — folded into each canonical audit skill's description trigger list (`Also invoked as '/knowledge-audit'.`) — so muscle memory is preserved; only the separate skill dirs are gone. Canonical surface 17,979 → 17,458 B; cowork summed descriptions → 8,489 (under the 8,500 warn). Antigravity + cursor regenerated from canonical; codex folded in-port. Same version numbers (folded into this release, no bump).
 
+## Cursor port 2.35.2-cursor.0 — 2026-06-22
+
+**Cursor parity pass for canonical v2.35.2.** Brings `plugin-cursor-template/` to equivalent skill + hook coverage with `plugin-claude-code` v2.35.2 where Cursor has an equivalent runtime surface.
+
+- **Add:** `/interview`, `/recap` compiled into `aria-commands.mdc`.
+- **Consolidate:** retired `/clip`, `/clip-thread`, `/extract-doc` — folded into `/intake` (modes `clip`, `thread`, `extract`, `doc`).
+- **Sync:** `/audit-knowledge` Step 2f clippings graduation + image extraction sub-flow; `/index` recursive `references/` scan; Rule 35 + `autonomy` config + SessionStart directive.
+- **Sync:** SESSION.md multi-session ledger (`lib-session-state.sh`), workspace-root routing, `session_stale_days` resume/archive prompt; handoff consume-stamp in `post-edit-check.sh`.
+- **Sync:** hook scripts + `knowledge/` template rsync @ v2.35.2 (`references/` tier, `working-rules.md` Rule 35).
+- **Keep explicit non-equivalents:** `/statusline`, `pm-*`, PreCompact transcript hooks, Rule 22 `permissionDecision: deny`, v2.30 deny-rate circuit breaker (Cursor advisory enforcement only).
+- **Build:** `./release-cursor.sh` → `aria-knowledge-cursor-2.35.2.zip` + stable alias `aria-knowledge-cursor.zip` (not run this pass).
+
 ## Cursor port 2.30.0-cursor.0 — 2026-06-11
 
 **Cursor parity pass for canonical v2.30.0.** Brings `plugin-cursor-template/` to equivalent skill + hook coverage with `plugin-claude-code` v2.30.0 where Cursor has an equivalent runtime surface.

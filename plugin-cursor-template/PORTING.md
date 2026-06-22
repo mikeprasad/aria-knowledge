@@ -36,16 +36,17 @@ Cursor-specific files live here:
 
 ## Current Parity Notes
 
-- **Canonical parity target:** `plugin-claude-code/` @ **v2.30.0** (2026-06-11).
-- **Cursor port version:** `scripts/aria/VERSION` → `2.30.0-cursor.0`.
+- **Canonical parity target:** `plugin-claude-code/` @ **v2.35.2** (2026-06-22).
+- **Cursor port version:** `scripts/aria/VERSION` → `2.35.2-cursor.0`.
 - **ADR-094 Runtime Gates:** intentionally **omitted** in Cursor — aria-cowork is not loaded in typical Cursor sessions; namespace note lives in `aria-commands.mdc` preamble only.
 - Knowledge folder schema is **fully compatible** with upstream.
 - `intake/pre-compact-captures/` removed by design; `intake/task-boundary-captures/` substitutes via the `stop` hook.
 - Rule 22 transcript scanning isn't available; edit-intent marker + advisory `beforeFileEdit` (see `audit/ARIA_CURSOR_AUDIT_REPORT.md` §5).
-- MCP skills (`/clip-thread`, `/extract-doc`, `/meeting-notes`, `/digest`, `/sync-decisions`) are compiled into `aria-commands.mdc`; connect servers via **Cursor Settings → MCP**. Connector reference: `../plugin-claude-cowork/CONNECTORS.md`.
-- **New in 2.30.0-cursor.0:** `/foundational-review`, `/readiness-audit`, `/wrapup snap` + `/handoff snap`, `session_start_project_picker` + `projects_labels` (SessionStart project menu), path-boundary fix in `kt_project_for_path`. Canonical v2.30.0 deny-rate circuit breaker **not ported** (Cursor advisory Rule 22). `/statusline` remains Claude Code-only.
+- MCP skills (`/intake thread`, `/intake extract`, `/meeting-notes`, `/digest`, `/sync-decisions`) are compiled into `aria-commands.mdc`; connect servers via **Cursor Settings → MCP**. Connector reference: `../plugin-claude-cowork/CONNECTORS.md`. Retired `/clip`, `/clip-thread`, `/extract-doc` are folded into `/intake`.
+- **New in 2.35.2-cursor.0:** `/interview`, `/recap`; `/intake` consolidation; audit Step 2f clippings + image extraction; `references/` graduation tier; Rule 35 + `autonomy` SessionStart injection; SESSION.md ledger + `session_stale_days`. Canonical v2.30.0 deny-rate circuit breaker **not ported** (Cursor advisory Rule 22). `/statusline` remains Claude Code-only.
+- **Carried from 2.30.0-cursor.0:** `/foundational-review`, `/readiness-audit`, `/wrapup snap` + `/handoff snap`, `session_start_project_picker` + `projects_labels`.
 
-### Cursor hook parity (v2.30.0)
+### Cursor hook parity (v2.35.2)
 
 | Canonical (Claude Code) | Cursor equivalent | Status |
 |---|---|---|
@@ -68,18 +69,18 @@ Cursor-specific files live here:
 
 ### A. Knowledge contract sync
 
-**Last synced:** `plugin-claude-code/template/` @ v2.30.0. Re-audit template rule files before each release.
+**Last synced:** `plugin-claude-code/template/` @ v2.35.2. Re-audit template rule files before each release.
 
 ### B. Skill → `.mdc` compilation (Cursor-only)
 
-**Last synced:** `plugin-claude-code/skills/` @ **v2.30.0** → `.cursor/rules/*.mdc` (2026-06-11). Adds `/foundational-review`, `/readiness-audit`, wrapup/handoff `snap` modes; ships `knowledge/approaches/foundational-review-chain.md` for the review chain doc.
+**Last synced:** `plugin-claude-code/skills/` @ **v2.35.2** → `.cursor/rules/*.mdc` (2026-06-22). Adds `/interview`, `/recap`; removes retired `/clip`, `/clip-thread`, `/extract-doc` (folded into `/intake`); audit Step 2f clippings + image extraction; Rule 35 + `autonomy` in setup + SessionStart.
 
-**29 canonical commands** in `aria-commands.mdc` (24 core + 5 MCP + `/help` + `/audit-share`; aliases documented in preamble / `aria-audit.mdc`).
+**27 canonical commands** in `aria-commands.mdc` (22 core + 5 MCP + `/help` + `/audit-share`; aliases documented in preamble / `aria-audit.mdc`).
 
 | Canonical skill | Cursor `.mdc` | Section |
 |---|---|---|
-| `setup` … `wrapup` (24 core incl. foundational-review, readiness-audit) | `aria-commands.mdc` | `#/…` |
-| `clip-thread`, `extract-doc`, `meeting-notes`, `digest`, `sync-decisions` | `aria-commands.mdc` | `#/…` |
+| `setup` … `wrapup` (22 core incl. interview, recap, foundational-review, readiness-audit) | `aria-commands.mdc` | `#/…` |
+| `meeting-notes`, `digest`, `sync-decisions` (+ `/intake` MCP modes) | `aria-commands.mdc` | `#/…` |
 | `audit-knowledge`, `audit-config` (+ aliases) | `aria-audit.mdc` | `#/…` |
 | `context`, `rules` | `aria-context.mdc` | `#/…` |
 | Rule 22 framework | `aria-rule-22.mdc` | full file |

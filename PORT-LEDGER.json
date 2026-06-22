@@ -89,13 +89,13 @@
     }
   },
   "cursor-template": {
-    "version": "2.30.0-cursor.0",
-    "parity_target": "2.30.0",
-    "last_parity_pass": "2026-06-11",
+    "version": "2.35.2-cursor.0",
+    "parity_target": "2.35.2",
+    "last_parity_pass": "2026-06-22",
     "sla": "undeclared",
     "surfaces": {
-      "plugin-cursor-template/.cursor/rules/aria-commands.mdc": "4e2d04f9ed262c31e596e31ceb8472948ca094773dbbc8af1a50b7abbb5c07b7",
-      "plugin-cursor-template/knowledge/rules/working-rules.md": "595a0bf00f2c2aab9bf9ece4d9dc82780f957e1a826a6e27e93545918d913578"
+      "plugin-cursor-template/.cursor/rules/aria-commands.mdc": "ab27ff5848943ad47033f09a5b34dc67888d06c8f2527c5a48e7f89efab48e35",
+      "plugin-cursor-template/knowledge/rules/working-rules.md": "6f1bafcb63a8757083bb67c381125114481f764467fc612c90119fd659a17da0"
     }
   },
   "antigravity": {

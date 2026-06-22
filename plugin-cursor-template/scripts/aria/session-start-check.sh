@@ -28,20 +28,20 @@ find /tmp -maxdepth 1 -name 'aria-session-inprogress-*' -mtime +1 -delete 2>/dev
 # If config file exists but failed validation, report the specific error
 if [ -n "$KT_CONFIG_ERROR" ]; then
   MSG=$(kt_json_escape "aria-knowledge: $KT_CONFIG_ERROR Run /setup to reconfigure.")
-  echo '{"systemMessage":"'"$MSG"'"}'
+  echo '{"agentMessage":"'"$MSG"'"}'
   exit 0
 fi
 
 # If not configured, nudge setup
 if [ "$KT_CONFIGURED" = "false" ]; then
-  echo '{"systemMessage":"aria-knowledge is installed but not configured. Run /setup to configure your knowledge folder and start capturing knowledge automatically."}'
+  echo '{"agentMessage":"aria-knowledge is installed but not configured. Run /setup to configure your knowledge folder and start capturing knowledge automatically."}'
   exit 0
 fi
 
 # Check knowledge folder exists
 if [ ! -d "$KT_KNOWLEDGE_FOLDER" ]; then
   MSG=$(kt_json_escape "aria-knowledge: configured knowledge folder does not exist at $KT_KNOWLEDGE_FOLDER. Run /setup to reconfigure.")
-  echo '{"systemMessage":"'"$MSG"'"}'
+  echo '{"agentMessage":"'"$MSG"'"}'
   exit 0
 fi
 
@@ -57,7 +57,7 @@ TODAY_EPOCH=$(date_to_epoch "$TODAY")
 
 # Guard: if we can't compute today's epoch, date commands are incompatible
 if [ -z "$TODAY_EPOCH" ]; then
-  echo '{"systemMessage":"aria-knowledge: failed to compute today'\''s date as epoch. Date commands may not be compatible with this platform."}'
+  echo '{"agentMessage":"aria-knowledge: failed to compute today'\''s date as epoch. Date commands may not be compatible with this platform."}'
   exit 0
 fi
 
@@ -77,9 +77,9 @@ else
 fi
 
 if [ "$IS_FIRST_RUN" = "true" ]; then
-  MESSAGES="ARIA Knowledge Active: Auto insights collection, Rule 22 logic on edits, context surfacing, audit prompts, and precompact capture. Run /help for commands, see QUICKSTART.md for more."
+  MESSAGES="ARIA Knowledge Active: Auto insights collection, Rule 22 logic on edits, context surfacing, audit prompts, and task-boundary capture. Run /help for commands, see QUICKSTART.md for more."
   MESSAGES_ESCAPED=$(kt_json_escape "$MESSAGES")
-  echo '{"systemMessage":"'"$MESSAGES_ESCAPED"'"}'
+  echo '{"agentMessage":"'"$MESSAGES_ESCAPED"'"}'
   echo "$(date +%Y-%m-%dT%H:%M:%S) session-start-check: first-run welcome" >> "$KT_KNOWLEDGE_FOLDER/logs/hook-debug.log" 2>/dev/null
   exit 0
 fi
@@ -260,23 +260,6 @@ if [ "$KT_PROJECTS_ENABLED" = "true" ] && [ "$KT_AUTO_LOAD_PROJECT_CONTEXT" = "t
   fi
 fi
 
-# SessionStart project picker — opt-in, non-blocking (spec 2026-06-06).
-# Gated: projects_enabled + session_start_project_picker. Emits nothing unless both true.
-# Suggests a project menu (generated from projects_list) only when CWD is NOT already
-# inside a configured project (that CWD case is auto_load_project_context's job above).
-if [ "$KT_PROJECTS_ENABLED" = "true" ] && [ "$KT_SESSION_START_PROJECT_PICKER" = "true" ]; then
-  if [ -z "$(kt_project_for_path "$PWD")" ]; then
-    PICKER_MENU=$(kt_project_menu)
-    if [ -n "$PICKER_MENU" ]; then
-      # Option 3 (ADR-pending unify): inline pm_projects_root read; same key as ARIA Assist.
-      PICKER_ROOT=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^pm_projects_root:' | sed 's/^pm_projects_root: *//')
-      [ -z "$PICKER_ROOT" ] && PICKER_ROOT="$HOME/Projects"
-      case "$PICKER_ROOT" in "~"/*) PICKER_ROOT="$HOME/${PICKER_ROOT#\~/}" ;; esac
-      MESSAGES="${MESSAGES}ARIA Project Picker — If the user's opening message does NOT already name a project (or a task within one), suggest ONCE: 'Which project today? ${PICKER_MENU} — or name one / just start working.' When the user picks or names a project, resolve its tag to the matching projects_list path, then read ${PICKER_ROOT}/<that-path>/CLAUDE.md and ${PICKER_ROOT}/<that-path>/PROGRESS.md if present. Do NOT block — if the user already named a project or task, proceed without asking. Offer once per session. "
-    fi
-  fi
-fi
-
 # SessionStart project picker — opt-in, non-blocking (v2.26.0).
 # Gated: projects_enabled + session_start_project_picker. Emits nothing unless both true.
 # Suggests a project menu (generated from projects_list) only when CWD is NOT already
@@ -302,7 +285,8 @@ fi
 # this silently skips and the existing block continues unchanged.
 if [ "$KT_ACTIVE_SURFACING" = "true" ] && [ "$KT_PROJECTS_ENABLED" = "true" ]; then
   # session_id needed for ledger path
-  TA_SESSION_ID=$(echo "$INPUT" | grep -o '"session_id":"[^"]*"' | head -1 | sed 's/"session_id":"//;s/"//' 2>/dev/null)
+  TA_SESSION_ID=$(echo "$INPUT" | grep -o '"sessionId":"[^"]*"' | head -1 | sed 's/"sessionId":"//;s/"//' 2>/dev/null)
+  [ -z "$TA_SESSION_ID" ] && TA_SESSION_ID=$(echo "$INPUT" | grep -o '"session_id":"[^"]*"' | head -1 | sed 's/"session_id":"//;s/"//' 2>/dev/null)
   . "$SCRIPT_DIR/lib-tracked-artifacts.sh"
   kt_artifact_compute_for_path "$PWD"
   if [ -n "$TA_SESSION_ID" ] && [ "$KT_ARTIFACTS_COUNT" -gt 0 ]; then
@@ -322,7 +306,7 @@ fi
 # PostToolUse hook (post-edit-check.sh) on the first edit — not by Claude here —
 # because the soft-instruction write proved unreliable (Claude skipped it).
 if [ "$KT_SESSION_STATE" = "true" ]; then
-  MESSAGES="${MESSAGES}SESSION STATE — After the project/sub-project for this session is identified (by the PWD-based project match, or by what the user names in their opening message), locate SESSION.md at that project root (project root = nearest dir with CLAUDE.md/PROGRESS.md). If it exists with a non-empty '## Next session prompt' block: if the user's opening message included the word 'handoff', open the session by executing that prompt directly (no confirmation); otherwise tell the user a saved resume prompt exists (state its lastEvent + age from the 'at' field) and ask whether to start from it (y/n). If no such prompt exists, stay quiet. The 'in-progress' mark is now written automatically by the PostToolUse hook (post-edit-check.sh) on your first edit — do NOT write SESSION.md yourself here. Offer the resume once per session. "
+  MESSAGES="${MESSAGES}SESSION STATE — After the project/sub-project for this session is identified (by the PWD-based project match, or by what the user names in their opening message), locate SESSION.md at that project root (project root = nearest dir with AGENTS.md/CLAUDE.md/PROGRESS.md). If it exists with a non-empty '## Next session prompt' block: if the user's opening message included the word 'handoff', open the session by executing that prompt directly (no confirmation); otherwise tell the user a saved resume prompt exists (state its lastEvent + age from the 'at' field) and ask whether to start from it (y/n). If the prompt's 'at' is older than session_stale_days (read from .cursor/aria-knowledge.local.md; default 7) days, do NOT present it as live — instead state its age and ask: still relevant? [resume / archive / keep]. 'archive' = move that entry under a '## Archived sessions' heading (atlas ignores it, same as '## Prior sessions'); 'keep' = leave it as-is; 'resume' = execute it. Never auto-drop an aged entry — staleness prompts, it does not evict. If no such prompt exists, stay quiet. The 'in-progress' mark is now written automatically by the afterFileEdit hook (post-edit-check.sh) on your first edit — do NOT write SESSION.md yourself here. Offer the resume once per session. "
 fi
 
 # Per-task insight batch capture — gated by auto_capture
@@ -333,7 +317,7 @@ fi
 # Memory pathway guardrail (v2.10.6). Recent Claude models have enhanced
 # file-system memory; route that capability through ARIA's pathways so
 # the knowledge tree stays curated rather than fragmenting into ad-hoc notes.
-MESSAGES="${MESSAGES}MEMORY PATHWAY — ARIA is the structured memory pathway for this session. For notes, use /clip (URLs/snippets), /extract (session insights), /intake (bulk imports), /audit-knowledge (promotion). Recent Claude models have enhanced file-system memory; route it through ARIA to keep the knowledge tree curated. "
+MESSAGES="${MESSAGES}MEMORY PATHWAY — ARIA is the structured memory pathway for this session. For notes, use /intake (URLs/snippets/threads/docs), /extract (session insights), /audit-knowledge (promotion). Route ad-hoc notes through ARIA to keep the knowledge tree curated. "
 
 # CODEMAP detection — find codemaps in project directories, annotate with
 # staleness per /audit-knowledge Step 5d criteria so stale maps are visible
@@ -412,10 +396,22 @@ if [ -n "$CODEMAPS" ]; then
   fi
 fi
 
+# Autonomy posture directive (decision-routing, Rule 35) — gated + scaled by the `autonomy`
+# config key. default (or unset/unknown): inject nothing — zero behavior change, zero context
+# cost (the safe failure mode). Rule 35 in working-rules.md carries the universal logic; this
+# block is the active per-session push. KT_AUTONOMY is parsed by config.sh (sourced above),
+# defaulting to "default" when the key is absent.
+if [ "$KT_AUTONOMY" = "balanced" ]; then
+  MESSAGES="${MESSAGES}DECISION ROUTING (balanced) — Before asking OR auto-deciding, classify (per Rule 35): resolvable by read/grep/diff/git/config/web → investigate first, then act; objectively validatable → decide and show the validation; mechanical/already-decided → act; the user's intent/preference/judgment with no gainable visibility, or anything needing ungranted explicit approval → ask. Investigate the resolvable parts first; ask only the residual that's genuinely about the user. "
+elif [ "$KT_AUTONOMY" = "autonomous" ]; then
+  MESSAGES="${MESSAGES}DECISION ROUTING (autonomous) — The user's decision budget is the scarce resource; your speed/context is cheap. Exhaust self-resolvable investigation before spending a human turn. Per Rule 35: decide objectively-validatable forks YOURSELF (checked against ground truth and the build-philosophy bar, Rules 13/14/18 — simplest/robust/clean, no unneeded abstraction). Run quality gates (/prospect pre-code, /retrospect post-ship) as checks, not stops. Stop and ask ONLY when it is a judgment call with no gainable visibility (and none can be gained), or it requires explicit approval not already granted (push, destructive op, scope change, credentials). "
+fi
+# autonomy = default (or unset/unknown): no directive injected.
+
 # Output only if there are messages
 if [ -n "$MESSAGES" ]; then
   MESSAGES_ESCAPED=$(kt_json_escape "$MESSAGES")
-  echo '{"systemMessage":"'"$MESSAGES_ESCAPED"'"}'
+  echo '{"agentMessage":"'"$MESSAGES_ESCAPED"'"}'
 fi
 
 # Diagnostic log — confirms hook ran, distinguishes success from silent failure
