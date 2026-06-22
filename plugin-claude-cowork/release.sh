@@ -203,6 +203,16 @@ junk=$(unzip -l "$ZIP_PATH" | grep -cE '(__MACOSX|\.DS_Store|\.claude/settings|\
 manifest=$(unzip -l "$ZIP_PATH" | grep -c "$PLUGIN_NAME/\.claude-plugin/plugin\.json" || true)
 [[ "$manifest" -eq 1 ]] || die "verification failed: manifest missing or duplicated ($manifest found)"
 
+# --- version-stable copy (for /releases/latest/download/<stable>.plugin URLs) --
+# The site links to this stable name via /releases/latest/. Cowork ships on its
+# own cowork-vX.Y.Z tag, but per the asset contract (see RELEASING.md) the
+# stable .plugin ALSO rides the canonical v2.x release — the one /latest/
+# resolves to — so the site link stays version-agnostic. publish-release.sh
+# attaches this alias to the canonical release.
+STABLE_PATH="$REPO_ROOT/$PLUGIN_NAME.plugin"
+cp -f "$ZIP_PATH" "$STABLE_PATH"
+log "stable alias: $(basename "$STABLE_PATH")"
+
 # --- expected-content sanity check ------------------------------------------
 # v0.3.0 ships 20 skills + intake-doc.md template + 14 template files.
 # Quick existence checks (release-time, not exhaustive).

@@ -106,6 +106,8 @@ aria/
 │   ├── overlays/     ← Per-skill overrides applied by build.sh
 │   ├── build.sh      ← Regenerates port content from canonical sources
 │   └── tests/        ← Port test suite (smoke + structural)
+├── RELEASING.md                ← Build→publish flow + stable-alias asset contract (read before cutting a release)
+├── publish-release.sh          ← Attaches all 6 stable aliases to the canonical release so site /latest/ links resolve
 ├── release.sh                  ← Builds claude-code zip (canonical)
 ├── release-codex.sh            ← Builds codex zip
 ├── release-cursor.sh           ← Builds cursor zip
