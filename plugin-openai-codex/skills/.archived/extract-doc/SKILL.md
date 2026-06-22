@@ -7,6 +7,8 @@ allowed-tools: Read, Write, Grep
 
 # /extract-doc — Extract Insights from a Doc to Intake Backlog
 
+> **RETIRED 2026-06-21 (v2.33.0).** Folded into `/intake`: extract-doc → `/intake extract <doc-url>` (decompose a source into backlog entries). Kept for reference only — not a live skill (archived under `skills/.archived/`, excluded from discovery).
+
 Pull knowledge-worthy items from a single connected `~~docs` source (Notion page, Google Doc, Confluence page, Box doc, Egnyte file) into `intake/insights-backlog.md`. Unlike `/intake doc` (which captures the doc itself as one structured artifact for later reaction), `/extract-doc` **decomposes** the doc into N intake entries — one per insight, decision, or question worth surfacing at audit.
 
 ## Step 0: Resolve Config

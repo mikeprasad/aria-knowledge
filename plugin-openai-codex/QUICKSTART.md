@@ -58,11 +58,15 @@ With an index built, ARIA surfaces trusted knowledge automatically and the refre
 | `/backlog` | View pending intake items |
 | `/stats` | Knowledge base health dashboard |
 | `/ask [question]` | Research a question, save answer as a knowledge doc |
-| `/clip [url or text]` | Quick-save a URL or snippet to intake |
-| `/intake [path or url]` | Bulk import knowledge from files, directories, or URLs |
+| `/intake [url or text]` | Quick-save a URL or snippet to intake/clippings/ |
+| `/intake [path or dir or glob]` | Bulk import knowledge from files, directories, or globs |
+| `/intake extract [source]` | Decompose one source into intake backlog entries |
+| `/intake thread [id]` | Capture a chat/email thread through a connected MCP |
+| `/interview <mode>` | Elicit project, knowledge, or deep-dive rationale through dialogue |
 | `/codemap [mode]` | Generate or update a feature-organized codebase map |
 | `/prospect [scope]` | Run a pre-execution plan review |
 | `/retrospect [scope]` | Run a post-execution retrospective |
+| `/recap [arc|commit|push|pull]` | Read-only orientation for recent work |
 | `/readiness-audit <scope> --for "<event>"` | Audit a surface for release, public flip, or handover readiness |
 | `/foundational-review <scope> --decision "<decision>"` | Review whether a major irreversible decision is sound |
 | `/help` | Command reference |
@@ -79,6 +83,8 @@ All settings are in `~/.claude/aria-knowledge.local.md`. Run `/setup` to change 
 - `active_knowledge_surfacing` — inject relevant indexed knowledge for matching prompts (default: true)
 - `subagent_capture` — capture durable subagent findings (default: true)
 - `session_state` — maintain `SESSION.md` in-progress state after edits (default: false)
+- `session_stale_days` — age threshold for saved resume prompts (default: 7)
+- `autonomy` — Rule 35 decision-routing posture: `default`, `balanced`, or `autonomous`
 - `auto_prospect` / `auto_retrospect` — nudge or run review skills after plan writes or qualifying pushes (default: off)
 - `critical_paths` — file patterns that always require full impact assessment (default: empty)
 

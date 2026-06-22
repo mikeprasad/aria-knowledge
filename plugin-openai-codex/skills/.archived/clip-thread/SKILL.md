@@ -7,6 +7,8 @@ allowed-tools: Read, Write, Grep
 
 # /clip-thread — Capture Chat/Email Thread to Intake
 
+> **RETIRED 2026-06-21 (v2.33.0).** Folded into `/intake`: clip-thread → `/intake thread <id>` (or auto-detected from a chat/email URL). Kept for reference only — not a live skill (archived under `skills/.archived/`, excluded from discovery).
+
 Save a chat thread or email conversation to `intake/clippings/{YYYY-MM-DD}-{slug}.md` for review and promotion. Unlike `/clip` (URL/snippet) or `/intake` (bulk/doc-anchored), `/clip-thread` is shaped specifically for *threaded* conversations — Slack threads, Teams channel discussions, Gmail conversation chains, MS365 email threads.
 
 ## Step 0: Resolve Config

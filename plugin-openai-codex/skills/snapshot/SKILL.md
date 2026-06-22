@@ -8,11 +8,11 @@ allowed-tools: Bash
 
 Archive the current session's raw transcript to `intake/pre-compact-captures/` for later review. This is the same artifact the pre-compact hook produces — just invoked by the user instead of waiting for compaction.
 
-## When To Use This vs. /extract vs. /clip
+## When To Use This vs. /extract vs. /intake
 
 - **/snapshot** — raw archive, no synthesis. Use before switching context, before a risky operation, or any time you want the full conversation preserved.
 - **/extract** — synthesizes knowledge from the current conversation into backlogs/ideas. Use when you want captured *insights*, not the full transcript.
-- **/clip** — saves a single URL or snippet. Unrelated to session transcripts.
+- **/intake** — captures a single URL or snippet (clip-whole), or scans files/URLs. Unrelated to session transcripts.
 
 `/snapshot` is intentionally orthogonal: it preserves the raw record so `/extract` (or a human review) can work from it later.
 

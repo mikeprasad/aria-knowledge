@@ -131,9 +131,45 @@ def test_review_skills_are_ported_with_bundled_process_doc() -> None:
     assert "${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}" in read(readiness)
 
 
+def test_consolidated_intake_retires_old_capture_skills() -> None:
+    active = {path.parent.name for path in (PORT_ROOT / "skills").glob("*/SKILL.md")}
+    assert "intake" in active
+    assert "clip" not in active
+    assert "clip-thread" not in active
+    assert "extract-doc" not in active
+    assert (PORT_ROOT / "skills" / ".archived" / "clip" / "SKILL.md").exists()
+    assert (PORT_ROOT / "skills" / ".archived" / "clip-thread" / "SKILL.md").exists()
+    assert (PORT_ROOT / "skills" / ".archived" / "extract-doc" / "SKILL.md").exists()
+
+    intake = read(PORT_ROOT / "skills" / "intake" / "SKILL.md")
+    assert "## Clip-Whole Steps" in intake
+    assert "## Thread Mode Steps" in intake
+    assert "mode = extract" in intake
+    assert "Absorbs the retired `/clip`" in intake
+
+
+def test_interview_and_recap_are_codex_native_active_skills() -> None:
+    for name in ("interview", "recap"):
+        path = PORT_ROOT / "skills" / name / "SKILL.md"
+        assert path.exists()
+        fields = parse_frontmatter(path)
+        assert fields["name"] == name
+        body = read(path)
+        assert "Runtime Gate (per ADR-094)" not in body
+        assert "/aria-cowork:" not in body
+
+
+def test_rule35_and_reference_sources_template_are_synced() -> None:
+    rules = read(PORT_ROOT / "template" / "rules" / "working-rules.md")
+    refs = read(PORT_ROOT / "template" / "references" / "README.md")
+    assert "### 35. Decision routing" in rules
+    assert "references/sources/" in refs
+    assert "verbatim graduated clippings" in refs
+
+
 def test_manifest_and_hook_commands_use_codex_plugin_root() -> None:
     manifest = json.loads(read(PORT_ROOT / ".codex-plugin" / "plugin.json"))
-    assert manifest["version"] == "2.30.0-codex.0"
+    assert manifest["version"] == "2.35.2-codex.0"
     assert manifest["hooks"] == "./hooks.json"
     assert manifest["mcpServers"] == "./.mcp.json"
 
@@ -184,6 +220,8 @@ def test_codex_docs_and_setup_prefer_shared_config() -> None:
     assert "Codex-specific installs may create" not in readme
     assert "$HOME/.claude/aria-knowledge.local.md" in wrapper
     assert wrapper.find("$HOME/.claude/aria-knowledge.local.md") < wrapper.find("$HOME/.codex/aria-knowledge.local.md")
+    assert "session_stale_days" in setup
+    assert "autonomy" in setup
 
 
 def test_pre_tool_use_denies_apply_patch_with_current_codex_shape() -> None:
@@ -340,6 +378,43 @@ def test_user_prompt_submit_surfaces_index_matches_as_codex_context() -> None:
         assert hook["hookEventName"] == "UserPromptSubmit"
         assert "ARIA ACTIVE" in hook["additionalContext"]
         assert "guides/stripe.md" in hook["additionalContext"]
+
+
+def test_session_start_surfaces_autonomy_and_project_picker() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        knowledge = root / "knowledge"
+        (knowledge / "logs").mkdir(parents=True)
+        today = "2026-06-22"
+        (knowledge / "logs" / "knowledge-audit-log.md").write_text(
+            f"- **Date:** {today} — test audit\n", encoding="utf-8"
+        )
+        (knowledge / "logs" / "config-audit-log.md").write_text(
+            f"- **Date:** {today} — test audit\n", encoding="utf-8"
+        )
+        config = root / "aria-config.md"
+        write_config(
+            config,
+            knowledge,
+            "last_setup_version: 2.35.2-codex.0\n"
+            "projects_enabled: true\n"
+            "projects_list: api:api-server,web:web-app\n"
+            "projects_labels: api:API Server,web:Web App\n"
+            "session_start_project_picker: true\n"
+            "session_state: true\n"
+            "session_stale_days: 3\n"
+            "autonomy: balanced\n",
+        )
+        output = run_hook(
+            "session-start",
+            {"hook_event_name": "SessionStart", "session_id": f"session-{root.name}", "cwd": str(root)},
+            env={"KT_CONFIG": str(config), "PWD": str(root)},
+        )
+        message = output["systemMessage"]
+        assert "ARIA Project Picker" in message
+        assert "api (API Server), web (Web App)" in message
+        assert "session_stale_days (3 days by current config)" in message
+        assert "DECISION ROUTING (balanced)" in message
 
 
 def test_subagent_start_self_report_and_stop_capture() -> None:

@@ -27,13 +27,13 @@ Notion + Atlassian + Microsoft 365 appear in multiple categories because their M
 
 | Skill | `~~category` consumed | Read or write? | Fallback if no MCP |
 |---|---|---|---|
-| `clip-thread` | `~~chat` OR `~~email` | Read | Stop with notice |
-| `extract-doc` | `~~docs` | Read | Stop with notice |
+| `intake thread` | `~~chat` OR `~~email` | Read | Stop with notice |
+| `intake extract` | `~~docs` | Read | Stop with notice |
 | `meeting-notes` | `~~docs` (paste fallback) | Read | Offer paste affordance |
 | `sync-decisions` | `~~docs` | **Write** | Stop with notice |
 | `digest` | `~~chat` + `~~email` + `~~project tracker` + `~~docs` | Read | Degrade with gap surfacing |
 
-The other 22 skills (capture/govern/apply lifecycle) operate on the local knowledge folder and don't consume MCPs. They work without any external connector.
+The other skills (capture/govern/apply lifecycle) operate on the local knowledge folder and don't consume MCPs. They work without any external connector.
 
 ## How to connect MCPs
 

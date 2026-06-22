@@ -244,6 +244,20 @@ if [ "$KT_PROJECTS_ENABLED" = "true" ] && [ "$KT_AUTO_LOAD_PROJECT_CONTEXT" = "t
   fi
 fi
 
+# SessionStart project picker — opt-in, non-blocking. Suggests a project menu
+# only when CWD is not already inside a configured project.
+if [ "$KT_PROJECTS_ENABLED" = "true" ] && [ "$KT_SESSION_START_PROJECT_PICKER" = "true" ]; then
+  if [ -z "$(kt_project_for_path "$PWD")" ]; then
+    PICKER_MENU=$(kt_project_menu)
+    if [ -n "$PICKER_MENU" ]; then
+      PICKER_ROOT=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^pm_projects_root:' | sed 's/^pm_projects_root: *//')
+      [ -z "$PICKER_ROOT" ] && PICKER_ROOT="$HOME/Projects"
+      case "$PICKER_ROOT" in "~"/*) PICKER_ROOT="$HOME/${PICKER_ROOT#\~/}" ;; esac
+      MESSAGES="${MESSAGES}ARIA Project Picker — If the user's opening message does NOT already name a project (or a task within one), suggest ONCE: 'Which project today? ${PICKER_MENU} — or name one / just start working.' When the user picks or names a project, resolve its tag to the matching projects_list path, then read ${PICKER_ROOT}/<that-path>/AGENTS.md or CLAUDE.md and PROGRESS.md if present. Do NOT block — if the user already named a project or task, proceed without asking. Offer once per session. "
+    fi
+  fi
+fi
+
 # v2.16.1: tracked-artifacts active load — fires when active_knowledge_surfacing
 # is enabled AND PWD substring-matches a configured project. Surfaces CODEMAP
 # directory + (if multi-repo) STITCH with staleness annotation. Complementary
@@ -272,18 +286,18 @@ fi
 # resolves. The in-progress mark is written deterministically by codex-hook.py on
 # the first apply_patch edit; do not write SESSION.md here.
 if [ "$KT_SESSION_STATE" = "true" ]; then
-  MESSAGES="${MESSAGES}SESSION STATE — After the project/sub-project for this session is identified (by PWD, AGENTS.md/CLAUDE.md/PROGRESS.md markers, or by what the user names in their opening message), locate SESSION.md at that project root. If it exists with a non-empty '## Next session prompt' block: if the user's opening message included the word 'handoff', open the session by executing that prompt directly (no confirmation); otherwise tell the user a saved resume prompt exists (state its lastEvent + age from the 'at' field) and ask whether to start from it (y/n). If no such prompt exists, stay quiet. The 'in-progress' mark is written automatically by the PostToolUse hook on your first apply_patch edit — do NOT write SESSION.md yourself here. Offer the resume once per session. "
+  MESSAGES="${MESSAGES}SESSION STATE — After the project/sub-project for this session is identified (by PWD, AGENTS.md/CLAUDE.md/PROGRESS.md markers, or by what the user names in their opening message), locate SESSION.md at that project root. If it exists with a non-empty '## Next session prompt' block: if the user's opening message included the word 'handoff', open the session by executing that prompt directly (no confirmation); otherwise tell the user a saved resume prompt exists (state its lastEvent + age from the 'at' field) and ask whether to start from it (y/n). If the prompt's 'at' is older than session_stale_days (${KT_SESSION_STALE_DAYS} days by current config), do NOT present it as live — instead state its age and ask: still relevant? [resume / archive / keep]. 'archive' = move that entry under a '## Archived sessions' heading; 'keep' = leave it as-is; 'resume' = execute it. Never auto-drop an aged entry — staleness prompts, it does not evict. If no such prompt exists, stay quiet. The 'in-progress' mark is written automatically by the PostToolUse hook on your first apply_patch edit — do NOT write SESSION.md yourself here. Offer the resume once per session. "
 fi
 
 # Per-task insight batch capture — gated by auto_capture
 if [ "$KT_AUTO_CAPTURE" != "false" ]; then
-  MESSAGES="${MESSAGES}INSIGHT CAPTURE — After completing discrete tasks, batch-append any uncaptured \xe2\x98\x85 Insight blocks to ${KT_KNOWLEDGE_FOLDER}/intake/insights-backlog.md. Do not capture mid-task — only at task completion boundaries. "
+  MESSAGES="${MESSAGES}INSIGHT CAPTURE — After completing discrete tasks, batch-append any uncaptured starred Insight blocks to ${KT_KNOWLEDGE_FOLDER}/intake/insights-backlog.md. Do not capture mid-task — only at task completion boundaries. "
 fi
 
 # Memory pathway guardrail (v2.10.6). Modern Codex models have enhanced
 # file-system memory; route that capability through ARIA's pathways so
 # the knowledge tree stays curated rather than fragmenting into ad-hoc notes.
-MESSAGES="${MESSAGES}MEMORY PATHWAY — ARIA is the structured memory pathway for this session. For notes, use /clip (URLs/snippets), /extract (session insights), /intake (bulk imports), /audit-knowledge (promotion). Route file-system memory through ARIA to keep the knowledge tree curated. "
+MESSAGES="${MESSAGES}MEMORY PATHWAY — ARIA is the structured memory pathway for this session. For notes, use /intake (URLs/snippets, threads, docs, bulk imports), /extract (session insights), and /audit-knowledge (promotion). Route file-system memory through ARIA to keep the knowledge tree curated. "
 
 # CODEMAP detection — find codemaps in project directories, annotate with
 # staleness per /audit-knowledge Step 5d criteria so stale maps are visible
@@ -345,6 +359,14 @@ if [ -n "$CODEMAPS" ]; then
   if [ -n "$CM_MSG" ]; then
     MESSAGES="${MESSAGES}CODEMAP Found: ${CM_MSG}. Before exploring a project's codebase, read its CODEMAP Directory section first. "
   fi
+fi
+
+# Autonomy posture directive (decision-routing, Rule 35) — gated + scaled by the
+# `autonomy` config key. default (or unset/unknown): inject nothing.
+if [ "$KT_AUTONOMY" = "balanced" ]; then
+  MESSAGES="${MESSAGES}DECISION ROUTING (balanced) — Before asking OR auto-deciding, classify (per Rule 35): resolvable by read/grep/diff/git/config/web → investigate first, then act; objectively validatable → decide and show the validation; mechanical/already-decided → act; the user's intent/preference/judgment with no gainable visibility, or anything needing ungranted explicit approval → ask. Investigate the resolvable parts first; ask only the residual that's genuinely about the user. "
+elif [ "$KT_AUTONOMY" = "autonomous" ]; then
+  MESSAGES="${MESSAGES}DECISION ROUTING (autonomous) — The user's decision budget is the scarce resource; your speed/context is cheap. Exhaust self-resolvable investigation before spending a human turn. Per Rule 35: decide objectively-validatable forks YOURSELF (checked against ground truth and the build-philosophy bar, Rules 13/14/18 — simplest/robust/clean, no unneeded abstraction). Run quality gates (/prospect pre-code, /retrospect post-ship) as checks, not stops. Stop and ask ONLY when it is a judgment call with no gainable visibility (and none can be gained), or it requires explicit approval not already granted (push, destructive op, scope change, credentials). "
 fi
 
 # Output only if there are messages

@@ -172,8 +172,9 @@ The summary line precedes the bundle text. If the user later questions "did the 
 > - **Auto-capture on compaction:** true (save transcript snapshot before context compaction)
 > - **Active knowledge surfacing:** true (when enabled, Codex surfaces context through SessionStart, shell `cd`, PostCompact, and the /prospect and /retrospect skills. **Two kinds of context get surfaced (v2.16.1 expansion):** (a) **knowledge files** matched by tag against the user's task/cd-target/skill-input, and (b) **tracked artifacts** — CODEMAP directory + STITCH for the detected project (boundary-detected; not the full CODEMAP). Both surface with staleness annotations against `codemap_staleness_threshold_days` (default 14) and `stitch_staleness_threshold_days` (default 30); grossly-stale artifacts (>2× threshold) refuse to load with a warning. Companion surfaces — /audit-config, /stats, /handoff, /wrapup — also gate their tracked-artifact surfacing on this flag. Set to `false` for passive mode where hooks only suggest `/context <tag>` and all proactive artifact loading is suppressed (users load manually via /context). Active mode honors a session-scoped dedup ledger at `/tmp/aria-active-{session_id}` so the same file/artifact isn't re-Read across triggers. See CONFIG.md for the trigger sites and the ≥2-tag-match threshold + 5-file cap policy.)
 > - **Subagent capture:** true (Codex `SubagentStop` archives configured heavyweight subagent transcripts to `intake/subagent-captures/`; `SubagentStart` asks configured routine subagents to surface durable findings in their final message. Change the type lists by editing `subagent_capture_types` and `subagent_selfreport_types` directly.)
-> - **Session state file (`SESSION.md`):** false (when on, aria-knowledge writes a per-project `SESSION.md` — `in-progress` on the first `apply_patch` edit, `wrapup`/`handoff` at close — and offers to resume from it at session start; enables re-entry + the aria-atlas status board. Files are created at project roots only when on.)
+> - **Session state file (`SESSION.md`):** false (when on, aria-knowledge writes a per-project `SESSION.md` — `in-progress` on the first `apply_patch` edit, `wrapup`/`handoff` at close — and offers to resume from it at session start; enables re-entry + the aria-atlas status board. Files are created at project roots only when on. A companion `session_stale_days` key [default 7] controls when a saved resume prompt is treated as possibly stale: older entries trigger a "still relevant? [resume / archive / keep]" prompt instead of being presented as live. It never auto-evicts.)
 > - **Auto-prospect (`auto_prospect`):** off (when `nudge`, writing a plan to `docs/plans/` or `docs/superpowers/plans/` prompts an offer to run `/prospect file <path>`; when `run`, it runs inline. `docs/specs/` is intentionally not a trigger.)
+> - **Autonomy posture (`autonomy`):** default (decision-routing posture, Rule 35). `default` injects nothing. `balanced` injects an investigate-first directive each session: ask on intent/preference/judgment-with-no-gainable-visibility + ungranted explicit approval; act on mechanical/objectively-validatable. `autonomous` injects the full posture: decide objectively-validatable forks yourself, run quality gates as checks-not-stops, stop only on no-visibility judgment calls or ungranted explicit approval.
 > - **Auto-retrospect (`auto_retrospect`):** off (when `nudge` [recommended], a `git push` of ≥`retrospect_min_commits` commits to a branch in `retrospect_branches` prompts an offer to run `/retrospect range <old>..<new>`; `run` runs it inline. Gates: `retrospect_min_commits` default 3, `retrospect_branches` default `main,master,production`.)
 > - **Usage alert threshold (`usage_alert_threshold`):** 80 (shared config field for the Claude Code statusline meter. Codex currently has no status-line or hook payload carrying context/rate-limit percentages, so this field is preserved but ignored by the Codex port. Set `off` if you do not want the Claude Code meter's alert hook active when using the same config there.)
 > - **Critical paths:** (empty) comma-separated path patterns that always require HIGH impact assessment (e.g., auth/*,payments/*,migrations/*)
@@ -186,7 +187,7 @@ Record the values.
 
 ### Skill-only fields (read-only awareness)
 
-Some configuration is consumed by skills (which parse YAML natively in Claude's context) rather than by bash hooks. These fields use multi-line nested YAML blocks that don't fit the single-line bundle prompt above and are **not** offered for interactive editing here — they're either populated by their consuming skill's auto-propose bootstrap (e.g., `/distill --group=<tag>`, `/stitch create <tag>`) or hand-edited per the schema in `CONFIG.md`.
+Some configuration is consumed by skills (which parse YAML in model context) rather than by bash hooks. These fields use multi-line nested YAML blocks that don't fit the single-line bundle prompt above and are **not** offered for interactive editing here — they're either populated by their consuming skill's auto-propose bootstrap (e.g., `/distill --group=<tag>`, `/stitch create <tag>`) or hand-edited per the schema in `CONFIG.md`.
 
 Currently in this category:
 
@@ -198,17 +199,21 @@ This block is read-only — `/setup` never writes new entries here. See **Step 7
 
 ### Project Setup (only if user enables the project-specific knowledge tier)
 
-If the user enables (or keeps enabled) the project-specific knowledge tier in Advanced Options, ask four follow-up questions. In **update mode** where values already exist in the config, show the current value for each question and let the user keep it (press enter) or enter a new value — this is the discoverable path for toggling `auto_load_project_context` on a re-run when the tier was previously enabled:
+If the user enables (or keeps enabled) the project-specific knowledge tier in Advanced Options, ask six follow-up questions. In **update mode** where values already exist in the config, show the current value for each question and let the user keep it (press enter) or enter a new value — this is the discoverable path for toggling `auto_load_project_context` on a re-run when the tier was previously enabled:
 
 1. **Project list** — "Comma-separated `tag:relative-path` pairs (e.g., `proj-a:path/to/proj-a,proj-b:proj-b,lib:shared-lib`). Paths are relative to the parent of your knowledge folder (typically `~/Projects/`). Press enter to defer adding projects:"
 2. **Project remotes (optional)** — "Optional git-remote URL patterns for fallback project detection when CWD doesn't match a configured path. Comma-separated `tag:url-substring` pairs (e.g., `proj-a:myorg/proj-a-repo`). Press enter to skip:"
 3. **Promotion threshold** — "Minimum number of projects that must share a similar pattern before `/audit-knowledge` suggests cross-project promotion (default 2):"
 4. **Auto-load project context on session start** — "When your CWD matches a configured project, should SessionStart automatically suggest `/context {tag}`? This is a runtime convenience — the project tier works fine without it, and you can change this later by editing `auto_load_project_context` in `~/.claude/aria-knowledge.local.md`. (y/n, default n):"
+5. **SessionStart project picker** — "When you open a session from a multi-project parent directory (no project chosen yet), should ARIA suggest a project menu generated from your `projects_list`? Non-blocking — you can always name a project or just start working. (y/n, default n):" → writes `session_start_project_picker`.
+6. **Project display labels (optional)** — "Optional friendly names for the picker menu. Comma-separated `tag:Label` pairs (e.g., `api:API Server,web:Web Client`). Empty = bare tags. Press enter to skip:" → writes `projects_labels`.
 
 **Validate input:**
 - Project tags cannot contain `:` or `,` (these are the parser delimiters). If invalid, show the offending tag and re-prompt.
 - Promotion threshold must be a plain integer ≥ 1. If invalid, re-prompt.
 - Auto-load answer must be `y`/`n` (or empty for default). If invalid, re-prompt.
+- SessionStart project picker answer must be `y`/`n` (or empty for default). If invalid, re-prompt.
+- `projects_labels` is comma-separated `tag:Label` pairs, or empty. Warn (don't error) if a label's tag is not in `projects_list`.
 - For each `tag:path` pair, warn (don't error) if the resolved path doesn't exist on disk yet — the user may be configuring projects they haven't created.
 
 **Existing-folder detection:**
@@ -223,18 +228,18 @@ Before prompting, scan the user's knowledge folder for an existing `projects/` s
 
 ### Shared Knowledge Setup (only if user enables the project tier)
 
-After Project Setup completes (questions 1-4), if `projects_enabled: true` AND `projects_list` is non-empty, ask two follow-up questions about the shared-knowledge feature. In **update mode** where values exist, show current values and let the user keep (press enter) or change.
+After Project Setup completes (questions 1-6), if `projects_enabled: true` AND `projects_list` is non-empty, ask two follow-up questions about the shared-knowledge feature. In **update mode** where values exist, show current values and let the user keep (press enter) or change.
 
-5. **Which projects do you want to enable shared knowledge for?** — *"This is an opt-in extension that lets you promote selected personal knowledge into per-repo `_project-knowledge/` folders so teammates can see what you've learned. Personal knowledge stays in your own knowledge folder; team copies are independent records committed to your project repos via your normal git workflow. Most users have many repos but only a few with teams to share with — pick only the ones with teammates who'd benefit. Your configured projects: {projects_list tag enumeration}. Enter comma-separated tags (default: empty = feature disabled, all projects stay personal-only):"*
+7. **Which projects do you want to enable shared knowledge for?** — *"This is an opt-in extension that lets you promote selected personal knowledge into per-repo `_project-knowledge/` folders so teammates can see what you've learned. Personal knowledge stays in your own knowledge folder; team copies are independent records committed to your project repos via your normal git workflow. Most users have many repos but only a few with teams to share with — pick only the ones with teammates who'd benefit. Your configured projects: {projects_list tag enumeration}. Enter comma-separated tags (default: empty = feature disabled, all projects stay personal-only):"*
 
-6. **Author tag for shared-knowledge filenames** — only ask if Q5 returned a non-empty tag list. *"Shared-knowledge files use `{YYYY-MM-DD}-{author-tag}-{slug}.md` naming. Pick a short author tag (e.g., `init`, or initials, or first2+last2 of your name). Default: derived from `git config user.name` (first 2 chars of first name + first 2 chars of last name) → '{auto-derived}':"*
+8. **Author tag for shared-knowledge filenames** — only ask if Q7 returned a non-empty tag list. *"Shared-knowledge files use `{YYYY-MM-DD}-{author-tag}-{slug}.md` naming. Pick a short author tag (e.g., `init`, or initials, or first2+last2 of your name). Default: derived from `git config user.name` (first 2 chars of first name + first 2 chars of last name) → '{auto-derived}':"*
 
 **Validate input:**
-- Q5 answer is a comma-separated tag list, or empty (= feature disabled). Each tag must already exist in `projects_list`. If a tag is not in `projects_list`, show the offending tag and re-prompt: *"Tag '{tag}' is not in projects_list. Available: {projects_list tags}. Re-enter:"*. Empty input is valid and means feature disabled.
-- Q6 author_tag must be 1-12 characters, alphanumerics + hyphens only (the value will appear in filenames). If invalid, show offending characters and re-prompt.
-- If Q5 returned a non-empty list but Q6 produces an empty value AND no derivable git user.name exists, warn: *"Author tag is required for shared knowledge. You can set `author_tag` later in `~/.claude/aria-knowledge.local.md`, but `/audit-share` will refuse to run until it's set."* Continue setup with `author_tag:` empty.
+- Q7 answer is a comma-separated tag list, or empty (= feature disabled). Each tag must already exist in `projects_list`. If a tag is not in `projects_list`, show the offending tag and re-prompt: *"Tag '{tag}' is not in projects_list. Available: {projects_list tags}. Re-enter:"*. Empty input is valid and means feature disabled.
+- Q8 author_tag must be 1-12 characters, alphanumerics + hyphens only (the value will appear in filenames). If invalid, show offending characters and re-prompt.
+- If Q7 returned a non-empty list but Q8 produces an empty value AND no derivable git user.name exists, warn: *"Author tag is required for shared knowledge. You can set `author_tag` later in `~/.claude/aria-knowledge.local.md`, but `/audit-share` will refuse to run until it's set."* Continue setup with `author_tag:` empty.
 
-**Schema note:** the config field `projects_shared_knowledge` is itself the comma-separated tag list (the value IS the scope). Empty/missing = feature disabled. There is no separate boolean toggle; the field's presence and content together encode "enabled and for which projects." A legacy value of `true` (from pre-publish v2.13.0 stubs) is treated the same as empty and triggers Q5 to populate the list properly on `/setup` re-run.
+**Schema note:** the config field `projects_shared_knowledge` is itself the comma-separated tag list (the value IS the scope). Empty/missing = feature disabled. There is no separate boolean toggle; the field's presence and content together encode "enabled and for which projects." A legacy value of `true` (from pre-publish v2.13.0 stubs) is treated the same as empty and triggers Q7 to populate the list properly on `/setup` re-run.
 
 **CLAUDE.md reference handling deferred to first-write.** Earlier drafts of this spec offered to append `_project-knowledge/` references to project CLAUDE.md files at setup time. That has been removed: documenting a convention before the folder exists is aspirational, batch-applying across all projects loses per-repo nuance (different repos may have different teams / visibility), and a default-`y` prompt for a teammate-affecting change is more aggressive than ARIA's normal posture. The CLAUDE.md reference offer now happens inside `/audit-share` Step 6.5 the first time a file is actually written to a repo's `_project-knowledge/` folder — at that moment the folder + README exist, the user has just made an active sharing decision, and per-repo confirmation with git-tracked detection can be presented in context. Step 6.5b additionally handles the multi-repo container CLAUDE.md case for tags with `projects_groups` entries.
 
@@ -275,7 +280,9 @@ subagent_capture: [true/false from Step 6, default true]
 subagent_capture_types: [comma-list, default general-purpose,Plan,feature-dev:code-architect,feature-dev:code-explorer,feature-dev:code-reviewer]
 subagent_selfreport_types: [comma-list, default Explore]
 session_state: [true/false from Step 6, default false]
+session_stale_days: [integer, default 7]
 auto_prospect: [off/nudge/run, default off]
+autonomy: [default/balanced/autonomous, default default]
 auto_retrospect: [off/nudge/run, default off]
 retrospect_min_commits: [integer, default 3]
 retrospect_branches: [comma-list, default main,master,production]
@@ -287,8 +294,10 @@ projects_list: [comma-separated tag:path pairs from Step 6, default empty]
 projects_remotes: [comma-separated tag:url-pattern pairs from Step 6, default empty]
 projects_promotion_threshold: [integer from Step 6, default 2]
 auto_load_project_context: [true/false from Step 6, default false]
-projects_shared_knowledge: [comma-separated tag list from Shared Knowledge Setup Q5, default empty = feature disabled; each tag must exist in projects_list]
-author_tag: [string from Shared Knowledge Setup Q6, default empty when projects_shared_knowledge is empty]
+session_start_project_picker: [true/false from Step 6, default false]
+projects_labels: [comma-separated tag:Label pairs from Step 6, default empty]
+projects_shared_knowledge: [comma-separated tag list from Shared Knowledge Setup Q7, default empty = feature disabled; each tag must exist in projects_list]
+author_tag: [string from Shared Knowledge Setup Q8, default empty when projects_shared_knowledge is empty]
 ---
 ```
 
@@ -312,14 +321,16 @@ In **update mode:** preserve any user-added content in the markdown body below t
 - Cadence values must be plain integers (no units, no quotes)
 - `projects_enabled` must be exactly `true` or `false` (not `True`, `yes`, `1`, etc.)
 - `subagent_capture` and `session_state` must be exactly `true` or `false`
+- `session_stale_days` must be a plain integer ≥ 1
 - `auto_prospect` and `auto_retrospect` must be exactly `off`, `nudge`, or `run`
+- `autonomy` must be exactly `default`, `balanced`, or `autonomous`
 - `usage_alert_threshold` must be `off` or an integer from 1 to 100. Codex preserves this shared-config field but does not consume it.
 - `projects_shared_knowledge` is a comma-separated tag list (e.g., `cs,ss`) — empty/missing = feature disabled. Each tag must already exist in `projects_list`. No spaces around commas. Tags cannot contain `:` or `,` (same as `projects_list`). A legacy literal `true` value is treated as empty (triggers `/setup` to repopulate the list properly). Requires `projects_enabled: true` to take effect.
 - `author_tag` is a 1-12 char string of alphanumerics + hyphens (used in shared-knowledge filenames); leave empty if `projects_shared_knowledge` is empty
 - `projects_list`, `projects_remotes`, and `ticketing_plugins`: comma-separated `tag:value` pairs, no spaces around the colon or comma (e.g., `proj-a:path/to/proj-a,proj-b:proj-b` for paths; `proj-a:foo-ticket,proj-b:bar-ticket` for plugin commands)
 - Project tags (used in `projects_list`, `projects_remotes`, `ticketing_plugins`) cannot contain colons or commas (the parser splits on these)
 - `ticketing_plugins` plugin-command values are bare command names without the leading `/` (e.g., `foo-ticket`, not `/foo-ticket`) — `/audit-knowledge` prepends the slash when printing the hint
-- `last_setup_version` is a semver string read from `${ARIA_PLUGIN_ROOT}/.codex-plugin/plugin.json` at Step 1 — write it as bare digits-and-dots plus any Codex prerelease suffix (e.g., `2.30.0-codex.0`), not quoted, not prefixed with `v`. The session-start hook compares this against the installed plugin version to detect upgrades since the user's last `/setup`
+- `last_setup_version` is a semver string read from `${ARIA_PLUGIN_ROOT}/.codex-plugin/plugin.json` at Step 1 — write it as bare digits-and-dots plus any Codex prerelease suffix (e.g., `2.35.2-codex.0`), not quoted, not prefixed with `v`. The session-start hook compares this against the installed plugin version to detect upgrades since the user's last `/setup`
 - `projects_promotion_threshold` must be a plain integer ≥ 1 (no units, no quotes)
 - `auto_load_project_context` must be exactly `true` or `false` (not `True`, `yes`, `1`, etc.)
 - No blank lines between frontmatter entries
@@ -348,7 +359,9 @@ After writing the config file, read it back and verify that each value can be ex
    - `subagent_capture` — confirm it's `true` or `false`
    - `subagent_capture_types` / `subagent_selfreport_types` — confirm each is a comma-separated string (or default)
    - `session_state` — confirm it's `true` or `false`
+   - `session_stale_days` — confirm it's a plain integer ≥ 1
    - `auto_prospect` / `auto_retrospect` — confirm each is `off`, `nudge`, or `run`
+   - `autonomy` — confirm it's `default`, `balanced`, or `autonomous`
    - `retrospect_min_commits` — confirm it's a plain integer ≥ 1
    - `retrospect_branches` — confirm it's a comma-separated branch-name string (or empty = any branch)
    - `usage_alert_threshold` — confirm it's `off` or a plain integer in 1–100 (shared-config Claude Code field; Codex ignores it)

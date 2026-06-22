@@ -45,10 +45,11 @@ The `/aria` command included here is a compact command reference for Codex.
 
 ## Hook Parity
 
-Codex hooks currently cover the 2.30.0 Codex port feature set where Codex has
+Codex hooks currently cover the 2.35.2 Codex port feature set where Codex has
 a native event or intent surface:
 
 - `SessionStart` cadence and setup prompts through the existing ARIA script
+- `SessionStart` Rule 35 autonomy directives and opt-in project picker prompts through the shared config
 - `UserPromptSubmit` active knowledge surfacing from the prompt text, using the shared tag index
 - `PreToolUse` Rule 22 checks for Codex `apply_patch`
 - `PostToolUse` scope-check reminders, `SESSION.md` in-progress state, and `auto_prospect` nudges for Codex `apply_patch`
@@ -58,6 +59,8 @@ a native event or intent surface:
 - `PreCompact` and `PostCompact` passthrough to the existing ARIA scripts
 - `SubagentStart` self-report instructions and `SubagentStop` durable capture to `intake/subagent-captures/`
 - `/foundational-review` and `/readiness-audit` ship as Codex-native skills with the canonical process document bundled in the plugin
+- `/intake` absorbs the retired `/clip`, `/clip-thread`, and `/extract-doc` workflows; archived copies remain under `skills/.archived/` for reference
+- `/interview` and `/recap` ship as Codex-native skills
 
 Known gaps:
 

@@ -55,7 +55,9 @@ Hook-parsed fields run on every session start, every edit, every compaction — 
 | `subagent_capture_types` | comma-separated agent types | `general-purpose,Plan,feature-dev:code-architect,feature-dev:code-explorer,feature-dev:code-reviewer` | subagent-stop-capture.sh |
 | `subagent_selfreport_types` | comma-separated agent types | `Explore` | subagent-start-selfreport.sh |
 | `session_state` | `true` \| `false` | false | session-start-check.sh, codex-hook.py PostToolUse:apply_patch |
+| `session_stale_days` | integer | 7 | session-start-check.sh |
 | `auto_prospect` | `off` \| `nudge` \| `run` | off | codex-hook.py PostToolUse:apply_patch |
+| `autonomy` | `default` \| `balanced` \| `autonomous` | default | session-start-check.sh |
 | `auto_retrospect` | `off` \| `nudge` \| `run` | off | codex-hook.py PostToolUse:shell |
 | `retrospect_min_commits` | integer | 3 | codex-hook.py PostToolUse:shell |
 | `retrospect_branches` | comma-separated branch names | `main,master,production` | codex-hook.py PostToolUse:shell |
@@ -67,6 +69,8 @@ Hook-parsed fields run on every session start, every edit, every compaction — 
 | `projects_remotes` | `tag:url-substring` pairs | empty | session-start-check.sh |
 | `projects_promotion_threshold` | integer ≥ 1 | 2 | audit-knowledge skill |
 | `auto_load_project_context` | `true` \| `false` | false | session-start-check.sh |
+| `session_start_project_picker` | `true` \| `false` | false | session-start-check.sh |
+| `projects_labels` | `tag:Label` pairs | empty | session-start-check.sh |
 
 ### Format rules (hook-parsed fields)
 
@@ -74,8 +78,10 @@ Hook-parsed fields run on every session start, every edit, every compaction — 
 - Values unquoted: `knowledge_folder: /path` not `"/path"`
 - Empty values: bare `key:` only — `null` / `""` / `none` / `[]` are parsed as literal strings
 - Booleans: lowercase `true` / `false` only (not `True`, `yes`, `1`)
-- `subagent_capture` and `session_state` must be exactly `true` or `false`
+- `subagent_capture`, `session_state`, `session_start_project_picker`, and `auto_load_project_context` must be exactly `true` or `false`
+- `session_stale_days` must be a plain integer ≥ 1
 - `auto_prospect` and `auto_retrospect` must be exactly `off`, `nudge`, or `run`
+- `autonomy` must be exactly `default`, `balanced`, or `autonomous`
 - `usage_alert_threshold` must be `off` or an integer from 1 to 100. Codex preserves this shared-config field but does not consume it because Codex exposes no status-line usage snapshot to plugin hooks.
 - Cadences and integers: bare digits, no units
 - `last_setup_version`: bare semver (`2.12.2`), no `v` prefix, no quotes

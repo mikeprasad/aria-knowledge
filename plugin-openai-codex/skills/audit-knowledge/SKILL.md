@@ -306,6 +306,41 @@ For each reviewed capture:
 
 Note findings for presentation in Step 6 under a "Subagent Captures" section.
 
+## Step 2f: Review Clippings
+
+Scan `{knowledge_folder}/intake/clippings/` for `.md` files **and image files** (`.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`). **If the directory doesn't exist or is empty**, skip silently to Step 3.
+
+**If clippings exist**, report the count and total size — broken out as markdown vs images (e.g., "N clipping(s): M markdown, K images") — then ask the user:
+
+> "Found N clipping(s) (total ~X KB) — saved URLs / snippets / threads (captured via `/intake` or dropped into the folder by hand), plus K image(s). Options:"
+> 1. **Graduate** (default) — preserve each clipping whole as a durable source in `references/sources/` AND mine it for knowledge
+> 2. **Skip** — leave for the next audit
+
+**Image cost guard:** if there are **more than 5 images**, warn that each is a non-trivial vision read and offer **review all / review first N / defer the rest to next audit** before processing. (≤5: process inline.)
+
+Under **Graduate**, for each clipping:
+
+1. **Derive tags.** Propose tags from the clipping's content, matched against the existing tag vocabulary in `index.md` (mirror `/index`'s tagging). If the clipping already carries `/intake` frontmatter `tags:`, carry them over. **Show the proposed tags for confirm/edit** before writing.
+2. **Preserve the source.** Ensure the clipping has `Last updated:` + the confirmed `tags:` frontmatter, then move the whole file to `{knowledge_folder}/references/sources/{filename}.md` (create `references/sources/` if absent). **Move rule:** use `git mv` only when the specific file is git-tracked — check with `git ls-files --error-unmatch "{path}"`; if it's untracked (even inside a git repo), use plain `mv` (a bare `git mv` fails on untracked files and would silently leave the clipping behind). This applies to image assets too.
+3. **Mine all six buckets** (insights, decisions, feedback, project context, references, ideas) — same scan as `/extract`. Append findings to the appropriate backlog (`insights-backlog.md` / `decisions-backlog.md` / `extraction-backlog.md`) and route ideas to `intake/ideas/`. Reference-type fragments become curated notes destined for **top-level** `references/` (a distinct tier from the raw source now in `references/sources/`). Because the whole source is preserved in `references/sources/`, dedup any reference fragment against it before promoting — promote a fragment only when it is a distinct, smaller, independently-useful note, not a restatement of the source.
+4. **Ledger as graduated.** Create `{knowledge_folder}/archive/audit-{date}/clippings/` if needed; append an entry to its `REMOVED.md`: filename + source + clip-date + `disposition: graduated` + destination `references/sources/{filename}.md`.
+5. **No minable content:** the source STILL graduates to `references/sources/` (archival value). Ledger note `disposition: graduated (source only, no fragments mined)`.
+
+**Image clippings (`.png`/`.jpg`/`.jpeg`/`.gif`/`.webp`)** take an image sub-flow instead of the markdown mine path above:
+
+1. **Vision-read** the image via the Read tool (model-native; no OCR/script dependency). If the image is unreadable/corrupt, skip it with a one-line note in the Step 6 report and leave it in `clippings/` (don't graduate a file you couldn't open).
+2. **Transcribe** the content to text — a faithful rendering of the visual (nodes + edges for a diagram, on-screen text for a screenshot, series/values for a chart), not just a caption. If content is ambiguous, transcribe what's legible and flag the uncertainty in the transcription body.
+3. **Derive + confirm tags** (same as markdown step 1).
+4. **Tier decision (per image):** ask whether the transcription is a **faithful-twin** of the image (→ write it to `references/sources/{name}.md`, beside the asset) or **distilled knowledge** that stands alone (→ write it to top-level `references/{name}.md`). Suggest a default — twin if it largely restates an existing synthesis, distilled if it stands alone — and let the user confirm.
+5. **Graduate the asset:** move the image to `references/sources/{filename}` (see the tracked-file move rule in markdown step 2).
+6. **Mine** the transcribed text into the six buckets exactly as a markdown source; dedup reference fragments against any existing synthesis (cross-link, never duplicate).
+7. **Ledger** in `archive/audit-{date}/clippings/REMOVED.md`: `{image} | disposition: graduated (image; transcribed → {transcription-path}) | dest: references/sources/{image}`.
+8. **No minable content** (decorative/illustrative): the asset still graduates; ledger `graduated (image, source only)`; still write a minimal caption/transcription so the asset is findable.
+
+There is no discard-the-source path: every processed clipping graduates. "Skip" defers an uncertain clipping to the next audit.
+
+Note findings for presentation in Step 6 under a "Clippings" section (report each as `graduated → references/sources/{filename}` plus any mined items).
+
 ## Step 3: Scan Memory Files
 
 Read all `.md` files in `~/.claude/projects/` memory directories for the current project (excluding `MEMORY.md` itself).
@@ -345,7 +380,7 @@ Expand the glob patterns first (via Glob), then issue Read calls for all resolve
 {knowledge_folder}/approaches/*.md
 {knowledge_folder}/decisions/*.md
 {knowledge_folder}/guides/**/*.md
-{knowledge_folder}/references/*.md
+{knowledge_folder}/references/**/*.md
 ```
 
 Also check project-level CLAUDE.md and docs files in the current working directory for already-captured knowledge.

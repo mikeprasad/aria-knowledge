@@ -38,7 +38,7 @@ unless the user explicitly overrides `KT_CONFIG` or `ARIA_KNOWLEDGE_CONFIG`.
 
 - Skills should keep shared knowledge schemas compatible while using Codex-native
   metadata, config, and hook wording.
-- This port tracks Claude Code ARIA `2.30.0` with Codex release label `2.30.0-codex.0` for shared knowledge templates, review skills, and Codex-supported hook behavior.
+- This port tracks Claude Code ARIA `2.35.2` with Codex release label `2.35.2-codex.0` for shared knowledge templates, review skills, consolidated intake, Rule 35 config, and Codex-supported hook behavior.
 - Rule 22 maps Codex file edits to `apply_patch`; Codex also supports `Edit|Write`
   matcher aliases for the same canonical tool.
 - `UserPromptSubmit` is the Codex-native active-knowledge intent hook. It scans
@@ -50,6 +50,8 @@ unless the user explicitly overrides `KT_CONFIG` or `ARIA_KNOWLEDGE_CONFIG`.
   implemented in the Python adapter for Codex `apply_patch` and shell outputs.
 - Shell write detection is advisory in this port; use `apply_patch` for edits.
 - `/foundational-review` and `/readiness-audit` are ported as Codex-native skills. ADR-094 Claude/Cowork runtime gates are stripped, and the bundled canonical process doc is read from `${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/skills/foundational-review/foundational-review-chain.md`.
+- `/interview` and `/recap` are ported as Codex-native skills with ADR-094 runtime gates stripped.
+- `/clip`, `/clip-thread`, and `/extract-doc` are retired from active discovery and archived under `skills/.archived/`; their live workflows are handled by `/intake`, `/intake thread`, and `/intake extract`.
 - Claude Code `TaskCreated` has no exact Codex event. The closest intent-based
   equivalent is `UserPromptSubmit` plus subagent boundary hooks, not per-task
   dispatch.
@@ -60,12 +62,11 @@ unless the user explicitly overrides `KT_CONFIG` or `ARIA_KNOWLEDGE_CONFIG`.
 - Hooks are enabled by default in current Codex, but plugin-bundled hooks still
   require user trust review before they run.
 
-## v2.18.0 update (2026-05-18) — MCP-consuming skills
+## v2.35.2 update (2026-06-22) — Consolidated intake + current parity
 
-5 MCP-consuming skills originally ported from `../plugin-claude-code/skills/` and now maintained with Codex-native metadata:
+MCP-consuming capture now flows through active skills with Codex-native metadata:
 
-- `clip-thread/SKILL.md` — `~~chat` / `~~email` thread capture
-- `extract-doc/SKILL.md` — `~~docs` page → N intake-backlog entries
+- `intake/SKILL.md` — `thread` mode consumes `~~chat` / `~~email`; `extract` mode consumes `~~docs` page/doc sources when available
 - `meeting-notes/SKILL.md` — `~~docs` page OR paste fallback → structured meeting note
 - `digest/SKILL.md` — composite probe across all 4 categories → weekly rollup
 - `sync-decisions/SKILL.md` — **first WRITE-side ARIA skill**; mirrors decisions to `~~docs` MCP with Rule 22 advisory preamble per ADR-016

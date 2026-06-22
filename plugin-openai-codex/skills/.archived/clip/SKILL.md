@@ -7,6 +7,8 @@ allowed-tools: Read, Write, WebFetch, Glob
 
 # /clip — Quick Capture to Intake
 
+> **RETIRED 2026-06-21 (v2.33.0).** Folded into `/intake`: clip → `/intake <url|text>` (auto clip-whole). Kept for reference only — not a live skill (archived under `skills/.archived/`, excluded from discovery).
+
 Save a URL or text snippet to `intake/clippings/` for later review and promotion.
 
 ## Step 0: Resolve Config
