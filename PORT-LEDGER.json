@@ -1,14 +1,14 @@
 {
   "claude-code": {
-    "version": "2.35.2",
-    "parity_target": "2.35.2",
+    "version": "2.36.0",
+    "parity_target": "2.36.0",
     "last_parity_pass": "2026-06-24",
     "sla": "undeclared",
     "surfaces": {}
   },
   "claude-cowork": {
     "version": "1.4.0",
-    "parity_target": "2.35.2",
+    "parity_target": "2.36.0",
     "last_parity_pass": "2026-06-24",
     "sla": "undeclared",
     "surfaces": {
@@ -43,8 +43,8 @@
     }
   },
   "openai-codex": {
-    "version": "2.35.2-codex.0",
-    "parity_target": "2.35.2",
+    "version": "2.36.0-codex.0",
+    "parity_target": "2.36.0",
     "last_parity_pass": "2026-06-24",
     "sla": "undeclared",
     "surfaces": {
@@ -86,8 +86,8 @@
     }
   },
   "cursor-template": {
-    "version": "2.35.2-cursor.0",
-    "parity_target": "2.35.2",
+    "version": "2.36.0-cursor.0",
+    "parity_target": "2.36.0",
     "last_parity_pass": "2026-06-24",
     "sla": "undeclared",
     "surfaces": {
@@ -96,8 +96,8 @@
     }
   },
   "antigravity": {
-    "version": "2.35.2",
-    "parity_target": "2.35.2",
+    "version": "2.36.0",
+    "parity_target": "2.36.0",
     "last_parity_pass": "2026-06-24",
     "sla": "undeclared",
     "surfaces": {

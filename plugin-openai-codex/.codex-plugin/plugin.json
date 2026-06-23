@@ -1,6 +1,6 @@
 {
   "name": "aria-knowledge",
-  "version": "2.35.2-codex.0",
+  "version": "2.36.0-codex.0",
   "description": "Codex port of ARIA - Applied Reasoning and Insight Architecture. Uses the shared ARIA knowledge folder and config schema while adapting plugin manifests, commands, hooks, review skills, subagent capture, prospect/retrospect nudges, and tool-boundary behavior for Codex.",
   "author": {
     "name": "Mike Prasad"

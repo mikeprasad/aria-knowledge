@@ -1,6 +1,6 @@
 {
   "name": "aria-knowledge",
-  "version": "2.35.2",
+  "version": "2.36.0",
   "description": "ARIA — Applied Reasoning and Insight Architecture. Persistent human-governed knowledge for Antigravity via a five-phase lifecycle: capture → govern → promote → apply → refresh. Stages session insights/decisions/feedback into review backlogs, promotes approved items to a tag-indexed markdown base, and applies them via /context, /rules, /codemap, /stitch, /distill, and Rule 22 change-decision hooks on every Edit/Write.",
   "author": {
     "name": "Mike Prasad"
