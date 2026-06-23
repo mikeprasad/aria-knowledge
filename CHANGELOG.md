@@ -2,6 +2,16 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.36.0 — 2026-06-24
+
+**Anti-over-build upgrade — simplification marker + opt-in over-build review lens.** Ports two patterns from the Ponytail project (github.com/DietrichGebert/ponytail, a YAGNI-for-agents tool) into ARIA's existing primitives — minimal footprint, no new skill, no new numbered rule.
+
+- **Simplification marker (Rule 13 clause).** When an agent deliberately takes the simpler path on non-trivial logic, it now leaves an inline `aria:simplification — <what> | limitation: <gap> | upgrade: <path>` marker. Folded into existing Rule 13 (still 35 rules — the bias against rule-count growth holds); operationalizes Rule 21's "document decisions" for the specific decision *"I chose less."*
+- **`overbuild-patterns.md` (new shared rules file).** A ladder (needed? → stdlib? → platform-native? → installed-dep? → one-line? → minimal-build) + 6 seed smells (`speculative-abstraction`, `dependency-for-a-oneliner`, `config-knob-nobody-asked-for`, `premature-generalization`, `framework-for-a-function`, `unmarked-simplification`). One source of truth all three lenses read; mirrors `retrospect-patterns.md`'s entry format and grows by accretion.
+- **`--lens=overbuild` mode** on `/prospect` (forward, on a plan → SHRINK/KILL verdicts) and `/retrospect` (backward, on a diff → findings + marker-respect), plus an **over-build per-surface probe** in `/readiness-audit` (whole-repo sweep). **Opt-in** — bare invocations are unchanged. Every finding must cite the failed ladder rung + a concrete leaner alternative or it's suppressed; a hunk carrying a valid marker is reported "resolved (marked)", never flagged.
+- New repro `test-overbuild.sh` (marker-grammar contract + per-skill lens-documented lint); 45 plugin tests green. Behavioral spot-check confirmed the retrospect lens flags a `dependency-for-a-oneliner` and respects a marked simplification.
+- Built brainstorm→spec→prospect→plan→prospect→execute. The spec-prospect corrected the `/readiness-audit` integration (per-surface probe, not a "checklist dimension"); the plan-prospect produced a new canonical `prospect-patterns.md` pattern (`prose-deliverable-test-honesty`). **Ports:** propagated to all 5 (codex/antigravity/cowork/cursor); cowork's `/readiness-audit` adapted to its sequential no-subagent body; cursor compiled to `aria-commands.mdc`. PORT-LEDGER re-baselined; drift check clean.
+
 ## 2.35.2 — 2026-06-22
 
 **Step 2f handles image clippings — `/audit-knowledge` stops silently skipping images.**
