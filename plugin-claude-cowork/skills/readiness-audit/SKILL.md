@@ -47,6 +47,8 @@ Read the foundational-review chain doc's readiness-audit section — prefer `<kn
 ## Step 2: Per-Surface Probes (read-only, sequential)
 Cowork has no parallel subagents — walk each surface in turn. For each, note what you read and what you had to ask the user to paste. **Read-only**: never edit the audited surface; never run mutating commands (you have no shell anyway).
 
+**Over-build surface (opt-in: when the event mentions bloat/over-engineering, or always when the scope is a code repo).** Walk `rules/overbuild-patterns.md`'s ladder + smells across the surface's source (reading files in turn, asking the user to paste what you can't reach). Report candidate over-build sites — each with `file:line`, the matched smell, the failed ladder rung, and a concrete leaner alternative. Respect `aria:simplification` markers: a marked site is reported "resolved", never flagged. A site whose leaner alternative can't be named is suppressed. Read-only like every other surface here.
+
 ## Step 3: Re-Verify Every Load-Bearing Claim (the defining discipline)
 The Code variant uses a controller to re-verify subagent claims; in Cowork **you are both explorer and controller**, so re-verify your own load-bearing claims before they enter findings. For each claim a finding rests on, re-open the source and confirm it — keep a short correction trail of anything that changed on re-read. A claim with no re-verified evidence cell does not get a tier.
 

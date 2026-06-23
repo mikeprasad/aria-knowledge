@@ -35,7 +35,7 @@ Parse the invocation arguments. The first positional argument is the **scope key
 **Argument parsing rules:**
 - If the first positional arg matches a scope keyword (case-insensitive), use it. Otherwise treat it as an arg to the default `plan` scope.
 - Backward-compat flag forms (`--plan`, `--linear`, `--branch`, `--todos`, `--session`) remain accepted indefinitely. Both `/prospect linear LINEAR-123` and `/prospect --linear LINEAR-123` resolve identically.
-- Modifier flags (apply to any scope): `--linear-post` (post the prospect verdict to detected Linear tickets at end), `--no-source` (skip Step 3.5's Evidence-Sourcing Pass).
+- Modifier flags (apply to any scope): `--linear-post` (post the prospect verdict to detected Linear tickets at end), `--no-source` (skip Step 3.5's Evidence-Sourcing Pass), `--lens=overbuild` (run the over-build review pass — see "Over-build lens" section; opt-in, off by default).
 
 After mode detection, gather:
 
@@ -568,6 +568,17 @@ Standard offer (paraphrase as appropriate):
 Cue weight is judgment, not regex. When the cue is faint, just acknowledge and proceed. When the cue is clear, offer. Never auto-execute from a cue — always ask.
 
 This logic is the forward-looking twin of `/retrospect`'s `pushback-as-cue` pattern — they share the same trigger surface but fire at opposite ends of the development cycle.
+
+## Over-build lens (opt-in: `--lens=overbuild`)
+
+Off unless `--lens=overbuild` is passed. When on, after the standard per-step pass, check each PLANNED step against `rules/overbuild-patterns.md`:
+
+1. Load the ladder + smells.
+2. For each step, find the lowest ladder rung that would resolve its need. If the step proposes a higher rung than necessary (e.g. adds a dependency where a one-liner works), it fails that rung.
+3. A failing step yields a SHRINK verdict (existing vocabulary) citing the failed rung + the concrete leaner alternative; an unnecessary step yields KILL. A step whose smaller form cannot be named is NOT flagged.
+4. Findings fold into §4.3 per-step verdicts (the Action becomes SHRINK/KILL with the over-build reason) — no separate section needed, since prospect is already per-step.
+
+Forward counterpart of `/retrospect --lens=overbuild`; same rubric, applied to a plan instead of a diff.
 
 ## Step 8: Validation Gates
 

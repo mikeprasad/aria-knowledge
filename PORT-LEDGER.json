@@ -1,15 +1,15 @@
 {
   "claude-code": {
-    "version": "2.35.0",
-    "parity_target": "2.35.0",
-    "last_parity_pass": "2026-06-21",
+    "version": "2.35.2",
+    "parity_target": "2.35.2",
+    "last_parity_pass": "2026-06-24",
     "sla": "undeclared",
     "surfaces": {}
   },
   "claude-cowork": {
     "version": "1.4.0",
-    "parity_target": "2.31.0",
-    "last_parity_pass": "2026-06-18",
+    "parity_target": "2.35.2",
+    "last_parity_pass": "2026-06-24",
     "sla": "undeclared",
     "surfaces": {
       "plugin-claude-cowork/skills/aria-setup/SKILL.md": "e3559442c7adda0342975c28e611355f1ec431d4df70a261c466f7a8e1f446ed",
@@ -31,21 +31,21 @@
       "plugin-claude-cowork/skills/intake/SKILL.md": "55ae0cf51d75f5d2888727095113adb1c4d89e6722697ee4c2d44eb5f1cc756d",
       "plugin-claude-cowork/skills/interview/SKILL.md": "54fb31d0ca55bc6d1251b08be1f30c243b04af04edb307f00ea08f02d8ee5a31",
       "plugin-claude-cowork/skills/meeting-notes/SKILL.md": "d085624879e99ef2383056b9abba150b702a8de574f8f00c866d8dafe6d62a9c",
-      "plugin-claude-cowork/skills/prospect/SKILL.md": "94b6581c1d966b0e4e8838c86b462f940f488f5c4f743deb1ff4e86d723bb87e",
-      "plugin-claude-cowork/skills/readiness-audit/SKILL.md": "7652388a841b245a2cc2688e19784d77561e6dd7994cd83bdb0dab3a5982daf6",
-      "plugin-claude-cowork/skills/retrospect/SKILL.md": "be28b7cd2b26a576e7d939a91f725a875f4ca0660809ea22b24c46fcbc0bb4de",
+      "plugin-claude-cowork/skills/prospect/SKILL.md": "6356876e65895a9fa1cc25588ed5b1344c4476c13c99dcb68263251f1ecbf836",
+      "plugin-claude-cowork/skills/readiness-audit/SKILL.md": "6a5107d5795c3a79e764dc1eef55a563d3a03d9c01a8cfe526770f26219d538d",
+      "plugin-claude-cowork/skills/retrospect/SKILL.md": "5857f208df794ab927f68431dfa17dc44466b7990b4e657221d4d43ef00685a1",
       "plugin-claude-cowork/skills/rules/SKILL.md": "d3ea36f5f799c614549048f43ef17382f7579f34d13629025abf661cd796717c",
       "plugin-claude-cowork/skills/snapshot/SKILL.md": "04e262f0ff5e8b291dc52cda4046a345b2a44f7d33a6a1368217e0712e4c7757",
       "plugin-claude-cowork/skills/stats/SKILL.md": "6b18904d7e5f62554a2f390b17f9f498c86f9bdde2486768d31f96019bb71bd8",
       "plugin-claude-cowork/skills/sync-decisions/SKILL.md": "dd8f1a41cc93cd814cd538cc9e57ded572965e717b84e583b6ffd9eea59fc390",
       "plugin-claude-cowork/skills/wrapup/SKILL.md": "713279307ac3faafc55f0e4b3cb930c1a3b113f6c83da308a3c88f6be59fd388",
-      "plugin-claude-cowork/template/rules/working-rules.md": "86a584abd24f7e39115cede86014493d01253b6fb3fbd9594b7140c2e2098089"
+      "plugin-claude-cowork/template/rules/working-rules.md": "82a5e47403fd8b8c14b1cf94818635de7c08bfe369b14bd76cf90276fbcbd16a"
     }
   },
   "openai-codex": {
     "version": "2.35.2-codex.0",
     "parity_target": "2.35.2",
-    "last_parity_pass": "2026-06-22",
+    "last_parity_pass": "2026-06-24",
     "sla": "undeclared",
     "surfaces": {
       "plugin-openai-codex/skills/ask/SKILL.md": "93a3e82f08ac268ab249cf9a76fc4705ac91dba381513d5cde8fe80ac3647772",
@@ -65,10 +65,10 @@
       "plugin-openai-codex/skills/intake/SKILL.md": "e77cafa656337c34a89a3a296bb7b017925d53c7917993fd2a038580b661e49e",
       "plugin-openai-codex/skills/interview/SKILL.md": "afde8db8ff1b190db47480d34b06e88fa809c926ecdeaa8eb3c58f4b390463c0",
       "plugin-openai-codex/skills/meeting-notes/SKILL.md": "fa9b122a14689c3a7651a1dcce525577fb396a63e88f2c8a44ab52103b890273",
-      "plugin-openai-codex/skills/prospect/SKILL.md": "7b2991d894fae671fcc6c191eaad72e9687730af41b3e01dcd963f3b4b0a51ed",
-      "plugin-openai-codex/skills/readiness-audit/SKILL.md": "64141e2a06c37894f5e1bc4dd3095168ffdfdd3de2883cc3ab8174c6f631f3e1",
+      "plugin-openai-codex/skills/prospect/SKILL.md": "748d4d84ee95824932d56d4daee5a8df858591b487c5b70e2068a4def1c9cbc3",
+      "plugin-openai-codex/skills/readiness-audit/SKILL.md": "035b3bf86e5a5864c628108eaee69e5c22509ed1e8ee8d8b52a09fef9c8acbdc",
       "plugin-openai-codex/skills/recap/SKILL.md": "1386168b3ef34379eb41e476aefac40ff509d77107237ff1991f74ed9a5a387f",
-      "plugin-openai-codex/skills/retrospect/SKILL.md": "8ddbebc6d781e440299b93f3bad694fc105c37f2d12f75027c67931ebac92837",
+      "plugin-openai-codex/skills/retrospect/SKILL.md": "c8ed511bfa74002f7c036eaa3207b97e1061130bba5367db46e30508dd92e758",
       "plugin-openai-codex/skills/rules/SKILL.md": "1e780ca430366f279e340e081e053db4ea589049727daea7070b901577569bcd",
       "plugin-openai-codex/skills/setup/SKILL.md": "add121c87cebcac83ec7bdb78f3385dc759588239f36ecf847e14df2193334c5",
       "plugin-openai-codex/skills/snapshot/SKILL.md": "66fe73dca0b14b19804b2043e7fe3fe2d36d47818cac85de40e3cb42c07e276e",
@@ -78,26 +78,27 @@
       "plugin-openai-codex/skills/wrapup/SKILL.md": "7bed7ed2f4d6290f0e9643ddc4df529c63ce49bbb96d26625511861216d77166",
       "plugin-openai-codex/template/rules/change-decision-framework.md": "a0e63cbcaa5ed7c77eec6df6c04dd2c1a6e467d5c492db29a86f6709679d4fcc",
       "plugin-openai-codex/template/rules/enforcement-mechanisms.md": "4363362e142cb1643efb4485e37f5b6e83f173a0a8c7e84f94598dac6dabbedc",
+      "plugin-openai-codex/template/rules/overbuild-patterns.md": "112c929205a89404bf77895b617d8c9c618e80b7ef424485b8bf914eb1334017",
       "plugin-openai-codex/template/rules/retrospect-patterns.md": "d0c6e718b461b7fe07a21afbc0d35d193483b77b8f0ac9a27c2a9b3a1437836f",
       "plugin-openai-codex/template/rules/user-examples.md": "5f5e0f1a6c76b939ca045f49c2fae7f9763348731217d0a035ebdecf14bb57d0",
       "plugin-openai-codex/template/rules/user-rules.md": "9cc83670975a1dc69161a55a6ca96469458699d1661525e8f54ab7296fef740e",
-      "plugin-openai-codex/template/rules/working-rules.md": "6f1bafcb63a8757083bb67c381125114481f764467fc612c90119fd659a17da0"
+      "plugin-openai-codex/template/rules/working-rules.md": "0649fa42ae7e31ebecdd667f5505e206ff569ef8c64201f7ce4f3fc478f459fd"
     }
   },
   "cursor-template": {
     "version": "2.35.2-cursor.0",
     "parity_target": "2.35.2",
-    "last_parity_pass": "2026-06-22",
+    "last_parity_pass": "2026-06-24",
     "sla": "undeclared",
     "surfaces": {
-      "plugin-cursor-template/.cursor/rules/aria-commands.mdc": "ab27ff5848943ad47033f09a5b34dc67888d06c8f2527c5a48e7f89efab48e35",
-      "plugin-cursor-template/knowledge/rules/working-rules.md": "6f1bafcb63a8757083bb67c381125114481f764467fc612c90119fd659a17da0"
+      "plugin-cursor-template/.cursor/rules/aria-commands.mdc": "36e62ae6ac265c40a5c8ccf5ccdec85d833d64316df9ca2694138eae18e8282a",
+      "plugin-cursor-template/knowledge/rules/working-rules.md": "0649fa42ae7e31ebecdd667f5505e206ff569ef8c64201f7ce4f3fc478f459fd"
     }
   },
   "antigravity": {
     "version": "2.35.2",
     "parity_target": "2.35.2",
-    "last_parity_pass": "2026-06-22",
+    "last_parity_pass": "2026-06-24",
     "sla": "undeclared",
     "surfaces": {
       "plugin-antigravity/skills/aria-assist/SKILL.md": "ba71fb4692c5d6f313ea32fc63113d9db0ef6cc070658d0dafb93664934867de",
@@ -115,13 +116,13 @@
       "plugin-antigravity/skills/handoff/SKILL.md": "540d29d246d53c0bf1e7fb2afdb06c35f087a6f3d9c738b27fc0428c3d6e1a1c",
       "plugin-antigravity/skills/help/SKILL.md": "b2b95b7acc942a56a5ed0118933b4cc1a1d4addaf5b26068d01a151f60819efc",
       "plugin-antigravity/skills/index/SKILL.md": "1efac89cbf7e00091223d3f0d840abce0f3a842edf3ebd79a3e2757f970d7a86",
-      "plugin-antigravity/skills/intake/SKILL.md": "9aff44c723d489eae10581538ff642d94adef5082a0642ff7713036a6e5b7410",
-      "plugin-antigravity/skills/interview/SKILL.md": "5e87021ad3f468af7d7f8e4ed278b85d5f0993d3d4f48d18d321e61c318426eb",
+      "plugin-antigravity/skills/intake/SKILL.md": "988e39da10ad3e70b55e13db4e730e153c6383dbbe6d28e9713b1ffcfe100257",
+      "plugin-antigravity/skills/interview/SKILL.md": "c006a7643f3e080a6f85fc577f389e70135e21062e3a561c7f0c30dc43d6b5d4",
       "plugin-antigravity/skills/meeting-notes/SKILL.md": "680d9477193537bcf5e67e25241dc9140d0ca562f7867a68a2dd17b0abe2f484",
-      "plugin-antigravity/skills/prospect/SKILL.md": "2b142a98fcb3310b6175a5a2d0c7388b6499ee3bf1792cc179e40f803f40a8f8",
-      "plugin-antigravity/skills/readiness-audit/SKILL.md": "e3229d06bca07d5f21c81e163c50bab5aadcb8f277343d6c580434bb4eeb158a",
-      "plugin-antigravity/skills/recap/SKILL.md": "55134b60f59a9de328b5f05eed62d32a43fbb096b2a7f303f935f658a1ab4bb6",
-      "plugin-antigravity/skills/retrospect/SKILL.md": "c7384ad3dc29affbf810286c8d145e3d80b79428ebdc11efa448b60bc0191552",
+      "plugin-antigravity/skills/prospect/SKILL.md": "12d3688f3ce78f7ac0271ce2ad91c40a8230b427d9d029deb3f0a76f1fa94d1c",
+      "plugin-antigravity/skills/readiness-audit/SKILL.md": "0848e577f617f15b810c412b947f87ab8ba92a400de695d86f27e8fea6d0485b",
+      "plugin-antigravity/skills/recap/SKILL.md": "0a1ee4a138baf0d23fada52968e5398a12a6ef62aeaf9f2cd747935335d99e60",
+      "plugin-antigravity/skills/retrospect/SKILL.md": "90baa9c63a864e8ea90970389b0174cff2a6442e5e8692e5b81e7c5a49008349",
       "plugin-antigravity/skills/rules/SKILL.md": "816275f8afeefb5583a3083c5eba866b3f4d5290b34c0d6f1f5ddbfc083560af",
       "plugin-antigravity/skills/setup/SKILL.md": "47a134a53e76666539a796fe3269c8252b7c1dbd26530e71d871b12a015908e2",
       "plugin-antigravity/skills/snapshot/SKILL.md": "feb6dca9333368d7f024f3f8964ad62d2437430746132ef0d046ad3294d582b0",

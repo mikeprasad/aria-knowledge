@@ -47,6 +47,7 @@ Dispatch exploration agents per surface — typically:
 - **source/build** — what builds, what's dead, what the artifact actually contains
 - **licensing/hygiene** — license headers, secrets, internal URLs, third-party-asset rights
 - **docs/tooling** — stale docs, broken references, release pipeline presence
+- **over-build** (opt-in: when `--for` mentions bloat/over-engineering, or always when the scope is a code repo) — one read-only Explore agent walks `rules/overbuild-patterns.md`'s ladder + smells across the surface's source, reporting candidate over-build sites (each: `file:line`, matched smell, failed ladder rung, concrete leaner alternative). Respects `aria:simplification` markers — a marked site is reported "resolved", never flagged. Read-only per the guardrail below: it reports what it would change, never mutates a build artifact.
 
 Use the `Task` tool (Explore agent type) per surface, in parallel. **Guardrail — read-only verification probes only.** No probe may mutate a build artifact. (A real incident: an agent "verified a build" by RUNNING it and overwrote a generated source file.) If a check would require building/running, the agent reports *what it would run + expected output*, and the controller decides whether to run it under the diff-check discipline in Step 3.
 

@@ -90,6 +90,8 @@ Before adding a library or tool, weigh its value against maintenance burden, sec
 
 Default to Occam’s razor — but validate it. Abstraction and complexity are justified only when they produce a clearly defined, measurable benefit.
 
+**Mark deliberate simplifications.** When you choose a simpler solution over a more complete one on non-trivial logic, leave an inline marker recording the trade-off: `<comment> aria:simplification — <what was simplified> | limitation: <known gap> | upgrade: <path if the gap bites>`. A simplification without its marker is an undocumented assumption (Rule 21, inline). The marker is what lets `/retrospect --lens=overbuild` tell a *chosen* simplification from an *accidental* gap. Comment syntax follows the host language (`//`, `#`, `<!-- -->`).
+
 ### 14. Abstraction has diminishing returns
 
 1–3 purposeful layers can be powerful (e.g., `color-primary` → `text-primary`). Beyond that, each layer increases risk of bugs, security issues, and cognitive overhead. Every layer needs clear justification.

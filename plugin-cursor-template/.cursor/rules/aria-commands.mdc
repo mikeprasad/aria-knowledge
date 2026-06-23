@@ -3556,7 +3556,7 @@ Parse the invocation arguments. The first positional argument is the **scope key
 **Argument parsing rules:**
 - If the first positional arg matches a scope keyword (case-insensitive), use it. Otherwise treat it as an arg to the default `plan` scope.
 - Backward-compat flag forms (`--plan`, `--linear`, `--branch`, `--todos`, `--session`) remain accepted indefinitely. Both `/prospect linear LINEAR-123` and `/prospect --linear LINEAR-123` resolve identically.
-- Modifier flags (apply to any scope): `--linear-post` (post the prospect verdict to detected Linear tickets at end), `--no-source` (skip Step 3.5's Evidence-Sourcing Pass).
+- Modifier flags (apply to any scope): `--linear-post` (post the prospect verdict to detected Linear tickets at end), `--no-source` (skip Step 3.5's Evidence-Sourcing Pass), `--lens=overbuild` (run the over-build review pass — see "Over-build lens" section; opt-in, off by default).
 
 After mode detection, gather:
 
@@ -4090,6 +4090,17 @@ Cue weight is judgment, not regex. When the cue is faint, just acknowledge and p
 
 This logic is the forward-looking twin of `/retrospect`'s `pushback-as-cue` pattern — they share the same trigger surface but fire at opposite ends of the development cycle.
 
+## Over-build lens (opt-in: `--lens=overbuild`)
+
+Off unless `--lens=overbuild` is passed. When on, after the standard per-step pass, check each PLANNED step against `rules/overbuild-patterns.md`:
+
+1. Load the ladder + smells.
+2. For each step, find the lowest ladder rung that would resolve its need. If the step proposes a higher rung than necessary (e.g. adds a dependency where a one-liner works), it fails that rung.
+3. A failing step yields a SHRINK verdict (existing vocabulary) citing the failed rung + the concrete leaner alternative; an unnecessary step yields KILL. A step whose smaller form cannot be named is NOT flagged.
+4. Findings fold into §4.3 per-step verdicts (the Action becomes SHRINK/KILL with the over-build reason) — no separate section needed, since prospect is already per-step.
+
+Forward counterpart of `/retrospect --lens=overbuild`; same rubric, applied to a plan instead of a diff.
+
 ## Step 8: Validation Gates
 
 Before finalizing the pre-mortem, verify:
@@ -4141,7 +4152,7 @@ Parse the invocation arguments. The first positional argument is the **scope key
 **Argument parsing rules:**
 - If the first positional arg matches a scope keyword (case-insensitive), use it. Otherwise treat it as auto-range and try to parse the args under the legacy flag form.
 - Backward-compat flag forms (`--range`, `--pr`, `--session`, `--commit`) remain accepted indefinitely. Both `/retrospect range a..b` and `/retrospect --range a..b` resolve identically.
-- Modifier flags (apply to any scope): `--linear-post` (post the retrospective verdict to detected Linear tickets at end), `--no-source` (skip Step 3.5's Evidence-Sourcing Pass).
+- Modifier flags (apply to any scope): `--linear-post` (post the retrospective verdict to detected Linear tickets at end), `--no-source` (skip Step 3.5's Evidence-Sourcing Pass), `--lens=overbuild` (run the over-build review pass — see "Over-build lens" section; opt-in, off by default).
 
 ### Deployment detection cascade (Q2.1=3)
 
@@ -4729,6 +4740,18 @@ Cue weight is judgment, not regex. When the cue is faint, just acknowledge and p
 
 This logic also fires the `pushback-as-cue` pattern (see `rules/retrospect-patterns.md`) — they share the same trigger surface.
 
+## Over-build lens (opt-in: `--lens=overbuild`)
+
+Off unless `--lens=overbuild` is passed. When off, this skill behaves exactly as documented above — zero behavior change. When on, after the standard per-fix pass, run one additional pass over the in-scope diff:
+
+1. **Load the rubric.** Read `rules/overbuild-patterns.md` (same `knowledge_root`/template path used for `retrospect-patterns.md`). Hold the ladder + smell list.
+2. **Walk each diff hunk** against the ladder, then the smell detection cues.
+3. **Marker-respect.** If a hunk carries an `aria:simplification` marker matching `aria:simplification — .+ | limitation: .+ | upgrade: .+`, report it as `resolved (marked)` and do NOT flag it. An obvious simplification with NO marker is the `unmarked-simplification` smell.
+4. **Emit findings** in the existing per-fix block style, each REQUIRING: the failed ladder rung, the matched smell name, and a concrete leaner alternative. A finding that cannot name the smaller version is suppressed (matches this skill's existing "name the smaller version or it's not a finding" discipline).
+5. **Verdict mapping.** Over-build findings map to the existing verdict vocabulary: `dependency-for-a-oneliner`/`framework-for-a-function` → recommend revert-and-shrink; `unmarked-simplification` → recommend add-the-marker (not a revert).
+
+Findings append to the report as an `### Over-build lens` subsection; they never alter the non-lens verdicts.
+
 ## Step 8: Validation Gates
 
 Before finalizing the retrospective, verify:
@@ -5011,6 +5034,7 @@ Dispatch exploration agents per surface — typically:
 - **source/build** — what builds, what's dead, what the artifact actually contains
 - **licensing/hygiene** — license headers, secrets, internal URLs, third-party-asset rights
 - **docs/tooling** — stale docs, broken references, release pipeline presence
+- **over-build** (opt-in: when `--for` mentions bloat/over-engineering, or always when the scope is a code repo) — one read-only Explore agent walks `rules/overbuild-patterns.md`'s ladder + smells across the surface's source, reporting candidate over-build sites (each: `file:line`, matched smell, failed ladder rung, concrete leaner alternative). Respects `aria:simplification` markers — a marked site is reported "resolved", never flagged. Read-only per the guardrail below: it reports what it would change, never mutates a build artifact.
 
 Use the `Task` tool (Explore agent type) per surface, in parallel. **Guardrail — read-only verification probes only.** No probe may mutate a build artifact. (A real incident: an agent "verified a build" by RUNNING it and overwrote a generated source file.) If a check would require building/running, the agent reports *what it would run + expected output*, and the controller decides whether to run it under the diff-check discipline in Step 3.
 
