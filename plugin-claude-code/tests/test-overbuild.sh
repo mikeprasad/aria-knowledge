@@ -32,3 +32,10 @@ assert_eq "prospect: lens flag documented" "1" \
   "$(grep -cq -- '--lens=overbuild' "$PS" && echo 1 || echo 0)"
 assert_eq "prospect: reads overbuild-patterns" "1" \
   "$(grep -cq 'overbuild-patterns.md' "$PS" && echo 1 || echo 0)"
+
+# --- /readiness-audit carries an over-build probe + keeps it read-only ---
+RA="$ROOT/skills/readiness-audit/SKILL.md"
+assert_eq "readiness-audit: overbuild probe present" "1" \
+  "$(grep -cq 'overbuild-patterns.md' "$RA" && echo 1 || echo 0)"
+assert_eq "readiness-audit: probe is read-only" "1" \
+  "$(grep -cq 'never mutates a build artifact' "$RA" && echo 1 || echo 0)"
