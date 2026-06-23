@@ -25,3 +25,10 @@ assert_eq "retrospect: reads overbuild-patterns" "1" \
   "$(grep -cq 'overbuild-patterns.md' "$RS" && echo 1 || echo 0)"
 assert_eq "retrospect: marker-respect present" "1" \
   "$(grep -cq 'resolved (marked)' "$RS" && echo 1 || echo 0)"
+
+# --- /prospect documents the forward lens + reads the library ---
+PS="$ROOT/skills/prospect/SKILL.md"
+assert_eq "prospect: lens flag documented" "1" \
+  "$(grep -cq -- '--lens=overbuild' "$PS" && echo 1 || echo 0)"
+assert_eq "prospect: reads overbuild-patterns" "1" \
+  "$(grep -cq 'overbuild-patterns.md' "$PS" && echo 1 || echo 0)"
