@@ -1,6 +1,6 @@
 ---
 description: "Run a structured retrospective on a shipped commit range, release, deployment, PR, commit, or session. Per-fix validation enforcement, active evidence-sourcing pass (autonomous lookups + targeted user-asks for anything that could become objective), simpler-alternative discipline, re-diagnosis, action verdicts, and a growing failure-mode pattern library. Triggers: '/retrospect' (auto-range), '/retrospect commit <hash>', '/retrospect range <ref1>..<ref2>', '/retrospect pr <num>', '/retrospect session', '/retrospect release', '/retrospect deployment'. Backward-compat flags (--range, --pr, --session, --commit) still accepted. (Code port — ADR-094.)"
-argument-hint: "[<scope>] [<scope-arg>] [--linear-post] [--no-source]"
+argument-hint: "[<scope>] [<scope-arg>] [--linear-post] [--no-source] [--lens=overbuild]"
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash, WebFetch, WebSearch
 ---
 
@@ -54,7 +54,7 @@ Parse the invocation arguments. The first positional argument is the **scope key
 **Argument parsing rules:**
 - If the first positional arg matches a scope keyword (case-insensitive), use it. Otherwise treat it as auto-range and try to parse the args under the legacy flag form.
 - Backward-compat flag forms (`--range`, `--pr`, `--session`, `--commit`) remain accepted indefinitely. Both `/retrospect range a..b` and `/retrospect --range a..b` resolve identically.
-- Modifier flags (apply to any scope): `--linear-post` (post the retrospective verdict to detected Linear tickets at end), `--no-source` (skip Step 3.5's Evidence-Sourcing Pass).
+- Modifier flags (apply to any scope): `--linear-post` (post the retrospective verdict to detected Linear tickets at end), `--no-source` (skip Step 3.5's Evidence-Sourcing Pass), `--lens=overbuild` (run the over-build review pass — see "Over-build lens" section; opt-in, off by default).
 
 ### Deployment detection cascade (Q2.1=3)
 
@@ -641,6 +641,18 @@ Standard offer (paraphrase as appropriate):
 Cue weight is judgment, not regex. When the cue is faint, just acknowledge and proceed. When the cue is clear, offer. Never auto-execute from a cue — always ask.
 
 This logic also fires the `pushback-as-cue` pattern (see `rules/retrospect-patterns.md`) — they share the same trigger surface.
+
+## Over-build lens (opt-in: `--lens=overbuild`)
+
+Off unless `--lens=overbuild` is passed. When off, this skill behaves exactly as documented above — zero behavior change. When on, after the standard per-fix pass, run one additional pass over the in-scope diff:
+
+1. **Load the rubric.** Read `rules/overbuild-patterns.md` (same `knowledge_root`/template path used for `retrospect-patterns.md`). Hold the ladder + smell list.
+2. **Walk each diff hunk** against the ladder, then the smell detection cues.
+3. **Marker-respect.** If a hunk carries an `aria:simplification` marker matching `aria:simplification — .+ | limitation: .+ | upgrade: .+`, report it as `resolved (marked)` and do NOT flag it. An obvious simplification with NO marker is the `unmarked-simplification` smell.
+4. **Emit findings** in the existing per-fix block style, each REQUIRING: the failed ladder rung, the matched smell name, and a concrete leaner alternative. A finding that cannot name the smaller version is suppressed (matches this skill's existing "name the smaller version or it's not a finding" discipline).
+5. **Verdict mapping.** Over-build findings map to the existing verdict vocabulary: `dependency-for-a-oneliner`/`framework-for-a-function` → recommend revert-and-shrink; `unmarked-simplification` → recommend add-the-marker (not a revert).
+
+Findings append to the report as an `### Over-build lens` subsection; they never alter the non-lens verdicts.
 
 ## Step 8: Validation Gates
 

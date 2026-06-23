@@ -16,3 +16,12 @@ assert_eq "marker: missing upgrade rejected" "0" \
   "$(printf '%s\n' "$bad_no_upgrade" | grep -Eq "$MARKER_RE" && echo 1 || echo 0)"
 assert_eq "marker: generic TODO not a marker" "0" \
   "$(printf '%s\n' "$bad_generic" | grep -Eq "$MARKER_RE" && echo 1 || echo 0)"
+
+# --- /retrospect documents the lens, reads the library, carries marker-respect ---
+RS="$ROOT/skills/retrospect/SKILL.md"
+assert_eq "retrospect: lens flag documented" "1" \
+  "$(grep -cq -- '--lens=overbuild' "$RS" && echo 1 || echo 0)"
+assert_eq "retrospect: reads overbuild-patterns" "1" \
+  "$(grep -cq 'overbuild-patterns.md' "$RS" && echo 1 || echo 0)"
+assert_eq "retrospect: marker-respect present" "1" \
+  "$(grep -cq 'resolved (marked)' "$RS" && echo 1 || echo 0)"
