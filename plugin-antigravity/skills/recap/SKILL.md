@@ -1,5 +1,5 @@
 ---
-description: "Read-only orientation: render a scannable What/Where/Status table for this session, the current arc, or recent git commit/push/pull context. Trigger on /recap, catch me up, what just happened, where am I, recap the session, or recap the last commit. Summarizes only; never writes or validates."
+description: "Read-only orientation — render a scannable table of what just happened so you can situate yourself. Modes: '/recap' (this session), '/recap arc' (the last product arc), '/recap commit' (the last commit), '/recap push' (the last push's commits — what I sent up), '/recap pull' (the last pull's changes — what came down to me). Use when user says '/recap', 'catch me up', 'what just happened', 'where am I', 'recap the session', 'recap the last commit/push/pull'. Plain summary only — never validates or judges (that's /retrospect); never writes to disk. (Code port — ADR-094.)"
 ---
 
 # /recap — Read-Only Orientation

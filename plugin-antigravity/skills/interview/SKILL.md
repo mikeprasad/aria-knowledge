@@ -1,5 +1,5 @@
 ---
-description: "Elicit knowledge through dialogue and stage it under intake/. Modes: `project` scopes a new build, `knowledge` captures a topic from the user, and `deep-dive` extracts rationale behind an existing system with grounding. Trigger on /interview, interview me, deep dive on X, scope this project, or ask me questions about X."
+description: "Interview the user to ELICIT knowledge through dialogue, then stage it to the intake/ tree (the elicit-side counterpart to /extract and /intake which HARVEST existing sources). Three modes: '/interview project' (scope a new project/build), '/interview knowledge' (get a topic out of your head into the KB), '/interview deep-dive' (comprehensively extract the rationale behind an existing-but-undocumented system you built — REQUIRES a basis to review). Cadence (one-at-a-time socratic vs research-then-batch-of-questions) is chosen in-session. Use when user says '/interview', 'interview me about X', 'grill me on X', 'deep dive on X', 'scope this project', 'ask me questions about X'. Stages to intake/projects/ or intake/interviews/ for manual review; never auto-promotes. (Code port — ADR-094.)"
 ---
 
 # /interview — Elicit Knowledge Through Dialogue

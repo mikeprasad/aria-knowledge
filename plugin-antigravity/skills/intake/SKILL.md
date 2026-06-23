@@ -1,5 +1,5 @@
 ---
-description: "Capture external knowledge into ARIA: clip a URL/snippet whole, bulk-scan files/dirs/globs, decompose one source with `extract`, capture a 5-section doc reflection with `doc`, or pull chat/email via `thread`. Trigger on /intake, clip this, save this link, import knowledge, scan this file, extract from this doc, or clip this thread."
+description: "Capture knowledge from outside the conversation. A single URL or text snippet is clipped whole to intake/clippings/; files/directories/globs are bulk-scanned into the backlogs; `extract <source>` decomposes a source into backlog entries; `doc <source>` captures a structured 5-section reflection (claims/worth-keeping/contested/action/reaction); `thread <id>` pulls a chat/email thread via MCP. Use when user says '/intake', 'intake from', 'import knowledge from', 'scan this file for knowledge', 'onboard this project', 'clip this', 'save this link', 'save this snippet', 'capture this URL', 'clip this thread', 'save this Slack thread', 'capture this email chain', 'extract insights from this doc', 'mine this Notion page', 'capture a doc', 'log notes on this doc'. Unlike /extract (current conversation), /intake captures external sources; clipped/bulk items are reviewed at the next /audit-knowledge run. (Code port — ADR-094.)"
 ---
 
 # /intake — Bulk Knowledge Import + Doc-Anchored Capture
@@ -155,7 +155,7 @@ Pull a chat/email thread via a `~~chat` (Slack/Teams) or `~~email` (Gmail/MS365)
 ### T1: MCP availability check
 If no `~~chat`/`~~email` MCP is connected/authenticated, surface:
 
-> "`thread` mode needs a chat or email MCP connected. These are bundled with the plugin — run the MCP's authenticate flow (e.g. Slack auth), or connect it via your MCP config, then retry. Thread mode runs in Antigravity once the MCP is authed."
+> "`thread` mode needs a chat or email MCP connected. These are bundled with the plugin — run the MCP's authenticate flow (e.g. Slack auth), or connect it via your MCP config, then retry. (This is NOT Cowork-only — thread mode runs in Claude Code once the MCP is authed.)"
 
 Then exit. **Do NOT redirect to Cowork** — the capability is Code-native once the MCP is authenticated. (The ADR-094 Bash-availability runtime gate is separate and only fires on a genuine runtime mismatch, not on an unauthenticated MCP.)
 
