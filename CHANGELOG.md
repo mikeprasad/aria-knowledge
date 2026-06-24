@@ -2,6 +2,17 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.37.0 — 2026-06-25
+
+**New skill `/auto` — the entry point for an autonomous execution arc.** A single invocation drives the full gate chain (brainstorm→spec→/prospect→plan→/prospect→TDD→/retrospect) under the autonomous decision-routing posture, deciding objectively-validatable forks itself and stopping only on a genuine load-bearing fork or an ungranted approval.
+
+- **Two modes:** `/auto [goal] [continue|stop]` (full arc; `continue` keeps finding new work after the planned queue for unattended/overnight runs, `stop` checkpoints + hands off — the default) and `/auto execute <plan|spec|linear-id>` (a plan exists — skip ideation).
+- **Explicit override of the `autonomy` config (Option A):** `/auto` runs fully autonomously regardless of the standing `autonomy` posture (incl. `default`) and **never writes config** — the standing posture stays `/setup`'s exclusive job (one writer, no drift). The invocation *is* the grant. Named `/auto` for uniformity with Claude Code's "auto mode."
+- **Compose-not-duplicate:** the decide-vs-ask *logic* stays in **Rule 35** (the skill instantiates the routing table, doesn't re-list it); the skill adds only the *operational* discipline Rule 35 doesn't enumerate. Builds on the v2.35.0 `autonomy` config + SessionStart directive.
+- **Absorbs the prior paste-at-top-of-session mandate** (`knowledge/AUTONOMOUS-SESSION-TEMPLATE.md`, now a tombstone) as the single source of truth: pre-answered never-stops (knowledge placement, tool/permission approvals, backlog/deferral, Linear filing, commit cadence), verify-state-empirically, legitimate-stops, budget-binding (usage→cron / context→handoff; auto-/extract at 90% context), work-selection, subagent NEED-IT gate, optional resume-cron, never-force-push, verification-reality, knowledge-capture-as-you-go. Coverage verified by a mechanical claim-by-claim diff (43/43). Companion: a pre-authorized tool allowlist in `.claude/settings.local.json`.
+- New repro `auto-modes.sh` (49 assertions: modes + no-keyword default + compose-not-duplicate + Rule-35 deferral + arc contract + stop-rule + never-stop list + budget-binding + work-selection + subagent gate + resume-cron + verification-reality); skill-reviewer Pass.
+- **Ports:** **Claude-Code-canonical only this release** — codex/cursor/antigravity/cowork stay 2.36.0 tracked-drift (the Cowork variant needs a trimmed description vs its 9000-char summed cap). **Released for local dogfood; not yet tagged / GH-released / port-propagated** — a live `/auto` run is the gating acceptance per the session retrospect before public release.
+
 ## 2.36.0 — 2026-06-24
 
 **Anti-over-build upgrade — simplification marker + opt-in over-build review lens.** Ports two patterns from the Ponytail project (github.com/DietrichGebert/ponytail, a YAGNI-for-agents tool) into ARIA's existing primitives — minimal footprint, no new skill, no new numbered rule.
