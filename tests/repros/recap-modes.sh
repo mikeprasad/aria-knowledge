@@ -1,7 +1,8 @@
 #!/bin/sh
-# recap-modes.sh — asserts /recap SKILL.md documents the 5 modes, the pull resolution,
-# the consistent What/Where/Status table, and the read-only (no-Write) invariant.
-# Dispatch is Claude-executed prose; this checks the documented contract, not runtime.
+# recap-modes.sh — asserts /recap SKILL.md documents the modes, the pull resolution,
+# the consistent What/Where/Status table, the read-only (no-Write) invariant, and the
+# project mode (nearest/named/all breadths). Dispatch is Claude-executed prose;
+# this checks the documented contract, not runtime.
 set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -32,6 +33,24 @@ echo "$tools" | grep -qE '\bBash\b' && ok "E Bash present (git modes)" || bad "E
 
 # F: never-judges — offers retrospect, doesn't run verdicts
 grep -qiE 'retrospect' "$SK" && ok "F offers /retrospect (no verdicts itself)" || bad "F retrospect-offer" "no escalation offer"
+
+# G: project mode — breadth selector (nearest/named/all), roster source, tolerant read, transparency
+grep -qiE 'project mode' "$SK" && ok "G project mode documented" || bad "G project mode" "not in SKILL.md"
+grep -qF 'project-nearest' "$SK" && ok "G nearest sub-mode" || bad "G nearest" "not documented"
+grep -qF 'project-named' "$SK" && ok "G named sub-mode" || bad "G named" "not documented"
+grep -qF 'project-roster' "$SK" && ok "G roster sub-mode (all)" || bad "G roster" "not documented"
+grep -qF 'projects_list' "$SK" && ok "G roster from projects_list" || bad "G projects_list" "roster source not documented"
+# read-only on the roster (mirrors /aria-assist's stance)
+grep -qiE 'read-only on .?projects_list' "$SK" && ok "G read-only on projects_list" || bad "G ro-roster" "roster-write guard not documented"
+# graceful degradation when a project is not a git repo
+grep -qiE 'not a git repo' "$SK" && ok "G repo-absent degradation" || bad "G repo-absent" "git-absent omission not documented"
+# project mode prints its resolved scope (honest-about-inference parity)
+grep -qiE 'print the resolved project path|resolved project path' "$SK" && ok "G prints resolved path" || bad "G path-print" "scope transparency not documented"
+# roster escalation offer
+grep -qiE 'aria-assist' "$SK" && ok "G roster escalation offer (/aria-assist)" || bad "G aria-assist" "roster escalation not documented"
+
+# H: all-modes "What" cell must be self-descriptive or carry a short detail clause
+grep -qiE 'self-descriptive or annotate' "$SK" && ok "H self-descriptive-or-annotate rule (all modes)" || bad "H what-detail" "non-descriptive What-cell annotation rule not documented"
 
 printf "\n%d passed, %d failed\n" "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

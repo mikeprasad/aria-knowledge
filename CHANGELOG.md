@@ -2,6 +2,18 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.37.1 — 2026-06-25
+
+**New `/recap project` mode — lateral cross-project orientation.** Where `/recap`'s existing modes orient you *temporally* (this session, this repo's git), `project` mode orients you *laterally* — the current state of one project, or of the whole portfolio. A terminal-table analogue of the aria-atlas dashboard.
+
+- **One verb, three breadths** (a trailing second arg selects breadth): `/recap project` → the current session's main project (Step-1 walk-up from cwd, no roster needed) · `/recap project <name>` → a named project (the `<name>:` tag in `projects_list`; unknown tag lists available tags, no fuzzy match) · `/recap project all` → roster glance across every `projects_list` entry.
+- **Reuses canonical surfaces, adds no machinery:** the roster comes from `projects_list` read exactly as `/aria-assist` reads it (**read-only on `projects_list`**); per-project state comes from `SESSION.md` (`lastEvent` + next-session prompt) and `PROGRESS.md` (latest arc + open items); git rows (`log -1`, `status --short`) only when the dir is a git repo **and** Bash is available — **silently omitted otherwise** (a per-project version of the Runtime-Gate Bash check). All reads are tolerant — a missing/malformed file degrades to a blank/omitted row, never throws. No new config key, no new tool.
+- **Two output shapes:** single-project = full orientation in the standard `What/Where/Status` table with an indented `↳` context sub-row per item (so "T0 completed" reads with what T0 *was*); roster = terse rows + one ~6-word in-flight fragment, recency-sorted, `+N more (older)` tail. Always prints the resolved project path (single) / roster total (all) per the honest-about-inference rule. Escalation offer (never auto-run): single → `/retrospect`, roster → `/aria-assist`.
+- **Read-only preserved:** still `allowed-tools: Read, Glob, Grep, Bash` — Write/Edit excluded; the mode writes nothing.
+- **All-modes refinement — self-descriptive `What` cells.** Any `What` cell that isn't understandable on its own (a bare artifact name like `group G`, `T0`, a flag/config key, a ticket ID) must carry a short detail clause (≤~8 words) so the row reads without prior context (`group G — 9 recap-mode contract assertions`, not `group G`); cells that already read plainly need no addition. Single-project mode does this via the `↳` sub-row; terse roster rows use the inline `— detail` form. Sharpens "Glance, not essay" (every row understandable at a glance) rather than fighting it.
+- `recap-modes.sh` extended with a 9-assertion group G (breadth sub-modes + roster source + read-only-on-roster + repo-absent degradation + path-print transparency + escalation offer); 22 assertions green, full plugin suite 45 green, all 25 repros green.
+- **Ports:** Claude-Code-canonical only — codex/cursor/antigravity/cowork stay tracked-drift (recap is Bash-native git + the SESSION.md/PROGRESS reads are Code-filesystem-default). **Local dogfood only — not tagged / GH-released / port-propagated** (same posture as 2.37.0). Built execute-mode via `/auto` (spec → /prospect [PROCEED, all 4 steps pre-validated] → plan → execute → gates).
+
 ## 2.37.0 — 2026-06-25
 
 **New skill `/auto` — the entry point for an autonomous execution arc.** A single invocation drives the full gate chain (brainstorm→spec→/prospect→plan→/prospect→TDD→/retrospect) under the autonomous decision-routing posture, deciding objectively-validatable forks itself and stopping only on a genuine load-bearing fork or an ungranted approval.
