@@ -216,3 +216,18 @@ Leave a **verified-clean checkpoint** (tests green, tree clean, pushed if policy
 - **`/auto` applies policy, it doesn't redefine it.** The decide-vs-ask *logic* is Rule 35; this skill adds *operational* discipline (never-stop list, budget-binding, work-selection, subagent gate, resume-cron). If you want to change *when to ask*, edit Rule 35 — keep the single source of truth.
 - **`/auto` never writes config.** It runs autonomously for the arc on the strength of the invocation; the standing `autonomy` posture changes only via `/setup` (one writer, no drift).
 - **Tool allowlist companion.** For unattended runs, a pre-authorized `permissions.allow` list in the user's `.claude/settings.local.json` makes "tools are preset" real: the skill tells the model not to ask, the settings tell the harness not to gate. Keep them in sync — when a new tool causes a mid-run stop, add it there.
+- **Self-restart wrapper — permission setup (example, follow only when you actually run one).** The `self-restart` flag needs `bin/auto-runloop.sh`, which spawns `claude -p --dangerously-skip-permissions`. That tripwires TWO independent gates, and you must clear BOTH:
+  1. **The permissions system** — allowlist the wrapper in `.claude/settings.local.json`. Match how you invoke it (`sh <path>` vs `<path>` directly):
+     ```json
+     {
+       "permissions": {
+         "allow": [
+           "Bash(sh */plugin-claude-code/bin/auto-runloop.sh:*)"
+         ]
+       }
+     }
+     ```
+     (Use the absolute path on your machine; `:*` is the trailing-args shorthand. Verified vs the current settings schema, 2026-06-27.)
+  2. **The auto-mode classifier** (a SECOND gate, only when auto mode is ON) — it independently hard-denies spawning an unattended `--dangerously-skip-permissions` agent, and **`permissions.allow` does NOT override it** (docs: "the classifier is a second gate that runs after permissions"). So either: run the wrapper from a **normal interactive session with auto mode OFF** (the allowlist alone suffices there), OR have your org's `autoMode` config trust it. Do NOT expect the allowlist rule alone to clear an auto-mode run.
+
+  This is intentionally an example to copy when needed, not a setting this plugin writes — enabling `--dangerously-skip-permissions` is a standing security relaxation you should opt into deliberately, at the moment of a real unattended run, never by default.
