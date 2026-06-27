@@ -56,7 +56,9 @@ This gate is NOT suspended by any mode — `/auto` is inherently autonomous, so 
 - **`stop`** (default) — checkpoint + `/handoff` when the queue is clear; do NOT pick up new work. The right choice for a scoped "just do X" run. Default to this if unset — don't over-reach the remit.
 - **`continue`** — keep finding the next valuable work autonomously (see Step 4); for unattended / overnight runs. Don't stop at the arc boundary.
 
-**Parsing:** if the first arg case-insensitively matches `execute`, `config`, or `preflight`, that's the mode; a trailing `continue`/`stop` sets the toggle; everything else is the **goal** for the default `arc` mode (so `/auto ship the CSV exporter continue` parses cleanly). If the goal is "continue from SESSION.md / the latest handoff," resolve it in Step 4's work-selection order.
+**Context-self-restart flag** (a trailing `self-restart` keyword, default **off**): only meaningful with `continue`. When set, a context-window wall does NOT terminally stop the arc — instead the skill writes a restart-signal file that the external `bin/auto-runloop.sh` wrapper watches, so the arc resumes in a FRESH process (clean context). See Step 3¾. Requires the wrapper to be running and a permission allowlist (the wrapper spawns `claude -p --dangerously-skip-permissions`, which the auto-mode classifier blocks unless allowlisted). Without the flag, a context wall behaves exactly as today (terminal stop + `/handoff`).
+
+**Parsing:** if the first arg case-insensitively matches `execute`, `config`, or `preflight`, that's the mode; a trailing `continue`/`stop` sets the toggle, and a trailing `self-restart` sets the context-self-restart flag (only honored alongside `continue`); everything else is the **goal** for the default `arc` mode (so `/auto ship the CSV exporter continue self-restart` parses cleanly). If the goal is "continue from SESSION.md / the latest handoff," resolve it in Step 4's work-selection order.
 
 **Two ways to handle unspecified settings — you remember nothing either way:**
 - **Default (`/auto [goal]`)** — pick the safe default for everything unspecified and **surface them all in the arc contract** (Step 0.5) before driving. You *react* to the shown list; you never have to *recall* what's configurable. Minimal friction.
@@ -158,6 +160,21 @@ Know **which budget binds**, because it decides the right resume tool:
 - **5-hour / 7-day usage** → keep working toward the limit. Usage-bound work CAN be continued by a session-only cron at the reset boundary (it re-fires *this* session with local work intact).
 - Don't gate, defer, or shrink an action on a number you haven't re-read **live this turn** — read the statusline state file, not a stale hook-alert figure (a window may have reset). If you're not gating on budget, don't mention it.
 
+## Step 3¾ (optional): Context-self-restart across a fresh process
+
+Default OFF. Active **only** when this is a `continue` run **AND** the `self-restart` flag was set. Without both, a context wall behaves exactly as the Step 3 Context bullet describes (extract → `/handoff` → terminal stop) — unchanged.
+
+The problem this solves: an unattended `continue` arc that hits the context wall would otherwise halt until a human restarts it. A cron can't fix this (a cron re-enters the *same* full session). The skill itself **cannot** reset its own context either — `/clear` is a REPL built-in that **neither a skill nor a hook can issue** (both verified). The only autonomous path to clean context is a **fresh `claude` process**, which an external wrapper provides.
+
+So when active, at 90% context — instead of terminally stopping — do this and then **stop cleanly**. The skill never issues `/clear` (it cannot — and even if it could, the wrapper's fresh process is the cleaner reset); you do NOT self-resume; you hand the restart to the wrapper:
+
+1. **AUTO-run `/extract`** (same as the default Context path).
+2. **Run `/handoff`** to produce a full, self-sufficient, **prose-first** next-session opener at `SESSION.md`. Prose-first is mandatory — the opener must NOT start with a slash command (a leading `/auto` is parsed as an unknown command and the whole mandate is silently discarded); `/handoff`'s opener already leads with prose.
+3. **Write the restart-signal file** `<cwd>/.claude/auto-restart-requested` containing **one line: the absolute path to that opener**. Presence of the file = "restart requested"; its content = the opener the wrapper relaunches with. (Mark the write site `[SELFRESTART-PRE]` so a later `/retrospect` can confirm it fired.)
+4. **Stop cleanly.** The arc is now a durable on-disk checkpoint; the in-process work is done.
+
+`bin/auto-runloop.sh` (shipped with the plugin) is the external piece: it launched this run, watches for the signal file on exit, consumes it (so a crash can't loop forever), and relaunches a **fresh** `claude -p` headless process with the opener. **The wrapper must already be running** for this to do anything — if `/auto` was invoked directly in an interactive REPL (no wrapper), `self-restart` still writes the signal and stops, but nothing restarts it; note that in the handoff. **Permission caveat:** the wrapper spawns `claude -p --dangerously-skip-permissions`, which the auto-mode classifier blocks unless the user has added a Bash permission allowlist rule for it — surface this when recommending an unattended run.
+
 ## Step 4: Work selection (and the On-queue-complete toggle)
 
 **Always validate before executing** (hard gate, every queued item): re-validate the plan + the live state + staleness before starting. `git log` to confirm the item is still un-done (don't redo shipped work); re-read the spec against current code; re-/prospect if the plan is old or the code moved under it. Only execute once validated current.
@@ -168,7 +185,7 @@ Know **which budget binds**, because it decides the right resume tool:
 - **`stop`** (default) → do NOT pick up new work. Leave a verified-clean checkpoint + `/handoff`.
 - **`continue`** → find the next valuable work autonomously, in order: (1) explicit "NEXT/deferred" in CLAUDE.md/PROGRESS; (2) a follow-on the just-finished retrospect surfaced; (3) the next roadmap/backlog item; (4) a `/readiness-audit` or `/retrospect` to surface the next thing; (5) cheap durable prep (contract traces, specs for queued features) that advances a future arc without a taste call. **Never invent a feature** — if nothing explicit is ready, do high-certainty objectively-valuable work that needs no taste call (strengthen the green baseline; `/codemap` or doc-sync if stale; trace + spec the next likely feature, left prospected; a `/readiness-audit`; close now-doable residuals). If even that is exhausted → `/handoff` with "no queued work — awaiting direction" rather than spinning.
 
-If the next unit needs more context headroom than remains → STOP at a clean checkpoint and `/handoff` rather than fragment it.
+If the next unit needs more context headroom than remains → STOP at a clean checkpoint and `/handoff` rather than fragment it. (Exception: on a `continue` + `self-restart` run, take the Step 3¾ path instead — checkpoint, write the restart-signal, and let the wrapper resume in a fresh process.)
 
 ## Step 5: Subagents & fan-out — budgeted, with hard stopgaps
 
