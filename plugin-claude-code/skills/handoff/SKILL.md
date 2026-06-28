@@ -314,10 +314,12 @@ Emit the closing report. **The next-session opener is the headline artifact** â€
 
 ```
 {full opener from Step 3e}
-```
 
 Read on resume: {primary CLAUDE.md path} for current state.
 ```
+```
+
+The `Read on resume:` line MUST sit INSIDE the opener fence (the last line of the pasteable block), never after the closing ```` ``` ````. It is part of the artifact the user pastes into the next session â€” if it lands outside the fence it is silently dropped on paste. (Step 3e's opener already carries a `Read first:` pointer inside the fence; this `Read on resume:` line is the Step-8 report's echo of it and must stay equally inside.)
 
 ## Rules
 
