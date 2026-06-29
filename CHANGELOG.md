@@ -2,6 +2,17 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.38.0 — 2026-06-29
+
+**Two new universal working-rules + two strengthened — synced to Claude Code + Cowork.** Distilled from `knowledge/approaches/mike-engineering-standards.md` via a gap-analysis against the enforced ruleset; only principle-level, domain-agnostic items were universalized.
+
+- **New Rule 36 — "a pass signal only counts if it can fail for the right reason."** Bind a gated conclusion to the load-bearing result, never a proxy (a pipeline's last command, a transport status code, an absent guard a negative-only test can't detect). A validated confirmation is only valid in its case context and isn't fully valid until its *failure* is equally understood + validated (both pass AND fail matching intended outcome); mechanical understanding of *why* it passes/fails is what makes validation generalize across contexts and variants. Composes with Rules 15 + 20.
+- **New Rule 37 — "anything temporary names its own removal trigger up front."** First justify temporary-ness against a foundational alternative (Rule 18); then any temporary thing (code, doc, config, stub, deferral, flag, workaround) carries a documented context/trigger/condition/timing for removal at introduction, never a someday cleanup ticket. Contrast with Rule 6 (which protects content meant to last).
+- **Strengthened Rule 15** — a guard test needs a positive case, not only a negative (a negative-only test is a false green; if you removed the guard the suite must go red). RED→GREEN per guard.
+- **Strengthened Rule 21** — for a non-trivial/hard-to-reverse decision, record the full ADR shape: alternatives-with-rejection-rationale + consequences across positive/negative/neutral/deferred + the forward-looking downstream commitments the decision dictates. Scale the artifact to reversibility.
+
+working-rules.md 35 → 37 rules. Template content (not SKILL frontmatter) — skill-discovery budget unaffected (17186/18944). Minor bump (new universal rules = capability surface every user inherits, per the v2.35.0 precedent). **Ports:** synced to plugin-claude-code + plugin-claude-cowork (coordinated cowork v1.5.0, which also closed a missing-Rule-35 drift); codex/cursor/antigravity tracked-drift (rules reach them via template sync at next parity pass).
+
 ## 2.37.1 — 2026-06-25
 
 **New `/recap project` mode — lateral cross-project orientation.** Where `/recap`'s existing modes orient you *temporally* (this session, this repo's git), `project` mode orients you *laterally* — the current state of one project, or of the whole portfolio. A terminal-table analogue of the aria-atlas dashboard.

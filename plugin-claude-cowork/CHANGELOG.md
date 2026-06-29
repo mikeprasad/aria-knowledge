@@ -4,6 +4,16 @@ All notable changes to aria-cowork are documented here. Format follows [Keep a C
 
 Cross-plugin parity callouts (per ADR-006) note when changes coordinate with aria-knowledge releases.
 
+## [1.5.0] — 2026-06-29
+
+**Sync the universal working-rules to canonical parity (coordinated with aria-knowledge v2.38.0).** Two new rules + two strengthened, plus closing a real drift: cowork's `working-rules.md` was missing **Rule 35** entirely (a v2.35.0 tracked-drift gap). Brought to full canonical parity (Rules 35 + 36 + 37), preserving only the `/aria-setup` header-comment divergence.
+
+- **New Rule 36 — "a pass signal only counts if it can fail for the right reason."** Bind a gated conclusion to the load-bearing result, never a proxy. A validated confirmation isn't fully valid until its *failure* is equally understood + validated; mechanical understanding of why it passes/fails is what makes validation generalize across contexts and variants.
+- **New Rule 37 — "anything temporary names its own removal trigger up front."** First justify temporary-ness against a foundational alternative (Rule 18); then any temporary thing carries a documented context/trigger/condition/timing for removal at introduction.
+- **Strengthened Rule 15** (a guard test needs a positive case — RED→GREEN per guard) + **Rule 21** (full ADR shape: alternatives-with-rejection-rationale + multi-dimension consequences + the forward-looking downstream commitments the decision dictates).
+- **No skill/description change** — these are template-content rules; summed SKILL.md description chars unchanged (8863/9000, under cap). working-rules.md 34 → 37 rules.
+- **Parity:** coordinates with aria-knowledge v2.38.0. Rules sync reaches Code + Cowork this round; codex/cursor/antigravity tracked-drift.
+
 ## [1.4.0] — 2026-06-18
 
 **Port `/interview` to Cowork (parity with aria-knowledge v2.31.0).** The 3-mode knowledge-elicitation skill — `project` (scope a new build), `knowledge` (get a topic into the KB), `deep-dive` (extract the rationale behind an existing system; requires a basis) — now ships in Cowork as `/aria-cowork:interview`. This closes the one genuine parity gap with canonical v2.31.0; ADR-094 had documented the Cowork variant as a deferred follow-on.

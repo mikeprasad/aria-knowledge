@@ -19,16 +19,16 @@ Rules are living — they get added, refined, or retired based on real experienc
 
 ## Behavioral Foundation
 
-Four principles distill what the 35 rules below collectively enforce. Framed in the spirit of [Andrej Karpathy's January 2026 diagnosis](https://x.com/karpathy/status/2015883857489522876) of how LLMs fail at coding judgment — and the [4-line CLAUDE.md](https://github.com/forrestchang/andrej-karpathy-skills) it inspired — expanded to ARIA's operational scope.
+Four principles distill what the 37 rules below collectively enforce. Framed in the spirit of [Andrej Karpathy's January 2026 diagnosis](https://x.com/karpathy/status/2015883857489522876) of how LLMs fail at coding judgment — and the [4-line CLAUDE.md](https://github.com/forrestchang/andrej-karpathy-skills) it inspired — expanded to ARIA's operational scope.
 
 1. **Don't assume — surface tradeoffs.** Flag uncertainty, present alternatives, push back when warranted. *(Rules 5, 7, 9, 10)*
 2. **Simplest solution wins — nothing speculative.** No abstraction or feature beyond what's asked. *(Rules 13, 14, 18)*
 3. **Touch only what you must.** Match scope to the request; clean only your own mess. *(Rules 22, 25, 26)*
 4. **Define success criteria upfront, loop until verified.** Strong criteria enable independent loops; weak criteria require constant clarification. *(Rule 20)*
 
-The 35 rules below are the expanded, operationalized form. When in doubt, fall back to the four. When the four don't cover it, the 35 likely do. When neither covers it, that's a candidate for Rule 23 (review learnings) and `intake/rules-backlog.md`.
+The 37 rules below are the expanded, operationalized form. When in doubt, fall back to the four. When the four don't cover it, the 37 likely do. When neither covers it, that's a candidate for Rule 23 (review learnings) and `intake/rules-backlog.md`.
 
-**Why both layers exist.** The 4-line foundation is sufficient for one-off tasks and small projects. The 35 rules earn their keep when (a) work spans multiple sessions and needs persistent discipline, (b) failures have asymmetric cost and need explicit gating, or (c) team coordination requires shared, named conventions. Volume past four is justified by the operational context, not added for its own sake.
+**Why both layers exist.** The 4-line foundation is sufficient for one-off tasks and small projects. The 37 rules earn their keep when (a) work spans multiple sessions and needs persistent discipline, (b) failures have asymmetric cost and need explicit gating, or (c) team coordination requires shared, named conventions. Volume past four is justified by the operational context, not added for its own sake.
 
 -----
 
@@ -100,6 +100,8 @@ Default to Occam’s razor — but validate it. Abstraction and complexity are j
 
 Happy paths represent ideal behavior but won’t happen all the time. Focus testing on API boundaries, user input, service contracts, error states, and permission edges.
 
+**A guard test needs a positive case, not only a negative.** When testing an authorization, ownership, validation, or any pass/reject boundary, assert BOTH that the unauthorized/invalid case is rejected AND that the authorized/valid case *succeeds*. A negative-only test passes for *any* rejection — including the guard being broken, absent, or rejecting everything — so it is a false green: it proves a denial happened, not that the guard fires correctly. The check: if you removed the guard, the suite must go red. RED→GREEN per guard.
+
 ### 16. Use semantic, self-evident naming
 
 Names should communicate purpose clearly to someone without assumed context. Prefer names that describe what something does or represents over jargon or implementation knowledge (e.g., `useRequireAuth` over `useAuthGuard`; `fetchUserOrders` over `getUO`).
@@ -146,6 +148,14 @@ For multi-step work, state the plan as `[step] → verify: [check]` pairs.
 
 Capture the why — what was considered, what was ruled out, and the reasoning. This creates an auditable trail of decision-making that can be referenced to learn and improve over time.
 
+**For a non-trivial or hard-to-reverse decision, record the full shape, not just the choice:**
+
+- **The alternatives considered, each with its rejection rationale** — "A rejected because X, B because Y." The rejection evidence teaches more than the acceptance story; "why did we drop A?" must stay answerable later. An accepted option with no recorded alternatives reads as the only option ever considered — usually false, and lossy.
+- **Consequences across dimensions** — positive, negative, neutral, *and* deferred — so no decision is silently assumed downside-free. Naming the negative/deferred consequences up front is what lets a future reader judge whether the tradeoff still holds.
+- **The forward-looking, downstream commitments the decision dictates** — the choice must also reckon with the direct AND extended actions and outcomes it sets in motion as a result. A decision is not just its immediate consequences; it is the path it commits you to next. Surface what this decision *forces or forecloses* downstream, so the reader sees the trajectory, not only the point.
+
+Scale the artifact to reversibility: an easily-reversed call can be an inline note; a hard-to-reverse one (schema, public API, architecture, dependency, license) warrants a durable decision record. *(How records are formatted, numbered, and archived is project convention; this rule governs the content that must be present.)*
+
 ### 22. Follow the change decision framework
 
 Every change — code, architecture, configuration, documentation — follows this sequence. Don’t skip steps. See `knowledge/rules/change-decision-framework.md` for the detailed version with examples, impact tiers, and hook implementation.
@@ -180,6 +190,28 @@ When a failure involves an external service, API, or dependency, verify that the
 **Composes with Rule 33:** Rule 33 verifies before the call (prospective); this rule verifies after the failure (retrospective). Both target stale third-party information; the timing axis determines which fires.
 
 **Origin:** An API returned 404 for a model identifier that had been renamed. A single discovery-endpoint call would have resolved it immediately instead of extended debugging of a non-existent outage.
+
+### 36. A pass signal only counts if it can fail for the right reason
+
+When an action or claim is gated on a check — "tests pass, so commit," "deploy returned 0, so it shipped," "the request 200'd, so it worked," "the negative test passed, so the guard holds" — bind the conclusion to the **load-bearing** result, not to a **proxy** that can report success for the wrong reason. A signal that cannot go red when the real thing is broken proves nothing.
+
+Ask of any green: *what would make this red, and is that the thing I actually care about?* If the answer is "a downstream or unrelated condition" (a pipeline's last command rather than the test's own exit, a transport status code rather than the decoded result, an absent guard a negative-only test can't detect), the signal is a proxy — gate on the real one instead (the check's own exit, an observable production signal, a live end-to-end round-trip, a positive+negative pair per **Rule 15**).
+
+**A validated confirmation is only valid within its case context, and is not fully valid until its failure is equally understood and validated** — both the pass *and* the fail matching intended function and/or outcome. A check you have only ever seen pass is unproven: you do not yet know it *can* fail, or that it fails for the right reason. Characterize the failure (force it red, observe the mode) before trusting the green.
+
+**Mechanical understanding is what makes validation generalize.** Knowing *why* something passed or failed — the actual reason at a mechanical level, not just that it did — is what lets the validation hold beyond the single observed case: across contexts, circumstances, and often variants too. A green you understand mechanically tells you how it will behave when inputs, environment, or shape change; a green you only observed tells you about one run. Understand the mechanism, not just the result.
+
+**Composes with Rule 15** (positive+negative guard tests are the test-shaped instance of this) and **Rule 20** (validate-before-done is the same discipline at completion time).
+
+### 37. Anything temporary names its own removal trigger up front
+
+**First, justify temporary-ness itself.** Before accepting that something *should* be temporary, consider and validate it against a long-term or foundational alternative (per **Rule 18**) — "temporary" must be a deliberate choice with a reason, not the default that dodges the real design. Often the foundational fix is the better call and the stopgap is false economy; only when the temporary path is genuinely justified does the rest of this rule apply.
+
+**Then, anything meant to be temporary must carry a documented context, decision, trigger, condition, and/or timing for when it should be removed** — recorded at the moment it is introduced, not deferred to a someday cleanup ticket. This covers temporary code AND anything else with a known end-of-life: a stopgap doc, a placeholder config, a stub, a deferral, a workaround pending an upstream fix, a feature flag, a prototype. If a thing is "just for now," "for now" must be defined.
+
+**Why up-front, not later:** a cleanup ticket decays into permanent debt — the context for *why* it was temporary is freshest at introduction and gone later. State what retires it ("remove when the vendor ships the fix," "delete after the migration is verified," "flag drops at GA," "supersede when the real design lands") so the trigger travels with the thing.
+
+**Code instance:** diagnostic instrumentation, one-shot probes/harnesses, feature flags, and scaffolding should be greppable (a consistent marker or commit prefix) so a future sweep finds every instance by its trigger. **Corollary to atomic commits:** a permanent fix and its temporary instrumentation are *separate* concerns — commit them apart, so the temporary one can be reverted on its trigger without collateral. (Distinct from **Rule 6**, which protects content *meant to last*; this governs content *meant to die*.)
 
 -----
 
