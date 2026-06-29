@@ -234,7 +234,7 @@ Do NOT pad results with empty folder notes for project tags that weren't queried
 Per-project artifact resolution:
 
 - **CODEMAP path:** `{project_root}/CODEMAP.md` (per `/codemap` skill convention). Resolve `project_root` from `projects_list` parsed in Step 0.
-- **STITCH path:** `{project_root}/STITCH.md` by default; override with `projects_groups[<tag>].stitch_path` if set in `~/.claude/aria-knowledge.local.md`. **Skip STITCH entry silently** if the project tag is NOT in `projects_groups` (single-repo project — `/stitch` doesn't apply).
+- **STITCH path:** `{project_root}/STITCH.md` by default; override with `projects_groups[<tag>].stitch_path` if set in `~/.claude/aria-knowledge.local.md`. **Skip STITCH entry silently** if the project tag is NOT in `projects_groups` (no group registered — a single undifferentiated codebase with no contract→multi-client seam, so `/stitch` doesn't apply; note a monorepo with such a seam SHOULD be registered as a group and would get a STITCH entry).
 - **If file does not exist:** render `~/Projects/<path>/CODEMAP.md — (not found — run /codemap create) [project: <tag>]`. Same for STITCH with `(not found — run /stitch create <tag>)`.
 - **If file exists:** stat for mtime, invoke the **staleness-marker shared block** (defined at the head of Step 5) with:
   - `date_source` = file mtime

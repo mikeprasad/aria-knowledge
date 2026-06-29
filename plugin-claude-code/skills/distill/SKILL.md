@@ -19,15 +19,19 @@ Read `~/.claude/aria-knowledge.local.md`. Parse YAML frontmatter `projects_group
 Look up `<tag>` in `projects_list` (get `project_root`) and `projects_groups` (get role → folder dict).
 
 - If `<tag>` missing from `projects_list`: stop with *"unknown project tag: <tag>"*.
-- If `<tag>` in `projects_list` but missing from `projects_groups` and `<project_root>` has multiple sub-dirs with repo markers: trigger **auto-propose bootstrap**.
-- If `<tag>` is a single-repo project (no multi-repo sub-dirs detected): load `<project_root>/CODEMAP.md` only.
+- If `<tag>` in `projects_list` but missing from `projects_groups` and `<project_root>` has multiple distinct codebases that must stay in sync (separate repo-marker sub-dirs, OR one repo with a shared-contract source + multiple generated/typed clients — see scan below): trigger **auto-propose bootstrap**. The git-repo boundary is NOT the signal — a monorepo with a `contract/` → `ios/`+`android/`+`backend/` seam qualifies just as much as separate repos.
+- If `<tag>` is a single undifferentiated codebase (no separate sub-dirs and no contract→multi-client seam): load `<project_root>/CODEMAP.md` only.
 
-**Auto-propose bootstrap** (when `projects_groups[<tag>]` is missing but `<project_root>` contains multiple repo-marker sub-directories):
-1. Scan `<project_root>` one level deep for sub-directories with repo markers:
+**Auto-propose bootstrap** (when `projects_groups[<tag>]` is missing but `<project_root>` contains multiple sync-bound codebases — separate repo dirs or a contract→clients seam):
+1. Scan `<project_root>` one level deep for sub-directories with repo or contract markers:
+   - `openapi.{yaml,yml,json}` / `*.proto` / `schema.graphql` (or a dir named `contract`/`contracts`/`api-spec`/`proto`) → `contract` (the shared source clients are generated from — its drift is what STITCH tracks)
    - `manage.py` + `settings.py` → `backend` (Django)
    - `composer.json` + `artisan` → `backend` (Laravel)
    - `Gemfile` with `rails` → `backend` (Rails)
    - `package.json` with `express`/`fastify`/`nestjs` → `backend` (Node)
+   - `pyproject.toml`/`requirements.txt` with `fastapi`/`pydantic` → `backend` (FastAPI)
+   - `Package.swift` / `*.xcodeproj` / an `ios` dir → `ios` (Swift/SwiftUI)
+   - `build.gradle{,.kts}` with an `android` dir → `android` (Kotlin/Android)
    - `next.config.*` → `web` (Next.js)
    - `app.json` + `expo` in package.json → `mobile` (Expo)
    - `package.json` with `react` (no `next`/`expo`) → `web` (React SPA)

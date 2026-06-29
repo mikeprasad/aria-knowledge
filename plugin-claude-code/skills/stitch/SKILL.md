@@ -16,15 +16,19 @@ Read `~/.claude/aria-knowledge.local.md`. Parse YAML frontmatter `projects_group
 Look up `<tag>` in `projects_list` (get `project_root`) and `projects_groups` (get role → folder dict).
 
 - If `<tag>` missing from `projects_list`: stop with *"unknown project tag: <tag>"*.
-- If `<tag>` in `projects_list` but missing from `projects_groups` and `<project_root>` has multiple sub-dirs with repo markers: trigger **auto-propose bootstrap**.
-- If `<tag>` is a single-repo project (no multi-repo sub-dirs detected): load `<project_root>/CODEMAP.md` only.
+- If `<tag>` in `projects_list` but missing from `projects_groups` and `<project_root>` has multiple distinct codebases that must stay in sync (separate repo-marker sub-dirs, OR one repo with a shared-contract source + multiple generated/typed clients — see scan below): trigger **auto-propose bootstrap**. The git-repo boundary is NOT the signal — a monorepo with a `contract/` → `ios/`+`android/`+`backend/` seam qualifies just as much as separate repos.
+- If `<tag>` is a single undifferentiated codebase (no separate sub-dirs and no contract→multi-client seam): load `<project_root>/CODEMAP.md` only.
 
-**Auto-propose bootstrap** (when `projects_groups[<tag>]` is missing but `<project_root>` contains multiple repo-marker sub-directories):
-1. Scan `<project_root>` one level deep for sub-directories with repo markers:
+**Auto-propose bootstrap** (when `projects_groups[<tag>]` is missing but `<project_root>` contains multiple sync-bound codebases — separate repo dirs or a contract→clients seam):
+1. Scan `<project_root>` one level deep for sub-directories with repo or contract markers:
+   - `openapi.{yaml,yml,json}` / `*.proto` / `schema.graphql` (or a dir named `contract`/`contracts`/`api-spec`/`proto`) → `contract` (the shared source clients are generated from — its drift is what STITCH tracks)
    - `manage.py` + `settings.py` → `backend` (Django)
    - `composer.json` + `artisan` → `backend` (Laravel)
    - `Gemfile` with `rails` → `backend` (Rails)
    - `package.json` with `express`/`fastify`/`nestjs` → `backend` (Node)
+   - `pyproject.toml`/`requirements.txt` with `fastapi`/`pydantic` → `backend` (FastAPI)
+   - `Package.swift` / `*.xcodeproj` / an `ios` dir → `ios` (Swift/SwiftUI)
+   - `build.gradle{,.kts}` with an `android` dir → `android` (Kotlin/Android)
    - `next.config.*` → `web` (Next.js)
    - `app.json` + `expo` in package.json → `mobile` (Expo)
    - `package.json` with `react` (no `next`/`expo`) → `web` (React SPA)
@@ -37,7 +41,7 @@ Look up `<tag>` in `projects_list` (get `project_root`) and `projects_groups` (g
 Resolve each `(role, folder)` pair to absolute path: `<project_root>/<folder>`. For each absolute path, read `CODEMAP.md` if it exists. Read `<project_root>/STITCH.md` if it exists. Return resolved path map + warnings for any missing CODEMAPs.
 <!-- /shared-block: group-loader -->
 
-**For `/stitch` specifically:** the group MUST have multiple sub-repos (at least one `backend` role + at least one frontend role). If single-repo, stop with *"/stitch requires a multi-repo group; use `/codemap` for single repos"*.
+**For `/stitch` specifically:** the group MUST have **≥2 distinct codebases bound by a shared contract** — at least one contract/backend source role + at least one client role that must stay in sync with it. **Whether they live in separate git repos or one monorepo is irrelevant** — the load-bearing condition is "multiple codebases that drift apart," not "multiple repos." A monorepo's `contract/` → `ios/`+`android/`+`backend/` seam (the dual-native keystone — one OpenAPI/proto/GraphQL source feeding generated clients) is exactly the drift seam STITCH exists to document. Only stop when there's a **single undifferentiated codebase** with no such seam: *"/stitch needs ≥2 contract-bound codebases; this looks like one codebase — use `/codemap`."*
 
 ## Step 1: Resolve paths & output target
 
