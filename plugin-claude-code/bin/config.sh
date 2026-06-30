@@ -82,6 +82,7 @@ if [ -f "$KT_CONFIG" ]; then
   KT_AUTO_CAPTURE=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^auto_capture:' | sed 's/^auto_capture: *//')
   KT_ACTIVE_SURFACING=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^active_knowledge_surfacing:' | sed 's/^active_knowledge_surfacing: *//')
   KT_CRITICAL_PATHS=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^critical_paths:' | sed 's/^critical_paths: *//')
+  KT_PLANNING_PATHS=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^planning_paths:' | sed 's/^planning_paths: *//')
   KT_PROJECTS_ENABLED=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^projects_enabled:' | sed 's/^projects_enabled: *//')
   KT_PROJECTS_LIST=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^projects_list:' | sed 's/^projects_list: *//')
   KT_PROJECTS_REMOTES=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^projects_remotes:' | sed 's/^projects_remotes: *//')
@@ -147,6 +148,8 @@ if [ -f "$KT_CONFIG" ]; then
   KT_SUBAGENT_CAPTURE_TYPES=$(printf '%s' "$KT_SUBAGENT_CAPTURE_TYPES" | tr -d ' ')
   KT_SUBAGENT_SELFREPORT_TYPES=$(printf '%s' "$KT_SUBAGENT_SELFREPORT_TYPES" | tr -d ' ')
   # KT_CRITICAL_PATHS intentionally has no default — empty means no critical paths
+  # KT_PLANNING_PATHS intentionally has no default — empty means no user planning paths
+  #   (the hooks still apply their built-in planning globs, e.g. docs/specs, .claude/skills/*/templates)
   # KT_PROJECTS_LIST and KT_PROJECTS_REMOTES intentionally have no defaults — empty means "no projects configured"
 
   # Validate knowledge_folder is non-empty

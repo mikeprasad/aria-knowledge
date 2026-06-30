@@ -312,6 +312,7 @@ retrospect_min_commits: [integer, default 3]
 retrospect_branches: [comma-list, default main,master,production]
 usage_alert_threshold: [value from Step 6, default 80; or `off` to disable usage injection]
 critical_paths: [comma-separated patterns from Step 6, default empty]
+planning_paths: [comma-separated patterns from Step 6, default empty]
 ticketing_plugins: [comma-separated tag:plugin-command pairs from Step 6, default empty]
 projects_enabled: [true/false from Step 6, default false]
 projects_list: [comma-separated tag:path pairs from Step 6, default empty]
@@ -379,6 +380,7 @@ After writing the config file, read it back and verify that each value can be ex
    - `auto_prospect` / `auto_retrospect` — confirm each is `off`, `nudge`, or `run`
    - `usage_alert_threshold` — confirm it's `off` or a plain integer in 1–100 (matches Step 6 input; default 80). Any other value is reset to 80.
    - `critical_paths` — confirm it's a comma-separated string of path patterns (or empty)
+   - `planning_paths` — confirm it's a comma-separated string of path patterns (or empty)
    - `ticketing_plugins` — confirm it's a comma-separated string of `tag:plugin-command` pairs (or empty); validate no project tag contains `:` or `,`; validate plugin-command values do not start with `/`
    - `last_setup_version` — confirm it matches `INSTALLED_VERSION` captured in Step 1 (this run's plugin version); validate it's a semver-shaped string of digits and dots (no `v` prefix, no quotes, no trailing whitespace). If it's missing or doesn't match, rewrite the line and re-verify
    - `projects_enabled` — confirm it's `true` or `false`
@@ -386,7 +388,7 @@ After writing the config file, read it back and verify that each value can be ex
    - `projects_remotes` — confirm it's a comma-separated string of `tag:url-pattern` pairs (or empty); validate no project tag contains `:` or `,`
    - `projects_promotion_threshold` — confirm it's a plain integer ≥ 1 (matches Step 6 input)
    - `auto_load_project_context` — confirm it's `true` or `false`
-   - **Empty-sentinel check** — for string-valued keys with an empty default (`critical_paths`, `ticketing_plugins`, `projects_list`, `projects_remotes`): confirm the raw extracted value is not the literal string `null`, `""`, `none`, or `[]`. If the key is intended to be empty, the value after the colon must be truly empty (nothing or a single trailing space). Rewrite the key as `key:` and re-verify.
+   - **Empty-sentinel check** — for string-valued keys with an empty default (`critical_paths`, `planning_paths`, `ticketing_plugins`, `projects_list`, `projects_remotes`): confirm the raw extracted value is not the literal string `null`, `""`, `none`, or `[]`. If the key is intended to be empty, the value after the colon must be truly empty (nothing or a single trailing space). Rewrite the key as `key:` and re-verify.
 
 **Skill-only field validation (`projects_groups`)** — if the field is present in the config, run structural-only checks. Do not attempt to flatten or rewrite this field; it's parsed by skills, not bash, so the verification mirrors that consumer.
 

@@ -52,6 +52,7 @@ Hook-parsed fields run on every session start, every edit, every compaction — 
 | `auto_capture` | `true` \| `false` | true | pre-compact-check.sh, extract skill |
 | `active_knowledge_surfacing` | `true` \| `false` | true | session-start-check.sh, task-context-check.sh, bash-cd-check.sh, post-compact-check.sh, /prospect, /retrospect, /audit-config, /stats, /handoff, /wrapup (v2.16.1+ also gates CODEMAP+STITCH tracked-artifact loading) |
 | `critical_paths` | comma-separated patterns | empty | pre-edit-check.sh |
+| `planning_paths` | comma-separated patterns | empty | pre-edit-check.sh, post-edit-check.sh |
 | `ticketing_plugins` | `tag:command` pairs | empty | audit-knowledge skill |
 | `projects_enabled` | `true` \| `false` | false | session-start-check.sh, audit-knowledge skill |
 | `projects_list` | `tag:path` pairs | empty | session-start-check.sh, distill, stitch |

@@ -70,5 +70,6 @@ All settings are in `~/.claude/aria-knowledge.local.md`. Run `/setup` to change 
 - `audit_cadence_config` — days between config audit prompts (default: 14)
 - `auto_capture` — auto-capture insights at task boundaries and save transcript snapshots before compaction (default: true)
 - `critical_paths` — file patterns that always require full impact assessment (default: empty)
+- `planning_paths` — file patterns downgraded to the abbreviated `[Rule 22 · Planning]` marker (the inverse of `critical_paths`; a marker is still required, only the format is lighter; `critical_paths` wins any conflict) (default: empty)
 
 See [OVERVIEW.md](template/OVERVIEW.md) for the full design philosophy and [CONFIG.md](CONFIG.md) for the configuration schema reference.

@@ -2,6 +2,17 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.39.0 — 2026-06-30
+
+**New `planning_paths` config key — the inverse of `critical_paths` for the Rule 22 hooks.** Lets a user declare path patterns that downgrade an Edit/Write to the abbreviated `[Rule 22 · Planning]` marker (a marker is still required — only the format is lighter), the mirror of `critical_paths` (which *upgrades* to full assessment). Both edit hooks also gain a built-in scaffold glob `*/.claude/skills/*/templates/*` so skill scaffold templates auto-downgrade without configuration.
+
+- **`pre-edit-check.sh` + `post-edit-check.sh`** — parse `KT_PLANNING_PATHS` and downgrade matching paths to the abbreviated marker. **Protect always wins:** the planning loop runs after the critical-paths loop and the decision only honors planning when `IS_PROTECTED=false`, so a path that is both critical and planning correctly resolves to full assessment.
+- **`config.sh`** — parses the new `planning_paths:` frontmatter key (no default — empty means rely on the built-in scaffold glob only).
+- **Wiring** — surfaced in `/setup` (config-write template + validation + empty-sentinel check), documented in `CONFIG.md` + `QUICKSTART.md`; `/audit-config` Step 3b enumerates it automatically (parses `config.sh`).
+- **Tests** — new `tests/test-r22-planning-paths.sh` (10 assertions: built-in scaffold glob, user knob, protect-wins, no over-match on deliverable templates, both hooks); full suite **55 passed, 0 failed**.
+
+**Ports:** Claude-Code-canonical only (Bash hooks); codex/cursor/antigravity/cowork tracked-drift. Minor bump (new config-key capability every user inherits via `/setup` diff, per the v2.35.0 `autonomy`-key precedent).
+
 ## 2.38.1 — 2026-06-30
 
 **Behavioral Foundation framing — strictness tiers + a genuine-ties tie-breaker.** Two additive paragraphs in `template/rules/working-rules.md`'s Behavioral Foundation; no new numbered rule, no renumber, rule count unchanged. Makes explicit what the ruleset already enforced implicitly.
