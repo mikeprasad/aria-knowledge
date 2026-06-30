@@ -1,5 +1,5 @@
 ---
-description: "Install or remove the aria-knowledge status-line meter — a context-window progress bar plus the rolling 5-hour and 7-day plan-usage percentages, shown at the bottom of the Claude Code CLI. Use when the user says '/statusline', 'add a context meter', 'show context usage in the status line', 'show my 5-hour usage', 'usage meter', 'enable the status line', or 'turn off the status line meter'. Claude Code only (the status line is a Code feature). Triggers: '/statusline', '/statusline on', '/statusline off', '/statusline status'."
+description: "Install or remove the aria-knowledge status-line meter — a context-window progress bar plus the rolling 5-hour and 7-day plan-usage percentages, shown at the bottom of the Claude Code CLI. Use when the user says '/statusline', 'add a context meter', 'show context usage in the status line', 'show my 5-hour usage', 'usage meter', 'enable the status line', or 'turn off the status line meter'. Claude Code CLI only (the status line is a CLI feature; the desktop app shows its own native usage indicator). Triggers: '/statusline', '/statusline on', '/statusline off', '/statusline status'."
 argument-hint: "[on|off|status]"
 allowed-tools: Read, Write, Edit, Bash, Glob
 ---
@@ -29,7 +29,9 @@ A Claude Code plugin **cannot** register a `statusLine` from its manifest — th
 
 ## Runtime note
 
-This is a Claude Code feature. If the `Bash` tool is unavailable (you're in Cowork or another non-Code runtime), tell the user: *"The status-line meter is a Claude Code feature and can't be configured from this runtime."* and stop. Otherwise proceed.
+This is a Claude Code **CLI** feature — the meter only renders in the terminal CLI. If the `Bash` tool is unavailable (you're in Cowork or another non-Code runtime), tell the user: *"The status-line meter is a Claude Code feature and can't be configured from this runtime."* and stop. Otherwise proceed.
+
+**Desktop-app caveat:** the Claude Code desktop app has `Bash` but does **not** render this status line — it does not invoke the `statusLine` command and shows its own native usage indicator instead. So in a desktop session the wiring installs cleanly but the meter never appears in the desktop UI, and the usage snapshot (`aria-statusline-state-<accountUuid>.json`) is not refreshed by desktop renders. **Still install when asked** — the wiring is global, so the meter and snapshot work in the user's CLI sessions on the same machine. If you detect a desktop runtime (e.g. `CLAUDE_CODE_ENTRYPOINT=claude-desktop`), proceed with the install but mention that the meter shows in CLI sessions, not the desktop UI (where the app's built-in indicator covers it). (See `docs/non-goals.md` for why a desktop bridge is deferred.)
 
 ## Argument routing
 
