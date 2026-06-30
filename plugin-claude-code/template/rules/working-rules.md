@@ -30,6 +30,10 @@ The 37 rules below are the expanded, operationalized form. When in doubt, fall b
 
 **Why both layers exist.** The 4-line foundation is sufficient for one-off tasks and small projects. The 37 rules earn their keep when (a) work spans multiple sessions and needs persistent discipline, (b) failures have asymmetric cost and need explicit gating, or (c) team coordination requires shared, named conventions. Volume past four is justified by the operational context, not added for its own sake.
 
+**Two strictness tiers.** Not every rule binds with equal force. Some are **gates** — rigid, do not adapt them away under time pressure or a terse "just do it" (e.g. Rules 20, 22, 33, 34, 35; the verification and authorization rules). If a gate blocks you, surface that and resolve it — don't route around it. The rest are **defaults** — strong starting points where you apply judgment; deviate when the situation clearly warrants and say why. When unsure which tier a rule is, treat it as a gate.
+
+**Tie-breaker for genuine ties.** When two options are of genuinely equal merit, prefer the one that **preserves reversibility and an audit trail**. This breaks ties only — it is *not* a bias against irreversible choices. A clearly-correct irreversible option isn't a tie: surface it and get the go-ahead (the irreversible/asymmetric-cost path runs through Rule 35's authorization gate, not through this tie-breaker).
+
 -----
 
 ## Coding Rules

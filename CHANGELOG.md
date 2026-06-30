@@ -2,6 +2,15 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.38.1 — 2026-06-30
+
+**Behavioral Foundation framing — strictness tiers + a genuine-ties tie-breaker.** Two additive paragraphs in `template/rules/working-rules.md`'s Behavioral Foundation; no new numbered rule, no renumber, rule count unchanged. Makes explicit what the ruleset already enforced implicitly.
+
+- **Two strictness tiers.** Names the rigid-vs-default distinction the ruleset always carried but never stated: some rules are **gates** (don't adapt away under pressure — the verification/authorization rules, e.g. 20, 22, 33, 34, 35; surface a blocking gate, don't route around it); the rest are **defaults** (strong starting points, judgment applies, deviate-and-say-why). When unsure which, treat as a gate.
+- **Tie-breaker for genuine ties.** When two options are of equal merit, prefer the one that preserves reversibility and an audit trail. Explicitly *not* a bias against irreversible choices — a clearly-correct irreversible option isn't a tie; it runs through Rule 35's authorization gate (surface it, get the go-ahead), not through this tie-breaker.
+
+Distilled from `knowledge/approaches/portable-working-method.md` (the portable distillation of this ruleset). **Ports:** Claude-Code-canonical only; codex/cursor/antigravity/cowork stay tracked-drift (framing reaches them at the next template-sync parity pass). Pre-existing note: `plugin.json` description still reads "35 working rules" (actual 37 since v2.38.0) — unrelated stale count, left for a description-budget pass.
+
 ## 2.38.0 — 2026-06-29
 
 **Two new universal working-rules + two strengthened — synced to Claude Code + Cowork.** Distilled from `knowledge/approaches/mike-engineering-standards.md` via a gap-analysis against the enforced ruleset; only principle-level, domain-agnostic items were universalized.
