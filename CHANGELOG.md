@@ -2,6 +2,16 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.39.1 — 2026-07-03
+
+**`/auto` Step 5 — dispatch-grain principle: once you fan out, one agent per shared-context cluster, not per item.** A body-only paragraph added to Step 5 ("Subagents & fan-out"), composing with (not overriding) Step 5's existing inline-first *whether*-to-delegate default — it governs the *grain* once delegating.
+
+- The intuitive one-agent-per-item is usually the wrong default: it pays a **double cost** — redundant context re-loading (N agents re-derive the context their items share, spending the very context delegation meant to save) plus seam-blindness (a per-item agent can't see neighbor items → locally-reasonable, globally-wrong at the seams: divergent identifiers, missed cross-item constraints).
+- **Default grain = one agent per cluster of items sharing a context** (file neighborhood / repo / doc / domain), keyed on *what they share*, not *how many*.
+- Split to per-item **only** on one of three forces: **write-contention** (two agents can't edit one file set — serialize or split waves), **per-item auditability** (a clean per-task review gate a blended report would blur — code earns it, inline content usually doesn't), **context-ceiling** (cluster won't fit one agent's window with accuracy to spare).
+
+Distilled from `knowledge/approaches/parallel-subagent-orchestration.md`'s "Default grain" thesis + a pointer in `mike-engineering-standards.md` §6. **Body-only edit — Gate B skill-discovery budget unaffected.** Patch bump 2.39.0 → 2.39.1 (body/framing-only, per the v2.38.1 precedent). **Ports:** Claude-Code-canonical only; codex/cursor/antigravity/cowork tracked-drift (Step 5 reaches them at next parity pass).
+
 ## 2.39.0 — 2026-06-30
 
 **New `planning_paths` config key — the inverse of `critical_paths` for the Rule 22 hooks.** Lets a user declare path patterns that downgrade an Edit/Write to the abbreviated `[Rule 22 · Planning]` marker (a marker is still required — only the format is lighter), the mirror of `critical_paths` (which *upgrades* to full assessment). Both edit hooks also gain a built-in scaffold glob `*/.claude/skills/*/templates/*` so skill scaffold templates auto-downgrade without configuration.
