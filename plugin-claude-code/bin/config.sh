@@ -105,6 +105,9 @@ if [ -f "$KT_CONFIG" ]; then
   KT_RETROSPECT_MIN_COMMITS=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^retrospect_min_commits:' | sed 's/^retrospect_min_commits: *//')
   KT_RETROSPECT_BRANCHES=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^retrospect_branches:' | sed 's/^retrospect_branches: *//')
   KT_USAGE_ALERT_THRESHOLD=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^usage_alert_threshold:' | sed 's/^usage_alert_threshold: *//')
+  KT_STYLE_LOOKBACK_DAYS=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^style_lookback_days:' | sed 's/^style_lookback_days: *//')
+  KT_STYLE_MAX_SESSIONS=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^style_max_sessions:' | sed 's/^style_max_sessions: *//')
+  KT_STYLE_AUDIT_LOG=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^style_audit_log:' | sed 's/^style_audit_log: *//')
 
   # Defaults if not set
   KT_CADENCE_KNOWLEDGE=${KT_CADENCE_KNOWLEDGE:-7}
