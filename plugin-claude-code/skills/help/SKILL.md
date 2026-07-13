@@ -39,8 +39,10 @@ If `Bash` is available, proceed to Step 0.
 |---------|-------------|
 | /setup | Configure knowledge folder, audit cadences, and plugin settings |
 | /extract | Capture insights, decisions, and feedback from the current conversation |
+| /audit [knowledge\|config\|style\|all] | Umbrella audit dispatcher — routes to the sub-audit named, or runs all in sequence with no arg |
 | /audit-knowledge (alias: /knowledge-audit) | Review backlogs, promote to knowledge files, rebuild index |
 | /audit-config (alias: /config-audit) | Check project configs and docs for drift and broken references |
+| /audit style | Log-mining audit over session transcripts for recurring friction patterns (opt-in — not part of routine cadence) |
 | /audit-share | Promote personal knowledge to the team-shared `_project-knowledge/` tier |
 | /prospect [plan/session/todos/file/linear/branch] | Forward-looking pre-mortem on a plan before any code — per-step risk verdicts (PROCEED/SHRINK/SPLIT/DEFER/KILL), evidence-sourcing pass, simpler-alternative discipline |
 | /retrospect [--range/--pr/--session/--commit] | Structured retrospective on a shipped commit range — per-fix validation, simpler-alternative discipline, re-diagnosis, action verdicts, failure-mode pattern check |

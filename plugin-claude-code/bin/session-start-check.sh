@@ -143,16 +143,16 @@ fi
 # Compose prompt — entry-tier message takes precedence; day-context appended if both fired.
 if [ -n "$KA_COUNT_MSG" ]; then
   if [ "$KA_DAYS_FIRED" = "true" ]; then
-    MESSAGES="${MESSAGES}${KA_COUNT_MSG}(trigger: count=${BACKLOG_COUNT} threshold=${KT_AUDIT_TRIGGER_THRESHOLD}; also ${DAYS_SINCE_KA}d since last audit) Run /audit-knowledge? "
+    MESSAGES="${MESSAGES}${KA_COUNT_MSG}(trigger: count=${BACKLOG_COUNT} threshold=${KT_AUDIT_TRIGGER_THRESHOLD}; also ${DAYS_SINCE_KA}d since last audit) Run /audit knowledge? (or /audit-knowledge, or /audit for all) "
   else
-    MESSAGES="${MESSAGES}${KA_COUNT_MSG}(trigger: count=${BACKLOG_COUNT} threshold=${KT_AUDIT_TRIGGER_THRESHOLD}) Run /audit-knowledge? "
+    MESSAGES="${MESSAGES}${KA_COUNT_MSG}(trigger: count=${BACKLOG_COUNT} threshold=${KT_AUDIT_TRIGGER_THRESHOLD}) Run /audit knowledge? (or /audit-knowledge, or /audit for all) "
   fi
 elif [ "$KA_DAYS_FIRED" = "true" ]; then
-  MESSAGES="${MESSAGES}Knowledge audit due — ${DAYS_SINCE_KA} days since last audit. (trigger: days=${DAYS_SINCE_KA} threshold=${KT_CADENCE_KNOWLEDGE}; backlog=${BACKLOG_COUNT}) Run /audit-knowledge? "
+  MESSAGES="${MESSAGES}Knowledge audit due — ${DAYS_SINCE_KA} days since last audit. (trigger: days=${DAYS_SINCE_KA} threshold=${KT_CADENCE_KNOWLEDGE}; backlog=${BACKLOG_COUNT}) Run /audit knowledge? (or /audit-knowledge, or /audit for all) "
 fi
 
 if [ "$KA_DUE" = "true" ]; then
-  MESSAGES="${MESSAGES}No previous Knowledge Audit found. Run /audit-knowledge? "
+  MESSAGES="${MESSAGES}No previous Knowledge Audit found. Run /audit knowledge? (or /audit-knowledge, or /audit for all) "
 fi
 
 # Check config audit cadence
@@ -164,7 +164,7 @@ if [ -f "$CONFIG_LOG" ]; then
     if [ -n "$LAST_CA_EPOCH" ]; then
       DAYS_SINCE_CA=$(( (TODAY_EPOCH - LAST_CA_EPOCH) / 86400 ))
       if [ "$DAYS_SINCE_CA" -ge "$KT_CADENCE_CONFIG" ]; then
-        MESSAGES="${MESSAGES}Config audit due (${DAYS_SINCE_CA} days). Run /audit-config? "
+        MESSAGES="${MESSAGES}Config audit due (${DAYS_SINCE_CA} days). Run /audit config? (or /audit-config, or /audit for all) "
       fi
     else
       CA_DUE=true
@@ -176,7 +176,7 @@ else
   CA_DUE=true
 fi
 if [ "$CA_DUE" = "true" ]; then
-  MESSAGES="${MESSAGES}No previous Config Audit found. Run /audit-config? "
+  MESSAGES="${MESSAGES}No previous Config Audit found. Run /audit config? (or /audit-config, or /audit for all) "
 fi
 
 # Check for plugin version upgrade — version-mismatch takes precedence over cadence.
