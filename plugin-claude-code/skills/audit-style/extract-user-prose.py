@@ -22,7 +22,7 @@ NOISE_MARKERS = ("<local-command", "<command-name>", "<command-args>",
                  "<local-command-stdout>", "<local-command-caveat>")
 # Stage-3 system-injection preambles (not the user's voice).
 INJECT_PREFIXES = ("Base directory for this skill:", "Caveat:",
-                   "<system-reminder>", "Resume ")
+                   "<system-reminder>")
 
 def redact(text):
     for pat, repl in REDACTIONS:
@@ -53,6 +53,11 @@ def is_noise(text):
     if any(m in t for m in NOISE_MARKERS):          # stage 2
         return True
     if any(t.startswith(p) for p in INJECT_PREFIXES):  # stage 3
+        return True
+    # stage 3b: /handoff resume scaffold, possibly preceded by a short label line
+    # (e.g. "cs\n  Resume Commonspace from ..."), so check the first 2 lines, not
+    # only an absolute string start.
+    if any(ln.strip().startswith("Resume ") for ln in t.splitlines()[:2]):
         return True
     if t.startswith("/"):                            # stage 4: bare slash-command
         return True

@@ -2,3 +2,4 @@
 {"type":"user","message":{"role":"user","content":"<local-command-stdout>Set model to Opus</local-command-stdout>"},"sessionId":"c","timestamp":"2026-05-09T09:01:00Z"}
 {"type":"user","message":{"role":"user","content":[{"type":"text","text":"my key is sk-ABC123SECRETVALUE do not leak it"}]},"sessionId":"c","timestamp":"2026-05-09T09:02:00Z"}
 {"type":"user","message":{"role":"user","content":[{"type":"tool_result","content":"file contents here"}]},"sessionId":"c","timestamp":"2026-05-09T09:03:00Z"}
+{"type":"user","message":{"role":"user","content":"cs\n  Resume Commonspace from 2026-07-13 owner-analytics planning handoff."},"sessionId":"d","timestamp":"2026-07-13T09:00:00Z"}

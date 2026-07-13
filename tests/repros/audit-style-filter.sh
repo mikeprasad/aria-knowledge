@@ -30,6 +30,8 @@ echo "$N" | grep -qi "Set model to Opus" && bad "B stdout" "stdout echo leaked" 
 echo "$N" | grep -qi "file contents here" && bad "B toolresult" "tool_result leaked" || ok "B drops tool_result"
 # B4 (REDACTION): the secret value never appears in output, even though the sentence is prose
 echo "$N" | grep -q "sk-ABC123SECRETVALUE" && bad "B redact" "secret survived to output" || ok "B redacts secret"
+# B5: /handoff resume scaffold ("cs\n  Resume Commonspace...") dropped even with a leading label line
+echo "$N" | grep -qi "Resume Commonspace" && bad "B resume-scaffold" "resume scaffold leaked" || ok "B drops resume scaffold"
 
 printf "\n%d passed, %d failed\n" "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
