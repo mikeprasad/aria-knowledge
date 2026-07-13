@@ -205,6 +205,9 @@ The summary line precedes the bundle text. If the user later questions "did the 
 > - **Auto-retrospect (`auto_retrospect`):** off (when `nudge` [recommended], a `git push` of ≥`retrospect_min_commits` commits to a branch in `retrospect_branches` prompts an offer to run `/retrospect range <old>..<new>`; `run` runs it inline — note the post-push session is not disposable, so `run` adds real cost. Gates: `retrospect_min_commits` default 3, `retrospect_branches` default `main,master,production`.)
 > - **Usage alert threshold (`usage_alert_threshold`):** 80 (the percentage at which the status-line meter's `UserPromptSubmit` hook injects a usage warning into Claude's context when context-window, 5-hour, or 7-day usage crosses it — fires once per 5-point band, escalates, rearms after a drop). Only active when the status-line meter is installed (Step 5b). Set `off` to disable injection — Claude still reads usage on demand from the snapshot. Valid range 1–100.
 > - **Critical paths:** (empty) comma-separated path patterns that always require HIGH impact assessment (e.g., auth/*,payments/*,migrations/*)
+> - **Style-audit lookback (`style_lookback_days`):** 90 (on `/audit style`'s first-ever run, how many days of session-log history to window the initial scan to. Later runs resume incrementally from the style-audit log's last stamp, so this only matters cold-start or after a `window <D>` override. Change later via `style_lookback_days` in `~/.claude/aria-knowledge.local.md`.)
+> - **Style-audit session cap (`style_max_sessions`):** 50 (the over-cap gate `/audit style` Step 1b stops at before scanning — exceeding it prompts `recent`/`all`/`window <D>`/`cancel` rather than silently truncating. Change later via `style_max_sessions`.)
+> - **Style-audit log path (`style_audit_log`):** `{knowledge_folder}/logs/style-audit-log.md` (where `/audit style` stamps its incremental scan boundary after each run. Change later via `style_audit_log`.)
 > - **Ticketing plugins:** (empty) comma-separated `tag:plugin-command` pairs mapping a project tag to its ticket-drafting plugin (e.g., `proj-a:foo-ticket,proj-b:bar-ticket`). When set, `/audit-knowledge` prints a hint to use that plugin's command when an idea's project matches a mapped tag during the `Accept → tracker` disposition. Hint only — never auto-invokes. Leave empty if you don't use a ticketing plugin or prefer to copy ideas into your tracker manually. Plugin commands are bare names — no leading `/`. Validate input: each pair must contain exactly one `:` separating tag from command; project tags cannot contain `:` or `,`; plugin commands cannot start with `/` (strip leading `/` and warn if found).
 > - **Project-specific knowledge tier:** disabled (creates `projects/{tag}/` subdirectories for project-specific decisions and patterns; opt in if you want to organize knowledge by project alongside the cross-project tree. If enabled, you'll be asked an inline follow-up about auto-loading project context on session start.)
 >
@@ -313,6 +316,9 @@ retrospect_branches: [comma-list, default main,master,production]
 usage_alert_threshold: [value from Step 6, default 80; or `off` to disable usage injection]
 critical_paths: [comma-separated patterns from Step 6, default empty]
 planning_paths: [comma-separated patterns from Step 6, default empty]
+style_lookback_days: [integer from Step 6, default 90]
+style_max_sessions: [integer from Step 6, default 50]
+style_audit_log: [path from Step 6, default {knowledge_folder}/logs/style-audit-log.md]
 ticketing_plugins: [comma-separated tag:plugin-command pairs from Step 6, default empty]
 projects_enabled: [true/false from Step 6, default false]
 projects_list: [comma-separated tag:path pairs from Step 6, default empty]
@@ -381,6 +387,9 @@ After writing the config file, read it back and verify that each value can be ex
    - `usage_alert_threshold` — confirm it's `off` or a plain integer in 1–100 (matches Step 6 input; default 80). Any other value is reset to 80.
    - `critical_paths` — confirm it's a comma-separated string of path patterns (or empty)
    - `planning_paths` — confirm it's a comma-separated string of path patterns (or empty)
+   - `style_lookback_days` — confirm it's the integer from Step 6 (default 90)
+   - `style_max_sessions` — confirm it's the integer from Step 6 (default 50)
+   - `style_audit_log` — confirm it's a path string (default `{knowledge_folder}/logs/style-audit-log.md`, with `{knowledge_folder}` resolved to the actual configured path)
    - `ticketing_plugins` — confirm it's a comma-separated string of `tag:plugin-command` pairs (or empty); validate no project tag contains `:` or `,`; validate plugin-command values do not start with `/`
    - `last_setup_version` — confirm it matches `INSTALLED_VERSION` captured in Step 1 (this run's plugin version); validate it's a semver-shaped string of digits and dots (no `v` prefix, no quotes, no trailing whitespace). If it's missing or doesn't match, rewrite the line and re-verify
    - `projects_enabled` — confirm it's `true` or `false`

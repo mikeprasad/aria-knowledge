@@ -72,4 +72,6 @@ All settings are in `~/.claude/aria-knowledge.local.md`. Run `/setup` to change 
 - `critical_paths` — file patterns that always require full impact assessment (default: empty)
 - `planning_paths` — file patterns downgraded to the abbreviated `[Rule 22 · Planning]` marker (the inverse of `critical_paths`; a marker is still required, only the format is lighter; `critical_paths` wins any conflict) (default: empty)
 
+`/audit style` mines session history for working-style rules (opt-in; tune via `style_lookback_days` / `style_max_sessions`).
+
 See [OVERVIEW.md](template/OVERVIEW.md) for the full design philosophy and [CONFIG.md](CONFIG.md) for the configuration schema reference.

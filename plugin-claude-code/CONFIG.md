@@ -69,6 +69,9 @@ Hook-parsed fields run on every session start, every edit, every compaction — 
 | `retrospect_min_commits` | integer | 3 | post-push-retrospect-check.sh |
 | `retrospect_branches` | comma-separated branch names | `main,master,production` | post-push-retrospect-check.sh |
 | `usage_alert_threshold` | integer 1–100 \| `off` | 80 | usage-threshold-inject.sh |
+| `style_lookback_days` | integer (days) | 90 | audit-style skill |
+| `style_max_sessions` | integer (sessions) | 50 | audit-style skill |
+| `style_audit_log` | absolute path | `{knowledge_folder}/logs/style-audit-log.md` | audit-style skill |
 
 ### Format rules (hook-parsed fields)
 

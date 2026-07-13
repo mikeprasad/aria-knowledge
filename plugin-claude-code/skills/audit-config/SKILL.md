@@ -142,7 +142,7 @@ After 3a's pattern-based drift checks, run a structural check for config-schema 
    KT_FIELDNAME=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^fieldname:' | sed 's/^fieldname: *//')
    ```
 
-   Extract `fieldname` from each `grep '^FIELDNAME:'` literal. These are the canonical fields the user's config should contain.
+   Extract `fieldname` from each `grep '^FIELDNAME:'` literal. These are the canonical fields the user's config should contain. This enumeration is derived from `config.sh` at audit time, not a hardcoded list here — so it self-updates as new fields are added. For example, `style_lookback_days`, `style_max_sessions`, and `style_audit_log` (the `/audit style` sub-audit's tuning keys — default 90 days / 50 sessions / `{knowledge_folder}/logs/style-audit-log.md`) are already parsed in this shape, so a config missing any of them is flagged by this cascade without any change to this file.
 
 2. For each known field, grep `~/.claude/aria-knowledge.local.md` for `^{fieldname}:`. Zero hits → missing.
 

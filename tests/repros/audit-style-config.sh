@@ -22,5 +22,13 @@ if [ -f "$SKILL" ]; then
 else
   ok "skill-body default assertions deferred (audit-style/SKILL.md not yet written — Task 4)"
 fi
+SETUP="$REPO_ROOT/plugin-claude-code/skills/setup/SKILL.md"
+CONFIGMD="$REPO_ROOT/plugin-claude-code/CONFIG.md"
+AC="$REPO_ROOT/plugin-claude-code/skills/audit-config/SKILL.md"
+for key in style_lookback_days style_max_sessions style_audit_log; do
+  grep -qF "$key" "$SETUP"   && ok "setup documents $key"       || bad "setup $key" "missing in setup"
+  grep -qF "$key" "$CONFIGMD" && ok "CONFIG.md documents $key"  || bad "config.md $key" "missing in CONFIG.md"
+  grep -qF "$key" "$AC"      && ok "audit-config knows $key"     || bad "audit-config $key" "missing in Step 3b known-fields"
+done
 printf "\n%d passed, %d failed\n" "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
