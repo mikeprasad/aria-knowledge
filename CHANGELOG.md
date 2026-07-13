@@ -2,6 +2,16 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.40.0 — 2026-07-14
+
+**New `/audit` dispatcher + new `/audit style` log-mining sub-audit.** Ports two ditto ideas: revealed-preference mining (mine your own past session-log corpus for working-style rules you've already proven through action, not rules you're asked to invent) and a fail-closed dated-receipts gate (a candidate rule ships only with ≥2 distinct sessions of dated verbatim quotes — no receipts, no ship).
+
+- **`/audit`** — a thin umbrella dispatcher over the audit family. Does no scanning itself; routes to the three sub-audits (`knowledge`, `config`, `style`) by argument or menu. `/audit knowledge|config|style|all` skips the menu.
+- **`/audit style`** — mines `~/.claude/projects/{cwd-encoded}/*.jsonl` via Bash + a bundled `extract-user-prose.py` for revealed working-style rules (definition of done, rejection criteria, debugging approach, design taste, writing voice). Evidence-gated at every step: a candidate that can't show its receipts (≥2 dated verbatim-quote sessions) does not ship, no matter how plausible. Stages surviving candidates to the rules backlog for normal audit review. Opt-in.
+- Both carry the standard ADR-094 Runtime Gate (Bash-availability fingerprint; Cowork-native variants are `/aria-cowork:audit` and `/aria-cowork:audit-style`).
+
+**Ports:** Claude-Code-canonical only this round; codex/cursor/antigravity/cowork tracked-drift (both ideas reach them at the next parity pass). Minor bump (new-capability skill surface, per the v2.35.0/v2.37.0 precedent).
+
 ## 2.39.1 — 2026-07-03
 
 **`/auto` Step 5 — dispatch-grain principle: once you fan out, one agent per shared-context cluster, not per item.** A body-only paragraph added to Step 5 ("Subagents & fan-out"), composing with (not overriding) Step 5's existing inline-first *whether*-to-delegate default — it governs the *grain* once delegating.
