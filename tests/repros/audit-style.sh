@@ -35,5 +35,13 @@ grep -qiE 'preview|nothing written yet|dry-?run' "$SK" && ok "preview-first docu
 grep -qiE 'opt-in|never.*(cadence|SessionStart)|explicit' "$SK" && ok "opt-in documented" || bad "opt-in" "not stated"
 # H: Rule 36 mutation marker — the gate is documented such that its removal is detectable
 grep -qiE 'Rule 36|fail for the right reason|removing the .*(gate|guard)' "$SK" && ok "Rule 36 guard referenced" || bad "rule36" "no fail-for-right-reason note"
+# I: Step 5 is a FIXED-STRUCTURE report (not a collapsible one-liner)
+grep -qiE 'fixed-structure|emit every subsection|emit-all' "$SK" && ok "I fixed-structure emit-all directive present" || bad "I emit-all" "no anti-collapse directive in Step 5"
+# I2: the three distinguishable zero-states are documented (schema-drift != no-signal != thin-window)
+grep -qiE 'three (distinguishable )?zero-state|distinguishable zero-state' "$SK" && ok "I zero-states named" || bad "I zero-states" "three zero-states not documented"
+grep -qiE 'schema-drift.*NOT.*no signal|NOT .no signal.|extractor broke' "$SK" && ok "I schema-drift != no-signal distinguished" || bad "I drift" "drift-vs-no-signal not distinguished"
+# I3: report surfaces passing candidates WITH receipts + a drop-reason breakdown (not just a total)
+grep -qiE 'Passed the receipts gate|distinct sessions\]' "$SK" && ok "I passing candidates + receipts in report" || bad "I passed" "report doesn't render passing candidates+receipts"
+grep -qiE 'Dropped.*by reason|by reason' "$SK" && ok "I drop-reason breakdown present" || bad "I drops" "no per-reason drop breakdown"
 printf "\n%d passed, %d failed\n" "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

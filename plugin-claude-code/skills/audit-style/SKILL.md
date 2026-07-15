@@ -132,9 +132,43 @@ For every candidate that survives Step 3's gate, redact each surviving quote bef
 
 This preview gate exists because the receipts gate (Step 3) is necessarily judgment-laden at the margins (e.g. whether two quotes are "genuinely" the same recurring pattern) — a first run should let the user sanity-check the skill's calibration before it starts writing autonomously on subsequent runs.
 
+**The preview uses the same fixed structure as the Step 5 report below** (Scan / Passed-candidates-with-receipts / Dropped-breakdown), minus the "written to rules-backlog" confirmation line — so the `y`/`n` decision is made against exactly the content that will be written.
+
 ## Step 5: Report + Hand Off
 
-Report a one-line summary: `N mined, M passed, K dropped` — where `N` is the total candidate rules drafted in Step 2, `M` is how many survived the Step 3 gate (and Step 4's redaction) and were written to `rules-backlog.md`, and `K = N - M` is how many were dropped (with a brief one-line reason bucket, e.g. "K dropped: single-session evidence").
+**Output policy (emit-all — this is a fixed-structure report):** `/audit style` is a fixed-structure skill, not a one-liner — a zero count carries information here, and the three zero-states below are *distinct signals the user must be able to tell apart*. Emit every subsection defined below on every run, including its explicit zero-state line when it has no content. Do NOT collapse or omit an empty subsection; a silent omission is indistinguishable from "the skill didn't run that check," which defeats the report's purpose.
+
+Render this exact structure:
+
+```
+## /audit style — <window> (<J> sessions, <T> tokens scanned)
+
+### Passed the receipts gate → staged to rules-backlog.md  (M)
+- **<rule statement>**  [<D> distinct sessions]
+    - [<session-8> <date>] "<redacted verbatim quote>"
+    - [<session-8> <date>] "<redacted verbatim quote>"
+  (repeat per passing candidate)
+  — zero-state: "0 candidates passed — nothing staged this run."
+
+### Dropped  (K)  — by reason
+- single-session evidence: <n>
+- no verbatim quote available: <n>
+- unredactable secret in only receipt(s): <n>
+- source-rejected (command/CLAUDE.md/MEMORY/feedback_*): <n>
+  — zero-state: "0 dropped."
+
+### Scan health
+- Sessions scanned: <J> of <total-eligible>   (over-cap choice, if any: <recent|all|window N>)
+- Extractor: <clean | schema-drift on P file(s): list them>   ← if P>0 this is NOT "no signal"; the extractor broke (Step 1 fail-loud) and those files were skipped
+- Candidates drafted (Step 2): <N>   ·   Mined prose messages: <total>
+```
+
+**The three distinguishable zero-states** (never conflate them — each has a different user action):
+1. **`0 passed` but candidates drafted + extractor clean** → the gate did its job; evidence was genuinely too thin this window. Action: none, or widen with `/audit style all`.
+2. **`0 passed` because extractor hit schema-drift** → the tool broke, NOT "no signal." Surface the drifted files loudly (Step 1); the log boundary must NOT advance for them. Action: fix the extractor/filter.
+3. **`0 mined` / very few sessions scanned** → window too thin. Action: re-run with a wider `window`/`all`.
+
+Keep it tight — receipts are the substance, prose around them stays minimal. But every subsection and its counts must appear.
 
 **Stamp `{knowledge_folder}/logs/style-audit-log.md`** (or the `KT_STYLE_AUDIT_LOG` path if configured) with the timestamp of this run and the session-id range covered, so the next run's Step 0 can resume incrementally from this boundary.
 
