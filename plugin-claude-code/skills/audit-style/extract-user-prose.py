@@ -18,11 +18,17 @@ REDACTIONS = [
     (re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b"), "[REDACTED-IP]"),
 ]
 # Stage-2 wrapper markers (system/command noise wearing a role:user coat).
+# Substring match — these can appear anywhere in a role:user message. `<task-notification`
+# is matched on its opening-tag prefix so it still catches the block even when the redactor
+# mangles the full word (e.g. "<ta[REDACTED-KEY]>") — the "<task-notification" opener
+# survives long enough to match. Added after a live /audit style run on a subagent-heavy
+# session leaked background task-notification blocks as if they were authored prose.
 NOISE_MARKERS = ("<local-command", "<command-name>", "<command-args>",
-                 "<local-command-stdout>", "<local-command-caveat>")
+                 "<local-command-stdout>", "<local-command-caveat>",
+                 "<task-notification", "<tool-use-id>", "<task-id>")
 # Stage-3 system-injection preambles (not the user's voice).
 INJECT_PREFIXES = ("Base directory for this skill:", "Caveat:",
-                   "<system-reminder>")
+                   "<system-reminder>", "[SYSTEM NOTIFICATION")
 
 def redact(text):
     for pat, repl in REDACTIONS:

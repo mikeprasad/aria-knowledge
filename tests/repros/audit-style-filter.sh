@@ -32,6 +32,10 @@ echo "$N" | grep -qi "file contents here" && bad "B toolresult" "tool_result lea
 echo "$N" | grep -q "sk-ABC123SECRETVALUE" && bad "B redact" "secret survived to output" || ok "B redacts secret"
 # B5: /handoff resume scaffold ("cs\n  Resume Commonspace...") dropped even with a leading label line
 echo "$N" | grep -qi "Resume Commonspace" && bad "B resume-scaffold" "resume scaffold leaked" || ok "B drops resume scaffold"
+# B6: background <task-notification> system blocks dropped (live-surfaced on a subagent-heavy session)
+echo "$N" | grep -qi "task-notification\|chunk-99" && bad "B task-notif" "task-notification block leaked" || ok "B drops task-notification block"
+# B7: [SYSTEM NOTIFICATION - NOT USER INPUT] preamble dropped
+echo "$N" | grep -qi "SYSTEM NOTIFICATION" && bad "B sysnotif" "system-notification preamble leaked" || ok "B drops system-notification preamble"
 
 printf "\n%d passed, %d failed\n" "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

@@ -66,5 +66,10 @@ for d in keep promote specify cancel; do
   grep -qiF "$d" "$SK" && ok "K disposition: $d" || bad "K $d" "disposition option not documented"
 done
 grep -qiE 'default.*never writes .?feedback_|keep.*default|Enter.*keep' "$SK" && ok "K keep-is-default, no feedback write" || bad "K default" "default disposition not keep/no-feedback-write"
+
+# L: efficiency mechanisms (live-validated this session)
+grep -qiE 'agent-.*prefix|Skip subagent sessions|subagent worker transcript' "$SK" && ok "L subagent-skip pre-filter documented" || bad "L skip" "no agent-* subagent skip"
+grep -qiE 'prior external mine|Reuse a prior.*mine|reused .*prior-mined|delta' "$SK" && ok "L prior-mine reuse + delta documented" || bad "L reuse" "no prior-mine reuse / delta-only mining"
+grep -qiE 'BEFORE the count in Step 1b|runs BEFORE' "$SK" && ok "L skip runs before over-cap count" || bad "L order" "skip-before-count ordering not stated"
 printf "\n%d passed, %d failed\n" "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
