@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import importlib.util
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -169,7 +170,11 @@ def test_rule35_and_reference_sources_template_are_synced() -> None:
 
 def test_manifest_and_hook_commands_use_codex_plugin_root() -> None:
     manifest = json.loads(read(PORT_ROOT / ".codex-plugin" / "plugin.json"))
-    assert manifest["version"] == "2.35.2-codex.0"
+    # Assert the version SHAPE, not a frozen literal — a hardcoded value goes stale on
+    # every canonical parity bump (it did: this pinned "2.35.2-codex.0" while the manifest
+    # advanced to 2.36.0-codex.0, failing the whole test on the first line). The port
+    # contract is: canonical "X.Y.Z" + the "-codex.N" prerelease suffix.
+    assert re.fullmatch(r"\d+\.\d+\.\d+-codex\.\d+", manifest["version"]), manifest["version"]
     assert manifest["hooks"] == "./hooks.json"
     assert manifest["mcpServers"] == "./.mcp.json"
 
