@@ -119,59 +119,97 @@ For every candidate that survives Step 3's gate, redact each surviving quote bef
 
 **If a quote cannot be safely redacted** (e.g. the secret-shaped content is structurally entangled with the sentence such that redaction would either leave a recoverable fragment or destroy the quote's meaning entirely), **drop that quote** rather than writing it in a partially-redacted or risky state. If dropping the unsafe quote causes the candidate to fall below the Step 3 receipts bar, the candidate is dropped too (redaction failure cascades through the same fail-closed logic as an evidence failure).
 
-**Append survivors to `{knowledge_folder}/intake/rules-backlog.md`**, following the same entry shape `/audit-knowledge` already expects for rule candidates (`### YYYY-MM-DD — {title}` block below the `---` separator), with the candidate's rule statement plus its inline dated receipts (session + date + redacted verbatim quote, for each supporting quote). This is the **only** knowledge-folder file this skill writes to for candidate content.
+Redaction happens here so the report, the card, and any write all use the redacted quotes. **No file is written in this step** — where the survivors go (staged to `rules-backlog.md`, promoted to `feedback_*.md`, or nothing) is the user's choice at the Step 6 disposition gate, made against the full report + card. The redacted survivors are simply held for Steps 5–6.
 
-**This skill NEVER writes to any `feedback_*.md` file, directly or indirectly.** `feedback_*.md` is user-memory content, and promotion into user memory is a human-gated decision that happens later, during `/audit-knowledge`'s existing `rule` disposition review (see Step 5). `/audit style`'s entire write surface for candidates is the append to `rules-backlog.md`; it stages, it does not promote.
+**The write surface is fixed regardless of disposition:** staged survivors go to `{knowledge_folder}/intake/rules-backlog.md` (the `### YYYY-MM-DD — {title}` block below the `---` separator, rule statement + inline dated redacted receipts — the shape `/audit-knowledge` already expects). Promotion to `feedback_*.md` (or `rules/user-rules.md`) happens ONLY on the explicit promote-now disposition, and even then follows `/audit-knowledge`'s three-target logic. **The default disposition never writes `feedback_*.md`** — that stays a human-gated decision.
 
-## Step 4b: Preview-First
+## Step 5: Report (the report IS the preview — nothing is written yet)
 
-**On the first-ever run of this skill** (no prior `KT_STYLE_AUDIT_LOG` entry exists), or whenever a run produces more than a small handful of new candidates, do not write anything yet. Instead, **show the candidates and their receipts** — the full list of survivors from Step 3/4, each with its rule statement and its redacted dated quotes — and wait for an explicit `y`/`n` from the user before appending anything to `rules-backlog.md`.
+Render the full report below to the user. **No file has been written at this point** — this report, together with the Working Style card, is what the Step 6 disposition decision is made against. This replaces the old separate preview gate: the report shows exactly what *would* be staged/promoted, so the user decides against the real content.
 
-- **`y`** — proceed to write the survivors to `rules-backlog.md` and stamp the audit log (Step 5).
-- **`n`** or no response — write nothing; report what would have been written, and do not advance the incremental boundary in the style-audit log (so the same sessions are eligible for mining again on the next run, rather than being silently skipped).
+**Output policy (emit-all — this is a fixed-structure report):** `/audit style` is a fixed-structure skill, not a one-liner — a zero count carries information, and the zero-states below are *distinct signals the user must be able to tell apart*. Emit every subsection defined below on every run, including its explicit zero-state line when it has no content. Do NOT collapse or omit an empty subsection; a silent omission is indistinguishable from "the skill didn't run that check."
 
-This preview gate exists because the receipts gate (Step 3) is necessarily judgment-laden at the margins (e.g. whether two quotes are "genuinely" the same recurring pattern) — a first run should let the user sanity-check the skill's calibration before it starts writing autonomously on subsequent runs.
+### Part A — Every rule, stated individually with reasoning
 
-**The preview uses the same fixed structure as the Step 5 report below** (Scan / Passed-candidates-with-receipts / Dropped-breakdown), minus the "written to rules-backlog" confirmation line — so the `y`/`n` decision is made against exactly the content that will be written.
-
-## Step 5: Report + Hand Off
-
-**Output policy (emit-all — this is a fixed-structure report):** `/audit style` is a fixed-structure skill, not a one-liner — a zero count carries information here, and the three zero-states below are *distinct signals the user must be able to tell apart*. Emit every subsection defined below on every run, including its explicit zero-state line when it has no content. Do NOT collapse or omit an empty subsection; a silent omission is indistinguishable from "the skill didn't run that check," which defeats the report's purpose.
-
-Render this exact structure:
+Both passed and dropped candidates are stated in full — never collapse the dropped set into per-reason counts alone. Each dropped rule gets its own line with its specific reason.
 
 ```
-## /audit style — <window> (<J> sessions, <T> tokens scanned)
+## /audit style — <window>
 
-### Passed the receipts gate → staged to rules-backlog.md  (M)
-- **<rule statement>**  [<D> distinct sessions]
+### ✅ Passed the receipts gate  (M)
+- **<rule statement>**  [<D> distinct sessions · confidence: <high|medium>]
+    - why it passed: <one line — the recurring pattern the ≥2 sessions share>
     - [<session-8> <date>] "<redacted verbatim quote>"
     - [<session-8> <date>] "<redacted verbatim quote>"
-  (repeat per passing candidate)
-  — zero-state: "0 candidates passed — nothing staged this run."
+  (repeat per passing candidate — NOT capped at 3; state all M)
+  — zero-state: "0 passed — nothing eligible to stage this run."
 
-### Dropped  (K)  — by reason
-- single-session evidence: <n>
-- no verbatim quote available: <n>
-- unredactable secret in only receipt(s): <n>
-- source-rejected (command/CLAUDE.md/MEMORY/feedback_*): <n>
+### ✗ Dropped  (K)  — each rule + why
+- **<candidate rule statement>** — dropped: <specific reason: single-session (only session X) | no verbatim quote | unredactable secret in only receipt | source-rejected (its evidence traced to a /command|CLAUDE.md|MEMORY|feedback_*)>
+  (repeat per dropped candidate — state the RULE and its REASON, not just a count bucket)
   — zero-state: "0 dropped."
 
 ### Scan health
 - Sessions scanned: <J> of <total-eligible>   (over-cap choice, if any: <recent|all|window N>)
 - Extractor: <clean | schema-drift on P file(s): list them>   ← if P>0 this is NOT "no signal"; the extractor broke (Step 1 fail-loud) and those files were skipped
 - Candidates drafted (Step 2): <N>   ·   Mined prose messages: <total>
+- In-session-only (NOT in the shareable card): contradictions surfaced (#11), project-weighting of the evidence (#14) — render these here if present, but they never go into the card file.
 ```
 
-**The three distinguishable zero-states** (never conflate them — each has a different user action):
-1. **`0 passed` but candidates drafted + extractor clean** → the gate did its job; evidence was genuinely too thin this window. Action: none, or widen with `/audit style all`.
-2. **`0 passed` because extractor hit schema-drift** → the tool broke, NOT "no signal." Surface the drifted files loudly (Step 1); the log boundary must NOT advance for them. Action: fix the extractor/filter.
-3. **`0 mined` / very few sessions scanned** → window too thin. Action: re-run with a wider `window`/`all`.
+**The three distinguishable zero-states** (never conflate — each has a different user action):
+1. **`0 passed`, candidates drafted, extractor clean** → the gate did its job; evidence was genuinely too thin. Action: none, or widen with `/audit style all`.
+2. **`0 passed` because extractor hit schema-drift** → the tool broke, NOT "no signal." Surface the drifted files (Step 1); the log boundary must NOT advance for them. Action: fix the extractor/filter.
+3. **`0 mined` / very few sessions scanned** → window too thin. Action: re-run wider.
 
-Keep it tight — receipts are the substance, prose around them stays minimal. But every subsection and its counts must appear.
+### Part B — "Your Working Style" (the shareable card)
 
-**Stamp `{knowledge_folder}/logs/style-audit-log.md`** (or the `KT_STYLE_AUDIT_LOG` path if configured) with the timestamp of this run and the session-id range covered, so the next run's Step 0 can resume incrementally from this boundary.
+After the rules, render a **Your Working Style** section. This is the ditto-style profile, made richer by what ARIA knows that raw logs can't. Render it inline in the report AND (per Step 5b) write it as a self-contained shareable card file. Include these elements — every one that has content; omit #10 entirely if no evolution is found:
 
-**Point at the existing promotion path** — do not describe a new one. The candidates just appended to `rules-backlog.md` are picked up by the existing `/audit-knowledge` audit cycle's **`rule` disposition** (see `/audit-knowledge` Step 2c3 and the Accept submenu's `rule` destination), which reviews rule-backlog entries and, on user approval, promotes them into **user memory `feedback_*.md`** (or the cross-project `rules/user-rules.md`, or a project-tier `working-rules.md`, per that skill's existing three-target logic). `/audit style` does not duplicate or bypass that review — it only feeds the same intake queue every other rule candidate goes through.
+1. **Reasoning Type** — a one-label identity for how the user reasons/decides (e.g. "Evidence-First Reasoner"), derived from the dominant pattern across passed laws + existing memory. (Not "archetype" — call it Reasoning Type.)
+2. **Through-line** — one sentence capturing the pattern under all the laws, worded in ARIA's own framing (e.g. "The discipline that earns autonomy: nothing is trusted — a prior decision, a metric, a 'done' claim — until re-verified against ground truth"), NOT ditto's "the uncomfortable one" label.
+3. **Work laws** — ALL passed work-domain laws, ranked by corroboration (session count), not capped.
+4. **Design taste laws** — the passed design-domain laws.
+5. **Writing voice laws** — the passed write-domain laws, register-split (casual input vs professional deliverable).
+6. **Coverage stats — every stat LABELED with what it means**, not bare numbers. E.g.: "Sessions mined: J (distinct Claude Code conversations) · Your messages: M (only your typed prose — tool output and skill injections were filtered out) · Text volume: ≈T tokens ≈ roughly P pages of your writing · Date range: <first>→<last> · Secrets auto-redacted before analysis: R." Never emit a raw token count without saying what it represents.
+7. **Corroboration vs. existing memory** — for each passed law, mark whether it **CONFIRMS** an existing `feedback_*.md`/`user-rules.md` entry (name it) or is **NEW** (not yet in memory). This is ARIA-unique — a raw-log tool cannot see the user's memory.
+8. **Blind spots** — two kinds: (a) working-style dimensions ARIA HAS memory for but this mine found NO fresh evidence of (a discipline going quiet); and (b) **inferred blind spots the user may not be aware of** — asymmetries in the evidence itself (e.g. "every mined law is about verification/correctness; none about when-to-stop-polishing or delegation-trust — that absence is itself a signal"). State (b) as a careful, falsifiable observation, not a diagnosis.
+9. **Decision-discipline fingerprint** — derived from the user's *artifacts* (ADRs, `/prospect`+`/retrospect` logs, the change-decision-framework usage), not messages: how they structure decisions (e.g. gate-chain ceremony, 7-step framework, ADR-with-alternatives). ARIA-unique.
+10. **Evolution / drift** — ONLY if the dated evidence + memory history actually show a law changing over the range (e.g. "commit-vs-push tightened after a mid-June incident"). If no evolution is found, OMIT this element entirely — do not emit an empty "no evolution" line in the card.
+12. **Consistency/confidence** — per law, a high/medium confidence from session-spread (already on each law in #3–#5).
+13. **How to work with me** — a short, directive block an agent could load ("Before calling done, show it running live. Commit locally; never push unasked. On a fork you can verify, decide and show your work.").
+15. **Anti-patterns I reject** — the rejection-criteria laws restated as "don'ts" (e.g. "Don't fake a green/screenshot. Don't expand a scoped fix. Don't push without asking.").
 
-**Restate the invariants:** this skill is **opt-in only** — it does not run on any cadence, SessionStart check, or activity threshold, only on explicit invocation — and it **never writes `feedback_*.md` directly**; promotion into user memory always passes through the human-gated `/audit-knowledge` review, same as any other rule-backlog entry.
+**Card is a strict subset of the report:** elements #11 (contradictions) and #14 (project-weighting) appear in Part A's Scan-health / in-session view ONLY — they must NOT be written into the shareable card file (a screenshot-safe artifact shouldn't name unresolved tensions or reveal what the user is working on). There is NO letter grade / seal (#16 excluded).
+
+## Step 5b: Write the shareable card file
+
+Write the Working Style card as a self-contained artifact to **`{knowledge_folder}/references/working-style/`**:
+- `card-<YYYY-MM-DD>.html` — a standalone, styled, theme-aware HTML page (inline CSS, no external assets), containing elements #1–#9, #12, #13, #15 (NOT #11/#14). Dated filename so successive runs archive rather than clobber.
+- `card-<YYYY-MM-DD>.md` — a markdown mirror of the same content, for diffing/grep.
+
+Create `references/working-style/` if absent. This is the only file this skill writes unconditionally (it's a report artifact, not captured knowledge — it stages nothing and promotes nothing). If the user later declines all dispositions, the card still stands as a record of the run.
+
+**Stamp `{knowledge_folder}/logs/style-audit-log.md`** (or `KT_STYLE_AUDIT_LOG`) with this run's timestamp + session-id range ONLY after a disposition that consumes the sessions (keep-staged or promote). On cancel, do NOT advance the boundary (the sessions stay eligible next run).
+
+## Step 6: Disposition (single merged gate — default-first)
+
+Present ONE decision. This is the only write-authorizing prompt (it absorbs the old preview gate — the report above already showed the exact content). Default is keep-as-recommended.
+
+```
+Disposition for the M passed rules:
+  [keep]     Keep as recommended (default) — stage to rules-backlog.md for review
+             at the next /audit-knowledge. Nothing written to feedback_*.md.
+  [promote]  Promote the passed rules to user memory (feedback_*.md / user-rules.md)
+             NOW, via /audit-knowledge's three-target logic.
+  [specify]  Decide per-rule, or something else (tell me).
+  [cancel]   Write nothing (the card file already saved; sessions stay eligible next run).
+
+Press Enter / "keep" for the default.
+```
+
+- **`keep` (default, incl. bare Enter / any non-committal reply):** append the M passed rules to `rules-backlog.md` (Step 4's shape); they flow through `/audit-knowledge`'s existing `rule` disposition on the user's normal cadence. **Nothing is written to `feedback_*.md`.** Advance the audit-log boundary.
+- **`promote`:** the user has explicitly authorized direct promotion — write the passed rules to `feedback_*.md` (or `rules/user-rules.md` for cross-project ARIA-behavior rules, or a project-tier `working-rules.md`) per `/audit-knowledge`'s three-target logic. This is the ONLY path that writes user memory, and only on this explicit choice. Advance the boundary.
+- **`specify`:** surface the passed rules and take per-rule instructions (stage some, promote some, drop some) or any freeform direction. Follow it exactly; never invent a disposition the user didn't give.
+- **`cancel`:** write nothing to backlog or memory; the card file from Step 5b remains. Do NOT advance the audit-log boundary.
+
+**Restate the invariants:** `/audit style` is **opt-in only** (no cadence/SessionStart/threshold trigger — explicit invocation only), and its **default never writes `feedback_*.md`** — direct promotion happens only on the explicit `promote`/`specify` choice; otherwise memory is reached only through the human-gated `/audit-knowledge` review, same as any other rule-backlog entry.
