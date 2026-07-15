@@ -48,6 +48,9 @@ grep -qiE 'each rule \+ why|state the RULE and its REASON|dropped: <specific rea
 # J: "Your Working Style" card
 grep -qiE 'Your Working Style' "$SK" && ok "J working-style section present" || bad "J section" "no Your Working Style section"
 grep -qiE 'Reasoning Type' "$SK" && ok "J Reasoning Type (not archetype)" || bad "J reasoning-type" "archetype not relabeled Reasoning Type"
+# J1b: Reasoning Type is derived per-run from top rules, with a hard anti-copy ban on ditto's shape
+grep -qiE 'top 2-3 .*rules|highest-corroboration rules' "$SK" && ok "J1b derived from top rules (independent)" || bad "J1b derive" "no top-rules derivation procedure"
+grep -qiE 'do NOT use .Evidence-First|Adjective>-First <Noun|anti-copy' "$SK" && ok "J1b anti-copy ban on ditto shape" || bad "J1b ban" "no ditto naming-shape ban"
 # J2: ARIA-unique elements — corroboration-vs-memory, blind spots (incl. user-unaware), decision-discipline
 grep -qiE 'CONFIRMS.*feedback_|corroboration vs' "$SK" && ok "J2 corroboration-vs-memory (ARIA-unique)" || bad "J2 corrob" "no confirms-vs-new-memory element"
 grep -qiE 'blind spot' "$SK" && ok "J2 blind spots" || bad "J2 blind" "no blind-spots element"
