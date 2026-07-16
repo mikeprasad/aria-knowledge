@@ -81,11 +81,23 @@ Walk these in order, **one at a time** (do not dump all six at once — the poin
 
 After the walkthrough, assemble the picks into the run-config and proceed to Step 0.5 — the **arc contract is then a confirmation of what you just chose**, not a fresh set of defaults. **Nothing persists**: these picks configure THIS arc only; the standing `autonomy` posture and any saved defaults are untouched (changing standing defaults is `/setup`'s job — `/auto` never writes config, in any mode).
 
+## Step 0.4: Load the standing user rules
+
+Before stating the contract, load the user's own standing rules so the whole arc runs aware of them — `/auto` must never drive an autonomous arc blind to the rules the user has already written down. This is separate from Rule 35: Rule 35 (in the plugin-managed `working-rules.md`) is the decide-vs-ask *routing* policy; `user-rules.md` is the user's own *substantive* rules (how they want work done — commit/push discipline, design taste, rejection criteria, ARIA-behavior preferences). `/auto` applies both.
+
+1. **Resolve + read.** Read `~/.claude/aria-knowledge.local.md` and extract `knowledge_folder` (same resolution the `/rules` skill uses). Read `{knowledge_folder}/rules/user-rules.md` if it exists. It is **optional and user-owned** — it may be absent (pre-v2.8.1 setups) or contain only the shipped `U1`–`U4` sample rules. If absent, or present but sample-only, treat it as **no standing user rules** and continue — a missing file is never a stop.
+2. **Hold as active constraints for the arc.** When real user rules are present, treat each as a **binding constraint applied wherever it is contextually relevant** across the whole arc — not just consulted once. A user rule about pushing gates the push step; one about design taste informs execution and review; one about rejection criteria shapes what you accept as done. This is stronger than "be aware": where a user rule speaks to the situation at hand, it **governs**.
+3. **The one carve-out — validated proof with critical impact wins.** A user rule does NOT govern in the narrow case where applying it would be **actively detrimental** or would **contradict validated empirical proof whose violation carries critical impact** (a safety, correctness, or data-loss consequence you have actually verified against ground truth — not a hunch, and not mere inconvenience). This mirrors the skill's "verify before you trust" discipline: ground truth you have confirmed outranks a standing assumption. When this carve-out fires, do NOT silently override — treat the conflict as a **legitimate stop** (Step 2): surface the specific user rule, the validated proof that opposes it, and the critical impact, and let the user resolve it. The carve-out is an escalation trigger, not a license to ignore a rule.
+4. **Compose, don't duplicate.** `/auto` *loads and applies* user-rules.md; it does not restate the rules' content in the report, re-implement `/rules`, or fork the file. If the user asks *what* their rules are mid-arc, defer to `/rules`. This step is purely: make the arc operate under them.
+
+Loading is one read at arc start; the rules then travel with the arc the same way Rule 35 does.
+
 ## Step 0.5: State the contract before driving
 
 Before the first action, post a short **arc contract** so the autonomy is legible — the user should never be surprised by what you decided alone vs. what you'll stop for:
 
 > **Arc:** <one-line goal> · **Mode:** <arc | execute> · **On-complete:** <continue | stop>
+> **Standing rules loaded:** user-rules.md — <U1…UN applied where contextually relevant | none (absent or sample-only)> (from Step 0.4).
 > **I'll decide myself:** objectively-validatable forks (checked against real code/corpus/docs, held to Rules 13/14/18 — simplest/robust/clean, no unneeded abstraction).
 > **I'll handle without stopping:** knowledge placement, tool/permission approvals, backlog/deferral, Linear ticket filing, the normal commit cadence (see Pre-answered below).
 > **I'll stop and ask on:** product/UX taste with no objective answer · an irreversible/outward-facing action not covered by policy *that blocks the task* · a true no-visibility fact only you have · a genuine costly fork empirical investigation can't decide.
@@ -218,6 +230,7 @@ Leave a **verified-clean checkpoint** (tests green, tree clean, pushed if policy
 ## Notes
 
 - **`/auto` applies policy, it doesn't redefine it.** The decide-vs-ask *logic* is Rule 35; this skill adds *operational* discipline (never-stop list, budget-binding, work-selection, subagent gate, resume-cron). If you want to change *when to ask*, edit Rule 35 — keep the single source of truth.
+- **Two rule sources, both loaded, neither restated.** `/auto` operates under two distinct rule files and owns *neither*: **Rule 35** in the plugin-managed `working-rules.md` is the decide-vs-ask *routing* policy (edit it to change *when to ask*); **`user-rules.md`** is the user's own *substantive* standing rules, loaded in Step 0.4 and applied as binding constraints for the arc (edit them via `/rules`-adjacent flows / `/audit-knowledge` promotion, never here). `/auto` reads and applies both; it restates neither. To see the rules' content, use `/rules`.
 - **`/auto` never writes config.** It runs autonomously for the arc on the strength of the invocation; the standing `autonomy` posture changes only via `/setup` (one writer, no drift).
 - **Tool allowlist companion.** For unattended runs, a pre-authorized `permissions.allow` list in the user's `.claude/settings.local.json` makes "tools are preset" real: the skill tells the model not to ask, the settings tell the harness not to gate. Keep them in sync — when a new tool causes a mid-run stop, add it there.
 - **Self-restart wrapper — permission setup (example, follow only when you actually run one).** The `self-restart` flag needs `bin/auto-runloop.sh`, which spawns `claude -p --dangerously-skip-permissions`. That tripwires TWO independent gates, and you must clear BOTH:
