@@ -52,7 +52,7 @@ This review is judgment-heavy. Recommend the highest-ceiling model available (Fa
 
 ## Step 1: Load the Canonical Process
 
-Read the foundational-review chain doc. **Prefer the user's richer copy** at `<knowledge_root>/approaches/foundational-review-chain.md` if it exists and is reachable; otherwise read the plugin-bundled copy at `${CLAUDE_PLUGIN_ROOT}/skills/foundational-review/foundational-review-chain.md`. Then survey the scope: read the project's CLAUDE.md/README/specs and enough of the structure to ground the verdict. In Cowork you read sequentially (no parallel subagents) — be explicit about what you read vs. what you inferred.
+Read the foundational-review chain doc. **Prefer the user's richer copy** at `<knowledge_folder>/approaches/foundational-review-chain.md` if it exists and is reachable; otherwise read the plugin-bundled copy at `${CLAUDE_PLUGIN_ROOT}/skills/foundational-review/foundational-review-chain.md`. Then survey the scope: read the project's CLAUDE.md/README/specs and enough of the structure to ground the verdict. In Cowork you read sequentially (no parallel subagents) — be explicit about what you read vs. what you inferred.
 
 ## Step 2: Findings Document
 

@@ -1,6 +1,6 @@
 <!-- plugin-bundled canonical process doc for /foundational-review + /readiness-audit.
      This is the genericized, public copy the skills read at runtime. A user may keep a
-     richer, project-specific copy at <knowledge_root>/approaches/foundational-review-chain.md;
+     richer, project-specific copy at <knowledge_folder>/approaches/foundational-review-chain.md;
      when present, the skills prefer that one. Keep both in sync on substance — genericization
      only swaps illustrative project labels for generic phrasing, never changes a discipline. -->
 ---
@@ -68,7 +68,7 @@ A repeatable, model-agnostic process for reviewing a project at the FOUNDATIONS 
                 (Product + Technical Intake), not a code edit.
 5. /PROSPECT    on the plan (file scope). APPLY verdict-changing amendments IN PLACE
                 (don't just score), stamp the verdict + amendment list into the plan
-                header, write the log to <knowledge_root>/logs/prospect/.
+                header, write the log to <knowledge_folder>/logs/prospect/.
 6. COMMIT + KICKOFF  commit artifacts (named paths, no push); end with a paste-ready
                 executor kickoff: plan path(s), task order, definition of done,
                 what to report back.
@@ -88,7 +88,7 @@ Run when the owner wants the deeper "is the SYSTEM itself good engineering?" lay
 
 - Findings: `<scope-root>/FABLE-REVIEW-<YYYY-MM-DD>.md` (reviewer-named for provenance even when the default model runs it: keep the filename, state the actual model in the header).
 - Specs/plans: the project's existing `docs/superpowers/{specs,plans}/` convention.
-- Prospect logs: `<knowledge_root>/logs/prospect/<date>-file-<slug>.md` with standard frontmatter.
+- Prospect logs: `<knowledge_folder>/logs/prospect/<date>-file-<slug>.md` with standard frontmatter.
 - Verdict taxonomy (fixed vocabulary): **foundationally-sound · sound-with-changes · re-scope · reconsider**.
 - Gates: `G-A..` (review chain) / `M-G1..` or chain-prefixed (extension chain). Every gate row: decision needed, what it blocks, default-if-unanswered (or "hard gate, no default").
 
@@ -115,7 +115,7 @@ The checklist-against-a-surface audit stays its OWN format — it recurs, needs 
 
 ## Related
 
-- `<knowledge_root>/rules/working-rules.md` — foundational design, the decision framework, archive-don't-delete, verify-current-docs
+- `<knowledge_folder>/rules/working-rules.md` — foundational design, the decision framework, archive-don't-delete, verify-current-docs
 - The model-routing heuristic — default to the standard top model; escalate to the highest tier only at extreme difficulty / wide solution space / asymmetric cost-of-wrong
 - `/prospect`, `/retrospect` — the validation passes this chain composes
 - `/readiness-audit` — the recurring surface-audit sibling (the "Companion format" above)

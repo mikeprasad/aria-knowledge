@@ -37,7 +37,7 @@ Inputs:
 ## Step 1: Load Canonical Companion Format & Bound Scope
 
 1. Read the **"Companion format: the readiness audit"** section of the canonical process doc, preferring a user copy when present:
-   - If `<knowledge_root>/approaches/foundational-review-chain.md` exists (resolve `<knowledge_root>` from `~/.claude/aria-knowledge.local.md`), read THAT.
+   - If `<knowledge_folder>/approaches/foundational-review-chain.md` exists (resolve `<knowledge_folder>` from `~/.claude/aria-knowledge.local.md`), read THAT.
    - Otherwise read the plugin-bundled copy at `${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/skills/foundational-review/foundational-review-chain.md` (always present).
 
    It defines the tier structure, the agent-claim-correction discipline, and the composition contract with the chain.

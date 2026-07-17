@@ -42,7 +42,7 @@ Readiness Audit
 ```
 
 ## Step 1: Bound Scope & Load Companion Format
-Read the foundational-review chain doc's readiness-audit section — prefer `<knowledge_root>/approaches/foundational-review-chain.md`, else `${CLAUDE_PLUGIN_ROOT}/skills/foundational-review/foundational-review-chain.md`. List the surfaces the event depends on (code paths, docs, licenses, configs, public copy) and bound what's in/out.
+Read the foundational-review chain doc's readiness-audit section — prefer `<knowledge_folder>/approaches/foundational-review-chain.md`, else `${CLAUDE_PLUGIN_ROOT}/skills/foundational-review/foundational-review-chain.md`. List the surfaces the event depends on (code paths, docs, licenses, configs, public copy) and bound what's in/out.
 
 ## Step 2: Per-Surface Probes (read-only, sequential)
 Cowork has no parallel subagents — walk each surface in turn. For each, note what you read and what you had to ask the user to paste. **Read-only**: never edit the audited surface; never run mutating commands (you have no shell anyway).

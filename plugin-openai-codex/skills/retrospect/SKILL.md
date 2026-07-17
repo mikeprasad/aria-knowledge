@@ -117,9 +117,9 @@ Anchor:
 
 ## Step 2: Load Pattern Libraries
 
-Read the canonical pattern library at `~/knowledge/rules/retrospect-patterns.md` (resolved per `~/.claude/aria-knowledge.local.md` `knowledge_root`).
+Read the canonical pattern library at `<knowledge_folder>/rules/retrospect-patterns.md` (resolved per `~/.claude/aria-knowledge.local.md` `knowledge_folder`).
 
-If the bundle is detected to belong to a known project (commits include paths under a configured `projects_list[<tag>].project_root`), additionally read `~/knowledge/projects/<tag>/retrospect-patterns.md` if it exists.
+If the bundle is detected to belong to a known project (commits include paths under a configured `projects_list[<tag>].project_root`), additionally read `<knowledge_folder>/projects/<tag>/retrospect-patterns.md` if it exists.
 
 Hold both pattern lists in context for use in §4.4 (Failure-Mode Pattern Check). Do not run pattern detection yet — this step is just loading.
 
@@ -541,7 +541,7 @@ After Step 4 produces the report, write outputs to the configured destinations:
 - Render the full report to terminal (chat).
 
 ### Default (configurable in `~/.claude/aria-knowledge.local.md` under `retrospect:` block — to be added when needed)
-- **Persistent log:** Write the full report to `~/knowledge/logs/retrospect/<YYYY-MM-DD>-<scope>-<slug>.md` where `<scope>` is the resolved scope keyword from Step 0 (`commit`, `range`, `pr`, `session`, `release`, `deployment`, or `auto-range` for the no-args default) and `<slug>` is derived from the goal or referenced ticket(s). Resolve `~/knowledge/` from the configured `knowledge_root`. Create the `logs/retrospect/` subfolder lazily on first use. Existing files written under the older `<YYYY-MM-DD>-<slug>.md` pattern are grandfathered (no rename).
+- **Persistent log:** Write the full report to `<knowledge_folder>/logs/retrospect/<YYYY-MM-DD>-<scope>-<slug>.md` where `<scope>` is the resolved scope keyword from Step 0 (`commit`, `range`, `pr`, `session`, `release`, `deployment`, or `auto-range` for the no-args default) and `<slug>` is derived from the goal or referenced ticket(s). Resolve `<knowledge_folder>` from the config's `knowledge_folder` field. Create the `logs/retrospect/` subfolder lazily on first use. Existing files written under the older `<YYYY-MM-DD>-<slug>.md` pattern are grandfathered (no rename).
 
   Prepend a structured YAML frontmatter block to the report before writing. Schema:
 
@@ -574,7 +574,7 @@ After Step 4 produces the report, write outputs to the configured destinations:
 
   **`overall_outcome` derivation:** `closed` if every fix's post-Step-3.5 Validated? is ✅; `unresolved` if any fix is ❌ Invalidated or ❌ Not-in-bundle; `partial` if any fix is ⚠ partial AND none are ❌; `mixed` for any other combination.
 
-  **`related` auto-detection (Q1.2=1, ticket-based):** Before writing, glob `~/knowledge/logs/prospect/*.md` AND `~/knowledge/logs/retrospect/*.md` for files whose frontmatter `tickets:` array shares at least one ticket ID with the current report's tickets. Record their paths (relative to `~/knowledge/`) in the `related:` array. If no tickets in the current report, leave `related:` empty. Cap at 10 most-recent overlaps.
+  **`related` auto-detection (Q1.2=1, ticket-based):** Before writing, glob `<knowledge_folder>/logs/prospect/*.md` AND `<knowledge_folder>/logs/retrospect/*.md` for files whose frontmatter `tickets:` array shares at least one ticket ID with the current report's tickets. Record their paths (relative to `<knowledge_folder>/`) in the `related:` array. If no tickets in the current report, leave `related:` empty. Cap at 10 most-recent overlaps.
 
   **`tags:` field:** always includes `retrospect` and the scope keyword. Add a project tag when the bundle is detected to belong to a configured project (commits/files match a `projects_list[<tag>].project_root`). Add pattern-name tags for any §4.4 hits. These tags make the file discoverable via `/index` and `/context` (per Q1.3=1 — `/index` extends its scan to `logs/{prospect,retrospect}/`).
 - **Aria intake:** Suggest entries for the four backlogs based on the report content:
@@ -590,8 +590,8 @@ After Step 4 produces the report, write outputs to the configured destinations:
 
 ### Pattern library write-backs
 If §4.9 produced a novel pattern and the user approved adding it, the pattern entry is written to either:
-- `~/knowledge/rules/retrospect-patterns.md` (canonical), or
-- `~/knowledge/projects/<proj>/retrospect-patterns.md` (project-specific)
+- `<knowledge_folder>/rules/retrospect-patterns.md` (canonical), or
+- `<knowledge_folder>/projects/<proj>/retrospect-patterns.md` (project-specific)
 
 Pattern write-backs are *separate* from intake — they go directly to the patterns file, not through backlog review.
 
@@ -618,7 +618,7 @@ This logic also fires the `pushback-as-cue` pattern (see `rules/retrospect-patte
 
 Off unless `--lens=overbuild` is passed. When off, this skill behaves exactly as documented above — zero behavior change. When on, after the standard per-fix pass, run one additional pass over the in-scope diff:
 
-1. **Load the rubric.** Read `rules/overbuild-patterns.md` (same `knowledge_root`/template path used for `retrospect-patterns.md`). Hold the ladder + smell list.
+1. **Load the rubric.** Read `rules/overbuild-patterns.md` (same `knowledge_folder`/template path used for `retrospect-patterns.md`). Hold the ladder + smell list.
 2. **Walk each diff hunk** against the ladder, then the smell detection cues.
 3. **Marker-respect.** If a hunk carries an `aria:simplification` marker matching `aria:simplification — .+ | limitation: .+ | upgrade: .+`, report it as `resolved (marked)` and do NOT flag it. An obvious simplification with NO marker is the `unmarked-simplification` smell.
 4. **Emit findings** in the existing per-fix block style, each REQUIRING: the failed ladder rung, the matched smell name, and a concrete leaner alternative. A finding that cannot name the smaller version is suppressed (matches this skill's existing "name the smaller version or it's not a finding" discipline).
@@ -640,7 +640,7 @@ Before finalizing the retrospective, verify:
 8. **Hypotheses present when needed?** §4.7 is required if any fix's *post-Step-3.5.2* Validated? was ❌ Invalidated or ⚠ partial, or §4.6 triggered re-frame. Evidence FOR/AGAINST must integrate Step 3.5.2 findings where applicable.
 9. **Action verdict complete?** §4.8 must have an action for every fix in §4.3. RESHIP-AND-VERIFY actions must include the project-appropriate re-deploy command + the re-run-/retrospect directive.
 10. **Residual evidence asks correctly scoped?** §4.10 must list ONLY residual items (NOT-ATTEMPTED / ATTEMPTED-FAILED / DEFERRED-BY-USER / SKIPPED-BY--no-source). Items resolved by Step 3.5 (✅ upgrades, ⚠ partials with §3.5.2 evidence, or ❌ falsifications) must NOT appear in §4.10. Cross-check: every §4.10 entry must have current status of 🤷 / ⚠ / ❓ / 🚫.
-11. **Outputs written?** Confirm the persistent log was written to disk at `~/knowledge/logs/retrospect/<YYYY-MM-DD>-<scope>-<slug>.md`, with structured YAML frontmatter (type, date, scope, goal, tickets, fixes_count, sourcing_pass, patterns_hit, overall_outcome, related, tags) prepended. Confirm intake suggestions were surfaced.
+11. **Outputs written?** Confirm the persistent log was written to disk at `<knowledge_folder>/logs/retrospect/<YYYY-MM-DD>-<scope>-<slug>.md`, with structured YAML frontmatter (type, date, scope, goal, tickets, fixes_count, sourcing_pass, patterns_hit, overall_outcome, related, tags) prepended. Confirm intake suggestions were surfaced.
 12. **`related:` cross-refs computed?** If the report contains tickets, the `related:` frontmatter array must list overlapping prior runs (capped at 10) from `logs/prospect/` and `logs/retrospect/`. If empty (no tickets), confirm the empty-list state explicitly.
 
 If any check fails, self-correct once. If self-correction can't close the gap (e.g., the user must supply evidence), surface the gap explicitly in the report rather than silently skipping.

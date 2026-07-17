@@ -3637,11 +3637,11 @@ Anchor:
 
 ## Step 2: Load Pattern Libraries
 
-Read the canonical pattern library at `~/knowledge/rules/retrospect-patterns.md` (resolved per `.cursor/aria-knowledge.local.md` `knowledge_root`). The retrospect pattern library is intentionally shared — most failure-mode patterns (theory-driven refactor, scope creep, abstraction-first, etc.) apply forward as well as backward.
+Read the canonical pattern library at `<knowledge_folder>/rules/retrospect-patterns.md` (resolved per `.cursor/aria-knowledge.local.md` `knowledge_folder`). The retrospect pattern library is intentionally shared — most failure-mode patterns (theory-driven refactor, scope creep, abstraction-first, etc.) apply forward as well as backward.
 
-If a `~/knowledge/rules/prospect-patterns.md` file exists, also load that (forward-only patterns may emerge over time and be catalogued separately). Do not require it.
+If a `<knowledge_folder>/rules/prospect-patterns.md` file exists, also load that (forward-only patterns may emerge over time and be catalogued separately). Do not require it.
 
-If the plan is detected to belong to a known project (file paths or ticket IDs match a configured `projects_list[<tag>].project_root`), additionally read `~/knowledge/projects/<tag>/retrospect-patterns.md` if it exists, and `~/knowledge/projects/<tag>/prospect-patterns.md` if it exists.
+If the plan is detected to belong to a known project (file paths or ticket IDs match a configured `projects_list[<tag>].project_root`), additionally read `<knowledge_folder>/projects/<tag>/retrospect-patterns.md` if it exists, and `<knowledge_folder>/projects/<tag>/prospect-patterns.md` if it exists.
 
 Hold all loaded pattern lists in context for use in §4.4 (Failure-Mode Pattern Check). Do not run pattern detection yet — this step is just loading.
 
@@ -4022,7 +4022,7 @@ After Step 4 produces the report, write outputs to the configured destinations:
 - Render the full report to terminal (chat).
 
 ### Default
-- **Persistent log:** Write the full report to `~/knowledge/logs/prospect/<YYYY-MM-DD>-<scope>-<slug>.md` where `<scope>` is the resolved scope keyword from Step 0 (`plan`, `session`, `todos`, `file`, `linear`, or `branch`) and `<slug>` is derived from the goal or referenced ticket(s). Resolve `~/knowledge/` from the configured `knowledge_root`. Create the `logs/prospect/` subfolder lazily on first use. Mirror retrospect's logging convention. Existing files written under the older `<YYYY-MM-DD>-<slug>.md` pattern are grandfathered (no rename).
+- **Persistent log:** Write the full report to `<knowledge_folder>/logs/prospect/<YYYY-MM-DD>-<scope>-<slug>.md` where `<scope>` is the resolved scope keyword from Step 0 (`plan`, `session`, `todos`, `file`, `linear`, or `branch`) and `<slug>` is derived from the goal or referenced ticket(s). Resolve `<knowledge_folder>` from the config's `knowledge_folder` field. Create the `logs/prospect/` subfolder lazily on first use. Mirror retrospect's logging convention. Existing files written under the older `<YYYY-MM-DD>-<slug>.md` pattern are grandfathered (no rename).
 
   Prepend a structured YAML frontmatter block to the report before writing. Schema:
 
@@ -4046,7 +4046,7 @@ After Step 4 produces the report, write outputs to the configured destinations:
   ---
   ```
 
-  **`related` auto-detection (Q1.2=1, ticket-based):** Before writing, glob `~/knowledge/logs/prospect/*.md` AND `~/knowledge/logs/retrospect/*.md` for files whose frontmatter `tickets:` array shares at least one ticket ID with the current report's tickets. Record their paths (relative to `~/knowledge/`) in the `related:` array. If no tickets in the current report, leave `related:` empty. Only the most recent 10 are kept if many overlap (cap on bloat).
+  **`related` auto-detection (Q1.2=1, ticket-based):** Before writing, glob `<knowledge_folder>/logs/prospect/*.md` AND `<knowledge_folder>/logs/retrospect/*.md` for files whose frontmatter `tickets:` array shares at least one ticket ID with the current report's tickets. Record their paths (relative to `<knowledge_folder>/`) in the `related:` array. If no tickets in the current report, leave `related:` empty. Only the most recent 10 are kept if many overlap (cap on bloat).
 
   **`tags:` field:** always includes `prospect` and the scope keyword. Add a project tag when the plan is detected to belong to a configured project (commits/files match a `projects_list[<tag>].project_root`). Add pattern-name tags for any §4.4 hits. These tags make the file discoverable via `/index` and `/context` (per Q1.3=1 — `/index` extends its scan to `logs/{prospect,retrospect}/`).
 - **Aria intake:** Suggest entries for the four backlogs based on the report content:
@@ -4062,8 +4062,8 @@ After Step 4 produces the report, write outputs to the configured destinations:
 
 ### Pattern library write-backs
 If §4.9 produced a novel pattern and the user approved adding it, the pattern entry is written to either:
-- `~/knowledge/rules/prospect-patterns.md` (canonical — created if missing), or
-- `~/knowledge/projects/<proj>/prospect-patterns.md` (project-specific — created if missing)
+- `<knowledge_folder>/rules/prospect-patterns.md` (canonical — created if missing), or
+- `<knowledge_folder>/projects/<proj>/prospect-patterns.md` (project-specific — created if missing)
 
 Pattern write-backs are *separate* from intake — they go directly to the patterns file, not through backlog review.
 
@@ -4243,9 +4243,9 @@ Anchor:
 
 ## Step 2: Load Pattern Libraries
 
-Read the canonical pattern library at `~/knowledge/rules/retrospect-patterns.md` (resolved per `.cursor/aria-knowledge.local.md` `knowledge_root`).
+Read the canonical pattern library at `<knowledge_folder>/rules/retrospect-patterns.md` (resolved per `.cursor/aria-knowledge.local.md` `knowledge_folder`).
 
-If the bundle is detected to belong to a known project (commits include paths under a configured `projects_list[<tag>].project_root`), additionally read `~/knowledge/projects/<tag>/retrospect-patterns.md` if it exists.
+If the bundle is detected to belong to a known project (commits include paths under a configured `projects_list[<tag>].project_root`), additionally read `<knowledge_folder>/projects/<tag>/retrospect-patterns.md` if it exists.
 
 Hold both pattern lists in context for use in §4.4 (Failure-Mode Pattern Check). Do not run pattern detection yet — this step is just loading.
 
@@ -4667,7 +4667,7 @@ After Step 4 produces the report, write outputs to the configured destinations:
 - Render the full report to terminal (chat).
 
 ### Default (configurable in `.cursor/aria-knowledge.local.md` under `retrospect:` block — to be added when needed)
-- **Persistent log:** Write the full report to `~/knowledge/logs/retrospect/<YYYY-MM-DD>-<scope>-<slug>.md` where `<scope>` is the resolved scope keyword from Step 0 (`commit`, `range`, `pr`, `session`, `release`, `deployment`, or `auto-range` for the no-args default) and `<slug>` is derived from the goal or referenced ticket(s). Resolve `~/knowledge/` from the configured `knowledge_root`. Create the `logs/retrospect/` subfolder lazily on first use. Existing files written under the older `<YYYY-MM-DD>-<slug>.md` pattern are grandfathered (no rename).
+- **Persistent log:** Write the full report to `<knowledge_folder>/logs/retrospect/<YYYY-MM-DD>-<scope>-<slug>.md` where `<scope>` is the resolved scope keyword from Step 0 (`commit`, `range`, `pr`, `session`, `release`, `deployment`, or `auto-range` for the no-args default) and `<slug>` is derived from the goal or referenced ticket(s). Resolve `<knowledge_folder>` from the config's `knowledge_folder` field. Create the `logs/retrospect/` subfolder lazily on first use. Existing files written under the older `<YYYY-MM-DD>-<slug>.md` pattern are grandfathered (no rename).
 
   Prepend a structured YAML frontmatter block to the report before writing. Schema:
 
@@ -4700,7 +4700,7 @@ After Step 4 produces the report, write outputs to the configured destinations:
 
   **`overall_outcome` derivation:** `closed` if every fix's post-Step-3.5 Validated? is ✅; `unresolved` if any fix is ❌ Invalidated or ❌ Not-in-bundle; `partial` if any fix is ⚠ partial AND none are ❌; `mixed` for any other combination.
 
-  **`related` auto-detection (Q1.2=1, ticket-based):** Before writing, glob `~/knowledge/logs/prospect/*.md` AND `~/knowledge/logs/retrospect/*.md` for files whose frontmatter `tickets:` array shares at least one ticket ID with the current report's tickets. Record their paths (relative to `~/knowledge/`) in the `related:` array. If no tickets in the current report, leave `related:` empty. Cap at 10 most-recent overlaps.
+  **`related` auto-detection (Q1.2=1, ticket-based):** Before writing, glob `<knowledge_folder>/logs/prospect/*.md` AND `<knowledge_folder>/logs/retrospect/*.md` for files whose frontmatter `tickets:` array shares at least one ticket ID with the current report's tickets. Record their paths (relative to `<knowledge_folder>/`) in the `related:` array. If no tickets in the current report, leave `related:` empty. Cap at 10 most-recent overlaps.
 
   **`tags:` field:** always includes `retrospect` and the scope keyword. Add a project tag when the bundle is detected to belong to a configured project (commits/files match a `projects_list[<tag>].project_root`). Add pattern-name tags for any §4.4 hits. These tags make the file discoverable via `/index` and `/context` (per Q1.3=1 — `/index` extends its scan to `logs/{prospect,retrospect}/`).
 - **Aria intake:** Suggest entries for the four backlogs based on the report content:
@@ -4716,8 +4716,8 @@ After Step 4 produces the report, write outputs to the configured destinations:
 
 ### Pattern library write-backs
 If §4.9 produced a novel pattern and the user approved adding it, the pattern entry is written to either:
-- `~/knowledge/rules/retrospect-patterns.md` (canonical), or
-- `~/knowledge/projects/<proj>/retrospect-patterns.md` (project-specific)
+- `<knowledge_folder>/rules/retrospect-patterns.md` (canonical), or
+- `<knowledge_folder>/projects/<proj>/retrospect-patterns.md` (project-specific)
 
 Pattern write-backs are *separate* from intake — they go directly to the patterns file, not through backlog review.
 
@@ -4744,7 +4744,7 @@ This logic also fires the `pushback-as-cue` pattern (see `rules/retrospect-patte
 
 Off unless `--lens=overbuild` is passed. When off, this skill behaves exactly as documented above — zero behavior change. When on, after the standard per-fix pass, run one additional pass over the in-scope diff:
 
-1. **Load the rubric.** Read `rules/overbuild-patterns.md` (same `knowledge_root`/template path used for `retrospect-patterns.md`). Hold the ladder + smell list.
+1. **Load the rubric.** Read `rules/overbuild-patterns.md` (same `knowledge_folder`/template path used for `retrospect-patterns.md`). Hold the ladder + smell list.
 2. **Walk each diff hunk** against the ladder, then the smell detection cues.
 3. **Marker-respect.** If a hunk carries an `aria:simplification` marker matching `aria:simplification — .+ | limitation: .+ | upgrade: .+`, report it as `resolved (marked)` and do NOT flag it. An obvious simplification with NO marker is the `unmarked-simplification` smell.
 4. **Emit findings** in the existing per-fix block style, each REQUIRING: the failed ladder rung, the matched smell name, and a concrete leaner alternative. A finding that cannot name the smaller version is suppressed (matches this skill's existing "name the smaller version or it's not a finding" discipline).
@@ -4766,7 +4766,7 @@ Before finalizing the retrospective, verify:
 8. **Hypotheses present when needed?** §4.7 is required if any fix's *post-Step-3.5.2* Validated? was ❌ Invalidated or ⚠ partial, or §4.6 triggered re-frame. Evidence FOR/AGAINST must integrate Step 3.5.2 findings where applicable.
 9. **Action verdict complete?** §4.8 must have an action for every fix in §4.3. RESHIP-AND-VERIFY actions must include the project-appropriate re-deploy command + the re-run-/retrospect directive.
 10. **Residual evidence asks correctly scoped?** §4.10 must list ONLY residual items (NOT-ATTEMPTED / ATTEMPTED-FAILED / DEFERRED-BY-USER / SKIPPED-BY--no-source). Items resolved by Step 3.5 (✅ upgrades, ⚠ partials with §3.5.2 evidence, or ❌ falsifications) must NOT appear in §4.10. Cross-check: every §4.10 entry must have current status of 🤷 / ⚠ / ❓ / 🚫.
-11. **Outputs written?** Confirm the persistent log was written to disk at `~/knowledge/logs/retrospect/<YYYY-MM-DD>-<scope>-<slug>.md`, with structured YAML frontmatter (type, date, scope, goal, tickets, fixes_count, sourcing_pass, patterns_hit, overall_outcome, related, tags) prepended. Confirm intake suggestions were surfaced.
+11. **Outputs written?** Confirm the persistent log was written to disk at `<knowledge_folder>/logs/retrospect/<YYYY-MM-DD>-<scope>-<slug>.md`, with structured YAML frontmatter (type, date, scope, goal, tickets, fixes_count, sourcing_pass, patterns_hit, overall_outcome, related, tags) prepended. Confirm intake suggestions were surfaced.
 12. **`related:` cross-refs computed?** If the report contains tickets, the `related:` frontmatter array must list overlapping prior runs (capped at 10) from `logs/prospect/` and `logs/retrospect/`. If empty (no tickets), confirm the empty-list state explicitly.
 
 If any check fails, self-correct once. If self-correction can't close the gap (e.g., the user must supply evidence), surface the gap explicitly in the report rather than silently skipping.
@@ -4840,11 +4840,11 @@ On `y`, invoke `/readiness-audit` via the `Skill` tool, then resume at Step 1 wi
 ## Step 1: Load the Canonical Process & Survey
 
 1. **Load the canonical chain.** Read the canonical process doc, preferring a user copy when present:
-   - If `<knowledge_root>/approaches/foundational-review-chain.md` exists (resolve `<knowledge_root>` from `.cursor/aria-knowledge.local.md`), read THAT — a user may keep a richer, project-specific copy there.
+   - If `<knowledge_folder>/approaches/foundational-review-chain.md` exists (resolve `<knowledge_folder>` from `.cursor/aria-knowledge.local.md`), read THAT — a user may keep a richer, project-specific copy there.
    - Otherwise read the plugin-bundled copy at `knowledge/approaches/foundational-review-chain.md` (always present).
 
    It carries the operating rules, the A–F questions, the artifact conventions, the failure-mode library, and the pairing/extension specs. Hold it in context — every later step references it by section rather than restating it.
-2. **Load the failure-mode libraries** (mirrors /prospect Step 2): `<knowledge_root>/rules/retrospect-patterns.md`, and `<knowledge_root>/rules/prospect-patterns.md` + `<knowledge_root>/projects/<tag>/{retrospect,prospect}-patterns.md` if they exist for the detected project.
+2. **Load the failure-mode libraries** (mirrors /prospect Step 2): `<knowledge_folder>/rules/retrospect-patterns.md`, and `<knowledge_folder>/rules/prospect-patterns.md` + `<knowledge_folder>/projects/<tag>/{retrospect,prospect}-patterns.md` if they exist for the detected project.
 3. **Survey the tree.** Read the read-first docs, then walk the actual source tree. **READ BEFORE JUDGING** (operating rule 1): every load-bearing claim is cited as `file:line`, verified THIS session — never asserted from memory, docs, or prior-session summaries.
 4. **Bound the scope** (operating rule 2): state in-scope and out-of-scope explicitly; fence sibling workstreams by reference. For a multi-repo family, **group by coupling mechanism**: shared-runtime repos → review as ONE super-project (hub-out from the shared dependency, ~20% grounding / ~80% on the seams); protocol- or file-contract repos → review each side standalone + review the *contract* once from the producer side; a vendored copy → not a review seam at all. The same portfolio can contain all three.
 5. **Run empirical probes** read-only (`git log`, `grep`, file-existence). **VERIFY FORMATS, NOT JUST LOCATIONS** (operating rule 6): any later plan step that parses/renames/sweeps is preceded by an enumeration sweep at planning time.
@@ -4928,7 +4928,7 @@ Run `/prospect` on each plan (file scope) via the `Skill` tool:
 
 > Use the `Skill` tool to invoke `prospect` with `file <plan-path>`.
 
-Then **APPLY verdict-changing amendments IN PLACE** — don't just score the plan. Validated runs' /prospect passes falsified *format* assumptions (line-anchored tokens that were `var()` indirections; hex colors that were RGB triplets; a 4-file rename that was a 14-file surface). After amending, stamp the verdict + amendment list into the plan header. The prospect log lands in `<knowledge_root>/logs/prospect/` via the composed skill — do not duplicate that routing here.
+Then **APPLY verdict-changing amendments IN PLACE** — don't just score the plan. Validated runs' /prospect passes falsified *format* assumptions (line-anchored tokens that were `var()` indirections; hex colors that were RGB triplets; a 4-file rename that was a 14-file surface). After amending, stamp the verdict + amendment list into the plan header. The prospect log lands in `<knowledge_folder>/logs/prospect/` via the composed skill — do not duplicate that routing here.
 
 ## Step 6: Failure-Mode Self-Check, Commit & Kickoff
 
@@ -4965,7 +4965,7 @@ Run only when the owner wants the deeper "is the SYSTEM itself good engineering?
 
 - **Findings:** `<scope-root>/FABLE-REVIEW-<YYYY-MM-DD>.md`
 - **Specs/plans:** the project's `docs/superpowers/{specs,plans}/`
-- **Prospect logs:** via the composed `/prospect` (Step 5), in `<knowledge_root>/logs/prospect/`
+- **Prospect logs:** via the composed `/prospect` (Step 5), in `<knowledge_folder>/logs/prospect/`
 - **Extension captures:** via `/extract` (Step 7), if `--extend`
 - **Aria intake:** suggest backlog entries (insights / decisions / approaches) per the standard intake confirmation flow — suggest, user reviews, write on approval.
 
@@ -5022,7 +5022,7 @@ Inputs:
 ## Step 1: Load Canonical Companion Format & Bound Scope
 
 1. Read the **"Companion format: the readiness audit"** section of the canonical process doc, preferring a user copy when present:
-   - If `<knowledge_root>/approaches/foundational-review-chain.md` exists (resolve `<knowledge_root>` from `.cursor/aria-knowledge.local.md`), read THAT.
+   - If `<knowledge_folder>/approaches/foundational-review-chain.md` exists (resolve `<knowledge_folder>` from `.cursor/aria-knowledge.local.md`), read THAT.
    - Otherwise read the plugin-bundled copy at `knowledge/approaches/foundational-review-chain.md` (always present).
 
    It defines the tier structure, the agent-claim-correction discipline, and the composition contract with the chain.

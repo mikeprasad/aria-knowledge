@@ -116,11 +116,11 @@ Anchor:
 
 ## Step 2: Load Pattern Libraries
 
-Read the canonical pattern library at `~/knowledge/rules/retrospect-patterns.md` (resolved per `~/.gemini/antigravity/aria-knowledge.local.md` `knowledge_root`). The retrospect pattern library is intentionally shared — most failure-mode patterns (theory-driven refactor, scope creep, abstraction-first, etc.) apply forward as well as backward.
+Read the canonical pattern library at `<knowledge_folder>/rules/retrospect-patterns.md` (resolved per `~/.gemini/antigravity/aria-knowledge.local.md` `knowledge_folder`). The retrospect pattern library is intentionally shared — most failure-mode patterns (theory-driven refactor, scope creep, abstraction-first, etc.) apply forward as well as backward.
 
-If a `~/knowledge/rules/prospect-patterns.md` file exists, also load that (forward-only patterns may emerge over time and be catalogued separately). Do not require it.
+If a `<knowledge_folder>/rules/prospect-patterns.md` file exists, also load that (forward-only patterns may emerge over time and be catalogued separately). Do not require it.
 
-If the plan is detected to belong to a known project (file paths or ticket IDs match a configured `projects_list[<tag>].project_root`), additionally read `~/knowledge/projects/<tag>/retrospect-patterns.md` if it exists, and `~/knowledge/projects/<tag>/prospect-patterns.md` if it exists.
+If the plan is detected to belong to a known project (file paths or ticket IDs match a configured `projects_list[<tag>].project_root`), additionally read `<knowledge_folder>/projects/<tag>/retrospect-patterns.md` if it exists, and `<knowledge_folder>/projects/<tag>/prospect-patterns.md` if it exists.
 
 Hold all loaded pattern lists in context for use in §4.4 (Failure-Mode Pattern Check). Do not run pattern detection yet — this step is just loading.
 
@@ -501,7 +501,7 @@ After Step 4 produces the report, write outputs to the configured destinations:
 - Render the full report to terminal (chat).
 
 ### Default
-- **Persistent log:** Write the full report to `~/knowledge/logs/prospect/<YYYY-MM-DD>-<scope>-<slug>.md` where `<scope>` is the resolved scope keyword from Step 0 (`plan`, `session`, `todos`, `file`, `linear`, or `branch`) and `<slug>` is derived from the goal or referenced ticket(s). Resolve `~/knowledge/` from the configured `knowledge_root`. Create the `logs/prospect/` subfolder lazily on first use. Mirror retrospect's logging convention. Existing files written under the older `<YYYY-MM-DD>-<slug>.md` pattern are grandfathered (no rename).
+- **Persistent log:** Write the full report to `<knowledge_folder>/logs/prospect/<YYYY-MM-DD>-<scope>-<slug>.md` where `<scope>` is the resolved scope keyword from Step 0 (`plan`, `session`, `todos`, `file`, `linear`, or `branch`) and `<slug>` is derived from the goal or referenced ticket(s). Resolve `<knowledge_folder>` from the config's `knowledge_folder` field. Create the `logs/prospect/` subfolder lazily on first use. Mirror retrospect's logging convention. Existing files written under the older `<YYYY-MM-DD>-<slug>.md` pattern are grandfathered (no rename).
 
   Prepend a structured YAML frontmatter block to the report before writing. Schema:
 
@@ -525,7 +525,7 @@ After Step 4 produces the report, write outputs to the configured destinations:
   ---
   ```
 
-  **`related` auto-detection (Q1.2=1, ticket-based):** Before writing, glob `~/knowledge/logs/prospect/*.md` AND `~/knowledge/logs/retrospect/*.md` for files whose frontmatter `tickets:` array shares at least one ticket ID with the current report's tickets. Record their paths (relative to `~/knowledge/`) in the `related:` array. If no tickets in the current report, leave `related:` empty. Only the most recent 10 are kept if many overlap (cap on bloat).
+  **`related` auto-detection (Q1.2=1, ticket-based):** Before writing, glob `<knowledge_folder>/logs/prospect/*.md` AND `<knowledge_folder>/logs/retrospect/*.md` for files whose frontmatter `tickets:` array shares at least one ticket ID with the current report's tickets. Record their paths (relative to `<knowledge_folder>/`) in the `related:` array. If no tickets in the current report, leave `related:` empty. Only the most recent 10 are kept if many overlap (cap on bloat).
 
   **`tags:` field:** always includes `prospect` and the scope keyword. Add a project tag when the plan is detected to belong to a configured project (commits/files match a `projects_list[<tag>].project_root`). Add pattern-name tags for any §4.4 hits. These tags make the file discoverable via `/index` and `/context` (per Q1.3=1 — `/index` extends its scan to `logs/{prospect,retrospect}/`).
 - **Aria intake:** Suggest entries for the four backlogs based on the report content:
@@ -541,8 +541,8 @@ After Step 4 produces the report, write outputs to the configured destinations:
 
 ### Pattern library write-backs
 If §4.9 produced a novel pattern and the user approved adding it, the pattern entry is written to either:
-- `~/knowledge/rules/prospect-patterns.md` (canonical — created if missing), or
-- `~/knowledge/projects/<proj>/prospect-patterns.md` (project-specific — created if missing)
+- `<knowledge_folder>/rules/prospect-patterns.md` (canonical — created if missing), or
+- `<knowledge_folder>/projects/<proj>/prospect-patterns.md` (project-specific — created if missing)
 
 Pattern write-backs are *separate* from intake — they go directly to the patterns file, not through backlog review.
 

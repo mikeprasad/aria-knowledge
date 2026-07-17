@@ -91,11 +91,11 @@ On `y`, invoke `/readiness-audit` via the `Skill` tool, then resume at Step 1 wi
 ## Step 1: Load the Canonical Process & Survey
 
 1. **Load the canonical chain.** Read the canonical process doc, preferring a user copy when present:
-   - If `<knowledge_root>/approaches/foundational-review-chain.md` exists (resolve `<knowledge_root>` from `~/.claude/aria-knowledge.local.md`), read THAT — a user may keep a richer, project-specific copy there.
+   - If `<knowledge_folder>/approaches/foundational-review-chain.md` exists (resolve `<knowledge_folder>` from `~/.claude/aria-knowledge.local.md`), read THAT — a user may keep a richer, project-specific copy there.
    - Otherwise read the plugin-bundled copy at `${CLAUDE_PLUGIN_ROOT}/skills/foundational-review/foundational-review-chain.md` (always present).
 
    It carries the operating rules, the A–F questions, the artifact conventions, the failure-mode library, and the pairing/extension specs. Hold it in context — every later step references it by section rather than restating it.
-2. **Load the failure-mode libraries** (mirrors /prospect Step 2): `<knowledge_root>/rules/retrospect-patterns.md`, and `<knowledge_root>/rules/prospect-patterns.md` + `<knowledge_root>/projects/<tag>/{retrospect,prospect}-patterns.md` if they exist for the detected project.
+2. **Load the failure-mode libraries** (mirrors /prospect Step 2): `<knowledge_folder>/rules/retrospect-patterns.md`, and `<knowledge_folder>/rules/prospect-patterns.md` + `<knowledge_folder>/projects/<tag>/{retrospect,prospect}-patterns.md` if they exist for the detected project.
 3. **Survey the tree.** Read the read-first docs, then walk the actual source tree. **READ BEFORE JUDGING** (operating rule 1): every load-bearing claim is cited as `file:line`, verified THIS session — never asserted from memory, docs, or prior-session summaries.
 4. **Bound the scope** (operating rule 2): state in-scope and out-of-scope explicitly; fence sibling workstreams by reference. For a multi-repo family, **group by coupling mechanism**: shared-runtime repos → review as ONE super-project (hub-out from the shared dependency, ~20% grounding / ~80% on the seams); protocol- or file-contract repos → review each side standalone + review the *contract* once from the producer side; a vendored copy → not a review seam at all. The same portfolio can contain all three.
 5. **Run empirical probes** read-only (`git log`, `grep`, file-existence). **VERIFY FORMATS, NOT JUST LOCATIONS** (operating rule 6): any later plan step that parses/renames/sweeps is preceded by an enumeration sweep at planning time.
@@ -179,7 +179,7 @@ Run `/prospect` on each plan (file scope) via the `Skill` tool:
 
 > Use the `Skill` tool to invoke `prospect` with `file <plan-path>`.
 
-Then **APPLY verdict-changing amendments IN PLACE** — don't just score the plan. Validated runs' /prospect passes falsified *format* assumptions (line-anchored tokens that were `var()` indirections; hex colors that were RGB triplets; a 4-file rename that was a 14-file surface). After amending, stamp the verdict + amendment list into the plan header. The prospect log lands in `<knowledge_root>/logs/prospect/` via the composed skill — do not duplicate that routing here.
+Then **APPLY verdict-changing amendments IN PLACE** — don't just score the plan. Validated runs' /prospect passes falsified *format* assumptions (line-anchored tokens that were `var()` indirections; hex colors that were RGB triplets; a 4-file rename that was a 14-file surface). After amending, stamp the verdict + amendment list into the plan header. The prospect log lands in `<knowledge_folder>/logs/prospect/` via the composed skill — do not duplicate that routing here.
 
 ## Step 6: Failure-Mode Self-Check, Commit & Kickoff
 
@@ -216,7 +216,7 @@ Run only when the owner wants the deeper "is the SYSTEM itself good engineering?
 
 - **Findings:** `<scope-root>/FABLE-REVIEW-<YYYY-MM-DD>.md`
 - **Specs/plans:** the project's `docs/superpowers/{specs,plans}/`
-- **Prospect logs:** via the composed `/prospect` (Step 5), in `<knowledge_root>/logs/prospect/`
+- **Prospect logs:** via the composed `/prospect` (Step 5), in `<knowledge_folder>/logs/prospect/`
 - **Extension captures:** via `/extract` (Step 7), if `--extend`
 - **Aria intake:** suggest backlog entries (insights / decisions / approaches) per the standard intake confirmation flow — suggest, user reviews, write on approval.
 
