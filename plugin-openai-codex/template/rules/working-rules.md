@@ -116,6 +116,10 @@ Ask whether better upfront design would eliminate a problem rather than bolting 
 
 - **Producer–consumer ordering.** When a schema, config field, or interface exists primarily to serve a specific consumer, design them together — don't ship the schema alone against a speculative consumer (creates two migrations when the real consumer lands) or a consumer against a placeholder schema (creates fragile coupling). Watch for: *"I'll ship the schema now and use it properly when the consumer lands."* That's the two-migration trap. The consumer's actual needs are the shape the schema should take — designing without them is speculation.
 
+**When the foundational path is contested, that tension is the human's to resolve — not yours to settle silently.** Prefer the foundational fix by default. But where it is materially larger, riskier, or worse-timed than the patch, surface both paths with the cost delta and what the patch leaves open, and let the human choose. Quietly shipping the patch because the foundational fix looked expensive is this rule being dodged; quietly absorbing a much larger scope is a different failure with the same cause — neither decision was yours to make alone.
+
+**Under `autonomy: autonomous`, do not escalate — take the foundational path.** At the highest setting the foundational fix *is* the answer; absorb the larger scope, because that is what the setting is for. One exception: when going foundational would change **what the arc is** — its scope boundary, deliverable, or completion criteria — rather than merely making it bigger. Bigger → absorb it. A materially different arc → stop and ask. Narrow exception, not a license to stop: measure the delta before escalating.
+
 -----
 
 ## Process Rules
@@ -367,4 +371,21 @@ The human's decision budget is the scarce resource: a person makes a limited num
 
 **The quality bar for an objectively-validatable decision** is Rules 13/14/18: simplest solution that works, abstraction only for a clear measurable gain, foundational design over patching — i.e. build right, long-term, clean, robust, no unneeded abstraction. "Validated" means checked against ground truth (the real code/corpus/docs), not asserted.
 
-**Why:** This is the operative form of a calibration the agent must apply by default, not on request. How *aggressively* to apply it (how high to set the bar for "stop and ask") is governed by the `autonomy` config setting and its SessionStart directive (`default` injects nothing; `balanced` and `autonomous` scale the posture) — but the routing logic above is universal regardless of that setting.
+**The same bar binds both branches — deciding AND asking.** Routing a fork to the human is not an escape hatch from the analysis. Before either branch, run **Rule 22 Steps 4–5**: enumerate the real solution space, then rank it against the criteria. Stopping at the first adequate answer is a Step 4 failure whether you go on to decide it or to offer it.
+
+- **Deciding** — present the outcome in **Rule 21** shape, scaled to reversibility: the pick, the alternatives rejected with their rationale, and the validation evidence.
+- **Asking** — the options you present ARE the Step 4/5 output and inherit the same standard. An *incomplete* set forces the human to redo your analysis to find the option you missed; an *unfiltered* set offers a known-bad one as a co-equal choice. Both spend the turn you were trying to protect.
+
+**Filter before you present.** An option carrying an objective, validated, provable defect — a demonstrated downside, detriment, fragility, or failure mode — is not a choice, it is a finding. Present only what survives the Step 3 criteria, and record what was filtered and why in one line *beside* the question, never as a row inside it (silent filtering costs the human the ability to catch a bad filter — which is much of why you asked). Two carve-outs: it is the **only viable option** (present it, name its costs explicitly), or a **clear overpowering advantage offsets** the defect (present it, state the offset). The bar for "provable": if you cannot state the defect in one falsifiable line, it is a preference, not a proof — the option stays.
+
+**Diagnostic — pushback that yields a better option means the ask was malformed.** If the human's challenge produces a dominating alternative and you produce it immediately, with no new information gathered, that option was derivable before you asked. Audit the routing; don't just proceed gratefully. The usual cause is a false dichotomy — options framed as a tradeoff whose properties were never actually coupled. Decompose the axes before offering a fork; the dominating option usually lives in the decomposition.
+
+**The `autonomy` config setting scales how aggressively this is applied.** The routing logic above is universal; only the per-session amplification is configurable:
+
+| Level | SessionStart injection | Posture |
+|---|---|---|
+| `default` | none | Rule 35 still governs, with no per-session push. Zero behavior change, zero context cost — the safe failure mode. |
+| `balanced` | classification directive | Classify before asking or deciding; investigate the resolvable parts first, then ask only the residual that is genuinely about the human. |
+| `autonomous` | full posture | Decide objectively-validatable forks yourself against the Rules 13/14/18 bar; take the foundational fix without escalating cost or scope (Rule 18); run quality gates as checks, not stops; stop only for a judgment call with no gainable visibility, an approval not already granted, or a foundational path that would change what the arc *is*. |
+
+**Why:** This is the operative form of a calibration the agent must apply by default, not on request. How *aggressively* to apply it (how high to set the bar for "stop and ask") is governed by the `autonomy` setting per the table above — but the routing logic itself is universal regardless of that setting.

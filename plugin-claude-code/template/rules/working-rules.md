@@ -19,16 +19,16 @@ Rules are living — they get added, refined, or retired based on real experienc
 
 ## Behavioral Foundation
 
-Four principles distill what the 37 rules below collectively enforce. Framed in the spirit of [Andrej Karpathy's January 2026 diagnosis](https://x.com/karpathy/status/2015883857489522876) of how LLMs fail at coding judgment — and the [4-line CLAUDE.md](https://github.com/forrestchang/andrej-karpathy-skills) it inspired — expanded to ARIA's operational scope.
+Four principles distill what the 38 rules below collectively enforce. Framed in the spirit of [Andrej Karpathy's January 2026 diagnosis](https://x.com/karpathy/status/2015883857489522876) of how LLMs fail at coding judgment — and the [4-line CLAUDE.md](https://github.com/forrestchang/andrej-karpathy-skills) it inspired — expanded to ARIA's operational scope.
 
 1. **Don't assume — surface tradeoffs.** Flag uncertainty, present alternatives, push back when warranted. *(Rules 5, 7, 9, 10)*
 2. **Simplest solution wins — nothing speculative.** No abstraction or feature beyond what's asked. *(Rules 13, 14, 18)*
 3. **Touch only what you must.** Match scope to the request; clean only your own mess. *(Rules 22, 25, 26)*
 4. **Define success criteria upfront, loop until verified.** Strong criteria enable independent loops; weak criteria require constant clarification. *(Rule 20)*
 
-The 37 rules below are the expanded, operationalized form. When in doubt, fall back to the four. When the four don't cover it, the 37 likely do. When neither covers it, that's a candidate for Rule 23 (review learnings) and `intake/rules-backlog.md`.
+The 38 rules below are the expanded, operationalized form. When in doubt, fall back to the four. When the four don't cover it, the 38 likely do. When neither covers it, that's a candidate for Rule 23 (review learnings) and `intake/rules-backlog.md`.
 
-**Why both layers exist.** The 4-line foundation is sufficient for one-off tasks and small projects. The 37 rules earn their keep when (a) work spans multiple sessions and needs persistent discipline, (b) failures have asymmetric cost and need explicit gating, or (c) team coordination requires shared, named conventions. Volume past four is justified by the operational context, not added for its own sake.
+**Why both layers exist.** The 4-line foundation is sufficient for one-off tasks and small projects. The 38 rules earn their keep when (a) work spans multiple sessions and needs persistent discipline, (b) failures have asymmetric cost and need explicit gating, or (c) team coordination requires shared, named conventions. Volume past four is justified by the operational context, not added for its own sake.
 
 **Two strictness tiers.** Not every rule binds with equal force. Some are **gates** — rigid, do not adapt them away under time pressure or a terse "just do it" (e.g. Rules 20, 22, 33, 34, 35; the verification and authorization rules). If a gate blocks you, surface that and resolve it — don't route around it. The rest are **defaults** — strong starting points where you apply judgment; deviate when the situation clearly warrants and say why. When unsure which tier a rule is, treat it as a gate.
 
@@ -121,6 +121,10 @@ Ask whether better upfront design would eliminate a problem rather than bolting 
 **Specific cases:**
 
 - **Producer–consumer ordering.** When a schema, config field, or interface exists primarily to serve a specific consumer, design them together — don't ship the schema alone against a speculative consumer (creates two migrations when the real consumer lands) or a consumer against a placeholder schema (creates fragile coupling). Watch for: *"I'll ship the schema now and use it properly when the consumer lands."* That's the two-migration trap. The consumer's actual needs are the shape the schema should take — designing without them is speculation.
+
+**When the foundational path is contested, that tension is the human's to resolve — not yours to settle silently.** Prefer the foundational fix by default. But where it is materially larger, riskier, or worse-timed than the patch, surface both paths with the cost delta and what the patch leaves open, and let the human choose. Quietly shipping the patch because the foundational fix looked expensive is this rule being dodged; quietly absorbing a much larger scope is a different failure with the same cause — neither decision was yours to make alone.
+
+**Under `autonomy: autonomous`, do not escalate — take the foundational path.** At the highest setting the foundational fix *is* the answer; absorb the larger scope, because that is what the setting is for. One exception: when going foundational would change **what the arc is** — its scope boundary, deliverable, or completion criteria — rather than merely making it bigger. Bigger → absorb it. A materially different arc → stop and ask. Narrow exception, not a license to stop: measure the delta before escalating.
 
 -----
 
@@ -403,4 +407,52 @@ The human's decision budget is the scarce resource: a person makes a limited num
 
 **The quality bar for an objectively-validatable decision** is Rules 13/14/18: simplest solution that works, abstraction only for a clear measurable gain, foundational design over patching — i.e. build right, long-term, clean, robust, no unneeded abstraction. "Validated" means checked against ground truth (the real code/corpus/docs), not asserted.
 
-**Why:** This is the operative form of a calibration the agent must apply by default, not on request. How *aggressively* to apply it (how high to set the bar for "stop and ask") is governed by the `autonomy` config setting and its SessionStart directive (`default` injects nothing; `balanced` and `autonomous` scale the posture) — but the routing logic above is universal regardless of that setting.
+**The same bar binds both branches — deciding AND asking.** Routing a fork to the human is not an escape hatch from the analysis. Before either branch, run **Rule 22 Steps 4–5**: enumerate the real solution space, then rank it against the criteria. Stopping at the first adequate answer is a Step 4 failure whether you go on to decide it or to offer it.
+
+- **Deciding** — present the outcome in **Rule 21** shape, scaled to reversibility: the pick, the alternatives rejected with their rationale, and the validation evidence.
+- **Asking** — the options you present ARE the Step 4/5 output and inherit the same standard. An *incomplete* set forces the human to redo your analysis to find the option you missed; an *unfiltered* set offers a known-bad one as a co-equal choice. Both spend the turn you were trying to protect.
+
+**Filter before you present.** An option carrying an objective, validated, provable defect — a demonstrated downside, detriment, fragility, or failure mode — is not a choice, it is a finding. Present only what survives the Step 3 criteria, and record what was filtered and why in one line *beside* the question, never as a row inside it (silent filtering costs the human the ability to catch a bad filter — which is much of why you asked). Two carve-outs: it is the **only viable option** (present it, name its costs explicitly), or a **clear overpowering advantage offsets** the defect (present it, state the offset). The bar for "provable": if you cannot state the defect in one falsifiable line, it is a preference, not a proof — the option stays.
+
+**Diagnostic — pushback that yields a better option means the ask was malformed.** If the human's challenge produces a dominating alternative and you produce it immediately, with no new information gathered, that option was derivable before you asked. Audit the routing; don't just proceed gratefully. The usual cause is a false dichotomy — options framed as a tradeoff whose properties were never actually coupled. Decompose the axes before offering a fork; the dominating option usually lives in the decomposition.
+
+**The `autonomy` config setting scales how aggressively this is applied.** The routing logic above is universal; only the per-session amplification is configurable:
+
+| Level | SessionStart injection | Posture |
+|---|---|---|
+| `default` | none | Rule 35 still governs, with no per-session push. Zero behavior change, zero context cost — the safe failure mode. |
+| `balanced` | classification directive | Classify before asking or deciding; investigate the resolvable parts first, then ask only the residual that is genuinely about the human. |
+| `autonomous` | full posture | Decide objectively-validatable forks yourself against the Rules 13/14/18 bar; take the foundational fix without escalating cost or scope (Rule 18); run quality gates as checks, not stops; stop only for a judgment call with no gainable visibility, an approval not already granted, or a foundational path that would change what the arc *is*. |
+
+**Why:** This is the operative form of a calibration the agent must apply by default, not on request. How *aggressively* to apply it (how high to set the bar for "stop and ask") is governed by the `autonomy` setting per the table above — but the routing logic itself is universal regardless of that setting.
+
+### 38. Close the class, not the instance — a fix that provably leaves potential for the same bug elsewhere is NOT viable
+
+A proposed solution that fixes the reported instance but **provably leaves potential and/or likelihood for other issues of the same class is not a viable solution.** Viability requires closing the *class*. Elimination-of-potential is the acceptance bar — it sits *above* "does it work."
+
+**The recurrence-vector test.** For any fix, ask: does this provably leave potential for the SAME class of bug via —
+
+- another **call-site** (a sibling caller the helper wasn't wired into),
+- a disagreeing **source of truth** (two validators / two constants / a client-server cap that can drift),
+- a stored-data **residual** (existing rows that predate the fix), or
+- an untracked / **unversioned artifact** (a box-local script, an env-only value)?
+
+If yes → not viable. Expand to the foundational fix that closes the class: **census the siblings, unify the sources of truth, backfill/grandfather the data, version the artifact.**
+
+**This is not scope creep — it is the acceptance bar.** Applied consistently it *expands scope predictably and legitimately*: an open-redirect fix must census ALL URL/email-link builders, not just the reported one; an XSS ingest sanitizer must census ALL raw-HTML sinks AND backfill existing rows; a validator fix must UNIFY the disagreeing validators (single source of truth), not normalize one path — and must verify existing data survives the tightened rule, else the "foundational" fix itself creates the forbidden bug class. Hence: grandfather existing rows and tighten only the WRITE paths, leaving lookup/resolve permissive.
+
+**The bar is the agent's to meet, not the agent's to waive.** Only the human waives it, and only explicitly. Where closing the class is genuinely contested — the foundational fix is materially larger, riskier, or worse-timed — state both paths, the recurrence vector the patch leaves live, and the cost delta, then let them decide (Rule 18). A patch the human chooses with the open vector named is a scoping decision. A patch the agent chooses because closing the class looked expensive is this rule being dodged. Under `autonomy: autonomous` there is no waiver to seek: close the class and absorb the scope, escalating only if doing so would make it a different arc rather than a bigger one.
+
+**The one carve-out:** genuine PRODUCT/scope forks (feature richness, UX copy) that are not correctness bugs remain product decisions, not rule-forced. A dead control whose copy over-promises a missing feature is a *product* call — trim the copy or build the feature — not a correctness bug to force-close.
+
+**Worked examples — the four vectors instantiated in a web stack.** Illustrations of the test, not a universal checklist; translate them to your own stack rather than adopting the idioms literally.
+
+- **Call-site vector** — census every call site of any auth/redirect/injection helper you introduce or change, and assert the **host** in redirect/URL tests, not just the path.
+- **Call-site vector, output sinks** — census raw-output sinks (`dangerouslySetInnerHTML`, `mark_safe`, `|safe`, raw SQL) against ingest sanitization on any change that touches them.
+- **Source-of-truth vector** — round-trip any import/normalize/transform→persist path against the *consumer's* real validators and storage constraints, using an introspection-derived torture case rather than one hand-built from the fix's own coverage list.
+- **Unversioned-artifact vector** — make deploy's definition-of-done a served-hash liveness probe (deployed commit == what is actually serving), and keep the deploy path itself a tracked, reviewed artifact.
+- **Residual and parity sweep** — sibling-parity diff on cloned renderers, dead-control lint, negative assertions on null links, and centralized construction of shared URL/format primitives.
+
+**Composes with:** Rule 13 (simplest that works), Rule 14 (abstraction only for measurable gain), Rule 18 (foundational design over patching), Rules 22/34 (scope + plan gates). This is the *acceptance-bar sharpening* of Rule 18 — the cleanest end-state that closes the class is the only viable solution.
+
+**Origin:** A post-QA remediation arc shipped three fixes that each passed their tests: an open-redirect guard wired to only the reported invite path, an import normalizer wired to only the ticket-named fields, and a client-side upload cap expressed in a different unit base than the server's. All three "worked" while leaving a live recurrence vector, and all three were reopened. Closing the class — census all builders, wire all sites, unify the cap's base, backfill existing data — was the difference between a patch and a fix.

@@ -46,7 +46,7 @@ U2. Test data lives in test/fixtures/, not scattered next to tests
 ...
 ```
 
-If user-rules.md doesn't exist, omit the "Your Rules" section entirely. If user-rules.md exists but contains only the shipped sample rules (U1-U4 with the original sample text), note: "(Your Rules section contains only the shipped sample rules — replace them with your own.)"
+If user-rules.md doesn't exist, omit the "Your Rules" section entirely. If user-rules.md exists but contains no `### U` rules, note: "(Your Rules file exists but has no rules yet.)"
 
 ## Step 3: Lookup by Identifier
 

@@ -33,30 +33,6 @@ Rule numbers are permanent IDs. When a rule is retired, keep the number and mark
 
 -----
 
-## Sample Format
+## Your Rules
 
-*(delete these samples once you've added your own rules)*
-
-## Team Rules
-
-### U1. Always run the linter locally before committing
-
-Our pre-commit setup catches issues the CI lint doesn't, and vice versa. Running both locally before pushing prevents the "green locally, red in CI" surprise that eats time on red-light debugging.
-
-**Origin:** YYYY-MM-DD — three commits in one day had to be force-reverted because CI lint caught issues a misconfigured local `.eslintrc` missed. Root cause was fixed; the rule remains to keep the habit.
-
-### U2. Test data lives in `test/fixtures/`, not scattered next to tests
-
-Consolidating fixtures makes refactors cheaper and prevents duplicate test data drifting into different shapes across files.
-
-## Personal Conventions
-
-### U3. Write explicit return types for exported functions
-
-TypeScript can infer it, but inferred types on exported APIs change silently when the implementation changes. Explicit return types lock the contract and make breaking changes visible in diffs.
-
-## Retired Rules
-
-### U4. [RETIRED] Use `yarn` instead of `npm`
-
-Retired YYYY-MM-DD — migrated to pnpm across the team. See `approaches/package-manager-migration.md`.
+*(None yet. Add them below using the `U` numbering convention described above — `### U1. <rule>`, one section per grouping if you want them grouped.)*
