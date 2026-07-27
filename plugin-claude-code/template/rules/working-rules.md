@@ -209,6 +209,18 @@ Ask of any green: *what would make this red, and is that the thing I actually ca
 
 **Mechanical understanding is what makes validation generalize.** Knowing *why* something passed or failed — the actual reason at a mechanical level, not just that it did — is what lets the validation hold beyond the single observed case: across contexts, circumstances, and often variants too. A green you understand mechanically tells you how it will behave when inputs, environment, or shape change; a green you only observed tells you about one run. Understand the mechanism, not just the result.
 
+**Declare the expected value BEFORE you run the check.** Understanding that a signal *can* go red is not enough — a check can be perfectly capable of failing and still hand you a confident wrong answer, because you never said what right looked like. Before running any verification whose output is a count, hash, exit code, or list, write down the value it **must** produce if your belief is true, and why. Then compare. A check with no pre-declared expectation is a printout, not a test: there is no outcome it can report as wrong, so you will read whatever it prints as confirmation.
+
+The declaration is also the cheapest way to catch a wrong *model*. Computing "109, because 90 existing + 18 converted + 1 new" forces you to enumerate what those 90 actually are — which is where you discover the count includes structural headings you weren't thinking about. The arithmetic surfaces the misconception before the check runs.
+
+Failure signatures this catches that the proxy test above does not:
+
+- **A count with an unmodelled denominator** — the number is real, but of a set that differs from the one you meant.
+- **An implausible rate accepted because no rate was predicted** — a classifier flagging 89% of a corpus is almost never right; without a declared expected range, nothing objects.
+- **A "no results" line that prints even when the command failed** — the vacuous green: the loop errored on every iteration and the trailing summary still said clean.
+
+Corollary: **when a check returns a large, confident list, suspect the oracle before the subject.** The prior probability that your measuring instrument is wrong is much higher than the prior that the codebase just failed in eighty places at once.
+
 **Composes with Rule 15** (positive+negative guard tests are the test-shaped instance of this) and **Rule 20** (validate-before-done is the same discipline at completion time).
 
 ### 37. Anything temporary names its own removal trigger up front
