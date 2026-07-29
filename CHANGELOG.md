@@ -2,6 +2,35 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.43.0 — 2026-07-30
+
+**`/auto` gains modifiers and seven standing directives; three rules that prose could not hold become hooks.**
+
+The invocation surface was wrong in two ways, measured against 75 real `/auto` invocations mined from 328 local session transcripts. Some clauses were retyped nearly every run — "local only" (~20×), "use MCP/plugins" (~8×), "set a croncreate" (~10×), the gate chain spelled out longhand (~6×) — all of them things `/auto` already did. A default the user cannot see is a default the user retypes. Others were multi-knob intents with no name: "run this overnight" meant setting three separate knobs, so it was described in prose every time and set inconsistently.
+
+### Added
+
+- **Modifiers — `full`, `loop`, `tickets`.** Stackable, any position. `full` grants maximum authority on every axis **except push**, which D4 makes ungrantable by any modifier; it raises the three Step 5 fan-out stopgaps but does not remove them, because an unattended max-authority run is the case most exposed to unbounded spend. `loop` is the unattended preset (`continue` + `self-restart` + armed resume). `tickets` binds work selection to the connected tracker with a ticket comment per commit. Authority is orthogonal to duration, so `/auto full` and `/auto full loop` are both expressible.
+- **`plan` mode** — produce a prospected, cold-executable plan and stop before any code. The mirror of `execute`. Both shapes were already being run by hand; they had no name.
+- **`arc` as an explicit mode keyword** — `/auto arc fix X` previously mis-parsed "arc" as goal text.
+- **Standing Directives D1–D7**, always on, stated in the arc contract so they stop being retyped: 5h-binds/7d-ignored usage gating with a 90% arm and a 95% pause (and *ask* rather than infer when no statusline is visible) · prose-first scheduled prompts · foundational-always · local-only with push never grantable · live-model reporting at checkpoints · non-blocking stops never idle.
+- **The judgment ledger (D7).** Any decision that could not be **validated, deterministically, traceably, and confirmed after** is logged to `<knowledge_folder>/logs/auto/`, reported *first* at arc close, and reviewed by the user per entry. It is a filter over the existing `[DECISION]` trail, not a parallel system. **An empty ledger is stated, never omitted** — "0 judgment calls" — so silence and zero stay distinguishable.
+- **`bin/pre-cron-check.sh`** — denies a scheduled prompt beginning with `/`, on both scheduling verbs. A leading slash is parsed as a command; when it does not resolve the whole mandate is silently discarded. This rule shipped as prose in v2.37.3 and was violated twice afterward, which is the evidence that prose in a rarely-executed step is not enforcement.
+- **`bin/pre-bash-write-check.sh`** — warns when a shell command mutates a file in place, routing around the Edit/Write tools and therefore around the Rule 22 gate.
+- **`bin/post-edit-tautology-check.sh`** — warns when a test file gains an assertion that cannot fail (Rule 36). Syntactic subset only, and the message **discloses its own blind spot**: semantic tautologies are out of reach for any static rule, and a hook quiet about what it cannot see would itself be a false green.
+
+### Fixed
+
+- **`/auto` no longer hardcodes one ticket vendor.** Seven sites genericized, including the frontmatter `description` and `argument-hint` that every user loads each session whether or not they invoke it. The tracker is resolved by probing the connected project-tracker MCP (as `/digest` does) and by honoring `ticketing_plugins`, read straight from the config file the way `/audit-knowledge` reads it — and, per that skill's rule, **never verifying that a mapped command is installed**. The regression assertion tests vendor *lock*, not vendor *mention*: naming a vendor in an example list helps the probe; treating one as *the* tracker is the defect.
+- **`/auto` Step 6 no longer instructs `durable: true`**, which the tool documents as inert. Removing it exposed the real question — not which mechanism is most capable, but which one *exists* in the caller's runtime. `CronCreate` remains the baseline and default as the only mechanism present in every runtime; session-only is an accepted constraint, since an unattended run keeps its session open by design. Reach past it only when a resume must survive the session ending, and then probe rather than assume. Never promise durability the runtime cannot deliver.
+
+### Notes
+
+- Gate B skill-discovery budget **18,938 → 18,806 bytes**: the rewritten `/auto` description is 1,116 B against 1,248, so the new vocabulary is paid for and 132 B are returned. Headroom 6 B → 138 B.
+- Claude-Code-canonical only. cowork / codex / cursor / antigravity remain tracked-drift.
+- The `pre-bash-write-check.sh` rule was **narrowed by measurement**, not by guess: across 25,508 real Bash calls, file *creation* (`cat > probe.py`) is a legitimate and frequent pattern while *in-place mutation* (`sed -i`, `.write_text()`) is the actual lapse. The shipped rule fires on 0.674% of calls, about 1 in 148.
+- Both new PreToolUse hooks extract JSON with `printf '%s'`, never `echo`. `echo` in `sh` interprets backslash escapes, so JSON's `\n` splits the value across lines and a single-line `grep` matches nothing — which made the first cut of the cron guard green on its tests and inert in production. The inherited `bash-cd-check.sh` carries the same latent idiom; flagged for follow-up.
+
 ## 2.42.0 — 2026-07-25
 
 **Rule 35's quality bar now binds asking as well as deciding; canonical Rule 38 "Close the class"; and `user-rules.md` finally loads every session.** Three related gaps — all wiring, not missing policy.
