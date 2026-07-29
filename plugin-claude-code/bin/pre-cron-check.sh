@@ -17,11 +17,14 @@
 
 INPUT=$(cat)
 
-# Extract the prompt. POSIX grep/sed only -- no jq dependency, matching the
-# sibling hooks (bash-cd-check.sh uses the same idiom for "command"). JSON
-# escapes real newlines as a literal backslash-n, so the first character after
-# the opening quote is exactly the character the parser will see.
-PROMPT=$(echo "$INPUT" | grep -o '"prompt":"[^"]*"' | head -1 | sed 's/"prompt":"//;s/"$//')
+# Extract the prompt. POSIX grep/sed only -- no jq dependency.
+#
+# printf '%s', NOT echo. `echo` in sh interprets backslash escapes, so the \n
+# that JSON uses for a newline becomes a REAL newline, the value splits across
+# lines, and the single-line grep below finds no closing quote -> empty match ->
+# silent fail-open. Every realistic resume mandate is multi-line, so using echo
+# here would make this guard do nothing in exactly the case it exists for.
+PROMPT=$(printf '%s' "$INPUT" | grep -o '"prompt":"[^"]*"' | head -1 | sed 's/"prompt":"//;s/"$//')
 [ -z "$PROMPT" ] && exit 0
 
 # The parser strips leading whitespace before dispatching, so strip it here too --

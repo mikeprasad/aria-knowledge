@@ -71,6 +71,11 @@
             "type": "command",
             "command": "bash ${CLAUDE_PLUGIN_ROOT}/bin/bash-cd-check.sh",
             "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/bin/pre-bash-write-check.sh",
+            "timeout": 5
           }
         ]
       },

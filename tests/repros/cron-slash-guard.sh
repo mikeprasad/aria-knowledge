@@ -45,6 +45,16 @@ OUT5=$(printf '%s' '{"tool_name":"mcp__scheduled-tasks__create_scheduled_task","
 echo "$OUT5" | grep -q '"permissionDecision":"deny"' \
   && ok "F covers the persisted-task verb too" || bad "F scheduled-tasks" "not denied (got: $OUT5)"
 
+# F2 — REGRESSION: a MULTI-LINE prompt must still be caught. Every realistic
+# resume mandate is multi-line. An earlier version extracted with `echo`, which
+# in sh interprets the JSON \n as a real newline, split the value across lines,
+# matched nothing, and failed open -- so the guard was green on these tests and
+# inert in production. This assertion is the one that would have caught it.
+OUT5b=$(printf '%s' '{"tool_name":"CronCreate","tool_input":{"prompt":"/auto continue\nVERIFY STATE FIRST -- this prompt may be stale.\nRe-arm the next cycle prose-first."}}' | sh "$HOOK" 2>/dev/null || true)
+echo "$OUT5b" | grep -q '"permissionDecision":"deny"' \
+  && ok "F2 catches a multi-line prompt (no echo-escape bug)" \
+  || bad "F2 multi-line" "multi-line prompt slipped through — extraction is eating the \\n"
+
 # G — unparseable input must fail OPEN, never block a well-formed schedule.
 OUT6=$(printf '%s' '{"tool_name":"CronCreate","tool_input":{"cron":"5 4 * * *"}}' | sh "$HOOK" 2>/dev/null || true)
 [ -z "$OUT6" ] && ok "G fails open on a missing prompt" || bad "G fail-open" "emitted output with no prompt field: $OUT6"
