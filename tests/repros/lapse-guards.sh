@@ -70,5 +70,49 @@ O=$(run_bw "cat >> \\\"\$KF/intake/insights-backlog.md\\\" <<EOF")
 grep -q 'pre-bash-write-check.sh' "$MANIFEST" \
   && ok "H registered in plugin.json" || bad "H registered" "hook not wired"
 
+# ---------------------------------------------------------------------------
+# C2 — assertions that cannot fail. A tautological assertion is a false green:
+# it reports success without ever having been able to report failure (Rule 36).
+# Syntactic detection only, warn-only, scoped to test-shaped paths.
+# ---------------------------------------------------------------------------
+TA="$REPO_ROOT/plugin-claude-code/bin/post-edit-tautology-check.sh"
+run_ta() { printf '{"tool_name":"Write","tool_input":{"file_path":"%s","content":"%s"}}' "$1" "$2" | sh "$TA" 2>/dev/null || true; }
+
+[ -x "$TA" ] && ok "I tautology hook exists" || bad "I exists" "missing or not +x"
+
+# RED: identical operands.
+OUT=$(run_ta "/x/tests/test_a.py" "def test_x():\n    assert value == value\n")
+echo "$OUT" | grep -q 'additionalContext' \
+  && ok "J warns on identical-operand assert" || bad "J identical" "no warning (got: $OUT)"
+echo "$OUT" | grep -q 'permissionDecision' \
+  && bad "J warn-only" "emitted permissionDecision; C2 must be warn-only" || ok "J is warn-only"
+echo "$OUT" | grep -qi 'semantic' \
+  && ok "K states what it cannot detect" || bad "K limit" "does not disclose its own blind spot"
+
+# RED: literal-true assertion.
+OUT2=$(run_ta "/x/tests/test_b.py" "def test_y():\n    assert True\n")
+echo "$OUT2" | grep -q 'additionalContext' \
+  && ok "L warns on assert True" || bad "L assert True" "no warning"
+
+# RED: the JS/TS shape.
+OUT3=$(run_ta "/x/src/__tests__/thing.spec.ts" "it('works', () => { expect(got).toBe(got) })")
+echo "$OUT3" | grep -q 'additionalContext' \
+  && ok "M warns on expect(x).toBe(x)" || bad "M expect" "no warning"
+
+# GREEN: a real assertion must stay silent.
+OUT4=$(run_ta "/x/tests/test_c.py" "def test_z():\n    assert parse(raw) == expected\n")
+[ -z "$OUT4" ] && ok "N silent on a real assertion" || bad "N real" "warned on a valid test: $OUT4"
+
+# GREEN: scoped to test paths — a non-test file is not this hook's business.
+OUT5=$(run_ta "/x/src/app.py" "assert x == x\n")
+[ -z "$OUT5" ] && ok "O scoped to test-shaped paths" || bad "O scope" "warned on a non-test file"
+
+# GREEN: multi-line content must not break extraction (the echo-escape lesson).
+OUT6=$(run_ta "/x/tests/test_d.py" "import os\nimport sys\n\ndef test_w():\n    assert compute(1) == 2\n")
+[ -z "$OUT6" ] && ok "P silent across a multi-line real test" || bad "P multiline" "false positive on multi-line content"
+
+grep -q 'post-edit-tautology-check.sh' "$MANIFEST" \
+  && ok "Q registered in plugin.json" || bad "Q registered" "hook not wired"
+
 printf "\n%d passed, %d failed\n" "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
