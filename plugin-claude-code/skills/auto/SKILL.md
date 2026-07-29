@@ -1,6 +1,6 @@
 ---
-description: "Kick off and drive an autonomous execution arc end-to-end: compose the gate chain (brainstorm→spec→/prospect→plan→/prospect→TDD→/retrospect) under the Rule 35 posture, decide validatable forks yourself, and stop only on a load-bearing fork or ungranted approval. Two modes: '/auto [goal] [continue|stop]' (full arc; 'continue' = keep finding new work after the queue for unattended/overnight runs, 'stop' = checkpoint + handoff, the default) '/auto execute <plan|spec|linear-id>' (plan exists — skip ideation), and '/auto config' (alias preflight; guided one-knob-at-a-time picker for this run — you set nothing from memory). An explicit grant of autonomous latitude that overrides the standing `autonomy` config for the arc (never writes it). Use when the user says 'combined go', 'continue autonomously', 'go with your recommendation', 'do as much as you can autonomously', 'run the whole chain', 'just build it', 'take this and run', 'run overnight', or hands off a goal/plan/ticket/SESSION.md with latitude to execute WITHOUT per-step approval. ENTRY POINT for a multi-step arc — NOT a single concrete change (just do that), and distinct from /prospect, /retrospect, /handoff, /wrapup. (Code port — ADR-094.)"
-argument-hint: "[execute|config|preflight] [<goal | plan-path | linear-id>] [continue|stop]"
+description: "Drive an autonomous execution arc end-to-end — compose brainstorm→spec→/prospect→plan→/prospect→TDD→/retrospect under the Rule 35 posture, decide objectively-validatable forks yourself, and stop only on a load-bearing fork or an ungranted approval. Modes: `arc` (default), `execute <plan|spec|ticket-id>` (skip ideation), `plan` (stop at a prospected plan, no code), `config` (guided per-run knob picker). Stackable modifiers: `full` (max authority except push), `loop` (unattended: continue + self-restart + armed resume), `tickets` (tracker-bound selection + per-commit ticket comments). Toggles: continue|stop, self-restart. An explicit grant of autonomous latitude that overrides the standing `autonomy` config for the arc and never writes it. Use when the user hands off a goal, plan, ticket, or SESSION.md with latitude to execute WITHOUT per-step approval — 'combined go', 'run overnight', 'just build it', 'do as much as you can'. ENTRY POINT for a multi-step arc, NOT a single concrete change; distinct from /prospect, /retrospect, /handoff, /wrapup. (Code port — ADR-094.)"
+argument-hint: "[arc|execute|plan|config] [<goal | plan-path | ticket-id>] [full] [loop] [tickets] [continue|stop]"
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash, WebFetch, WebSearch
 ---
 
@@ -101,7 +101,7 @@ These bind every `/auto` run in every mode. They are not modifiers and cannot be
 | Mode | Trigger | What it does |
 |---|---|---|
 | **arc** (default) | `/auto` or `/auto <goal>` | Full chain: brainstorm → spec → /prospect → plan → /prospect → execute → /retrospect. The default when the first arg isn't a mode keyword. |
-| **execute** | `/auto execute <plan-path \| linear-id \| "the plan">` | A plan/spec already exists. Skip ideation; run /prospect → build (TDD/SDD) → /retrospect. |
+| **execute** | `/auto execute <plan-path \| ticket-id \| "the plan">` | A plan/spec already exists. Skip ideation; run /prospect → build (TDD/SDD) → /retrospect. |
 | **plan** | `/auto plan [<goal>]` | Produce a prospected, cold-executable plan and STOP. Runs brainstorm → spec → /prospect → plan → /prospect. **No code.** The mirror of `execute`. |
 | **config** | `/auto config [<goal>]` (alias `/auto preflight`) | Guided pre-flight: walk every run setting one at a time as a picker (so nothing has to be remembered), assemble the run-config, then drive the arc with it. Configures THIS run only — never persists (that's `/setup`'s job). See Step 0¾. |
 
@@ -122,6 +122,18 @@ These bind every `/auto` run in every mode. They are not modifiers and cannot be
 - **`tickets`** — tracker-bound. Work selection comes from the connected tracker by
   priority; comment on the ticket at every commit; never claim a ticket without verified
   validation.
+
+  **Resolving the tracker — never hardcode a vendor.** Probe at runtime for a connected
+  `~~project-tracker` MCP and adapt, as `/digest` does: Linear · Asana · Atlassian/Jira ·
+  Monday · ClickUp · Notion-as-tracker · GitHub Issues. Probing is prose-only; there is no
+  helper API (ADR-015). If `ticketing_plugins` is set in `~/.claude/aria-knowledge.local.md`
+  (comma-separated `tag:plugin-command` pairs, read directly from the file the way
+  `/audit-knowledge` reads it), it wins — that is the user's explicit declaration.
+  **Never verify that a mapped command is actually installed:** enumerating installed
+  plugins couples this skill to runtime internals that can change, and a loud failure at
+  invocation beats a silently-absent hint. Detect ticket IDs with the vendor-neutral `\b([A-Z]{2,}-\d+)\b`. With
+  no tracker connected and no mapping, say so once and fall back to the Step 4
+  work-selection order — `tickets` never hard-fails an arc.
 
 Authority is orthogonal to duration: `full` sets *how much latitude*, `loop`/`continue`/`stop`
 set *how long*. `/auto full` (max authority, scoped) and `/auto full loop` (max authority,
@@ -147,7 +159,7 @@ Runs ONLY when invoked as `/auto config` (or `/auto preflight`). Skip entirely f
 
 Walk these in order, **one at a time** (do not dump all six at once — the point is recognition-not-recall, one decision per step):
 
-1. **Goal / source** — this prompt's goal · continue from `SESSION.md`/latest handoff · a plan path · a Linear ID. (If a goal was passed as `/auto config <goal>`, pre-seed it and confirm.)
+1. **Goal / source** — this prompt's goal · continue from `SESSION.md`/latest handoff · a plan path · a ticket ID from your connected tracker. (If a goal was passed as `/auto config <goal>`, pre-seed it and confirm.)
 2. **On-queue-complete** — `stop` (scoped: checkpoint + /handoff when the queue's clear — *default*) · `continue` (keep finding new work; for unattended/overnight).
 3. **Push policy** — commit local, no push (*default*) · commit + push per host convention. (Push remains an ungranted-approval stop regardless — this only sets the intent.)
 4. **Fan-out / subagents** — inline-only · bounded individual subagents, ~10 cumulative cap (*default*) · raise the cap to N · allow the Workflow swarm (multi-agent orchestration). (Maps to the Step 5 stopgaps.)
@@ -174,7 +186,7 @@ Before the first action, post a short **arc contract** so the autonomy is legibl
 > **Arc:** <one-line goal> · **Mode:** <arc | execute> · **On-complete:** <continue | stop>
 > **Standing rules loaded:** user-rules.md — <U1…UN applied where contextually relevant | none (absent or no rules yet)> (from Step 0.4).
 > **I'll decide myself:** objectively-validatable forks (checked against real code/corpus/docs, held to Rules 13/14/18 — simplest/robust/clean, no unneeded abstraction).
-> **I'll handle without stopping:** knowledge placement, tool/permission approvals, backlog/deferral, Linear ticket filing, the normal commit cadence (see Pre-answered below).
+> **I'll handle without stopping:** knowledge placement, tool/permission approvals, backlog/deferral, ticket filing, the normal commit cadence (see Pre-answered below).
 > **I'll stop and ask on:** product/UX taste with no objective answer · an irreversible/outward-facing action not covered by policy *that blocks the task* · a true no-visibility fact only you have · a genuine costly fork empirical investigation can't decide.
 > **Gates that run but don't count as stopping:** /prospect (pre-code), /retrospect (post-build).
 > **Usage:** gating on 5h only; 7d ignored · arm at 90% · pause at 95% (D1).
@@ -197,7 +209,7 @@ Rule 35 says route by question type; these are the recurring autonomous-run case
 - **Knowledge placement** — never pause to ask *where* something goes. Make it durable in the best location you can judge (memory · /prospect+/retrospect log · contract doc · CLAUDE.md + PROGRESS). Unsure → drop it to the general intake backlog for a future audit to sort. Placement is never a stop.
 - **Tool / MCP / permission approvals** — assume the build/test/lint, sim, git, Cron, MCP, and skill verbs are pre-approved (a companion allowlist in the user's `.claude/settings.local.json` makes this real at the harness level — see Notes). If one tool is genuinely blocked, route to the working alternative and note it. Only OS-level GUI popups need a live human — flag once and route around.
 - **Backlog / deferral** — a known follow-on (out-of-scope feature, separate-team backend change, device-gated smoke) → file/note it and DEFER. Don't stop to ask whether to defer.
-- **Linear tickets** — create freely: status backlog/Undefined, assigned to the user for post-session review, both intakes present (Technical Intake marked DRAFT), enriched via comments. Never stop to ask whether/how to file.
+- **Tickets** — create freely in the connected tracker: status backlog/Undefined, assigned to the user for post-session review, both intakes present (Technical Intake marked DRAFT), enriched via comments. Never stop to ask whether/how to file.
 - **Known-pattern git/scope** — stage named in-scope files, commit, push (per the contract's push policy). Don't ask permission for the normal commit cadence.
 - **Self-recommended chain choices** — a spec/prospect/plan fork a recommendation already answers → take the recommendation. "Self-recommended + answerable" is not a stop.
 
@@ -205,7 +217,7 @@ Rule 35 says route by question type; these are the recurring autonomous-run case
 
 Run the chain by **invoking the real skills** via the `Skill` tool, not by summarizing them. Composition keeps the gates honest: the quality checks are the actual checks, and improvements to those skills flow through automatically.
 
-**Degrade gracefully when a composed skill or tool is absent.** `brainstorming`, `writing-plans`, `test-driven-development`, and `subagent-driven-development` are Superpowers skills (strongly recommended, optional). If one isn't installed, name what's missing, fall back to doing that phase inline (a plain brainstorm, a hand-written plan, manual red-green-refactor), and say the gate ran in degraded form. The `execute <linear-id>` path needs Linear MCP — if unavailable, ask the user to paste the ticket rather than proceed on a missing plan.
+**Degrade gracefully when a composed skill or tool is absent.** `brainstorming`, `writing-plans`, `test-driven-development`, and `subagent-driven-development` are Superpowers skills (strongly recommended, optional). If one isn't installed, name what's missing, fall back to doing that phase inline (a plain brainstorm, a hand-written plan, manual red-green-refactor), and say the gate ran in degraded form. The `execute <ticket-id>` path needs a connected project-tracker MCP — if unavailable, ask the user to paste the ticket rather than proceed on a missing plan.
 
 ### arc mode — full chain
 
@@ -221,7 +233,7 @@ Run the chain by **invoking the real skills** via the `Skill` tool, not by summa
 
 ### execute mode — plan exists
 
-Skip steps 1–2. Resolve the plan source (path → `Read`; Linear ID → MCP fetch if available; quoted string → treat as the plan), then run 3 → 6 → 7.
+Skip steps 1–2. Resolve the plan source (path → `Read`; ticket ID → tracker MCP fetch if available; quoted string → treat as the plan), then run 3 → 6 → 7.
 
 ### Verification reality — verify for real, classify honestly
 

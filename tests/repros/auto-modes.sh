@@ -20,7 +20,7 @@ for m in "arc" "execute"; do
 done
 grep -qiE 'no-keyword default|default when the first arg|default `arc`' "$SK" \
   && ok "B no-keyword default documented" || bad "B default" "no bare-/auto default rule"
-grep -qiE 'Two modes' "$SK" && ok "B two-mode surface (no set mode)" || bad "B two-mode" "still advertises >2 modes"
+grep -qiE '`set` mode|\bset mode\b' "$SK" && bad "B no set mode" "a 'set' mode reappeared (Option A rejected it)" || ok "B no set mode (Option A held)"
 
 # C: composes the real process skills via the Skill tool (driver, not summary)
 for skill in "brainstorming" "/prospect" "test-driven-development" "/retrospect"; do
@@ -228,6 +228,37 @@ grep -qiE 'Implies `continue`|implies.*continue' "$SK" \
   && ok "MM loop implies continue+self-restart" || bad "MM loop" "loop expansion undocumented"
 grep -qiE 'contradictor|explicit token' "$SK" \
   && ok "MM loop+stop contradiction resolved" || bad "MM loop stop" "contradiction unhandled"
+
+# VL: no vendor LOCK — naming a vendor inside an example list is fine (that is what
+# /digest does and it helps the probe); treating one vendor as THE tracker is not.
+if grep -qiE 'linear (mcp|id|ticket)|linear-id|<linear' "$SK"; then
+  bad "VL no vendor lock" "a vendor is still treated as THE tracker"
+else
+  ok "VL no vendor lock (vendor-as-the-tracker absent)"
+fi
+# ...and if a vendor is named, it must sit in a list with other trackers.
+if grep -qi 'linear' "$SK"; then
+  grep -qiE 'linear.*(asana|jira|atlassian|monday|clickup|notion|github issues)' "$SK" \
+    && ok "VL vendor named only as one example among several" \
+    || bad "VL example list" "a vendor is named without sibling trackers beside it"
+else
+  ok "VL no vendor named at all"
+fi
+grep -qF 'ticket-id' "$SK" && ok "VL generic ticket-id" || bad "VL ticket-id" "not genericized"
+grep -qiE 'project.tracker' "$SK" \
+  && ok "VL tracker category probed" || bad "VL probe" "no tracker category probe"
+grep -qiE 'ticketing_plugins' "$SK" \
+  && ok "VL honors ticketing_plugins" || bad "VL config" "config key not honored"
+grep -qiE 'never verify|not verify' "$SK" \
+  && ok "VL inherits no-installed-probe rule" || bad "VL probe rule" "installability rule missing"
+grep -qF 'A-Z]{2,}-' "$SK" \
+  && ok "VL reuses the agnostic ticket regex" || bad "VL regex" "ticket-ID regex absent"
+
+# VL: Gate B — /auto's own description must not have grown
+AUTO_DESC=$(awk '/^description:/{f=1;print;next} f&&/^[a-z_-]+:/{f=0} f' "$SK" | wc -c | tr -d ' ')
+[ "$AUTO_DESC" -le 1232 ] \
+  && ok "VL description within budget ($AUTO_DESC B <= 1232)" \
+  || bad "VL budget" "description grew to $AUTO_DESC B (was 1232)"
 
 printf "\n%d passed, %d failed\n" "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
