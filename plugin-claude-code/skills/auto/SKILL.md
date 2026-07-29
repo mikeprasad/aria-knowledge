@@ -309,7 +309,22 @@ These three are orthogonal — Workflow-opt-in bounds a single huge swarm, the b
 
 ## Step 6 (optional): Self-perpetuating run via resume cron
 
-Only for an unattended, away-from-keyboard run **whose binding budget is usage, not context** (context-bound can't be resumed by a cron — see Step 3). Arm it EARLY and re-arm at or before 90% usage — never wait until the end (the session can die first and break the chain): `CronCreate`, `recurring:false`, `durable:true`, fire **5 minutes AFTER the next 5-hour reset boundary** (NOT at the exact reset minute — firing at the boundary risks landing before the window has actually reset/propagated, re-firing into a still-exhausted window and breaking the chain; the +5-min guard band ensures the new window is live). The prompt = a compressed mandate + "VERIFY STATE FIRST, this prompt may be stale" + "re-create this same cron for the next cycle before stopping (again +5 min after the following reset)." **The cron prompt MUST lead with prose — never start it with a slash command** (a leading `/auto` or any `/command` is parsed as an unknown command and the whole mandate is silently discarded; phrase the mandate in prose and, if you must reference a skill, name it mid-sentence). This is the same prose-first hazard as the Step 3¾ restart opener — one rule, two arming sites. Arming a cron is part of the autonomous remit when the user asked for a self-perpetuating run; it is NOT something to do silently on an ordinary scoped arc.
+Only for an unattended, away-from-keyboard run **whose binding budget is usage, not context** (context-bound can't be resumed by a schedule — see Step 3).
+
+**Mechanisms are gated on availability first, capability second.** `CronCreate` is the **baseline and the default**: it is the only one present in **every runtime**. Its session-only nature is an accepted constraint, not a defect — an unattended run keeps its session open by design.
+
+| Mechanism | Available | Survives session death | Fresh context | Use for |
+|---|---|---|---|---|
+| **`CronCreate`** — the default | **Always, every runtime** | No — **session-only**, in-memory; recurring auto-expires at 7 days; fires only while the REPL is idle | No — re-enters this session | Usage-bound resume with the session left open. The normal unattended run. |
+| **A persisted scheduled task** | **Desktop runtime only** — probe, never assume | Yes — runs at next app launch if missed | Yes | A resume that must survive the session ending, where the runtime offers it |
+| **launchd** (the `pm-schedule.sh` pattern) | macOS only; user opts in | Yes — OS-level | Yes — a fresh `claude` invocation | Truly session-independent recurring work on the CLI |
+| **`bin/auto-runloop.sh`** (`self-restart`) | Wrapper must already be running | Wrapper-dependent | Yes — a fresh `claude -p` process | A context wall mid-arc (Step 3¾) |
+
+**Selection rule.** Default to `CronCreate`. Reach past it only when the resume genuinely must survive the session ending — and then **probe what this runtime actually offers** rather than naming a mechanism the user may not have. State which one you chose and why. **Never promise durability the runtime cannot deliver.** The mechanisms are not substitutes: a schedule resumes work at a *time*, `self-restart` recovers from a *context wall*.
+
+**Do not pass `durable: true`** — the tool documents it as having no effect; all jobs are session-only.
+
+Arm it EARLY and re-arm at or before 90% usage — never wait until the end (the session can die first and break the chain): `recurring:false`, fire **5 minutes AFTER the next 5-hour reset boundary** (NOT at the exact reset minute — firing at the boundary risks landing before the window has actually reset/propagated, re-firing into a still-exhausted window and breaking the chain; the +5-min guard band ensures the new window is live). The prompt = a compressed mandate + "VERIFY STATE FIRST, this prompt may be stale" + "re-create this same cron for the next cycle before stopping (again +5 min after the following reset)." **The cron prompt MUST lead with prose — never start it with a slash command** (a leading `/auto` or any `/command` is parsed as an unknown command and the whole mandate is silently discarded; phrase the mandate in prose and, if you must reference a skill, name it mid-sentence). This is the same prose-first hazard as the Step 3¾ restart opener — one rule, two arming sites. Arming a cron is part of the autonomous remit when the user asked for a self-perpetuating run; it is NOT something to do silently on an ordinary scoped arc.
 
 ## Step 7: Knowledge capture (as you go — durable, best-guess location, never blocking)
 

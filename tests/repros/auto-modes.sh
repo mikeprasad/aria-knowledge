@@ -260,5 +260,29 @@ AUTO_DESC=$(awk '/^description:/{f=1;print;next} f&&/^[a-z_-]+:/{f=0} f' "$SK" |
   && ok "VL description within budget ($AUTO_DESC B <= 1232)" \
   || bad "VL budget" "description grew to $AUTO_DESC B (was 1232)"
 
+# SCH: durable:true is a documented no-op and must not be instructed
+# durable:true may appear ONLY inside a prohibition — a mention is not an instruction.
+if grep -E 'durable: ?true' "$SK" | grep -qvE 'Do not pass|never pass|no effect'; then
+  bad "SCH durable no-op" "durable:true is instructed somewhere without a negation"
+else
+  ok "SCH durable:true appears only as a prohibition"
+fi
+grep -qiE 'session-only' "$SK" \
+  && ok "SCH session-only stated" || bad "SCH session-only" "CronCreate reality not stated"
+
+# SCH: availability-gated, with CronCreate retained as the always-available default
+grep -qiE 'CronCreate.*(is the|stays the) (baseline|default)|baseline and the default' "$SK" \
+  && ok "SCH CronCreate is the default" || bad "SCH default" "CronCreate not stated as baseline"
+grep -qiE 'every runtime' "$SK" \
+  && ok "SCH availability is the gate" || bad "SCH availability" "no availability-first rule"
+grep -qiE 'desktop' "$SK" \
+  && ok "SCH names the desktop-only constraint" || bad "SCH desktop" "scheduled-task surface not scoped to desktop"
+grep -qiE 'launchd' "$SK" \
+  && ok "SCH names the CLI durable option" || bad "SCH launchd" "no CLI-side durable mechanism"
+grep -qiE 'probe' "$SK" \
+  && ok "SCH probes before naming a mechanism" || bad "SCH probe" "no runtime probe rule"
+grep -qiE 'never promise durability|cannot deliver' "$SK" \
+  && ok "SCH no over-promise" || bad "SCH over-promise" "missing the don't-promise guard"
+
 printf "\n%d passed, %d failed\n" "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
