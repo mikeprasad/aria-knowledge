@@ -166,5 +166,42 @@ grep -qiE 'prose-first|start with prose|never (a |with a )?(leading )?slash' "$S
 grep -qiE 'allowlist|permission rule|classifier|dangerously-skip-permissions' "$SK" \
   && ok "SR documents the permission gate" || bad "SR perms" "doesn't warn the wrapper needs a permission allowlist"
 
+# SD: standing directives block exists with all seven directives
+grep -qF '## Standing Directives' "$SK" \
+  && ok "SD block present" || bad "SD block" "no '## Standing Directives' heading"
+for d in D1 D2 D3 D4 D5 D6 D7; do
+  grep -qF "**$d" "$SK" && ok "SD directive: $d" || bad "SD $d" "not in SKILL.md"
+done
+
+# SD-D1: 5h binds, 7d ignored, two distinct thresholds
+grep -qiE '7[- ]day.*ignor|ignor.*7[- ]day' "$SK" \
+  && ok "SD D1 ignores 7-day" || bad "SD D1 7d" "7-day not explicitly ignored"
+grep -qF '90%' "$SK" && ok "SD D1 90% arm threshold" || bad "SD D1 90" "no 90% threshold"
+grep -qF '95%' "$SK" && ok "SD D1 95% pause threshold" || bad "SD D1 95" "no 95% pause"
+grep -qiE 'no statusline|not visible|desktop' "$SK" \
+  && ok "SD D1 no-statusline caveat" || bad "SD D1 caveat" "no ask-when-invisible rule"
+
+# SD-D7: judgment ledger contract
+grep -qiF 'judgment ledger' "$SK" \
+  && ok "SD D7 ledger named" || bad "SD D7 name" "ledger not named"
+grep -qF 'logs/auto/' "$SK" \
+  && ok "SD D7 ledger path" || bad "SD D7 path" "no logs/auto/ path"
+grep -qF 'knowledge_folder' "$SK" \
+  && ok "SD D7 resolves knowledge_folder" || bad "SD D7 resolve" "path not config-resolved"
+grep -qF '~/knowledge/' "$SK" \
+  && bad "SD D7 phantom path" "literal ~/knowledge/ present (v2.40.2 defect)" \
+  || ok "SD D7 no phantom path"
+for t in "Validated" "Deterministic" "Traced" "Confirmed after"; do
+  grep -qF "$t" "$SK" && ok "SD D7 test: $t" || bad "SD D7 $t" "four-part test incomplete"
+done
+grep -qiE '0 judgment calls|empty ledger' "$SK" \
+  && ok "SD D7 empty-ledger stated" || bad "SD D7 empty" "empty ledger not stated"
+
+# SD: arc contract surfaces the retyped clauses
+grep -qiE 'Judgment ledger:' "$SK" \
+  && ok "SD contract shows ledger" || bad "SD contract ledger" "not in arc contract"
+grep -qiE 'never pre-authorized|never grantable' "$SK" \
+  && ok "SD contract push-never-granted" || bad "SD contract push" "push grant not excluded"
+
 printf "\n%d passed, %d failed\n" "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

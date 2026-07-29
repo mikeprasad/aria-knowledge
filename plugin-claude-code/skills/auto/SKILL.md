@@ -42,6 +42,58 @@ This gate is NOT suspended by any mode — `/auto` is inherently autonomous, so 
 
 `/auto` is the *driver*; those are the *gates and bookends* it calls. It doesn't replace them — it sequences them.
 
+## Standing Directives — always on, never need asking for
+
+These bind every `/auto` run in every mode. They are not modifiers and cannot be turned off.
+
+- **D1 — Usage: the 5-hour figure binds; the 7-day figure is ignored.** When a statusline is
+  visible, gate only on the 5-hour number. The 7-day number is never a reason to slow,
+  shrink, defer, or stop. At **90%** 5h, arm or re-arm the resume schedule (Step 6). At
+  **95%** 5h, PAUSE: checkpoint, commit, then wait for the reset if a resume is armed, else
+  `/handoff`. When no statusline is visible (the desktop runtime reports an unreliable
+  figure), do not infer a number and do not gate on one — ask.
+- **D2 — A scheduled prompt never starts with `/`.** Applies to every scheduling mechanism.
+  A leading `/token` is parsed as an unknown command and the whole mandate is silently
+  discarded. Lead with prose; name a skill mid-sentence if you must reference one. The
+  prompt must instruct the next scheduled run to start prose-first too. Enforced by
+  `bin/pre-cron-check.sh`, not by this paragraph — the prose form of this rule shipped once
+  and was violated twice afterward.
+- **D3 — Foundational is always the answer**, unless the foundational fix would itself
+  derail the arc. Never take the patching branch to protect schedule (Rules 18 and 38).
+  Every firing of that carve-out is a D7 ledger entry.
+- **D4 — Local commits only; push is never grantable.** No modifier — including `full` —
+  pre-authorizes a push. Push stays a legitimate stop in every mode.
+- **D5 — Report the live model name at every checkpoint**, so a silent model swap is visible.
+- **D6 — A non-blocking stop never idles the run.** Note it, keep working, surface it at
+  handoff.
+- **D7 — The judgment ledger.** Any decision that could not be **Validated** (checked
+  against ground truth, not asserted), **Deterministic** (same inputs, same verdict for
+  anyone re-running it), **Traced** (the check is nameable and re-runnable), and
+  **Confirmed after** (what was predicted actually held once built) is logged. All four
+  hold → an ordinary `[DECISION]` line. **Any one fails → a ledger entry.** The ledger is a
+  filter over the `[DECISION]` trail, not a parallel system.
+
+  Write to `<knowledge_folder>/logs/auto/<YYYY-MM-DD>-<slug>-judgments.md`, resolving
+  `knowledge_folder` from `~/.claude/aria-knowledge.local.md`. Create `logs/auto/` lazily.
+  Entry shape:
+
+      ### J<N> — <the decision, one line>
+      - **Chose:** <what was done>
+      - **Alternative not taken:** <what was rejected>
+      - **Why not deterministic:** <which of the four tests failed, and how>
+      - **Would be falsified by:** <the concrete check that would prove it wrong>
+      - **Blast radius / reversal:** <files · commit · how to undo>
+      - **Type:** judgment | D3-carve-out
+      - **Disposition:** pending → accepted | revisit | reverted
+
+  At arc close the ledger is reported **first**, ahead of the landed-work summary, and the
+  user is explicitly prompted to review each entry (accept / revisit / revert); dispositions
+  are written back into the file. If the arc ends via a context wall, a scheduled handoff,
+  or a restart rather than a clean close, carry the ledger path in the `/handoff` opener and
+  `SESSION.md` so the resuming session surfaces it before starting new work. **An empty
+  ledger is stated, never omitted:** "0 judgment calls — every decision was deterministically
+  validated." Silence and zero must stay distinguishable.
+
 ## Step 0: Parse mode, posture, and the queue-complete toggle
 
 `/auto` is an **explicit, in-the-moment grant of autonomous latitude** — invoking it *means* "drive this autonomously, now." It overrides the standing `autonomy` config for the duration of the arc and never changes that config. Two modes plus a toggle:
@@ -102,7 +154,12 @@ Before the first action, post a short **arc contract** so the autonomy is legibl
 > **I'll handle without stopping:** knowledge placement, tool/permission approvals, backlog/deferral, Linear ticket filing, the normal commit cadence (see Pre-answered below).
 > **I'll stop and ask on:** product/UX taste with no objective answer · an irreversible/outward-facing action not covered by policy *that blocks the task* · a true no-visibility fact only you have · a genuine costly fork empirical investigation can't decide.
 > **Gates that run but don't count as stopping:** /prospect (pre-code), /retrospect (post-build).
-> **Push policy:** <commit local, no push | commit + push per host convention>.
+> **Usage:** gating on 5h only; 7d ignored · arm at 90% · pause at 95% (D1).
+> **Push:** local commits only — never pre-authorized by any modifier, including `full` (D4).
+> **Tools:** MCP / plugins / skills pre-approved.
+> **Foundational:** always preferred; any carve-out is logged (D3 → D7).
+> **Judgment ledger:** `<resolved path>` — reported first at close, for your review (D7).
+> **Model:** <live model name> — re-reported at each checkpoint (D5).
 
 This contract is the operative form of Rule 35's routing table for *this* arc. You don't re-derive the table — you instantiate it.
 
