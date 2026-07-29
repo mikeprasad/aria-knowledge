@@ -73,6 +73,16 @@
             "timeout": 5
           }
         ]
+      },
+      {
+        "matcher": "CronCreate|mcp__scheduled-tasks__create_scheduled_task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/bin/pre-cron-check.sh",
+            "timeout": 5
+          }
+        ]
       }
     ],
     "PostToolUse": [
