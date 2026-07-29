@@ -203,5 +203,31 @@ grep -qiE 'Judgment ledger:' "$SK" \
 grep -qiE 'never pre-authorized|never grantable' "$SK" \
   && ok "SD contract push-never-granted" || bad "SD contract push" "push grant not excluded"
 
+# MM: plan mode + arc as an explicit keyword
+grep -qiE '\| *\*\*plan\*\* *\|' "$SK" \
+  && ok "MM plan mode row" || bad "MM plan" "no plan mode row in the table"
+grep -qiE 'stop at a prospected|No code\.' "$SK" \
+  && ok "MM plan stops before code" || bad "MM plan stop" "plan mode doesn't forbid code"
+grep -qiE 'matches `arc`|`arc`, `execute`' "$SK" \
+  && ok "MM arc is a mode keyword" || bad "MM arc" "arc not parseable as a mode"
+
+# MM: the three modifiers, stackable
+for m in full loop tickets; do
+  grep -qF "**\`$m\`**" "$SK" && ok "MM modifier: $m" || bad "MM $m" "modifier not documented"
+done
+grep -qiE 'stackable|they stack' "$SK" && ok "MM modifiers stack" || bad "MM stack" "stacking not stated"
+
+# MM: full grants everything EXCEPT push
+grep -qiE 'except push|except the one that leaves' "$SK" \
+  && ok "MM full excludes push" || bad "MM full push" "full's push carve-out missing"
+grep -qiE 'does not remove them|raised, finite' "$SK" \
+  && ok "MM full keeps stopgaps finite" || bad "MM full stopgaps" "stopgaps not preserved"
+
+# MM: loop implies continue + self-restart, and the contradiction is resolved
+grep -qiE 'Implies `continue`|implies.*continue' "$SK" \
+  && ok "MM loop implies continue+self-restart" || bad "MM loop" "loop expansion undocumented"
+grep -qiE 'contradictor|explicit token' "$SK" \
+  && ok "MM loop+stop contradiction resolved" || bad "MM loop stop" "contradiction unhandled"
+
 printf "\n%d passed, %d failed\n" "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

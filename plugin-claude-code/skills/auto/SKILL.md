@@ -96,13 +96,36 @@ These bind every `/auto` run in every mode. They are not modifiers and cannot be
 
 ## Step 0: Parse mode, posture, and the queue-complete toggle
 
-`/auto` is an **explicit, in-the-moment grant of autonomous latitude** — invoking it *means* "drive this autonomously, now." It overrides the standing `autonomy` config for the duration of the arc and never changes that config. Two modes plus a toggle:
+`/auto` is an **explicit, in-the-moment grant of autonomous latitude** — invoking it *means* "drive this autonomously, now." It overrides the standing `autonomy` config for the duration of the arc and never changes that config. Four modes, three stackable modifiers, and a toggle:
 
 | Mode | Trigger | What it does |
 |---|---|---|
 | **arc** (default) | `/auto` or `/auto <goal>` | Full chain: brainstorm → spec → /prospect → plan → /prospect → execute → /retrospect. The default when the first arg isn't a mode keyword. |
 | **execute** | `/auto execute <plan-path \| linear-id \| "the plan">` | A plan/spec already exists. Skip ideation; run /prospect → build (TDD/SDD) → /retrospect. |
+| **plan** | `/auto plan [<goal>]` | Produce a prospected, cold-executable plan and STOP. Runs brainstorm → spec → /prospect → plan → /prospect. **No code.** The mirror of `execute`. |
 | **config** | `/auto config [<goal>]` (alias `/auto preflight`) | Guided pre-flight: walk every run setting one at a time as a picker (so nothing has to be remembered), assemble the run-config, then drive the arc with it. Configures THIS run only — never persists (that's `/setup`'s job). See Step 0¾. |
+
+**Modifiers** (stackable, any position, case-insensitive):
+
+- **`full`** — maximum authority on every axis **except push**: tools/MCP/plugins
+  pre-approved · Workflow fan-out ON (default is hard-OFF) · cumulative subagent cap
+  10 → 30 · fan-out budget-fraction gate 25% → 40% · resume armed automatically when
+  usage-bound · self-decide every objectively-validatable fork. `full` is defined by its
+  boundary: **every grant except the one that leaves the machine** (D4). It **raises the
+  three Step 5 fan-out stopgaps but does not remove them** — raised, finite, still live,
+  because an unattended max-authority run is the case most exposed to unbounded spend, and
+  the budget-fraction gate is what protects D1's 95% pause.
+- **`loop`** — the unattended preset. Implies `continue` **and** `self-restart`, arms the
+  resume at 90%, never idles on a non-blocking stop, and checkpoint-commits each milestone.
+  An explicit trailing `stop` after `loop` is contradictory: resolve to the explicit token
+  and say so in the arc contract.
+- **`tickets`** — tracker-bound. Work selection comes from the connected tracker by
+  priority; comment on the ticket at every commit; never claim a ticket without verified
+  validation.
+
+Authority is orthogonal to duration: `full` sets *how much latitude*, `loop`/`continue`/`stop`
+set *how long*. `/auto full` (max authority, scoped) and `/auto full loop` (max authority,
+overnight) are both valid.
 
 **On-queue-complete toggle** (a trailing `continue` or `stop` keyword, default **stop**): what to do once the *planned* queue is done.
 - **`stop`** (default) — checkpoint + `/handoff` when the queue is clear; do NOT pick up new work. The right choice for a scoped "just do X" run. Default to this if unset — don't over-reach the remit.
@@ -110,7 +133,7 @@ These bind every `/auto` run in every mode. They are not modifiers and cannot be
 
 **Context-self-restart flag** (a trailing `self-restart` keyword, default **off**): only meaningful with `continue`. When set, a context-window wall does NOT terminally stop the arc — instead the skill writes a restart-signal file that the external `bin/auto-runloop.sh` wrapper watches, so the arc resumes in a FRESH process (clean context). See Step 3¾. Requires the wrapper to be running and a permission allowlist (the wrapper spawns `claude -p --dangerously-skip-permissions`, which the auto-mode classifier blocks unless allowlisted). Without the flag, a context wall behaves exactly as today (terminal stop + `/handoff`).
 
-**Parsing:** if the first arg case-insensitively matches `execute`, `config`, or `preflight`, that's the mode; a trailing `continue`/`stop` sets the toggle, and a trailing `self-restart` sets the context-self-restart flag (only honored alongside `continue`); everything else is the **goal** for the default `arc` mode (so `/auto ship the CSV exporter continue self-restart` parses cleanly). If the goal is "continue from SESSION.md / the latest handoff," resolve it in Step 4's work-selection order.
+**Parsing:** if the first arg case-insensitively matches `arc`, `execute`, `plan`, `config`, or `preflight`, that's the mode; otherwise the mode is `arc` and the arg begins the **goal**. Anywhere in the args, `full`/`loop`/`tickets` are modifiers (a set — they stack). A trailing `continue`/`stop` sets the toggle, and a trailing `self-restart` sets the context-self-restart flag (only honored alongside `continue`); everything else is the goal (so `/auto ship the CSV exporter continue self-restart` parses cleanly, and `/auto full loop tickets clear the payments queue` resolves to mode `arc`, modifiers `{full, loop, tickets}`, goal "clear the payments queue"). If the goal is "continue from SESSION.md / the latest handoff," resolve it in Step 4's work-selection order.
 
 **Two ways to handle unspecified settings — you remember nothing either way:**
 - **Default (`/auto [goal]`)** — pick the safe default for everything unspecified and **surface them all in the arc contract** (Step 0.5) before driving. You *react* to the shown list; you never have to *recall* what's configurable. Minimal friction.
