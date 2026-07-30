@@ -177,9 +177,11 @@ do the thing
 ```
 EOF
 
-# J1: add prepends a ### block under a created ## Prior sessions heading.
+# J1: add prepends a ### block under a created ## Pending handoffs heading. (Renamed from
+# '## Prior sessions' — these are still-valid prompts awaiting use, not history. Legacy files
+# keep their old heading and still prune; asserted at M7.)
 kt_ss_ledger_add "$TMP/j" "sess-old1" "2026-06-19T09:00:00Z" "old focus 1" "old next 1" "old prompt 1"
-grep -q '^## Prior sessions$' "$TMP/j/SESSION.md" && ok "J1 heading created" || bad "J1 heading" "no ## Prior sessions"
+grep -q '^## Pending handoffs$' "$TMP/j/SESSION.md" && ok "J1 heading created" || bad "J1 heading" "no ## Pending handoffs"
 grep -q '^### sess-old1 · 2026-06-19T09:00:00Z · handoff · unconsumed$' "$TMP/j/SESSION.md" && ok "J1 block added" || bad "J1 block" "no sess-old1 block"
 
 # J2: a second add prepends newest-first (sess-old2 appears before sess-old1).
@@ -247,6 +249,95 @@ if [ -f "$MS" ]; then
 else
   bad "L fixture" "missing $MS"
 fi
+
+# --- M: unconsumed handoffs keep their FULL prompt; prune bounds blocks by an explicit
+# terminator instead of inferring from "## ".
+#
+# A SESSION.md may hold SEVERAL still-valid next-session prompts. Collapsing an unconsumed
+# prompt to one line degrades a mandate that has not been used yet, so full fidelity is
+# required. That in turn means a stored prompt can contain a column-0 "## " (openers do),
+# which the old prune treated as a block boundary -- a consumed block would lose its
+# boundary and leak its tail into the file.
+MD="$TMP/m"; mkdir -p "$MD"
+
+# M1: a full multi-line prompt survives an add/read round-trip uncollapsed.
+cat > "$MD/SESSION.md" <<'MEOF'
+---
+lastEvent: handoff
+sessionId: NEW
+---
+
+## Next session prompt
+
+ACTIVE
+MEOF
+FULL='Resume the arc.
+## Read first
+- a file
+Continue.'
+kt_ss_ledger_add "$MD" "OLD-A" "2026-07-30T00:00:00Z" "focus" "next" "$FULL"
+grep -q '^## Read first$' "$MD/SESSION.md" \
+  && ok "M1 full multi-line prompt stored uncollapsed" || bad "M1 fidelity" "prompt was collapsed or dropped"
+grep -q 'Continue\.' "$MD/SESSION.md" \
+  && ok "M1 prompt tail preserved" || bad "M1 tail" "prompt truncated"
+
+# M2: every stored block carries an explicit terminator.
+grep -q '^<!-- aria:entry-end -->$' "$MD/SESSION.md" \
+  && ok "M2 block terminator written" || bad "M2 terminator" "no explicit block terminator"
+
+# M3: THE LEAK. A consumed block whose prompt contains a column-0 "## " must be removed
+# whole -- no residue. This is the assertion that goes RED against boundary-inference.
+kt_ss_ledger_mark_consumed "$MD" "OLD-A" "2026-07-30T01:00:00Z" "tester"
+kt_ss_ledger_prune "$MD"
+if grep -q 'Continue\.' "$MD/SESSION.md" || grep -q '^## Read first$' "$MD/SESSION.md"; then
+  bad "M3 prune leak" "consumed block left residue behind (boundary inference failed)"
+else
+  ok "M3 consumed block pruned whole, no residue"
+fi
+grep -q 'ACTIVE' "$MD/SESSION.md" \
+  && ok "M3 active prompt untouched by prune" || bad "M3 active" "prune ate the active prompt"
+
+# M4: an UNCONSUMED full-prompt block survives prune untouched.
+kt_ss_ledger_add "$MD" "OLD-B" "2026-07-30T02:00:00Z" "focus" "next" "$FULL"
+kt_ss_ledger_prune "$MD"
+grep -q 'OLD-B' "$MD/SESSION.md" \
+  && ok "M4 unconsumed block survives prune" || bad "M4 unconsumed" "prune dropped an unconsumed handoff"
+grep -q '^## Read first$' "$MD/SESSION.md" \
+  && ok "M4 unconsumed keeps full fidelity through prune" || bad "M4 fidelity" "prompt degraded"
+
+# M5: the section is named for what it holds -- pending work, not history.
+grep -q '^## Pending handoffs$' "$MD/SESSION.md" \
+  && ok "M5 section named '## Pending handoffs'" || bad "M5 heading" "not using the pending heading"
+
+# M6: atlas isolation still holds -- the pending section must sit AFTER the prompt block so
+# the atlas parser (which stops at the first "## " after the prompt) never sees it.
+mprompt=$(awk '
+  /^## Next session prompt[[:space:]]*$/ { grab=1; next }
+  grab && /^## / { exit }
+  grab { print }
+' "$MD/SESSION.md")
+printf '%s' "$mprompt" | grep -q 'ACTIVE' \
+  && ok "M6 atlas still reads the active prompt" || bad "M6 atlas active" "active prompt not readable"
+printf '%s' "$mprompt" | grep -q 'OLD-B' \
+  && bad "M6 atlas isolation" "a pending handoff leaked into the atlas prompt block" \
+  || ok "M6 pending handoffs isolated from the atlas prompt block"
+
+# M7: legacy '## Prior sessions' files are grandfathered, not orphaned.
+LD="$TMP/mlegacy"; mkdir -p "$LD"
+cat > "$LD/SESSION.md" <<'LEOF'
+---
+lastEvent: handoff
+---
+
+## Prior sessions
+
+### LEG-1 · 2026-07-01 · handoff · consumed 2026-07-01 by x
+- focus: f
+- prompt: legacy one-liner
+LEOF
+kt_ss_ledger_prune "$LD"
+grep -q 'LEG-1' "$LD/SESSION.md" \
+  && bad "M7 legacy prune" "legacy consumed entry not pruned" || ok "M7 legacy '## Prior sessions' still pruned"
 
 printf "\n%d passed, %d failed\n" "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

@@ -213,16 +213,20 @@ This line is advisory — it does not set the model. The user selects via `/mode
 
 ### 3f: SESSION.md (handoff state)
 Skip if `session_state` is not `true` in `~/.claude/aria-knowledge.local.md` (read in Step 0). When enabled, draft `{project_root}/SESSION.md` as a **handoff-state** snapshot per `aria-atlas/docs/TEMPLATE_SESSION.md` (full rewrite; create if absent — the one create-exception to the skip-gracefully rule):
-- Header: `lastEvent: handoff`; `at:` current UTC (`date -u +%Y-%m-%dT%H:%M:%SZ`); `currentFocus:` one line; `nextAction:` the imperative first action from 3e; `branch:`/`headCommit:` from `git -C {project_root} rev-parse --abbrev-ref HEAD` / `... rev-parse --short HEAD` (omit if not a git repo); `by:` `author_tag` (omit if unset); `sessionId:` omit unless known.
+- Header: `lastEvent: handoff`; `at:` current UTC (`date -u +%Y-%m-%dT%H:%M:%SZ`); `currentFocus:` one line; `nextAction:` the imperative first action from 3e; `branch:`/`headCommit:` from `git -C {project_root} rev-parse --abbrev-ref HEAD` / `... rev-parse --short HEAD` (omit if not a git repo); `by:` `author_tag` (omit if unset); **`sessionId:` REQUIRED** — the next handoff's demote decision keys on it, and an absent value makes that guard unevaluable (which historically read as "the ledger doesn't apply", and the handoff got skipped). Read it from the existing front-matter or the session context; if it genuinely cannot be resolved, write `sessionId: unknown` rather than omitting the line.
 - Body: `## Where we left off` + `## Next session pickup` (2-4 sentences each); `## Next session prompt` = **the 3e opener verbatim** inside the fenced block (it may contain nested ``` fences — preserve them).
 
 The 3e opener is authored once and reused here — single source, no divergence between the closing report's opener and the SESSION.md prompt block.
 
-**Multi-session ledger (preserve a prior unconsumed handoff — nothing silently lost):** if the existing SESSION.md already has `lastEvent: handoff` with a `sessionId` *different* from this session, DEMOTE it before overwriting the active slot. Source `bin/lib-session-state.sh` and, reading the prior file's values first, call:
-- `kt_ss_ledger_add "{project_root}" "<prior sessionId>" "<prior at>" "<prior currentFocus>" "<prior nextAction>" "<prior next-session-prompt collapsed to ONE line>"` — demotes the prior active entry into `## Prior sessions` (newest-first). **The prompt MUST be a single line** (strip newlines) — the prune step's correctness depends on it.
-- `kt_ss_ledger_prune "{project_root}"` — drops any `## Prior sessions` entry a resume already marked `consumed`. Unconsumed entries survive.
+**NEVER SKIP THIS STEP TO AVOID CLOBBERING SOMEONE ELSE'S STATE.** A SESSION.md may legitimately hold several still-valid next-session prompts, and the ledger below exists precisely so you never have to choose between overwriting a handoff and abandoning yours. Skipping is the *worst* outcome: your opener is lost entirely, which is the one thing this design is built to prevent. If a prior handoff is present, demote it and write yours — both survive.
 
-THEN write the new active header + `## Next session prompt` (the full rewrite below). The `## Prior sessions` section is managed by these helpers — the rewrite replaces only the front-matter + active body, never the ledger.
+**Multi-session ledger (several valid prompts can coexist — nothing is ever lost):** if the existing SESSION.md has `lastEvent: handoff` and its `sessionId` differs from this session's (or is absent — treat an unidentifiable handoff as *someone else's*), DEMOTE it before overwriting the active slot. Source `bin/lib-session-state.sh` and, reading the prior file's values first, call:
+- `kt_ss_ledger_add "{project_root}" "<prior sessionId>" "<prior at>" "<prior currentFocus>" "<prior nextAction>" "<prior next-session-prompt>"` — moves the prior active entry into `## Pending handoffs` (newest-first). **Pass the prompt at FULL fidelity — do not collapse it to one line.** An unconsumed prompt is still-valid work; collapsing it degrades a mandate nobody has used yet. Block boundaries are declared by an explicit `<!-- aria:entry-end -->` terminator, so a stored prompt may safely contain column-0 `## ` lines and nested fences.
+- `kt_ss_ledger_prune "{project_root}"` — drops any entry a resume already marked `consumed`. **Unconsumed entries always survive**, at full fidelity.
+
+**Never demote a `lastEvent: in-progress` marker.** That is a live session's own breadcrumb, not a handoff — it carries no prompt, so a ledger entry for it would be empty. Overwrite it and move on.
+
+THEN write the new active header + `## Next session prompt` (the full rewrite below). `## Pending handoffs` is managed by these helpers — the rewrite replaces only the front-matter + active body, never the pending section. (Files written before this rename carry `## Prior sessions`; the helpers keep using it for those, so nothing is orphaned.)
 
 **Gitignore it, never commit it:** SESSION.md is ephemeral per-session state (atlas reads from disk; PROGRESS.md is the durable log). If `{project_root}` is a git repo and `.gitignore` doesn't already ignore `SESSION.md`, append a `SESSION.md` line to `{project_root}/.gitignore`. **Never stage SESSION.md** — exclude it from the Step 5 / 3d commit.
 
@@ -264,7 +268,7 @@ Apply approved drafts in order. For `auto` and `snap` modes, this runs immediate
    - Stage the listed files (specific paths, never `git add -A`)
    - Commit with the drafted message
    - **Never push.** This applies in both modes regardless of how the repo is hosted.
-5. **3f:** If a prior unconsumed `handoff` entry exists (different `sessionId`), run `kt_ss_ledger_add` (single-line prompt) + `kt_ss_ledger_prune` FIRST (demote + prune), THEN write `{project_root}/SESSION.md` (handoff state — full rewrite of front-matter + active body + `## Next session prompt`, create if absent; the `## Prior sessions` ledger is managed by the helpers, not the rewrite). Skip if `session_state` is off or the user `skip`-ped 3f.
+5. **3f:** If a prior unconsumed `handoff` entry exists (different or absent `sessionId`), run `kt_ss_ledger_add` (**full-fidelity prompt — never collapsed**) + `kt_ss_ledger_prune` FIRST (demote + prune), THEN write `{project_root}/SESSION.md` (handoff state — full rewrite of front-matter + active body + `## Next session prompt`, create if absent; `## Pending handoffs` is managed by the helpers, not the rewrite). Never demote a `lastEvent: in-progress` marker, and **never skip 3f to avoid clobbering** — demote instead, so both survive. Skip only if `session_state` is off or the user `skip`-ped 3f.
 
 If any step fails (e.g., commit hook rejects), surface the failure inline and stop — do not silently continue.
 

@@ -151,10 +151,21 @@ kt_ss_ledger_add() {
   _ss_blk="### $_ss_sid · $_ss_at · handoff · unconsumed
 - focus: $_ss_focus
 - next: $_ss_next
-- prompt: $_ss_prompt
+- prompt:
+$_ss_prompt
+<!-- aria:entry-end -->
 "
   _ss_tmp="$_ss_f.$$.tmp"
-  if grep -q '^## Prior sessions$' "$_ss_f" 2>/dev/null; then
+  # Grandfathering: an existing legacy '## Prior sessions' heading keeps receiving entries
+  # so old files are never orphaned; anything new lands under '## Pending handoffs'.
+  if grep -q '^## Pending handoffs$' "$_ss_f" 2>/dev/null; then
+    _ss_head_re='^## Pending handoffs$'
+  elif grep -q '^## Prior sessions$' "$_ss_f" 2>/dev/null; then
+    _ss_head_re='^## Prior sessions$'
+  else
+    _ss_head_re=''
+  fi
+  if [ -n "$_ss_head_re" ]; then
     # Insert the block immediately after the heading line (newest-first). Split the
     # file at the heading via awk (single-zone: head = through the heading + a blank
     # line; tail = the rest), then reassemble with the block via printf — NEVER pass
@@ -162,16 +173,18 @@ kt_ss_ledger_add() {
     _ss_head="$_ss_f.$$.head"; _ss_tail="$_ss_f.$$.tail"
     # head = lines through the "## Prior sessions" heading + one blank; tail = the rest.
     # The block is injected between head and tail by printf (not awk -v).
-    awk 'BEGIN{z=0}
+    awk -v hre="$_ss_head_re" 'BEGIN{z=0}
       z==1 {print > t; next}
       {print > h}
-      /^## Prior sessions$/ && z==0 {print "" > h; z=1}
+      $0 ~ hre && z==0 {print "" > h; z=1}
     ' h="$_ss_head" t="$_ss_tail" "$_ss_f" 2>/dev/null
     { cat "$_ss_head" 2>/dev/null; printf '%s' "$_ss_blk"; cat "$_ss_tail" 2>/dev/null; } > "$_ss_tmp" 2>/dev/null && mv "$_ss_tmp" "$_ss_f" 2>/dev/null
     rm -f "$_ss_head" "$_ss_tail" 2>/dev/null
   else
-    # append a new heading + block at EOF
-    { cat "$_ss_f"; printf '\n## Prior sessions\n\n%s' "$_ss_blk"; } > "$_ss_tmp" 2>/dev/null && mv "$_ss_tmp" "$_ss_f" 2>/dev/null
+    # append a new heading + block at EOF. '## Pending handoffs' is deliberate: these are
+    # still-valid prompts awaiting use, not history -- naming them "prior" is what made a
+    # writer read demotion as a downgrade and skip rather than demote.
+    { cat "$_ss_f"; printf '\n## Pending handoffs\n\n%s' "$_ss_blk"; } > "$_ss_tmp" 2>/dev/null && mv "$_ss_tmp" "$_ss_f" 2>/dev/null
   fi
   rm -f "$_ss_tmp" 2>/dev/null
   return 0
@@ -192,22 +205,41 @@ kt_ss_ledger_mark_consumed() {
   return 0
 }
 
-# Remove every ### block (header + its following non-### lines up to the next ### or ## or EOF)
-# whose header line carries a "· consumed " token.
-# CORRECTNESS INVARIANT (prospect §8): the prune resets `drop` on /^## / (a new top-level
-# heading) but NOT on /^### / (3 hashes — /^## / requires "## " + space, which "### " fails).
-# This is only safe because kt_ss_ledger_add collapses the opener to a SINGLE `- prompt:` line —
-# a multi-line prompt containing an embedded "## " line would falsely reset `drop` mid-block.
-# Keep the prompt single-line in kt_ss_ledger_add; do NOT store multi-line prompt prose here.
+# Remove every ### block whose header carries a "· consumed " token.
+#
+# BOUNDARIES ARE DECLARED, NOT INFERRED. Each block written by kt_ss_ledger_add ends with an
+# explicit `<!-- aria:entry-end -->` line, so prune never has to guess where a block stops.
+# That is load-bearing: a stored prompt is kept at FULL fidelity (a still-valid handoff must
+# not be degraded), and real openers contain column-0 "## " lines. The previous version reset
+# `drop` on /^## /, so a consumed block containing such a line lost its boundary and leaked
+# its tail into the file — reproduced, not theorised. Fence-tracking cannot substitute here,
+# because an opener may itself contain nested ``` fences.
+#
+# Legacy files (written before terminators existed) carry single-line prompts by the old
+# invariant, so a column-0 "## " inside one is impossible and the old inference is still
+# sound for them. A first pass detects which format the file is in and picks the matching
+# rule, so old and new files both prune correctly.
 kt_ss_ledger_prune() {
   _ss_f="$1/SESSION.md"
   [ -f "$_ss_f" ] || return 0
   _ss_tmp="$_ss_f.$$.tmp"
   awk '
+    # pass 1: does this file use explicit terminators?
+    NR == FNR { if ($0 == "<!-- aria:entry-end -->") term = 1; next }
+
+    # pass 2 — terminator format: boundaries are the header and the terminator only.
+    term {
+      if ($0 ~ /^### /) { drop = ($0 ~ /· consumed /) ? 1 : 0; if (drop) next; print; next }
+      if ($0 == "<!-- aria:entry-end -->") { if (drop) { drop = 0; next } print; next }
+      if (!drop) print
+      next
+    }
+
+    # pass 2 — legacy format: prompts are single-line, so "## " inference is safe.
     /^### / { drop = ($0 ~ /· consumed /) ? 1 : 0; if (drop) next }
     /^## / && $0 !~ /^### / { drop = 0 }
     { if (!drop) print }
-  ' "$_ss_f" > "$_ss_tmp" 2>/dev/null && mv "$_ss_tmp" "$_ss_f" 2>/dev/null
+  ' "$_ss_f" "$_ss_f" > "$_ss_tmp" 2>/dev/null && mv "$_ss_tmp" "$_ss_f" 2>/dev/null
   rm -f "$_ss_tmp" 2>/dev/null
   return 0
 }
