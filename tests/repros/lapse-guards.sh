@@ -114,5 +114,20 @@ OUT6=$(run_ta "/x/tests/test_d.py" "import os\nimport sys\n\ndef test_w():\n    
 grep -q 'post-edit-tautology-check.sh' "$MANIFEST" \
   && ok "Q registered in plugin.json" || bad "Q registered" "hook not wired"
 
+# R — shell self-comparison. This repo's own guards ARE shell, so a `[ "$a" = "$a" ]` in a
+# repro suite is exactly the false green this hook exists to catch. (Dropped during the
+# portability rewrite that removed regex backreferences; re-added here with awk.)
+# Fixtures are deliberately quote-free. The hook extracts its field with the sibling
+# `grep -o '"key":"[^"]*"'` idiom, which truncates at the first escaped quote, so a file
+# containing a double quote is only partially examined. That fails toward a MISSED warning,
+# never a spurious one, and is stated in the hook header. A quoted fixture would be testing
+# the extractor's limit rather than the detector.
+OUT7=$(run_ta "/x/tests/repros/thing.sh" "[ \$got = \$got ] && ok A || bad A x\n")
+echo "$OUT7" | grep -q 'additionalContext' \
+  && ok "R warns on a shell self-comparison" || bad "R shell" "no warning (got: $OUT7)"
+
+OUT8=$(run_ta "/x/tests/repros/thing.sh" "[ \$got = \$want ] && ok A || bad A x\n")
+[ -z "$OUT8" ] && ok "R silent on a real shell comparison" || bad "R shell real" "warned on a valid test: $OUT8"
+
 printf "\n%d passed, %d failed\n" "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

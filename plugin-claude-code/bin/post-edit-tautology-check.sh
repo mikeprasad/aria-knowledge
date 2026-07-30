@@ -17,6 +17,13 @@
 # on \1 under -E. awk extracts both operands and compares them as strings, which
 # behaves identically on every host.
 #
+# KNOWN LIMIT — field extraction uses the sibling `grep -o '"key":"[^"]*"'` idiom, which
+# stops at the first ESCAPED quote inside the value. A file containing a double quote is
+# therefore only partially examined. This fails toward a MISSED warning, never a spurious
+# one, which is acceptable for a warn-only guard -- but it means a clean result is not proof
+# the file is tautology-free, on top of the semantic limit below. Stated rather than hidden:
+# an undocumented blind spot in a guard is the very failure this hook exists to name.
+#
 # Fail-open on anything unparseable.
 
 INPUT=$(cat)
@@ -76,6 +83,28 @@ if [ -z "$FOUND" ]; then
       if (l != "" && l == r) { print l; exit }
     }')
   [ -n "$DUP" ] && FOUND="an assertion whose two operands are both '$DUP'"
+fi
+
+# 3. Shell self-comparison: [ "$a" = "$a" ], [[ $x == $x ]], [ $n -eq $n ].
+# This repo's own guards are shell, so a self-comparison inside a repro suite is exactly
+# the false green this hook exists to catch. Operands are compared as strings by awk --
+# still no backreferences.
+if [ -z "$FOUND" ]; then
+  SDUP=$(printf '%s\n' "$LINES" | awk '
+    {
+      line = $0
+      gsub(/\[/, " ", line); gsub(/\]/, " ", line); gsub(/"/, "", line)
+      n = 0
+      if (match(line, /[ \t]==?[ \t]/)) { n = RSTART; w = RLENGTH }
+      else if (match(line, /[ \t]-eq[ \t]/)) { n = RSTART; w = RLENGTH }
+      if (n == 0) next
+      l = substr(line, 1, n - 1); r = substr(line, n + w)
+      # keep only the token adjacent to the operator on each side
+      sub(/^.*[ \t]/, "", l); sub(/[ \t].*$/, "", r)
+      gsub(/[ \t{}]/, "", l); gsub(/[ \t{}]/, "", r)
+      if (l != "" && l == r && l ~ /^\$/) { print l; exit }
+    }')
+  [ -n "$SDUP" ] && FOUND="a shell test comparing $SDUP to itself"
 fi
 
 [ -z "$FOUND" ] && exit 0
