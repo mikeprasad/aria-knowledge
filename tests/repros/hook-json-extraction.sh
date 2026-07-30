@@ -19,10 +19,19 @@
 #
 # printf '%s' behaves identically under both shells and removes the dependence.
 #
-# Scope: fields whose value can contain a backslash escape -- 'command',
-# 'content', 'prompt', 'new_string'. Fields like session_id / file_path /
-# transcript_path cannot contain escapes, so echo and printf are equivalent
-# there and those sites are deliberately left alone.
+# Scope: fields whose value can contain a backslash escape -- 'command', 'content',
+# 'prompt', 'new_string', 'task_subject', 'task_description'. Fields like session_id /
+# file_path / transcript_path / agent_type / tool_use_id / step_index cannot contain
+# escapes, so echo and printf are equivalent there and those sites are deliberately
+# left alone.
+#
+# DERIVE THIS LIST BY ENUMERATION, NEVER FROM MEMORY. The first version of this guard
+# listed four field names written from recollection, and was therefore blind to
+# task_subject and task_description -- two genuinely free-text fields carrying the exact
+# defect it exists to forbid. Re-derive with:
+#   grep -oh 'echo "$INPUT" | grep -o .\{0,3\}"[a-z_]*"' bin/*.sh \
+#     | grep -o '"[a-z_]*"$' | sort -u
+# then classify each field as free-text or not.
 set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -51,7 +60,7 @@ B_SH=$(sh    -c 'IN='"'"'{"command":"a\nb"}'"'"'; printf "%s" "$IN" | grep -o '"
 
 # C — THE RULE: no hook may extract a free-text field with echo.
 OFFENDERS=$(grep -ln 'echo "\$INPUT"' "$BIN"/*.sh 2>/dev/null | while read -r f; do
-  if grep -q 'echo "\$INPUT" | grep -o .\{0,4\}"\(command\|content\|prompt\|new_string\)"' "$f" 2>/dev/null; then
+  if grep -q 'echo "\$INPUT" | grep -o .\{0,4\}"\(command\|content\|prompt\|new_string\|task_subject\|task_description\)"' "$f" 2>/dev/null; then
     basename "$f"
   fi
 done)
@@ -66,10 +75,10 @@ fi
 # both, and post-push-retrospect-check.sh actually did -- printf on one path,
 # echo on another. An assertion that passes without being able to detect the
 # defect it names is itself a false green.
-for h in bash-cd-check.sh post-push-retrospect-check.sh pre-cron-check.sh pre-bash-write-check.sh; do
+for h in bash-cd-check.sh post-push-retrospect-check.sh pre-cron-check.sh pre-bash-write-check.sh task-context-check.sh; do
   if [ ! -f "$BIN/$h" ]; then
     bad "D $h" "missing"
-  elif grep -q 'echo "\$INPUT" | grep -o .\{0,4\}"\(command\|content\|prompt\|new_string\)"' "$BIN/$h"; then
+  elif grep -q 'echo "\$INPUT" | grep -o .\{0,4\}"\(command\|content\|prompt\|new_string\|task_subject\|task_description\)"' "$BIN/$h"; then
     bad "D $h" "still extracts a free-text field with echo"
   else
     ok "D free-text extraction is escape-safe: $h"

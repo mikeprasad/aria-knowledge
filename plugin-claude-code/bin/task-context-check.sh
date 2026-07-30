@@ -49,8 +49,11 @@ if [ ! -f "$INDEX_FILE" ]; then
 fi
 
 # Extract task subject and description
-TASK_SUBJECT=$(echo "$INPUT" | grep -o '"task_subject":"[^"]*"' | head -1 | sed 's/"task_subject":"//;s/"//')
-TASK_DESCRIPTION=$(echo "$INPUT" | grep -o '"task_description":"[^"]*"' | head -1 | sed 's/"task_description":"//;s/"//')
+# printf '%s', NOT echo — these two are FREE TEXT and routinely multi-line. Under POSIX sh,
+# echo interprets the \n that JSON uses for a newline, the value splits across lines, and the
+# single-line grep below matches nothing (silent fail-open).
+TASK_SUBJECT=$(printf '%s' "$INPUT" | grep -o '"task_subject":"[^"]*"' | head -1 | sed 's/"task_subject":"//;s/"//')
+TASK_DESCRIPTION=$(printf '%s' "$INPUT" | grep -o '"task_description":"[^"]*"' | head -1 | sed 's/"task_description":"//;s/"//')
 
 # Delegate tokenize→match→collect to the shared helper. Threshold (≥2 tags)
 # and emission cap (5 files) are policy enforced by the helper; cooldown,
