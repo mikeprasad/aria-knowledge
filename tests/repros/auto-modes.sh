@@ -329,5 +329,38 @@ grep -qiE 'is inert unless' "$SK" \
 grep -qiE 'Arming a resume is NOT an authority grant' "$SK" \
   && ok "WALL arming is not an authority grant" || bad "WALL arming" "full still claims resume arming"
 
+# ARM: resume-arming keys on UNFINISHED WORK, not on presence and not on `continue`.
+#
+# These three surfaces disagreed in v2.43.0, and the disagreement was silent: D1 said "at 90%
+# arm the resume" unconditionally, Step 6 said "only for an unattended run", and config knob 6
+# said "only meaningful when #2 = continue". Under `/auto full attended <goal>` that resolves
+# to NOT arming -- so a scoped attended run hitting the 95% pause mid-goal simply stopped,
+# goal unfinished, nothing scheduled to resume it.
+#
+# The gate was on the wrong axis. `continue` means "find NEW work after the queue clears"; it
+# says nothing about FINISHING the goal already given. Arming is about unfinished work at the
+# usage wall. Presence governs only whether the resume announces itself.
+# Matcher is a distinctive PHRASE, not the bare stem: "unfinished" already appears ~200 lines
+# away in "unfinished investigation", so a stem match would pass on unrelated prose.
+grep -qiE 'work remains unfinished' "$SK" \
+  && ok "ARM keys on unfinished work" || bad "ARM key" "arming still gated on presence/continue"
+if grep -qiE 'Only for an unattended, away-from-keyboard run' "$SK"; then
+  bad "ARM step6 gate" "Step 6 still restricts arming to unattended runs"
+else
+  ok "ARM Step 6 not restricted to unattended"
+fi
+if grep -qF 'Only offered/meaningful when #2 = `continue`' "$SK"; then
+  bad "ARM knob gate" "config knob still gates arming on continue"
+else
+  ok "ARM config knob not gated on continue"
+fi
+grep -qiE 'announces itself|silently, without' "$SK" \
+  && ok "ARM presence governs announcement only" || bad "ARM presence" "presence still claims to own arming"
+if grep -qiE 'arm[^.]{0,60}(requires|only when)[^.]{0,20}`continue`' "$SK"; then
+  bad "ARM contradiction" "a surface still conditions arming on continue"
+else
+  ok "ARM no surface conditions arming on continue"
+fi
+
 printf "\n%d passed, %d failed\n" "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

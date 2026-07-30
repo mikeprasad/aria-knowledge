@@ -2,6 +2,22 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.43.1 — 2026-07-30
+
+**Fixed — a scoped `attended` run no longer strands its own unfinished goal at the usage wall.**
+
+v2.43.0 shipped three surfaces that silently disagreed about when a resume is armed: **D1** said "at 90% 5h, arm or re-arm the resume schedule" unconditionally; **Step 6** said "only for an unattended, away-from-keyboard run"; and **config knob 6** said "only offered/meaningful when #2 = `continue`". For `/auto full attended <goal>` those resolve to **not arming** — so a scoped run that hit the 95% pause mid-goal simply stopped, goal unfinished, with nothing scheduled to pick it up.
+
+The gate was on the wrong axis. **`continue` governs whether to find _new_ work once the planned queue is clear; it says nothing about _finishing the goal already given_.** Arming now keys on the question that actually decides it: **is the work I was given done?** Not "will there be more after it?", and not "is anyone watching?".
+
+- **Step 6** re-keyed: *arm whenever work remains unfinished and the binding budget is usage, not context.* Explicitly **not gated on presence, not gated on `continue`**, with the v2.43.0 defect recorded inline so the gate is not re-narrowed.
+- **Presence changes only how the resume behaves, never whether it exists** — an `unattended` resume fires silently; an `attended` resume **announces itself** so you know work restarted while you were away. Both armed on the same condition.
+- **Config knob 6** renamed to "Resume at the usage wall", ungated, and defaulted to *arm* for a non-trivial goal.
+
+Guarded by a new `ARM` assertion group (5) that tests **agreement between the surfaces**, not just the new wording — the defect was silent disagreement, so a guard checking only one surface would reproduce it. One of those assertions was caught passing vacuously first (a bare `unfinished` stem matched "unfinished investigation" ~200 lines away) and tightened to a distinctive phrase.
+
+`auto-modes.sh` 130 → 135 assertions; 37 repro suites + 70 plugin tests green. Body-only, so the Gate B skill-discovery budget is unaffected.
+
 ## 2.43.0 — 2026-07-30
 
 **`/auto` gains modifiers and seven standing directives; three rules that prose could not hold become hooks.**

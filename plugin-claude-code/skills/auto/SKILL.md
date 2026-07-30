@@ -140,8 +140,10 @@ one word per axis, no special cases.)*
     it does not repeal it — the run still never *idles* waiting, it asks and keeps working
     and takes the answer when it arrives. Blocking residuals halt as always.
   - **`unattended`** — nobody is reachable. Non-blocking residuals are noted and carried to
-    the handoff (D6 unchanged), and the run **arms its own resume** across whichever wall it
-    expects to hit (see below).
+    the handoff (D6 unchanged), and a resume that fires does so **silently, without**
+    expecting anyone to see it. Presence does **not** decide *whether* a resume is armed —
+    unfinished work at the usage wall does (Step 6). Under `attended`, the same resume is
+    armed and simply **announces itself** when it fires.
 
   **Two different walls need two different mechanisms — do not conflate them:**
 
@@ -219,7 +221,7 @@ Walk these in order, **one at a time** (do not dump all seven at once — the po
 3. **Push policy** — commit local, no push (*default*) · commit + push per host convention. (Push remains an ungranted-approval stop regardless — this only sets the intent.)
 4. **Fan-out / subagents** — inline-only · bounded individual subagents, ~10 cumulative cap (*default*) · raise the cap to N · allow the Workflow swarm (multi-agent orchestration). (Maps to the Step 5 stopgaps.)
 5. **Budget ceiling** — default 25%-of-remaining-window per fan-out burst (*default*) · a different fraction · a hard "stop the arc at X% usage." (Maps to the Step 5 budget-fraction gate + a live abort floor.)
-6. **Cron / unattended** — off (*default*) · arm a resume cron for a usage-bound self-perpetuating run (fires **+5 min after** each 5-hour reset per Step 6). (Only offered/meaningful when #2 = `continue`.)
+6. **Resume at the usage wall** — arm (*default when the goal is non-trivial*) · off. If the 5-hour window runs out with the goal unfinished, a resume fires **+5 min after** the reset and picks the work back up (Step 6). **Not gated on #2 or #7** — an unfinished goal warrants a resume whether or not you asked for new work afterwards, and whether or not anyone is watching; presence only decides if it announces itself.
 7. **Presence** — `attended` (*default*: you are reachable, so a non-blocking residual is surfaced immediately rather than batched to the handoff) · `unattended` (nobody is reachable; residuals are carried to the handoff and the run arms its own resume). **Always ask this one** — it is cheap to answer and it changes what happens to every question the arc produces, so a run should never proceed without knowing it. Pre-seeded from the invocation when `attended` or `unattended` was passed.
 
 After the walkthrough, assemble the picks into the run-config and proceed to Step 0.5 — the **arc contract is then a confirmation of what you just chose**, not a fresh set of defaults. **Nothing persists**: these picks configure THIS arc only; the standing `autonomy` posture and any saved defaults are untouched (changing standing defaults is `/setup`'s job — `/auto` never writes config, in any mode).
@@ -366,7 +368,11 @@ These three are orthogonal — Workflow-opt-in bounds a single huge swarm, the b
 
 ## Step 6 (optional): Self-perpetuating run via resume cron
 
-Only for an unattended, away-from-keyboard run **whose binding budget is usage, not context** (context-bound can't be resumed by a schedule — see Step 3).
+**Arm whenever work remains unfinished and the binding budget is usage, not context** (context-bound cannot be resumed by a schedule — see Step 3). **Arming is NOT gated on presence, and NOT gated on `continue`.**
+
+That distinction is load-bearing and was wrong in v2.43.0. `continue` governs whether to find **new** work once the planned queue is clear — it says nothing about **finishing the goal you were already given**. Gating arming on it stranded the common case: a scoped `/auto full attended <goal>` that hit the 95% pause mid-goal simply stopped, goal unfinished, with nothing scheduled to pick it up. The question that decides arming is **"is the work I was given actually done?"**, not "will there be more after it?" and not "is anyone watching?".
+
+**Presence changes only how the resume behaves, never whether it exists:** an `unattended` resume fires silently, without expecting anyone to see it; an `attended` resume **announces itself** when it fires, so you know work restarted while you were away from the keyboard. Both are armed on the same condition.
 
 **Mechanisms are gated on availability first, capability second.** `CronCreate` is the **baseline and the default**: it is the only one present in **every runtime**. Its session-only nature is an accepted constraint, not a defect — an unattended run keeps its session open by design.
 
