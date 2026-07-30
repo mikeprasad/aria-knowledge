@@ -129,5 +129,40 @@ echo "$OUT7" | grep -q 'additionalContext' \
 OUT8=$(run_ta "/x/tests/repros/thing.sh" "[ \$got = \$want ] && ok A || bad A x\n")
 [ -z "$OUT8" ] && ok "R silent on a real shell comparison" || bad "R shell real" "warned on a valid test: $OUT8"
 
+# --- S: bypass LEDGER. The guard stays warn-only (a deny would block legitimate in-place
+# edits), so a warning the model ignores would leave no trace. Recording each bypass costs
+# one append at detect time and lets /wrapup and /handoff report them after the fact --
+# catching the ignored-warning case without ever blocking a command.
+SLEDGER="${TMPDIR:-/tmp}/aria-r22-bypass-testsess"
+rm -f "$SLEDGER"
+run_bw_sid() {
+  printf '{"session_id":"testsess","tool_name":"Bash","tool_input":{"command":"%s"}}' "$1" | sh "$BW" 2>/dev/null || true
+}
+
+run_bw_sid "sed -i s/a/b/ src/app.ts" >/dev/null
+[ -f "$SLEDGER" ] && ok "S bypass recorded to a session ledger" || bad "S ledger" "no ledger written"
+grep -q 'sed -i' "$SLEDGER" 2>/dev/null \
+  && ok "S ledger names the idiom" || bad "S idiom" "ledger entry lacks the idiom"
+
+# A second bypass appends rather than replacing — the count is what /wrapup reports.
+run_bw_sid "python3 -c p.write_text(x)" >/dev/null
+[ "$(wc -l < "$SLEDGER" | tr -d ' ')" -eq 2 ] \
+  && ok "S ledger appends (2 entries)" || bad "S append" "expected 2 entries, got $(wc -l < "$SLEDGER" | tr -d ' ')"
+
+# A benign command must not write a ledger entry.
+run_bw_sid "git status" >/dev/null
+[ "$(wc -l < "$SLEDGER" | tr -d ' ')" -eq 2 ] \
+  && ok "S benign command adds no entry" || bad "S benign" "a benign command was recorded"
+rm -f "$SLEDGER"
+
+# T: both closing skills must report the ledger AND check pending handoffs.
+for sk in handoff wrapup; do
+  F="$REPO_ROOT/plugin-claude-code/skills/$sk/SKILL.md"
+  grep -qi 'aria-r22-bypass' "$F" \
+    && ok "T /$sk reports the bypass ledger" || bad "T $sk bypass" "does not surface recorded bypasses"
+  grep -qi 'Pending handoffs' "$F" \
+    && ok "T /$sk checks pending handoffs" || bad "T $sk pending" "does not check pending handoffs"
+done
+
 printf "\n%d passed, %d failed\n" "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

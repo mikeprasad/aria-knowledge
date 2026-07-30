@@ -228,6 +228,11 @@ The 3e opener is authored once and reused here — single source, no divergence 
 
 THEN write the new active header + `## Next session prompt` (the full rewrite below). `## Pending handoffs` is managed by these helpers — the rewrite replaces only the front-matter + active body, never the pending section. (Files written before this rename carry `## Prior sessions`; the helpers keep using it for those, so nothing is orphaned.)
 
+**Before writing, check what this session left behind (two cheap reads, both report-only):**
+
+1. **Recorded Rule 22 bypasses.** Read `${TMPDIR:-/tmp}/aria-r22-bypass-<session_id>` if it exists — each line is an in-place file mutation made through the shell, which routed around the Edit/Write gate and so landed with no scope assessment recorded. The PreToolUse hook only *warns* (denying would block legitimate work), so a warning that was ignored leaves no other trace. Report the count and the idioms in the closing summary — not as a failure, as a fact the next reader should have. If the file is absent, say nothing.
+2. **Pending handoffs.** If `## Pending handoffs` (or a legacy `## Prior sessions`) holds entries still marked `unconsumed`, state how many and name their sessions in the closing summary. A prompt that is stored but never surfaced is lost in practice — this is the second of three checkpoints (the others are `/wrapup` and resume).
+
 **Gitignore it, never commit it:** SESSION.md is ephemeral per-session state (atlas reads from disk; PROGRESS.md is the durable log). If `{project_root}` is a git repo and `.gitignore` doesn't already ignore `SESSION.md`, append a `SESSION.md` line to `{project_root}/.gitignore`. **Never stage SESSION.md** — exclude it from the Step 5 / 3d commit.
 
 ## Step 4: Single Combined-Go Review (default mode only)

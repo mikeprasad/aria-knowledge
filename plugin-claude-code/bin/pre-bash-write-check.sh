@@ -51,6 +51,17 @@ fi
 
 [ -z "$IDIOM" ] && exit 0
 
+# Record it. The hook is warn-only by design, so a warning the model ignores would leave no
+# trace at all -- and an ignored gate is exactly the failure mode this guard exists to catch.
+# One append at detect time (no analysis, no blocking) lets /wrapup and /handoff report the
+# bypasses afterwards. Mirrors the aria-r22-denies-<session_id> pattern in pre-edit-check.sh.
+# Best-effort: if the session id cannot be resolved, skip the ledger and still warn.
+_bw_sid=$(printf '%s' "$INPUT" | grep -o '"session_id":"[^"]*"' | head -1 | sed 's/"session_id":"//;s/"$//')
+if [ -n "$_bw_sid" ]; then
+  printf '%s\t%s\n' "$IDIOM" "$(printf '%s' "$COMMAND" | cut -c1-120)" \
+    >> "${TMPDIR:-/tmp}/aria-r22-bypass-$_bw_sid" 2>/dev/null || true
+fi
+
 MSG="ARIA: this command uses $IDIOM to modify a file in place. A structural edit made through the shell bypasses the Edit and Write tools, and therefore the Rule 22 pre-edit gate -- the change lands with no scope assessment recorded. Use Edit or Write instead. If this is genuinely not a structural edit (a generated artifact, a disposable probe, a log), go ahead and say why."
 
 printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","additionalContext":"%s"}}\n' "$MSG"
