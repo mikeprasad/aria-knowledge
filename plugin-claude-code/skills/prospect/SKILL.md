@@ -1,6 +1,6 @@
 ---
-description: "Run a structured pre-mortem on a plan or approach BEFORE execution. Per-step risk enforcement, active evidence-sourcing pass (autonomous lookups + targeted user-asks for anything that could become objective), simpler-alternative discipline, plan-formation diagnosis, action verdicts (PROCEED/SHRINK/SPLIT/DEFER/KILL), and a growing failure-mode pattern library. Triggers: '/prospect' (defaults to plan scope), '/prospect plan', '/prospect session', '/prospect todos', '/prospect file <path>', '/prospect linear <id>', '/prospect branch <name>'. Backward-compat flags (--plan, --linear, --branch, --todos, --session) still accepted. (Code port — ADR-094.)"
-argument-hint: "[<scope>] [<scope-arg>] [--linear-post] [--no-source] [--lens=overbuild]"
+description: "Run a structured pre-mortem on a plan or approach BEFORE execution. Per-step risk enforcement, active evidence-sourcing pass (autonomous lookups + targeted user-asks for anything that could become objective), simpler-alternative discipline, plan-formation diagnosis, action verdicts (PROCEED/SHRINK/SPLIT/DEFER/KILL), and a growing failure-mode pattern library. Triggers: '/prospect' (defaults to plan scope), '/prospect plan', '/prospect session', '/prospect todos', '/prospect file <path>', '/prospect ticket <id>', '/prospect branch <name>'. Backward-compat flags and legacy 'linear' spellings still accepted. (Code port — ADR-094.)"
+argument-hint: "[<scope>] [<scope-arg>] [--ticket-post] [--no-source] [--lens=overbuild]"
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash, WebFetch, WebSearch
 ---
 
@@ -37,7 +37,7 @@ If `Bash` is available, proceed to Step 0.
 - After a multi-step plan is articulated (in chat, in TodoWrite, in a `.md` plan file) but no code has been written yet
 - After `/brainstorming` concludes with an action plan
 - After `/distill` produces a task spec that's about to be executed
-- After a Linear ticket's Technical Intake is drafted and the implementer is about to begin
+- After a ticket's Technical Intake is drafted and the implementer is about to begin
 - Before kicking off a long autonomous run (e.g., `combined go`) on a non-trivial plan
 - As a soft-suggested response to "let me implement…", "I'll just code it…", "ok ship it" when no validation exists yet
 
@@ -53,18 +53,19 @@ Parse the invocation arguments. The first positional argument is the **scope key
 | **session** | `/prospect session` | `--session` | Synonym for **plan**. Reserved for cases where the user wants to emphasize "everything articulated this conversation" rather than a single plan artifact. |
 | **todos** | `/prospect todos` | `--todos` | Just the active TodoWrite list — a thin mode for quick checks |
 | **file** | `/prospect file <path>` | `--plan <path>` | Read the markdown file at `<path>` as the plan |
-| **linear** | `/prospect linear <id>` | `--linear <id>` | Read the ticket's Technical Intake (and Product Intake for goal context) via Linear MCP. If MCP unavailable, ask user to paste. |
+| **ticket** | `/prospect ticket <id>` | `--ticket <id>`, `linear`/`--linear` (legacy) | Read the ticket's Technical Intake (and Product Intake for goal context) via the connected project-tracker MCP — Linear, Jira/Atlassian, Asana, Monday, ClickUp, Notion-as-tracker, GitHub Issues. If no tracker MCP is connected, ask the user to paste. |
 | **branch** | `/prospect branch <name>` | `--branch <name>` | Uncommitted/unpushed local changes on the branch — `git diff <main-branch>...<name>` — treated as a plan-in-progress (NOT shipped yet) |
 
 **Argument parsing rules:**
 - If the first positional arg matches a scope keyword (case-insensitive), use it. Otherwise treat it as an arg to the default `plan` scope.
-- Backward-compat flag forms (`--plan`, `--linear`, `--branch`, `--todos`, `--session`) remain accepted indefinitely. Both `/prospect linear LINEAR-123` and `/prospect --linear LINEAR-123` resolve identically.
-- Modifier flags (apply to any scope): `--linear-post` (post the prospect verdict to detected Linear tickets at end), `--no-source` (skip Step 3.5's Evidence-Sourcing Pass), `--lens=overbuild` (run the over-build review pass — see "Over-build lens" section; opt-in, off by default).
+- Backward-compat flag forms (`--plan`, `--ticket`, `--branch`, `--todos`, `--session`) remain accepted indefinitely. Both `/prospect ticket ABC-123` and `/prospect --ticket ABC-123` resolve identically.
+- **Legacy vendor spellings still work.** The `ticket` scope was named `linear` before the surface was made tracker-agnostic, so `/prospect linear <id>` and `--linear <id>` resolve exactly as `ticket`/`--ticket` do, and `--linear-post` resolves as `--tracker-post`. They are aliases, not separate behaviour — never advertise them as the canonical form.
+- Modifier flags (apply to any scope): `--ticket-post` (post the prospect verdict to detected tickets at end; alias `--linear-post`), `--no-source` (skip Step 3.5's Evidence-Sourcing Pass), `--lens=overbuild` (run the over-build review pass — see "Over-build lens" section; opt-in, off by default).
 
 After mode detection, gather:
 
 1. **Goal** — Ask the user: "What is this plan supposed to accomplish? (One sentence is fine.)" If they don't reply, fall back to the plan's first heading or stated objective.
-2. **Tickets** — Scan plan text/commits/branch name with regex `\b([A-Z]{2,}-\d+)\b` for Linear-style ticket IDs. If found AND Linear MCP is available, fetch each ticket's Product/Technical Intake + acceptance criteria to use as the goal-anchor in §4.6. If Linear MCP is unavailable, note "ticket context unavailable" but continue.
+2. **Tickets** — Scan plan text/commits/branch name with regex `\b([A-Z]{2,}-\d+)\b` for ticket IDs (the pattern is vendor-neutral — it matches DEV-123, PROJ-45, JIRA-9 alike). If found AND a project-tracker MCP is available, fetch each ticket's Product/Technical Intake + acceptance criteria to use as the goal-anchor in §4.6. If a project-tracker MCP is unavailable, note "ticket context unavailable" but continue.
 3. **Pre-execution evidence** — Ask the user: "For each step in this plan, do you have evidence the step is necessary and that the underlying assumption is correct? (✅ measured / ⚠ inferred / ❌ contradicted / ❓ untested)" Show the per-step list and accept inline replies. If user can't supply evidence for any step, mark those ❓ — those steps will resolve to DEFER unless §4.7 produces supporting hypothesis confidence.
 
 If scope is `branch` (or invoked via `--branch`) and the diff is non-trivial (>50 LOC across >3 files), warn: "Branch already has substantive code — consider `/retrospect range main..HEAD` instead, which is calibrated for already-written changes." Continue if user confirms.
@@ -75,7 +76,7 @@ If the user's config (`~/.claude/aria-knowledge.local.md`) has `active_knowledge
 
 **Algorithm:**
 
-1. **Build query.** Combine, separated by spaces: the Goal sentence from Step 0; the plan's first heading or the first 3 TodoWrite items; any detected Linear ticket IDs (e.g., `LINEAR-123`); the file basename if scope is `file`; the branch name if scope is `branch`.
+1. **Build query.** Combine, separated by spaces: the Goal sentence from Step 0; the plan's first heading or the first 3 TodoWrite items; any detected ticket IDs (e.g., `ABC-123`); the file basename if scope is `file`; the branch name if scope is `branch`.
 
 2. **Read the index.** `Read` `<knowledge_folder>/index.md` (resolve `<knowledge_folder>` from the config's `knowledge_folder` field). Parse the `## Tag Index` section for `### tagname` headers — that's the matching vocabulary (~77 known tags as of v2.15.0). Ignore the `## Other Tags` section (freeform tier, intentionally excluded from auto-surfacing).
 
@@ -104,7 +105,7 @@ If the user's config (`~/.claude/aria-knowledge.local.md`) has `active_knowledge
 
 11. **Tracked artifacts surfacing (added v2.16.1).** After Step 10's carry-forward, ALSO surface CODEMAP + STITCH for the plan's project. The shared lib at `${CLAUDE_PLUGIN_ROOT}/bin/lib-tracked-artifacts.sh` implements equivalent logic for hooks; this step inlines the algorithm for skill-context portability.
 
-    a. **Detect project tag.** Try in order: `--group=<tag>` from Step 0 if provided → first Linear-ticket ID prefix that maps to a `projects_list` tag → first `projects_list[<tag>].path` whose `path` appears as substring in the plan source path (from Step 0 `Source:` field). If no detection, skip the rest of Step 11.
+    a. **Detect project tag.** Try in order: `--group=<tag>` from Step 0 if provided → first ticket-ID prefix that maps to a `projects_list` tag → first `projects_list[<tag>].path` whose `path` appears as substring in the plan source path (from Step 0 `Source:` field). If no detection, skip the rest of Step 11.
 
     b. **Resolve project root via Bash.** Parse `projects_list:` from `~/.claude/aria-knowledge.local.md` frontmatter (comma-separated `tag:path`). For the detected tag, compute `project_root = $HOME/Projects/<path>`. If directory doesn't exist, skip.
 
@@ -131,10 +132,10 @@ Before producing any verdict, emit the anchor so the rest of the report can be t
 ```
 Anchor:
   Goal:    <stated goal>
-  Mode:    <plan | session | todos | file | linear | branch>
-  Source:  <plan file path | TodoWrite snapshot | Linear-id | branch-name | session messages>
+  Mode:    <plan | session | todos | file | ticket | branch>
+  Source:  <plan file path | TodoWrite snapshot | ticket-id | branch-name | session messages>
   Scope:   <step count, files-to-touch estimate, repos-affected>
-  Tickets: <LINEAR-123 (Acceptance: ...), LINEAR-456 (...) | (none) | (unavailable)>
+  Tickets: <ABC-123 (Acceptance: ...), ABC-456 (...) | (none) | (unavailable)>
   Evidence: <user-supplied per-step evidence table | (untested)>
 ```
 
@@ -203,7 +204,7 @@ For each AUTO-SOURCEABLE (or the auto-portion of MIXED) question, execute the so
 - **Version control**: Bash with `git log`, `git diff`, `git show`, `git blame`
 - **Public web**: WebFetch (specific URL — library docs, official spec) and WebSearch (when the URL is unknown). Per Rule 33, prefer official sources over inferred ones; per Rule 27, verify identifiers/versions are still current
 - **Local probes**: Bash for `curl`, `gh`, log-tail, file-existence checks
-- **MCP queries** that don't require new credentials and that the user has already authorized in this session (Linear, Supabase, etc.). If a query would require new auth or interactive consent, demote to USER-INPUT instead
+- **MCP queries** that don't require new credentials and that the user has already authorized in this session (a project tracker — Linear, Jira, Asana, etc. — Supabase, and so on). If a query would require new auth or interactive consent, demote to USER-INPUT instead
 
 Record findings in this format:
 
@@ -372,7 +373,7 @@ Tally:
   Unverifiable-yet (🚫):              <N>   (post-Step-3.5)
   Under-specified (🌫):               <N>
   Theory-driven refactors:           <N>
-  Tied to Linear acceptance:         <N>
+  Tied to ticket acceptance:         <N>
   Discovered-during-planning:        <N>
   Pattern hits this run:             <N>
 
@@ -533,9 +534,9 @@ After Step 4 produces the report, write outputs to the configured destinations:
   ---
   type: prospect
   date: <YYYY-MM-DD>
-  scope: <plan | session | todos | file | linear | branch>
+  scope: <plan | session | todos | file | ticket | branch>
   goal: <one-line stated goal from §4.1 Anchor>
-  tickets: [<LINEAR-123>, <LINEAR-456>]   # empty list if none
+  tickets: [<ABC-123>, <ABC-456>]   # empty list if none
   steps_count: <N>
   sourcing_pass:
     candidates: <N>
@@ -561,7 +562,7 @@ After Step 4 produces the report, write outputs to the configured destinations:
   Project-scoped intake goes to `projects/<proj>/`; agnostic intake goes to the shared knowledge tree. Follow the standard aria intake confirmation flow (suggest, user reviews, write on approval).
 
 ### Opt-in
-- **Linear comment:** Only when invoked with `--linear-post`. Post the Overall verdict from §4.8 + the action verdict list to each Linear ticket detected. Use Linear MCP `save_comment`. Never post the full report — too much detail for the ticket.
+- **Tracker comment:** Only when invoked with `--ticket-post` (legacy alias `--linear-post`). Post the Overall verdict from §4.8 + the action verdict list to each ticket detected. Use a project-tracker MCP `save_comment`. Never post the full report — too much detail for the ticket.
 
 ### Pattern library write-backs
 If §4.9 produced a novel pattern and the user approved adding it, the pattern entry is written to either:
@@ -581,7 +582,7 @@ Cues (non-exhaustive, judgment-based):
 - A long planning conversation has produced a coherent plan but no edits have happened yet
 - Brainstorming concluded with an action plan
 - /distill produced a task spec
-- A Linear ticket's Technical Intake was just drafted and the user is about to begin
+- A ticket's Technical Intake was just drafted and the user is about to begin
 - The plan touches >3 files OR >1 repo OR has any step rated L (>100 LOC)
 - The plan rewrites working code without naming a measured problem location
 

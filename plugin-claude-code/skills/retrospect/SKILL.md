@@ -1,6 +1,6 @@
 ---
 description: "Run a structured retrospective on a shipped commit range, release, deployment, PR, commit, or session. Per-fix validation enforcement, active evidence-sourcing pass (autonomous lookups + targeted user-asks for anything that could become objective), simpler-alternative discipline, re-diagnosis, action verdicts, and a growing failure-mode pattern library. Triggers: '/retrospect' (auto-range), '/retrospect commit <hash>', '/retrospect range <ref1>..<ref2>', '/retrospect pr <num>', '/retrospect session', '/retrospect release', '/retrospect deployment'. Backward-compat flags (--range, --pr, --session, --commit) still accepted. (Code port — ADR-094.)"
-argument-hint: "[<scope>] [<scope-arg>] [--linear-post] [--no-source] [--lens=overbuild]"
+argument-hint: "[<scope>] [<scope-arg>] [--ticket-post] [--no-source] [--lens=overbuild]"
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash, WebFetch, WebSearch
 ---
 
@@ -54,7 +54,7 @@ Parse the invocation arguments. The first positional argument is the **scope key
 **Argument parsing rules:**
 - If the first positional arg matches a scope keyword (case-insensitive), use it. Otherwise treat it as auto-range and try to parse the args under the legacy flag form.
 - Backward-compat flag forms (`--range`, `--pr`, `--session`, `--commit`) remain accepted indefinitely. Both `/retrospect range a..b` and `/retrospect --range a..b` resolve identically.
-- Modifier flags (apply to any scope): `--linear-post` (post the retrospective verdict to detected Linear tickets at end), `--no-source` (skip Step 3.5's Evidence-Sourcing Pass), `--lens=overbuild` (run the over-build review pass — see "Over-build lens" section; opt-in, off by default).
+- Modifier flags (apply to any scope): `--ticket-post` (post the retrospective verdict to detected tickets at end; legacy alias `--linear-post` still accepted), `--no-source` (skip Step 3.5's Evidence-Sourcing Pass), `--lens=overbuild` (run the over-build review pass — see "Over-build lens" section; opt-in, off by default).
 
 ### Deployment detection cascade (Q2.1=3)
 
@@ -70,7 +70,7 @@ Print the resolved marker source ("Detected via gh release: v1.4.2 (2026-05-01)"
 After mode detection, gather:
 
 1. **Goal** — Ask the user: "What was this release/range supposed to fix? (One sentence is fine.)" If they don't reply, fall back to commit message subjects + PR description.
-2. **Tickets** — Scan commit messages with regex `\b([A-Z]{2,}-\d+)\b` for Linear-style ticket IDs. If any are found AND Linear MCP is available, fetch each ticket's Product/Technical Intake + recent comments. If Linear MCP is unavailable, note "ticket context unavailable" but continue.
+2. **Tickets** — Scan commit messages with regex `\b([A-Z]{2,}-\d+)\b` for ticket IDs (the pattern is vendor-neutral — it matches DEV-123, PROJ-45, JIRA-9 alike). If any are found AND a project-tracker MCP is available, fetch each ticket's Product/Technical Intake + recent comments. If a project-tracker MCP is unavailable, note "ticket context unavailable" but continue.
 3. **Post-deploy outcome** — Ask the user: "For each fix, what's the post-ship evidence? (✅ closed / ⚠ partial / ❌ failed / ❓ untested)" Show the per-commit list and accept inline replies. If user can't supply evidence for any fix, mark those ❓ and note that §10 will recommend instrumentation.
 
 If scope is `session` (or invoked via `--session`), skip post-deploy outcome (no production yet) and tag all fixes 🚫 unvalidatable; their actions will resolve to HOLD-PENDING-DEPLOY.
@@ -81,7 +81,7 @@ If the user's config (`~/.claude/aria-knowledge.local.md`) has `active_knowledge
 
 **Algorithm:**
 
-1. **Build query.** Combine, separated by spaces: the Goal sentence from Step 0; the first 3 commit subjects in the bundle range; PR title if scope is `pr`; any detected Linear ticket IDs (e.g., `LINEAR-123`); the resolved deployment marker label if scope is `deployment`; the range descriptor (e.g., `v0.4.2..HEAD`).
+1. **Build query.** Combine, separated by spaces: the Goal sentence from Step 0; the first 3 commit subjects in the bundle range; PR title if scope is `pr`; any detected ticket IDs (e.g., `ABC-123`); the resolved deployment marker label if scope is `deployment`; the range descriptor (e.g., `v0.4.2..HEAD`).
 
 2. **Read the index.** `Read` `<knowledge_folder>/index.md` (resolve `<knowledge_folder>` from the config's `knowledge_folder` field). Parse the `## Tag Index` section for `### tagname` headers — that's the matching vocabulary (~77 known tags as of v2.15.0). Ignore the `## Other Tags` section (freeform tier, intentionally excluded from auto-surfacing).
 
@@ -139,7 +139,7 @@ Anchor:
   Goal:    <stated goal>
   Mode:    <auto-range | commit | range | pr | session | release | deployment>
   Range:   <commit range descriptor, e.g. v0.4.2..HEAD, 12 commits, 38 files>
-  Tickets: <LINEAR-123 (Acceptance: ...), LINEAR-456 (...) | (none) | (unavailable)>
+  Tickets: <ABC-123 (Acceptance: ...), ABC-456 (...) | (none) | (unavailable)>
   Outcome: <user-supplied per-fix status table | (untested) | (per-session — no deploy)>
 ```
 
@@ -220,7 +220,7 @@ Fix #N: <subject>
 
 **Auto-source candidates (retrospect-specific):**
 - **Production log queries** — `mcp__vercel__get_logs`, `mcp__supabase__get_logs`, `Bash gh run view`, log-tail via SSH. Look for: (a) absence of the error event the fix targeted, (b) presence of the success event, (c) post-deploy regression signals.
-- **Linear ticket comments** — `mcp__linear__list_comments <ticket-id>` for any ticket cited in commit messages. QA, support, and product comments often record post-deploy outcome ("verified fixed in PROD," "still reproducing," etc.). High-signal source.
+- **Ticket comments** — via whichever project-tracker MCP is connected (Linear, Jira/Atlassian, Asana, Monday, ClickUp, Notion-as-tracker, GitHub Issues), using that server's list-comments verb — e.g. `mcp__linear__list_comments <ticket-id>` on Linear. Probe for what is actually connected rather than assuming a vendor; skip this source if none is. For any ticket cited in commit messages. QA, support, and product comments often record post-deploy outcome ("verified fixed in PROD," "still reproducing," etc.). High-signal source.
 - **Repro test execution** — if the bug had a documented repro and the test infrastructure is local, run it: `Bash <test-command>` (read-only or sandboxed). NEVER run repro tests that mutate production data.
 - **GH commit/check status** — `Bash gh api repos/<owner>/<repo>/commits/<sha>/check-runs` → CI green / red post-fix.
 - **Web fetch on monitoring dashboards** — only if URLs are known and public (rare; usually demoted to USER-INPUT).
@@ -405,7 +405,7 @@ Tally:
   Bundle-unverified (🤷):            <N>   (post-Step-3.5.1, §4.2)
   Not-in-bundle (❌):                 <N>   (post-Step-3.5.1, §4.2)
   Theory-driven refactors:          <N>
-  Required by Linear acceptance:    <N>
+  Required by ticket acceptance:    <N>
   Discovered-during-process:        <N>
   Pattern hits this run:            <N>
 
@@ -474,7 +474,7 @@ Action verdict:
   ...
 ```
 
-For REVERT actions, provide the exact `git revert <sha>` command. For REDO-MINIMAL actions, provide the minimal alternative diff (from §4.3). For FOLLOWUP-TICKET actions, draft a Linear ticket title + Product/Technical Intake skeleton. For RESHIP-AND-VERIFY actions (introduced when §4.2 emitted ❌ Not-in-bundle), provide: (a) the re-deploy command appropriate to the project (`gh workflow run deploy.yml --ref main`, `vercel --prod`, project-specific deploy script — pick from `aria-config.md`'s `projects_list[<tag>]` if present, otherwise prompt user), and (b) a one-line directive: "After re-deploy, re-run `/retrospect deployment` to confirm the bundle now contains the fix and validate outcome."
+For REVERT actions, provide the exact `git revert <sha>` command. For REDO-MINIMAL actions, provide the minimal alternative diff (from §4.3). For FOLLOWUP-TICKET actions, draft a ticket title + Product/Technical Intake skeleton. For RESHIP-AND-VERIFY actions (introduced when §4.2 emitted ❌ Not-in-bundle), provide: (a) the re-deploy command appropriate to the project (`gh workflow run deploy.yml --ref main`, `vercel --prod`, project-specific deploy script — pick from `aria-config.md`'s `projects_list[<tag>]` if present, otherwise prompt user), and (b) a one-line directive: "After re-deploy, re-run `/retrospect deployment` to confirm the bundle now contains the fix and validate outcome."
 
 End with an **Overall recommendation** in 1–3 sentences.
 
@@ -579,7 +579,7 @@ After Step 4 produces the report, write outputs to the configured destinations:
   date: <YYYY-MM-DD>
   scope: <commit | range | pr | session | release | deployment | auto-range>
   goal: <one-line stated goal from §4.1 Anchor>
-  tickets: [<LINEAR-123>, <LINEAR-456>]   # empty list if none
+  tickets: [<ABC-123>, <ABC-456>]   # empty list if none
   fixes_count: <N>
   sourcing_pass:
     bundle_marker:
@@ -614,7 +614,7 @@ After Step 4 produces the report, write outputs to the configured destinations:
   Project-scoped intake goes to `projects/<proj>/`; agnostic intake goes to the shared knowledge tree. Follow the standard aria intake confirmation flow (suggest, user reviews, write on approval).
 
 ### Opt-in
-- **Linear comment:** Only when invoked with `--linear-post`. Post a *summary* (the Overall recommendation from §4.8 + the action verdict list) to each Linear ticket detected in commit messages. Use Linear MCP `save_comment`. Never post the full report — too much detail for the ticket.
+- **Tracker comment:** Only when invoked with `--ticket-post` (legacy alias `--linear-post`). Post a *summary* (the Overall recommendation from §4.8 + the action verdict list) to each ticket detected in commit messages. Use a project-tracker MCP `save_comment`. Never post the full report — too much detail for the ticket.
 
 ### Pattern library write-backs
 If §4.9 produced a novel pattern and the user approved adding it, the pattern entry is written to either:
