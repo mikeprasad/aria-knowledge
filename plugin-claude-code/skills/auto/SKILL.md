@@ -88,7 +88,11 @@ These bind every `/auto` run in every mode. They are not modifiers and cannot be
 
   At arc close the ledger is reported **first**, ahead of the landed-work summary, and the
   user is explicitly prompted to review each entry (accept / revisit / revert); dispositions
-  are written back into the file. If the arc ends via a context wall, a scheduled handoff,
+  are written back into the file. **Stamp a disposition the moment the answer arrives, not
+  at close** — an entry still reading "pending" after it has been answered misreports what
+  needs the user's attention, which is the exact cost this ledger exists to remove. An
+  answer can arrive obliquely: an instruction that keeps or widens the thing under review
+  resolves it as surely as an explicit accept. If the arc ends via a context wall, a scheduled handoff,
   or a restart rather than a clean close, carry the ledger path in the `/handoff` opener and
   `SESSION.md` so the resuming session surfaces it before starting new work. **An empty
   ledger is stated, never omitted:** "0 judgment calls — every decision was deterministically
