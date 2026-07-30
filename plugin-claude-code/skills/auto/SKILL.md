@@ -1,6 +1,6 @@
 ---
-description: "Drive an autonomous execution arc end-to-end — compose brainstorm→spec→/prospect→plan→/prospect→TDD→/retrospect under the Rule 35 posture, decide objectively-validatable forks yourself, and stop only on a load-bearing fork or an ungranted approval. Modes: `arc` (default), `execute <plan|spec|ticket-id>` (skip ideation), `plan` (stop at a prospected plan, no code), `config` (guided per-run knob picker). Stackable modifiers: `full` (max authority except push), `loop` (unattended: continue + self-restart + armed resume), `tickets` (tracker-bound selection + per-commit ticket comments). Toggles: continue|stop, self-restart. An explicit grant of autonomous latitude that overrides the standing `autonomy` config for the arc and never writes it. Use when the user hands off a goal, plan, ticket, or SESSION.md with latitude to execute WITHOUT per-step approval — 'combined go', 'run overnight', 'just build it', 'do as much as you can'. ENTRY POINT for a multi-step arc, NOT a single concrete change; distinct from /prospect, /retrospect, /handoff, /wrapup. (Code port — ADR-094.)"
-argument-hint: "[arc|execute|plan|config] [<goal | plan-path | ticket-id>] [full] [loop] [tickets] [continue|stop]"
+description: "Drive an autonomous execution arc end-to-end — compose brainstorm→spec→/prospect→plan→/prospect→TDD→/retrospect under the Rule 35 posture, decide objectively-validatable forks yourself, and stop only on a load-bearing fork or an ungranted approval. Modes: `arc` (default), `execute <plan|spec|ticket-id>` (skip ideation), `plan` (stop at a prospected plan, no code), `config` (guided per-run knob picker). Stackable, one word per axis: `full` (authority — all except push) · `attended`|`unattended` (presence) · `continue`|`stop` (duration) · plus `tickets` and `self-restart`. A bare invocation opens the `config` picker instead of guessing a goal. An explicit grant of autonomous latitude that overrides the standing `autonomy` config for the arc and never writes it. Use when the user hands off a goal, plan, ticket, or SESSION.md with latitude to execute WITHOUT per-step approval — 'combined go', 'run overnight', 'just build it', 'do as much as you can'. ENTRY POINT for a multi-step arc, NOT a single concrete change; distinct from /prospect, /retrospect, /handoff, /wrapup. (Code port — ADR-094.)"
+argument-hint: "[arc|execute|plan|config] [<goal | plan-path | ticket-id>] [full] [attended|unattended] [tickets] [continue|stop] [self-restart]"
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash, WebFetch, WebSearch
 ---
 
@@ -100,7 +100,7 @@ These bind every `/auto` run in every mode. They are not modifiers and cannot be
 
 | Mode | Trigger | What it does |
 |---|---|---|
-| **arc** (default) | `/auto` or `/auto <goal>` | Full chain: brainstorm → spec → /prospect → plan → /prospect → execute → /retrospect. The default when the first arg isn't a mode keyword. |
+| **arc** (default) | `/auto <goal>` or `/auto arc <goal>` | Full chain: brainstorm → spec → /prospect → plan → /prospect → execute → /retrospect. The default whenever a goal is given without a mode keyword. (A **bare** `/auto` with no goal opens `config` instead — see Parsing.) |
 | **execute** | `/auto execute <plan-path \| ticket-id \| "the plan">` | A plan/spec already exists. Skip ideation; run /prospect → build (TDD/SDD) → /retrospect. |
 | **plan** | `/auto plan [<goal>]` | Produce a prospected, cold-executable plan and STOP. Runs brainstorm → spec → /prospect → plan → /prospect. **No code.** The mirror of `execute`. |
 | **config** | `/auto config [<goal>]` (alias `/auto preflight`) | Guided pre-flight: walk every run setting one at a time as a picker (so nothing has to be remembered), assemble the run-config, then drive the arc with it. Configures THIS run only — never persists (that's `/setup`'s job). See Step 0¾. |
@@ -109,16 +109,50 @@ These bind every `/auto` run in every mode. They are not modifiers and cannot be
 
 - **`full`** — maximum authority on every axis **except push**: tools/MCP/plugins
   pre-approved · Workflow fan-out ON (default is hard-OFF) · cumulative subagent cap
-  10 → 30 · fan-out budget-fraction gate 25% → 40% · resume armed automatically when
-  usage-bound · self-decide every objectively-validatable fork. `full` is defined by its
+  10 → 30 · fan-out budget-fraction gate 25% → 40% · self-decide every
+  objectively-validatable fork. (**Arming a resume is NOT an authority grant** — it belongs
+  to the presence axis below, and `full` deliberately says nothing about it.) `full` is defined by its
   boundary: **every grant except the one that leaves the machine** (D4). It **raises the
   three Step 5 fan-out stopgaps but does not remove them** — raised, finite, still live,
   because an unattended max-authority run is the case most exposed to unbounded spend, and
   the budget-fraction gate is what protects D1's 95% pause.
-- **`loop`** — the unattended preset. Implies `continue` **and** `self-restart`, arms the
-  resume at 90%, never idles on a non-blocking stop, and checkpoint-commits each milestone.
-  An explicit trailing `stop` after `loop` is contradictory: resolve to the explicit token
-  and say so in the arc contract.
+*(There is deliberately no `loop` modifier. An earlier draft had one meaning
+"unattended + continue + self-restart", but once arming moved to the presence axis where it
+belongs, `loop` reduced to a strict alias for `unattended continue` — adding a word and no
+capability. It had already produced the drift a redundant word invites, claiming
+resume-arming that `full` also claimed, and it was the worst of the mid-prose collisions:
+`/auto fix the render loop bug`. The overnight run is `/auto full unattended continue` —
+one word per axis, no special cases.)*
+- **`attended` / `unattended`** — the **presence** axis: is a human reachable right now?
+  Two values, and **the arc contract always states which is in force**, because it changes
+  what happens to every question the run produces. Neither is inferred silently: if the
+  invocation does not say, `config` asks (Step 0¾ knob 7), and a bare run defaults to
+  `attended` — assuming someone is there is the safe error, since the cost is one surfaced
+  question rather than an hour of unreviewed autonomy.
+  - **`attended`** — a **non-blocking** residual is surfaced **immediately** rather than
+    noted and batched to the handoff. D6 ("a non-blocking stop never idles the run") is
+    thrift when you are asleep and waste when you are at the desk: an answer worth ten
+    seconds of yours can otherwise cost an hour of second-best work. `attended` narrows D6,
+    it does not repeal it — the run still never *idles* waiting, it asks and keeps working
+    and takes the answer when it arrives. Blocking residuals halt as always.
+  - **`unattended`** — nobody is reachable. Non-blocking residuals are noted and carried to
+    the handoff (D6 unchanged), and the run **arms its own resume** across whichever wall it
+    expects to hit (see below).
+
+  **Two different walls need two different mechanisms — do not conflate them:**
+
+  | Wall | Mechanism | Effect |
+  |---|---|---|
+  | **Usage** — the 5h window is exhausted | the **resume schedule** (Step 6) | Re-fires *this* session after the reset, local work intact |
+  | **Context** — the window hits 90% | **`self-restart`** + `bin/auto-runloop.sh` | Relaunches a **fresh process** with a clean window |
+
+  A resume schedule cannot rescue a context wall (it re-enters the same full session), and a
+  fresh process does not help when the limit is usage. `unattended` arms the resume for the
+  usage wall; the context wall needs `self-restart` **explicitly**, because it cannot be
+  made to work implicitly. **`self-restart` is inert unless the external
+  wrapper is already running** — invoked directly in a normal session it writes the restart
+  signal and stops with nothing to consume it, so say so rather than implying the run is
+  self-healing.
 - **`tickets`** — tracker-bound. Work selection comes from the connected tracker by
   priority; comment on the ticket at every commit; never claim a ticket without verified
   validation.
@@ -135,9 +169,16 @@ These bind every `/auto` run in every mode. They are not modifiers and cannot be
   no tracker connected and no mapping, say so once and fall back to the Step 4
   work-selection order — `tickets` never hard-fails an arc.
 
-Authority is orthogonal to duration: `full` sets *how much latitude*, `loop`/`continue`/`stop`
-set *how long*. `/auto full` (max authority, scoped) and `/auto full loop` (max authority,
-overnight) are both valid.
+**Three orthogonal axes — set each independently.** `full` sets *how much latitude*;
+`continue`/`stop` set *how long*; `attended`/`unattended` set *whether a human is reachable*.
+Keeping them separate is what makes every combination expressible:
+
+- `/auto full` — max authority, scoped: stops when the queue clears
+- `/auto full unattended continue` — max authority, overnight: never idles, nothing is asked,
+  resume armed for the usage wall (add `self-restart` only if the wrapper is actually running)
+- `/auto full attended` — max authority and you are at the desk: everything pre-approved
+  except what genuinely cannot be determined, and *that* reaches you the moment it arises
+- `/auto attended` — default authority, but residuals come to you live rather than at handoff
 
 **On-queue-complete toggle** (a trailing `continue` or `stop` keyword, default **stop**): what to do once the *planned* queue is done.
 - **`stop`** (default) — checkpoint + `/handoff` when the queue is clear; do NOT pick up new work. The right choice for a scoped "just do X" run. Default to this if unset — don't over-reach the remit.
@@ -145,7 +186,17 @@ overnight) are both valid.
 
 **Context-self-restart flag** (a trailing `self-restart` keyword, default **off**): only meaningful with `continue`. When set, a context-window wall does NOT terminally stop the arc — instead the skill writes a restart-signal file that the external `bin/auto-runloop.sh` wrapper watches, so the arc resumes in a FRESH process (clean context). See Step 3¾. Requires the wrapper to be running and a permission allowlist (the wrapper spawns `claude -p --dangerously-skip-permissions`, which the auto-mode classifier blocks unless allowlisted). Without the flag, a context wall behaves exactly as today (terminal stop + `/handoff`).
 
-**Parsing:** if the first arg case-insensitively matches `arc`, `execute`, `plan`, `config`, or `preflight`, that's the mode; otherwise the mode is `arc` and the arg begins the **goal**. Anywhere in the args, `full`/`loop`/`tickets` are modifiers (a set — they stack). A trailing `continue`/`stop` sets the toggle, and a trailing `self-restart` sets the context-self-restart flag (only honored alongside `continue`); everything else is the goal (so `/auto ship the CSV exporter continue self-restart` parses cleanly, and `/auto full loop tickets clear the payments queue` resolves to mode `arc`, modifiers `{full, loop, tickets}`, goal "clear the payments queue"). If the goal is "continue from SESSION.md / the latest handoff," resolve it in Step 4's work-selection order.
+**Parsing.** If the first arg case-insensitively matches `arc`, `execute`, `plan`, `config`, or `preflight`, that's the mode; otherwise the mode is `arc`.
+
+**Modifiers are recognised only at the ENDS — never mid-prose.** Scan the contiguous run of modifier tokens at the start (after any mode keyword) and the contiguous run at the end; **once goal prose begins, every remaining token is goal.** This matters because the modifier names are ordinary English words: an anywhere-in-args scan turns `/auto fix the **render loop** bug` into an unattended self-restarting run, and "do a full review" or "close the tickets" the same way. Worked cases:
+
+- `/auto full unattended tickets clear the payments queue` → mode `arc`, modifiers `{full, unattended, tickets}`, goal "clear the payments queue"
+- `/auto fix the render loop bug` → mode `arc`, **no modifiers**, goal "fix the render loop bug"
+- `/auto ship the CSV exporter continue self-restart` → goal "ship the CSV exporter", toggle `continue`, flag `self-restart`
+
+A trailing `continue`/`stop` sets the on-queue-complete toggle; a trailing `self-restart` sets the context-restart flag (honored only alongside `continue`).
+
+**A bare invocation falls through to `config`.** When there is **no mode keyword and no goal text**, open the guided picker (Step 0¾) rather than inferring a goal. **Modifiers and toggles do not count as goal context** — they say *how* to run, never *what* to run — so `/auto`, `/auto full`, `/auto unattended` and `/auto full continue` all open the picker, **pre-seeded** with whatever was typed so nothing is re-asked. The alternative is guessing a goal from `SESSION.md`, which is precisely the stale-resume hazard "Verify before you trust" warns about: a saved prompt may describe work already shipped. When a goal *is* named as "continue from SESSION.md / the latest handoff," resolve it through Step 4's work-selection order as before.
 
 **Two ways to handle unspecified settings — you remember nothing either way:**
 - **Default (`/auto [goal]`)** — pick the safe default for everything unspecified and **surface them all in the arc contract** (Step 0.5) before driving. You *react* to the shown list; you never have to *recall* what's configurable. Minimal friction.
@@ -157,7 +208,7 @@ overnight) are both valid.
 
 Runs ONLY when invoked as `/auto config` (or `/auto preflight`). Skip entirely for `arc`/`execute`. Purpose: let the user set each run setting deliberately **without having to remember any of them** — present each as a picker, one at a time, with the safe default pre-marked. Use the platform's question/picker affordance (one question per knob); accept a bare-number/keyword reply; "skip" on any knob takes its default.
 
-Walk these in order, **one at a time** (do not dump all six at once — the point is recognition-not-recall, one decision per step):
+Walk these in order, **one at a time** (do not dump all seven at once — the point is recognition-not-recall, one decision per step):
 
 1. **Goal / source** — this prompt's goal · continue from `SESSION.md`/latest handoff · a plan path · a ticket ID from your connected tracker. (If a goal was passed as `/auto config <goal>`, pre-seed it and confirm.)
 2. **On-queue-complete** — `stop` (scoped: checkpoint + /handoff when the queue's clear — *default*) · `continue` (keep finding new work; for unattended/overnight).
@@ -165,6 +216,7 @@ Walk these in order, **one at a time** (do not dump all six at once — the poin
 4. **Fan-out / subagents** — inline-only · bounded individual subagents, ~10 cumulative cap (*default*) · raise the cap to N · allow the Workflow swarm (multi-agent orchestration). (Maps to the Step 5 stopgaps.)
 5. **Budget ceiling** — default 25%-of-remaining-window per fan-out burst (*default*) · a different fraction · a hard "stop the arc at X% usage." (Maps to the Step 5 budget-fraction gate + a live abort floor.)
 6. **Cron / unattended** — off (*default*) · arm a resume cron for a usage-bound self-perpetuating run (fires **+5 min after** each 5-hour reset per Step 6). (Only offered/meaningful when #2 = `continue`.)
+7. **Presence** — `attended` (*default*: you are reachable, so a non-blocking residual is surfaced immediately rather than batched to the handoff) · `unattended` (nobody is reachable; residuals are carried to the handoff and the run arms its own resume). **Always ask this one** — it is cheap to answer and it changes what happens to every question the arc produces, so a run should never proceed without knowing it. Pre-seeded from the invocation when `attended` or `unattended` was passed.
 
 After the walkthrough, assemble the picks into the run-config and proceed to Step 0.5 — the **arc contract is then a confirmation of what you just chose**, not a fresh set of defaults. **Nothing persists**: these picks configure THIS arc only; the standing `autonomy` posture and any saved defaults are untouched (changing standing defaults is `/setup`'s job — `/auto` never writes config, in any mode).
 
@@ -189,6 +241,7 @@ Before the first action, post a short **arc contract** so the autonomy is legibl
 > **I'll handle without stopping:** knowledge placement, tool/permission approvals, backlog/deferral, ticket filing, the normal commit cadence (see Pre-answered below).
 > **I'll stop and ask on:** product/UX taste with no objective answer · an irreversible/outward-facing action not covered by policy *that blocks the task* · a true no-visibility fact only you have · a genuine costly fork empirical investigation can't decide.
 > **Gates that run but don't count as stopping:** /prospect (pre-code), /retrospect (post-build).
+> **Presence:** <attended — non-blocking residuals come to you as they arise | unattended — residuals batched to the handoff, resume armed>. Always stated; never inferred silently.
 > **Usage:** gating on 5h only; 7d ignored · arm at 90% · pause at 95% (D1).
 > **Push:** local commits only — never pre-authorized by any modifier, including `full` (D4).
 > **Tools:** MCP / plugins / skills pre-approved.

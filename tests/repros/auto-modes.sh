@@ -18,8 +18,8 @@ bad() { printf "FAIL  %s — %s\n" "$1" "$2"; FAIL=$((FAIL + 1)); }
 for m in "arc" "execute"; do
   grep -qiF "$m" "$SK" && ok "B mode documented: $m" || bad "B mode $m" "not in SKILL.md"
 done
-grep -qiE 'no-keyword default|default when the first arg|default `arc`' "$SK" \
-  && ok "B no-keyword default documented" || bad "B default" "no bare-/auto default rule"
+grep -qiE 'default whenever a goal is given|no mode keyword and no goal|bare. `/auto`' "$SK" \
+  && ok "B bare-/auto behaviour documented" || bad "B default" "no bare-/auto rule"
 grep -qiE '`set` mode|\bset mode\b' "$SK" && bad "B no set mode" "a 'set' mode reappeared (Option A rejected it)" || ok "B no set mode (Option A held)"
 
 # C: composes the real process skills via the Skill tool (driver, not summary)
@@ -212,7 +212,7 @@ grep -qiE 'matches `arc`|`arc`, `execute`' "$SK" \
   && ok "MM arc is a mode keyword" || bad "MM arc" "arc not parseable as a mode"
 
 # MM: the three modifiers, stackable
-for m in full loop tickets; do
+for m in full tickets; do
   grep -qF "**\`$m\`**" "$SK" && ok "MM modifier: $m" || bad "MM $m" "modifier not documented"
 done
 grep -qiE 'stackable|they stack' "$SK" && ok "MM modifiers stack" || bad "MM stack" "stacking not stated"
@@ -223,11 +223,17 @@ grep -qiE 'except push|except the one that leaves' "$SK" \
 grep -qiE 'does not remove them|raised, finite' "$SK" \
   && ok "MM full keeps stopgaps finite" || bad "MM full stopgaps" "stopgaps not preserved"
 
-# MM: loop implies continue + self-restart, and the contradiction is resolved
-grep -qiE 'Implies `continue`|implies.*continue' "$SK" \
-  && ok "MM loop implies continue+self-restart" || bad "MM loop" "loop expansion undocumented"
-grep -qiE 'contradictor|explicit token' "$SK" \
-  && ok "MM loop+stop contradiction resolved" || bad "MM loop stop" "contradiction unhandled"
+# MM: `loop` stays retired. It reduced to a strict alias for `unattended continue` once
+# resume-arming moved to the presence axis, and it had already drifted (claiming arming that
+# `full` also claimed) and was the worst mid-prose collision. The tombstone must survive so
+# it is not reintroduced by someone reading only the modifier list.
+grep -qiE 'no .loop. modifier|deliberately no .loop.' "$SK" \
+  && ok "MM loop retirement is recorded" || bad "MM loop tombstone" "retirement rationale missing"
+if grep -qE '^- \*\*`loop`\*\*' "$SK"; then
+  bad "MM loop reintroduced" "a loop modifier is defined again"
+else
+  ok "MM no loop modifier defined"
+fi
 
 # VL: no vendor LOCK — naming a vendor inside an example list is fine (that is what
 # /digest does and it helps the probe); treating one vendor as THE tracker is not.
@@ -283,6 +289,45 @@ grep -qiE 'probe' "$SK" \
   && ok "SCH probes before naming a mechanism" || bad "SCH probe" "no runtime probe rule"
 grep -qiE 'never promise durability|cannot deliver' "$SK" \
   && ok "SCH no over-promise" || bad "SCH over-promise" "missing the don't-promise guard"
+
+# CD: bare /auto falls through to the config picker. Modifiers and toggles say HOW, never
+# WHAT — so an invocation carrying only those has not named a goal, and guessing one from
+# SESSION.md is exactly the stale-resume hazard "verify before you trust" warns about.
+grep -qiE 'no mode keyword and no goal|neither a mode nor a goal|falls through to .?config' "$SK" \
+  && ok "CD bare /auto defaults to config" || bad "CD default" "no config-default rule"
+grep -qiE 'modifiers and toggles.*do not count|do not count as a goal' "$SK" \
+  && ok "CD modifiers/toggles are not goal context" || bad "CD tokens" "does not exclude modifiers/toggles"
+grep -qiE 'pre-seed' "$SK" \
+  && ok "CD picker pre-seeded with what was typed" || bad "CD preseed" "picker discards the typed modifiers"
+
+# MP: modifiers are recognised only at the ENDS, never mid-prose. Without this,
+# "/auto fix the render loop bug" silently becomes an unattended self-restarting run.
+grep -qiE 'contiguous run|only at the (start|ends)|never mid-prose|once goal prose begins' "$SK" \
+  && ok "MP modifier scan is edge-bounded" || bad "MP scan" "modifiers still matched anywhere in args"
+grep -qiF 'render loop' "$SK" \
+  && ok "MP the collision case is documented" || bad "MP example" "no worked mid-prose example"
+
+# AT: presence is a TWO-VALUED axis, always stated, never silently inferred.
+grep -qF 'attended` / `unattended' "$SK" \
+  && ok "AT presence is two-valued" || bad "AT values" "presence not a two-valued axis"
+grep -qiE 'surfaced\s+\*\*immediately\*\*|surfaced immediately' "$SK" \
+  && ok "AT attended surfaces non-blocking residuals live" || bad "AT live" "does not change non-blocking handling"
+grep -qiE 'presence' "$SK" && ok "AT presence named as an axis" || bad "AT axis" "presence axis not named"
+grep -qiE 'always states which is in force|Always stated; never inferred' "$SK" \
+  && ok "AT contract always states presence" || bad "AT contract" "presence not always surfaced"
+grep -qiE 'knob 7|^7\. \*\*Presence\*\*' "$SK" \
+  && ok "AT config asks presence when unspecified" || bad "AT knob" "not a config knob"
+
+# WALL: the usage wall and the context wall need different mechanisms — never conflated.
+grep -qiE 'cannot rescue a context wall|re-enters the same full session' "$SK" \
+  && ok "WALL usage vs context distinguished" || bad "WALL" "the two walls are conflated"
+# Matcher deliberately SHORT: grep is line-based, and a phrase longer than the prose's wrap
+# width fails on correct text. Third occurrence of that trap in this suite — keep patterns
+# inside one line's worth of words.
+grep -qiE 'is inert unless' "$SK" \
+  && ok "WALL self-restart wrapper caveat stated" || bad "WALL wrapper" "implies the run is self-healing"
+grep -qiE 'Arming a resume is NOT an authority grant' "$SK" \
+  && ok "WALL arming is not an authority grant" || bad "WALL arming" "full still claims resume arming"
 
 printf "\n%d passed, %d failed\n" "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
