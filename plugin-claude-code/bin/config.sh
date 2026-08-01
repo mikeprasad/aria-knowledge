@@ -160,8 +160,11 @@ if [ -f "$KT_CONFIG" ]; then
     off|warn|deny) : ;;
     *) KT_PREFLIGHT_GATE="warn" ;;
   esac
-  # KT_PREFLIGHT_DENY_PATHS intentionally has no default — empty with gate=deny means
-  # "deny on every code commit", which is the strictest reading of an explicit opt-in
+  # KT_PREFLIGHT_DENY_PATHS intentionally has no default — empty means no escalation.
+  # It is INDEPENDENT of the gate, not a sub-setting of it: these paths deny from any
+  # baseline, the same way critical_paths escalates Rule 22 regardless of surroundings.
+  # So `gate: warn` + named paths = warn everywhere, deny on those paths — the common
+  # configuration, and one that was unreachable while the list lived inside gate=deny.
   # KT_CRITICAL_PATHS intentionally has no default — empty means no critical paths
   # KT_PLANNING_PATHS intentionally has no default — empty means no user planning paths
   #   (the hooks still apply their built-in planning globs, e.g. docs/specs, .claude/skills/*/templates)

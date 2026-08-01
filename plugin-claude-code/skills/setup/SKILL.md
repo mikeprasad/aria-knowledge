@@ -390,7 +390,7 @@ After writing the config file, read it back and verify that each value can be ex
    - `critical_paths` — confirm it's a comma-separated string of path patterns (or empty)
    - `planning_paths` — confirm it's a comma-separated string of path patterns (or empty)
    - `preflight_gate` — confirm it is exactly `off`, `warn` or `deny`. Any other value is rewritten to `warn`, never to `off`: a typo must not silently disable a gate the user believes is on.
-   - `preflight_deny_paths` — confirm it's a space-separated string of globs (or empty). Only consulted when `preflight_gate: deny`; **empty with `deny` means every code commit is gated**, which is the strictest reading of an explicit opt-in. If the user wants deny scoped to a subset, they must name the paths.
+   - `preflight_deny_paths` — confirm it's a space-separated string of globs (or empty). **Independent of `preflight_gate`, not a sub-setting of it**: these paths deny from any baseline, the same way `critical_paths` escalates Rule 22 regardless of surroundings. So `preflight_gate: warn` + named paths = "warn on code commits, but block on these" — the configuration most users want. Empty means no escalation.
    - `style_lookback_days` — confirm it's the integer from Step 6 (default 90)
    - `style_max_sessions` — confirm it's the integer from Step 6 (default 50)
    - `style_audit_log` — confirm it's a path string (default `{knowledge_folder}/logs/style-audit-log.md`, with `{knowledge_folder}` resolved to the actual configured path)

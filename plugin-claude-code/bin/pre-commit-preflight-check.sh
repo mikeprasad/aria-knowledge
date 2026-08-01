@@ -85,38 +85,54 @@ MARKER="${TMPDIR:-/tmp}/aria-preflight-$SESSION_ID"
 UNCHECKED=$(printf '%s' "$CODE_FILES" | tr ' ' '\n' | grep -v '^$' | head -5 | tr '\n' ' ')
 N=$(printf '%s' "$CODE_FILES" | tr ' ' '\n' | grep -cv '^$')
 
-# --- deny path: opt-in, and only for paths the user named -------------------
+# --- should this commit be DENIED? ------------------------------------------
+# Two independent reasons, not one mode. `preflight_gate` is the BASELINE for every
+# code commit; `preflight_deny_paths` is an ESCALATION that applies from ANY baseline,
+# exactly as `critical_paths` escalates Rule 22 severity regardless of the surrounding
+# setting. Gating the path list behind gate=deny (the first shape of this hook) made
+# the key silently inert at the default setting — a config the user sets, sees no
+# effect from, and reasonably concludes is broken.
+#
+#   gate: off   -> never fires; paths irrelevant
+#   gate: warn  -> warn, EXCEPT deny on a preflight_deny_paths match   <- the common one
+#   gate: deny  -> deny every code commit; paths irrelevant
+MATCHED=""
 if [ "$GATE" = "deny" ]; then
-  MATCHED=""
-  if [ -z "$KT_PREFLIGHT_DENY_PATHS" ]; then
-    MATCHED="yes"           # gate=deny with no paths named = deny on all code
-  else
-    for f in $CODE_FILES; do
-      for pat in $KT_PREFLIGHT_DENY_PATHS; do
-        # shellcheck disable=SC2254
-        case "$f" in $pat) MATCHED="yes"; break 2 ;; esac
-      done
+  MATCHED="yes"
+elif [ -n "$KT_PREFLIGHT_DENY_PATHS" ]; then
+  for f in $CODE_FILES; do
+    for pat in $KT_PREFLIGHT_DENY_PATHS; do
+      # shellcheck disable=SC2254
+      case "$f" in $pat) MATCHED="yes"; break 2 ;; esac
     done
+  done
+fi
+
+if [ -n "$MATCHED" ]; then
+  # Name the ACTUAL reason. Blaming preflight_deny_paths when the baseline was what
+  # denied sends the user to edit a key that had nothing to do with it.
+  if [ "$GATE" = "deny" ]; then
+    WHY="Your preflight_gate is set to deny."
+  else
+    WHY="This commit touches a path listed in your preflight_deny_paths."
   fi
 
-  if [ -n "$MATCHED" ]; then
-    # Circuit breaker, same contract as pre-edit-check.sh: three consecutive denials
-    # with no compliant commit between them degrade to allow-with-loud-warning. A gate
-    # that can deadlock a session gets turned off permanently, which protects nothing.
-    BREAKER="${TMPDIR:-/tmp}/aria-preflight-denies-$SESSION_ID"
-    COUNT=$(cat "$BREAKER" 2>/dev/null || echo 0)
-    COUNT=$((COUNT + 1))
-    printf '%s' "$COUNT" > "$BREAKER" 2>/dev/null || true
+  # Circuit breaker, same contract as pre-edit-check.sh: three consecutive denials
+  # with no compliant commit between them degrade to allow-with-loud-warning. A gate
+  # that can deadlock a session gets turned off permanently, which protects nothing.
+  BREAKER="${TMPDIR:-/tmp}/aria-preflight-denies-$SESSION_ID"
+  COUNT=$(cat "$BREAKER" 2>/dev/null || echo 0)
+  COUNT=$((COUNT + 1))
+  printf '%s' "$COUNT" > "$BREAKER" 2>/dev/null || true
 
-    if [ "$COUNT" -le 3 ]; then
-      REASON="PREFLIGHT REQUIRED — no preflight recorded this session for $N changed file(s): $UNCHECKED. Run /preflight, or record an explicit skip with a reason. This commit touches a path listed in your preflight_deny_paths. (Denial $COUNT of 3 before this gate degrades to a warning.)"
-      printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"%s"}}\n' "$REASON"
-      exit 0
-    fi
-    MSG="PREFLIGHT: gate DEGRADED after 3 consecutive denials — allowing this commit. No preflight recorded this session for: $UNCHECKED. Run /preflight before reporting this work as done."
-    printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","additionalContext":"%s"}}\n' "$MSG"
+  if [ "$COUNT" -le 3 ]; then
+    REASON="PREFLIGHT REQUIRED — no preflight recorded this session for $N changed file(s): $UNCHECKED. Run /preflight, or record an explicit skip with a reason. $WHY (Denial $COUNT of 3 before this gate degrades to a warning.)"
+    printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"%s"}}\n' "$REASON"
     exit 0
   fi
+  MSG="PREFLIGHT: gate DEGRADED after 3 consecutive denials — allowing this commit. No preflight recorded this session for: $UNCHECKED. Run /preflight before reporting this work as done."
+  printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","additionalContext":"%s"}}\n' "$MSG"
+  exit 0
 fi
 
 # --- warn path (default) ----------------------------------------------------

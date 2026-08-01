@@ -223,7 +223,18 @@ printf '%s\t%s\t%s\n' "$(date +%H:%M)" "<VERDICT>" "<scope>" \
 `pre-commit-preflight-check.sh` fires on `git commit` and warns when no marker exists for the
 session. **Any recorded verdict satisfies it, including NOT READY** — recording a FAIL and
 committing anyway is a legitimate, visible choice; the failure being guarded against is not running
-the checks at all. Escalation to deny is opt-in via `preflight_gate` + `preflight_deny_paths`.
+the checks at all.
+
+Two independent config knobs, neither a sub-setting of the other:
+
+| | |
+|---|---|
+| `preflight_gate: off` | never fires |
+| `preflight_gate: warn` *(default)* | warns on code commits — **and denies on any `preflight_deny_paths` match** |
+| `preflight_gate: deny` | denies every code commit; the path list is irrelevant |
+
+`preflight_deny_paths` escalates from **any** baseline, exactly as `critical_paths` escalates Rule 22
+regardless of the surrounding setting. Docs-only diffs are silent under every combination.
 
 Then write the table to `<knowledge_folder>/logs/preflight/<date>-<scope>.md` when the change is
 non-trivial, and run aria's standard intake. A preflight that found something is a candidate

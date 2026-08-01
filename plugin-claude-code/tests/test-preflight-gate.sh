@@ -74,20 +74,34 @@ pf_fresh pf6
 out=$(pf_run "$(pf_cfg off "")" pf6 "cd $PF_CODE && git commit -m x")
 assert_eq "gate=off is silent" "" "$out"
 
-# [7] gate=deny with no paths named = deny on all code (strictest reading of opt-in)
+# --- baseline and escalation are INDEPENDENT --------------------------------
+# preflight_gate is the baseline for every code commit; preflight_deny_paths escalates
+# from ANY baseline, exactly as critical_paths escalates Rule 22 severity regardless of
+# the surrounding setting. The first shape of this hook gated the path list behind
+# gate=deny, which made the key silently inert at the DEFAULT setting — a config the
+# user sets, sees no effect from, and reasonably concludes is broken.
+
+# [7] gate=deny denies every code commit; the path list is irrelevant to it
 pf_fresh pf7
 out=$(pf_run "$(pf_cfg deny "")" pf7 "cd $PF_CODE && git commit -m x")
 assert_eq "deny + no paths -> denies" "1" "$(pf_has '"deny"' "$out")"
 
-# [8] gate=deny only bites the paths the user named; everything else still warns
 pf_fresh pf8
 out=$(pf_run "$(pf_cfg deny "payments/*")" pf8 "cd $PF_CODE && git commit -m x")
-assert_eq "deny + non-matching path -> warns" "1" "$(pf_has 'additionalContext' "$out")"
-assert_eq "deny + non-matching path does NOT deny" "0" "$(pf_has '"deny"' "$out")"
+assert_eq "deny still denies a NON-matching path" "1" "$(pf_has '"deny"' "$out")"
+assert_eq "deny cites the gate, not the path list" "1" "$(pf_has 'preflight_gate is set to deny' "$out")"
 
+# [8] THE COMMON CASE — warn baseline, deny on the paths the user named.
+# This combination could not deny at all under the previous semantics.
 pf_fresh pf9
-out=$(pf_run "$(pf_cfg deny "*.py")" pf9 "cd $PF_CODE && git commit -m x")
-assert_eq "deny + matching path -> denies" "1" "$(pf_has '"deny"' "$out")"
+out=$(pf_run "$(pf_cfg warn "*.py")" pf9 "cd $PF_CODE && git commit -m x")
+assert_eq "warn + MATCHING path -> denies" "1" "$(pf_has '"deny"' "$out")"
+assert_eq "warn+path deny cites the path list" "1" "$(pf_has 'preflight_deny_paths' "$out")"
+
+pf_fresh pf9b
+out=$(pf_run "$(pf_cfg warn "payments/*")" pf9b "cd $PF_CODE && git commit -m x")
+assert_eq "warn + non-matching path -> warns" "1" "$(pf_has 'additionalContext' "$out")"
+assert_eq "warn + non-matching path does NOT deny" "0" "$(pf_has '"deny"' "$out")"
 
 # [9] an unrecognized gate value falls back to WARN, never to off. A typo in config
 # must not silently disable a gate the user believed was on.
