@@ -59,13 +59,18 @@ ok "gate A: all test suites pass"
 # Gate B — skill-discovery surface budget. The summed frontmatter-description
 # bytes across skills/*/SKILL.md are loaded EVERY session (the dominant always-on
 # fixed cost — docs/value-analysis.md). Method mirrors value-analysis.md exactly.
-# Default 18944 B: re-baselined at v2.30.0 from the v2.28.1-era 16384 after
-# v2.29.0's /foundational-review + /readiness-audit landed (live ~17979 + headroom).
+# Default 19968 B (19.5 KiB): raised from 18944 when /preflight landed (measured
+# 19362 live). Prior baseline 18944 was set at v2.30.0, itself re-baselined from the
+# v2.28.1-era 16384 after v2.29.0's /foundational-review + /readiness-audit.
+# NOTE the half-KiB step is deliberate. v2.41.0 left the budget with SIX bytes spare
+# and the CHANGELOG had to warn that the next skill would trip it — which it did.
+# Raise to the next half-KiB, not to exactly-fits, so the following skill is a
+# decision rather than an incident.
 # Raise the default deliberately in the commit that adds a skill; ARIA_SKILL_BUDGET
 # overrides only for emergencies and warns loudly.
-ARIA_SKILL_BUDGET="${ARIA_SKILL_BUDGET:-18944}"
-[[ "$ARIA_SKILL_BUDGET" != "18944" ]] && \
-    warn "ARIA_SKILL_BUDGET overridden to $ARIA_SKILL_BUDGET (default 18944) — emergency override in effect"
+ARIA_SKILL_BUDGET="${ARIA_SKILL_BUDGET:-19968}"
+[[ "$ARIA_SKILL_BUDGET" != "19968" ]] && \
+    warn "ARIA_SKILL_BUDGET overridden to $ARIA_SKILL_BUDGET (default 19968) — emergency override in effect"
 log "gate B: skill-discovery budget"
 budget_total=0
 budget_report=""
