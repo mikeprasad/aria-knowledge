@@ -83,6 +83,8 @@ if [ -f "$KT_CONFIG" ]; then
   KT_ACTIVE_SURFACING=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^active_knowledge_surfacing:' | sed 's/^active_knowledge_surfacing: *//')
   KT_CRITICAL_PATHS=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^critical_paths:' | sed 's/^critical_paths: *//')
   KT_PLANNING_PATHS=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^planning_paths:' | sed 's/^planning_paths: *//')
+  KT_PREFLIGHT_GATE=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^preflight_gate:' | sed 's/^preflight_gate: *//')
+  KT_PREFLIGHT_DENY_PATHS=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^preflight_deny_paths:' | sed 's/^preflight_deny_paths: *//')
   KT_PROJECTS_ENABLED=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^projects_enabled:' | sed 's/^projects_enabled: *//')
   KT_PROJECTS_LIST=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^projects_list:' | sed 's/^projects_list: *//')
   KT_PROJECTS_REMOTES=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^projects_remotes:' | sed 's/^projects_remotes: *//')
@@ -150,6 +152,16 @@ if [ -f "$KT_CONFIG" ]; then
   # Strip spaces so comma-list membership tests (case ",$LIST," in *",$type,"*) are exact
   KT_SUBAGENT_CAPTURE_TYPES=$(printf '%s' "$KT_SUBAGENT_CAPTURE_TYPES" | tr -d ' ')
   KT_SUBAGENT_SELFREPORT_TYPES=$(printf '%s' "$KT_SUBAGENT_SELFREPORT_TYPES" | tr -d ' ')
+  # Preflight commit gate. Default WARN: the paths where a missed check actually costs
+  # something vary per user and per codebase, so escalation to deny is opt-in and the
+  # user names the paths. Unrecognized values fall back to warn rather than to off —
+  # a typo must not silently disable a gate.
+  case "$KT_PREFLIGHT_GATE" in
+    off|warn|deny) : ;;
+    *) KT_PREFLIGHT_GATE="warn" ;;
+  esac
+  # KT_PREFLIGHT_DENY_PATHS intentionally has no default — empty with gate=deny means
+  # "deny on every code commit", which is the strictest reading of an explicit opt-in
   # KT_CRITICAL_PATHS intentionally has no default — empty means no critical paths
   # KT_PLANNING_PATHS intentionally has no default — empty means no user planning paths
   #   (the hooks still apply their built-in planning globs, e.g. docs/specs, .claude/skills/*/templates)

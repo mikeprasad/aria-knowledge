@@ -316,6 +316,8 @@ retrospect_branches: [comma-list, default main,master,production]
 usage_alert_threshold: [value from Step 6, default 80; or `off` to disable usage injection]
 critical_paths: [comma-separated patterns from Step 6, default empty]
 planning_paths: [comma-separated patterns from Step 6, default empty]
+preflight_gate: [off | warn | deny, from Step 6, default warn]
+preflight_deny_paths: [space-separated globs from Step 6, default empty]
 style_lookback_days: [integer from Step 6, default 90]
 style_max_sessions: [integer from Step 6, default 50]
 style_audit_log: [path from Step 6, default {knowledge_folder}/logs/style-audit-log.md]
@@ -387,6 +389,8 @@ After writing the config file, read it back and verify that each value can be ex
    - `usage_alert_threshold` — confirm it's `off` or a plain integer in 1–100 (matches Step 6 input; default 80). Any other value is reset to 80.
    - `critical_paths` — confirm it's a comma-separated string of path patterns (or empty)
    - `planning_paths` — confirm it's a comma-separated string of path patterns (or empty)
+   - `preflight_gate` — confirm it is exactly `off`, `warn` or `deny`. Any other value is rewritten to `warn`, never to `off`: a typo must not silently disable a gate the user believes is on.
+   - `preflight_deny_paths` — confirm it's a space-separated string of globs (or empty). Only consulted when `preflight_gate: deny`; **empty with `deny` means every code commit is gated**, which is the strictest reading of an explicit opt-in. If the user wants deny scoped to a subset, they must name the paths.
    - `style_lookback_days` — confirm it's the integer from Step 6 (default 90)
    - `style_max_sessions` — confirm it's the integer from Step 6 (default 50)
    - `style_audit_log` — confirm it's a path string (default `{knowledge_folder}/logs/style-audit-log.md`, with `{knowledge_folder}` resolved to the actual configured path)
@@ -397,7 +401,7 @@ After writing the config file, read it back and verify that each value can be ex
    - `projects_remotes` — confirm it's a comma-separated string of `tag:url-pattern` pairs (or empty); validate no project tag contains `:` or `,`
    - `projects_promotion_threshold` — confirm it's a plain integer ≥ 1 (matches Step 6 input)
    - `auto_load_project_context` — confirm it's `true` or `false`
-   - **Empty-sentinel check** — for string-valued keys with an empty default (`critical_paths`, `planning_paths`, `ticketing_plugins`, `projects_list`, `projects_remotes`): confirm the raw extracted value is not the literal string `null`, `""`, `none`, or `[]`. If the key is intended to be empty, the value after the colon must be truly empty (nothing or a single trailing space). Rewrite the key as `key:` and re-verify.
+   - **Empty-sentinel check** — for string-valued keys with an empty default (`critical_paths`, `planning_paths`, `preflight_deny_paths`, `ticketing_plugins`, `projects_list`, `projects_remotes`): confirm the raw extracted value is not the literal string `null`, `""`, `none`, or `[]`. If the key is intended to be empty, the value after the colon must be truly empty (nothing or a single trailing space). Rewrite the key as `key:` and re-verify.
 
 **Skill-only field validation (`projects_groups`)** — if the field is present in the config, run structural-only checks. Do not attempt to flatten or rewrite this field; it's parsed by skills, not bash, so the verification mirrors that consumer.
 

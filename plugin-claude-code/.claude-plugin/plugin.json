@@ -76,6 +76,11 @@
             "type": "command",
             "command": "bash ${CLAUDE_PLUGIN_ROOT}/bin/pre-bash-write-check.sh",
             "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/bin/pre-commit-preflight-check.sh",
+            "timeout": 5
           }
         ]
       },

@@ -212,9 +212,22 @@ not.
 
 ## Recording
 
-Write the table to `knowledge/logs/preflight/<date>-<scope>.md` when the change is non-trivial, and
-run aria's standard intake. A preflight that found something is a candidate insight — the pattern
-that produced the FAIL is usually more reusable than the fix.
+**Always write the session marker — this is what the commit gate reads.** One line per run,
+appended:
+
+```bash
+printf '%s\t%s\t%s\n' "$(date +%H:%M)" "<VERDICT>" "<scope>" \
+  >> "${TMPDIR:-/tmp}/aria-preflight-${CLAUDE_SESSION_ID}"
+```
+
+`pre-commit-preflight-check.sh` fires on `git commit` and warns when no marker exists for the
+session. **Any recorded verdict satisfies it, including NOT READY** — recording a FAIL and
+committing anyway is a legitimate, visible choice; the failure being guarded against is not running
+the checks at all. Escalation to deny is opt-in via `preflight_gate` + `preflight_deny_paths`.
+
+Then write the table to `<knowledge_folder>/logs/preflight/<date>-<scope>.md` when the change is
+non-trivial, and run aria's standard intake. A preflight that found something is a candidate
+insight — the pattern that produced the FAIL is usually more reusable than the fix.
 
 ## Composes with
 
