@@ -25,9 +25,9 @@ PF_DOCS="$PF_TMP/docsonly"; mkdir -p "$PF_DOCS/docs"; pf_repo "$PF_DOCS"
 echo doc > "$PF_DOCS/docs/a.md"; echo doc > "$PF_DOCS/README.md"
 git -C "$PF_DOCS" add . 2>/dev/null
 
-pf_cfg() { # GATE DENY_PATHS -> path to a config fixture
-  printf -- '---\nknowledge_folder: %s/kf\npreflight_gate: %s\npreflight_deny_paths: %s\n---\n' \
-    "$PF_TMP" "$1" "$2" > "$PF_TMP/cfg.md"
+pf_cfg() { # GATE DENY_PATHS [DENY_REPOS] -> path to a config fixture
+  printf -- '---\nknowledge_folder: %s/kf\npreflight_gate: %s\npreflight_deny_paths: %s\npreflight_deny_repos: %s\n---\n' \
+    "$PF_TMP" "$1" "$2" "${3:-}" > "$PF_TMP/cfg.md"
   printf '%s' "$PF_TMP/cfg.md"
 }
 
@@ -137,3 +137,96 @@ PF_EMPTY="$PF_TMP/empty"; mkdir -p "$PF_EMPTY"; pf_repo "$PF_EMPTY"
 pf_fresh pf14
 out=$(pf_run "$CFG_DENY" pf14 "cd $PF_EMPTY && git commit -m x")
 assert_eq "nothing staged -> fail open" "" "$out"
+
+# --- deny patterns are DATA, not a glob to expand against the hook's cwd -----
+# `for pat in $KT_PREFLIGHT_DENY_PATHS` is an unquoted expansion, so without `set -f`
+# each pattern word is PATHNAME-EXPANDED before `case` ever sees it. Measured before
+# the fix: from a dir holding `decoy.py`, the pattern `*.py` became the literal word
+# `decoy.py` and stopped matching the staged `app.py` — the gate silently stopped
+# denying, and which files were protected depended on where the tool happened to be.
+#
+# Case [8] above is the same bug lying dormant: it configures `*.py` and passes only
+# because the runner's cwd happens to hold no .py file. These cases make it explicit.
+
+PF_DECOY="$PF_TMP/decoy"; mkdir -p "$PF_DECOY"
+: > "$PF_DECOY/decoy.py"; : > "$PF_DECOY/theme.css"
+# Captured, not hardcoded: run.sh may be invoked from any directory, so the leak guard
+# below has to compare against where we actually started, not against $ROOT.
+PF_CWD_BEFORE=$(pwd)
+
+# [13a] NON-VACUITY GUARD — prove the trap is actually armed. If the decoy files were
+# not created, [13b]/[13c] would pass for the wrong reason and read as a false green.
+expanded=$(cd "$PF_DECOY" && set +f && for p in *.py; do printf '%s' "$p"; done)
+assert_eq "decoy dir really does expand *.py (trap armed)" "decoy.py" "$expanded"
+
+# [13b] a metacharacter pattern must match by its PATTERN, not by what cwd contains
+pf_fresh pf15
+out=$(cd "$PF_DECOY" && pf_run "$(pf_cfg warn '*.py')" pf15 "cd $PF_CODE && git commit -m x")
+assert_eq "deny pattern survives a cwd that would expand it" "1" "$(pf_has '"deny"' "$out")"
+
+# [13c] a leading-* suffix pattern must keep its leading *, so it still matches a
+# path SEGMENT rather than only a bare basename
+PF_NEST="$PF_TMP/nested"; mkdir -p "$PF_NEST/sub"; pf_repo "$PF_NEST"
+: > "$PF_NEST/sub/theme.css"
+git -C "$PF_NEST" add . 2>/dev/null
+pf_fresh pf16
+out=$(cd "$PF_DECOY" && pf_run "$(pf_cfg warn '*theme.css')" pf16 "cd $PF_NEST && git commit -m x")
+assert_eq "leading-* pattern still matches a nested path" "1" "$(pf_has '"deny"' "$out")"
+
+# [13d] the suite itself must not leak cwd into the cases that follow (run.sh SOURCES
+# every test-*.sh into one shell, so a stray `cd` or `set -f` contaminates siblings)
+assert_eq "no cwd leak from the expansion cases" "$PF_CWD_BEFORE" "$(pwd)"
+
+# --- preflight_deny_repos — escalation scoped to a REPOSITORY ----------------
+# preflight_deny_paths cannot express "always gate this repo": staged paths are
+# repo-relative, so the repo name appears nowhere in the string a pattern matches.
+# This key matches the resolved absolute toplevel instead. Substring, deliberately:
+# it OVER-matches (a `-fork` sibling also matches), and for a gate that is the safe
+# direction — under-matching is exactly the silent-stop failure [13b] guards against.
+
+PF_GATED="$PF_TMP/gated-repo"; mkdir -p "$PF_GATED"; pf_repo "$PF_GATED"
+echo code > "$PF_GATED/app.py"; git -C "$PF_GATED" add . 2>/dev/null
+
+# [14a] a matching repo denies from the WARN baseline (escalation, not a sub-setting)
+pf_fresh pf17
+out=$(pf_run "$(pf_cfg warn '' 'gated-repo')" pf17 "cd $PF_GATED && git commit -m x")
+assert_eq "warn + matching repo -> denies" "1" "$(pf_has '"deny"' "$out")"
+assert_eq "repo deny cites preflight_deny_repos" "1" "$(pf_has 'preflight_deny_repos' "$out")"
+
+# [14b] a non-matching repo is untouched
+pf_fresh pf18
+out=$(pf_run "$(pf_cfg warn '' 'some-other-repo')" pf18 "cd $PF_GATED && git commit -m x")
+assert_eq "warn + non-matching repo -> warns" "1" "$(pf_has 'additionalContext' "$out")"
+assert_eq "warn + non-matching repo does NOT deny" "0" "$(pf_has '"deny"' "$out")"
+
+# [14c] empty list = no escalation (regression guard: an empty key must stay inert)
+pf_fresh pf19
+out=$(pf_run "$(pf_cfg warn '' '')" pf19 "cd $PF_GATED && git commit -m x")
+assert_eq "empty deny_repos -> no escalation" "0" "$(pf_has '"deny"' "$out")"
+
+# [14d] REPO_DIR defaults to "." when the command carries no `cd` / `git -C`, so the
+# toplevel must be RESOLVED before matching or the key silently never fires
+pf_fresh pf20
+out=$(cd "$PF_GATED" && pf_run "$(pf_cfg warn '' 'gated-repo')" pf20 "git commit -m x")
+assert_eq "repo match works with an implicit (cwd) repo dir" "1" "$(pf_has '"deny"' "$out")"
+
+# [14e] attribution precedence — gate=deny is the baseline and owns the message even
+# when a repo token also matches. Blaming the key that did not decide sends the user
+# to edit the wrong thing.
+pf_fresh pf21
+out=$(pf_run "$(pf_cfg deny '' 'gated-repo')" pf21 "cd $PF_GATED && git commit -m x")
+assert_eq "gate=deny outranks repos in attribution" "1" "$(pf_has 'preflight_gate is set to deny' "$out")"
+
+# [14f] gate=off outranks everything — a disabled gate stays disabled
+pf_fresh pf22
+out=$(pf_run "$(pf_cfg off '' 'gated-repo')" pf22 "cd $PF_GATED && git commit -m x")
+assert_eq "gate=off silences a repo match" "" "$out"
+
+# [14g] a docs-only commit stays silent even in a gated repo. Q4 (2026-08-01): this is
+# the DELIBERATE residual — "always gate this repo" does not extend to docs, because a
+# gate that fires on a README edit is the one that gets disabled wholesale.
+PF_GATED_DOCS="$PF_TMP/gated-repo-docs"; mkdir -p "$PF_GATED_DOCS"; pf_repo "$PF_GATED_DOCS"
+echo doc > "$PF_GATED_DOCS/README.md"; git -C "$PF_GATED_DOCS" add . 2>/dev/null
+pf_fresh pf23
+out=$(pf_run "$(pf_cfg warn '' 'gated-repo')" pf23 "cd $PF_GATED_DOCS && git commit -m x")
+assert_eq "docs-only commit silent even in a gated repo" "" "$out"

@@ -62,6 +62,16 @@ STAGED=$(git -C "$REPO_DIR" diff --cached --name-only 2>/dev/null) || exit 0
 # Both fail open -- a gate that guesses at content is worse than one that abstains.
 [ -z "$STAGED" ] && exit 0
 
+# From here on, every list we iterate -- staged paths and configured deny patterns --
+# is DATA. Unquoted `for x in $LIST` word-splits (wanted) but ALSO pathname-expands
+# (never wanted): before this line existed, a `preflight_deny_paths` of `src/*` run
+# from a repo root became the 17 literal names inside src/, and `*theme.css` run
+# from the directory holding that file collapsed to the bare basename. Both stopped
+# matching the staged paths -- the gate silently went quiet, and WHICH files were
+# protected depended on the tool's cwd. `set -f` disables pathname expansion only;
+# `case` glob-matching below is unaffected, which is exactly the split we want.
+set -f
+
 # Docs-only commits carry no code claim. Silent by design: this hook firing on a
 # README edit is exactly the noise that gets a gate disabled wholesale.
 CODE_FILES=""
@@ -93,29 +103,52 @@ N=$(printf '%s' "$CODE_FILES" | tr ' ' '\n' | grep -cv '^$')
 # the key silently inert at the default setting — a config the user sets, sees no
 # effect from, and reasonably concludes is broken.
 #
-#   gate: off   -> never fires; paths irrelevant
-#   gate: warn  -> warn, EXCEPT deny on a preflight_deny_paths match   <- the common one
-#   gate: deny  -> deny every code commit; paths irrelevant
+#   gate: off   -> never fires; paths and repos irrelevant
+#   gate: warn  -> warn, EXCEPT deny on a deny_repos or deny_paths match  <- the common one
+#   gate: deny  -> deny every code commit; paths and repos irrelevant
+#
+# `preflight_deny_repos` answers what the path list structurally cannot: "always gate
+# THIS repository." Staged paths are repo-relative, so the repo name appears nowhere
+# in the string a path pattern is matched against -- `*my-repo/*` matches nothing,
+# ever. This arm matches the resolved absolute toplevel instead.
 MATCHED=""
+WHY_KEY=""
 if [ "$GATE" = "deny" ]; then
-  MATCHED="yes"
-elif [ -n "$KT_PREFLIGHT_DENY_PATHS" ]; then
+  MATCHED="yes"; WHY_KEY="gate"
+elif [ -n "$KT_PREFLIGHT_DENY_REPOS" ]; then
+  # REPO_DIR is "." whenever the command carried no `cd` and no `git -C`, so it must
+  # be RESOLVED before matching or the key would silently never fire in the common
+  # already-in-the-repo case. Fall back to REPO_DIR if this is not a work tree.
+  REPO_TOP=$(git -C "$REPO_DIR" rev-parse --show-toplevel 2>/dev/null)
+  [ -z "$REPO_TOP" ] && REPO_TOP="$REPO_DIR"
+  # Substring, not equality: `parent/child` can scope a nested repo, and one token can
+  # cover a family of repos. It OVER-matches (a `-fork` sibling matches too) -- for a
+  # gate that is the safe direction, since under-matching is a gate that goes quiet.
+  OLD_IFS="$IFS"; IFS=','
+  for tok in $KT_PREFLIGHT_DENY_REPOS; do
+    [ -z "$tok" ] && continue
+    case "$REPO_TOP" in *"$tok"*) MATCHED="yes"; WHY_KEY="repos"; break ;; esac
+  done
+  IFS="$OLD_IFS"
+fi
+if [ -z "$MATCHED" ] && [ -n "$KT_PREFLIGHT_DENY_PATHS" ]; then
   for f in $CODE_FILES; do
     for pat in $KT_PREFLIGHT_DENY_PATHS; do
       # shellcheck disable=SC2254
-      case "$f" in $pat) MATCHED="yes"; break 2 ;; esac
+      case "$f" in $pat) MATCHED="yes"; WHY_KEY="paths"; break 2 ;; esac
     done
   done
 fi
 
 if [ -n "$MATCHED" ]; then
   # Name the ACTUAL reason. Blaming preflight_deny_paths when the baseline was what
-  # denied sends the user to edit a key that had nothing to do with it.
-  if [ "$GATE" = "deny" ]; then
-    WHY="Your preflight_gate is set to deny."
-  else
-    WHY="This commit touches a path listed in your preflight_deny_paths."
-  fi
+  # denied sends the user to edit a key that had nothing to do with it. WHY_KEY is set
+  # by whichever arm above actually decided, so the three reasons cannot drift apart.
+  case "$WHY_KEY" in
+    gate)  WHY="Your preflight_gate is set to deny." ;;
+    repos) WHY="This repository matches your preflight_deny_repos." ;;
+    *)     WHY="This commit touches a path listed in your preflight_deny_paths." ;;
+  esac
 
   # Circuit breaker, same contract as pre-edit-check.sh: three consecutive denials
   # with no compliant commit between them degrade to allow-with-loud-warning. A gate

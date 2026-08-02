@@ -85,6 +85,7 @@ if [ -f "$KT_CONFIG" ]; then
   KT_PLANNING_PATHS=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^planning_paths:' | sed 's/^planning_paths: *//')
   KT_PREFLIGHT_GATE=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^preflight_gate:' | sed 's/^preflight_gate: *//')
   KT_PREFLIGHT_DENY_PATHS=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^preflight_deny_paths:' | sed 's/^preflight_deny_paths: *//')
+  KT_PREFLIGHT_DENY_REPOS=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^preflight_deny_repos:' | sed 's/^preflight_deny_repos: *//')
   KT_PROJECTS_ENABLED=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^projects_enabled:' | sed 's/^projects_enabled: *//')
   KT_PROJECTS_LIST=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^projects_list:' | sed 's/^projects_list: *//')
   KT_PROJECTS_REMOTES=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^projects_remotes:' | sed 's/^projects_remotes: *//')
@@ -165,6 +166,10 @@ if [ -f "$KT_CONFIG" ]; then
   # baseline, the same way critical_paths escalates Rule 22 regardless of surroundings.
   # So `gate: warn` + named paths = warn everywhere, deny on those paths — the common
   # configuration, and one that was unreachable while the list lived inside gate=deny.
+  # KT_PREFLIGHT_DENY_REPOS likewise has no default — empty means no escalation. Same
+  # independence, different axis: deny_paths structurally CANNOT express "always gate
+  # this repo", because staged paths are repo-relative and never carry the repo name.
+  # Comma-separated substrings, matched against the resolved absolute git toplevel.
   # KT_CRITICAL_PATHS intentionally has no default — empty means no critical paths
   # KT_PLANNING_PATHS intentionally has no default — empty means no user planning paths
   #   (the hooks still apply their built-in planning globs, e.g. docs/specs, .claude/skills/*/templates)

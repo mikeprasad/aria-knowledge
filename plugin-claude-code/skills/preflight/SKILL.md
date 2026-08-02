@@ -225,16 +225,27 @@ session. **Any recorded verdict satisfies it, including NOT READY** — recordin
 committing anyway is a legitimate, visible choice; the failure being guarded against is not running
 the checks at all.
 
-Two independent config knobs, neither a sub-setting of the other:
+One baseline and two escalations, none a sub-setting of the other:
 
 | | |
 |---|---|
 | `preflight_gate: off` | never fires |
-| `preflight_gate: warn` *(default)* | warns on code commits — **and denies on any `preflight_deny_paths` match** |
-| `preflight_gate: deny` | denies every code commit; the path list is irrelevant |
+| `preflight_gate: warn` *(default)* | warns on code commits — **and denies on any `preflight_deny_repos` or `preflight_deny_paths` match** |
+| `preflight_gate: deny` | denies every code commit; both lists are irrelevant |
 
-`preflight_deny_paths` escalates from **any** baseline, exactly as `critical_paths` escalates Rule 22
-regardless of the surrounding setting. Docs-only diffs are silent under every combination.
+Both lists escalate from **any** baseline, exactly as `critical_paths` escalates Rule 22 regardless of
+the surrounding setting. They match different things, and the difference is load-bearing:
+
+- **`preflight_deny_paths`** — space-separated globs matched against **repo-relative** staged paths.
+  A bare filename therefore will not match that file nested in a subdirectory, and because the docs
+  filter runs first, a `*.md` entry here can never fire.
+- **`preflight_deny_repos`** — comma-separated substrings matched against the repository's resolved
+  absolute path. This is the only way to say *"always gate this repo"*: staged paths are repo-relative,
+  so the repo name appears nowhere in the string a path glob sees. Substring matching over-matches a
+  same-named sibling — for a gate, the safe direction.
+
+Docs-only diffs are silent under every combination, including a gated repo. That is deliberate: a gate
+that fires on a README edit is the one that gets switched off wholesale.
 
 Then write the table to `<knowledge_folder>/logs/preflight/<date>-<scope>.md` when the change is
 non-trivial, and run aria's standard intake. A preflight that found something is a candidate
