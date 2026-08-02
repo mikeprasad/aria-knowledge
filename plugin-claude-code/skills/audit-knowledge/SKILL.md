@@ -265,6 +265,10 @@ For each snapshot (digest or full):
 2. Scan for extractable content — look for the same categories as `/extract`: Insight blocks, architectural decisions, feedback corrections, project context, and reference pointers
 3. Note findings for presentation in Step 6 under a "Pre-Compact Captures" section
 
+**4. Re-verify every finding against HEAD before presenting it as live (REQUIRED).** A capture is a snapshot of a *moment*, not of current state — the session it records may have fixed the very thing it describes, minutes later. For any finding that asserts a present-tense defect ("X is unguarded", "the test asserts Y", "this window is open"), check the current source before it reaches Step 6: read the file at HEAD, and `git log --oneline -5 -- <path>` on the repo the finding names. Mark each as **STILL LIVE (verified at HEAD)** or **ALREADY FIXED (closed by `<sha>`)**. Findings that fail this check are reported as historical, never filed and never promoted as current.
+
+> Basis (2026-08-01, 108th pass): two capture-derived findings — a test asserting the ambient environment, and a safety matrix hiding a forged-header window — were surfaced as live security hazards. Both had been closed the same day by a commit whose message named them exactly. Under a standing grant to file tickets without asking, acting on the digest would have filed two duplicate security tickets. This is the same obsolescence discipline Step 2c2 applies to ideas; captures had no equivalent gate.
+
 After the user reviews findings in Step 7:
 - **Approved items** → append to the appropriate backlog file (insights-backlog.md, decisions-backlog.md, or extraction-backlog.md), then apply the **ledger-clear pattern** (see below) to the snapshot file — body removed, REMOVED.md ledger entry appended.
 - **Rejected items** → apply the **ledger-clear pattern** to the snapshot file — body removed, REMOVED.md ledger entry appended with `disposition: rejected` and a one-line reason from the user.
@@ -319,6 +323,8 @@ bash ${CLAUDE_PLUGIN_ROOT}/bin/digest-transcript.sh "{capture_path}" "/tmp/aria-
 Then read the digest (not the raw transcript). Extract findings into the standard six buckets (insights, decisions, feedback, project context, references, ideas) — same categorization as `/extract`.
 
 **Detailed mode:** read the full capture directly. Use sparingly (a single capture can consume 30-50K+ tokens).
+
+**Re-verify against HEAD before presenting any finding as live (REQUIRED)** — the same gate as Step 2d item 4, and it bites harder here: adversarial `/prospect` and `/retrospect` subagents exist precisely to find defects, so their captures are dense with present-tense claims, and the parent session very often fixed them immediately. Mark each finding **STILL LIVE (verified at HEAD)** or **ALREADY FIXED (closed by `<sha>`)** before Step 6.
 
 For each reviewed capture:
 - **Approved items** → append to the appropriate backlog (`insights-backlog.md`, `decisions-backlog.md`, or `extraction-backlog.md`), then apply the **ledger-clear pattern**: create `{knowledge_folder}/archive/audit-{date}/subagent-captures/` if needed, append an entry to its `REMOVED.md` (filename + parent-session-id + agent_type + agent_id + capture-timestamp), then `rm` the capture `.md`.
@@ -998,3 +1004,5 @@ Safe to call even if Step 7a's `kt_batch_begin` didn't succeed (e.g., jq missing
 - **Stale memories are not Category C** — outdated project status doesn't need extraction, it needs cleanup
 - **Prioritize approaches and rules** — these are the highest-value extractions. Debug recipes, implementation plans, and one-time fixes are Category B
 - **Watch for clusters** — individual backlog entries may not justify a knowledge file, but patterns of related entries do. The backlogs are signal generators, not just staging areas
+- **A capture is a snapshot of a moment, not of current state** — any finding mined from a transcript (pre-compact or subagent) that asserts a present-tense defect MUST be re-verified against HEAD before it is filed, ticketed, or promoted. See Step 2d item 4. This applies with or without a standing grant to file findings; a grant makes the check *more* necessary, not less
+- **Before any disposition that deletes, verify the targets' git-tracking state** — "recoverable via git history" is false for a file that was never committed. Per ADR 084, checkpoint first. In a shared working tree with live parallel sessions, checkpoint **by named path**, never `git add <dir>` — a directory pathspec limits which files, not whose
