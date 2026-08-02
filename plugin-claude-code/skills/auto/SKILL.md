@@ -107,7 +107,7 @@ These bind every `/auto` run in every mode. They are not modifiers and cannot be
 | **arc** (default) | `/auto <goal>` or `/auto arc <goal>` | Full chain: brainstorm → spec → /prospect → plan → /prospect → execute → /retrospect. The default whenever a goal is given without a mode keyword. (A **bare** `/auto` with no goal opens `config` instead — see Parsing.) |
 | **execute** | `/auto execute <plan-path \| ticket-id \| "the plan">` | A plan/spec already exists. Skip ideation; run /prospect → build (TDD/SDD) → /retrospect. |
 | **plan** | `/auto plan [<goal>]` | Produce a prospected, cold-executable plan and STOP. Runs brainstorm → spec → /prospect → plan → /prospect. **No code.** The mirror of `execute`. |
-| **config** | `/auto config [<goal>]` (alias `/auto preflight`) | Guided pre-flight: walk every run setting one at a time as a picker (so nothing has to be remembered), assemble the run-config, then drive the arc with it. Configures THIS run only — never persists (that's `/setup`'s job). See Step 0¾. |
+| **config** | `/auto config [<goal>]` | Guided setup: walk every run setting one at a time as a picker (so nothing has to be remembered), assemble the run-config, then drive the arc with it. Configures THIS run only — never persists (that's `/setup`'s job). See Step 0¾. |
 
 **Modifiers** (stackable, any position, case-insensitive):
 
@@ -120,6 +120,17 @@ These bind every `/auto` run in every mode. They are not modifiers and cannot be
   three Step 5 fan-out stopgaps but does not remove them** — raised, finite, still live,
   because an unattended max-authority run is the case most exposed to unbounded spend, and
   the budget-fraction gate is what protects D1's 95% pause.
+*(There is deliberately no `preflight` mode, and it is **not** an alias for `config` any more.
+It was one until v2.44.1, when `/preflight` shipped as a real skill — the executed pre-completion
+checklist — and the two meanings collided head-on: the same word named a settings picker in one
+place and a verification gate in another. Retired rather than repurposed, because every candidate
+new meaning is already owned: "run the checklist" is `/preflight` (and an arc now runs it
+automatically when the commit gate demands it), "check the plan before executing" is `/prospect`,
+already in the chain. A third spelling would add a word and no capability — the same reasoning
+that retired `loop`. Retired, **not** deleted: the parser must recognise `preflight` and redirect,
+never let it fall through to a goal, since `/auto full preflight` would otherwise launch an arc to
+build something called "preflight".)*
+
 *(There is deliberately no `loop` modifier. An earlier draft had one meaning
 "unattended + continue + self-restart", but once arming moved to the presence axis where it
 belongs, `loop` reduced to a strict alias for `unattended continue` — adding a word and no
@@ -192,7 +203,9 @@ Keeping them separate is what makes every combination expressible:
 
 **Context-self-restart flag** (a trailing `self-restart` keyword, default **off**): only meaningful with `continue`. When set, a context-window wall does NOT terminally stop the arc — instead the skill writes a restart-signal file that the external `bin/auto-runloop.sh` wrapper watches, so the arc resumes in a FRESH process (clean context). See Step 3¾. Requires the wrapper to be running and a permission allowlist (the wrapper spawns `claude -p --dangerously-skip-permissions`, which the auto-mode classifier blocks unless allowlisted). Without the flag, a context wall behaves exactly as today (terminal stop + `/handoff`).
 
-**Parsing.** If the first arg case-insensitively matches `arc`, `execute`, `plan`, `config`, or `preflight`, that's the mode; otherwise the mode is `arc`.
+**Parsing.** If the first arg case-insensitively matches `arc`, `execute`, `plan`, or `config`, that's the mode; otherwise the mode is `arc`.
+
+**`preflight` is a RETIRED mode keyword and must never fall through to a goal.** It used to alias `config`. If the first arg is `preflight`, do **not** start an arc with the goal "preflight" — recognise it, run nothing, and route: the pre-completion checklist is the standalone **`/preflight`** skill; the per-run settings picker is **`/auto config`**. Falling through here would be the worst outcome available — under `full`, a retired word silently becomes a work order.
 
 **Modifiers are recognised only at the ENDS — never mid-prose.** Scan the contiguous run of modifier tokens at the start (after any mode keyword) and the contiguous run at the end; **once goal prose begins, every remaining token is goal.** This matters because the modifier names are ordinary English words: an anywhere-in-args scan turns `/auto fix the **render loop** bug` into an unattended self-restarting run, and "do a full review" or "close the tickets" the same way. Worked cases:
 
@@ -212,7 +225,7 @@ A trailing `continue`/`stop` sets the on-queue-complete toggle; a trailing `self
 
 ## Step 0¾: Guided config walkthrough (`config` mode only)
 
-Runs ONLY when invoked as `/auto config` (or `/auto preflight`). Skip entirely for `arc`/`execute`. Purpose: let the user set each run setting deliberately **without having to remember any of them** — present each as a picker, one at a time, with the safe default pre-marked. Use the platform's question/picker affordance (one question per knob); accept a bare-number/keyword reply; "skip" on any knob takes its default.
+Runs ONLY when invoked as `/auto config`. Skip entirely for `arc`/`execute`. Purpose: let the user set each run setting deliberately **without having to remember any of them** — present each as a picker, one at a time, with the safe default pre-marked. Use the platform's question/picker affordance (one question per knob); accept a bare-number/keyword reply; "skip" on any knob takes its default.
 
 Walk these in order, **one at a time** (do not dump all seven at once — the point is recognition-not-recall, one decision per step):
 
@@ -244,7 +257,7 @@ Before the first action, post a short **arc contract** so the autonomy is legibl
 > **Arc:** <one-line goal> · **Mode:** <arc | execute> · **On-complete:** <continue | stop>
 > **Standing rules loaded:** user-rules.md — <U1…UN applied where contextually relevant | none (absent or no rules yet)> (from Step 0.4).
 > **I'll decide myself:** objectively-validatable forks (checked against real code/corpus/docs, held to Rules 13/14/18 — simplest/robust/clean, no unneeded abstraction).
-> **I'll handle without stopping:** knowledge placement, tool/permission approvals, backlog/deferral, ticket filing, the normal commit cadence (see Pre-answered below).
+> **I'll handle without stopping:** knowledge placement, tool/permission approvals, backlog/deferral, ticket filing, the normal commit cadence, and running `/preflight` when the commit gate requires it (see Pre-answered below).
 > **I'll stop and ask on:** product/UX taste with no objective answer · an irreversible/outward-facing action not covered by policy *that blocks the task* · a true no-visibility fact only you have · a genuine costly fork empirical investigation can't decide.
 > **Gates that run but don't count as stopping:** /prospect (pre-code), /retrospect (post-build).
 > **Presence:** <attended — non-blocking residuals come to you as they arise | unattended — residuals batched to the handoff, resume armed>. Always stated; never inferred silently.
@@ -270,6 +283,7 @@ Rule 35 says route by question type; these are the recurring autonomous-run case
 - **Backlog / deferral** — a known follow-on (out-of-scope feature, separate-team backend change, device-gated smoke) → file/note it and DEFER. Don't stop to ask whether to defer.
 - **Tickets** — create freely in the connected tracker: status backlog/Undefined, assigned to the user for post-session review, both intakes present (Technical Intake marked DRAFT), enriched via comments. Never stop to ask whether/how to file.
 - **Known-pattern git/scope** — stage named in-scope files, commit, push (per the contract's push policy). Don't ask permission for the normal commit cadence.
+- **A preflight-gated commit** — if the commit gate would deny (`preflight_gate: deny`, or a `preflight_deny_repos` / `preflight_deny_paths` match), run `/preflight` for real and proceed; a recorded verdict of any kind satisfies the gate. Never ask whether to run it, never fake the marker, never disable the gate, and never let three denials degrade it. See Commit discipline.
 - **Self-recommended chain choices** — a spec/prospect/plan fork a recommendation already answers → take the recommendation. "Self-recommended + answerable" is not a stop.
 
 ## Step 1: Drive the arc
@@ -301,6 +315,16 @@ Use the project's **real working verification path** (e.g. RenderPreview for Swi
 ### Commit discipline (per task)
 
 Each task = **one atomic commit**. Gate BEFORE committing: run the FULL suite + build + lint as the **bare exit code**, READ green, THEN commit — never chain `&& commit` after a non-test command (a `| grep`/typecheck between the suite and the commit swallows the test exit and commits red). Run ALL relevant gates; they cover disjoint surfaces (app build ≠ test-target compile). Commit only in-scope **named** files (`git add <paths>`, never `-A`); verify `git status` first (parallel sessions may have dirtied the tree). Push only per the contract's push policy; **never force-push**, and verify the ahead-count returns to 0 after pushing.
+
+**The preflight commit gate — satisfy it, never route around it.** A user may configure `pre-commit-preflight-check.sh` to DENY commits (`preflight_gate: deny`, a `preflight_deny_repos` substring matching the target repo, or a `preflight_deny_paths` glob matching a staged path — all read from `~/.claude/aria-knowledge.local.md`). Under an autonomous arc that is not an obstacle to work past: **before the first commit of the arc that the gate would deny, actually run `/preflight`** on the work about to be sealed, then commit. The marker is session-scoped, so one genuine run clears the gate for the remainder of the arc — this costs one checklist, not one per task.
+
+Three ways to get this wrong, all forbidden:
+
+- **Never write the marker file** (`${TMPDIR}/aria-preflight-<session_id>`) or otherwise fake a recorded run. That is bypassing a gate, not passing one, and it is exactly the ungranted-authorization case `/auto` must never self-issue.
+- **Never flip `preflight_gate` to `off`, and never edit the user's config to widen your own permissions.** `/setup` is the sole writer of those keys.
+- **Never let the circuit breaker do the work.** Three consecutive denials degrade the gate to allow-with-warning for the whole session — so "just keep retrying" doesn't stall the arc, it silently *disables the user's gate* and then proceeds. A degraded gate is a worse outcome than a stopped arc.
+
+A recorded **FAIL** verdict satisfies the gate too, and recording one then proceeding is a legitimate, visible choice — the failure this guards against is not running the checks at all. So a preflight FAIL is **not** a stop: record it, note it in the arc's judgment ledger, and keep going unless the finding is itself load-bearing. Re-run `/preflight` at Step 8 before reporting the arc done — that is the moment the skill actually exists for.
 
 **Throughout:** apply Rule 35 at every fork — investigate the resolvable parts first, then surface only the residual that's genuinely about the user. When you surface one, present concrete options + a recommendation (label A/B for a terse reply), then continue from the pick without restarting the chain.
 

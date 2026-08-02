@@ -121,8 +121,24 @@ grep -qiE 'no standing config key|invocation-scoped|built-in default' "$SK" \
 grep -qiE 'CronCreate|resume cron|self-perpetuat' "$SK" \
   && ok "S resume-cron path" || bad "S cron" "no resume-cron mechanism"
 
-# Y: config/preflight guided walkthrough mode (per-run, never persists)
-grep -qiE '/auto config|`config`|preflight' "$SK" && ok "Y config mode present" || bad "Y config" "no config/preflight mode"
+# Y: config guided walkthrough mode (per-run, never persists)
+# The old pattern carried a `|preflight` alternative from when that was an alias. v2.44.1
+# retired the alias AND added ~10 references to the /preflight SKILL, so that alternative
+# now matches unconditionally -- the assertion could not fail. Dropped.
+grep -qiE '/auto config|`config`' "$SK" && ok "Y config mode present" || bad "Y config" "no config mode"
+
+# Y2: `preflight` is retired as a mode keyword and must NOT be reachable as one. Retired,
+# not deleted: the parser has to recognise the word and redirect, because falling through
+# to `mode = arc` turns `/auto full preflight` into an arc building something called
+# "preflight". Mirrors the MM group's treatment of `loop`.
+grep -qiE 'alias `/auto preflight`|\(or `/auto preflight`\)' "$SK" \
+  && bad "Y2 alias gone" "the config alias /auto preflight reappeared" || ok "Y2 config alias retired"
+grep -qiE 'matches `arc`, `execute`, `plan`, or `config`' "$SK" \
+  && ok "Y2 preflight not a mode keyword" || bad "Y2 keyword" "preflight still parsed as a mode"
+grep -qiE 'RETIRED mode keyword and must never fall through' "$SK" \
+  && ok "Y2 retired word cannot become a goal" || bad "Y2 fallthrough" "no rule stopping preflight becoming a goal"
+grep -qiE 'no `preflight` mode' "$SK" \
+  && ok "Y2 tombstone documents the retirement" || bad "Y2 tombstone" "no tombstone for the preflight mode"
 grep -qiE 'one at a time|one-knob-at-a-time|one knob' "$SK" && ok "Y one-at-a-time picker" || bad "Y picker" "walkthrough not one-at-a-time"
 grep -qiE 'recognition-not-recall|remember nothing|set nothing from memory|never have to .*recall' "$SK" \
   && ok "Y recall-burden-on-skill" || bad "Y recall" "doesn't state the no-memory principle"
@@ -361,6 +377,31 @@ if grep -qiE 'arm[^.]{0,60}(requires|only when)[^.]{0,20}`continue`' "$SK"; then
 else
   ok "ARM no surface conditions arming on continue"
 fi
+
+# PFG: the preflight commit gate is SATISFIED, never routed around. Under a configured
+# deny (gate=deny / deny_repos / deny_paths) an unattended arc that does nothing would
+# not stall politely -- it would burn 3 denials and trip the circuit breaker, DEGRADING
+# the user's gate for the whole session. So both halves are pinned: run the checklist,
+# and never take any of the three shortcuts that would defeat it.
+grep -qiE 'run `/preflight`' "$SK" \
+  && ok "PFG /auto runs /preflight for a gated commit" || bad "PFG run" "no instruction to run /preflight"
+grep -qF 'preflight_deny_repos' "$SK" \
+  && ok "PFG knows the repo-scoped deny key" || bad "PFG repos" "preflight_deny_repos not referenced"
+grep -qiE 'never write the marker|fake a recorded run' "$SK" \
+  && ok "PFG forbids faking the marker" || bad "PFG marker" "marker-faking not forbidden"
+grep -qiE 'never flip `preflight_gate` to `off`' "$SK" \
+  && ok "PFG forbids disabling the gate" || bad "PFG disable" "gate-disabling not forbidden"
+# Anchored on the preflight-specific wording, NOT a bare 'degrade' -- /auto already says
+# "Degrade gracefully" about absent Superpowers skills, so the loose pattern matched the
+# pre-edit file and could never fail. A guard that cannot go red protects nothing.
+grep -qiE 'never let the circuit breaker|three consecutive denials degrade' "$SK" \
+  && ok "PFG forbids riding the circuit breaker" || bad "PFG breaker" "breaker abuse not forbidden"
+grep -qiE 'FAIL[^.]{0,40}not[^.]{0,20}stop|preflight FAIL is \*\*not\*\* a stop' "$SK" \
+  && ok "PFG a FAIL verdict does not stall the arc" || bad "PFG fail" "FAIL-is-not-a-stop missing"
+# Anchored on the bullet's own label: a bare 'pre-answered' matches the SECTION HEADING,
+# which exists whether or not the gate case was ever added to the list.
+grep -qiE 'a preflight-gated commit' "$SK" \
+  && ok "PFG gate case is pre-answered, not a fork" || bad "PFG preanswered" "not in the pre-answered set"
 
 printf "\n%d passed, %d failed\n" "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

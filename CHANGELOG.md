@@ -2,6 +2,24 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.44.1 — 2026-08-01
+
+**New — the pre-commit preflight gate, and the two defects found while first configuring it.**
+
+2.44.0 introduced `/preflight` and a `PreToolUse` commit gate (`preflight_gate`, `preflight_deny_paths`) but was never released. Configuring those keys for the first time surfaced two defects, both fixed here; 2.44.1 is what users actually receive.
+
+**Fixed — deny patterns were expanded against the hook's working directory.** `for pat in $KT_PREFLIGHT_DENY_PATHS` is an unquoted expansion, so every pattern word was pathname-expanded *before* `case` saw it. Measured: from a repo root, `src/*` became the 17 literal entry names inside `src/`, and a staged `src/components/Foo.jsx` matched none of them; from the directory holding the file, `*theme.css` collapsed to the bare basename and stopped matching its own nested staged path. The gate silently stopped denying, and **which files were protected depended on where the tool happened to be** — a fail-open guard whose scope, not its threshold, was wrong. `set -f` now disables pathname expansion for the whole matching section; `case` glob-matching is unaffected, which is exactly the split required.
+
+**New — `preflight_deny_repos`, escalation scoped to a repository.** `preflight_deny_paths` structurally cannot express *"always gate this repo"*: staged paths are repo-relative, so the repository name appears nowhere in the string a path glob matches, and `*my-repo/*` matches nothing ever. The new key takes comma-separated substrings matched against the resolved absolute git toplevel — resolved deliberately, since `REPO_DIR` is `.` whenever the command carried no `cd` or `git -C`. Matching is substring rather than equality, so it over-matches a same-named sibling; for a gate that is the safe direction, because under-matching is the silent-stop failure above. Like `preflight_deny_paths` it is an **escalation independent of the baseline**, not a sub-setting: `gate: warn` plus either list means warn generally, deny on a match. A non-matching repo list still lets the path list decide, and `gate: deny` outranks both and owns the denial message.
+
+**Unchanged by design:** docs-only commits stay silent under every combination, including inside a gated repo. A gate that fires on a README edit is the one that gets switched off wholesale — so "always gate this repo" deliberately does not extend to documentation.
+
+**`/auto` now satisfies the gate instead of colliding with it.** `/auto` had no awareness of the commit gate, and the failure mode was not a stalled arc — it was three denials tripping the circuit breaker, **degrading the gate to allow-with-warning for the rest of the session**, and carrying on. An arc now runs `/preflight` for real before its first gated commit (one session-scoped run clears the arc), with three shortcuts named and forbidden because each looks like progress: writing the marker file, flipping `preflight_gate: off`, and letting the breaker do the work. A recorded FAIL satisfies the gate and is not a stop.
+
+**Breaking (minor): `/auto preflight` is retired as an alias for `/auto config`.** One word had come to name both a settings picker and a verification gate. It is retired rather than repurposed — "run the checklist" is `/preflight`, "check the plan first" is `/prospect`, and a third spelling would add a word and no capability, the same reasoning that retired the `loop` modifier in v2.43.0. **Retired, not deleted:** the parser still recognises `preflight`, runs nothing, and routes you to `/preflight` or `/auto config`. Bare removal would have let it fall through to a goal, turning `/auto full preflight` into an arc building something called "preflight". Use `/auto config` for the settings picker.
+
+Also: `/setup`'s Advanced Options bundle now offers all three preflight keys (it wrote them but never surfaced them, which is how a config could go without them indefinitely), and `CONFIG.md` documents all three for the first time. Tests cover the expansion trap with a non-vacuity guard proving the trap is armed, plus repo matching, implicit-cwd resolution, attribution precedence, and the docs residual — 105 passing, every new assertion observed failing first.
+
 ## 2.43.1 — 2026-07-30
 
 **Fixed — a scoped `attended` run no longer strands its own unfinished goal at the usage wall.**
