@@ -31,3 +31,19 @@
 **Motivation:** v1.0.0 public release ceremony surfaced a few hardcoded paths in last-minute audit. Pre-check would have caught them earlier.
 **Source:** v1.0.0 release sanitization audit.
 
+<!-- CORRECTION 2026-08-03: the 109th /audit-knowledge pass first appended this to
+     aria/aria-cowork/IDEAS-BACKLOG.md — but mikeprasad/aria-cowork is an ARCHIVED,
+     read-only GitHub repo (push returns 403; its final remote commit is the archive
+     redirect). The live owner of the cowork port is this subtree inside aria-knowledge,
+     per the 2026-05-24 consolidation. Relocated here. -->
+<!-- Routed 2026-08-03 by /audit-knowledge 109th pass: 1 idea file(s) from knowledge/intake/ideas/. Full bodies preserved; originals archived at knowledge/archive/audit-2026-08-03/ideas/. -->
+
+### 2026-07-30 — Archive the 10 probe-test debris files out of the aria-cowork knowledge tier
+
+**Project:** aria-cowork · **Type:** refactor · **Source idea file:** `2026-07-30-aria-cowork-archive-the-ten-probe-test-debris-files.md` (routed by the 109th /audit-knowledge pass, 2026-08-03)
+
+**Proposal:** Move `knowledge/projects/aria-cowork/probe-test/` (10 files) to `knowledge/archive/`, per the archive-not-delete rule.
+
+**Motivation:** The files are harness output, not knowledge: `code-write-test.md`, `cowork-write-test-2026-04-30T*.md` ×3, `probe-results-2026-04-30T*.md` ×3, `transcript-capture-2026-04-30T*.md` ×3 — all dated 2026-04-30, all committed 2026-05-03, untouched since. They were the largest single block of untagged files in the corpus, and tagging them would have indexed validation-run debris as project knowledge. This pass excluded them from indexing and from tagging, but they still sit in a project tier where the next audit will re-surface them as gaps.
+
+**Source:** Deep `/index` run, 2026-07-30 — 10 of the 14 remaining untagged files after the tagging pass (the other 4 are directory README stubs, correctly excluded).
