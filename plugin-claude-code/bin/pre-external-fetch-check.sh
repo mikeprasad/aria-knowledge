@@ -24,6 +24,21 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 [ -n "$KT_KNOWLEDGE_FOLDER" ] || exit 0
 [ -d "$KT_KNOWLEDGE_FOLDER" ] || exit 0
 
+# C3 — bound our OWN runtime rather than relying on undocumented PreToolUse
+# timeout semantics. The unit is SECONDS: `date +%s` has whole-second
+# resolution, so a name promising milliseconds would promise precision the
+# mechanism does not have.
+EF_BUDGET_S="${ARIA_EF_BUDGET_S:-4}"
+EF_START=$(date +%s)
+
+SESSION_ID=$(printf '%s' "$INPUT" | grep -o '"session_id":"[^"]*"' | head -1 | sed 's/.*"session_id":"//;s/"$//')
+[ -z "$SESSION_ID" ] && SESSION_ID="$$"
+EF_DENY_FILE="${TMPDIR:-/tmp}/aria-extfetch-denies-${SESSION_ID}"
+
+# Every path that lets a fetch through clears the breaker counter, so three
+# consecutive denials means three with nothing allowed in between.
+ef_allow() { rm -f "$EF_DENY_FILE" 2>/dev/null; exit 0; }
+
 # --- extract the surface key ------------------------------------------------
 # printf '%s' not echo: echo expands the \n inside JSON strings, splitting the
 # value across lines so the single-line grep below matches nothing — a silent
@@ -102,23 +117,32 @@ EF_HITS=$(
   } | LC_ALL=C sort -u
 )
 
-[ -n "$EF_HITS" ] || exit 0
+[ -n "$EF_HITS" ] || ef_allow
 
 EF_COUNT=$(printf '%s\n' "$EF_HITS" | grep -c . 2>/dev/null || echo 0)
 
 # Ambient-surface cap. A host mentioned everywhere carries no signal, and
 # surfacing 76 files trains the reader to dismiss the hook — worse than silence.
 case "$KT_EXTERNAL_FETCH_MAX_HITS" in ''|*[!0-9]*) KT_EXTERNAL_FETCH_MAX_HITS=8 ;; esac
-[ "$EF_COUNT" -gt "$KT_EXTERNAL_FETCH_MAX_HITS" ] && exit 0
+[ "$EF_COUNT" -gt "$KT_EXTERNAL_FETCH_MAX_HITS" ] && ef_allow
+
+# C3 budget check — placed after the lookup, which is the only expensive work.
+# Over budget we ALLOW: a slow gate must never become a blocking gate.
+EF_ELAPSED=$(( $(date +%s) - EF_START ))
+[ "$EF_ELAPSED" -ge "$EF_BUDGET_S" ] && exit 0
 
 # --- one-shot gate ----------------------------------------------------------
-SESSION_ID=$(printf '%s' "$INPUT" | grep -o '"session_id":"[^"]*"' | head -1 | sed 's/.*"session_id":"//;s/"$//')
-[ -z "$SESSION_ID" ] && SESSION_ID="$$"
-
 COOLDOWN_FILE="${TMPDIR:-/tmp}/aria-extfetch-${SESSION_ID}-${EF_KEY}"
 [ -f "$COOLDOWN_FILE" ] && exit 0
 
-# >>> TASK-3 INSERTION POINT A: circuit-breaker check <<<
+# C2 — deny-rate circuit breaker, mirroring pre-edit-check.sh's v2.30.0
+# mechanism. Three consecutive denials with no intervening allowed fetch
+# degrade to allow. C1 below fixes the one deadlock cause we know about; this
+# closes the class, including causes not yet enumerated.
+EF_DENIES=0
+[ -f "$EF_DENY_FILE" ] && EF_DENIES=$(cat "$EF_DENY_FILE" 2>/dev/null)
+case "$EF_DENIES" in ''|*[!0-9]*) EF_DENIES=0 ;; esac
+[ "$EF_DENIES" -ge 3 ] && exit 0
 
 # C1 — the cooldown write is a PRECONDITION of denying, not a consequence.
 # pre-explore-codemap-check.sh:66 writes its cooldown unchecked, which is safe
@@ -128,7 +152,10 @@ COOLDOWN_FILE="${TMPDIR:-/tmp}/aria-extfetch-${SESSION_ID}-${EF_KEY}"
 date +%s > "$COOLDOWN_FILE" 2>/dev/null
 [ -f "$COOLDOWN_FILE" ] || exit 0
 
-# >>> TASK-3 INSERTION POINT B: breaker increment <<<
+# The denial is now certain to be emitted, so record it. Ordering matters: this
+# sits AFTER the verified cooldown write, so the counter can never advance for a
+# denial that was not actually issued.
+printf '%s' "$(( EF_DENIES + 1 ))" > "$EF_DENY_FILE" 2>/dev/null
 
 # Render paths relative to the knowledge folder where possible — an absolute
 # temp path is noise in the reason text.

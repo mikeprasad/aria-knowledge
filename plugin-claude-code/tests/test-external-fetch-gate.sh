@@ -135,3 +135,78 @@ assert_eq "AC9 does NOT use systemMessage" "0" "$(ef_has 'systemMessage' "$out")
 ef_reset
 out=$(ef_fetch "https://support.atlassian.com/x" s10)
 assert_eq "archive/ excluded from the reason" "0" "$(ef_has 'archive/old.md' "$out")"
+
+# ---------------------------------------------------------------------------
+# Task 3 — safety layer
+# ---------------------------------------------------------------------------
+
+# [AC2] the retry passes — one-shot, not permanent
+ef_reset
+out1=$(ef_fetch "https://support.atlassian.com/x" s20)
+out2=$(ef_fetch "https://support.atlassian.com/x" s20)
+assert_eq "AC2 first call denies" "1" "$(ef_has '"permissionDecision":"deny"' "$out1")"
+assert_eq "AC2 retry passes (empty stdout)" "1" "$([ -z "$out2" ] && echo 1 || echo 0)"
+
+# a DIFFERENT url on the same registrable domain shares the cooldown
+out3=$(ef_fetch "https://developer.atlassian.com/other" s20)
+assert_eq "AC2 same registrable domain shares the cooldown" "1" "$([ -z "$out3" ] && echo 1 || echo 0)"
+
+# prose key is order-stable, so a reordered query shares the cooldown too
+ef_reset
+p1=$(ef_search "bitbucket api token scopes" s21)
+p2=$(ef_search "scopes token api bitbucket" s21)
+assert_eq "AC2 prose first call denies" "1" "$(ef_has '"permissionDecision":"deny"' "$p1")"
+assert_eq "AC2 reordered prose shares the cooldown" "1" "$([ -z "$p2" ] && echo 1 || echo 0)"
+
+# [AC11] C1 — an unwritable cooldown must ALLOW, never deny
+ef_reset
+out=$(printf '{"url":"%s","session_id":"%s"}' "https://support.atlassian.com/x" s22 \
+  | KT_CONFIG="$EF_CFG" ARIA_EF_MEMDIR="$EF_TMP/nomem" TMPDIR=/nonexistent-dir-xyz sh "$HOOK" 2>/dev/null || :)
+assert_eq "AC11 unwritable cooldown -> empty stdout (allow)" "1" "$([ -z "$out" ] && echo 1 || echo 0)"
+
+# [AC12] C2 — breaker trips after 3 consecutive denials.
+# Each denial MUST use a distinct registrable domain: support.atlassian.com and
+# atlassian.com collapse to ONE key, so a fixture reusing them reaches only 2
+# denials and the "4th not denied" assertion then passes via the COOLDOWN.
+ef_reset
+rm -f "${TMPDIR:-/tmp}/aria-extfetch-denies-s23" 2>/dev/null || :
+d1=$(ef_fetch "https://support.atlassian.com/a" s23)   # atlassian.com
+d2=$(ef_fetch "https://bitbucket.org/b"         s23)   # bitbucket.org
+d3=$(ef_fetch "https://render.com/c"            s23)   # render.com
+assert_eq "AC12 denial 1" "1" "$(ef_has '"permissionDecision":"deny"' "$d1")"
+assert_eq "AC12 denial 2" "1" "$(ef_has '"permissionDecision":"deny"' "$d2")"
+assert_eq "AC12 denial 3" "1" "$(ef_has '"permissionDecision":"deny"' "$d3")"
+
+# Assert on the breaker's OWN state — an instrument the cooldown cannot satisfy.
+assert_eq "AC12 counter reached 3" "3" \
+  "$(cat "${TMPDIR:-/tmp}/aria-extfetch-denies-s23" 2>/dev/null || echo MISSING)"
+
+# 4th call: clear the per-surface cooldowns but KEEP the counter, so only a
+# tripped breaker can explain an allow. Note the glob excludes the denies file.
+rm -f "${TMPDIR:-/tmp}"/aria-extfetch-s23-* 2>/dev/null || :
+d4=$(ef_fetch "https://support.atlassian.com/d" s23)
+assert_eq "AC12 4th call NOT denied — breaker, not cooldown" "0" "$(ef_has '"permissionDecision":"deny"' "$d4")"
+
+# an allowed fetch resets the counter, restoring enforcement
+ef_reset
+rm -f "${TMPDIR:-/tmp}/aria-extfetch-denies-s24" 2>/dev/null || :
+ef_fetch "https://support.atlassian.com/a" s24 >/dev/null   # deny 1
+ef_fetch "https://bitbucket.org/b"         s24 >/dev/null   # deny 2
+ef_fetch "https://nothing-here.example/z"  s24 >/dev/null   # uncovered -> allow, RESETS
+assert_eq "AC12 allowed fetch cleared the counter" "1" \
+  "$([ ! -f "${TMPDIR:-/tmp}/aria-extfetch-denies-s24" ] && echo 1 || echo 0)"
+r1=$(ef_fetch "https://render.com/c" s24)
+assert_eq "AC12 enforcement restored after reset" "1" "$(ef_has '"permissionDecision":"deny"' "$r1")"
+
+# [AC13] C3 — over-budget yields a silent pass
+ef_reset
+out=$(printf '{"url":"%s","session_id":"%s"}' "https://support.atlassian.com/x" s25 \
+  | KT_CONFIG="$EF_CFG" ARIA_EF_MEMDIR="$EF_TMP/nomem" ARIA_EF_BUDGET_S=0 sh "$HOOK" 2>/dev/null || :)
+assert_eq "AC13 zero budget -> empty stdout (allow)" "1" "$([ -z "$out" ] && echo 1 || echo 0)"
+
+# AC13 is a silence assertion, so it can pass for the wrong reason. Positive
+# control: the SAME call under a normal budget must still deny.
+ef_reset
+out=$(printf '{"url":"%s","session_id":"%s"}' "https://support.atlassian.com/x" s25b \
+  | KT_CONFIG="$EF_CFG" ARIA_EF_MEMDIR="$EF_TMP/nomem" ARIA_EF_BUDGET_S=60 sh "$HOOK" 2>/dev/null || :)
+assert_eq "AC13 control: same call denies under a normal budget" "1" "$(ef_has '"permissionDecision":"deny"' "$out")"
