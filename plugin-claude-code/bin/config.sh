@@ -111,8 +111,12 @@ if [ -f "$KT_CONFIG" ]; then
   KT_STYLE_LOOKBACK_DAYS=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^style_lookback_days:' | sed 's/^style_lookback_days: *//')
   KT_STYLE_MAX_SESSIONS=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^style_max_sessions:' | sed 's/^style_max_sessions: *//')
   KT_STYLE_AUDIT_LOG=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^style_audit_log:' | sed 's/^style_audit_log: *//')
+  KT_EXTERNAL_FETCH_GATE=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^external_fetch_gate:' | sed 's/^external_fetch_gate: *//')
+  KT_EXTERNAL_FETCH_MAX_HITS=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^external_fetch_max_hits:' | sed 's/^external_fetch_max_hits: *//')
 
   # Defaults if not set
+  KT_EXTERNAL_FETCH_GATE=${KT_EXTERNAL_FETCH_GATE:-off}
+  KT_EXTERNAL_FETCH_MAX_HITS=${KT_EXTERNAL_FETCH_MAX_HITS:-8}
   KT_CADENCE_KNOWLEDGE=${KT_CADENCE_KNOWLEDGE:-7}
   KT_CADENCE_CONFIG=${KT_CADENCE_CONFIG:-14}
   KT_EXPLANATORY=${KT_EXPLANATORY:-false}
