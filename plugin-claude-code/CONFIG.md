@@ -75,6 +75,8 @@ Hook-parsed fields run on every session start, every edit, every compaction — 
 | `style_lookback_days` | integer (days) | 90 | audit-style skill |
 | `style_max_sessions` | integer (sessions) | 50 | audit-style skill |
 | `style_audit_log` | absolute path | `{knowledge_folder}/logs/style-audit-log.md` | audit-style skill |
+| `external_fetch_gate` | `on` \| `off` | off | pre-external-fetch-check.sh |
+| `external_fetch_max_hits` | integer | 8 | pre-external-fetch-check.sh |
 
 ### Format rules (hook-parsed fields)
 

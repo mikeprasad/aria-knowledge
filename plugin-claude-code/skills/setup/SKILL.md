@@ -211,6 +211,8 @@ The summary line precedes the bundle text. If the user later questions "did the 
 > - **Style-audit lookback (`style_lookback_days`):** 90 (on `/audit style`'s first-ever run, how many days of session-log history to window the initial scan to. Later runs resume incrementally from the style-audit log's last stamp, so this only matters cold-start or after a `window <D>` override. Change later via `style_lookback_days` in `~/.claude/aria-knowledge.local.md`.)
 > - **Style-audit session cap (`style_max_sessions`):** 50 (the over-cap gate `/audit style` Step 1b stops at before scanning — exceeding it prompts `recent`/`all`/`window <D>`/`cancel` rather than silently truncating. Change later via `style_max_sessions`.)
 > - **Style-audit log path (`style_audit_log`):** `{knowledge_folder}/logs/style-audit-log.md` (where `/audit style` stamps its incremental scan boundary after each run. Change later via `style_audit_log`.)
+> - **External-fetch gate (`external_fetch_gate`):** off (when `on`, the first `WebFetch`/`WebSearch` per session aimed at a surface your knowledge folder or memory dirs already cover is denied **once**, naming the matched files; the retry passes. Coverage is keyed on the URL's registrable domain, or on vendor-like words in a search query — ordinary English words are filtered out. It is an *interrupt, not a verification*: it cannot confirm you read the file. Change later via `external_fetch_gate` in `~/.claude/aria-knowledge.local.md`.)
+> - **External-fetch ambient cap (`external_fetch_max_hits`):** 8 (above this many matching files the surface is treated as ambient and the gate stays silent — a host mentioned in 76 files carries no signal, and surfacing them all trains you to dismiss the hook. Change later via `external_fetch_max_hits`.)
 > - **Ticketing plugins:** (empty) comma-separated `tag:plugin-command` pairs mapping a project tag to its ticket-drafting plugin (e.g., `proj-a:foo-ticket,proj-b:bar-ticket`). When set, `/audit-knowledge` prints a hint to use that plugin's command when an idea's project matches a mapped tag during the `Accept → tracker` disposition. Hint only — never auto-invokes. Leave empty if you don't use a ticketing plugin or prefer to copy ideas into your tracker manually. Plugin commands are bare names — no leading `/`. Validate input: each pair must contain exactly one `:` separating tag from command; project tags cannot contain `:` or `,`; plugin commands cannot start with `/` (strip leading `/` and warn if found).
 > - **Project-specific knowledge tier:** disabled (creates `projects/{tag}/` subdirectories for project-specific decisions and patterns; opt in if you want to organize knowledge by project alongside the cross-project tree. If enabled, you'll be asked an inline follow-up about auto-loading project context on session start.)
 >
@@ -319,6 +321,8 @@ retrospect_branches: [comma-list, default main,master,production]
 usage_alert_threshold: [value from Step 6, default 80; or `off` to disable usage injection]
 critical_paths: [comma-separated patterns from Step 6, default empty]
 planning_paths: [comma-separated patterns from Step 6, default empty]
+external_fetch_gate: [on/off from Step 6, default off]
+external_fetch_max_hits: [integer from Step 6, default 8]
 preflight_gate: [off | warn | deny, from Step 6, default warn]
 preflight_deny_paths: [space-separated globs from Step 6, default empty]
 preflight_deny_repos: [comma-separated repo-path substrings from Step 6, default empty]

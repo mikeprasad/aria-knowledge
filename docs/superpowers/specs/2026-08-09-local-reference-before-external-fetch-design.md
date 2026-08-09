@@ -379,6 +379,16 @@ still true." Reading it is step one, not the answer — and per
 `a_capture_is_a_snapshot_not_current_state`, a recorded reference must still be
 re-verified against live state before it is asserted as fact.
 
+**Transcript dumps count as coverage — observed, not tuned away.** The live
+smoke (2026-08-10) denied a `twilio.com` fetch on the strength of a single
+`intake/pre-compact-captures/` file: a raw session transcript, not a curated
+reference. Measured before deciding: that directory holds **2 files**, and the
+ambient cap already bounds any surface to ≤8, so the damage is bounded and a
+capture can legitimately hold the answer. **No exclusion added** — that would be
+speculative tuning. **Revisit trigger:** if a denial's path list becomes
+majority `logs/` or `intake/*captures*` in normal use. `logs/` is already 1,050
+files and grows every prospect, so this is the ratio to watch.
+
 **Only `archive/` is excluded from the knowledge grep.** The measurement also
 excluded a Mike-specific `ditto-*` corpus; that is local noise, not a shipped
 convention, so it is not encoded in the hook.
