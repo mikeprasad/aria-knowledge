@@ -701,3 +701,39 @@ the second purpose required. Trigger condition for next time: *any assertion
 added to an existing fixture, especially one testing a threshold or a counter —
 check the fixture can actually reach the state under test, and prefer asserting
 on the mechanism's own state over an outcome two mechanisms can produce.*
+
+## Amendment considered and REJECTED — 2026-08-10
+
+After `bitbucket` was promoted to a known tag, the tag matcher began ranking the
+correct file first for both recorded queries. On that basis a plan amendment was
+proposed: **try `kt_index_match` first, fall back to host-grep only when it
+returns nothing.**
+
+**Measured before folding. Falsified.** Six realistic external doc URLs:
+
+| URL | Tags matched | Result |
+|---|---|---|
+| `sendgrid.com/docs/api-reference/mail-send` | `api` `reference` | 5 files, **none about sendgrid** |
+| `docs.github.com/en/rest/security` | `github` `rest` `security` | 5 files, top hits CDN bot detection + CS entitlement leaks |
+| `developer.mozilla.org/.../CSS/grid` | `css` `web` | 5 files, top hit magic-link email delivery |
+| `twilio.com/docs/messaging/api` | — | 0 ✓ correct |
+| `cloud.google.com/run/docs/...` | — | 0 ✓ correct |
+| `support.atlassian.com/bitbucket-cloud/...` | `api` `bitbucket` `tokens` | right file first ✓ |
+
+**4 of 6 return a confident 5-file result and 3 of those are entirely wrong.**
+The amendment's fallback condition was "returns nothing" — but the failure mode
+is **"returns 5 confident wrong files,"** which *preempts* the fallback. Folding
+it would have re-enshrined the exact defect §3.1 of the spec ruled out, with the
+generic-tag homonym problem now firing on most external doc URLs.
+
+**Root cause of the bad recommendation:** it generalised from one query that
+worked *because its tag had just been promoted in the same session*. A
+one-sample generalisation about retrieval quality, drawn from the sample most
+likely to succeed.
+
+⇒ **The plan is unchanged.** Host-grep stays the primary and only lookup: it is
+precise by construction (it searches for the domain string itself), needs no tag
+curation, and covers the memory dir, which `index.md` does not. `kt_index_match`
+was also rejected as an *additive* enricher — its precision without a specific
+vendor tag is poor enough that adding its output to a denial would dilute the
+paths that matter.
