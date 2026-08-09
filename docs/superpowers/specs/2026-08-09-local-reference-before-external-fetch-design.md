@@ -1,7 +1,8 @@
 # Design — check local references before fetching externally
 
 **Date:** 2026-08-09
-**Status:** Draft — pending `/prospect`
+**Status:** Prospected 2026-08-09 — PROCEED-WITH-CHANGES, amendments C1/C2/C3
+folded in (§4.6a–c, AC11–13). Ready for a plan.
 **Scope:** `plugin-claude-code` only (Bash hook). Ports tracked-drift.
 **Ships as:** new `bin/pre-external-fetch-check.sh` + 2 config keys + tests.
 
@@ -212,7 +213,7 @@ defeat the cooldown. All keys are sanitised to `[a-z0-9._-]` before use in a
 filename.
 
 - **Present** → `exit 0`. This is the retry; allow it.
-- **Absent** → write it, then emit:
+- **Absent** → write it, **verify the write landed**, then emit:
 
 ```json
 {"hookSpecificOutput":{"hookEventName":"PreToolUse",
@@ -234,6 +235,72 @@ will pass.
 Unparseable payload, missing config, absent knowledge folder, `grep` non-zero,
 zero hits, unresolvable session id → `exit 0`. A gate that cannot read its own
 input must never block. Precedent: `pre-cron-check.sh` header.
+
+**Plus two cases the precedent hook never has to handle** — amendments C1 and C3
+from the 2026-08-09 prospect:
+
+- **Cooldown write failed** → `exit 0`, allow. See §4.6a.
+- **Own runtime budget exceeded** → `exit 0`, allow. See §4.6c.
+
+### 4.6a C1 — the cooldown write is a precondition of denying
+
+`pre-explore-codemap-check.sh:66` writes its cooldown as
+`date +%s > "$COOLDOWN_FILE" 2>/dev/null` and never checks the result. That is
+safe **there** because that hook is *advisory* — a failed write merely repeats a
+reminder.
+
+Transplanted into a **denying** hook, the consequence inverts:
+
+```
+write fails → deny → model retries → cooldown still absent → deny → …
+```
+
+— an unbounded block. Therefore:
+
+> **Write the cooldown first, confirm it exists, and only then emit the denial.
+> If the write fails, `exit 0` and allow the fetch.**
+
+A gate that cannot record that it fired must not fire. This is the general rule,
+not a patch: the denial and its own record land together or not at all.
+
+### 4.6b C2 — deny-rate circuit breaker
+
+`pre-edit-check.sh` gained a deny-rate circuit breaker in **v2.30.0** because
+this class of deadlock happened in production: after **3 consecutive denials
+with no intervening allowed call**, it degrades to allow-with-loud-warning
+(per-session counter in `$TMPDIR/aria-r22-denies-<session_id>`; confirmed
+working end-to-end 2026-07-06 — 3 denials → breaker tripped → subsequent writes
+proceeded).
+
+This is the plugin's **second denying PreToolUse hook** and adopts the same
+mechanism, with its own counter at `$TMPDIR/aria-extfetch-denies-<session_id>`:
+
+- 3 consecutive denials with no intervening allowed fetch → degrade to allow,
+  and say so loudly in the reason text.
+- Any allowed fetch resets the counter, restoring blocking enforcement.
+- Self-healing under future harness changes, which is the point: C1 fixes the
+  one deadlock cause now known; **C2 closes the class**, including causes not
+  yet enumerated.
+
+### 4.6c C3 — self-bound the runtime; do not rely on harness timeout semantics
+
+The §3.5 timings were measured on **one machine, warm cache, a 223 MB corpus**.
+A cold cache, a larger corpus, or a slower disk could exceed the 5 s
+registration timeout — and **what a PreToolUse timeout does is undocumented
+locally**: `reference_claude_code_hook_and_settings_facts` records measured
+harness behaviour for settings-arming, classifier denials, `$defaults`,
+prompt-hook limits, `systemMessage` vs `additionalContext`, and Stop-hook loop
+protection, and is silent on this.
+
+Rather than resolve the unknown, **remove the dependency on it** — the script
+bounds its own work:
+
+- Cap candidate stems at 4 (already in §4.2).
+- Wrap each store's grep so it cannot exceed ~1 s.
+- Exceeding the total budget → `exit 0`, silent.
+
+This converts unknown-semantics risk into designed behaviour, and keeps holding
+as the corpus grows.
 
 ### 4.7 Config
 
@@ -298,6 +365,15 @@ with `ls-remote` and auth attempts, *before* any `WebFetch`. This catches the
 second half of the sequence. Gating Bash probes is a separate, larger question
 and is explicitly out of scope.
 
+**It is an interrupt, not a verification.** The hook cannot confirm the
+reference was read. The cooldown clears on the retry whether or not anything was
+opened, so compliance stays voluntary — what changes is that the pointer arrives
+at the moment of the fetch instead of living in a rule nobody consulted. AC1 and
+AC2 prove the gate *fires and clears*; **no acceptance criterion proves behaviour
+changed**, and none can. The honest claim is one round trip of friction plus a
+list of paths. Whether that is enough is measurable only after live use — denial
+→ read rate — and is deliberately not asserted here.
+
 **It claims coverage, not currency.** "A local note exists" is not "the note is
 still true." Reading it is step one, not the answer — and per
 `a_capture_is_a_snapshot_not_current_state`, a recorded reference must still be
@@ -325,6 +401,9 @@ Each is stated so a test can go red for the right reason.
 | AC8 | Malformed JSON payload, missing config, and absent knowledge folder each `exit 0` with no output. |
 | AC9 | The emitted JSON is valid and uses `permissionDecision`/`permissionDecisionReason`, never `systemMessage`. |
 | AC10 | Worst-case runtime (4-stem alternation over both stores) stays under the 5 s hook timeout. |
+| AC11 | **(C1)** With the cooldown location unwritable, the call **passes** and no output is emitted — the denial and its record land together or not at all. |
+| AC12 | **(C2)** Three consecutive denials with no intervening allowed fetch trip the breaker; the 4th call passes with a loud degraded-mode reason. One allowed fetch resets the counter and restores blocking. |
+| AC13 | **(C3)** A corpus large enough to exceed the self-imposed runtime budget yields a silent pass — never a block, never a hang. |
 
 **Negative controls required** (per `guard_scoped_to_the_wrong_unit`): AC3, AC4,
 AC5 and AC7 are the assertions that prove the gate can stay quiet. Each must be
@@ -348,15 +427,34 @@ observed failing for the *right* reason before it is trusted — a hook that
 
 ---
 
-## 8. Open questions for `/prospect`
+## 8. Open questions — resolved by `/prospect` 2026-08-09
 
-1. Is `deny` the right decision verb, or does a denial of a *read-only* tool
-   overreach? (`ask` was rejected as placing friction on the user;
-   `additionalContext` was rejected as the intervention that already failed.)
-2. Does the 4-word alternation cap hold its 2.32 s measurement on a cold cache,
-   and on a corpus substantially larger than 223 MB?
-3. `max_hits: 8` is derived from one corpus. Is it stable, or should the cap be
-   relative (e.g. a percentile of the domain distribution) rather than absolute?
-4. Is a per-session, per-key cooldown the right granularity — or should a single
-   denial per session per *store* be enough, so a long session isn't gated
-   repeatedly across many distinct hosts?
+Log: `knowledge/logs/prospect/2026-08-09-file-local-reference-before-external-fetch.md`
+Verdict: **PROCEED-WITH-CHANGES.** Four assumptions sourced; **zero external
+fetches required** — the local stores answered all four, which is the mechanism
+this spec proposes, exercised on the spec itself.
+
+| # | Question | Resolution |
+|---|---|---|
+| 1 | Is `deny` the right verb — does the reason even reach the model? | **✅ RESOLVED.** Verified three ways: `session-start-check.sh:218` states it; three hooks emit the shape and `test-r22-planning-paths.sh:43` asserts on it; and `pre-edit-check.sh` **denied the first `Write` of the prospecting session**, its reason reaching the model verbatim. Reproduction-then-confirm. |
+| 2 | Does the timing hold on a cold cache / larger corpus? | **⚠ UNRESOLVED, and now moot.** No local source documents PreToolUse timeout semantics. Answered by **removing the dependency** — §4.6c bounds the script's own runtime. |
+| 3 | Is `max_hits: 8` stable across corpora? | **OPEN — deliberately.** One corpus is one sample. Kept absolute for v1 because it is legible and adjustable; revisit if a second corpus disagrees. A relative cap is the fallback, not the default. |
+| 4 | Is per-session-per-key cooldown the right granularity? | **CONFIRMED, with a bounded cost.** A research-heavy session touching N covered hosts pays up to N denials, one each. §4.6b's breaker caps the pathological case at 3. Accepted. |
+
+**Two defects found and folded in** (§4.6a, §4.6b) — both from the same root:
+the spec copied a precedent hook's *structure* without its *history*.
+
+- **C1** — the cooldown idiom is safe in `pre-explore-codemap-check.sh` only
+  because that hook is advisory; in a denying hook a failed write is an
+  unbounded block.
+- **C2** — `pre-edit-check.sh` gained a circuit breaker in v2.30.0 *because this
+  already happened in production*; a second denying hook inherits the need.
+
+Proposed novel pattern, pending approval:
+**`second-instance-omits-hard-won-safety`** — the Nth instance of a mechanism
+inherits the original's shape but not the safety machinery added after the
+original failed. Detection cue: a component described as "mirrors `<existing>`"
+whose spec is shorter than the existing component's current implementation.
+Counter-discipline: diff the precedent's current code against its first commit —
+whatever accumulated in between is scar tissue, and the new instance likely
+needs it.
