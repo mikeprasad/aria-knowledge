@@ -51,6 +51,13 @@ QUERY=$(printf '%s' "$INPUT" | grep -o '"query":"[^"]*"' | head -1 | sed 's/.*"q
 # bloat"). Inline rather than a data file: bin/ holds only .sh, template/ is the
 # user-copied knowledge skeleton, and there is no data/ convention to invent for
 # ~60 words.
+# UNUSED since 2.45.1 — the query branch below no longer matches prose words, so
+# nothing reads this list. Deliberately left in place rather than deleted: the
+# `case` construct that consumed it carries a measured parse trap (dropping the
+# leading `(` on a pattern inside `$( )` breaks the WHOLE file with "syntax error
+# near ';;'"), and touching it buys nothing while the list is inert. Removal
+# trigger (Rule 37): delete this block if a future change reintroduces any
+# prose-word matching, or at the next cleanup pass that already edits this file.
 EF_STOPWORDS=" common session index key space field head body size style text card gate
 medium message parent schema template run seen secondary subscription material local
 brand daily example archive extend icon input meta prism python render segment
@@ -72,25 +79,51 @@ if [ -n "$URL" ]; then
   EF_KEY=$(printf '%s' "$HOST" | awk -F. '{ if (NF>=2) print $(NF-1)"."$NF; else print $0 }')
   [ -n "$EF_KEY" ] && EF_PATTERN=$(printf '%s' "$EF_KEY" | sed 's/\./\\./g')
 elif [ -n "$QUERY" ]; then
-  # Longest-first (most specific), capped at 4 so the alternation stays bounded.
-  # Then sorted, because the cooldown key is built from these: without a
-  # canonical order the same query could mint a different key on the retry and
-  # the one-shot gate would never clear.
-  EF_WORDS=$(printf '%s' "$QUERY" | tr 'A-Z' 'a-z' | tr -cs 'a-z0-9' '\n' \
-    | awk 'length($0) >= 4' \
-    | while read -r w; do
-        # Leading '(' on each pattern is required, not cosmetic: this case sits
-        # inside a $( ) substitution, where a bare pattern-opening ')' is
-        # ambiguous with the substitution's terminator and `sh` fails to parse
-        # the whole file. Measured: without it, "syntax error near `;;'".
-        case "$EF_STOPWORDS" in (*" $w "*) ;; (*) printf '%s\n' "$w" ;; esac
-      done \
-    | awk '{ print length, $0 }' | LC_ALL=C sort -rn | cut -d' ' -f2- | head -4 \
-    | LC_ALL=C sort)
-  if [ -n "$EF_WORDS" ]; then
-    EF_KEY=$(printf '%s' "$EF_WORDS" | tr '\n' '_' | sed 's/_$//')
-    EF_ALT=$(printf '%s' "$EF_WORDS" | tr '\n' '|' | sed 's/|$//')
-    EF_PATTERN="($EF_ALT)\\.[a-z]"
+  # The gate's contract is DOMAIN coverage — "aimed at a domain the knowledge
+  # folder or memory dirs already cover". A bare-prose query has no domain, and
+  # matching query WORDS against the corpus cannot express that contract.
+  #
+  # v2.45.0 took the four longest non-stopword query words and built
+  # `(w1|w2|w3|w4)\.[a-z]` — the domain shape from the URL branch above. Against
+  # prose that reads "any query word followed by a dot and a lowercase letter",
+  # which matches every `guidelines.md`, `screening.md` or dotted path in the
+  # corpus. MEASURED 2026-08-14: three consecutive medical-literature searches
+  # denied, citing CS mobile-notification prospect logs and df-prism decision
+  # docs — zero topical relation. The entire match was `guidelines.m` (7x), i.e.
+  # the word "guidelines" inside a FILENAME. Isolated: guidelines -> 4 files,
+  # screening -> 0, participation -> 0. One common English word did all the work.
+  #
+  # Word filtering CANNOT rescue this, measured rather than assumed: the design
+  # intended "dictionary-filtered vendor stems", but /usr/share/dict/words holds
+  # `guideline` and NOT `guidelines`, so every English plural reads as a vendor
+  # stem — while `render` IS in the dictionary, so filtering would also stop
+  # detecting render.com, a vendor the corpus really covers. Wrong in both
+  # directions; the dictionary dependency was dropped during design for
+  # unrelated reasons and reinstating it would not have caught the reported bug.
+  #
+  # So: a query CAN name a domain ("cdc.gov vaccination schedule",
+  # "site:auanet.org ..."), and there the domain logic is correct unchanged.
+  # Otherwise there is nothing to gate on, and the gate stays silent.
+  #
+  # Keying on the domain also repairs the retry promise the reason text makes.
+  # The old key was the four longest words, so REPHRASING a denied query minted
+  # a NEW key and denied again — punishing the natural response to a blocked
+  # search, and the reason one denial became three. Same domain, same key now.
+  #
+  # The explicit TLD list is load-bearing, not decoration: a generic
+  # `\.[a-z]{2,}` reintroduces the exact bug by matching "screening.the" in
+  # prose. Requiring a real TLD is what makes a match MEAN "domain". Extend the
+  # list if a new TLD is needed; do not generalise it.
+  #
+  # Bare `grep` is correct here and consistent with lines ~34/46/47: the
+  # /usr/bin/grep rule applies to the CORPUS scan below, where a ugrep wrapper
+  # would honour .gitignore. This parses an input string, traverses nothing.
+  EF_QTLD='(com|org|net|gov|edu|int|mil|io|ai|co|dev|app|jp|uk|de|fr|cn|kr)'
+  EF_DOM=$(printf '%s' "$QUERY" | tr 'A-Z' 'a-z' \
+    | grep -oE "[a-z0-9][a-z0-9-]*(\.[a-z0-9][a-z0-9-]*)*\.$EF_QTLD" | head -1)
+  if [ -n "$EF_DOM" ]; then
+    EF_KEY=$(printf '%s' "$EF_DOM" | awk -F. '{ if (NF>=2) print $(NF-1)"."$NF; else print $0 }')
+    [ -n "$EF_KEY" ] && EF_PATTERN=$(printf '%s' "$EF_KEY" | sed 's/\./\\./g')
   fi
 fi
 

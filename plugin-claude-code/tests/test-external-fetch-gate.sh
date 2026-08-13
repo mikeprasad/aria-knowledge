@@ -62,6 +62,14 @@ printf 'trap: index.example must only match if the stopword filter LEAKED\n' \
   > "$EF_TMP/kf/trap-index.md"
 printf 'trap: brand.example universe.example — line-boundary stopword leak trap\n' \
   > "$EF_TMP/kf/trap-boundary.md"
+# PROSE-WORD trap. The v2.45.0 query branch built `(word)\.[a-z]` — the URL
+# branch's domain shape — so a common English word in a FILENAME reference was
+# enough to deny. This file gives that pattern something to hit, so the AC6
+# negative below fails for the right reason if the domain-shape ever returns.
+# Without it the assertion is green whether or not the fix exists (measured
+# 2026-08-14: the real corpus matched `guidelines.m` 7x and nothing else).
+printf 'trap: see guidelines.md and screening.md — prose-word-as-domain leak trap\n' \
+  > "$EF_TMP/kf/trap-prose-filename.md"
 
 EF_CFG="$EF_TMP/config-live.md"
 printf '%s\n' '---' "knowledge_folder: $EF_TMP/kf" \
@@ -105,11 +113,29 @@ ef_reset
 out=$(ef_search "local brand universe wallet" s26)
 assert_eq "AC5b line-boundary stopwords still filter" "1" "$([ -z "$out" ] && echo 1 || echo 0)"
 
-# [AC6] prose query naming a covered surface -> denied once
+# [AC6] prose query naming a covered DOMAIN -> denied once.
+# The contract narrowed in 2.45.1: a query gates only on a domain it actually
+# names. A bare vendor WORD no longer denies (see AC6b) — that produced the
+# prose false-positive class this fixture's trap-prose-filename.md guards.
 ef_reset
-out=$(ef_search "bitbucket api token scopes" s6)
-assert_eq "AC6 prose vendor word -> deny" "1" "$(ef_has '"permissionDecision":"deny"' "$out")"
+out=$(ef_search "bitbucket.org api token scopes" s6)
+assert_eq "AC6 prose naming a domain -> deny" "1" "$(ef_has '"permissionDecision":"deny"' "$out")"
 assert_eq "AC6 prose deny names the path" "1" "$(ef_has 'staging-bitbucket-auth.md' "$out")"
+
+# [AC6b] 2.45.1 — a bare-prose query with NO domain must NEVER deny.
+# This is the reported bug: `(word)\.[a-z]` matched a common English word inside
+# a FILENAME. trap-prose-filename.md holds `guidelines.md` + `screening.md`, so
+# reinstating any prose-word pattern reddens this instead of passing quietly.
+ef_reset
+out=$(ef_search "cervical cancer screening guidelines cytology participation" s27)
+assert_eq "AC6b prose without a domain -> empty stdout" "1" "$([ -z "$out" ] && echo 1 || echo 0)"
+
+# [AC6c] 2.45.1 — a domain-shaped prose word must not satisfy the TLD list.
+# A generic `\.[a-z]{2,}` would match "screening.the"; the explicit allowlist is
+# what makes a match mean "domain". `.md` is not a TLD.
+ef_reset
+out=$(ef_search "read guidelines.md then screening.md" s28)
+assert_eq "AC6c filename extension is not a TLD -> empty stdout" "1" "$([ -z "$out" ] && echo 1 || echo 0)"
 
 # [AC7] gate off (the shipped default) -> never denies (negative control)
 EF_CFG_OFF="$EF_TMP/config-off.md"
@@ -151,12 +177,23 @@ assert_eq "AC2 retry passes (empty stdout)" "1" "$([ -z "$out2" ] && echo 1 || e
 out3=$(ef_fetch "https://developer.atlassian.com/other" s20)
 assert_eq "AC2 same registrable domain shares the cooldown" "1" "$([ -z "$out3" ] && echo 1 || echo 0)"
 
-# prose key is order-stable, so a reordered query shares the cooldown too
+# 2.45.1 — a REPHRASED query about the same domain shares the cooldown.
+# This replaces an order-stability check on the old four-longest-words key, which
+# after the domain fix would have passed vacuously: with prose never gated, both
+# calls return empty whether or not a cooldown exists. Keying on the domain is
+# what makes the reason text's "the retry will pass" true — the old key was the
+# words themselves, so REPHRASING minted a new key and denied again, which is
+# why one real denial became three.
 ef_reset
-p1=$(ef_search "bitbucket api token scopes" s21)
-p2=$(ef_search "scopes token api bitbucket" s21)
+p1=$(ef_search "bitbucket.org api token scopes" s21)
+p2=$(ef_search "how do i authenticate against bitbucket.org with a token" s21)
 assert_eq "AC2 prose first call denies" "1" "$(ef_has '"permissionDecision":"deny"' "$p1")"
-assert_eq "AC2 reordered prose shares the cooldown" "1" "$([ -z "$p2" ] && echo 1 || echo 0)"
+assert_eq "AC2 rephrased same-domain query shares the cooldown" "1" "$([ -z "$p2" ] && echo 1 || echo 0)"
+
+# and a URL on that domain shares it too — one key per registrable domain,
+# regardless of which branch derived it
+p3=$(ef_fetch "https://bitbucket.org/some/repo" s21)
+assert_eq "AC2 URL on the same domain shares the prose cooldown" "1" "$([ -z "$p3" ] && echo 1 || echo 0)"
 
 # [AC11] C1 — an unwritable cooldown must ALLOW, never deny
 ef_reset
