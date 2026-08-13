@@ -88,8 +88,8 @@ elif [ -n "$QUERY" ]; then
   # prose that reads "any query word followed by a dot and a lowercase letter",
   # which matches every `guidelines.md`, `screening.md` or dotted path in the
   # corpus. MEASURED 2026-08-14: three consecutive medical-literature searches
-  # denied, citing CS mobile-notification prospect logs and df-prism decision
-  # docs — zero topical relation. The entire match was `guidelines.m` (7x), i.e.
+  # denied, citing prospect logs and design-token decision docs from unrelated
+  # projects — zero topical relation. The whole match was `guidelines.m` (7x),
   # the word "guidelines" inside a FILENAME. Isolated: guidelines -> 4 files,
   # screening -> 0, participation -> 0. One common English word did all the work.
   #
