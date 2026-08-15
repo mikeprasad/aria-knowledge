@@ -26,6 +26,32 @@ Also in 2.45.1 — **`/interview` asks adaptively by default.** The skill offere
 
 Ports: canonical `plugin-claude-code` only; codex/cursor/antigravity/cowork tracked-drift (the hook has no port counterpart).
 
+## 2.45.0 — 2026-08-10
+
+> Written retrospectively on 2026-08-14. 2.45.0 was committed, pushed and installable but never cut as a GitHub release and never given an entry here, so `/latest/` served 2.44.1 for twelve days. Reconstructed from the release commits (`b23a792..c60801e`, 8 of them), the design spec, and the shipped code — each load-bearing claim re-verified rather than transcribed from the project's own summary, which is how the inaccuracy noted at the end of this entry was found.
+
+**New — surface a recorded local reference before an external fetch.**
+
+`bin/pre-external-fetch-check.sh` is a `PreToolUse` hook on `WebFetch|WebSearch`. When a recorded local reference already covers the surface being fetched, it denies the **first** fetch per session per surface, names the matched paths, and passes on retry. Two config keys, `external_fetch_gate` and `external_fetch_max_hits` (default 8), both parsed by `config.sh` and surfaced in `/setup`. **The gate ships off.**
+
+**Origin.** An agent hit a Bitbucket auth wall and fetched a vendor's docs twice while a memory recording exactly that lesson sat unread — a memory itself written after the same failure once before. So this was never a missing rule; it was a rule that nothing surfaced at the moment it applied, and adding more prose is the intervention that had already failed twice.
+
+**Two cheaper designs died on measurement.** The existing tag-index matcher returned 5 files for the real URL, all 5 about an unrelated homonym — two generic tags cleared its relevance floor while the vendor name was not a known tag at all, so no tag match could reach the file that would have helped. A cached domain inventory cost 7.32s against a 5s timeout; measuring that revealed the inventory was never needed, collapsing the cache, its invalidation, and a dictionary dependency in one step.
+
+**It is an interrupt, not a verification** — it cannot confirm the reference was read, and no acceptance criterion claims otherwise. Its scope is coverage, not currency: "a local note exists" is not "the note is true."
+
+**Both prospect gates caught what the other structurally could not.** The spec gate falsified two assumptions inherited by copying a precedent's *structure without its history*: the cooldown idiom was borrowed from an **advisory** hook, where an unchecked write is safe — in a **denying** hook a failed write is deny → retry → deny, unbounded (fixed: write and verify *before* denying, allow if it did not land). And this was the plugin's second denying hook, inheriting none of the deny-rate circuit breaker the first one gained only *because that deadlock had already happened in production*. The plan gate caught that an acceptance criterion would have reported the breaker working while it never ran — two of its three denials collapse to one registrable domain, so the counter reached 2 and the "4th call not denied" assertion passed via the *cooldown* instead.
+
+**Execution found three more, all by running rather than reading.** A `case` pattern's `)` inside `$( )` is ambiguous with the substitution terminator and `sh` failed to parse the whole file — and the first isolation test **passed because it dropped the `$( )`**, removing the feature under test. One assertion was a tautology, green even with a word deleted from the stopword list, because the fixture held nothing a leaked stem could match. A third passed **vacuously** with no counter file in existence.
+
+**Validation.** 136 assertions; 6 mutations each confirmed landed and restored byte-identical via `cmp`; and a live smoke against the real corpus denying the exact incident URL and naming the right file in 1.28s — the check a green fixture suite cannot substitute for. Gates: A green · B 19,362 / 19,968 bytes, byte-identical to before (body-only skill edits leave the description budget untouched — predicted, then measured) · C report-only.
+
+**One of its own recommendations was falsified before it shipped.** After the vendor name was promoted to a known tag, "try the tag matcher first, fall back to host-grep" was proposed — then measured across 6 documentation URLs, where **4 of 6 returned a confident 5-file result and 3 of those were entirely wrong**. The fallback condition was "returns nothing" while the real failure mode is "returns five confident wrong files," which preempts it. Root cause: generalising from the one query that worked *because its tag had just been promoted in the same session*.
+
+**Correcting this release's own description.** The project summary described the query branch as matching "dictionary-filtered vendor stems from prose." The dictionary was never a runtime dependency and was never meant to be — the spec is explicit that it was consulted **once, offline**, to derive a frozen ~51-word stopword list, because `/usr/share/dict/words` is a macOS symlink not guaranteed on Linux. That is a sound portability decision, but the shorthand hid the consequence: **a frozen list derived from a dictionary at one moment cannot cover an open set of English words.** `guidelines` was not on that list — and is not in the dictionary either, which holds only the singular. That is the defect fixed in 2.45.1, and the description is part of why it went unnoticed: it names a filter stronger than the one that shipped.
+
+Ports: canonical `plugin-claude-code` only; the hook is Bash with no port counterpart.
+
 ## 2.44.1 — 2026-08-01
 
 **New — the pre-commit preflight gate, and the two defects found while first configuring it.**
