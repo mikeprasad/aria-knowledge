@@ -2,6 +2,28 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.46.1 — 2026-08-16
+
+**Fixed — the preflight gate never fired on `git -C <dir> commit`, and always fired on `git commit-tree`.**
+
+`bin/pre-commit-preflight-check.sh` decided whether a command was a commit with a literal substring: `case "$COMMAND" in *"git commit"*)`. That is wrong in both directions.
+
+A `git -C <repo> commit` contains the text `git -C … commit` and never the substring `git commit`, so the hook exited before reading anything — the gate did not fire on scripted or `git -C` commits at all, **including in a repository named by `preflight_deny_repos`, the strongest setting available**. Measured two-sided against one repo with one staged file: `cd <repo> && git commit` denied, `git -C <repo> commit` was silent.
+
+The hook's own `REPO_DIR` resolver is written for exactly the `git -C` form, and was therefore unreachable — the admission `case` had already exited on every command that would have needed it. That unreachable branch is what establishes the wider unit was intended, rather than a narrowing someone chose and left undocumented.
+
+In the other direction, `git commit-tree` (and `git commit-graph`) **denied**, contradicting the comment directly above the guard which claimed they were excluded. `git commit` is a prefix of `git commit-tree`, so the pattern never excluded them.
+
+Replaced with an ERE that encodes the actual grammar — `git`, then any number of option-like tokens (each starting with `-`, optionally followed by a non-`-` value), then `commit` as a whole word. `case` cannot express this: any pattern loose enough to admit `git -C /d commit` (`*"git "*" commit"*`) also admits `git status -m "commit "`, which is the whole distinction. The trailing `([[:space:]]|$)` is what rejects `commit-tree`/`commit-graph`; the leading `(^|[[:space:];&|(])` makes `git` start a word so `mygit commit` does not match while a compound `cd /a && git commit` does.
+
+Validated by measuring the ERE against 17 command forms before any edit landed — 9 must-match (bare, `-m`, compound `cd &&`, `-C <dir>`, `-c k=v`, `--no-pager`, `-C` and `-c` combined, parenthesised subshell, quoted `"$B"`) and 8 must-not-match (`commit-tree`, `commit-graph`, `git -C /a commit-tree`, `git status -m "commit "`, `git log | grep commit`, `ls -la`, `mygit commit`, `git push`) — 17/17. Seven new assertions in `tests/test-preflight-gate.sh`; five observed RED against unmodified `HEAD` and RED again under a mutation reverting the guard. **146 passed / 0 failed** and **36 repro suites / 0 failed**, both on bare exit codes.
+
+Two notes worth keeping. `[15e]` (`git status -m "commit "` is silent) is deliberately green in **both** arms and is therefore *not* evidence this change landed — the old guard passes it too, since that command contains no `git commit` substring. It is a guard against a future over-broadening rewrite, and the pre-mortem caught it being mislabelled as landing evidence. And an accepted residual is unchanged from before: a command that merely quotes the phrase (`echo "run git commit later"`) still matches — the safe direction for a gate that any single recorded `/preflight` satisfies for the whole session.
+
+**Not changed: the `docs/` filter.** A commit whose staged set is *entirely* docs-filtered stays silent even in a gated repo — pinned by test `[14g]` as intended behaviour (2026-08-01: a gate that fires on a README edit is the one that gets disabled wholesale). Re-measured this release and it is narrower than previously recorded: the early exit is on `[ -z "$CODE_FILES" ]`, so a **mixed** docs-plus-code commit still denies.
+
+Claude-Code-canonical. This hook exists in exactly one runtime — verified by grepping the guard across all five `plugin-*/` trees, which returned 1. No port propagation, no `PORT-LEDGER` change.
+
 ## 2.46.0 — 2026-08-16
 
 **Added — `session_state_tracked`, so a project can declare `SESSION.md` a tracked artifact instead of an ignored one.**

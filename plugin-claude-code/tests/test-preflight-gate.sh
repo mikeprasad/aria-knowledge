@@ -230,3 +230,61 @@ echo doc > "$PF_GATED_DOCS/README.md"; git -C "$PF_GATED_DOCS" add . 2>/dev/null
 pf_fresh pf23
 out=$(pf_run "$(pf_cfg warn '' 'gated-repo')" pf23 "cd $PF_GATED_DOCS && git commit -m x")
 assert_eq "docs-only commit silent even in a gated repo" "" "$out"
+
+# --- the admission guard admits a git commit, not a literal substring ---------
+# The guard was `case "$COMMAND" in *"git commit"*)`, which is wrong in BOTH directions:
+# it MISSED every `git -C <dir> commit` (a real commit whose text never contains the
+# substring `git commit`) and MATCHED `git commit-tree` (because `git commit` is a prefix
+# of it, contradicting the comment that claimed otherwise). Measured two-sided on one repo
+# with one staged file: `cd <repo> && git commit` denied while `git -C <repo> commit` was
+# silent.
+#
+# The false negative is the serious half — a scripted or `git -C` commit bypassed the gate
+# entirely, including in a repo named by preflight_deny_repos, the strongest setting there
+# is. The hook's own REPO_DIR extractor is written for exactly the `git -C` form and was
+# therefore unreachable: the admission `case` had already exited. That unreachable branch is
+# what proves the wider unit was intended rather than deliberately narrowed.
+#
+# `case` cannot express the distinction. Any pattern loose enough to admit
+# `git -C /d commit` (e.g. `*"git "*" commit"*`) also admits `git status -m "commit "`.
+
+# [15a] THE FALSE NEGATIVE — a `git -C` commit must be gated like any other
+pf_fresh pf24
+out=$(pf_run "$(pf_cfg warn '' 'gated-repo')" pf24 "git -C $PF_GATED commit -m x")
+assert_eq "git -C <repo> commit denies in a gated repo" "1" "$(pf_has '"deny"' "$out")"
+
+# [15b] and it reaches the warn baseline too, not just the deny escalation
+pf_fresh pf25
+out=$(pf_run "$CFG_WARN" pf25 "git -C $PF_CODE commit -m x")
+assert_eq "git -C <repo> commit warns at the warn baseline" "1" "$(pf_has 'additionalContext' "$out")"
+
+# [15c] THE FALSE POSITIVE — commit-tree is plumbing, not a commit
+pf_fresh pf26
+out=$(pf_run "$(pf_cfg deny '' '')" pf26 "cd $PF_CODE && git commit-tree HEAD^{tree}")
+assert_eq "git commit-tree is not a commit" "" "$out"
+
+# [15d] same for commit-graph — `commit` must match as a whole word
+pf_fresh pf27
+out=$(pf_run "$(pf_cfg deny '' '')" pf27 "cd $PF_CODE && git commit-graph write")
+assert_eq "git commit-graph is not a commit" "" "$out"
+
+# [15e] FUTURE-OVER-BROADENING GUARD — deliberately green in BOTH arms, so it is NOT
+# evidence this change landed (the old guard also passes it: `git status -m "commit "`
+# contains no `git commit` substring). It earns its place by failing against a naively
+# widened FUTURE rewrite, which is the shape a `case`-based fix would have had.
+pf_fresh pf28
+out=$(pf_run "$(pf_cfg deny '' '')" pf28 "cd $PF_CODE && git status -m \\\"commit \\\"")
+assert_eq "a subcommand merely mentioning commit is not a commit" "" "$out"
+
+# [15f] the `-c key=value` global-option form is a real commit. Note the `cd` prefix is
+# load-bearing for the FIXTURE, not for the guard: with neither `cd` nor `git -C` in the
+# command, REPO_DIR falls back to `.` — the test RUNNER's cwd — so the repo token could
+# never match and the assertion would fail for a reason unrelated to the admission guard.
+pf_fresh pf29
+out=$(pf_run "$(pf_cfg warn '' 'gated-repo')" pf29 "cd $PF_GATED && git -c user.email=t@t.t commit -m x")
+assert_eq "git -c k=v commit denies in a gated repo" "1" "$(pf_has '"deny"' "$out")"
+
+# [15g] REGRESSION GUARD — the form that already worked must keep working
+pf_fresh pf30
+out=$(pf_run "$(pf_cfg warn '' 'gated-repo')" pf30 "cd $PF_GATED && git commit -m x")
+assert_eq "cd && git commit still denies in a gated repo" "1" "$(pf_has '"deny"' "$out")"

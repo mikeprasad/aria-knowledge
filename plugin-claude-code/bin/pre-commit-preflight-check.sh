@@ -33,11 +33,31 @@ INPUT=$(cat)
 COMMAND=$(printf '%s' "$INPUT" | grep -o '"command":"[^"]*"' | head -1 | sed 's/"command":"//;s/"$//')
 [ -z "$COMMAND" ] && exit 0
 
-# Only `git commit`. Not `git commit-tree`, not a message that mentions committing.
-case "$COMMAND" in
-  *"git commit"*) : ;;
-  *) exit 0 ;;
-esac
+# Only `git commit` -- as an INVOCATION, not as a literal substring. Match `git`, then any
+# number of option-like tokens (each starting with `-`, optionally followed by a non-`-`
+# value), then `commit` as a whole word.
+#
+# WHY NOT `case`. This was `case "$COMMAND" in *"git commit"*)`, which was wrong in BOTH
+# directions. It MISSED every `git -C <dir> commit` -- a real commit whose text never
+# contains the substring `git commit` -- so any scripted or `git -C` commit bypassed the
+# gate entirely, including in a repo named by preflight_deny_repos, the strongest setting
+# available. And it MATCHED `git commit-tree`, which the old comment claimed it excluded:
+# `git commit` is a prefix of `git commit-tree`, so the pattern never excluded it.
+#
+# `case` cannot express "only option-like tokens between `git` and `commit`", and that is
+# exactly the distinction needed: any pattern loose enough to admit `git -C /d commit`
+# (e.g. `*"git "*" commit"*`) also admits `git status -m "commit "`. Hence the ERE.
+#
+# The trailing `([[:space:]]|$)` is what rejects `commit-tree` / `commit-graph`. The leading
+# `(^|[[:space:];&|(])` makes `git` start a word, so `mygit commit` does not match while a
+# compound `cd /a && git commit` does.
+#
+# Accepted residual, unchanged from the previous behaviour: a command that merely QUOTES the
+# phrase (`echo "run git commit later"`) still matches. That is the safe direction for a gate
+# any single recorded /preflight satisfies for the whole session.
+printf '%s' "$COMMAND" | grep -qE \
+  '(^|[[:space:];&|(])git([[:space:]]+-[^[:space:]]+([[:space:]]+[^-[:space:]][^[:space:]]*)?)*[[:space:]]+commit([[:space:]]|$)' \
+  || exit 0
 
 SCRIPT_DIR=$(dirname "$0")
 [ -f "$SCRIPT_DIR/config.sh" ] && . "$SCRIPT_DIR/config.sh" 2>/dev/null
