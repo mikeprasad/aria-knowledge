@@ -89,12 +89,23 @@ if [[ "$budget_total" -gt "$ARIA_SKILL_BUDGET" ]]; then
 fi
 ok "skill-discovery surface: ${budget_total} bytes (budget ${ARIA_SKILL_BUDGET})"
 
-# Gate C — port drift. Report-only this release (initial ledger baselines current
-# reality, so ports are legitimately behind; a fatal gate would block on drift it
-# did not cause). TODO(v2.31.0): drop the `|| true` to make this a fatal gate.
-log "gate C: port drift (report-only)"
+# Gate C — port drift. Report-only, and deliberately so: fatality is gated on a
+# DECLARED SLA, not on a version number.
+#
+# This carried `TODO(v2.31.0): make fatal` from v2.30.0 until 2026-08-17, by which point
+# canonical was 2.46.1 — the flag day had slipped fifteen minor versions, which makes it a
+# false promise rather than a plan (Rule 37: a temporary thing that never named a real
+# removal trigger becomes permanent by default). Retired rather than re-dated.
+#
+# The right condition already exists and needs no new machinery: every port carries an
+# `sla` field in PORT-LEDGER.json, all five currently `undeclared`, and `is_failure()`
+# tolerates `undeclared` by construction. So declare an SLA for a port when you are willing
+# to commit to its cadence, and this gate becomes meaningfully fatal for that port
+# automatically — while ports you have deliberately left behind stay advisory instead of
+# blocking every canonical release on work you chose to defer.
+log "gate C: port drift (report-only until an SLA is declared)"
 if [[ -x "$REPO_ROOT/plugin-claude-code/bin/check-port-drift.sh" ]]; then
-    sh "$REPO_ROOT/plugin-claude-code/bin/check-port-drift.sh" || true   # TODO(v2.31.0): make fatal
+    sh "$REPO_ROOT/plugin-claude-code/bin/check-port-drift.sh" || true   # advisory by design — see above
 else
     warn "gate C skipped: plugin-claude-code/bin/check-port-drift.sh not found"
 fi
