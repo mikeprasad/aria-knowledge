@@ -194,7 +194,12 @@ Write `{project_root}/SESSION.md` (project root from Step 1) as a **wrapup-state
 
 **Never skip this step to avoid clobbering another session's state.** Skipping loses more than writing does: the prune only ever removes entries already marked consumed, so running it cannot destroy pending work. If you are unsure whether another session owns the file, run the prune and write — that is the safe direction, not the risky one.
 
-**Gitignore it, never commit it:** SESSION.md is ephemeral per-session state (atlas reads it from disk; PROGRESS.md is the durable log). If `{project_root}` is a git repo and its `.gitignore` doesn't already ignore `SESSION.md`, append a `SESSION.md` line to `{project_root}/.gitignore`. **Never `git add` SESSION.md** — it is intentionally untracked, so it must not appear in the Step 6 commit.
+**Tracked or ignored — read `session_state_tracked` (default `false`):**
+
+- **`false` (default) — ignore it, never commit it.** SESSION.md is ephemeral per-session state (atlas reads it from disk; PROGRESS.md is the durable log). If `{project_root}` is a git repo and SESSION.md is **not already tracked**, ensure `.gitignore` ignores it. **Never `git add` SESSION.md** — it must not appear in the Step 6 commit.
+- **`true` — it is a tracked artifact.** Do **NOT** add an ignore line, and **DO** stage it with the Step 6 commit. If an ignore line already exists, remove it: leaving one makes the config assert something git is not doing. Choose this when SESSION.md carries a decision trail you need versioned — most often in a repo with no `PROGRESS.md`, where SESSION.md *is* the durable log and the default's rationale does not hold.
+
+⛔ **Test tracking with `git -C {project_root} ls-files --error-unmatch SESSION.md`, never "is the pattern already in `.gitignore`?"** An ignore rule is a **no-op on an already-tracked path**, so a pattern check can never become true for a tracked file and the clause **appends on every run** — one observed `.gitignore` had accumulated four identical `SESSION.md` lines. ⚠ `git check-ignore` cannot serve as the test either: it consults the index, so it reports a **tracked** file as *not ignored*. (That inversion is itself useful — "not ignored" from `check-ignore` on a file you believe is ignored means it is tracked.)
 
 Header fields:
 - `lastEvent: wrapup`

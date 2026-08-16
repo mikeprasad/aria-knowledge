@@ -102,6 +102,7 @@ if [ -f "$KT_CONFIG" ]; then
   KT_SUBAGENT_CAPTURE_TYPES=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^subagent_capture_types:' | sed 's/^subagent_capture_types: *//')
   KT_SUBAGENT_SELFREPORT_TYPES=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^subagent_selfreport_types:' | sed 's/^subagent_selfreport_types: *//')
   KT_SESSION_STATE=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^session_state:' | sed 's/^session_state: *//')
+  KT_SESSION_STATE_TRACKED=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^session_state_tracked:' | sed 's/^session_state_tracked: *//')
   KT_AUTO_PROSPECT=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^auto_prospect:' | sed 's/^auto_prospect: *//')
   KT_AUTONOMY=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^autonomy:' | sed 's/^autonomy: *//' | tr -d ' ')
   KT_AUTO_RETROSPECT=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^auto_retrospect:' | sed 's/^auto_retrospect: *//')
@@ -137,6 +138,7 @@ if [ -f "$KT_CONFIG" ]; then
   KT_SUBAGENT_CAPTURE_TYPES=${KT_SUBAGENT_CAPTURE_TYPES:-general-purpose,Plan,feature-dev:code-architect,feature-dev:code-explorer,feature-dev:code-reviewer}
   KT_SUBAGENT_SELFREPORT_TYPES=${KT_SUBAGENT_SELFREPORT_TYPES:-Explore}
   KT_SESSION_STATE=${KT_SESSION_STATE:-false}
+  KT_SESSION_STATE_TRACKED=${KT_SESSION_STATE_TRACKED:-false}
   KT_AUTO_PROSPECT=${KT_AUTO_PROSPECT:-off}
   KT_AUTONOMY=${KT_AUTONOMY:-default}
   KT_AUTO_RETROSPECT=${KT_AUTO_RETROSPECT:-off}
@@ -224,6 +226,10 @@ if [ -f "$KT_CONFIG" ]; then
   case "$KT_SESSION_STATE" in
     true|false) ;; # valid
     *) KT_SESSION_STATE=false ;;
+  esac
+  case "$KT_SESSION_STATE_TRACKED" in
+    true|false) ;; # valid
+    *) KT_SESSION_STATE_TRACKED=false ;;
   esac
   case "$KT_PROJECTS_ENABLED" in
     true|false) ;; # valid
