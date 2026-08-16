@@ -2,6 +2,24 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.46.0 — 2026-08-16
+
+**Added — `session_state_tracked`, so a project can declare `SESSION.md` a tracked artifact instead of an ignored one.**
+
+`/wrapup` Step 6.5 and `/handoff` shared one unconditional instruction: gitignore `SESSION.md`, never stage it. Its rationale is that the file is ephemeral because `PROGRESS.md` is the durable log. That rationale does not hold in a repo with **no** `PROGRESS.md` — there `SESSION.md` *is* the durable log, and the decision trail it carries lives in no repo at all, so an overwrite is unrecoverable.
+
+New config key `session_state_tracked` (default `false`). At the default nothing changes for existing users. Set `true` and both skills stop writing an ignore line, stage `SESSION.md` with their commit, and remove an ignore line if one is already present — because leaving one makes the config assert something git is not doing. Registered in `bin/config.sh` with the same three pieces as its sibling (parse, default, boolean validation) and documented in `/setup`, both in the schema block and the prose bullet. A key the wizard writes but never surfaces is the defect that surfaced this one.
+
+**Fixed — the ignore-line clause appended on every run.**
+
+The precondition asked *"does `.gitignore` already ignore `SESSION.md`?"*. An ignore rule is a **no-op on an already-tracked path**, so for a tracked file the answer is permanently "no" and every wrapup or handoff appended another line. One observed `.gitignore` had accumulated four identical `SESSION.md` lines, and because the file also shows as permanently modified in `git status`, the noise trains a reader to stop looking at a dirty tree. The precondition now tests `git ls-files --error-unmatch`, which asks the question the clause actually depends on. This is a real defect at **either** setting of the new key.
+
+Both skills also record why `git check-ignore` cannot serve as that test: it consults the index, so it reports a **tracked** file as *not ignored*. That inversion reads backwards until you know it, and it is how a `.gitignore` and reality came to disagree silently. Stated in the skill so the next reader does not rediscover it.
+
+**Validation.** `sh -n` clean; the new key resolves `true` from a real config, defaults to `false` when the field is absent, and falls back to `false` on a malformed value — all three arms exercised, not just the happy path. Gate B is unaffected by construction: the edits are skill **bodies**, and the budget measures frontmatter descriptions only.
+
+Ports: canonical `plugin-claude-code` only. The same clause exists in `plugin-antigravity` and `plugin-openai-codex` — in **both** `wrapup` and `handoff` — and `plugin-claude-cowork` has none; those three stay tracked-drift.
+
 ## 2.45.1 — 2026-08-14
 
 **Fixed — the external-fetch gate no longer denies prose `WebSearch` queries.**
