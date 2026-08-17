@@ -42,6 +42,32 @@ Both skills also record why `git check-ignore` cannot serve as that test: it con
 
 Ports: canonical `plugin-claude-code` only. The same clause exists in `plugin-antigravity` and `plugin-openai-codex` — in **both** `wrapup` and `handoff` — and `plugin-claude-cowork` has none; those three stay tracked-drift.
 
+## 2.46.2 — 2026-08-17
+
+Two bugfixes, both in guards that had been silently doing the wrong thing for a long time, and both traceable to the same mechanic: **`git check-ignore` consults the index, so it reports a TRACKED file as "not ignored."**
+
+**Fixed — `lib-session-state.sh` appended `SESSION.md` to a project's `.gitignore` on every run, forever.**
+
+The block guarded with `! git check-ignore -q SESSION.md`. Because `check-ignore` consults the index, a **tracked** `SESSION.md` exits 1 ("not ignored"), making the negation always true. Measured: it exits 1 **even when `SESSION.md` is already listed in `.gitignore`**, so the guard could never be satisfied and the append had no upper bound. One line per session per project, indefinitely — `archetypes/.gitignore` reached 4 duplicate lines, was cleaned with an explicit DO-NOT-ADD comment, and had accumulated 2 more directly beneath that warning two days later.
+
+It also never read `session_state_tracked`, so the standing ruling that some repos deliberately **track** `SESSION.md` had no effect here. That knob was wired into `wrapup` and `handoff` in 2.46.0; this shell library was a **third** code path nobody had touched — and the plugin's own docs already prescribed the correct test (`git ls-files --error-unmatch`) in three places.
+
+The guard is now four conditions, each closing a different hole: honour `session_state_tracked` · is it a git repo · is `SESSION.md` **tracked** (an ignore rule is a no-op on a tracked path, so appending achieves nothing but growth) · is the line already present. The comment explaining why `check-ignore` cannot be the test is deliberately verbose, because without it the next reader reintroduces it.
+
+Validated in throwaway repos across four arms — tracked (no write), untracked (exactly one line, idempotent across runs), `session_state_tracked: true` (no write at all), and sourced **without** `config.sh` so the variable is unset (the remaining guards still hold; the library reads `${VAR:-}` rather than the bare form its calling hooks use, precisely because it must survive being sourced alone). The old guard was then restored and observed to fail the tracked arm for the stated reason: six runs produced six lines.
+
+Scope: **canonical `plugin-claude-code` only.** All four runtimes carry a copy of this library and the four files have four **distinct** checksums, so this is four separate edits rather than one propagation — antigravity, codex and cursor remain tracked-drift, matching the 2.46.0 precedent for the same knob.
+
+**Fixed — port-drift lag was measured against a frozen ledger pair, so it could not see drift.**
+
+`check-port-drift.sh` replaced prose tracked-drift narration in 2.30.0. Its lag line compared a port's own `version` to its `parity_target` — but both are written together by `--update`, so they are equal by construction the moment a baseline is taken and never diverge as canonical moves on. The line was silent for the only lag that exists: the kind accruing *after* a baseline. Measured: antigravity read `2.36.0 / 2.36.0` and reported nothing while canonical was nine minor versions ahead. The one lag line that did fire was a constant — a port on an independent version scheme that could never match a target, so it flagged on every run forever.
+
+Lag now compares `parity_target` to **live** canonical. Removing the port's own version as an operand also dissolves that permanent false positive without an exemption; it was a symptom of comparing the wrong two things. An unresolvable canonical emits **no** lag line — `canonical_version()` is tolerant by design (empty when the manifest is absent, correct for its `--update` caller), and empty as a comparison operand would make every port "differ."
+
+`version_for_target_compare()` loses its only caller and is removed. Two of the existing test assertions went **vacuous** rather than red once the port's own version left the comparison — they asserted an absence that became true by construction — so they were replaced rather than adjusted; six assertions now cover behind / current / independent-scheme / baseline-excluded / absent-manifest / exit-code-unchanged, each mutation-proven to fail for its own reason.
+
+**Changed — Gate C's `TODO(v2.31.0): make fatal` is retired rather than re-dated.** It had slipped fifteen minor versions, which makes it a false promise rather than a plan. Fatality now keys on a **declared SLA** — machinery that already exists, and which `is_failure()` already tolerates as `undeclared` — so a port stays advisory until someone commits to its cadence, and the gate becomes meaningful per-port automatically when one is declared. Gate C's behaviour is unchanged.
+
 ## 2.45.1 — 2026-08-14
 
 **Fixed — the external-fetch gate no longer denies prose `WebSearch` queries.**

@@ -129,11 +129,37 @@ kt_ss_mark_inprogress() {
     } > "$_ss_file" 2>/dev/null
   fi
 
-  # Ensure SESSION.md is gitignored (ephemeral per-session state, never committed).
-  if git -C "$_ss_root" rev-parse --git-dir >/dev/null 2>&1; then
-    if ! git -C "$_ss_root" check-ignore -q SESSION.md 2>/dev/null; then
-      printf 'SESSION.md\n' >> "$_ss_root/.gitignore" 2>/dev/null
-    fi
+  # Ensure SESSION.md is gitignored — but ONLY where that is actually wanted, and only
+  # once. Four conditions, each closing a different hole:
+  #
+  #   1. `session_state_tracked` — the user's standing ruling. Workspace repos TRACK
+  #      SESSION.md (it carries the decision trail); some sub-repos deliberately do not.
+  #      v2.46.0 wired this knob into wrapup/SKILL.md and handoff/SKILL.md only; this
+  #      library was a THIRD code path that never read it, so the ruling had no effect
+  #      here. Read via `${VAR:-}` rather than the bare form the hooks use: those are
+  #      entry points that always source config.sh first, whereas this is a *library* and
+  #      must stay safe when sourced without it (see validation arm 4).
+  #   2. is this even a git repo
+  #   3. is SESSION.md TRACKED — if so, never touch .gitignore. An ignore rule is a
+  #      NO-OP on an already-tracked path, so appending one achieves nothing except
+  #      growing the file.
+  #   4. is the line ALREADY present — idempotence.
+  #
+  # ⛔ `git check-ignore` CANNOT be the test, and was the bug. It consults the INDEX, so
+  # for a TRACKED file it exits 1 ("not ignored") — which made the old negated guard
+  # ALWAYS true. Measured 2026-08-17: it exits 1 for a tracked SESSION.md *even when
+  # SESSION.md is already listed in .gitignore*, so the guard could never be satisfied
+  # and this block appended one line per session forever. archetypes/.gitignore reached
+  # 4 duplicate lines by 2026-08-14, was cleaned in 3a77b34 with an explicit DO-NOT-ADD
+  # comment, and had accumulated 2 more directly beneath that warning by 08-16.
+  # The plugin's own docs already prescribed the right test (`git ls-files
+  # --error-unmatch`) at wrapup/SKILL.md:202, handoff/SKILL.md:241, setup/SKILL.md:202.
+  # Keep this comment: without it the next reader reintroduces check-ignore.
+  if [ "${KT_SESSION_STATE_TRACKED:-}" != "true" ] \
+     && git -C "$_ss_root" rev-parse --git-dir >/dev/null 2>&1 \
+     && ! git -C "$_ss_root" ls-files --error-unmatch SESSION.md >/dev/null 2>&1 \
+     && ! grep -qxF 'SESSION.md' "$_ss_root/.gitignore" 2>/dev/null; then
+    printf 'SESSION.md\n' >> "$_ss_root/.gitignore" 2>/dev/null
   fi
   return 0
 }
