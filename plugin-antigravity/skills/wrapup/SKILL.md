@@ -161,9 +161,21 @@ Skip this step entirely unless `session_state: true` in `~/.gemini/antigravity/a
 
 Write `{project_root}/SESSION.md` (project root from Step 1) as a **wrapup-state** snapshot, following the contract at `aria-atlas/docs/TEMPLATE_SESSION.md`. **Full rewrite** (wrapup is an authoritative close). This is a deliberate exception to the "don't create files" rule — create it if absent.
 
-**Consume on clean close (multi-session ledger):** a `/wrapup` is a clean close, not a handoff — it adds NO `## Prior sessions` entry for the wrapped session itself (there is no next-session prompt to retain). If the existing SESSION.md has a `## Prior sessions` block, source `bin/lib-session-state.sh` and call `kt_ss_ledger_prune "{project_root}"` to drop any entries a resume already marked `consumed`. Unconsumed prior handoffs survive — wrapping up one session never silently discards another's pending pickup.
+**Consume on clean close (multi-session ledger):** a `/wrapup` is a clean close, not a handoff — it adds NO pending entry for the wrapped session itself (there is no next-session prompt to retain). If the existing SESSION.md has a `## Pending handoffs` block (or a legacy `## Prior sessions` one), source `bin/lib-session-state.sh` and call `kt_ss_ledger_prune "{project_root}"` to drop any entries a resume already marked `consumed`. Unconsumed handoffs survive at full fidelity — wrapping up one session never silently discards another's pending pickup.
 
-**Gitignore it, never commit it:** SESSION.md is ephemeral per-session state (atlas reads it from disk; PROGRESS.md is the durable log). If `{project_root}` is a git repo and its `.gitignore` doesn't already ignore `SESSION.md`, append a `SESSION.md` line to `{project_root}/.gitignore`. **Never `git add` SESSION.md** — it is intentionally untracked, so it must not appear in the Step 6 commit.
+**Before closing, check what this session left behind (two cheap reads, both report-only):**
+
+1. **Recorded Rule 22 bypasses.** Read `${TMPDIR:-/tmp}/aria-r22-bypass-<session_id>` if it exists — each line is an in-place file mutation made through the shell, which routed around the Edit/Write gate and so landed with no scope assessment recorded. The PreToolUse hook only *warns* (denying would block legitimate work), so a warning that was ignored leaves no other trace. Report the count and the idioms in the close-out summary — not as a failure, as a fact worth knowing before the session ends. If the file is absent, say nothing.
+2. **Pending handoffs.** If `## Pending handoffs` (or a legacy `## Prior sessions`) still holds `unconsumed` entries, state how many and name their sessions. A clean close does not consume another session's pickup, so this is the last chance to notice one before the session is gone — the third of three checkpoints (the others are `/handoff` and resume).
+
+**Never skip this step to avoid clobbering another session's state.** Skipping loses more than writing does: the prune only ever removes entries already marked consumed, so running it cannot destroy pending work. If you are unsure whether another session owns the file, run the prune and write — that is the safe direction, not the risky one.
+
+**Tracked or ignored — read `session_state_tracked` (default `false`):**
+
+- **`false` (default) — ignore it, never commit it.** SESSION.md is ephemeral per-session state (atlas reads it from disk; PROGRESS.md is the durable log). If `{project_root}` is a git repo and SESSION.md is **not already tracked**, ensure `.gitignore` ignores it. **Never `git add` SESSION.md** — it must not appear in the Step 6 commit.
+- **`true` — it is a tracked artifact.** Do **NOT** add an ignore line, and **DO** stage it with the Step 6 commit. If an ignore line already exists, remove it: leaving one makes the config assert something git is not doing. Choose this when SESSION.md carries a decision trail you need versioned — most often in a repo with no `PROGRESS.md`, where SESSION.md *is* the durable log and the default's rationale does not hold.
+
+⛔ **Test tracking with `git -C {project_root} ls-files --error-unmatch SESSION.md`, never "is the pattern already in `.gitignore`?"** An ignore rule is a **no-op on an already-tracked path**, so a pattern check can never become true for a tracked file and the clause **appends on every run** — one observed `.gitignore` had accumulated four identical `SESSION.md` lines. ⚠ `git check-ignore` cannot serve as the test either: it consults the index, so it reports a **tracked** file as *not ignored*. (That inversion is itself useful — "not ignored" from `check-ignore` on a file you believe is ignored means it is tracked.)
 
 Header fields:
 - `lastEvent: wrapup`

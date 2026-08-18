@@ -346,11 +346,25 @@ if [ "$INVOCATION_NUM" = "0" ]; then
       fi
     fi
 
-    # Autonomy posture directive
+    # Autonomy posture directive (decision-routing, Rule 35)
     if [ "${KT_AUTONOMY:-}" = "balanced" ]; then
-      MESSAGES="${MESSAGES}DECISION ROUTING (balanced) — Before asking OR auto-deciding, classify (per Rule 35): resolvable by read/grep/diff/git/config/web → investigate first, then act; objectively validatable → decide and show the validation; mechanical/already-decided → act; the user's intent/preference/judgment with no gainable visibility, or anything needing ungranted explicit approval → ask. Investigate the resolvable parts first; ask only the residual that's genuinely about the user. "
+      MESSAGES="${MESSAGES}DECISION ROUTING (balanced) — Before asking OR auto-deciding, classify (per Rule 35): resolvable by read/grep/diff/git/config/web → investigate first, then act; objectively validatable → decide and show the validation; mechanical/already-decided → act; the user's intent/preference/judgment with no gainable visibility, or anything needing ungranted explicit approval → ask. Investigate the resolvable parts first; ask only the residual that's genuinely about the user. Either way, the option set is Rule 22 Step 4/5 output: enumerate the real alternatives, filter out any option with a provable defect (name it in one line rather than offering it), and when you decide, show what you rejected plus the validation. Asking is not an escape hatch from the analysis. "
     elif [ "${KT_AUTONOMY:-}" = "autonomous" ]; then
-      MESSAGES="${MESSAGES}DECISION ROUTING (autonomous) — The user's decision budget is the scarce resource; your speed/context is cheap. Exhaust self-resolvable investigation before spending a human turn. Per Rule 35: decide objectively-validatable forks YOURSELF (checked against ground truth and the build-philosophy bar, Rules 13/14/18 — simplest/robust/clean, no unneeded abstraction). Run quality gates (/prospect pre-code, /retrospect post-ship) as checks, not stops. Stop and ask ONLY when it is a judgment call with no gainable visibility (and none can be gained), or it requires explicit approval not already granted (push, destructive op, scope change, credentials). "
+      MESSAGES="${MESSAGES}DECISION ROUTING (autonomous) — The user's decision budget is the scarce resource; your speed/context is cheap. Exhaust self-resolvable investigation before spending a human turn. Per Rule 35: decide objectively-validatable forks YOURSELF (checked against ground truth and the build-philosophy bar, Rules 13/14/18 — simplest/robust/clean, no unneeded abstraction). Run quality gates (/prospect pre-code, /retrospect post-ship) as checks, not stops. Stop and ask ONLY when it is a judgment call with no gainable visibility (and none can be gained), or it requires explicit approval not already granted (push, destructive op, scope change, credentials), or the foundational fix would change what the arc IS (its scope boundary, deliverable, or completion criteria) rather than merely make it bigger. Foundational-over-patch is NOT a fork at this setting: take the foundational fix and absorb the larger scope. Either way, the option set is Rule 22 Step 4/5 output: enumerate the real alternatives, filter out any option with a provable defect (name it in one line rather than offering it), and when you decide, show what you rejected plus the validation. Asking is not an escape hatch from the analysis. "
+    fi
+
+    # Standing user rules (U-namespace) — ALWAYS in force, never opt-in.
+    UR_FILE="${KT_KNOWLEDGE_FOLDER:-}/rules/user-rules.md"
+    if [ -f "$UR_FILE" ]; then
+      UR_N=$(grep -c '^### U' "$UR_FILE" 2>/dev/null)
+      if [ "${UR_N:-0}" -gt 0 ]; then
+        UR_HEADERS=$(grep '^### U' "$UR_FILE" 2>/dev/null | sed 's/^### //' | awk '{printf "%s%s", sep, $0; sep="; "}')
+        if [ ${#UR_HEADERS} -gt 3000 ]; then
+          MESSAGES="${MESSAGES}STANDING USER RULES — ${UR_N} of the user's own rules are in force, at ${UR_FILE} (too many to index inline). Read that file before acting on anything it plausibly covers. "
+        else
+          MESSAGES="${MESSAGES}STANDING USER RULES (${UR_N}, always in force — the user's own rules, binding alongside working-rules.md): ${UR_HEADERS}. These titles are the index; read ${UR_FILE} for the full text of any rule bearing on the task. "
+        fi
+      fi
     fi
   fi
 

@@ -271,12 +271,42 @@ If this is the first run (no existing mappings), present the full initial mappin
 
 ## Step 7: Staleness Detection
 
-For each scanned file, compare its `Last updated` date against today's date.
+**Scope first — three exclusions, all of them measured.** Applying a date threshold to every scanned
+file manufactures false positives that bury the real queue. On the 2026-08-05 corpus (942 files) the
+naive scan returned **240** entries of which only **78** had a review question to answer.
 
-If the file's age exceeds `{staleness_threshold_months}` months (default: 6):
-- Add to the stale files list with age and threshold info
+1. ⛔ **EXCLUDE `decisions/` in both tiers** (`decisions/` and `projects/*/decisions/`). A decision
+   record is immutable history — its obsolescence is expressed by **supersession**, not by a date, so
+   there is no review question a threshold can raise. Measured: **162 of 240** flagged entries were
+   ADRs. Ratified as **ADR 117** (`projects/aria/decisions/117-staleness-detection-exempts-decision-records.md`).
+2. ⛔ **EXCLUDE files with no frontmatter at all** — directory `README.md`s, probe-test fixtures, and
+   verbatim source dumps under `references/sources/` or similar. These are structural or archival, not
+   guidance, so "is it current?" does not apply. Measured: 25 of 44 undated files. Do **not** report
+   them as stale and do **not** report them as a gap; count them and move on.
+3. **Report separately, do not flag:** a file that HAS frontmatter but carries neither date field.
+   Measured: 12, of which only 2 were genuine guidance files. Surface those as *"needs a date field"*,
+   which is a different action from *"needs review"*.
 
-This data is used when generating the `## Stale Files` section in Step 9. No user interaction here — just collection.
+**Then read the date — BOTH idioms are in live use.** Accept `Last updated:` **or** `date:` from the
+first ~10 frontmatter lines, preferring `Last updated:` when both are present. Measured: **7** files
+carry only `date:`, and a `Last updated`-only reader reports them as undated, which then reads as a
+data-quality gap rather than a detector gap.
+
+For each remaining file, compare its resolved date against today. If the age exceeds
+`{staleness_threshold_months}` months (config default: 6; note the user's config may set it lower —
+3 is in use, and the config value wins):
+
+- Add to the stale files list with age and threshold info.
+
+Carry three counts forward to Step 9, not one: **review-able**, **exempt (decisions)**, and
+**no-date-field**. A single total is the shape that produced the buried queue.
+
+This data is used when generating the `## Stale Files` section in Step 9. No user interaction here —
+just collection.
+
+> ⚠ **When you report the stale count, name the population it was drawn from.** "216 files are stale"
+> and "78 files need review out of 942 scanned, with 162 exempt" are different claims, and only the
+> second one is actionable.
 
 ## Step 7b: Heavy-Pass Gate (REQUIRED before Steps 8.x)
 
@@ -524,10 +554,36 @@ If reviews lack frontmatter `overall_outcome` / `overall_verdict` (legacy report
 
 ## Stale Files
 
-### relative/path/to/file.md
-Last updated: YYYY-MM-DD (N months ago) — threshold: M months
+_Recomputed YYYY-MM-DD. **R** promoted files need review (of **N** scanned) — threshold: **M** months._
 
-(repeat for each stale file. Omit this section entirely if no stale files.)
+⚠ **E of these are decision records and are EXEMPT** — an ADR does not go stale, it gets **superseded**.
+Ratified as ADR 117. They are listed separately and are **NOT** a review queue.
+
+### Review-able tiers (R files)
+
+- relative/path/to/file.md — Last updated: YYYY-MM-DD
+- relative/path/to/other.md — date: YYYY-MM-DD (`date:` idiom, resolved)
+
+### Decision records — NOT a review queue (E files, exempt per ADR 117)
+
+_Listed for completeness only. Obsolescence here is expressed by supersession; do not review by date._
+
+- relative/path/to/decisions/NNN-something.md — Last updated: YYYY-MM-DD
+
+### Needs a date field — not stale (D files)
+
+_Has frontmatter but carries neither `Last updated:` nor `date:`. A different action from "needs review"._
+
+- relative/path/to/file.md
+
+(Sort each list by date ascending, then path. **X files with no frontmatter at all were excluded as
+structural** — READMEs, probe fixtures, verbatim source dumps; state the count, do not list them and do
+not report them as a gap. Omit any subsection with zero entries; omit the whole section only if all
+four are zero.)
+
+> ⚠ **The header line must name the population.** "216 files are stale" and "78 need review of 942
+> scanned, 162 exempt" are different claims and only the second is actionable. Never emit a single
+> undifferentiated total.
 
 ## Untagged Files
 
@@ -577,7 +633,7 @@ Files: N scanned, M tagged, K untagged
 Tags: L unique (J known, F freeform)
 Normalizations: P applied
 Promotions: Q tags promoted to known
-Stale files: S (threshold: T months)
+Stale files: R need review of N scanned (threshold: T months) — plus E exempt decision records, D needing a date field, X excluded as structural
 Cross-references: R suggested, X added
 Entities: E detected (across 2+ files)
 Skill connections: C discovered, D approved

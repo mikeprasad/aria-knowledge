@@ -10,17 +10,8 @@ LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=./lib-antigravity-input.sh
 source "$LIB_DIR/lib-antigravity-input.sh"
 
-CANONICAL="$CLAUDE_PLUGIN_ROOT/bin/post-edit-check.sh"
-
-# PostToolUse output schema per docs: empty JSON {} on success. The canonical
-# script writes scope-check text to stdout; we surface that as the agent sees it
-# via stderr-equivalent (Antigravity's hook log), but the protocol-level reply
-# is {} unless we want to short-circuit (we don't here).
-
-# Translate Antigravity error field into a canonical-friendly signal.
-ERROR_FIELD=$(jq -r '.error // ""' <<<"$ARIA_HOOK_INPUT")
-export CLAUDE_TOOL_ERROR="$ERROR_FIELD"
-export CLAUDE_TRANSCRIPT_PATH="$ARIA_TRANSCRIPT_PATH"
+CANONICAL_CHECK="$CLAUDE_PLUGIN_ROOT/bin/post-edit-check.sh"
+CANONICAL_TAUTOLOGY="$CLAUDE_PLUGIN_ROOT/bin/post-edit-tautology-check.sh"
 
 # Run canonical, capture but don't propagate output. Antigravity's PostToolUse
 # does NOT support reasoning back to the agent — output is {}. If we want to
@@ -29,16 +20,25 @@ export CLAUDE_TRANSCRIPT_PATH="$ARIA_TRANSCRIPT_PATH"
 LOG_FILE="$HOME/.gemini/antigravity/aria-knowledge-scope-check.log"
 mkdir -p "$(dirname "$LOG_FILE")" 2>/dev/null || true
 
-if [ -x "$CANONICAL" ]; then
+PAYLOAD=$(jq -cn \
+  --arg fp "$ARIA_TOOL_TARGET_FILE" \
+  --arg sid "$ARIA_CONVERSATION_ID" \
+  --arg tp "$ARIA_TRANSCRIPT_PATH" \
+  --arg err "$ERROR_FIELD" \
+  '{file_path: $fp, session_id: $sid, transcript_path: $tp, error: $err}')
+
+if [ -x "$CANONICAL_CHECK" ]; then
   {
     echo "--- $(date -u '+%Y-%m-%dT%H:%M:%SZ') stepIdx=$ARIA_STEP_IDX error=${ERROR_FIELD:-none}"
-    jq -cn \
-      --arg fp "$ARIA_TOOL_TARGET_FILE" \
-      --arg sid "$ARIA_CONVERSATION_ID" \
-      --arg tp "$ARIA_TRANSCRIPT_PATH" \
-      --arg err "$ERROR_FIELD" \
-      '{file_path: $fp, session_id: $sid, transcript_path: $tp, error: $err}' | "$CANONICAL" 2>&1
+    printf '%s' "$PAYLOAD" | "$CANONICAL_CHECK" 2>&1
   } >> "$LOG_FILE" || true
+fi
+
+if [ -x "$CANONICAL_TAUTOLOGY" ]; then
+  TAUTOLOGY_OUT=$(printf '%s' "$PAYLOAD" | "$CANONICAL_TAUTOLOGY" 2>&1 || true)
+  if [ -n "$TAUTOLOGY_OUT" ]; then
+    echo "$TAUTOLOGY_OUT" >> "$LOG_FILE" || true
+  fi
 fi
 
 # Per docs/hooks PostToolUse: output is {} on success.

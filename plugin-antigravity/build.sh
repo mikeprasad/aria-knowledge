@@ -83,8 +83,11 @@ find "$DST/skills" -name 'SKILL.md.bak' -delete
 # gate never fires here — but the prose ("This is the Claude Code variant",
 # "Use /aria-cowork:X instead?") misleads any agent reading the body. Strip
 # the whole section; antigravity skills proceed directly to Step 0.
-# Multi-line strip — use python since BSD sed doesn't handle multiline.
-find "$DST/skills" -name 'SKILL.md' -exec python3 -c '
+PYTHON_BIN="/usr/bin/python3"
+if [ ! -x "$PYTHON_BIN" ]; then
+  PYTHON_BIN="python3"
+fi
+find "$DST/skills" -name 'SKILL.md' -exec "$PYTHON_BIN" -c '
 import re, sys
 for f in sys.argv[1:]:
     with open(f) as fh: t = fh.read()

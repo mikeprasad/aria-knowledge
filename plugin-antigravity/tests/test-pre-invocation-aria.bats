@@ -1,6 +1,7 @@
 #!/usr/bin/env bats
 
 setup() {
+  export HOME="${BATS_TMPDIR}"
   WRAPPER="${BATS_TEST_DIRNAME}/../bin/antigravity/pre-invocation-aria.sh"
   CACHE_DIR="$HOME/.gemini/antigravity"
   CACHE_FILE="$CACHE_DIR/.last-transcript-path"
@@ -9,7 +10,7 @@ setup() {
 }
 
 teardown() {
-  rm -f "$CACHE_FILE" "$LOG_FILE" "$CACHE_DIR/.last-artifact-dir" 2>/dev/null || true
+  rm -rf "$CACHE_DIR" 2>/dev/null || true
 }
 
 @test "wrapper output is valid JSON for any invocationNum" {

@@ -131,6 +131,36 @@ find ~/.gemini/config/plugins -name "explanatory-output-style" -type d 2>/dev/nu
 
 Record the result as `true` or `false`.
 
+## Step 5b: Status-line Meter (optional)
+
+Offer the CLI status-line meter — a persistent bottom-of-screen readout of context-window fill plus rolling 5-hour / 7-day plan usage (Claude Code only). It also persists a usage snapshot that the session's Claude can read on demand (and that powers the `usage_alert_threshold` warning configured in Step 6).
+
+1. Detect current state:
+
+   ```bash
+   command -v jq >/dev/null 2>&1 && grep -q 'aria-statusline-meter.sh' "$HOME/.claude/settings.json" 2>/dev/null && echo "installed" || echo "not-installed"
+   ```
+
+2. **If not installed:** offer it — *"Install the status-line meter? It shows `model │ context-bar % │ 5h % │ 7d %` at the bottom of the CLI and lets me see my own context/usage. (y/n)"*. On `y`, invoke the `/statusline on` skill (via the Skill tool) to do the wiring; on `n`, skip (note it can be added anytime with `/statusline`).
+3. **If already installed:** offer a refresh — *"Status-line meter is installed. Refresh its script to this plugin version? (y/n)"*. On `y`, invoke `/statusline on` (it re-copies the script); on `n`, skip.
+
+This step never edits `settings.json` directly — it delegates to `/statusline` so the wiring logic lives in one place. If `jq` is missing, mention the meter needs it (it'll show model-only otherwise) but still allow install.
+
+## Step 5c: Superpowers (strongly recommended companion)
+
+Check whether the **Superpowers** plugin is installed:
+
+```bash
+find ~/.gemini/config/plugins -name "superpowers" -type d 2>/dev/null | head -1
+```
+
+- **If found:** *"Superpowers detected — its process skills pair with ARIA's discipline layer."* No action needed.
+- **If not found:** *"ARIA governs **knowledge and edit discipline**; Superpowers ([github.com/obra/superpowers](https://github.com/obra/superpowers)) governs **process discipline** — brainstorming, `writing-plans`, `executing-plans`, TDD, systematic-debugging, and subagent-driven development. They interlock: Superpowers' `writing-plans` produces a plan, ARIA's `/prospect` pre-mortems it before execution, Superpowers executes it, and ARIA's `/retrospect` closes the loop with per-fix validation. ARIA even stores plans/specs in the `docs/superpowers/{plans,specs}/` convention. **Strongly recommended, but optional** — ARIA works standalone; the two together are a full plan→build→verify→learn discipline. Install it? (y/n)"*
+
+  - This step does **not** install Superpowers itself (it's a separate plugin). On `y`, point the user to the install command — *"Install it with `/plugin install superpowers@claude-plugins-official` (the official Claude plugins marketplace), then restart the session. If that marketplace isn't registered yet, run `/plugin` to browse and add it."* On `n`, skip — *"Skipped. You can add Superpowers anytime; ARIA doesn't require it."*
+
+This is a recommendation only — ARIA never depends on Superpowers being present, and no ARIA skill is gated on it. Note the outcome in the Step 8 summary (*"Superpowers: detected / recommended (not installed)"*).
+
 ## Step 6: Cadence Configuration
 
 Present current or default cadences:
@@ -167,7 +197,20 @@ The summary line precedes the bundle text. If the user later questions "did the 
 > - **Ideas staleness threshold:** 7 days (during `/audit-knowledge`, mark idea files in `intake/ideas/` older than this with `[STALE — still relevant?]` to prompt Accept/Reject/Defer decisions)
 > - **Auto-capture on compaction:** true (save transcript snapshot before context compaction)
 > - **Active knowledge surfacing:** true (when enabled, four hooks — SessionStart, TaskCreated, PreToolUse:Bash with cd, PostCompact — and two skills — /prospect, /retrospect — auto-load context at trigger moments. **Two kinds of context get surfaced (v2.16.1 expansion):** (a) **knowledge files** matched by tag against the user's task/cd-target/skill-input, and (b) **tracked artifacts** — CODEMAP directory + STITCH for the detected project (boundary-detected; not the full CODEMAP). Both surface with staleness annotations against `codemap_staleness_threshold_days` (default 14) and `stitch_staleness_threshold_days` (default 30); grossly-stale artifacts (>2× threshold) refuse to load with a warning. Companion surfaces — /audit-config, /stats, /handoff, /wrapup — also gate their tracked-artifact surfacing on this flag. Set to `false` for passive mode where hooks only suggest `/context <tag>` and all proactive artifact loading is suppressed (users load manually via /context). Active mode honors a session-scoped dedup ledger at `/tmp/aria-active-{session_id}` so the same file/artifact isn't re-Read across triggers. See CONFIG.md for the trigger sites and the ≥2-tag-match threshold + 5-file cap policy.)
+> - **Session state file (`SESSION.md`):** false (when on, aria-knowledge writes a per-project `SESSION.md` — `in-progress` at session start, `wrapup`/`handoff` at close — and offers to resume from it at session start; enables re-entry + the aria-atlas status board. Files are created at project roots only when on. Change later via `session_state` in `~/.gemini/antigravity/aria-knowledge.local.md`. A companion `session_stale_days` key [default 7] controls when a saved resume prompt is treated as possibly-stale: an older entry triggers a "still relevant? [resume / archive / keep]" prompt at session start instead of being presented as live — it never auto-evicts. A second companion key `session_state_tracked` [default false] decides whether `SESSION.md` is **git-ignored** or **committed**: the default treats it as ephemeral, while `true` treats it as a tracked decision-trail artifact that `/wrapup` and `/handoff` stage with their commit. Set it `true` in repos with no `PROGRESS.md`, where `SESSION.md` *is* the durable log and the ephemeral rationale does not apply. ⚠ Whichever it is set to, both skills test tracking with `git ls-files --error-unmatch`, not by looking for the pattern in `.gitignore` — an ignore rule is a no-op on an already-tracked path, so a pattern check never becomes true and the ignore line is appended on every run.)
+> - **Auto-prospect (`auto_prospect`):** off (when `nudge`, writing a plan to `docs/plans/` or `docs/superpowers/plans/` prompts an offer to run `/prospect file <path>`; when `run`, it runs inline. `docs/specs/` is intentionally not a trigger. Change later via `auto_prospect` in `~/.gemini/antigravity/aria-knowledge.local.md`.)
+> - **Autonomy posture (`autonomy`):** default (decision-routing posture, Rule 35). `default` injects nothing — no behavior change, no context cost. `balanced` injects an investigate-first directive each session: ask on intent/preference/judgment-with-no-gainable-visibility + ungranted explicit approval; act on mechanical/objectively-validatable. `autonomous` injects the full posture: decide objectively-validatable forks yourself (checked against the build-philosophy bar, Rules 13/14/18), run quality gates as checks-not-stops, stop only on a no-visibility judgment call or ungranted explicit approval. Turn it up when you want the agent to spend fewer of your decisions on what it can resolve itself. Change later via `autonomy` in `~/.gemini/antigravity/aria-knowledge.local.md`.)
+> - **Auto-retrospect (`auto_retrospect`):** off (when `nudge` [recommended], a `git push` of ≥`retrospect_min_commits` commits to a branch in `retrospect_branches` prompts an offer to run `/retrospect range <old>..<new>`; `run` runs it inline — note the post-push session is not disposable, so `run` adds real cost. Gates: `retrospect_min_commits` default 3, `retrospect_branches` default `main,master,production`.)
+> - **Usage alert threshold (`usage_alert_threshold`):** 80 (the percentage at which the status-line meter's `UserPromptSubmit` hook injects a usage warning into Claude's context when context-window, 5-hour, or 7-day usage crosses it — fires once per 5-point band, escalates, rearms after a drop). Only active when the status-line meter is installed (Step 5b). Set `off` to disable injection — Claude still reads usage on demand from the snapshot. Valid range 1–100.
 > - **Critical paths:** (empty) comma-separated path patterns that always require HIGH impact assessment (e.g., auth/*,payments/*,migrations/*)
+> - **Preflight commit gate (`preflight_gate`):** warn (what happens on a `git commit` with no `/preflight` recorded this session. `off` = never fires; `warn` = a reminder; `deny` = block every code commit. Any recorded preflight — of any verdict — satisfies the gate for the rest of the session, so even `deny` costs one run, not one per commit. Docs-only commits are always silent. An unrecognized value falls back to `warn`, never `off`.)
+> - **Preflight deny paths (`preflight_deny_paths`):** (empty) space-separated globs matched against **repo-relative** staged paths. An *escalation*, independent of the gate: `warn` + named paths = warn generally, block on these. Note the docs filter runs first, so `*.md` paths can never be covered here.
+> - **Preflight deny repos (`preflight_deny_repos`):** (empty) comma-separated substrings matched against the repository's absolute path — the way to say "always gate this repo", which deny_paths cannot express (staged paths are repo-relative and never contain the repo name). Substring, so it over-matches a same-named sibling; for a gate that is the safe direction. Same independence as deny_paths.
+> - **Style-audit lookback (`style_lookback_days`):** 90 (on `/audit style`'s first-ever run, how many days of session-log history to window the initial scan to. Later runs resume incrementally from the style-audit log's last stamp, so this only matters cold-start or after a `window <D>` override. Change later via `style_lookback_days` in `~/.gemini/antigravity/aria-knowledge.local.md`.)
+> - **Style-audit session cap (`style_max_sessions`):** 50 (the over-cap gate `/audit style` Step 1b stops at before scanning — exceeding it prompts `recent`/`all`/`window <D>`/`cancel` rather than silently truncating. Change later via `style_max_sessions`.)
+> - **Style-audit log path (`style_audit_log`):** `{knowledge_folder}/logs/style-audit-log.md` (where `/audit style` stamps its incremental scan boundary after each run. Change later via `style_audit_log`.)
+> - **External-fetch gate (`external_fetch_gate`):** off (when `on`, the first `WebFetch`/`WebSearch` per session aimed at a surface your knowledge folder or memory dirs already cover is denied **once**, naming the matched files; the retry passes. Coverage is keyed on the URL's registrable domain, or on vendor-like words in a search query — ordinary English words are filtered out. It is an *interrupt, not a verification*: it cannot confirm you read the file. Change later via `external_fetch_gate` in `~/.gemini/antigravity/aria-knowledge.local.md`.)
+> - **External-fetch ambient cap (`external_fetch_max_hits`):** 8 (above this many matching files the surface is treated as ambient and the gate stays silent — a host mentioned in 76 files carries no signal, and surfacing them all trains you to dismiss the hook. Change later via `external_fetch_max_hits`.)
 > - **Ticketing plugins:** (empty) comma-separated `tag:plugin-command` pairs mapping a project tag to its ticket-drafting plugin (e.g., `proj-a:foo-ticket,proj-b:bar-ticket`). When set, `/audit-knowledge` prints a hint to use that plugin's command when an idea's project matches a mapped tag during the `Accept → tracker` disposition. Hint only — never auto-invokes. Leave empty if you don't use a ticketing plugin or prefer to copy ideas into your tracker manually. Plugin commands are bare names — no leading `/`. Validate input: each pair must contain exactly one `:` separating tag from command; project tags cannot contain `:` or `,`; plugin commands cannot start with `/` (strip leading `/` and warn if found).
 > - **Project-specific knowledge tier:** disabled (creates `projects/{tag}/` subdirectories for project-specific decisions and patterns; opt in if you want to organize knowledge by project alongside the cross-project tree. If enabled, you'll be asked an inline follow-up about auto-loading project context on session start.)
 >
@@ -189,17 +232,21 @@ This block is read-only — `/setup` never writes new entries here. See **Step 7
 
 ### Project Setup (only if user enables the project-specific knowledge tier)
 
-If the user enables (or keeps enabled) the project-specific knowledge tier in Advanced Options, ask four follow-up questions. In **update mode** where values already exist in the config, show the current value for each question and let the user keep it (press enter) or enter a new value — this is the discoverable path for toggling `auto_load_project_context` on a re-run when the tier was previously enabled:
+If the user enables (or keeps enabled) the project-specific knowledge tier in Advanced Options, ask six follow-up questions. In **update mode** where values already exist in the config, show the current value for each question and let the user keep it (press enter) or enter a new value — this is the discoverable path for toggling `auto_load_project_context` on a re-run when the tier was previously enabled:
 
 1. **Project list** — "Comma-separated `tag:relative-path` pairs (e.g., `proj-a:path/to/proj-a,proj-b:proj-b,lib:shared-lib`). Paths are relative to the parent of your knowledge folder (typically `~/Projects/`). Press enter to defer adding projects:"
 2. **Project remotes (optional)** — "Optional git-remote URL patterns for fallback project detection when CWD doesn't match a configured path. Comma-separated `tag:url-substring` pairs (e.g., `proj-a:myorg/proj-a-repo`). Press enter to skip:"
 3. **Promotion threshold** — "Minimum number of projects that must share a similar pattern before `/audit-knowledge` suggests cross-project promotion (default 2):"
 4. **Auto-load project context on session start** — "When your CWD matches a configured project, should SessionStart automatically suggest `/context {tag}`? This is a runtime convenience — the project tier works fine without it, and you can change this later by editing `auto_load_project_context` in `~/.gemini/antigravity/aria-knowledge.local.md`. (y/n, default n):"
+5. **SessionStart project picker** — "When you open a session from a multi-project parent directory (no project chosen yet), should ARIA suggest a project menu generated from your `projects_list`? Non-blocking — you can always just name a project or start working. (y/n, default n):" → writes `session_start_project_picker`.
+6. **Project display labels (optional)** — "Optional friendly names for the picker menu. Comma-separated `tag:Label` pairs (e.g., `api:API Server,web:Web Client`). Empty = bare tags. Press enter to skip:" → writes `projects_labels`.
 
 **Validate input:**
 - Project tags cannot contain `:` or `,` (these are the parser delimiters). If invalid, show the offending tag and re-prompt.
 - Promotion threshold must be a plain integer ≥ 1. If invalid, re-prompt.
 - Auto-load answer must be `y`/`n` (or empty for default). If invalid, re-prompt.
+- SessionStart project picker answer must be `y`/`n` (or empty for default). If invalid, re-prompt.
+- `projects_labels` is comma-separated `tag:Label` pairs, or empty. Warn (don't error) if a label's tag is not in `projects_list`.
 - For each `tag:path` pair, warn (don't error) if the resolved path doesn't exist on disk yet — the user may be configuring projects they haven't created.
 
 **Existing-folder detection:**
@@ -214,18 +261,18 @@ Before prompting, scan the user's knowledge folder for an existing `projects/` s
 
 ### Shared Knowledge Setup (only if user enables the project tier)
 
-After Project Setup completes (questions 1-4), if `projects_enabled: true` AND `projects_list` is non-empty, ask two follow-up questions about the shared-knowledge feature. In **update mode** where values exist, show current values and let the user keep (press enter) or change.
+After Project Setup completes (questions 1-6), if `projects_enabled: true` AND `projects_list` is non-empty, ask two follow-up questions about the shared-knowledge feature. In **update mode** where values exist, show current values and let the user keep (press enter) or change.
 
-5. **Which projects do you want to enable shared knowledge for?** — *"This is an opt-in extension that lets you promote selected personal knowledge into per-repo `_project-knowledge/` folders so teammates can see what you've learned. Personal knowledge stays in your own knowledge folder; team copies are independent records committed to your project repos via your normal git workflow. Most users have many repos but only a few with teams to share with — pick only the ones with teammates who'd benefit. Your configured projects: {projects_list tag enumeration}. Enter comma-separated tags (default: empty = feature disabled, all projects stay personal-only):"*
+7. **Which projects do you want to enable shared knowledge for?** — *"This is an opt-in extension that lets you promote selected personal knowledge into per-repo `_project-knowledge/` folders so teammates can see what you've learned. Personal knowledge stays in your own knowledge folder; team copies are independent records committed to your project repos via your normal git workflow. Most users have many repos but only a few with teams to share with — pick only the ones with teammates who'd benefit. Your configured projects: {projects_list tag enumeration}. Enter comma-separated tags (default: empty = feature disabled, all projects stay personal-only):"*
 
-6. **Author tag for shared-knowledge filenames** — only ask if Q5 returned a non-empty tag list. *"Shared-knowledge files use `{YYYY-MM-DD}-{author-tag}-{slug}.md` naming. Pick a short author tag (e.g., `init`, or initials, or first2+last2 of your name). Default: derived from `git config user.name` (first 2 chars of first name + first 2 chars of last name) → '{auto-derived}':"*
+8. **Author tag for shared-knowledge filenames** — only ask if Q7 returned a non-empty tag list. *"Shared-knowledge files use `{YYYY-MM-DD}-{author-tag}-{slug}.md` naming. Pick a short author tag (e.g., `init`, or initials, or first2+last2 of your name). Default: derived from `git config user.name` (first 2 chars of first name + first 2 chars of last name) → '{auto-derived}':"*
 
 **Validate input:**
-- Q5 answer is a comma-separated tag list, or empty (= feature disabled). Each tag must already exist in `projects_list`. If a tag is not in `projects_list`, show the offending tag and re-prompt: *"Tag '{tag}' is not in projects_list. Available: {projects_list tags}. Re-enter:"*. Empty input is valid and means feature disabled.
-- Q6 author_tag must be 1-12 characters, alphanumerics + hyphens only (the value will appear in filenames). If invalid, show offending characters and re-prompt.
-- If Q5 returned a non-empty list but Q6 produces an empty value AND no derivable git user.name exists, warn: *"Author tag is required for shared knowledge. You can set `author_tag` later in `~/.gemini/antigravity/aria-knowledge.local.md`, but `/audit-share` will refuse to run until it's set."* Continue setup with `author_tag:` empty.
+- Q7 answer is a comma-separated tag list, or empty (= feature disabled). Each tag must already exist in `projects_list`. If a tag is not in `projects_list`, show the offending tag and re-prompt: *"Tag '{tag}' is not in projects_list. Available: {projects_list tags}. Re-enter:"*. Empty input is valid and means feature disabled.
+- Q8 author_tag must be 1-12 characters, alphanumerics + hyphens only (the value will appear in filenames). If invalid, show offending characters and re-prompt.
+- If Q7 returned a non-empty list but Q8 produces an empty value AND no derivable git user.name exists, warn: *"Author tag is required for shared knowledge. You can set `author_tag` later in `~/.gemini/antigravity/aria-knowledge.local.md`, but `/audit-share` will refuse to run until it's set."* Continue setup with `author_tag:` empty.
 
-**Schema note:** the config field `projects_shared_knowledge` is itself the comma-separated tag list (the value IS the scope). Empty/missing = feature disabled. There is no separate boolean toggle; the field's presence and content together encode "enabled and for which projects." A legacy value of `true` (from pre-publish v2.13.0 stubs) is treated the same as empty and triggers Q5 to populate the list properly on `/setup` re-run.
+**Schema note:** the config field `projects_shared_knowledge` is itself the comma-separated tag list (the value IS the scope). Empty/missing = feature disabled. There is no separate boolean toggle; the field's presence and content together encode "enabled and for which projects." A legacy value of `true` (from pre-publish v2.13.0 stubs) is treated the same as empty and triggers Q7 to populate the list properly on `/setup` re-run.
 
 **CLAUDE.md reference handling deferred to first-write.** Earlier drafts of this spec offered to append `_project-knowledge/` references to project CLAUDE.md files at setup time. That has been removed: documenting a convention before the folder exists is aspirational, batch-applying across all projects loses per-repo nuance (different repos may have different teams / visibility), and a default-`y` prompt for a teammate-affecting change is more aggressive than ARIA's normal posture. The CLAUDE.md reference offer now happens inside `/audit-share` Step 6.5 the first time a file is actually written to a repo's `_project-knowledge/` folder — at that moment the folder + README exist, the user has just made an active sharing decision, and per-repo confirmation with git-tracked detection can be presented in context. Step 6.5b additionally handles the multi-repo container CLAUDE.md case for tags with `projects_groups` entries.
 
@@ -238,7 +285,7 @@ Before completing this section, scan for existing `_project-knowledge/` folders.
 
 For each scan location where a `_project-knowledge/` folder is found:
 
-- **If found AND its parent project tag is NOT in the user's `projects_shared_knowledge` list:** Note in verbose output: *"An existing `_project-knowledge/` folder was detected at `<scan-location>` (parent project tag `{tag}`) but `{tag}` is not in your shared-knowledge list. Add `{tag}` to the list now? (y/n)"* — if yes, append the tag to the Q5 answer and continue.
+- **If found AND its parent project tag is NOT in the user's `projects_shared_knowledge` list:** Note in verbose output: *"An existing `_project-knowledge/` folder was detected at `<scan-location>` (parent project tag `{tag}`) but `{tag}` is not in your shared-knowledge list. Add `{tag}` to the list now? (y/n)"* — if yes, append the tag to the Q7 answer and continue.
 - **If found AND its parent project tag IS in the list:** No action; the folder will be picked up by `/index` Phase 5 on next rebuild.
 - **If found AND `projects_shared_knowledge` is empty:** Note: *"An existing `_project-knowledge/` folder was detected at `<scan-location>` but the shared-knowledge feature is disabled (empty list). Folder is preserved; `/index` and `/context` won't surface it until you enable the feature for tag `{tag}` via `/setup`."*
 
@@ -262,15 +309,35 @@ staleness_threshold_months: [value from Step 6, default 6]
 ideas_staleness_threshold_days: [value from Step 6, default 7]
 auto_capture: [true/false from Step 6, default true]
 active_knowledge_surfacing: [true/false from Step 6, default true]
+session_state: [true/false from Step 6, default false]
+session_stale_days: [integer, default 7]
+session_state_tracked: [true/false, default false]
+auto_prospect: [off/nudge/run, default off]
+auto_retrospect: [off/nudge/run, default off]
+autonomy: [default/balanced/autonomous, default default]
+retrospect_min_commits: [integer, default 3]
+retrospect_branches: [comma-list, default main,master,production]
+usage_alert_threshold: [value from Step 6, default 80; or `off` to disable usage injection]
 critical_paths: [comma-separated patterns from Step 6, default empty]
+planning_paths: [comma-separated patterns from Step 6, default empty]
+external_fetch_gate: [on/off from Step 6, default off]
+external_fetch_max_hits: [integer from Step 6, default 8]
+preflight_gate: [off | warn | deny, from Step 6, default warn]
+preflight_deny_paths: [space-separated globs from Step 6, default empty]
+preflight_deny_repos: [comma-separated repo-path substrings from Step 6, default empty]
+style_lookback_days: [integer from Step 6, default 90]
+style_max_sessions: [integer from Step 6, default 50]
+style_audit_log: [path from Step 6, default {knowledge_folder}/logs/style-audit-log.md]
 ticketing_plugins: [comma-separated tag:plugin-command pairs from Step 6, default empty]
 projects_enabled: [true/false from Step 6, default false]
 projects_list: [comma-separated tag:path pairs from Step 6, default empty]
 projects_remotes: [comma-separated tag:url-pattern pairs from Step 6, default empty]
 projects_promotion_threshold: [integer from Step 6, default 2]
 auto_load_project_context: [true/false from Step 6, default false]
-projects_shared_knowledge: [comma-separated tag list from Shared Knowledge Setup Q5, default empty = feature disabled; each tag must exist in projects_list]
-author_tag: [string from Shared Knowledge Setup Q6, default empty when projects_shared_knowledge is empty]
+session_start_project_picker: [true/false from Step 6, default false]
+projects_labels: [comma-separated tag:Label pairs from Step 6, default empty]
+projects_shared_knowledge: [comma-separated tag list from Shared Knowledge Setup Q7, default empty = feature disabled; each tag must exist in projects_list]
+author_tag: [string from Shared Knowledge Setup Q8, default empty when projects_shared_knowledge is empty]
 ---
 ```
 
@@ -324,7 +391,17 @@ After writing the config file, read it back and verify that each value can be ex
    - `ideas_staleness_threshold_days` — confirm it's the integer from Step 6
    - `auto_capture` — confirm it's `true` or `false`
    - `active_knowledge_surfacing` — confirm it's `true` or `false`
+   - `session_state` — confirm it's `true` or `false`
+   - `auto_prospect` / `auto_retrospect` — confirm each is `off`, `nudge`, or `run`
+   - `usage_alert_threshold` — confirm it's `off` or a plain integer in 1–100 (matches Step 6 input; default 80). Any other value is reset to 80.
    - `critical_paths` — confirm it's a comma-separated string of path patterns (or empty)
+   - `planning_paths` — confirm it's a comma-separated string of path patterns (or empty)
+   - `preflight_gate` — confirm it is exactly `off`, `warn` or `deny`. Any other value is rewritten to `warn`, never to `off`: a typo must not silently disable a gate the user believes is on.
+   - `preflight_deny_paths` — confirm it's a space-separated string of globs (or empty). **Independent of `preflight_gate`, not a sub-setting of it**: these paths deny from any baseline, the same way `critical_paths` escalates Rule 22 regardless of surroundings. So `preflight_gate: warn` + named paths = "warn on code commits, but block on these" — the configuration most users want. Empty means no escalation. ⚠ Patterns are matched against **repo-relative** staged paths, and the docs filter drops `*.md`/`*.txt`/`*.rst`/`docs/*` before matching — so a `.md` path here can never fire, and a bare filename will not match that file nested in a subdirectory.
+   - `preflight_deny_repos` — confirm it's a comma-separated string of substrings (or empty); no spaces around commas. Matched against the repository's resolved absolute path, so it expresses "always gate this repo" — which `preflight_deny_paths` structurally cannot, staged paths being repo-relative. Independent of the gate, exactly like `preflight_deny_paths`. Empty means no escalation.
+   - `style_lookback_days` — confirm it's the integer from Step 6 (default 90)
+   - `style_max_sessions` — confirm it's the integer from Step 6 (default 50)
+   - `style_audit_log` — confirm it's a path string (default `{knowledge_folder}/logs/style-audit-log.md`, with `{knowledge_folder}` resolved to the actual configured path)
    - `ticketing_plugins` — confirm it's a comma-separated string of `tag:plugin-command` pairs (or empty); validate no project tag contains `:` or `,`; validate plugin-command values do not start with `/`
    - `last_setup_version` — confirm it matches `INSTALLED_VERSION` captured in Step 1 (this run's plugin version); validate it's a semver-shaped string of digits and dots (no `v` prefix, no quotes, no trailing whitespace). If it's missing or doesn't match, rewrite the line and re-verify
    - `projects_enabled` — confirm it's `true` or `false`
@@ -332,7 +409,7 @@ After writing the config file, read it back and verify that each value can be ex
    - `projects_remotes` — confirm it's a comma-separated string of `tag:url-pattern` pairs (or empty); validate no project tag contains `:` or `,`
    - `projects_promotion_threshold` — confirm it's a plain integer ≥ 1 (matches Step 6 input)
    - `auto_load_project_context` — confirm it's `true` or `false`
-   - **Empty-sentinel check** — for string-valued keys with an empty default (`critical_paths`, `ticketing_plugins`, `projects_list`, `projects_remotes`): confirm the raw extracted value is not the literal string `null`, `""`, `none`, or `[]`. If the key is intended to be empty, the value after the colon must be truly empty (nothing or a single trailing space). Rewrite the key as `key:` and re-verify.
+   - **Empty-sentinel check** — for string-valued keys with an empty default (`critical_paths`, `planning_paths`, `preflight_deny_paths`, `preflight_deny_repos`, `ticketing_plugins`, `projects_list`, `projects_remotes`): confirm the raw extracted value is not the literal string `null`, `""`, `none`, or `[]`. If the key is intended to be empty, the value after the colon must be truly empty (nothing or a single trailing space). Rewrite the key as `key:` and re-verify.
 
 **Skill-only field validation (`projects_groups`)** — if the field is present in the config, run structural-only checks. Do not attempt to flatten or rewrite this field; it's parsed by skills, not bash, so the verification mirrors that consumer.
 
@@ -389,24 +466,6 @@ Scaffold the project tier using the final config values:
      - **Project Display Name** is derived from the tag with hyphens converted to spaces and title-cased (e.g., `proj-a` → `Proj A`). If the tag doesn't produce a sensible display name, use the tag as-is and prompt the user to edit the README header.
 4. **Never overwrite** existing per-project READMEs or content under `projects/{tag}/` — these are user-owned.
 5. **Report** what was scaffolded: "Project tier: created N directories, N per-project READMEs."
-
-## Step 7ca: Antigravity-Specific Workspace Setup (Workflows & Rules)
-
-Enable true slash-command invocation (e.g. `/setup`, `/handoff`, `/wrapup`, `/extract`) and native Always-On rule enforcement by copying plugin-bundled workflows and rules to the current project's `.agents/` workspace folder:
-
-1. **Scaffold target directories** inside the current workspace (`WORKSPACE_PATH` derived from the hook context or the workspacePaths):
-   ```bash
-   mkdir -p "${WORKSPACE_PATH}/.agents/workflows" "${WORKSPACE_PATH}/.agents/rules"
-   ```
-2. **Copy the 10 thin-shim workflows** from the plugin's `workflows/` directory:
-   ```bash
-   cp "${CLAUDE_PLUGIN_ROOT}/workflows/"*.md "${WORKSPACE_PATH}/.agents/workflows/"
-   ```
-3. **Copy the plugin-bundled ARIA rules** to `.agents/rules/`:
-   ```bash
-   cp "${CLAUDE_PLUGIN_ROOT}/rules/aria-rules.md" "${WORKSPACE_PATH}/.agents/rules/"
-   ```
-4. **Report** what was copied: "Antigravity Workspace: copied 10 workflows to `.agents/workflows/` and `aria-rules.md` to `.agents/rules/`."
 
 ## Step 7d: Shared Knowledge Initial Sync
 
@@ -475,3 +534,18 @@ Two habits that make ARIA most effective:
 - Respond to "Knowledge audit due" prompts — promotes pending items so /context can surface them later
 Everything else runs automatically via hooks.
 ```
+
+## Step (optional): Schedule the morning PM review (Claude Code, macOS only)
+
+If the user wants `/aria-assist` to run automatically each morning, offer to install the launchd job:
+
+> "Want me to schedule the morning PM review? It runs `/aria-assist generate` at your
+> `pm_schedule_time` (default 07:30) and notifies you. macOS only; you can remove it later with
+> `sh <plugin>/bin/pm-schedule.sh --uninstall`."
+
+On yes (Bash available): `sh ${CLAUDE_PLUGIN_ROOT}/bin/pm-schedule.sh`.
+The iMessage notification path needs a one-time **Automation permission** grant
+(System Settings → Privacy & Security → Automation); the desktop banner always works.
+The schedule also surfaces as a read-only "Morning run" card in aria-atlas (if you use it),
+which reads the status from `<knowledge_folder>/pm-reviews/.aria-assist.json` (written by
+`pm-schedule.sh` on install/uninstall and refreshed by each run).

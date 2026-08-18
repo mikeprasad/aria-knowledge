@@ -32,7 +32,13 @@ fi
 INPUT=$(cat)
 
 # Extract the Bash command. We pull the command field from the JSON input.
-COMMAND=$(echo "$INPUT" | grep -o '"command":"[^"]*"' | head -1 | sed 's/"command":"//;s/"$//')
+# printf '%s', NOT echo. This file declares #!/bin/sh but plugin.json invokes it
+# as `bash ...`, and the two disagree: bash's echo leaves backslashes alone,
+# POSIX sh's echo interprets them. Under sh, the \n that JSON uses for a newline
+# becomes a real newline, this single-line grep finds no closing quote, COMMAND
+# comes back empty, and the check silently fails open. printf '%s' behaves the
+# same under both shells, so the script stops depending on how it is invoked.
+COMMAND=$(printf '%s' "$INPUT" | grep -o '"command":"[^"]*"' | head -1 | sed 's/"command":"//;s/"$//')
 [ -z "$COMMAND" ] && exit 0
 
 # Extract `cd <path>` — match anywhere in a compound command. We pre-pad the

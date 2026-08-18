@@ -30,8 +30,11 @@
 # Test seam: PORT_LEDGER overrides the ledger path; PORT_LEDGER_ROOT overrides the
 # base dir surfaces resolve against (both default to the resolved repo root).
 #
-# Flag-day: release.sh runs this report-only this release; it becomes a fatal
-# release gate in v2.31.0 (see release.sh Gate C TODO).
+# Fatality is gated on a DECLARED SLA, not on a version number. release.sh runs this
+# report-only; a port whose `sla` is `undeclared` is tolerated by is_failure() by
+# construction, so declaring an SLA is what makes the gate bite for that port. (A
+# `TODO(v2.31.0): make fatal` lived here until 2026-08-17, by which time canonical was
+# 2.46.1 — fifteen minor versions past its own flag day. Retired, not re-dated.)
 set -u
 
 LEDGER_BASENAME="PORT-LEDGER.json"
@@ -94,14 +97,6 @@ port_manifest_version() {
   else
     head -1 "$_f" | tr -d ' \t\r\n'
   fi
-}
-
-version_for_target_compare() {
-  case "$1" in
-    openai-codex) printf '%s\n' "$2" | sed -E 's/-codex\.[0-9]+$//' ;;
-    cursor-template) printf '%s\n' "$2" | sed -E 's/-cursor\.[0-9]+$//' ;;
-    *) printf '%s\n' "$2" ;;
-  esac
 }
 
 # Glob spec → repo-relative surface paths for the known ports. Emits one path per
@@ -177,17 +172,42 @@ is_failure() {
 run_report() {
   _quiet="$1"
   _fail=0
+  # Resolve canonical ONCE for the lag line below — it is the same value for every port,
+  # and canonical_version() shells out to grep+sed each call.
+  _canon_live=$(canonical_version)
   [ "$_quiet" = no ] && printf '%-16s %-60s %s\n' "PORT" "SURFACE" "STATUS"
   [ "$_quiet" = no ] && printf '%-16s %-60s %s\n' "----" "-------" "------"
   for p in $(ports); do
     _sla=$(jq -r --arg p "$p" '.[$p].sla // "undeclared"' "$LEDGER")
     _last=$(jq -r --arg p "$p" '.[$p].last_parity_pass // "1970-01-01"' "$LEDGER")
-    _ver=$(jq -r --arg p "$p" '.[$p].version // "?"' "$LEDGER")
+    # NOTE: the ledger's `version` field is deliberately NOT read here any more. It is a
+    # port's own declared version and is no longer an operand of the lag comparison below;
+    # it remains in the ledger for provenance and for `--update` stamping.
     _ptarget=$(jq -r --arg p "$p" '.[$p].parity_target // "?"' "$LEDGER")
-    # version-lag line (informational; not a surface, not a failure)
-    _ver_cmp=$(version_for_target_compare "$p" "$_ver")
-    if [ "$_quiet" = no ] && [ "$p" != "claude-code" ] && [ "$_ver_cmp" != "$_ptarget" ]; then
-      printf '%-16s %-60s %s\n' "$p" "(version $_ver → target $_ptarget, sla=$_sla)" "lag"
+    # version-lag line (informational; not a surface, not a failure).
+    #
+    # Compares the port's `parity_target` — the canonical version it was last synced
+    # AGAINST — to LIVE canonical. Deliberately NOT the port's own `version`: those two
+    # ledger fields are written together by `--update`, so they are equal by construction
+    # the moment a baseline is taken and never diverge as canonical moves on afterwards.
+    # That made this line silent for the only lag that actually exists — the kind that
+    # accrues AFTER a baseline. Measured 2026-08-17: antigravity read 2.36.0/2.36.0 and
+    # reported nothing while canonical was 2.46.1, nine minor versions ahead.
+    #
+    # Dropping the port's own version as an operand also removes claude-cowork's permanent
+    # false positive for free: cowork versions on an independent 1.x scheme that can never
+    # equal a 2.x target, so the old comparison flagged it on every run forever. That was a
+    # symptom of comparing the wrong two things, not a case needing an exemption.
+    #
+    # An unresolvable canonical emits NO lag line. canonical_version() is deliberately
+    # tolerant (empty when the manifest is absent) because its original caller is `--update`
+    # stamping, where a missing manifest must not break a re-baseline. Empty as a comparison
+    # operand would instead make every port "differ" and report lag — so guard it here, at
+    # the call site whose meaning differs. Lag is undefined without a reference point.
+    if [ "$_quiet" = no ] && [ "$p" != "claude-code" ] && [ -n "$_canon_live" ] \
+       && [ "$_ptarget" != "$_canon_live" ]; then
+      printf '%-16s %-60s %s\n' "$p" \
+        "(synced to $_ptarget → canonical $_canon_live, sla=$_sla)" "lag"
     fi
     # surfaces
     _surfaces=$(jq -r --arg p "$p" '.[$p].surfaces // {} | keys[]?' "$LEDGER")

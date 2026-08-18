@@ -63,7 +63,7 @@ BREAKER_STATE=""
 # Planning paths where abbreviated assessment is permitted
 IS_PLANNING=false
 case "$FILE_PATH" in
-  */docs/specs/*|*/docs/plans/*|*/docs/superpowers/specs/*|*/docs/superpowers/plans/*) IS_PLANNING=true ;;
+  */docs/specs/*|*/docs/plans/*|*/docs/superpowers/specs/*|*/docs/superpowers/plans/*|*/.claude/skills/*/templates/*) IS_PLANNING=true ;;
 esac
 
 # Protected filenames that always require full assessment
@@ -106,6 +106,24 @@ if [ "$KT_CONFIGURED" = "true" ] && [ -n "$KT_CRITICAL_PATHS" ] && [ "$IS_PROTEC
     [ -z "$PREFIX" ] && continue
     case "$FILE_PATH" in
       */"$PREFIX"/*) IS_PROTECTED=true; break ;;
+    esac
+  done
+  IFS="$OLD_IFS"
+fi
+
+# User-declared planning paths (inverse of critical_paths: downgrade to the
+# abbreviated [Rule 22 · Planning] marker). Runs AFTER the protection loops, and
+# the EXPECTED decision below only honors planning when IS_PROTECTED=false — so a
+# path that is both critical and planning correctly resolves to full assessment
+# (protect always wins). A marker is still required; only the format is lighter.
+if [ "$KT_CONFIGURED" = "true" ] && [ -n "$KT_PLANNING_PATHS" ] && [ "$IS_PLANNING" = "false" ]; then
+  OLD_IFS="$IFS"
+  IFS=','
+  for PATTERN in $KT_PLANNING_PATHS; do
+    PREFIX=$(echo "$PATTERN" | sed 's|/\*$||;s|\*$||;s/^[[:space:]]*//;s/[[:space:]]*$//')
+    [ -z "$PREFIX" ] && continue
+    case "$FILE_PATH" in
+      */"$PREFIX"/*) IS_PLANNING=true; break ;;
     esac
   done
   IFS="$OLD_IFS"
