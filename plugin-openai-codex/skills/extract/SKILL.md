@@ -99,7 +99,7 @@ Scan `{knowledge_folder}/intake/subagent-captures/` for **all** pending `.md` ca
 For each capture, digest it for cheap review:
 
 ```
-bash ${CLAUDE_PLUGIN_ROOT}/bin/digest-transcript.sh "{capture_path}" "/tmp/aria-digest-{filename}"
+bash ${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/bin/digest-transcript.sh "{capture_path}" "/tmp/aria-digest-{filename}"
 ```
 
 Fold any findings from the digest into the SAME six buckets from Step 2 (insights, decisions, feedback, project context, references, ideas). They then flow through Step 3 (dedup) and Step 4 (append) with the conversation's own findings.
@@ -212,7 +212,7 @@ Ideas do NOT promote to knowledge files directly — during audit review the use
 - For ideas (per-file): write a new file per the filename pattern above; there is no placeholder to remove.
 - **If a single-file backlog is missing:** do not create it from scratch. Stop and tell the user: "Backlog file [name] is missing. Run /setup to repair the knowledge folder structure."
 - **If the `intake/ideas/` directory is missing:** do not create it. Stop and tell the user: "Ideas directory `intake/ideas/` is missing. Run /setup to repair the knowledge folder structure."
-- **Legacy-file detection (one-time):** if `{knowledge_folder}/intake/ideas-backlog.md` exists alongside `intake/ideas/`, surface a one-line note in Step 5's report: "Legacy `ideas-backlog.md` detected — run `/setup` or `bash ${CLAUDE_PLUGIN_ROOT}/bin/migrate-ideas-backlog.sh` to migrate pre-2.11 entries." Do not attempt the migration from within `/extract`.
+- **Legacy-file detection (one-time):** if `{knowledge_folder}/intake/ideas-backlog.md` exists alongside `intake/ideas/`, surface a one-line note in Step 5's report: "Legacy `ideas-backlog.md` detected — run `/setup` or `bash ${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/bin/migrate-ideas-backlog.sh` to migrate pre-2.11 entries." Do not attempt the migration from within `/extract`.
 
 ## Step 5: Report
 

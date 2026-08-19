@@ -9,18 +9,21 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 
 Generate a passoff package so the next reader can pick up cleanly. Two audiences:
 
-- **Next-session handoff** (default + `auto`) — For future-you in a new session (typically when context is high and you need to restart). Synthesizes the session, applies PROGRESS.md / AGENTS.md / CLAUDE.md / memory updates, commits, runs `/extract`, and emits a **paste-ready next-session opener as the headline artifact**.
+- **Next-session handoff** (default + `auto`) — For future-you in a new session (typically when context is high and you need to restart). Synthesizes the session, applies PROGRESS.md / CLAUDE.md / memory updates, commits, runs `/extract`, and emits a **paste-ready next-session opener as the headline artifact**.
 - **Coworker brief** (`brief`) — For another person. Produces a copy/paste prose block (Slack/email-ready) summarizing the session. Does NOT update PROGRESS/CLAUDE/memory, does NOT commit, does NOT run /extract. Output-only — paste it and you're done.
 
 For "I'm done, close it out cleanly" with no passoff intent, use `/wrapup` instead.
 
-**Three modes:**
+**Four modes:**
 
-- **Default (`/handoff`)** — Generate ALL drafts (session summary, PROGRESS entry, AGENTS.md / CLAUDE.md edits, memory updates, commit message, next-session prompt) into one scroll, ask once for combined-go, then apply atomically. Per-item edits allowed.
+- **Default (`/handoff`)** — Generate ALL drafts (session summary, PROGRESS entry, CLAUDE.md edits, memory updates, commit message, next-session prompt) into one scroll, ask once for combined-go, then apply atomically. Per-item edits allowed.
 - **`auto` (`/handoff auto`)** — Implicit-yes on all gates. Run silently. Apply all drafts without confirmation. Emit final report only. Use when the session is short and unambiguous.
 - **`brief` (`/handoff brief`)** — Generate a coworker-facing prose brief (80-150 words, copy/paste-ready). Skips PROGRESS/CLAUDE/memory/commit/extract entirely. Emits the brief as the only artifact.
+- **`snap` (`/handoff snap`)** — Like `auto` (silent, apply all drafts, emit the next-session opener), but archives the raw transcript via `/snapshot` for later extraction **instead of** running `/extract` now. Use when context is high: you still get the full handoff package + opener + commit, but defer the expensive, compaction-risky knowledge synthesis to a later session (or the next `/audit-knowledge` digest pass, which reads the snapshot automatically).
 
-**The next-session opener is the headline artifact** in default + auto modes — always produced, even when no other surface changed. That is what distinguishes `/handoff` from `/wrapup`. Brief mode is a different shape — handoff to a person, not to a session.
+**The next-session opener is the headline artifact** in default + auto + snap modes — always produced, even when no other surface changed. That is what distinguishes `/handoff` from `/wrapup`. Brief mode is a different shape — handoff to a person, not to a session.
+
+**`snap` is `auto` plus one swap.** snap follows auto's behavior exactly (silent, implicit-yes, apply all drafts, emit the opener) — wherever a step below applies to `auto`, it applies identically to `snap`. The single difference is the capture step (Step 6): `snap` runs `/snapshot` (archive the transcript for later) while `auto` runs `/extract` (synthesize now). Nothing else differs. (snap is NOT brief — it produces the full next-session package, not a coworker prose block.)
 
 ## Step 0: Resolve Config and Parse Mode
 
@@ -30,26 +33,26 @@ Parse the argument:
 - No arg, or arg is empty → `mode = combined-go` (default)
 - Arg matches `auto` (case-insensitive) → `mode = auto`
 - Arg matches `brief` (case-insensitive) → `mode = brief`
-- Any other arg → stop: "Unknown argument '{arg}'. Use '/handoff', '/handoff auto', or '/handoff brief'."
+- Arg matches `snap` (case-insensitive) → `mode = snap`
+- Any other arg → stop: "Unknown argument '{arg}'. Use '/handoff', '/handoff auto', '/handoff brief', or '/handoff snap'."
 
 Use `{knowledge_folder}` as the base path for all file operations.
 
 ## Step 1: Identify Project Context
 
 Same logic as `/wrapup` Step 1 — detect:
-- **Project root** — directory containing PROGRESS.md, AGENTS.md, and/or CLAUDE.md (search upward from cwd)
+- **Project root** — directory containing PROGRESS.md and/or CLAUDE.md (search upward from cwd)
 - **PROGRESS.md path** — if exists
-- **AGENTS.md path(s)** — root + relevant subfolder
 - **CLAUDE.md path(s)** — root + relevant subfolder
 - **Memory files** — any `project_*.md` files in `~/.claude/projects/` matching the current path
 - **Git repos** — run `git status` in each git repository within the project to detect uncommitted changes
 
 Additionally, determine the **project marker** for the next-session opener (Step 9):
-- Match the working directory against the project codes documented in the user's root AGENTS.md or CLAUDE.md (e.g., `cs`, `ss`, `df`, `kn`, `ar`, `jp` if those conventions exist).
+- Match the working directory against the project codes documented in the user's root CLAUDE.md (e.g., `cs`, `ss`, `df`, `kn`, `ar`, `jp` if those conventions exist).
 - If no SessionStart-hook project-code convention is detected, use the project's folder name as the marker.
 - If no project is identifiable, use the literal `[no-project]` — the opener will still work, just without auto-routing.
 
-If no PROGRESS.md, AGENTS.md, or CLAUDE.md is found, note this — proceed with the steps that apply.
+If no PROGRESS.md or CLAUDE.md is found, note this — proceed with the steps that apply.
 
 ## Step 2: Synthesize Session Work (silent)
 
@@ -69,7 +72,7 @@ This synthesis feeds every subsequent step.
 
 **Skip this step entirely if `mode != brief`.**
 
-Brief mode produces a single copy/paste artifact — a coworker-facing prose brief. No PROGRESS update, no AGENTS.md / CLAUDE.md edit, no memory write, no commit, no /extract call. Just the prose, formatted for paste into Slack / email / chat.
+Brief mode produces a single copy/paste artifact — a coworker-facing prose brief. No PROGRESS update, no CLAUDE.md edit, no memory write, no commit, no /extract call. Just the prose, formatted for paste into Slack / email / chat.
 
 ### 2B.1: Build the brief from Step 2 synthesis
 
@@ -127,8 +130,8 @@ In parallel, draft every artifact this handoff might write. Do NOT apply anythin
 ### 3a: PROGRESS.md entry
 If PROGRESS.md exists: draft a new session entry matching the existing format (heading style, date format, structure). If today's entry already exists, draft an *append-to-existing* delta instead of a duplicate entry.
 
-### 3b: AGENTS.md / CLAUDE.md updates
-If AGENTS.md or CLAUDE.md exists: check if anything from this session contradicts, outdates, or is missing from it. Prefer AGENTS.md for Codex-specific instructions; keep CLAUDE.md current when the project also uses Claude Code. If updates are needed, draft the specific edits (show old → new diffs). If nothing needs updating, mark as `current` — do NOT force updates for the sake of updating.
+### 3b: CLAUDE.md updates
+If CLAUDE.md exists: check if anything from this session contradicts, outdates, or is missing from it. If updates are needed, draft the specific edits (show old → new diffs). If nothing needs updating, mark as `current` — do NOT force updates for the sake of updating.
 
 ### 3c: Memory updates
 Check `~/.claude/projects/.../memory/project_*.md` files matching the current project path. Compare against the session synthesis. If memory is stale, draft an update (specific old → new lines). If no update needed, mark as `current`.
@@ -148,7 +151,7 @@ Suggested next session: {model · effort}
 
 Read first:
 - {PROGRESS.md path} (latest entry)
-- {primary AGENTS.md or CLAUDE.md path}
+- {primary CLAUDE.md path}
 - {any relevant memory file paths}
 
 Where we left off:
@@ -169,35 +172,56 @@ The recommendation is the current session's judgment about what the **next sessi
 
 | Next session's character | Recommend |
 |---|---|
-| Novel architecture · deeply ambiguous · high asymmetric failure cost · gnarly debugging | `highest-capability Codex model · xhigh` (`max` only if truly hard — session-only, may overthink) |
-| Design + hard multi-step implementation, real ambiguity | `highest-capability Codex model · high` |
-| Standard implementation with a clear-ish plan, moderate complexity | `highest-capability Codex model · medium` |
-| Planning is the hard part, execution mechanical | `highest-capability Codex model · high for planning, then default Codex model · medium for execution` |
-| Well-specified implementation, moderate mechanical work | `default Codex model · high` |
-| Routine mechanical execution (sweeps, renames, doc edits, plan already written) | `default Codex model · medium` |
-| Trivial lookups / status checks | `fast Codex model · low` |
+| Novel architecture · deeply ambiguous · high asymmetric failure cost · gnarly debugging | `Opus · xhigh` (`max` only if truly hard — session-only, may overthink) |
+| Design + hard multi-step implementation, real ambiguity | `Opus · high` |
+| Standard implementation with a clear-ish plan, moderate complexity | `Opus · medium` |
+| Planning is the hard part, execution mechanical | `opusplan` |
+| Well-specified implementation, moderate mechanical work | `Sonnet · high` |
+| Routine mechanical execution (sweeps, renames, doc edits, plan already written) | `Sonnet · medium` |
+| Trivial lookups / status checks | `Haiku` |
 
 Rules for the line:
-- **De-version.** Prefer role names (`highest-capability Codex model`, `default Codex model`, `fast Codex model`) over hard-coded model versions unless the user explicitly asked for a named model. The user can map that role to the current Codex model selector.
+- **De-version.** Write only the model family (`Fable` / `Opus` / `Sonnet` / `Haiku`) — a bare family name means the **latest version** of that family. Never write a version number.
 - **Always include a one-line rationale** on the indented line below, grounded in the first action.
-- **Effort ladder:** `low · medium · high · xhigh · max`. Use the smallest effort that still matches the next session's risk and ambiguity.
-- **Uncertain / no strong signal → `highest-capability Codex model · high`**, rationale "general session, no strong signal."
+- **Effort ladder:** `low · medium · high · xhigh · max` (Fable, Opus, and Sonnet support effort; `Haiku` does **not** — emit `Haiku` with no `· effort` suffix). `opusplan` (Opus plans → Sonnet executes) is its own token, no effort suffix.
+- **Uncertain / no strong signal → `Opus · high`**, rationale "general session, no strong signal."
 - **Spans tiers → recommend the higher tier** and say so in the rationale.
+- **`Fable` is the tier above Opus** (displayed "Fable 5"). Recommend `Fable · xhigh` in place of the top row's `Opus · xhigh` only when the hardest first action is at the extreme end of *difficulty* — novel architecture, gnarly cross-system debugging, high-asymmetric-failure-cost reasoning — where a wrong/shallow answer is costly enough to justify ~2× Opus's price. Context size is **not** the trigger: Fable and Opus share the same 1M window, so a large-but-tractable task (big `/codemap`, multi-doc synthesis) stays on `Opus`. The `Opus` rows otherwise stand and the uncertainty fallback stays `Opus · high`.
 
-This line is advisory — it does not set the model. The user selects the model/effort in Codex; a running next-session model uses the effort cue + a mismatch self-check.
+This line is advisory — it does not set the model. The user selects via `/model` and `/effort`; a running next-session model uses the effort cue + a mismatch self-check.
 
 ### 3f: SESSION.md (handoff state)
 Skip if `session_state` is not `true` in `~/.claude/aria-knowledge.local.md` (read in Step 0). When enabled, draft `{project_root}/SESSION.md` as a **handoff-state** snapshot per `aria-atlas/docs/TEMPLATE_SESSION.md` (full rewrite; create if absent — the one create-exception to the skip-gracefully rule):
-- Header: `lastEvent: handoff`; `at:` current UTC (`date -u +%Y-%m-%dT%H:%M:%SZ`); `currentFocus:` one line; `nextAction:` the imperative first action from 3e; `branch:`/`headCommit:` from `git -C {project_root} rev-parse --abbrev-ref HEAD` / `... rev-parse --short HEAD` (omit if not a git repo); `by:` `author_tag` (omit if unset); `sessionId:` omit unless known.
+- Header: `lastEvent: handoff`; `at:` current UTC (`date -u +%Y-%m-%dT%H:%M:%SZ`); `currentFocus:` one line; `nextAction:` the imperative first action from 3e; `branch:`/`headCommit:` from `git -C {project_root} rev-parse --abbrev-ref HEAD` / `... rev-parse --short HEAD` (omit if not a git repo); `by:` `author_tag` (omit if unset); **`sessionId:` REQUIRED** — the next handoff's demote decision keys on it, and an absent value makes that guard unevaluable (which historically read as "the ledger doesn't apply", and the handoff got skipped). Read it from the existing front-matter or the session context; if it genuinely cannot be resolved, write `sessionId: unknown` rather than omitting the line.
 - Body: `## Where we left off` + `## Next session pickup` (2-4 sentences each); `## Next session prompt` = **the 3e opener verbatim** inside the fenced block (it may contain nested ``` fences — preserve them).
 
 The 3e opener is authored once and reused here — single source, no divergence between the closing report's opener and the SESSION.md prompt block.
 
-**Gitignore it, never commit it:** SESSION.md is ephemeral per-session state (atlas reads from disk; PROGRESS.md is the durable log). If `{project_root}` is a git repo and `.gitignore` doesn't already ignore `SESSION.md`, append a `SESSION.md` line to `{project_root}/.gitignore`. **Never stage SESSION.md** — exclude it from the Step 5 / 3d commit.
+**NEVER SKIP THIS STEP TO AVOID CLOBBERING SOMEONE ELSE'S STATE.** A SESSION.md may legitimately hold several still-valid next-session prompts, and the ledger below exists precisely so you never have to choose between overwriting a handoff and abandoning yours. Skipping is the *worst* outcome: your opener is lost entirely, which is the one thing this design is built to prevent. If a prior handoff is present, demote it and write yours — both survive.
+
+**Multi-session ledger (several valid prompts can coexist — nothing is ever lost):** if the existing SESSION.md has `lastEvent: handoff` and its `sessionId` differs from this session's (or is absent — treat an unidentifiable handoff as *someone else's*), DEMOTE it before overwriting the active slot. Source `bin/lib-session-state.sh` and, reading the prior file's values first, call:
+- `kt_ss_ledger_add "{project_root}" "<prior sessionId>" "<prior at>" "<prior currentFocus>" "<prior nextAction>" "<prior next-session-prompt>"` — moves the prior active entry into `## Pending handoffs` (newest-first). **Pass the prompt at FULL fidelity — do not collapse it to one line.** An unconsumed prompt is still-valid work; collapsing it degrades a mandate nobody has used yet. Block boundaries are declared by an explicit `<!-- aria:entry-end -->` terminator, so a stored prompt may safely contain column-0 `## ` lines and nested fences.
+- `kt_ss_ledger_prune "{project_root}"` — drops any entry a resume already marked `consumed`. **Unconsumed entries always survive**, at full fidelity.
+
+**Never demote a `lastEvent: in-progress` marker.** That is a live session's own breadcrumb, not a handoff — it carries no prompt, so a ledger entry for it would be empty. Overwrite it and move on.
+
+THEN write the new active header + `## Next session prompt` (the full rewrite below). `## Pending handoffs` is managed by these helpers — the rewrite replaces only the front-matter + active body, never the pending section. (Files written before this rename carry `## Prior sessions`; the helpers keep using it for those, so nothing is orphaned.)
+
+**Before writing, check what this session left behind (two cheap reads, both report-only):**
+
+1. **Recorded Rule 22 bypasses.** Read `${TMPDIR:-/tmp}/aria-r22-bypass-<session_id>` if it exists — each line is an in-place file mutation made through the shell, which routed around the Edit/Write gate and so landed with no scope assessment recorded. The PreToolUse hook only *warns* (denying would block legitimate work), so a warning that was ignored leaves no other trace. Report the count and the idioms in the closing summary — not as a failure, as a fact the next reader should have. If the file is absent, say nothing.
+2. **Pending handoffs.** If `## Pending handoffs` (or a legacy `## Prior sessions`) holds entries still marked `unconsumed`, state how many and name their sessions in the closing summary. A prompt that is stored but never surfaced is lost in practice — this is the second of three checkpoints (the others are `/wrapup` and resume).
+
+**Tracked or ignored — read `session_state_tracked` (default `false`):**
+
+- **`false` (default) — ignore it, never commit it.** SESSION.md is ephemeral per-session state (atlas reads from disk; PROGRESS.md is the durable log). If `{project_root}` is a git repo and SESSION.md is **not already tracked**, ensure `.gitignore` ignores it. **Never stage SESSION.md** — exclude it from the Step 5 / 3d commit.
+- **`true` — it is a tracked artifact.** Do **NOT** add an ignore line, and **DO** stage it with the Step 5 / 3d commit. If an ignore line already exists, remove it: leaving one makes the config assert something git is not doing. Choose this when SESSION.md carries a decision trail you need versioned — most often in a repo with no `PROGRESS.md`, where SESSION.md *is* the durable log and the default's rationale does not hold.
+
+⛔ **Test tracking with `git -C {project_root} ls-files --error-unmatch SESSION.md`, never "is the pattern already in `.gitignore`?"** An ignore rule is a **no-op on an already-tracked path**, so a pattern check can never become true for a tracked file and the clause **appends on every run** — one observed `.gitignore` had accumulated four identical `SESSION.md` lines. ⚠ `git check-ignore` cannot serve as the test either: it consults the index, so it reports a **tracked** file as *not ignored*.
 
 ## Step 4: Single Combined-Go Review (default mode only)
 
-**Skip this step entirely if `mode = auto`.**
+**Skip this step entirely if `mode = auto` or `mode = snap`.** (Both run silently with implicit-yes — no review gate.)
 
 In default mode, present all drafts together in one scroll under clear section headers, then ask **once**:
 
@@ -205,7 +229,7 @@ In default mode, present all drafts together in one scroll under clear section h
 ## Handoff Review — combined-go
 
 [3a: PROGRESS.md entry draft]
-[3b: AGENTS.md / CLAUDE.md updates draft, or "no changes needed"]
+[3b: CLAUDE.md updates draft, or "no changes needed"]
 [3c: Memory updates draft, or "no changes needed"]
 [3d: Commit messages + staged file lists per repo, or "no uncommitted changes"]
 [3e: Next-session opener]
@@ -224,22 +248,24 @@ Wait for explicit response. Allow multiple `edit` / `skip` directives in sequenc
 
 ## Step 5: Apply Drafts
 
-Apply approved drafts in order. For `auto` mode, this runs immediately after Step 3 with no review gate.
+Apply approved drafts in order. For `auto` and `snap` modes, this runs immediately after Step 3 with no review gate.
 
 1. **3a:** Append the PROGRESS.md entry (or merge into today's existing entry)
-2. **3b:** Edit AGENTS.md and/or CLAUDE.md per the diffs
+2. **3b:** Edit CLAUDE.md per the diffs
 3. **3c:** Edit memory file(s) per the diffs
 4. **3d:** For each git repo:
    - Stage the listed files (specific paths, never `git add -A`)
    - Commit with the drafted message
    - **Never push.** This applies in both modes regardless of how the repo is hosted.
-5. **3f:** Write `{project_root}/SESSION.md` (handoff state, full rewrite, create if absent). Skip if `session_state` is off or the user `skip`-ped 3f.
+5. **3f:** If a prior unconsumed `handoff` entry exists (different or absent `sessionId`), run `kt_ss_ledger_add` (**full-fidelity prompt — never collapsed**) + `kt_ss_ledger_prune` FIRST (demote + prune), THEN write `{project_root}/SESSION.md` (handoff state — full rewrite of front-matter + active body + `## Next session prompt`, create if absent; `## Pending handoffs` is managed by the helpers, not the rewrite). Never demote a `lastEvent: in-progress` marker, and **never skip 3f to avoid clobbering** — demote instead, so both survive. Skip only if `session_state` is off or the user `skip`-ped 3f.
 
 If any step fails (e.g., commit hook rejects), surface the failure inline and stop — do not silently continue.
 
-## Step 6: Run /extract
+## Step 6: Capture Session Knowledge
 
-ALWAYS invoke `/extract` programmatically. This applies to default mode (after the user has approved the combined-go review in Step 4) AND `auto` mode unconditionally. No judgment-skip allowed — even if the session feels short, conversational, or seems to have nothing new to extract, run `/extract` anyway. The handoff skill must not pre-judge whether extraction is worthwhile; `/extract` has its own dedup logic (per its Rules section: "Never ask for confirmation — scan and dump") that correctly handles the "nothing to add" case by reporting `No uncaptured knowledge found`. Auto mode's "implicit-yes on all gates" rule converts to **"extract always runs"** here — there is no skip path. Capture `/extract`'s summary report for inclusion in Step 8.
+**If `mode = snap`:** Do NOT run `/extract`. Instead invoke the `/snapshot` skill to archive the raw transcript to `intake/pre-compact-captures/` for later extraction. This is snap mode's defining difference: capture is deferred, not synthesized now. Like auto's "extract always runs" invariant, the snapshot ALWAYS runs — there is no skip path. The snapshot is the deferred-extraction handoff: a later `/extract`, or the next `/audit-knowledge` digest pass (which reads `intake/pre-compact-captures/` automatically), synthesizes knowledge from it when context isn't a constraint. Capture `/snapshot`'s output (the snapshot path) for inclusion in Step 8. Use snap when context is high and running `/extract` now would risk compaction mid-synthesis. (`/snapshot` requires Bash, which the Step-0 runtime gate already guaranteed.)
+
+**Otherwise (default + `auto` modes):** ALWAYS invoke `/extract` programmatically. This applies to default mode (after the user has approved the combined-go review in Step 4) AND `auto` mode unconditionally. No judgment-skip allowed — even if the session feels short, conversational, or seems to have nothing new to extract, run `/extract` anyway. The handoff skill must not pre-judge whether extraction is worthwhile; `/extract` has its own dedup logic (per its Rules section: "Never ask for confirmation — scan and dump") that correctly handles the "nothing to add" case by reporting `No uncaptured knowledge found`. Auto mode's "implicit-yes on all gates" rule converts to **"extract always runs"** here — there is no skip path. Capture `/extract`'s summary report for inclusion in Step 8.
 
 (Brief mode never reaches Step 6 — it exits at Step 2B before any handoff side-effects, per the Rules section.)
 
@@ -251,10 +277,10 @@ Run the same checklist `/wrapup` Step 7 uses:
 ## Handoff Checklist
 
 - PROGRESS.md — [updated / already current / not found / skipped]
-- AGENTS.md / CLAUDE.md — [current / updated / not found / skipped]
+- CLAUDE.md — [current / updated / not found / skipped]
 - Memory — [updated / already current / not found / skipped]
 - Git — [committed N file(s) / no changes / uncommitted (skipped)]
-- /extract — [N items captured / nothing new]
+- /extract — [N items captured / nothing new / deferred: transcript snapshotted to intake/pre-compact-captures/ for later extraction (snap mode)]
 - SESSION.md — [written: handoff (prompt embedded) / skipped (session_state off)]
 - Tracked artifacts — [all fresh / N stale (consider /codemap update or /stitch verify for {tags}) / not checked]
 - Next-session opener — [emitted below]
@@ -269,7 +295,7 @@ Flag any gaps but don't block — the user may have skipped sections intentional
 Emit the closing report. **The next-session opener is the headline artifact** — surface it prominently and inside a code fence so it copies cleanly.
 
 ```
-## Handoff Complete — {default | auto} mode
+## Handoff Complete — {default | auto | snap} mode
 
 [Handoff Checklist from Step 7]
 
@@ -282,26 +308,27 @@ Emit the closing report. **The next-session opener is the headline artifact** �
 ```
 {full opener from Step 3e}
 
-Read on resume: {primary AGENTS.md or CLAUDE.md path} for current state.
+Read on resume: {primary CLAUDE.md path} for current state.
+```
 ```
 
-The `Read on resume:` line MUST sit INSIDE the opener fence (the last line of the pasteable block), never after the closing ```` ``` ````. It is part of the artifact the user pastes into the next session — if it lands outside the fence it is silently dropped on paste.
-```
+The `Read on resume:` line MUST sit INSIDE the opener fence (the last line of the pasteable block), never after the closing ```` ``` ````. It is part of the artifact the user pastes into the next session — if it lands outside the fence it is silently dropped on paste. (Step 3e's opener already carries a `Read first:` pointer inside the fence; this `Read on resume:` line is the Step-8 report's echo of it and must stay equally inside.)
 
 ## Rules
 
 - **/wrapup is the interactive default; /handoff is the express lane.** Don't deprecate or replace /wrapup. They serve different cadences.
-- **Always emit the next-session opener (default + auto modes only).** In default + auto, even when nothing else changed (no PROGRESS update, no commit, no memory edit), the opener is the headline deliverable. Brief mode emits the coworker brief instead — different artifact, different audience.
-- **The opener always carries a `Suggested next session:` line (default + auto modes only).** De-versioned Codex model role + effort level + a one-line rationale grounded in the first action. It is advisory, not model-setting. Brief mode does not carry it. See Step 3e's rubric for the row mapping.
+- **Always emit the next-session opener (default + auto + snap modes; not brief).** In default + auto + snap, even when nothing else changed (no PROGRESS update, no commit, no memory edit), the opener is the headline deliverable. Brief mode emits the coworker brief instead — different artifact, different audience.
+- **The opener always carries a `Suggested next session:` line (default + auto + snap modes; not brief).** De-versioned model family (`Fable`/`Opus`/`Sonnet`/`Haiku`, never a version number) + effort level + a one-line rationale grounded in the first action. It is advisory, not model-setting. Brief mode does not carry it. See Step 3e's rubric for the row mapping.
 - **`auto` mode applies everything without confirmation.** The user explicitly opted into that risk by typing `auto`. Do not introduce confirmation gates in auto mode — that defeats the purpose.
-- **`brief` mode produces output only — no side effects.** No PROGRESS update, no AGENTS.md / CLAUDE.md edit, no memory write, no commit, no /extract. The brief is a copy/paste artifact for a person, not durable state. Users who want both a brief AND state updates run `/handoff brief` then `/handoff` (or `/handoff auto`) separately — two passes, two artifacts.
+- **`brief` mode produces output only — no side effects.** No PROGRESS update, no CLAUDE.md edit, no memory write, no commit, no /extract. The brief is a copy/paste artifact for a person, not durable state. Users who want both a brief AND state updates run `/handoff brief` then `/handoff` (or `/handoff auto`) separately — two passes, two artifacts.
 - **Brief mode keeps `[coworker]` as a literal placeholder.** Don't prompt the user for a recipient name. They'll fill it at paste time. This avoids friction and supports "send to multiple people" use cases.
 - **Brief mode caps at 200 words.** Above that, the format breaks down and reads as a memo, not a brief. Target 80-150 words. Omit empty sections rather than padding.
 - **Combined-go preserves verification.** Default mode shows all drafts in one scroll before applying. Per-section `edit` / `skip` keeps the per-item escape hatch.
 - **Never push, in any mode.** Local commits only (and brief mode doesn't commit at all). If the user wants to push, they do it separately.
 - **Stage specific files, not `git add -A`.** Avoid capturing sensitive files (.env, credentials) that happen to be untracked.
-- **Match existing formats** — when appending to PROGRESS.md or editing AGENTS.md / CLAUDE.md, match the heading style, date format, and structure of existing entries. Don't impose a new format.
-- **Skip gracefully** — if a file doesn't exist (no PROGRESS.md, no AGENTS.md / CLAUDE.md, no memory), skip that step and note it. Don't create files that aren't already part of the project's conventions.
+- **Match existing formats** — when appending to PROGRESS.md or editing CLAUDE.md, match the heading style, date format, and structure of existing entries. Don't impose a new format.
+- **Skip gracefully** — if a file doesn't exist (no PROGRESS.md, no CLAUDE.md, no memory), skip that step and note it. Don't create files that aren't already part of the project's conventions.
 - **Don't invent work** — the session synthesis must reflect what actually happened in the conversation. If the session is short or unclear, say so in the synthesis (default + auto) or in the brief's "What happened" line (brief) rather than padding.
-- **Delegate extraction** — /handoff calls /extract for capture in default + auto modes; it does not duplicate /extract's dedup or routing logic. Brief mode skips /extract entirely.
+- **Delegate extraction** — /handoff calls /extract for capture in default + auto modes; it does not duplicate /extract's dedup or routing logic. Brief mode skips /extract entirely. Snap mode calls /snapshot instead of /extract (see below).
+- **`snap` defers, never drops, capture.** In snap mode Step 6 runs `/snapshot` instead of `/extract` — the snapshot ALWAYS runs (no skip path, same as auto's "extract always runs" invariant). The raw transcript is preserved so a later /extract or /audit-knowledge digest can synthesize it; snap never means "skip knowledge capture," only "capture cheaply now, synthesize later." snap is otherwise byte-for-byte auto behavior: silent, implicit-yes, emit the next-session opener, local commit only, never push. snap is NOT brief — it produces the full next-session package, not a coworker prose block, and unlike brief it DOES update PROGRESS/CLAUDE/memory and commit.
 - **One handoff per session** — if the user runs /handoff again in the same session, check what was already done in the prior run and skip completed work. Don't duplicate PROGRESS entries or commits. Multiple `/handoff brief` runs are fine (each produces a fresh brief reflecting current state).

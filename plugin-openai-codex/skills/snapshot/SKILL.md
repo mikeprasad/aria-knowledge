@@ -21,7 +21,7 @@ Archive the current session's raw transcript to `intake/pre-compact-captures/` f
 Execute:
 
 ```
-bash ${CLAUDE_PLUGIN_ROOT}/bin/save-transcript.sh
+bash ${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/bin/save-transcript.sh
 ```
 
 The script:

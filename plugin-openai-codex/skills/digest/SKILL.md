@@ -17,7 +17,7 @@ Lazily create `{knowledge_folder}/intake/digests/` if it doesn't exist.
 
 ## Step 1: Probe Connected MCPs (all 4 categories)
 
-Check Codex's available tool list for each `~~category`. The digest runs with ANY non-zero set of connected MCPs — gather from whichever are connected, surface gaps for the rest.
+Check Claude's available tool list for each `~~category`. The digest runs with ANY non-zero set of connected MCPs — gather from whichever are connected, surface gaps for the rest.
 
 | Category | MCP options | Status |
 |---|---|---|
@@ -28,7 +28,7 @@ Check Codex's available tool list for each `~~category`. The digest runs with AN
 
 If NO MCPs in ANY category are connected, output the standard fallback notice and stop:
 
-> No required MCPs connected for `/digest`. Connect at least one of: Slack/MS365 (~~chat), Gmail/MS365 (~~email), Linear/Asana/etc. (~~project tracker), or Notion/Confluence/etc. (~~docs) via Codex MCP configuration. See [CONNECTORS.md](../../CONNECTORS.md). Skipping this run.
+> No required MCPs connected for `/digest`. Connect at least one of: Slack/MS365 (~~chat), Gmail/MS365 (~~email), Linear/Asana/etc. (~~project tracker), or Notion/Confluence/etc. (~~docs) via Claude Code's MCP config (or Cowork Settings → Connectors). See [CONNECTORS.md](../../CONNECTORS.md). Skipping this run.
 
 Per [ADR-015](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/015-capability-probe-pattern.md) — degrade gracefully for missing categories; don't fabricate.
 
@@ -122,7 +122,7 @@ tags: [digest, weekly|monthly|quarterly]
 ## Sources
 
 **Connected:** <list of MCPs that contributed data>
-**Not connected:** <list of categories that would have added value> — to fill these gaps, connect the relevant MCP via Codex MCP configuration.
+**Not connected:** <list of categories that would have added value> — to fill these gaps, connect the relevant MCP via Claude Code's MCP config or Cowork Settings → Connectors.
 
 ## What's pending
 

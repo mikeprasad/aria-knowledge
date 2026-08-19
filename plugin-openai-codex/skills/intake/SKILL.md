@@ -61,7 +61,7 @@ Capture the following for D3:
 
 ### Step D3: Populate Template
 
-1. Read `${CLAUDE_PLUGIN_ROOT}/template/intake/intake-doc.md` to load the body template.
+1. Read `${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/template/intake/intake-doc.md` to load the body template.
 2. Generate slug from `source_title`: lowercase, hyphenated, alphanumeric only, max ~60 chars. Example: `"The Bitter Lesson"` → `the-bitter-lesson`. If `source_title` is empty, use `doc-{HHMMSS}` as fallback.
 3. Resolve target path: `{knowledge_folder}/intake/docs/{YYYY-MM-DD}-{slug}.md`. If file already exists at that path, append `-2`, `-3`, etc. to slug until unique.
 4. Fill the frontmatter using captured fields from D2. Omit `source_url` if absent; omit `source_author` if absent. Always populate `captured_at`, `read_at`, `type: intake-doc`.
@@ -158,7 +158,7 @@ Pull a chat/email thread via a `~~chat` (Slack/Teams) or `~~email` (Gmail/MS365)
 ### T1: MCP availability check
 If no `~~chat`/`~~email` MCP is connected/authenticated, surface:
 
-> "`thread` mode needs a chat or email MCP connected. These are bundled with the plugin — run the MCP's authenticate flow (e.g. Slack auth), or connect it via your MCP config, then retry. Thread mode runs in Codex once the MCP is authed."
+> "`thread` mode needs a chat or email MCP connected. These are bundled with the plugin — run the MCP's authenticate flow (e.g. Slack auth), or connect it via your MCP config, then retry. (This is NOT Cowork-only — thread mode runs in Claude Code once the MCP is authed.)"
 
 Then exit. **Do NOT redirect to Cowork** — the capability is Code-native once the MCP is authenticated. (The ADR-094 Bash-availability runtime gate is separate and only fires on a genuine runtime mismatch, not on an unauthenticated MCP.)
 

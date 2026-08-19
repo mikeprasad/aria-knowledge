@@ -160,6 +160,18 @@ def test_interview_and_recap_are_codex_native_active_skills() -> None:
         assert "/aria-cowork:" not in body
 
 
+def test_246_parity_skills_are_codex_native_or_documented_gap() -> None:
+    active = {path.parent.name for path in (PORT_ROOT / "skills").glob("*/SKILL.md")}
+    for name in ("aria-assist", "audit", "audit-style", "audit-usage", "auto", "preflight", "roadmap"):
+        assert name in active
+        body = read(PORT_ROOT / "skills" / name / "SKILL.md")
+        assert "Runtime Gate (per ADR-094)" not in body
+        assert "/aria-cowork:" not in body
+
+    assert "statusline" not in active
+    assert "Codex Non-Equivalent: Statusline Meter" in read(PORT_ROOT / "CONFIG.md")
+
+
 def test_rule35_and_reference_sources_template_are_synced() -> None:
     rules = read(PORT_ROOT / "template" / "rules" / "working-rules.md")
     refs = read(PORT_ROOT / "template" / "references" / "README.md")
@@ -171,8 +183,8 @@ def test_rule35_and_reference_sources_template_are_synced() -> None:
 def test_manifest_and_hook_commands_use_codex_plugin_root() -> None:
     manifest = json.loads(read(PORT_ROOT / ".codex-plugin" / "plugin.json"))
     # Assert the version SHAPE, not a frozen literal — a hardcoded value goes stale on
-    # every canonical parity bump (it did: this pinned "2.35.2-codex.0" while the manifest
-    # advanced to 2.36.0-codex.0, failing the whole test on the first line). The port
+    # every canonical parity bump (it did: this pinned an older codex release while the
+    # manifest advanced, failing the whole test on the first line). The port
     # contract is: canonical "X.Y.Z" + the "-codex.N" prerelease suffix.
     assert re.fullmatch(r"\d+\.\d+\.\d+-codex\.\d+", manifest["version"]), manifest["version"]
     assert manifest["hooks"] == "./hooks.json"
@@ -208,10 +220,11 @@ def test_statusline_feature_is_documented_as_non_equivalent() -> None:
 
 
 def test_aria_assist_scheduler_is_documented_as_non_equivalent() -> None:
-    assert not (PORT_ROOT / "skills" / "aria-assist").exists()
+    assert (PORT_ROOT / "skills" / "aria-assist" / "SKILL.md").exists()
     assert not (PORT_ROOT / "bin" / "pm-morning-run.sh").exists()
     assert not (PORT_ROOT / "bin" / "pm-schedule.sh").exists()
     assert "Codex Non-Equivalent: ARIA Assist Scheduler" in read(PORT_ROOT / "CONFIG.md")
+    assert "manual-only" in read(PORT_ROOT / "CONFIG.md")
 
 
 def test_codex_docs_and_setup_prefer_shared_config() -> None:
@@ -264,6 +277,78 @@ def test_pre_tool_use_ignores_stale_transcript_markers_from_previous_turns() -> 
         assert output["hookSpecificOutput"]["permissionDecision"] == "deny"
     finally:
         os.unlink(transcript)
+
+
+def test_pre_tool_use_shell_surfaces_bash_write_and_preflight_warnings() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        subprocess.run(["git", "init"], cwd=root, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+        (root / "src").mkdir()
+        (root / "src" / "app.py").write_text("print('old')\n", encoding="utf-8")
+        subprocess.run(["git", "add", "src/app.py"], cwd=root, check=True)
+        knowledge = root / "knowledge"
+        knowledge.mkdir()
+        config = root / "aria-config.md"
+        write_config(config, knowledge, "preflight_gate: warn\n")
+
+        output = run_hook(
+            "pre-tool-use",
+            {
+                "hook_event_name": "PreToolUse",
+                "session_id": f"session-{root.name}",
+                "turn_id": "turn-shell",
+                "cwd": str(root),
+                "tool_name": "Bash",
+                "tool_input": {"command": "sed -i '' 's/old/new/' src/app.py && git commit -m test"},
+                "last_assistant_message": "No marker here.",
+            },
+            env={"KT_CONFIG": str(config)},
+        )
+        context = output["hookSpecificOutput"]["additionalContext"]
+        assert "sed -i" in context
+        assert "PREFLIGHT" in context
+
+
+def test_pre_tool_use_scheduler_denies_leading_slash_prompt() -> None:
+    output = run_hook(
+        "pre-tool-use",
+        {
+            "hook_event_name": "PreToolUse",
+            "session_id": "session-cron",
+            "turn_id": "turn-cron",
+            "tool_name": "mcp__scheduled-tasks__create_scheduled_task",
+            "tool_input": {"prompt": "/wrapup this task later"},
+        },
+    )
+    hook = output["hookSpecificOutput"]
+    assert hook["permissionDecision"] == "deny"
+    assert "starts with a slash" in hook["permissionDecisionReason"]
+
+
+def test_pre_tool_use_external_fetch_gate_runs_for_local_fetch_tools() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        knowledge = root / "knowledge"
+        (knowledge / "guides").mkdir(parents=True)
+        (knowledge / "guides" / "example.md").write_text("Use https://example.com/docs for this API.\n", encoding="utf-8")
+        config = root / "aria-config.md"
+        write_config(config, knowledge, "external_fetch_gate: on\n")
+
+        output = run_hook(
+            "pre-tool-use",
+            {
+                "hook_event_name": "PreToolUse",
+                "session_id": f"session-{root.name}",
+                "turn_id": "turn-fetch",
+                "cwd": str(root),
+                "tool_name": "WebFetch",
+                "tool_input": {"url": "https://example.com/docs/new"},
+            },
+            env={"KT_CONFIG": str(config), "ARIA_EF_MEMDIR": str(root / "missing-memory")},
+        )
+        hook = output["hookSpecificOutput"]
+        assert hook["permissionDecision"] == "deny"
+        assert "example.com" in hook["permissionDecisionReason"]
 
 
 def test_transcript_reader_does_not_scan_without_turn_id() -> None:
@@ -319,6 +404,35 @@ def test_post_tool_use_apply_patch_emits_auto_prospect_nudge() -> None:
         context = output["hookSpecificOutput"]["additionalContext"]
         assert "PLANNING PATH" in context
         assert "AUTO-PROSPECT (nudge)" in context
+
+
+def test_post_tool_use_apply_patch_warns_on_tautological_test_edit() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        (root / "tests").mkdir()
+        (root / "tests" / "test_example.py").write_text("def test_example():\n    assert True\n", encoding="utf-8")
+        knowledge = root / "knowledge"
+        knowledge.mkdir()
+        config = root / "aria-config.md"
+        write_config(config, knowledge)
+
+        output = run_hook(
+            "post-tool-use",
+            {
+                "hook_event_name": "PostToolUse",
+                "session_id": f"session-{root.name}",
+                "turn_id": "turn-tautology",
+                "cwd": str(root),
+                "tool_name": "apply_patch",
+                "tool_input": {
+                    "command": "*** Begin Patch\n*** Update File: tests/test_example.py\n@@\n+    assert True\n*** End Patch\n"
+                },
+            },
+            env={"KT_CONFIG": str(config)},
+        )
+        context = output["hookSpecificOutput"]["additionalContext"]
+        assert "literal-true assertion" in context
+        assert "Rule 36" in context
 
 
 def test_post_tool_use_apply_patch_marks_session_in_progress() -> None:
@@ -401,7 +515,7 @@ def test_session_start_surfaces_autonomy_and_project_picker() -> None:
         write_config(
             config,
             knowledge,
-            "last_setup_version: 2.35.2-codex.0\n"
+            "last_setup_version: 2.46.2-codex.0\n"
             "projects_enabled: true\n"
             "projects_list: api:api-server,web:web-app\n"
             "projects_labels: api:API Server,web:Web App\n"

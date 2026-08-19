@@ -18,14 +18,18 @@ Print the command reference table. No config or file access needed.
 |---------|-------------|
 | /setup | Configure knowledge folder, audit cadences, and plugin settings |
 | /extract | Capture insights, decisions, and feedback from the current conversation |
+| /audit [knowledge\|config\|style\|all] | Umbrella audit dispatcher — routes to the sub-audit named, or runs all in sequence with no arg |
 | /audit-knowledge (alias: /knowledge-audit) | Review backlogs, promote to knowledge files, rebuild index |
 | /audit-config (alias: /config-audit) | Check project configs and docs for drift and broken references |
+| /audit style | Log-mining audit over session transcripts for revealed working-style rules (opt-in — not part of routine cadence) |
 | /audit-share | Promote personal knowledge to the team-shared `_project-knowledge/` tier |
-| /prospect [plan/session/todos/file/branch] | Forward-looking pre-mortem before execution — risk verdicts, evidence sourcing, simpler-alternative discipline |
-| /retrospect [range/commit/session] | Structured retrospective on shipped work — per-fix validation, simpler-alternative discipline, re-diagnosis, action verdicts |
-| /recap [arc\|commit\|push\|pull] | Read-only orientation — a scannable What/Where/Status table of recent work. Summarizes, never validates, writes nothing |
-| /readiness-audit <scope-root> --for "<event>" | Readiness audit for release, public flip, handover, or other ship-readiness events; verifies every finding with evidence and phases remediation |
-| /foundational-review <scope-root> --decision "<decision>" | Foundational review before an irreversible decision; produces verdict, premises, irreversibility inventory, specs, prospect-hardened plans, and kickoff |
+| /prospect [plan/session/todos/file/linear/branch] | Forward-looking pre-mortem on a plan before any code — per-step risk verdicts (PROCEED/SHRINK/SPLIT/DEFER/KILL), evidence-sourcing pass, simpler-alternative discipline |
+| /preflight [ticket/file] | Executed pre-completion checklist run just before you claim done — six checks (requirements diff, consumer census, reachability, census bound, non-vacuity, mutation), three outcomes each; an unrun check blocks the verdict |
+| /retrospect [--range/--pr/--session/--commit] | Structured retrospective on a shipped commit range — per-fix validation, simpler-alternative discipline, re-diagnosis, action verdicts, failure-mode pattern check |
+| /recap [arc\|commit\|push\|pull] | Read-only orientation — a scannable What/Where/Status table of recent work (this session by default; or the last arc/commit/push/pull). Summarizes, never validates; writes nothing |
+| /roadmap [<name>\|refresh] | Per-project feature roadmap — a Feature/Band/Status grid (Shipped/Current/Next/Later × done/in-progress/blocked/buildable) synthesized from CLAUDE.md + PROGRESS.md, persisted to a committed ROADMAP.md with staleness-aware refresh. Renders + offers refresh when stale; never auto-commits |
+| /foundational-review <scope-root> [--decision "..."] [--extend] | Foundational review chain before an irreversible decision (freeze/tag/flip/re-scope): verdict + premises + A–F → design spec → cold-executable plan → composed /prospect → kickoff. Requires a named irreversible decision (else redirects). |
+| /readiness-audit <scope-root> [--for "<event>"] | Surface readiness audit (sibling of /foundational-review): parallel exploration → controller re-verification of agent claims → tiered evidence-celled findings → phased remediation. Read-only probes; no decision anchor needed. |
 | /context [tags] | Load relevant knowledge files by topic (supports AND/OR, project expansion) |
 | /index | Rebuild the tag-based knowledge index with cross-references |
 | /rules [number] | Look up a working rule by number or keyword |
@@ -41,30 +45,37 @@ Print the command reference table. No config or file access needed.
 | /codemap [mode] | Feature-organized CODEMAP.md for any codebase (create/inventory/update/section) |
 | /distill [text or path] | Tiered task spec from raw text; optional --group for CODEMAP-loaded context |
 | /stitch <mode> <group> | Cross-repo binding (auth/endpoints/entities/drift) for a product group |
-| /wrapup [auto\|snap] | End-of-session close-out — update PROGRESS/AGENTS/CLAUDE docs, prompt for commit, verify continuity. `snap` archives the transcript via /snapshot for later extraction instead of /extract |
-| /handoff [auto\|brief\|snap] | Express handoff — same coverage as /wrapup, always emits a paste-ready next-session opener. `brief` produces a coworker brief; `snap` archives the transcript via /snapshot |
+| /wrapup [auto\|snap] | End-of-session close-out — update PROGRESS/CLAUDE.md, prompt for commit, verify continuity. `auto` runs silently; `snap` runs like auto but archives the transcript via /snapshot for later extraction instead of /extract (use when context is high) |
+| /handoff [auto\|brief\|snap] | Express handoff — same coverage as /wrapup, one combined-go review (or `auto` for silent), always emits a paste-ready next-session opener. `brief` mode produces a copy/paste coworker brief (Hey [coworker]-style prose, 80-150 words) instead of next-session opener — no PROGRESS/CLAUDE/memory/commit/extract side effects. `snap` mode runs like auto but archives the transcript via /snapshot for later extraction instead of /extract (use when context is high) |
 | /snapshot | Save the current session transcript to intake/pre-compact-captures/ on demand |
+| /aria-assist [generate\|review] | Manual product-management review across configured projects; Codex does not bundle the Claude Code scheduler/notifier helpers |
 | /help | This command reference |
 
 Run /setup to configure. See QUICKSTART.md for a walkthrough of your first 3 sessions.
 
 ## Model Recommendations
 
-These are recommendations only — ARIA does not force a model. In Codex, choose the model and reasoning effort for the session based on the skill you're about to run.
+These are recommendations only — ARIA does not force a model. Switch per session via `/model` based on the skill you're about to run.
 
-| Skill | Recommended Codex posture | Why |
+| Skill | Recommended Model | Why |
 |-------|-------------------|-----|
-| /extract | Highest-capability Codex model, medium-to-high effort | Judgment-heavy: distinguishing reusable signal from ephemeral noise, writing non-obvious Why/How-to-apply lines. |
-| /audit-knowledge | Highest-capability Codex model, high effort | Cross-references backlogs against the promoted index, decides promotion vs. discard, detects emerging themes. |
-| /audit-config | Highest-capability Codex model, medium-to-high effort | Reads across AGENTS/CLAUDE docs and configs to detect drift and broken references. |
-| /prospect, /retrospect, /readiness-audit, /foundational-review | Highest-capability Codex model, high or xhigh effort | Multi-stage judgment: validation status assignment, simpler-alternative identification, hypothesis generation, failure-mode pattern matching, action verdict synthesis, and decision-quality review. |
-| /ask | Highest-capability Codex model, medium-to-high effort for ambiguous topics; current default Codex model for scoped lookups | Research + draft + categorize. Drop effort when the question is narrow. |
-| /interview | Highest-capability Codex model for deep-dive/battery interviews; current default Codex model for focused socratic project/knowledge runs | Deep dives require evidence-cited, leverage-clustered question generation; focused elicitation is lighter. |
-| /codemap create | Highest-capability Codex model, high effort | Full-repo traversal needs sustained context and synthesis so sections aren't truncated mid-generation. |
-| /codemap update, /codemap section, /wrapup, /handoff, /intake, /distill, /stitch | Current default Codex model, medium effort | Structured work with clear prescribed output. |
-| /index, /stats, /backlog, /rules, /context, /recap, /snapshot, /help, /setup | Current default Codex model, low effort | Mechanical or retrieval-only — higher effort usually adds no measurable lift. |
+| /extract | Highest-capability Opus, medium-to-high effort | Judgment-heavy: distinguishing reusable signal from ephemeral noise, writing non-obvious Why/How-to-apply lines. |
+| /audit-knowledge | Highest-capability Opus, medium-to-high effort | Cross-references backlogs against the promoted index, decides promotion vs. discard, detects emerging themes. |
+| /audit-config | Highest-capability Opus, medium-to-high effort | Reads across CLAUDE.md files and configs to detect drift and broken references. |
+| /preflight | Whatever model is doing the work — no escalation | Deliberately runnable at any tier. The checks are mechanical (census, importers, call counts, mutation); escalating the model would imply the gate is a judgment call, and its whole premise is that judgment already failed once. |
+| /retrospect | Highest-capability Opus, medium-to-high effort | Multi-stage judgment per fix: validation status assignment, simpler-alternative identification, hypothesis generation, failure-mode pattern matching, action verdict synthesis. Highest leverage from stronger models. |
+| /foundational-review, /readiness-audit | Highest-ceiling available (Fable at extreme stakes, else Opus), xhigh effort | The reviewer model is spent on alternatives-steelmanning, portfolio/product judgment, and the irreversibility inventory; semi-agentic read-trace-reason loop benefits from xhigh. Executor tasks the chain emits route to Opus by default. |
+| /ask | Highest-capability Opus, medium-to-high effort (ambiguous topics) or Sonnet (mid-tier) for scoped lookups | Research + draft + categorize. Drop to Sonnet when the question is narrow. |
+| /interview | Highest-capability Opus for deep-dive (ambiguous, evidence-cited, leverage-clustered question generation) or Sonnet (mid-tier) for focused guided project/knowledge runs | Deep-dive is judgment-heavy (cite evidence, cluster by leverage, hunt negative space) and re-deriving after every guided dialog compounds that; focused elicitation is lighter. Spans tiers like /ask. |
+| /codemap create | Highest-capability Opus (large-context variant preferred) | Full-repo traversal benefits from a large context window so sections aren't truncated mid-generation. |
+| /codemap update, /codemap section, /wrapup, /handoff, /intake, /distill, /stitch | Sonnet (mid-tier), medium effort | Structured work with clear prescribed output. |
+| /index, /stats, /backlog, /rules, /context, /intake, /snapshot, /aria-assist, /help, /setup | Sonnet (mid-tier), low effort | Mechanical or retrieval-only — higher models add no measurable lift. |
 
-Use a fast/light model only for trivial lookups, status checks, and purely mechanical reference output.
+Always pick the latest release within each tier — ARIA pins capability *tiers*, not version numbers, so this guidance survives model updates.
+
+`Fable` (displayed "Fable 5") is the tier above Opus. Its edge is raw capability/judgment, **not** context size — Fable and Opus share the same 1M-token window. Treat it as a step-up only for the most judgment-heavy, high-stakes runs where a wrong or shallow answer is costly (`/extract`, `/audit-knowledge`, `/retrospect` on genuinely hard sessions). It costs ~2× Opus, so reach for it when difficulty — not data volume — justifies the spend; the Opus rows otherwise stand. (Note: the "large-context variant preferred" qualifier on `/codemap create` above is legacy — any current top-tier model, Opus 4.8 included, already carries the 1M window, so full-repo traversal no longer needs a special variant.)
+
+Any model below Sonnet-equivalent capability is not recommended for any ARIA skill — the judgment/cross-reference demands exceed its strengths.
 
 The honest test: will a stronger model change what ends up in the knowledge base? For `/extract` and `/audit-knowledge`, yes, measurably. For `/index` and `/stats`, no.
 ```

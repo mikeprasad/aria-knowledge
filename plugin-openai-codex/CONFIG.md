@@ -51,6 +51,11 @@ Hook-parsed fields run on every session start, every edit, every compaction — 
 | `ideas_staleness_threshold_days` | integer | 7 | audit-knowledge skill |
 | `auto_capture` | `true` \| `false` | true | pre-compact-check.sh, extract skill |
 | `active_knowledge_surfacing` | `true` \| `false` | true | session-start-check.sh, bash-cd-check.sh, post-compact-check.sh, codex-hook.py UserPromptSubmit, /prospect, /retrospect, /audit-config, /stats, /handoff, /wrapup (v2.16.1+ also gates CODEMAP+STITCH tracked-artifact loading) |
+| `critical_paths` | comma-separated patterns | empty | pre-edit-check.sh, codex-hook.py apply_patch |
+| `planning_paths` | comma-separated patterns | empty | pre-edit-check.sh, post-edit-check.sh, codex-hook.py apply_patch |
+| `preflight_gate` | `off` \| `warn` \| `deny` | warn | pre-commit-preflight-check.sh via codex-hook.py PreToolUse:shell |
+| `preflight_deny_paths` | space-separated globs | empty | pre-commit-preflight-check.sh via codex-hook.py PreToolUse:shell |
+| `preflight_deny_repos` | comma-separated path substrings | empty | pre-commit-preflight-check.sh via codex-hook.py PreToolUse:shell |
 | `subagent_capture` | `true` \| `false` | true | subagent-stop-capture.sh, subagent-start-selfreport.sh |
 | `subagent_capture_types` | comma-separated agent types | `general-purpose,Plan,feature-dev:code-architect,feature-dev:code-explorer,feature-dev:code-reviewer` | subagent-stop-capture.sh |
 | `subagent_selfreport_types` | comma-separated agent types | `Explore` | subagent-start-selfreport.sh |
@@ -62,7 +67,11 @@ Hook-parsed fields run on every session start, every edit, every compaction — 
 | `retrospect_min_commits` | integer | 3 | codex-hook.py PostToolUse:shell |
 | `retrospect_branches` | comma-separated branch names | `main,master,production` | codex-hook.py PostToolUse:shell |
 | `usage_alert_threshold` | integer 1-100 \| `off` | 80 | Shared config field for Claude Code statusline only; ignored by Codex |
-| `critical_paths` | comma-separated patterns | empty | pre-edit-check.sh |
+| `style_lookback_days` | integer (days) | 90 | audit-style skill |
+| `style_max_sessions` | integer (sessions) | 50 | audit-style skill |
+| `style_audit_log` | absolute path | `{knowledge_folder}/logs/style-audit-log.md` | audit-style skill |
+| `external_fetch_gate` | `on` \| `off` | off | pre-external-fetch-check.sh via codex-hook.py PreToolUse:local WebFetch/WebSearch |
+| `external_fetch_max_hits` | integer | 8 | pre-external-fetch-check.sh via codex-hook.py PreToolUse:local WebFetch/WebSearch |
 | `ticketing_plugins` | `tag:command` pairs | empty | audit-knowledge skill |
 | `projects_enabled` | `true` \| `false` | false | session-start-check.sh, audit-knowledge skill |
 | `projects_list` | `tag:path` pairs | empty | session-start-check.sh, distill, stitch |
@@ -82,6 +91,8 @@ Hook-parsed fields run on every session start, every edit, every compaction — 
 - `session_stale_days` must be a plain integer ≥ 1
 - `auto_prospect` and `auto_retrospect` must be exactly `off`, `nudge`, or `run`
 - `autonomy` must be exactly `default`, `balanced`, or `autonomous`
+- `preflight_gate` must be exactly `off`, `warn`, or `deny`
+- `external_fetch_gate` must be exactly `on` or `off`
 - `usage_alert_threshold` must be `off` or an integer from 1 to 100. Codex preserves this shared-config field but does not consume it because Codex exposes no status-line usage snapshot to plugin hooks.
 - Cadences and integers: bare digits, no units
 - `last_setup_version`: bare semver (`2.12.2`), no `v` prefix, no quotes
@@ -156,7 +167,11 @@ The shared `usage_alert_threshold` key remains in the schema so one `~/.claude/a
 
 ## Codex Non-Equivalent: ARIA Assist Scheduler
 
-Claude Code v2.27+ ships `/aria-assist` plus launchd-oriented PM helper scripts for unattended morning reviews. Codex does not expose the same bundled headless scheduler path in this plugin surface yet, so the Codex port does **not** ship `/aria-assist` or the `pm-*` scripts in this pass.
+Claude Code v2.27+ ships `/aria-assist` plus launchd-oriented PM helper scripts for unattended morning reviews. Codex does not expose the same bundled headless scheduler path in this plugin surface yet, so the Codex port ships `/aria-assist` as a **manual-only** skill and does **not** bundle the `pm-*` scheduler/notifier scripts.
+
+## Codex Partial Equivalent: External Fetch Gate
+
+Claude Code can hook native `WebFetch|WebSearch` tools directly. Codex plugin hooks observe local tool/function calls; hosted web search is not on that local hook path. The Codex port wires the same gate for local/MCP-style `WebFetch` and `WebSearch` calls when they appear in hook payloads, but cannot intercept hosted web-search requests that bypass local plugin hooks.
 
 ## Related
 

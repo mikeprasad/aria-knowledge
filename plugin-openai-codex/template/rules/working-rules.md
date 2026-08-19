@@ -19,16 +19,20 @@ Rules are living — they get added, refined, or retired based on real experienc
 
 ## Behavioral Foundation
 
-Four principles distill what the 35 rules below collectively enforce. Framed in the spirit of [Andrej Karpathy's January 2026 diagnosis](https://x.com/karpathy/status/2015883857489522876) of how LLMs fail at coding judgment — and the [4-line CLAUDE.md](https://github.com/forrestchang/andrej-karpathy-skills) it inspired — expanded to ARIA's operational scope.
+Four principles distill what the 38 rules below collectively enforce. Framed in the spirit of [Andrej Karpathy's January 2026 diagnosis](https://x.com/karpathy/status/2015883857489522876) of how LLMs fail at coding judgment — and the [4-line CLAUDE.md](https://github.com/forrestchang/andrej-karpathy-skills) it inspired — expanded to ARIA's operational scope.
 
 1. **Don't assume — surface tradeoffs.** Flag uncertainty, present alternatives, push back when warranted. *(Rules 5, 7, 9, 10)*
 2. **Simplest solution wins — nothing speculative.** No abstraction or feature beyond what's asked. *(Rules 13, 14, 18)*
 3. **Touch only what you must.** Match scope to the request; clean only your own mess. *(Rules 22, 25, 26)*
 4. **Define success criteria upfront, loop until verified.** Strong criteria enable independent loops; weak criteria require constant clarification. *(Rule 20)*
 
-The 35 rules below are the expanded, operationalized form. When in doubt, fall back to the four. When the four don't cover it, the 35 likely do. When neither covers it, that's a candidate for Rule 23 (review learnings) and `intake/rules-backlog.md`.
+The 38 rules below are the expanded, operationalized form. When in doubt, fall back to the four. When the four don't cover it, the 38 likely do. When neither covers it, that's a candidate for Rule 23 (review learnings) and `intake/rules-backlog.md`.
 
-**Why both layers exist.** The 4-line foundation is sufficient for one-off tasks and small projects. The 35 rules earn their keep when (a) work spans multiple sessions and needs persistent discipline, (b) failures have asymmetric cost and need explicit gating, or (c) team coordination requires shared, named conventions. Volume past four is justified by the operational context, not added for its own sake.
+**Why both layers exist.** The 4-line foundation is sufficient for one-off tasks and small projects. The 38 rules earn their keep when (a) work spans multiple sessions and needs persistent discipline, (b) failures have asymmetric cost and need explicit gating, or (c) team coordination requires shared, named conventions. Volume past four is justified by the operational context, not added for its own sake.
+
+**Two strictness tiers.** Not every rule binds with equal force. Some are **gates** — rigid, do not adapt them away under time pressure or a terse "just do it" (e.g. Rules 20, 22, 33, 34, 35; the verification and authorization rules). If a gate blocks you, surface that and resolve it — don't route around it. The rest are **defaults** — strong starting points where you apply judgment; deviate when the situation clearly warrants and say why. When unsure which tier a rule is, treat it as a gate.
+
+**Tie-breaker for genuine ties.** When two options are of genuinely equal merit, prefer the one that **preserves reversibility and an audit trail**. This breaks ties only — it is *not* a bias against irreversible choices. A clearly-correct irreversible option isn't a tie: surface it and get the go-ahead (the irreversible/asymmetric-cost path runs through Rule 35's authorization gate, not through this tie-breaker).
 
 -----
 
@@ -100,6 +104,8 @@ Default to Occam’s razor — but validate it. Abstraction and complexity are j
 
 Happy paths represent ideal behavior but won’t happen all the time. Focus testing on API boundaries, user input, service contracts, error states, and permission edges.
 
+**A guard test needs a positive case, not only a negative.** When testing an authorization, ownership, validation, or any pass/reject boundary, assert BOTH that the unauthorized/invalid case is rejected AND that the authorized/valid case *succeeds*. A negative-only test passes for *any* rejection — including the guard being broken, absent, or rejecting everything — so it is a false green: it proves a denial happened, not that the guard fires correctly. The check: if you removed the guard, the suite must go red. RED→GREEN per guard.
+
 ### 16. Use semantic, self-evident naming
 
 Names should communicate purpose clearly to someone without assumed context. Prefer names that describe what something does or represents over jargon or implementation knowledge (e.g., `useRequireAuth` over `useAuthGuard`; `fetchUserOrders` over `getUO`).
@@ -150,6 +156,14 @@ For multi-step work, state the plan as `[step] → verify: [check]` pairs.
 
 Capture the why — what was considered, what was ruled out, and the reasoning. This creates an auditable trail of decision-making that can be referenced to learn and improve over time.
 
+**For a non-trivial or hard-to-reverse decision, record the full shape, not just the choice:**
+
+- **The alternatives considered, each with its rejection rationale** — "A rejected because X, B because Y." The rejection evidence teaches more than the acceptance story; "why did we drop A?" must stay answerable later. An accepted option with no recorded alternatives reads as the only option ever considered — usually false, and lossy.
+- **Consequences across dimensions** — positive, negative, neutral, *and* deferred — so no decision is silently assumed downside-free. Naming the negative/deferred consequences up front is what lets a future reader judge whether the tradeoff still holds.
+- **The forward-looking, downstream commitments the decision dictates** — the choice must also reckon with the direct AND extended actions and outcomes it sets in motion as a result. A decision is not just its immediate consequences; it is the path it commits you to next. Surface what this decision *forces or forecloses* downstream, so the reader sees the trajectory, not only the point.
+
+Scale the artifact to reversibility: an easily-reversed call can be an inline note; a hard-to-reverse one (schema, public API, architecture, dependency, license) warrants a durable decision record. *(How records are formatted, numbered, and archived is project convention; this rule governs the content that must be present.)*
+
 ### 22. Follow the change decision framework
 
 Every change — code, architecture, configuration, documentation — follows this sequence. Don’t skip steps. See `knowledge/rules/change-decision-framework.md` for the detailed version with examples, impact tiers, and hook implementation.
@@ -184,6 +198,40 @@ When a failure involves an external service, API, or dependency, verify that the
 **Composes with Rule 33:** Rule 33 verifies before the call (prospective); this rule verifies after the failure (retrospective). Both target stale third-party information; the timing axis determines which fires.
 
 **Origin:** An API returned 404 for a model identifier that had been renamed. A single discovery-endpoint call would have resolved it immediately instead of extended debugging of a non-existent outage.
+
+### 36. A pass signal only counts if it can fail for the right reason
+
+When an action or claim is gated on a check — "tests pass, so commit," "deploy returned 0, so it shipped," "the request 200'd, so it worked," "the negative test passed, so the guard holds" — bind the conclusion to the **load-bearing** result, not to a **proxy** that can report success for the wrong reason. A signal that cannot go red when the real thing is broken proves nothing.
+
+Ask of any green: *what would make this red, and is that the thing I actually care about?* If the answer is "a downstream or unrelated condition" (a pipeline's last command rather than the test's own exit, a transport status code rather than the decoded result, an absent guard a negative-only test can't detect), the signal is a proxy — gate on the real one instead (the check's own exit, an observable production signal, a live end-to-end round-trip, a positive+negative pair per **Rule 15**).
+
+**A validated confirmation is only valid within its case context, and is not fully valid until its failure is equally understood and validated** — both the pass *and* the fail matching intended function and/or outcome. A check you have only ever seen pass is unproven: you do not yet know it *can* fail, or that it fails for the right reason. Characterize the failure (force it red, observe the mode) before trusting the green.
+
+**Mechanical understanding is what makes validation generalize.** Knowing *why* something passed or failed — the actual reason at a mechanical level, not just that it did — is what lets the validation hold beyond the single observed case: across contexts, circumstances, and often variants too. A green you understand mechanically tells you how it will behave when inputs, environment, or shape change; a green you only observed tells you about one run. Understand the mechanism, not just the result.
+
+**Declare the expected value BEFORE you run the check.** Understanding that a signal *can* go red is not enough — a check can be perfectly capable of failing and still hand you a confident wrong answer, because you never said what right looked like. Before running any verification whose output is a count, hash, exit code, or list, write down the value it **must** produce if your belief is true, and why. Then compare. A check with no pre-declared expectation is a printout, not a test: there is no outcome it can report as wrong, so you will read whatever it prints as confirmation.
+
+The declaration is also the cheapest way to catch a wrong *model*. Computing "109, because 90 existing + 18 converted + 1 new" forces you to enumerate what those 90 actually are — which is where you discover the count includes structural headings you weren't thinking about. The arithmetic surfaces the misconception before the check runs.
+
+Failure signatures this catches that the proxy test above does not:
+
+- **A count with an unmodelled denominator** — the number is real, but of a set that differs from the one you meant.
+- **An implausible rate accepted because no rate was predicted** — a classifier flagging 89% of a corpus is almost never right; without a declared expected range, nothing objects.
+- **A "no results" line that prints even when the command failed** — the vacuous green: the loop errored on every iteration and the trailing summary still said clean.
+
+Corollary: **when a check returns a large, confident list, suspect the oracle before the subject.** The prior probability that your measuring instrument is wrong is much higher than the prior that the codebase just failed in eighty places at once.
+
+**Composes with Rule 15** (positive+negative guard tests are the test-shaped instance of this) and **Rule 20** (validate-before-done is the same discipline at completion time).
+
+### 37. Anything temporary names its own removal trigger up front
+
+**First, justify temporary-ness itself.** Before accepting that something *should* be temporary, consider and validate it against a long-term or foundational alternative (per **Rule 18**) — "temporary" must be a deliberate choice with a reason, not the default that dodges the real design. Often the foundational fix is the better call and the stopgap is false economy; only when the temporary path is genuinely justified does the rest of this rule apply.
+
+**Then, anything meant to be temporary must carry a documented context, decision, trigger, condition, and/or timing for when it should be removed** — recorded at the moment it is introduced, not deferred to a someday cleanup ticket. This covers temporary code AND anything else with a known end-of-life: a stopgap doc, a placeholder config, a stub, a deferral, a workaround pending an upstream fix, a feature flag, a prototype. If a thing is "just for now," "for now" must be defined.
+
+**Why up-front, not later:** a cleanup ticket decays into permanent debt — the context for *why* it was temporary is freshest at introduction and gone later. State what retires it ("remove when the vendor ships the fix," "delete after the migration is verified," "flag drops at GA," "supersede when the real design lands") so the trigger travels with the thing.
+
+**Code instance:** diagnostic instrumentation, one-shot probes/harnesses, feature flags, and scaffolding should be greppable (a consistent marker or commit prefix) so a future sweep finds every instance by its trigger. **Corollary to atomic commits:** a permanent fix and its temporary instrumentation are *separate* concerns — commit them apart, so the temporary one can be reverted on its trigger without collateral. (Distinct from **Rule 6**, which protects content *meant to last*; this governs content *meant to die*.)
 
 -----
 
@@ -389,3 +437,34 @@ The human's decision budget is the scarce resource: a person makes a limited num
 | `autonomous` | full posture | Decide objectively-validatable forks yourself against the Rules 13/14/18 bar; take the foundational fix without escalating cost or scope (Rule 18); run quality gates as checks, not stops; stop only for a judgment call with no gainable visibility, an approval not already granted, or a foundational path that would change what the arc *is*. |
 
 **Why:** This is the operative form of a calibration the agent must apply by default, not on request. How *aggressively* to apply it (how high to set the bar for "stop and ask") is governed by the `autonomy` setting per the table above — but the routing logic itself is universal regardless of that setting.
+
+### 38. Close the class, not the instance — a fix that provably leaves potential for the same bug elsewhere is NOT viable
+
+A proposed solution that fixes the reported instance but **provably leaves potential and/or likelihood for other issues of the same class is not a viable solution.** Viability requires closing the *class*. Elimination-of-potential is the acceptance bar — it sits *above* "does it work."
+
+**The recurrence-vector test.** For any fix, ask: does this provably leave potential for the SAME class of bug via —
+
+- another **call-site** (a sibling caller the helper wasn't wired into),
+- a disagreeing **source of truth** (two validators / two constants / a client-server cap that can drift),
+- a stored-data **residual** (existing rows that predate the fix), or
+- an untracked / **unversioned artifact** (a box-local script, an env-only value)?
+
+If yes → not viable. Expand to the foundational fix that closes the class: **census the siblings, unify the sources of truth, backfill/grandfather the data, version the artifact.**
+
+**This is not scope creep — it is the acceptance bar.** Applied consistently it *expands scope predictably and legitimately*: an open-redirect fix must census ALL URL/email-link builders, not just the reported one; an XSS ingest sanitizer must census ALL raw-HTML sinks AND backfill existing rows; a validator fix must UNIFY the disagreeing validators (single source of truth), not normalize one path — and must verify existing data survives the tightened rule, else the "foundational" fix itself creates the forbidden bug class. Hence: grandfather existing rows and tighten only the WRITE paths, leaving lookup/resolve permissive.
+
+**The bar is the agent's to meet, not the agent's to waive.** Only the human waives it, and only explicitly. Where closing the class is genuinely contested — the foundational fix is materially larger, riskier, or worse-timed — state both paths, the recurrence vector the patch leaves live, and the cost delta, then let them decide (Rule 18). A patch the human chooses with the open vector named is a scoping decision. A patch the agent chooses because closing the class looked expensive is this rule being dodged. Under `autonomy: autonomous` there is no waiver to seek: close the class and absorb the scope, escalating only if doing so would make it a different arc rather than a bigger one.
+
+**The one carve-out:** genuine PRODUCT/scope forks (feature richness, UX copy) that are not correctness bugs remain product decisions, not rule-forced. A dead control whose copy over-promises a missing feature is a *product* call — trim the copy or build the feature — not a correctness bug to force-close.
+
+**Worked examples — the four vectors instantiated in a web stack.** Illustrations of the test, not a universal checklist; translate them to your own stack rather than adopting the idioms literally.
+
+- **Call-site vector** — census every call site of any auth/redirect/injection helper you introduce or change, and assert the **host** in redirect/URL tests, not just the path.
+- **Call-site vector, output sinks** — census raw-output sinks (`dangerouslySetInnerHTML`, `mark_safe`, `|safe`, raw SQL) against ingest sanitization on any change that touches them.
+- **Source-of-truth vector** — round-trip any import/normalize/transform→persist path against the *consumer's* real validators and storage constraints, using an introspection-derived torture case rather than one hand-built from the fix's own coverage list.
+- **Unversioned-artifact vector** — make deploy's definition-of-done a served-hash liveness probe (deployed commit == what is actually serving), and keep the deploy path itself a tracked, reviewed artifact.
+- **Residual and parity sweep** — sibling-parity diff on cloned renderers, dead-control lint, negative assertions on null links, and centralized construction of shared URL/format primitives.
+
+**Composes with:** Rule 13 (simplest that works), Rule 14 (abstraction only for measurable gain), Rule 18 (foundational design over patching), Rules 22/34 (scope + plan gates). This is the *acceptance-bar sharpening* of Rule 18 — the cleanest end-state that closes the class is the only viable solution.
+
+**Origin:** A post-QA remediation arc shipped three fixes that each passed their tests: an open-redirect guard wired to only the reported invite path, an import normalizer wired to only the ticket-named fields, and a client-side upload cap expressed in a different unit base than the server's. All three "worked" while leaving a live recurrence vector, and all three were reopened. Closing the class — census all builders, wire all sites, unify the cap's base, backfill existing data — was the difference between a patch and a fix.

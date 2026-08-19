@@ -38,7 +38,7 @@ unless the user explicitly overrides `KT_CONFIG` or `ARIA_KNOWLEDGE_CONFIG`.
 
 - Skills should keep shared knowledge schemas compatible while using Codex-native
   metadata, config, and hook wording.
-- This port tracks Claude Code ARIA `2.35.2` with Codex release label `2.35.2-codex.0` for shared knowledge templates, review skills, consolidated intake, Rule 35 config, and Codex-supported hook behavior.
+- This port tracks Claude Code ARIA `2.46.2` with Codex release label `2.46.2-codex.0` for shared knowledge templates, review skills, audit/preflight/prospect/retrospect workflows, Rule 35/Rule 36/Rule 37 content, and Codex-supported hook behavior.
 - Rule 22 maps Codex file edits to `apply_patch`; Codex also supports `Edit|Write`
   matcher aliases for the same canonical tool.
 - `UserPromptSubmit` is the Codex-native active-knowledge intent hook. It scans
@@ -48,9 +48,12 @@ unless the user explicitly overrides `KT_CONFIG` or `ARIA_KNOWLEDGE_CONFIG`.
   self-report nudges and durable capture.
 - `SESSION.md` in-progress state, `auto_prospect`, and `auto_retrospect` are
   implemented in the Python adapter for Codex `apply_patch` and shell outputs.
-- Shell write detection is advisory in this port; use `apply_patch` for edits.
+- Shell write detection is advisory in this port; preflight-before-commit can warn
+  or deny based on shared config; scheduled prompts that begin with `/` are denied
+  when Codex exposes the scheduler tool call to hooks.
 - `/foundational-review` and `/readiness-audit` are ported as Codex-native skills. ADR-094 Claude/Cowork runtime gates are stripped, and the bundled canonical process doc is read from `${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/skills/foundational-review/foundational-review-chain.md`.
-- `/interview` and `/recap` are ported as Codex-native skills with ADR-094 runtime gates stripped.
+- `/audit`, `/audit usage`, `/audit style`, `/auto`, `/preflight`, `/roadmap`, `/interview`, and `/recap` are ported as Codex-native skills with ADR-094 runtime gates stripped.
+- `/aria-assist` is ported as a manual Codex skill. Claude Code's launchd scheduler and `pm-*` notifier/collector scripts are intentionally not bundled.
 - `/clip`, `/clip-thread`, and `/extract-doc` are retired from active discovery and archived under `skills/.archived/`; their live workflows are handled by `/intake`, `/intake thread`, and `/intake extract`.
 - Claude Code `TaskCreated` has no exact Codex event. The closest intent-based
   equivalent is `UserPromptSubmit` plus subagent boundary hooks, not per-task
@@ -58,11 +61,18 @@ unless the user explicitly overrides `KT_CONFIG` or `ARIA_KNOWLEDGE_CONFIG`.
 - Claude Code `/statusline`, `statusline-meter.sh`, and
   `usage-threshold-inject.sh` are intentionally not ported because Codex exposes
   no plugin statusline slot or usage/rate-limit percentage payload today.
-- Claude Code `/aria-assist`, launchd scheduler scripts, and PM helper scripts are intentionally not ported in this pass because Codex has no equivalent bundled headless scheduler path in the plugin surface.
+- Hosted Codex web search is not on the local plugin hook path. `pre-external-fetch-check.sh` is wired for local/MCP-style `WebFetch` and `WebSearch` calls when they appear in hook payloads.
 - Hooks are enabled by default in current Codex, but plugin-bundled hooks still
   require user trust review before they run.
 
-## v2.35.2 update (2026-06-22) — Consolidated intake + current parity
+## v2.46.2 update (2026-08-19) — Current Claude parity pass
+
+- Synced active Codex skill bodies and rule templates to the canonical Claude Code surfaces.
+- Added Codex-native ports for `/audit`, `/audit usage`, `/audit style`, `/auto`, `/preflight`, `/roadmap`, and manual-only `/aria-assist`.
+- Added Codex adapter coverage for shell write bypass warnings, preflight-before-commit gating, scheduled prompt slash-command denial, local external-fetch coverage gating, and touched-test tautology warnings.
+- Preserved non-equivalents where Codex has no intent-based surface: `/statusline` and unattended ARIA Assist scheduling/notifying.
+
+## v2.35.2 update (2026-06-22) — Consolidated intake
 
 MCP-consuming capture now flows through active skills with Codex-native metadata:
 

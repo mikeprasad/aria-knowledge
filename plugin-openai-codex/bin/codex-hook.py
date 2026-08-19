@@ -45,6 +45,10 @@ def run_legacy(script_name: str, hook_input: str) -> int:
     return returncode
 
 
+def compact_json(data: dict[str, Any]) -> str:
+    return json.dumps(data, separators=(",", ":"))
+
+
 def load_input() -> tuple[str, dict[str, Any]]:
     raw = sys.stdin.read()
     if not raw.strip():
@@ -192,6 +196,31 @@ def hook_event(name: str, additional_context: str) -> dict[str, Any]:
             "additionalContext": additional_context,
         }
     }
+
+
+def parse_hook_stdout(stdout: str) -> dict[str, Any] | None:
+    text = stdout.strip()
+    if not text:
+        return None
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError:
+        return None
+    return parsed if isinstance(parsed, dict) else None
+
+
+def hook_specific(parsed: dict[str, Any]) -> dict[str, Any]:
+    value = parsed.get("hookSpecificOutput")
+    return value if isinstance(value, dict) else {}
+
+
+def is_deny_output(parsed: dict[str, Any]) -> bool:
+    return hook_specific(parsed).get("permissionDecision") == "deny"
+
+
+def output_additional_context(parsed: dict[str, Any]) -> str:
+    value = hook_specific(parsed).get("additionalContext")
+    return value if isinstance(value, str) else ""
 
 
 def config_path() -> Path:
@@ -469,6 +498,65 @@ def parse_apply_patch_files(command: str) -> list[str]:
     return paths
 
 
+def is_test_path(path: str) -> bool:
+    return bool(re.search(r"(test|spec)", path, re.I))
+
+
+def tautology_message(paths: list[str], data: dict[str, Any]) -> str:
+    for path in paths:
+        if not is_test_path(path):
+            continue
+        absolute = absolute_touched_path(path, data)
+        if not absolute.exists() or not absolute.is_file():
+            continue
+        try:
+            text = absolute.read_text(errors="ignore")
+        except OSError:
+            continue
+
+        found = ""
+        if re.search(
+            r"assert\s+(True|true)([^A-Za-z0-9_]|$)|assertTrue\(\s*(True|true)\s*\)|expect\(\s*(true|True)\s*\)\.(toBe|toEqual)\(\s*(true|True)\s*\)",
+            text,
+        ):
+            found = "a literal-true assertion"
+
+        if not found:
+            for match in re.finditer(
+                r"assert\s+([A-Za-z_][A-Za-z0-9_.]*)\s*==\s*([A-Za-z_][A-Za-z0-9_.]*)",
+                text,
+            ):
+                if match.group(1) == match.group(2):
+                    found = f"an assertion whose two operands are both '{match.group(1)}'"
+                    break
+
+        if not found:
+            for match in re.finditer(
+                r"expect\(([A-Za-z_][A-Za-z0-9_.]*)\)\.(?:toBe|toEqual)\(([A-Za-z_][A-Za-z0-9_.]*)\)",
+                text,
+            ):
+                if match.group(1) == match.group(2):
+                    found = f"an assertion whose two operands are both '{match.group(1)}'"
+                    break
+
+        if not found:
+            for match in re.finditer(
+                r"\[\[?\s*(\$[A-Za-z_][A-Za-z0-9_]*)\s*(?:==?|=|-eq)\s*(\$[A-Za-z_][A-Za-z0-9_]*)\s*\]?\]",
+                text,
+            ):
+                if match.group(1) == match.group(2):
+                    found = f"a shell test comparing {match.group(1)} to itself"
+                    break
+
+        if found:
+            return (
+                f"ARIA: this test file contains {found} - it cannot fail, so it proves nothing while still reporting green "
+                "(Rule 36). Rewrite it so it fails for the right reason, then watch it go RED before trusting it. "
+                "NOTE: this check is syntactic only. It cannot detect semantic tautologies, so a clean result here is not evidence that the file is free of them."
+            )
+    return ""
+
+
 def is_apply_patch_tool(short_name: str) -> bool:
     return short_name in {"apply_patch", "Edit", "Write"} or short_name.endswith("apply_patch")
 
@@ -477,11 +565,36 @@ def is_shell_tool(short_name: str) -> bool:
     return short_name in {"Bash", "exec_command"} or short_name.endswith("exec_command")
 
 
+def is_external_fetch_tool(short_name: str) -> bool:
+    return short_name in {"WebFetch", "WebSearch"} or short_name.endswith(("WebFetch", "WebSearch"))
+
+
+def is_scheduler_create_tool(short_name: str) -> bool:
+    return short_name in {"CronCreate", "create_scheduled_task"} or short_name.endswith(
+        ("CronCreate", "create_scheduled_task")
+    )
+
+
 def is_planning_path(path: str) -> bool:
     return bool(
         re.search(r"/docs/(specs|plans)/.+", f"/{path}")
         or re.search(r"/docs/superpowers/(specs|plans)/.+", f"/{path}")
     )
+
+
+def matches_config_path(path: str, raw_patterns: str) -> bool:
+    if not raw_patterns.strip():
+        return False
+    normalized = f"/{path}"
+    for pattern in raw_patterns.split(","):
+        prefix = pattern.strip().rstrip("*").rstrip("/")
+        if prefix and f"/{prefix}/" in normalized:
+            return True
+    return False
+
+
+def is_planning_path_for_config(path: str, config: dict[str, str]) -> bool:
+    return is_planning_path(path) or matches_config_path(path, config_value(config, "planning_paths"))
 
 
 def is_auto_prospect_path(path: str) -> bool:
@@ -519,7 +632,7 @@ def is_protected_path(path: str, config: dict[str, str]) -> bool:
 
 
 def scope_message(paths: list[str], config: dict[str, str]) -> str:
-    if paths and all(is_planning_path(path) for path in paths) and not any(
+    if paths and all(is_planning_path_for_config(path, config) for path in paths) and not any(
         is_protected_path(path, config) for path in paths
     ):
         return "PLANNING PATH - abbreviated scope check. Output: [Rule 22 · Scope] OK - planning doc."
@@ -745,28 +858,57 @@ def pre_tool_use(data: dict[str, Any]) -> None:
         cmd = command_from_inputs(inputs)
         shell_payload = dict(data)
         shell_payload["command"] = cmd
-        returncode, stdout, stderr = run_legacy_capture(
-            "bash-cd-check.sh",
-            json.dumps(shell_payload),
-            cwd_from(data),
-        )
-        if stdout:
-            sys.stdout.write(stdout)
-            return
-        if returncode != 0 and stderr:
-            sys.stderr.write(stderr)
-            return
+        messages: list[str] = []
+        for script in ("bash-cd-check.sh", "pre-bash-write-check.sh", "pre-commit-preflight-check.sh"):
+            returncode, stdout, stderr = run_legacy_capture(script, compact_json(shell_payload), cwd_from(data))
+            parsed = parse_hook_stdout(stdout)
+            if parsed:
+                if is_deny_output(parsed):
+                    emit(parsed)
+                    return
+                context = output_additional_context(parsed)
+                if context:
+                    messages.append(context)
+            elif stdout:
+                sys.stdout.write(stdout)
+                return
+            elif returncode != 0 and stderr:
+                sys.stderr.write(stderr)
+                return
+
         reminder = maybe_codemap_reminder(data, cmd)
         if reminder is not None:
-            emit(reminder)
-            return
+            context = output_additional_context(reminder)
+            if context:
+                messages.append(context)
         if writeish_exec_command(cmd) and not has_rule22_marker(last_text):
-            emit(
-                hook_event(
-                    "PreToolUse",
-                    "ARIA: this shell command looks like it may write files. Prefer apply_patch for file edits, or output Rule 22 before any intentional write.",
-                )
+            messages.append(
+                "ARIA: this shell command looks like it may write files. Prefer apply_patch for file edits, or output Rule 22 before any intentional write."
             )
+        if messages:
+            emit(hook_event("PreToolUse", " ".join(messages)))
+        return
+
+    if is_external_fetch_tool(short_name):
+        returncode, stdout, stderr = run_legacy_capture("pre-external-fetch-check.sh", compact_json(data), cwd_from(data))
+        parsed = parse_hook_stdout(stdout)
+        if parsed:
+            emit(parsed)
+        elif stdout:
+            sys.stdout.write(stdout)
+        elif returncode != 0 and stderr:
+            sys.stderr.write(stderr)
+        return
+
+    if is_scheduler_create_tool(short_name):
+        returncode, stdout, stderr = run_legacy_capture("pre-cron-check.sh", compact_json(data), cwd_from(data))
+        parsed = parse_hook_stdout(stdout)
+        if parsed:
+            emit(parsed)
+        elif stdout:
+            sys.stdout.write(stdout)
+        elif returncode != 0 and stderr:
+            sys.stderr.write(stderr)
         return
 
 
@@ -779,6 +921,9 @@ def post_tool_use(data: dict[str, Any]) -> None:
         paths = parse_apply_patch_files(command_from_inputs(inputs))
         maybe_mark_session_state(paths, data, config)
         messages = [scope_message(paths, config)]
+        tautology = tautology_message(paths, data)
+        if tautology:
+            messages.append(tautology)
         prospect = auto_prospect_message(paths, config)
         if prospect:
             messages.append(prospect)

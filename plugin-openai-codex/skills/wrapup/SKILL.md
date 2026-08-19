@@ -9,10 +9,13 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 
 Close out the current session cleanly: review what got done, update project tracking files, commit changes, capture session knowledge, and confirm everything is documented. This is the "I'm done" skill — no next-session opener is produced. For passoff (future-you or a coworker), use `/handoff` instead.
 
-**Two modes:**
+**Three modes:**
 
 - **Default (`/wrapup`)** — Per-step gated review. Each tracked surface (session summary, PROGRESS, CLAUDE.md, memory, commit, /extract prompt) prompts for explicit confirmation before writing.
 - **`auto` (`/wrapup auto`)** — Implicit-yes on all gates. Run silently. Apply all drafts and chain `/extract` without confirmation. Emit final report only. Use when the session is short and unambiguous, or when you've already authorized a combined-go (`yes to all`, `yes to all with extract`).
+- **`snap` (`/wrapup snap`)** — Like `auto`, but archives the raw transcript via `/snapshot` for later extraction **instead of** running `/extract` now. Use when context is high: you still get the full silent close-out + commit, but defer the expensive, compaction-risky knowledge synthesis to a later session (or the next `/audit-knowledge` digest pass, which reads the snapshot automatically).
+
+**`snap` is `auto` plus one swap.** Everywhere a step below says "If `mode = auto` (or `snap`)", `snap` follows auto's behavior exactly — implicit-yes, silent, apply all drafts, no per-step prompts. The single difference is the capture step (Step 8): `snap` runs `/snapshot` (archive the transcript for later) while `auto` runs `/extract` (synthesize now). Nothing else differs.
 
 ## Step 0: Resolve Config and Parse Mode
 
@@ -21,7 +24,8 @@ Read `~/.claude/aria-knowledge.local.md` and extract `knowledge_folder`. If the 
 Parse the argument:
 - No arg, or arg is empty → `mode = gated` (default)
 - Arg matches `auto` (case-insensitive) → `mode = auto`
-- Any other arg → stop: "Unknown argument '{arg}'. Use '/wrapup' or '/wrapup auto'."
+- Arg matches `snap` (case-insensitive) → `mode = snap`
+- Any other arg → stop: "Unknown argument '{arg}'. Use '/wrapup', '/wrapup auto', or '/wrapup snap'."
 
 Use `{knowledge_folder}` as the base path for all file operations in subsequent steps.
 
@@ -29,21 +33,20 @@ Use `{knowledge_folder}` as the base path for all file operations in subsequent 
 
 Detect the active project by scanning the working directory for project markers:
 
-1. Search upward from cwd for `PROGRESS.md`, `AGENTS.md`, and `CLAUDE.md` files
+1. Search upward from cwd for `PROGRESS.md` and `CLAUDE.md` files
 2. Also check for `CODEMAP.md` (indicates a mapped codebase)
 3. Check for project-level memory files in `~/.claude/projects/` matching the current path
 
-**Multi-project-root disambiguation (required for correct SESSION.md placement):** if the upward search resolves to a *multi-project/workspace root* — e.g. `~/Projects`, or any directory whose `AGENTS.md`/`CLAUDE.md` indexes multiple child projects rather than describing one project, and which has no project-specific `PROGRESS.md` — do NOT treat that root as the project (writing `SESSION.md` there would be wrong). Instead infer the active project from **this session's actual work**: the files edited, the repos committed to, or the project the user named. Use that project's own root (its nearest `AGENTS.md`/`CLAUDE.md`/`PROGRESS.md`) for every per-project write, especially `SESSION.md`. This mirrors the SessionStart re-entry instruction's "which project" signal. If the session genuinely spans no single project, skip the SESSION.md write (Step 6.5) and note it.
+**Multi-project-root disambiguation (required for correct SESSION.md placement):** if the upward search resolves to a *multi-project/workspace root* — e.g. `~/Projects`, or any directory whose `CLAUDE.md` indexes multiple child projects rather than describing one project, and which has no project-specific `PROGRESS.md` — do NOT treat that root as the project (writing `SESSION.md` there would be wrong). Instead infer the active project from **this session's actual work**: the files edited, the repos committed to, or the project the user named. Use that project's own root (its nearest `CLAUDE.md`/`PROGRESS.md`) for every per-project write, especially `SESSION.md`. This mirrors the SessionStart re-entry instruction's "which project" signal. If the session genuinely spans no single project, skip the SESSION.md write (Step 6.5) and note it.
 
 Record:
-- **Project root** — the directory containing PROGRESS.md, AGENTS.md, and/or CLAUDE.md
+- **Project root** — the directory containing PROGRESS.md and/or CLAUDE.md
 - **PROGRESS.md path** — if it exists
-- **AGENTS.md path(s)** — root-level and any subfolder-level ones relevant to the session
 - **CLAUDE.md path(s)** — root-level and any subfolder-level ones relevant to the session
 - **Memory files** — any `project_*.md` files in the Claude memory directory for this project path
 - **Git repos** — run `git status` in any git repositories within the project to detect uncommitted changes
 
-If no PROGRESS.md, AGENTS.md, or CLAUDE.md is found, note this — the session may be in a project that doesn't use these conventions. Continue with the steps that are applicable.
+If no PROGRESS.md or CLAUDE.md is found, note this — the session may be in a project that doesn't use these conventions. Continue with the steps that are applicable.
 
 ## Step 2: Review Session Work
 
@@ -72,7 +75,7 @@ Present this summary to the user:
 - [what follows from here]
 ```
 
-**If `mode = auto`:** skip the prompt and proceed with the drafted summary as-is.
+**If `mode = auto` (or `snap`):** skip the prompt and proceed with the drafted summary as-is.
 
 **Otherwise (gated mode):** Ask: "Does this summary look right? (yes / edit)"
 
@@ -87,7 +90,7 @@ If a PROGRESS.md exists for this project:
 3. If no entry exists, draft a new session entry using the project's existing format (match the heading style, content structure, and level of detail of previous entries)
 4. Show the draft to the user
 
-**If `mode = auto`:** append the drafted entry without prompting (equivalent to **yes**).
+**If `mode = auto` (or `snap`):** append the drafted entry without prompting (equivalent to **yes**).
 
 **Otherwise (gated mode):** Ask: "Add this session entry to PROGRESS.md? (yes / edit / skip)"
 
@@ -109,7 +112,7 @@ If a CLAUDE.md exists for this project:
    - Tool/integration changes
 3. If updates are needed, show the proposed changes
 
-**If `mode = auto`:** apply the drafted CLAUDE.md updates without prompting (equivalent to **yes**). If no updates are needed, note that in the final report and move on.
+**If `mode = auto` (or `snap`):** apply the drafted CLAUDE.md updates without prompting (equivalent to **yes**). If no updates are needed, note that in the final report and move on.
 
 **Otherwise (gated mode):** Ask: "Update CLAUDE.md with these changes? (yes / edit / skip)"
 
@@ -123,7 +126,7 @@ Check if project memory files (in `~/.claude/projects/` for the current project 
 2. Compare against the session summary — is the memory's "Current State" still accurate?
 3. If the memory is stale, draft an update
 
-**If `mode = auto`:** apply the drafted memory update without prompting (equivalent to **yes**). If no memory file exists or no update is needed, note that in the final report and move on.
+**If `mode = auto` (or `snap`):** apply the drafted memory update without prompting (equivalent to **yes**). If no memory file exists or no update is needed, note that in the final report and move on.
 
 **Otherwise (gated mode):** Ask: "Update project memory? (yes / edit / skip)"
 
@@ -143,7 +146,7 @@ For each git repository detected in Step 1:
    [list the file names]
    ```
 
-**If `mode = auto`:** stage all changes (per-file, not `git add -A` — exclude anything that looks like a secret or unrelated work-in-progress), draft a conventional commit message from the session work, and commit without prompting. Skip the message-confirmation step. Still **local commit only — never push.**
+**If `mode = auto` (or `snap`):** stage all changes (per-file, not `git add -A` — exclude anything that looks like a secret or unrelated work-in-progress), draft a conventional commit message from the session work, and commit without prompting. Skip the message-confirmation step. Still **local commit only — never push.**
 
 **Otherwise (gated mode):** Ask: "Want to commit these changes? (yes / no / select files)"
 
@@ -161,7 +164,21 @@ Skip this step entirely unless `session_state: true` in `~/.claude/aria-knowledg
 
 Write `{project_root}/SESSION.md` (project root from Step 1) as a **wrapup-state** snapshot, following the contract at `aria-atlas/docs/TEMPLATE_SESSION.md`. **Full rewrite** (wrapup is an authoritative close). This is a deliberate exception to the "don't create files" rule — create it if absent.
 
-**Gitignore it, never commit it:** SESSION.md is ephemeral per-session state (atlas reads it from disk; PROGRESS.md is the durable log). If `{project_root}` is a git repo and its `.gitignore` doesn't already ignore `SESSION.md`, append a `SESSION.md` line to `{project_root}/.gitignore`. **Never `git add` SESSION.md** — it is intentionally untracked, so it must not appear in the Step 6 commit.
+**Consume on clean close (multi-session ledger):** a `/wrapup` is a clean close, not a handoff — it adds NO pending entry for the wrapped session itself (there is no next-session prompt to retain). If the existing SESSION.md has a `## Pending handoffs` block (or a legacy `## Prior sessions` one), source `bin/lib-session-state.sh` and call `kt_ss_ledger_prune "{project_root}"` to drop any entries a resume already marked `consumed`. Unconsumed handoffs survive at full fidelity — wrapping up one session never silently discards another's pending pickup.
+
+**Before closing, check what this session left behind (two cheap reads, both report-only):**
+
+1. **Recorded Rule 22 bypasses.** Read `${TMPDIR:-/tmp}/aria-r22-bypass-<session_id>` if it exists — each line is an in-place file mutation made through the shell, which routed around the Edit/Write gate and so landed with no scope assessment recorded. The PreToolUse hook only *warns* (denying would block legitimate work), so a warning that was ignored leaves no other trace. Report the count and the idioms in the close-out summary — not as a failure, as a fact worth knowing before the session ends. If the file is absent, say nothing.
+2. **Pending handoffs.** If `## Pending handoffs` (or a legacy `## Prior sessions`) still holds `unconsumed` entries, state how many and name their sessions. A clean close does not consume another session's pickup, so this is the last chance to notice one before the session is gone — the third of three checkpoints (the others are `/handoff` and resume).
+
+**Never skip this step to avoid clobbering another session's state.** Skipping loses more than writing does: the prune only ever removes entries already marked consumed, so running it cannot destroy pending work. If you are unsure whether another session owns the file, run the prune and write — that is the safe direction, not the risky one.
+
+**Tracked or ignored — read `session_state_tracked` (default `false`):**
+
+- **`false` (default) — ignore it, never commit it.** SESSION.md is ephemeral per-session state (atlas reads it from disk; PROGRESS.md is the durable log). If `{project_root}` is a git repo and SESSION.md is **not already tracked**, ensure `.gitignore` ignores it. **Never `git add` SESSION.md** — it must not appear in the Step 6 commit.
+- **`true` — it is a tracked artifact.** Do **NOT** add an ignore line, and **DO** stage it with the Step 6 commit. If an ignore line already exists, remove it: leaving one makes the config assert something git is not doing. Choose this when SESSION.md carries a decision trail you need versioned — most often in a repo with no `PROGRESS.md`, where SESSION.md *is* the durable log and the default's rationale does not hold.
+
+⛔ **Test tracking with `git -C {project_root} ls-files --error-unmatch SESSION.md`, never "is the pattern already in `.gitignore`?"** An ignore rule is a **no-op on an already-tracked path**, so a pattern check can never become true for a tracked file and the clause **appends on every run** — one observed `.gitignore` had accumulated four identical `SESSION.md` lines. ⚠ `git check-ignore` cannot serve as the test either: it consults the index, so it reports a **tracked** file as *not ignored*. (That inversion is itself useful — "not ignored" from `check-ignore` on a file you believe is ignored means it is tracked.)
 
 Header fields:
 - `lastEvent: wrapup`
@@ -177,7 +194,7 @@ Body:
 - `## Next session pickup` — 2-4 sentences
 - `## Next session prompt` — **leave the fenced block empty** (wrapup carries no opener; that's what distinguishes it from `/handoff`)
 
-**If `mode = auto`:** write without prompting. **Otherwise (gated):** show the drafted file and ask "Write SESSION.md (wrapup state)? (yes / edit / skip)".
+**If `mode = auto` (or `snap`):** write without prompting. **Otherwise (gated):** show the drafted file and ask "Write SESSION.md (wrapup state)? (yes / edit / skip)".
 
 ## Step 7: Verify Wrapup Readiness
 
@@ -198,7 +215,9 @@ Run through a checklist and report status:
 
 If any item shows a gap (uncommitted changes skipped, PROGRESS.md not updated), flag it — but don't block. The user may have good reasons to defer.
 
-## Step 8: Prompt Extract
+## Step 8: Capture Session Knowledge
+
+**If `mode = snap`:** Do NOT run `/extract`. Instead invoke the `/snapshot` skill to archive the raw transcript to `intake/pre-compact-captures/` for later extraction. This is snap mode's defining difference: capture is deferred, not synthesized now. Like auto, this always runs — there is no skip path. The snapshot is the deferred-extraction handoff: a later `/extract`, or the next `/audit-knowledge` digest pass (which reads `intake/pre-compact-captures/` automatically), synthesizes knowledge from it when context isn't a constraint. Use snap when context is high and running `/extract` now would risk compaction mid-synthesis. (`/snapshot` requires Bash, which the Step-0 runtime gate already guaranteed.)
 
 **If `mode = auto`:** ALWAYS invoke the `/extract` skill. No judgment-skip allowed — even if the session feels short, conversational, or seems to have nothing new to extract, run `/extract` anyway. The model running this step must not pre-judge whether extraction is worthwhile; `/extract` has its own dedup logic (per its Rules section: "Never ask for confirmation — scan and dump") that correctly handles the "nothing to add" case by reporting `No uncaptured knowledge found`. The wrapup skill must not make that judgment on `/extract`'s behalf. Auto mode's "implicit-yes on all gates" rule converts to **"extract always runs"** here — there is no skip path in auto mode.
 
@@ -216,7 +235,9 @@ Output a brief closing summary:
 
 [1-2 lines: what was updated]
 
-**Next session pickup:** Read [path to PROGRESS.md, AGENTS.md, or CLAUDE.md]
+[If mode = snap: **Knowledge capture:** transcript snapshotted to intake/pre-compact-captures/ for later extraction (run /extract in a fresh session, or let the next /audit-knowledge digest pass synthesize it). /extract was NOT run this session.]
+
+**Next session pickup:** Read [path to PROGRESS.md or CLAUDE.md]
 ```
 
 Use the heading **`Session Wrapup Complete`** for `/wrapup` runs — distinct from `/handoff`'s **`Session Handoff Complete`** heading. The two skills have distinct intents per the v2.19.0 intent split (wrapup = close-out with no passoff; handoff = passoff package with next-session opener) and their closing-report headings should reflect that.
@@ -230,4 +251,5 @@ Use the heading **`Session Wrapup Complete`** for `/wrapup` runs — distinct fr
 - **Skip gracefully** — if a file doesn't exist (no PROGRESS.md, no CLAUDE.md, no memory), skip that step and note it. Don't create files that don't already exist as part of the project's conventions.
 - **SESSION.md is the one create-exception.** Unlike PROGRESS.md/CLAUDE.md/memory (skip-gracefully if absent), SESSION.md is *always written* when `session_state` is on — created at the project root if it doesn't exist. It's a new convention that must bootstrap. This is the only file /wrapup creates rather than skips.
 - **Delegate extraction** — /wrapup prompts for /extract but does not perform extraction itself. The /extract skill has its own deduplication and formatting logic.
+- **`snap` defers, never drops, capture.** In snap mode /wrapup runs `/snapshot` instead of `/extract` — it must always run the snapshot (no skip path, same as auto's "extract always runs" invariant). The raw transcript is preserved so a later /extract or /audit-knowledge digest can synthesize it; snap never means "skip knowledge capture," only "capture cheaply now, synthesize later." snap is otherwise byte-for-byte auto behavior (silent, implicit-yes, local commit only, never push).
 - **One passoff per session** — if the user runs /wrapup again in the same session, check what was already done and skip completed steps. Don't duplicate entries.

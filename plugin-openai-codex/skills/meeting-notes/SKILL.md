@@ -17,7 +17,7 @@ Verify `{knowledge_folder}/intake/meetings/` exists. If not, create it (lazy cre
 
 ## Step 1: Probe Connected MCPs (with paste fallback)
 
-Check Codex's available tool list for `~~docs` MCPs:
+Check Claude's available tool list for `~~docs` MCPs:
 
 - **`~~docs`** (notion, atlassian, box, egnyte, google docs): if connected, available for MCP-sourced meeting docs.
 
@@ -31,7 +31,7 @@ Unlike `/intake extract`, `/intake thread`, `/digest`, and `/sync-decisions`, th
 
 ## Step 2 (MCP branch): Parse + Fetch from ~~docs
 
-Same as `/intake extract` doc-source routing. Routing table:
+Same as `/intake extract` (MCP-doc path) Step 2-3. Routing table:
 
 | Input shape | Routes to |
 |---|---|
@@ -62,7 +62,7 @@ Wait for the paste. Read the content until `---END---` marker. Proceed to Step 3
 
 ## Step 3: Structure the Transcript
 
-Parse the transcript body to identify these sections (Codex infers from content; this is NOT a strict parser — handle informal transcripts):
+Parse the transcript body to identify these sections (Claude infers from content; this is NOT a strict parser — handle informal transcripts):
 
 1. **Participants** — names + roles if present. Look for lists at the top, "@" mentions, speaker labels.
 2. **Date + duration** — if not explicit, ask user or default to today.
@@ -159,7 +159,7 @@ Captured meeting "<title>" to intake/meetings/<date>-<slug>.md.
 - Decisions: <N>
 - Open questions: <N>
 
-Next: add a reaction in the "## Reaction" section (or wait for /audit-knowledge to surface it). Action items + decisions may be worth extracting separately via /intake extract on this file if you want them in the standard intake backlogs.
+Next: add a reaction in the "## Reaction" section (or wait for /audit-knowledge to surface it). Action items + decisions may be worth extracting separately via `/intake extract` on this file if you want them in the standard intake backlogs.
 ```
 
 ## Rules
@@ -172,7 +172,7 @@ Next: add a reaction in the "## Reaction" section (or wait for /audit-knowledge 
 
 ## Notes
 
-- The Reaction section pattern matches `/intake doc` (v2.17.0) and `/intake thread` — capture artifacts ship with a user-fillable "why this matters" slot that Codex never autocompletes.
+- The Reaction section pattern matches `/intake doc` (v2.17.0) and `/intake thread` (v2.18.0 origin) — capture artifacts ship with a user-fillable "why this matters" slot that Claude never autocompletes.
 - Bidirectional per [ADR-014](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/014-bidirectional-feature-flow.md) — aria-cowork v0.4.0 imports byte-faithfully.
 - Output schema is byte-identical per [ADR-013](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/013-cowork-modified-skills-schema-identical-outputs.md). Both plugins write to `intake/meetings/` in the shared knowledge folder.
 - **Paste-fallback divergence** documented in [ADR-015](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/015-capability-probe-pattern.md) §"Application across the 5 MCP-consuming skills" — this is the one skill that doesn't hard-stop on missing MCPs.

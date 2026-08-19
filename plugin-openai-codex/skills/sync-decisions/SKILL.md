@@ -19,13 +19,13 @@ Lazily create `{knowledge_folder}/logs/sync-decisions.md` if it doesn't exist (u
 
 ## Step 1: Probe Connected MCPs
 
-Check Codex's available tool list for `~~docs` MCPs that support WRITE operations:
+Check Claude's available tool list for `~~docs` MCPs that support WRITE operations:
 
 - **`~~docs`** (notion, atlassian, box, egnyte, google docs): if connected, check the MCP's exposed tools — `~~docs` MCPs that only expose `read_page` / `search_pages` are READ-ONLY for this skill's purpose. Need a write surface (`create_page`, `update_page`, `append_block_children`, or equivalent).
 
 If NO `~~docs` MCP with write capability is connected, output the standard fallback notice and stop:
 
-> No required MCPs connected for `/sync-decisions`. This skill writes externally — needs a `~~docs` MCP with write capability (page creation or block append). Connect Notion, Atlassian (Confluence), Box, Egnyte, or Google Docs via Codex MCP configuration. See [CONNECTORS.md](../../CONNECTORS.md). Skipping this run.
+> No required MCPs connected for `/sync-decisions`. This skill writes externally — needs a `~~docs` MCP with write capability (page creation or block append). Connect Notion, Atlassian (Confluence), Box, Egnyte, or Google Docs via Claude Code's MCP config (or Cowork Settings → Connectors). See [CONNECTORS.md](../../CONNECTORS.md). Skipping this run.
 
 Per [ADR-015](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/015-capability-probe-pattern.md).
 

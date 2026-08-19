@@ -101,7 +101,7 @@ Glob `{knowledge_folder}/intake/ideas/*.md`. **If the directory is missing**, re
 
 **Counting note:** When reporting an idea count (Step 6's `Pending Ideas (N)` header and Step 8's `Plus N ideas` audit-log subfield), filter out `README.md` and `.gitkeep` from the glob result — they're directory-purpose files, not ideas, and inflate counts by 1-2 if included. The reads-and-categorize step below is unaffected since non-idea files lack the required `date:`/`project:`/`type:`/`title:` frontmatter and are skipped during per-file review. Concrete primitive: `ls intake/ideas/*.md 2>/dev/null | grep -v 'README\|\.gitkeep' | wc -l`.
 
-**Legacy-file detection (one-time):** Also check for `{knowledge_folder}/intake/ideas-backlog.md`. If it exists alongside `intake/ideas/`, surface a finding in Step 6 under a "Legacy Ideas Backlog" note: *"Pre-2.11 `ideas-backlog.md` detected. Run `bash ${CLAUDE_PLUGIN_ROOT}/bin/migrate-ideas-backlog.sh {knowledge_folder}` or re-run `/setup` to migrate entries into per-file format."* Do not attempt the migration from within the audit flow.
+**Legacy-file detection (one-time):** Also check for `{knowledge_folder}/intake/ideas-backlog.md`. If it exists alongside `intake/ideas/`, surface a finding in Step 6 under a "Legacy Ideas Backlog" note: *"Pre-2.11 `ideas-backlog.md` detected. Run `bash ${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/bin/migrate-ideas-backlog.sh {knowledge_folder}` or re-run `/setup` to migrate entries into per-file format."* Do not attempt the migration from within the audit flow.
 
 For each `*.md` file in `intake/ideas/`: read the file (frontmatter + body). Each file is one idea — feature proposal, bug report, or design idea captured via `/extract`. Ideas have a **distinct disposition** from other backlogs — they do NOT promote to knowledge files directly. Present them in their own section in Step 6 with the options:
 
@@ -232,7 +232,7 @@ Scan `{knowledge_folder}/intake/pre-compact-captures/` for `.md` files. **If the
 **Digest mode (default):** For each transcript snapshot, run the digest script to extract high-signal content before reading:
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/bin/digest-transcript.sh "{snapshot_path}" "/tmp/aria-digest-{filename}"
+bash ${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/bin/digest-transcript.sh "{snapshot_path}" "/tmp/aria-digest-{filename}"
 ```
 
 Then read the digest file (not the raw transcript). The digest keeps all user messages (truncated at 500 chars), first/last 5 lines of each assistant turn, Insight blocks, and lines containing decision/feedback signal keywords. Tool calls and results are dropped entirely. Typical reduction: **~97% fewer tokens** vs raw transcript (~1-3K tokens per snapshot vs ~30-50K+ raw).
@@ -243,6 +243,10 @@ For each snapshot (digest or full):
 1. Note the filename (contains date and session ID, e.g., `2026-04-07_a1b2c3d4.md`)
 2. Scan for extractable content — look for the same categories as `/extract`: Insight blocks, architectural decisions, feedback corrections, project context, and reference pointers
 3. Note findings for presentation in Step 6 under a "Pre-Compact Captures" section
+
+**4. Re-verify every finding against HEAD before presenting it as live (REQUIRED).** A capture is a snapshot of a *moment*, not of current state — the session it records may have fixed the very thing it describes, minutes later. For any finding that asserts a present-tense defect ("X is unguarded", "the test asserts Y", "this window is open"), check the current source before it reaches Step 6: read the file at HEAD, and `git log --oneline -5 -- <path>` on the repo the finding names. Mark each as **STILL LIVE (verified at HEAD)** or **ALREADY FIXED (closed by `<sha>`)**. Findings that fail this check are reported as historical, never filed and never promoted as current.
+
+> Basis (2026-08-01, 108th pass): two capture-derived findings — a test asserting the ambient environment, and a safety matrix hiding a forged-header window — were surfaced as live security hazards. Both had been closed the same day by a commit whose message named them exactly. Under a standing grant to file tickets without asking, acting on the digest would have filed two duplicate security tickets. This is the same obsolescence discipline Step 2c2 applies to ideas; captures had no equivalent gate.
 
 After the user reviews findings in Step 7:
 - **Approved items** → append to the appropriate backlog file (insights-backlog.md, decisions-backlog.md, or extraction-backlog.md), then apply the **ledger-clear pattern** (see below) to the snapshot file — body removed, REMOVED.md ledger entry appended.
@@ -292,12 +296,14 @@ There is **no bare-Clear option** for subagent captures. Unlike pre-compact snap
 **Digest mode (default):** for each capture, run:
 
 ```
-bash ${CLAUDE_PLUGIN_ROOT}/bin/digest-transcript.sh "{capture_path}" "/tmp/aria-digest-{filename}"
+bash ${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/bin/digest-transcript.sh "{capture_path}" "/tmp/aria-digest-{filename}"
 ```
 
 Then read the digest (not the raw transcript). Extract findings into the standard six buckets (insights, decisions, feedback, project context, references, ideas) — same categorization as `/extract`.
 
 **Detailed mode:** read the full capture directly. Use sparingly (a single capture can consume 30-50K+ tokens).
+
+**Re-verify against HEAD before presenting any finding as live (REQUIRED)** — the same gate as Step 2d item 4, and it bites harder here: adversarial `/prospect` and `/retrospect` subagents exist precisely to find defects, so their captures are dense with present-tense claims, and the parent session very often fixed them immediately. Mark each finding **STILL LIVE (verified at HEAD)** or **ALREADY FIXED (closed by `<sha>`)** before Step 6.
 
 For each reviewed capture:
 - **Approved items** → append to the appropriate backlog (`insights-backlog.md`, `decisions-backlog.md`, or `extraction-backlog.md`), then apply the **ledger-clear pattern**: create `{knowledge_folder}/archive/audit-{date}/subagent-captures/` if needed, append an entry to its `REMOVED.md` (filename + parent-session-id + agent_type + agent_id + capture-timestamp), then `rm` the capture `.md`.
@@ -380,7 +386,7 @@ Expand the glob patterns first (via Glob), then issue Read calls for all resolve
 {knowledge_folder}/approaches/*.md
 {knowledge_folder}/decisions/*.md
 {knowledge_folder}/guides/**/*.md
-{knowledge_folder}/references/**/*.md
+{knowledge_folder}/references/*.md
 ```
 
 Also check project-level CLAUDE.md and docs files in the current working directory for already-captured knowledge.
@@ -397,7 +403,7 @@ Check for:
 - **Missing connections** — files that discuss the same concepts, patterns, or components but don't reference each other (e.g., an approach that implements a rule but doesn't cite it, or two decisions about the same system with no cross-link)
 - **Stale entity references** — if `index.md` has an `## Entities` section, check that listed files still exist and still mention the entity. Flag any entries pointing to archived, renamed, or deleted files.
 - **Missing entities** — scan promoted files for named tools, services, or frameworks that appear in 2+ files but are not listed in the entity index. These should be picked up by the next `/index` run, but flagging them during audit ensures awareness.
-- **Skill-knowledge drift** — if `index.md` has a `## Skill Connections` section, check each connection for staleness. For each row in the table: (1) Get the skill file's modification date via `stat` or `ls -l` on `${CLAUDE_PLUGIN_ROOT}/skills/{skill_name}/SKILL.md`. (2) Get the knowledge file's `Last updated` date from its YAML frontmatter. (3) If the skill file is newer than the knowledge file, flag as potential drift — the skill may have evolved past what the knowledge doc describes. Also scan the knowledge file content for terms that may be stale relative to the skill (e.g., old names, deprecated patterns). If no `## Skill Connections` section exists in the index, skip this check silently — it means `/index` hasn't been run with Step 8c yet.
+- **Skill-knowledge drift** — if `index.md` has a `## Skill Connections` section, check each connection for staleness. For each row in the table: (1) Get the skill file's modification date via `stat` or `ls -l` on `${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/skills/{skill_name}/SKILL.md`. (2) Get the knowledge file's `Last updated` date from its YAML frontmatter. (3) If the skill file is newer than the knowledge file, flag as potential drift — the skill may have evolved past what the knowledge doc describes. Also scan the knowledge file content for terms that may be stale relative to the skill (e.g., old names, deprecated patterns). If no `## Skill Connections` section exists in the index, skip this check silently — it means `/index` hasn't been run with Step 8c yet.
 
 **Scope:** Only check files in `{knowledge_folder}/rules/`, `{knowledge_folder}/approaches/`, `{knowledge_folder}/decisions/`, `{knowledge_folder}/guides/`, and `{knowledge_folder}/references/`. Do not lint backlogs, logs, or templates.
 
@@ -409,7 +415,7 @@ Note all findings for presentation in Step 6 under the new "Integrity Issues" se
 
 Some skills inline shared logic (e.g., the group-loader block shared between `/distill` and `/stitch`). Drift between inlined copies is a latent bug — users would see different behavior in each skill.
 
-1. Grep all files under `${CLAUDE_PLUGIN_ROOT}/skills/**/SKILL.md` for `<!-- shared-block: NAME -->` markers.
+1. Grep all files under `${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/skills/**/SKILL.md` for `<!-- shared-block: NAME -->` markers.
 2. For each unique block `NAME`, collect the content between `<!-- shared-block: NAME -->` and `<!-- /shared-block: NAME -->` in every skill that contains it.
 3. Normalize whitespace (collapse multiple spaces and blank lines to single).
 4. If collected contents differ across skills for the same block name, flag as drift.
@@ -794,8 +800,8 @@ If any shared block has drifted across skills, present the divergence:
 ## Shared-Block Drift
 
 `group-loader` differs between:
-  - plugin-claude-code/skills/distill/SKILL.md
-  - plugin-claude-code/skills/stitch/SKILL.md
+  - plugin-openai-codex/skills/distill/SKILL.md
+  - plugin-openai-codex/skills/stitch/SKILL.md
 
 Diff: (show the key differing lines — first ~5 differences with line context)
 
@@ -840,7 +846,7 @@ After user approval and *before* executing any promotions, declare a batch manif
 **Write the manifest** via Bash before executing promotions:
 
 ```bash
-. ${CLAUDE_PLUGIN_ROOT}/bin/config.sh
+. ${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/bin/config.sh
 kt_batch_begin "audit-knowledge" "Audit promotion: N items per approved plan" '[
   {"file_path_pattern": "/abs/path/to/knowledge/approaches/*.md", "operation_type": "create", "impact": "low", "justification": "New approach files per approved Step 7 plan"},
   {"file_path_pattern": "/abs/path/to/knowledge/decisions/*.md", "operation_type": "create", "impact": "high", "justification": "New ADR — architectural commitment requires full scrutiny"},
@@ -962,7 +968,7 @@ Also demote the previous "Last Audit" entry to the "## Previous Audits" section.
 After the audit log is written, clear the batch manifest to unblock default Rule 22 behavior for any edits later in the session:
 
 ```bash
-. ${CLAUDE_PLUGIN_ROOT}/bin/config.sh
+. ${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/bin/config.sh
 kt_batch_end
 ```
 
@@ -977,3 +983,5 @@ Safe to call even if Step 7a's `kt_batch_begin` didn't succeed (e.g., jq missing
 - **Stale memories are not Category C** — outdated project status doesn't need extraction, it needs cleanup
 - **Prioritize approaches and rules** — these are the highest-value extractions. Debug recipes, implementation plans, and one-time fixes are Category B
 - **Watch for clusters** — individual backlog entries may not justify a knowledge file, but patterns of related entries do. The backlogs are signal generators, not just staging areas
+- **A capture is a snapshot of a moment, not of current state** — any finding mined from a transcript (pre-compact or subagent) that asserts a present-tense defect MUST be re-verified against HEAD before it is filed, ticketed, or promoted. See Step 2d item 4. This applies with or without a standing grant to file findings; a grant makes the check *more* necessary, not less
+- **Before any disposition that deletes, verify the targets' git-tracking state** — "recoverable via git history" is false for a file that was never committed. Per ADR 084, checkpoint first. In a shared working tree with live parallel sessions, checkpoint **by named path**, never `git add <dir>` — a directory pathspec limits which files, not whose

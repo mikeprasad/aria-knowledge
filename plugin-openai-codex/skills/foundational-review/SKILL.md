@@ -36,7 +36,7 @@ Parse `<scope-root>` (first positional), `--decision "<text>"`, and `--extend`. 
 ```
 Invocation:
   Scope root:           <path — the project/workspace under review>
-  Read-first:           <docs to read before judging: AGENTS.md/CLAUDE.md, PROGRESS.md, specs, prior audits>
+  Read-first:           <docs to read before judging: CLAUDE.md, PROGRESS.md, specs, prior audits>
   THE irreversible decision:  <the single expensive-to-undo step this review gates — REQUIRED>
   Section-F inputs:     <strategy/positioning/licensing docs; mark CONFIDENTIAL ones>
   Constraints:          <read-only repos, build rules, no-push, team-owned repos needing tickets>
