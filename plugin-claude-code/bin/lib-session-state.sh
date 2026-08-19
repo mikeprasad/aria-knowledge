@@ -149,9 +149,10 @@ kt_ss_mark_inprogress() {
   # for a TRACKED file it exits 1 ("not ignored") — which made the old negated guard
   # ALWAYS true. Measured 2026-08-17: it exits 1 for a tracked SESSION.md *even when
   # SESSION.md is already listed in .gitignore*, so the guard could never be satisfied
-  # and this block appended one line per session forever. archetypes/.gitignore reached
-  # 4 duplicate lines by 2026-08-14, was cleaned in 3a77b34 with an explicit DO-NOT-ADD
-  # comment, and had accumulated 2 more directly beneath that warning by 08-16.
+  # and this block appended one line per session forever. One observed project's
+  # .gitignore reached 4 duplicate lines by 2026-08-14, was cleaned with an explicit
+  # DO-NOT-ADD comment, and had accumulated 2 more directly beneath that warning
+  # two days later.
   # The plugin's own docs already prescribed the right test (`git ls-files
   # --error-unmatch`) at wrapup/SKILL.md:202, handoff/SKILL.md:241, setup/SKILL.md:202.
   # Keep this comment: without it the next reader reintroduces check-ignore.

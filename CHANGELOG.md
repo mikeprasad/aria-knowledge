@@ -4,7 +4,13 @@ All notable changes to ARIA will be documented in this file.
 
 ## 2.46.3 — 2026-08-19
 
-**A ports release. `plugin-claude-code` itself is byte-unchanged** — `git diff v2.46.2..HEAD -- plugin-claude-code/` is empty. The version moves so the four port artifacts can ship, since all six stable aliases attach to a canonical release tag.
+**A ports release.** Canonical's only change is a comment genericization (below); no behaviour moves. The version bumps so the four port artifacts can ship, since all six stable aliases attach to a canonical release tag.
+
+### Public-hygiene fix — internal project names in four shipped files
+
+A mechanical pre-push sweep caught internal project names in code comments across **all four ports** — `bin/lib-session-state.sh` and `skills/audit-style/extract-user-prose.py` (plus the cursor and codex copies of the latter), six occurrences in total. Canonical's copies were **already public**, shipped in v2.46.2; the port syncs in this release would have propagated them to three more.
+
+This is the same class the v2.45.1 sweep caught, and it recurred the same way: the prose surfaces get genericized and *the file that actually ships* is missed. Fixed in all four ports rather than only the not-yet-public three, per Rule 38 — a fix that leaves siblings carrying the defect is not a fix. The comments keep their technical content; only the identifying names are removed. Severity is low (project names, not credentials — a tight scan for credential-shaped values across the whole push came back clean against a positive control), but the repo carries a zero-internal-names invariant and there is now a documented history of it recurring.
 
 **All four ports reach v2.46.2 content parity, and `check-port-drift.sh` reports 106 ok / 0 lag / 0 drifted / 0 missing for the first time.**
 

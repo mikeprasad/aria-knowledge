@@ -61,7 +61,7 @@ def is_noise(text):
     if any(t.startswith(p) for p in INJECT_PREFIXES):  # stage 3
         return True
     # stage 3b: /handoff resume scaffold, possibly preceded by a short label line
-    # (e.g. "cs\n  Resume Commonspace from ..."), so check the first 2 lines, not
+    # (e.g. "proj\n  Resume <project> from ..."), so check the first 2 lines, not
     # only an absolute string start.
     if any(ln.strip().startswith("Resume ") for ln in t.splitlines()[:2]):
         return True
