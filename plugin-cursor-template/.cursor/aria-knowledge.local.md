@@ -21,6 +21,8 @@ stitch_staleness_threshold_days: 30
 task_boundary_capture: true
 edit_intent: true
 session_state: false
+session_state_tracked: false
+session_stale_days: 7
 subagent_capture: true
 subagent_capture_types: generalPurpose,explore,shell,code-reviewer,code-architect,code-explorer
 subagent_selfreport_types: explore
@@ -28,8 +30,18 @@ auto_prospect: off
 auto_retrospect: off
 retrospect_min_commits: 3
 retrospect_branches: main,master,production
+autonomy: default
+planning_paths:
+preflight_gate: warn
+preflight_deny_paths:
+preflight_deny_repos:
+external_fetch_gate: off
+external_fetch_max_hits: 8
+style_lookback_days: 90
+style_max_sessions: 50
+style_audit_log:
 usage_alert_threshold: off
-last_setup_version: 2.30.0-cursor.0
+last_setup_version: 2.46.2-cursor.0
 ---
 
 # ARIA Knowledge Configuration (Cursor Port)

@@ -32,7 +32,7 @@ fi
 INPUT=$(cat)
 
 # Extract the Bash command. We pull the command field from the JSON input.
-COMMAND=$(echo "$INPUT" | grep -o '"command":"[^"]*"' | head -1 | sed 's/"command":"//;s/"$//')
+COMMAND=$(printf '%s' "$INPUT" | grep -o '"command":"[^"]*"' | head -1 | sed 's/"command":"//;s/"$//')
 [ -z "$COMMAND" ] && exit 0
 
 # Extract `cd <path>` — match anywhere in a compound command. We pre-pad the
@@ -71,7 +71,8 @@ QUERY=$(printf '%s' "$QUERY" | sed 's/^ *//;s/ *$//')
 [ -z "$QUERY" ] && exit 0
 
 # Session id for cooldown + ledger
-SESSION_ID=$(echo "$INPUT" | grep -o '"session_id":"[^"]*"' | head -1 | sed 's/"session_id":"//;s/"//')
+SESSION_ID=$(printf '%s' "$INPUT" | grep -o '"sessionId":"[^"]*"' | head -1 | sed 's/"sessionId":"//;s/"//')
+[ -z "$SESSION_ID" ] && SESSION_ID=$(printf '%s' "$INPUT" | grep -o '"session_id":"[^"]*"' | head -1 | sed 's/"session_id":"//;s/"//')
 [ -z "$SESSION_ID" ] && exit 0
 
 # Per-project-per-session cooldown — same project shouldn't re-prompt.

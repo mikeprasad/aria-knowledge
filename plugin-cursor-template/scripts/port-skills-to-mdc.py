@@ -37,13 +37,22 @@ COMMAND_SKILLS = [
     "readiness-audit",
     "interview",
     "recap",
+    "auto",
+    "roadmap",
+    "preflight",
     "snapshot",
     "setup",
     "help",
     "audit-share",
 ]
 
-AUDIT_SKILLS = ["audit-knowledge", "audit-config"]
+AUDIT_SKILLS = [
+    "audit",
+    "audit-knowledge",
+    "audit-config",
+    "audit-style",
+    "audit-usage",
+]
 CONTEXT_SKILLS = ["context", "rules"]
 
 SNAPSHOT_CURSOR_BODY = """# /snapshot — Task-Boundary Capture (Cursor-native)
@@ -98,7 +107,7 @@ For each reviewed capture, note findings for Step 6 under a "Task-Boundary Captu
 """
 
 COMMANDS_PREAMBLE = """---
-description: "ARIA workflow commands — /extract, /index, /backlog, /stats, /ask, /intake, /meeting-notes, /digest, /sync-decisions, /wrapup, /codemap, /distill, /stitch, /handoff, /prospect, /retrospect, /foundational-review, /readiness-audit, /interview, /recap, /snapshot, /setup, /help, /audit-share. Use when the user invokes any of these slash commands or their natural-language equivalents."
+description: "ARIA workflow commands — /extract, /index, /backlog, /stats, /ask, /intake, /meeting-notes, /digest, /sync-decisions, /wrapup, /codemap, /distill, /stitch, /handoff, /prospect, /retrospect, /foundational-review, /readiness-audit, /interview, /recap, /auto, /roadmap, /preflight, /snapshot, /setup, /help, /audit-share. Use when the user invokes any of these slash commands or their natural-language equivalents."
 globs: ["knowledge/**/*", "CODEMAP.md", "STITCH-*.md"]
 alwaysApply: false
 ---
@@ -107,20 +116,20 @@ alwaysApply: false
 
 This file ports ARIA skill instructions for the **Cursor** port. Triggers are natural-language (e.g., "extract session knowledge", "map the codebase", "wrap up session") in addition to slash-command names. Skill aliases: `/share-audit` → `/audit-share`, `/knowledge-audit` → `/audit-knowledge`, `/config-audit` → `/audit-config`.
 
-**Cursor port notes:** Config lives at `.cursor/aria-knowledge.local.md` (per-repo). Rule 22 uses the edit-intent marker (`scripts/aria/record-edit-intent.sh`) — see `AGENTS.md`. Connect MCP servers in **Cursor Settings → MCP** for `/intake thread`, `/intake extract` (~~docs MCP), `/meeting-notes`, `/digest`, and `/sync-decisions`. Retired `/clip`, `/clip-thread`, `/extract-doc` are folded into `/intake`. ADR-094 dual-port Runtime Gates are **not** used in Cursor (no aria-cowork collision in typical Cursor sessions).
+**Cursor port notes:** Config lives at `.cursor/aria-knowledge.local.md` (per-repo). Rule 22 uses the edit-intent marker (`scripts/aria/record-edit-intent.sh`) — see `AGENTS.md`. Connect MCP servers in **Cursor Settings → MCP** for `/intake thread`, `/intake extract` (~~docs MCP), `/meeting-notes`, `/digest`, and `/sync-decisions`. Retired `/clip`, `/clip-thread`, `/extract-doc` are folded into `/intake`. ADR-094 dual-port Runtime Gates are **not** used in Cursor (no aria-cowork collision in typical Cursor sessions). `/statusline` and `/aria-assist` are Claude Code-only and are not compiled here. `/auto` has Cursor-runtime limits (no CronCreate, no statusline, no `auto-runloop.sh` — see the `/auto` section).
 
 ---
 """
 
 AUDIT_PREAMBLE = """---
-description: "ARIA audit skills — /audit-knowledge (alias /knowledge-audit) and /audit-config (alias /config-audit). Use when user says 'audit knowledge', 'audit config', 'review setup', or runs the slash commands."
+description: "ARIA audit skills — /audit dispatcher plus /audit-knowledge, /audit-config, /audit-style, /audit-usage. Use when user says 'audit knowledge', 'audit config', 'audit style', 'audit usage', 'review setup', or runs the slash commands."
 globs: ["knowledge/intake/**/*", "knowledge/index.md", ".cursor/aria-knowledge.local.md", "AGENTS.md"]
 alwaysApply: false
 ---
 
 # ARIA — Audit Skills
 
-This file ports the `/audit-knowledge` and `/audit-config` skill instructions for the Cursor port. Triggers are natural-language ("audit knowledge", "audit config", "review setup") in addition to slash-command names. The `/knowledge-audit` and `/config-audit` aliases are accepted equivalents.
+This file ports the `/audit` dispatcher plus `/audit-knowledge`, `/audit-config`, `/audit-style`, and `/audit-usage` for the Cursor port. Triggers are natural-language ("audit knowledge", "audit config", "audit style", "mine my working style", "is ARIA worth it") in addition to slash-command names. The `/knowledge-audit` and `/config-audit` aliases are accepted equivalents. `/audit style` mines Cursor `agent-transcripts` JSONL (shape may differ from Claude Code; fail loud on drift).
 
 ---
 """
@@ -166,6 +175,14 @@ Cursor does **not** have transcript-based deny (`permissionDecision: deny`). Enf
 CURSOR_ORDERING_DENY = """**Cursor-native enforcement: record-edit-intent before each edit.** Before invoking Edit/Write, run `bash scripts/aria/record-edit-intent.sh <filePath> rule22-low|rule22-high "<rationale>"`. This writes `.cursor/aria-edit-intent.json`. The `beforeFileEdit` hook checks for a recent (≤10 min) matching marker. Missing / stale / mismatched markers escalate the advisory — protected files get explicit violation wording. `afterFileEdit` consumes the marker on success. Order: emit `[Rule 22]` block → `record-edit-intent.sh` → Edit/Write.
 
 Every compliance block is marked with a `[Rule 22]` prefix on its header line. The marker is the detection target for instruction discipline; Cursor hooks are **advisory** (no transcript deny)."""
+
+AUTO_CURSOR_NOTE = """
+**Cursor port — `/auto` runtime differences (intentional):** Cursor has no `CronCreate`, no `/statusline` usage payload, and no `auto-runloop.sh`. **D1** (usage window): ask rather than infer — there is no statusline to read. **D2** (scheduled resume): instruction-only; if a recurring prompt is needed, Cursor `/loop` is the analog, never CronCreate. **`self-restart` is a no-op** (the Claude Code wrapper is `claude -p` only). Standing directives D3–D7 still apply. `/preflight` still satisfies the commit gate. Rule 22 uses the edit-intent marker, not transcript deny.
+"""
+
+AUDIT_STYLE_CURSOR_NOTE = """
+**Cursor port — corpus path:** Session logs live at `~/.cursor/projects/<cwd-encoded>/agent-transcripts/*.jsonl` (cwd with `/` replaced by `-`). This is **not** Claude Code's `~/.claude/projects/<cwd-encoded>/*.jsonl`. The extractor (`scripts/aria/extract-user-prose.py`) was written for Claude Code transcript shape — if Cursor JSONL fails to parse, **fail loud** (do not silently mine zero). Skip files whose names begin with `agent-` the same way.
+"""
 
 
 def strip_frontmatter(text: str) -> str:
@@ -243,6 +260,22 @@ def adapt_cursor(text: str) -> str:
         ("`/clip`", "`/intake`"),
         ("Run `/clip`", "Run `/intake`"),
         ("intake/clippings/", "references/sources/"),
+        (
+            "plugin-claude-code/skills/audit-style/extract-user-prose.py",
+            "scripts/aria/extract-user-prose.py",
+        ),
+        (
+            "${CLAUDE_PLUGIN_ROOT}/skills/audit-style/extract-user-prose.py",
+            "scripts/aria/extract-user-prose.py",
+        ),
+        (
+            "~/.claude/projects/<cwd-encoded>/*.jsonl",
+            "~/.cursor/projects/<cwd-encoded>/agent-transcripts/*.jsonl",
+        ),
+        (
+            "~/.claude/projects/{cwd-encoded}/*.jsonl",
+            "~/.cursor/projects/<cwd-encoded>/agent-transcripts/*.jsonl",
+        ),
     ]
     for old, new in replacements:
         text = text.replace(old, new)
@@ -251,7 +284,7 @@ def adapt_cursor(text: str) -> str:
     # Setup Step 1 — VERSION from scripts/aria/VERSION (plain text)
     setup_ver_block = (
         "**Read the installed port version first.** Parse `scripts/aria/VERSION` "
-        "(plain text, one line — e.g. `2.35.2-cursor.0`):\n\n"
+        "(plain text, one line — e.g. `2.46.2-cursor.0`):\n\n"
         "```bash\n"
         'INSTALLED_VERSION=$(cat "scripts/aria/VERSION" 2>/dev/null | tr -d \'[:space:]\')\n'
         '[ -z "$INSTALLED_VERSION" ] && INSTALLED_VERSION="unknown"\n'
@@ -304,6 +337,21 @@ def skill_body(name: str) -> str:
     body = adapt_cursor(strip_frontmatter(path.read_text(encoding="utf-8")))
     if name in AUDIT_SKILLS:
         body = adapt_audit(body)
+    if name == "auto":
+        # Inject after the first H1 so the Cursor limits are visible before D1–D7.
+        body = re.sub(
+            r"(^# /auto[^\n]*\n\n)",
+            r"\1" + AUTO_CURSOR_NOTE + "\n",
+            body,
+            count=1,
+        )
+    if name == "audit-style":
+        body = re.sub(
+            r"(^# /audit style[^\n]*\n\n)",
+            r"\1" + AUDIT_STYLE_CURSOR_NOTE + "\n",
+            body,
+            count=1,
+        )
     return body
 
 
@@ -319,8 +367,16 @@ def patch_help_table(text: str) -> str:
         "| /snapshot | On-demand task-boundary capture (git + hook state) to intake/task-boundary-captures/ |",
     )
     text = text.replace(
-        "Run /context [tags]",
-        "Run /context [tags]",
+        "| /snapshot | Save the current session transcript to intake/task-boundary-captures/ on demand |",
+        "| /snapshot | On-demand task-boundary capture (git + hook state) to intake/task-boundary-captures/ |",
+    )
+    text = text.replace(
+        "| /statusline |",
+        "| /statusline (Claude Code only — skip in Cursor) |",
+    )
+    text = text.replace(
+        "| /aria-assist |",
+        "| /aria-assist (Claude Code only — skip in Cursor) |",
     )
     return text
 
@@ -396,13 +452,22 @@ def verify_markers() -> None:
         ("readiness-audit skill", "## /readiness-audit" in cmds),
         ("interview skill", "## /interview" in cmds),
         ("recap skill", "## /recap" in cmds),
+        ("auto skill", "## /auto" in cmds),
+        ("auto cursor note", "self-restart` is a no-op" in cmds or "self-restart is a no-op" in cmds),
+        ("roadmap skill", "## /roadmap" in cmds),
+        ("preflight skill", "## /preflight" in cmds),
         ("intake extract mode", "/intake extract" in cmds or "intake extract" in cmds),
+        ("session_state_tracked", "session_state_tracked" in cmds),
     ]
     audit = AUDIT_MDC.read_text(encoding="utf-8")
     checks += [
         ("audit Step 2e", "Step 2e: Review Subagent Captures" in audit),
         ("audit Step 2f", "Step 2f: Review Clippings" in audit),
         ("audit Step 2d cursor", "Step 2d: Review Task-Boundary" in audit),
+        ("audit dispatcher", "## /audit\n" in audit or "## /audit\n\n" in audit),
+        ("audit style", "## /audit-style" in audit),
+        ("audit usage", "## /audit-usage" in audit or "# /audit usage" in audit),
+        ("audit-style cursor corpus", "agent-transcripts" in audit),
     ]
     setup_version = 'scripts/aria/VERSION' in cmds and 'cat "scripts/aria/VERSION"' in cmds
     checks.append(("setup VERSION read", setup_version))

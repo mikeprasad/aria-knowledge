@@ -36,17 +36,24 @@ Cursor-specific files live here:
 
 ## Current Parity Notes
 
-- **Canonical parity target:** `plugin-claude-code/` @ **v2.35.2** (2026-06-22).
-- **Cursor port version:** `scripts/aria/VERSION` → `2.35.2-cursor.0`.
+- **Canonical parity target:** `plugin-claude-code/` @ **v2.46.2** (2026-08-16).
+- **Cursor port version:** `scripts/aria/VERSION` → `2.46.2-cursor.0`.
 - **ADR-094 Runtime Gates:** intentionally **omitted** in Cursor — aria-cowork is not loaded in typical Cursor sessions; namespace note lives in `aria-commands.mdc` preamble only.
-- Knowledge folder schema is **fully compatible** with upstream.
+- Knowledge folder schema is **fully compatible** with upstream (Rules 36–38 + Behavioral Foundation included).
 - `intake/pre-compact-captures/` removed by design; `intake/task-boundary-captures/` substitutes via the `stop` hook.
-- Rule 22 transcript scanning isn't available; edit-intent marker + advisory `beforeFileEdit` (see `audit/ARIA_CURSOR_AUDIT_REPORT.md` §5).
+- Rule 22 transcript scanning isn't available; edit-intent marker + advisory `beforeFileEdit` (see `audit/ARIA_CURSOR_AUDIT_REPORT.md` §5). Canonical deny-rate circuit breaker **not ported**.
 - MCP skills (`/intake thread`, `/intake extract`, `/meeting-notes`, `/digest`, `/sync-decisions`) are compiled into `aria-commands.mdc`; connect servers via **Cursor Settings → MCP**. Connector reference: `../plugin-claude-cowork/CONNECTORS.md`. Retired `/clip`, `/clip-thread`, `/extract-doc` are folded into `/intake`.
-- **New in 2.35.2-cursor.0:** `/interview`, `/recap`; `/intake` consolidation; audit Step 2f clippings + image extraction; `references/` graduation tier; Rule 35 + `autonomy` SessionStart injection; SESSION.md ledger + `session_stale_days`. Canonical v2.30.0 deny-rate circuit breaker **not ported** (Cursor advisory Rule 22). `/statusline` remains Claude Code-only.
-- **Carried from 2.30.0-cursor.0:** `/foundational-review`, `/readiness-audit`, `/wrapup snap` + `/handoff snap`, `session_start_project_picker` + `projects_labels`.
+- **New in 2.46.2-cursor.0 (from 2.36.0):** `/auto`, `/roadmap`, `/preflight`, `/audit` dispatcher, `/audit style`, `/audit usage`; `planning_paths`; preflight commit gate (v2.46.1 ERE — `git` + option tokens + whole-word `commit`); external-fetch gate (off by default); in-place bash-write warn; post-edit tautology warn (Rule 36); `session_state_tracked` + `git ls-files --error-unmatch` (v2.46.2 — `check-ignore` is the wrong test on a tracked file); SESSION.md `## Pending handoffs` ledger.
 
-### Cursor hook parity (v2.35.2)
+### Intentional Cursor non-ports
+
+- `/statusline`, `/aria-assist`, `auto-runloop.sh`, `pre-cron-check.sh` (no CronCreate / no CLI statusline)
+- Rule 22 transcript deny / circuit breaker (advisory + edit-intent remains)
+- PreCompact / PostCompact / UserPromptSubmit usage inject
+- Bundled `.mcp.json`
+- `/auto self-restart` is a no-op; D1 asks rather than inferring usage; D2 is instruction-only (Cursor `/loop` analog)
+
+### Cursor hook parity (v2.46.2)
 
 | Canonical (Claude Code) | Cursor equivalent | Status |
 |---|---|---|
@@ -54,8 +61,12 @@ Cursor-specific files live here:
 | `PreToolUse: Edit\|Write` | `beforeFileEdit` + edit-intent marker | ⚠ advisory (no transcript deny) |
 | `PostToolUse: Edit\|Write` | `afterFileEdit` | ≈ ported (+ SESSION.md in-progress) |
 | `PostToolUse: Write` (auto-prospect) | `afterFileEdit` → `post-plan-prospect-check.sh` | ≈ ported |
+| `PostToolUse: Edit` (tautology warn) | `afterFileEdit` → `post-edit-tautology-check.sh` | ≈ ported (reads file from disk; Cursor payload often lacks the edit body) |
 | `PostToolUse: Bash` (auto-retrospect) | `afterShellExecution` → `post-push-retrospect-check.sh` | ≈ ported |
 | `PreToolUse: Bash` (cd surfacing) | `beforeShellExecution` | ≈ ported |
+| `PreToolUse: Bash` (in-place write warn) | `beforeShellExecution` → `pre-bash-write-check.sh` | ≈ warn-only |
+| `PreToolUse: Bash` (preflight commit gate) | `beforeShellExecution` → `pre-commit-preflight-check.sh` | ≈ **can deny** (`permission: deny`) |
+| `PreToolUse: WebFetch\|WebSearch` | `preToolUse` + `beforeMCPExecution` → `pre-external-fetch-check.sh` | ≈ **can deny**; ships `off` |
 | `PreToolUse: Glob\|Grep` | `beforeReadFile` | ≈ (broader trigger) |
 | `TaskCreated` | `stop` → `task-context-check.sh` | ⚠ fires at task end, not start |
 | `SubagentStart` (self-report) | `subagentStart` | ⚠ weaker — parent agentMessage only |
@@ -69,22 +80,22 @@ Cursor-specific files live here:
 
 ### A. Knowledge contract sync
 
-**Last synced:** `plugin-claude-code/template/` @ v2.35.2. Re-audit template rule files before each release.
+**Last synced:** `plugin-claude-code/template/` @ v2.46.2. Re-audit template rule files before each release. Cursor keeps `knowledge/approaches/foundational-review-chain.md` and `intake/task-boundary-captures/` (canonical has `intake/pre-compact-captures/`).
 
 ### B. Skill → `.mdc` compilation (Cursor-only)
 
-**Last synced:** `plugin-claude-code/skills/` @ **v2.35.2** → `.cursor/rules/*.mdc` (2026-06-22). Adds `/interview`, `/recap`; removes retired `/clip`, `/clip-thread`, `/extract-doc` (folded into `/intake`); audit Step 2f clippings + image extraction; Rule 35 + `autonomy` in setup + SessionStart.
+**Last synced:** `plugin-claude-code/skills/` @ **v2.46.2** → `.cursor/rules/*.mdc`. Adds `/auto`, `/roadmap`, `/preflight`, `/audit` + style/usage; `/interview` guided default and wrapup/handoff `session_state_tracked` ride in with canonical bodies.
 
-**27 canonical commands** in `aria-commands.mdc` (22 core + 5 MCP + `/help` + `/audit-share`; aliases documented in preamble / `aria-audit.mdc`).
+**Compiled commands** in `aria-commands.mdc` (core + MCP + `/help` + `/audit-share`; aliases documented in preamble / `aria-audit.mdc`). Audit family lives in `aria-audit.mdc`.
 
 | Canonical skill | Cursor `.mdc` | Section |
 |---|---|---|
-| `setup` … `wrapup` (22 core incl. interview, recap, foundational-review, readiness-audit) | `aria-commands.mdc` | `#/…` |
+| `setup` … `wrapup` (incl. auto, roadmap, preflight, interview, recap, foundational-review, readiness-audit) | `aria-commands.mdc` | `#/…` |
 | `meeting-notes`, `digest`, `sync-decisions` (+ `/intake` MCP modes) | `aria-commands.mdc` | `#/…` |
-| `audit-knowledge`, `audit-config` (+ aliases) | `aria-audit.mdc` | `#/…` |
+| `audit`, `audit-knowledge`, `audit-config`, `audit-style`, `audit-usage` (+ aliases) | `aria-audit.mdc` | `#/…` |
 | `context`, `rules` | `aria-context.mdc` | `#/…` |
 | Rule 22 framework | `aria-rule-22.mdc` | full file |
-| Core lifecycle | `aria-core.mdc` | full file |
+| Core lifecycle | `aria-core.mdc` | full file (hand-authored; not regenerated) |
 
 **Re-sync workflow:**
 

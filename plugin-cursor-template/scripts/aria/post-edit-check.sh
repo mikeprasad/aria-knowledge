@@ -40,7 +40,7 @@ fi
 # Planning paths where abbreviated scope check is permitted
 IS_PLANNING=false
 case "$FILE_PATH" in
-  */docs/specs/*|*/docs/plans/*|*/docs/superpowers/specs/*|*/docs/superpowers/plans/*) IS_PLANNING=true ;;
+  */docs/specs/*|*/docs/plans/*|*/docs/superpowers/specs/*|*/docs/superpowers/plans/*|*/.cursor/skills/*/templates/*|*/.claude/skills/*/templates/*) IS_PLANNING=true ;;
 esac
 
 # Protected filenames that always require full scope check (Cursor port: AGENTS.md/hooks.json)
@@ -67,6 +67,22 @@ if [ "$KT_CONFIGURED" = "true" ] && [ -n "$KT_CRITICAL_PATHS" ] && [ "$IS_PROTEC
     [ -z "$PREFIX" ] && continue
     case "$FILE_PATH" in
       */"$PREFIX"/*) IS_PROTECTED=true; break ;;
+    esac
+  done
+  IFS="$OLD_IFS"
+fi
+
+# User-declared planning paths (inverse of critical_paths). Mirrors pre-edit-check.sh
+# so the scope-check advisory matches the pre-hook's planning decision. Protect wins
+# (the decision below only honors planning when IS_PROTECTED=false).
+if [ "$KT_CONFIGURED" = "true" ] && [ -n "$KT_PLANNING_PATHS" ] && [ "$IS_PLANNING" = "false" ]; then
+  OLD_IFS="$IFS"
+  IFS=','
+  for PATTERN in $KT_PLANNING_PATHS; do
+    PREFIX=$(echo "$PATTERN" | sed 's|/\*$||;s|\*$||;s/^[[:space:]]*//;s/[[:space:]]*$//')
+    [ -z "$PREFIX" ] && continue
+    case "$FILE_PATH" in
+      */"$PREFIX"/*) IS_PLANNING=true; break ;;
     esac
   done
   IFS="$OLD_IFS"

@@ -1,5 +1,5 @@
 ---
-description: "ARIA workflow commands — /extract, /index, /backlog, /stats, /ask, /intake, /meeting-notes, /digest, /sync-decisions, /wrapup, /codemap, /distill, /stitch, /handoff, /prospect, /retrospect, /foundational-review, /readiness-audit, /interview, /recap, /snapshot, /setup, /help, /audit-share. Use when the user invokes any of these slash commands or their natural-language equivalents."
+description: "ARIA workflow commands — /extract, /index, /backlog, /stats, /ask, /intake, /meeting-notes, /digest, /sync-decisions, /wrapup, /codemap, /distill, /stitch, /handoff, /prospect, /retrospect, /foundational-review, /readiness-audit, /interview, /recap, /auto, /roadmap, /preflight, /snapshot, /setup, /help, /audit-share. Use when the user invokes any of these slash commands or their natural-language equivalents."
 globs: ["knowledge/**/*", "CODEMAP.md", "STITCH-*.md"]
 alwaysApply: false
 ---
@@ -8,7 +8,7 @@ alwaysApply: false
 
 This file ports ARIA skill instructions for the **Cursor** port. Triggers are natural-language (e.g., "extract session knowledge", "map the codebase", "wrap up session") in addition to slash-command names. Skill aliases: `/share-audit` → `/audit-share`, `/knowledge-audit` → `/audit-knowledge`, `/config-audit` → `/audit-config`.
 
-**Cursor port notes:** Config lives at `.cursor/aria-knowledge.local.md` (per-repo). Rule 22 uses the edit-intent marker (`scripts/aria/record-edit-intent.sh`) — see `AGENTS.md`. Connect MCP servers in **Cursor Settings → MCP** for `/intake thread`, `/intake extract` (~~docs MCP), `/meeting-notes`, `/digest`, and `/sync-decisions`. Retired `/clip`, `/clip-thread`, `/extract-doc` are folded into `/intake`. ADR-094 dual-port Runtime Gates are **not** used in Cursor (no aria-cowork collision in typical Cursor sessions).
+**Cursor port notes:** Config lives at `.cursor/aria-knowledge.local.md` (per-repo). Rule 22 uses the edit-intent marker (`scripts/aria/record-edit-intent.sh`) — see `AGENTS.md`. Connect MCP servers in **Cursor Settings → MCP** for `/intake thread`, `/intake extract` (~~docs MCP), `/meeting-notes`, `/digest`, and `/sync-decisions`. Retired `/clip`, `/clip-thread`, `/extract-doc` are folded into `/intake`. ADR-094 dual-port Runtime Gates are **not** used in Cursor (no aria-cowork collision in typical Cursor sessions). `/statusline` and `/aria-assist` are Claude Code-only and are not compiled here. `/auto` has Cursor-runtime limits (no CronCreate, no statusline, no `auto-runloop.sh` — see the `/auto` section).
 
 ---
 
@@ -536,12 +536,42 @@ If this is the first run (no existing mappings), present the full initial mappin
 
 ## Step 7: Staleness Detection
 
-For each scanned file, compare its `Last updated` date against today's date.
+**Scope first — three exclusions, all of them measured.** Applying a date threshold to every scanned
+file manufactures false positives that bury the real queue. On the 2026-08-05 corpus (942 files) the
+naive scan returned **240** entries of which only **78** had a review question to answer.
 
-If the file's age exceeds `{staleness_threshold_months}` months (default: 6):
-- Add to the stale files list with age and threshold info
+1. ⛔ **EXCLUDE `decisions/` in both tiers** (`decisions/` and `projects/*/decisions/`). A decision
+   record is immutable history — its obsolescence is expressed by **supersession**, not by a date, so
+   there is no review question a threshold can raise. Measured: **162 of 240** flagged entries were
+   ADRs. Ratified as **ADR 117** (`projects/aria/decisions/117-staleness-detection-exempts-decision-records.md`).
+2. ⛔ **EXCLUDE files with no frontmatter at all** — directory `README.md`s, probe-test fixtures, and
+   verbatim source dumps under `references/sources/` or similar. These are structural or archival, not
+   guidance, so "is it current?" does not apply. Measured: 25 of 44 undated files. Do **not** report
+   them as stale and do **not** report them as a gap; count them and move on.
+3. **Report separately, do not flag:** a file that HAS frontmatter but carries neither date field.
+   Measured: 12, of which only 2 were genuine guidance files. Surface those as *"needs a date field"*,
+   which is a different action from *"needs review"*.
 
-This data is used when generating the `## Stale Files` section in Step 9. No user interaction here — just collection.
+**Then read the date — BOTH idioms are in live use.** Accept `Last updated:` **or** `date:` from the
+first ~10 frontmatter lines, preferring `Last updated:` when both are present. Measured: **7** files
+carry only `date:`, and a `Last updated`-only reader reports them as undated, which then reads as a
+data-quality gap rather than a detector gap.
+
+For each remaining file, compare its resolved date against today. If the age exceeds
+`{staleness_threshold_months}` months (config default: 6; note the user's config may set it lower —
+3 is in use, and the config value wins):
+
+- Add to the stale files list with age and threshold info.
+
+Carry three counts forward to Step 9, not one: **review-able**, **exempt (decisions)**, and
+**no-date-field**. A single total is the shape that produced the buried queue.
+
+This data is used when generating the `## Stale Files` section in Step 9. No user interaction here —
+just collection.
+
+> ⚠ **When you report the stale count, name the population it was drawn from.** "216 files are stale"
+> and "78 files need review out of 942 scanned, with 162 exempt" are different claims, and only the
+> second one is actionable.
 
 ## Step 7b: Heavy-Pass Gate (REQUIRED before Steps 8.x)
 
@@ -789,10 +819,36 @@ If reviews lack frontmatter `overall_outcome` / `overall_verdict` (legacy report
 
 ## Stale Files
 
-### relative/path/to/file.md
-Last updated: YYYY-MM-DD (N months ago) — threshold: M months
+_Recomputed YYYY-MM-DD. **R** promoted files need review (of **N** scanned) — threshold: **M** months._
 
-(repeat for each stale file. Omit this section entirely if no stale files.)
+⚠ **E of these are decision records and are EXEMPT** — an ADR does not go stale, it gets **superseded**.
+Ratified as ADR 117. They are listed separately and are **NOT** a review queue.
+
+### Review-able tiers (R files)
+
+- relative/path/to/file.md — Last updated: YYYY-MM-DD
+- relative/path/to/other.md — date: YYYY-MM-DD (`date:` idiom, resolved)
+
+### Decision records — NOT a review queue (E files, exempt per ADR 117)
+
+_Listed for completeness only. Obsolescence here is expressed by supersession; do not review by date._
+
+- relative/path/to/decisions/NNN-something.md — Last updated: YYYY-MM-DD
+
+### Needs a date field — not stale (D files)
+
+_Has frontmatter but carries neither `Last updated:` nor `date:`. A different action from "needs review"._
+
+- relative/path/to/file.md
+
+(Sort each list by date ascending, then path. **X files with no frontmatter at all were excluded as
+structural** — READMEs, probe fixtures, verbatim source dumps; state the count, do not list them and do
+not report them as a gap. Omit any subsection with zero entries; omit the whole section only if all
+four are zero.)
+
+> ⚠ **The header line must name the population.** "216 files are stale" and "78 need review of 942
+> scanned, 162 exempt" are different claims and only the second is actionable. Never emit a single
+> undifferentiated total.
 
 ## Untagged Files
 
@@ -842,7 +898,7 @@ Files: N scanned, M tagged, K untagged
 Tags: L unique (J known, F freeform)
 Normalizations: P applied
 Promotions: Q tags promoted to known
-Stale files: S (threshold: T months)
+Stale files: R need review of N scanned (threshold: T months) — plus E exempt decision records, D needing a date field, X excluded as structural
 Cross-references: R suggested, X added
 Entities: E detected (across 2+ files)
 Skill connections: C discovered, D approved
@@ -2739,15 +2795,19 @@ Read `.cursor/aria-knowledge.local.md`. Parse YAML frontmatter `projects_groups`
 Look up `<tag>` in `projects_list` (get `project_root`) and `projects_groups` (get role → folder dict).
 
 - If `<tag>` missing from `projects_list`: stop with *"unknown project tag: <tag>"*.
-- If `<tag>` in `projects_list` but missing from `projects_groups` and `<project_root>` has multiple sub-dirs with repo markers: trigger **auto-propose bootstrap**.
-- If `<tag>` is a single-repo project (no multi-repo sub-dirs detected): load `<project_root>/CODEMAP.md` only.
+- If `<tag>` in `projects_list` but missing from `projects_groups` and `<project_root>` has multiple distinct codebases that must stay in sync (separate repo-marker sub-dirs, OR one repo with a shared-contract source + multiple generated/typed clients — see scan below): trigger **auto-propose bootstrap**. The git-repo boundary is NOT the signal — a monorepo with a `contract/` → `ios/`+`android/`+`backend/` seam qualifies just as much as separate repos.
+- If `<tag>` is a single undifferentiated codebase (no separate sub-dirs and no contract→multi-client seam): load `<project_root>/CODEMAP.md` only.
 
-**Auto-propose bootstrap** (when `projects_groups[<tag>]` is missing but `<project_root>` contains multiple repo-marker sub-directories):
-1. Scan `<project_root>` one level deep for sub-directories with repo markers:
+**Auto-propose bootstrap** (when `projects_groups[<tag>]` is missing but `<project_root>` contains multiple sync-bound codebases — separate repo dirs or a contract→clients seam):
+1. Scan `<project_root>` one level deep for sub-directories with repo or contract markers:
+   - `openapi.{yaml,yml,json}` / `*.proto` / `schema.graphql` (or a dir named `contract`/`contracts`/`api-spec`/`proto`) → `contract` (the shared source clients are generated from — its drift is what STITCH tracks)
    - `manage.py` + `settings.py` → `backend` (Django)
    - `composer.json` + `artisan` → `backend` (Laravel)
    - `Gemfile` with `rails` → `backend` (Rails)
    - `package.json` with `express`/`fastify`/`nestjs` → `backend` (Node)
+   - `pyproject.toml`/`requirements.txt` with `fastapi`/`pydantic` → `backend` (FastAPI)
+   - `Package.swift` / `*.xcodeproj` / an `ios` dir → `ios` (Swift/SwiftUI)
+   - `build.gradle{,.kts}` with an `android` dir → `android` (Kotlin/Android)
    - `next.config.*` → `web` (Next.js)
    - `app.json` + `expo` in package.json → `mobile` (Expo)
    - `package.json` with `react` (no `next`/`expo`) → `web` (React SPA)
@@ -2837,15 +2897,19 @@ Read `.cursor/aria-knowledge.local.md`. Parse YAML frontmatter `projects_groups`
 Look up `<tag>` in `projects_list` (get `project_root`) and `projects_groups` (get role → folder dict).
 
 - If `<tag>` missing from `projects_list`: stop with *"unknown project tag: <tag>"*.
-- If `<tag>` in `projects_list` but missing from `projects_groups` and `<project_root>` has multiple sub-dirs with repo markers: trigger **auto-propose bootstrap**.
-- If `<tag>` is a single-repo project (no multi-repo sub-dirs detected): load `<project_root>/CODEMAP.md` only.
+- If `<tag>` in `projects_list` but missing from `projects_groups` and `<project_root>` has multiple distinct codebases that must stay in sync (separate repo-marker sub-dirs, OR one repo with a shared-contract source + multiple generated/typed clients — see scan below): trigger **auto-propose bootstrap**. The git-repo boundary is NOT the signal — a monorepo with a `contract/` → `ios/`+`android/`+`backend/` seam qualifies just as much as separate repos.
+- If `<tag>` is a single undifferentiated codebase (no separate sub-dirs and no contract→multi-client seam): load `<project_root>/CODEMAP.md` only.
 
-**Auto-propose bootstrap** (when `projects_groups[<tag>]` is missing but `<project_root>` contains multiple repo-marker sub-directories):
-1. Scan `<project_root>` one level deep for sub-directories with repo markers:
+**Auto-propose bootstrap** (when `projects_groups[<tag>]` is missing but `<project_root>` contains multiple sync-bound codebases — separate repo dirs or a contract→clients seam):
+1. Scan `<project_root>` one level deep for sub-directories with repo or contract markers:
+   - `openapi.{yaml,yml,json}` / `*.proto` / `schema.graphql` (or a dir named `contract`/`contracts`/`api-spec`/`proto`) → `contract` (the shared source clients are generated from — its drift is what STITCH tracks)
    - `manage.py` + `settings.py` → `backend` (Django)
    - `composer.json` + `artisan` → `backend` (Laravel)
    - `Gemfile` with `rails` → `backend` (Rails)
    - `package.json` with `express`/`fastify`/`nestjs` → `backend` (Node)
+   - `pyproject.toml`/`requirements.txt` with `fastapi`/`pydantic` → `backend` (FastAPI)
+   - `Package.swift` / `*.xcodeproj` / an `ios` dir → `ios` (Swift/SwiftUI)
+   - `build.gradle{,.kts}` with an `android` dir → `android` (Kotlin/Android)
    - `next.config.*` → `web` (Next.js)
    - `app.json` + `expo` in package.json → `mobile` (Expo)
    - `package.json` with `react` (no `next`/`expo`) → `web` (React SPA)
@@ -2858,7 +2922,7 @@ Look up `<tag>` in `projects_list` (get `project_root`) and `projects_groups` (g
 Resolve each `(role, folder)` pair to absolute path: `<project_root>/<folder>`. For each absolute path, read `CODEMAP.md` if it exists. Read `<project_root>/STITCH.md` if it exists. Return resolved path map + warnings for any missing CODEMAPs.
 <!-- /shared-block: group-loader -->
 
-**For `/stitch` specifically:** the group MUST have multiple sub-repos (at least one `backend` role + at least one frontend role). If single-repo, stop with *"/stitch requires a multi-repo group; use `/codemap` for single repos"*.
+**For `/stitch` specifically:** the group MUST have **≥2 distinct codebases bound by a shared contract** — at least one contract/backend source role + at least one client role that must stay in sync with it. **Whether they live in separate git repos or one monorepo is irrelevant** — the load-bearing condition is "multiple codebases that drift apart," not "multiple repos." A monorepo's `contract/` → `ios/`+`android/`+`backend/` seam (the dual-native keystone — one OpenAPI/proto/GraphQL source feeding generated clients) is exactly the drift seam STITCH exists to document. Only stop when there's a **single undifferentiated codebase** with no such seam: *"/stitch needs ≥2 contract-bound codebases; this looks like one codebase — use `/codemap`."*
 
 ## Step 1: Resolve paths & output target
 
@@ -3151,18 +3215,32 @@ This line is advisory — it does not set the model. The user selects via `/mode
 
 ### 3f: SESSION.md (handoff state)
 Skip if `session_state` is not `true` in `.cursor/aria-knowledge.local.md` (read in Step 0). When enabled, draft `{project_root}/SESSION.md` as a **handoff-state** snapshot per `aria-atlas/docs/TEMPLATE_SESSION.md` (full rewrite; create if absent — the one create-exception to the skip-gracefully rule):
-- Header: `lastEvent: handoff`; `at:` current UTC (`date -u +%Y-%m-%dT%H:%M:%SZ`); `currentFocus:` one line; `nextAction:` the imperative first action from 3e; `branch:`/`headCommit:` from `git -C {project_root} rev-parse --abbrev-ref HEAD` / `... rev-parse --short HEAD` (omit if not a git repo); `by:` `author_tag` (omit if unset); `sessionId:` omit unless known.
+- Header: `lastEvent: handoff`; `at:` current UTC (`date -u +%Y-%m-%dT%H:%M:%SZ`); `currentFocus:` one line; `nextAction:` the imperative first action from 3e; `branch:`/`headCommit:` from `git -C {project_root} rev-parse --abbrev-ref HEAD` / `... rev-parse --short HEAD` (omit if not a git repo); `by:` `author_tag` (omit if unset); **`sessionId:` REQUIRED** — the next handoff's demote decision keys on it, and an absent value makes that guard unevaluable (which historically read as "the ledger doesn't apply", and the handoff got skipped). Read it from the existing front-matter or the session context; if it genuinely cannot be resolved, write `sessionId: unknown` rather than omitting the line.
 - Body: `## Where we left off` + `## Next session pickup` (2-4 sentences each); `## Next session prompt` = **the 3e opener verbatim** inside the fenced block (it may contain nested ``` fences — preserve them).
 
 The 3e opener is authored once and reused here — single source, no divergence between the closing report's opener and the SESSION.md prompt block.
 
-**Multi-session ledger (preserve a prior unconsumed handoff — nothing silently lost):** if the existing SESSION.md already has `lastEvent: handoff` with a `sessionId` *different* from this session, DEMOTE it before overwriting the active slot. Source `bin/lib-session-state.sh` and, reading the prior file's values first, call:
-- `kt_ss_ledger_add "{project_root}" "<prior sessionId>" "<prior at>" "<prior currentFocus>" "<prior nextAction>" "<prior next-session-prompt collapsed to ONE line>"` — demotes the prior active entry into `## Prior sessions` (newest-first). **The prompt MUST be a single line** (strip newlines) — the prune step's correctness depends on it.
-- `kt_ss_ledger_prune "{project_root}"` — drops any `## Prior sessions` entry a resume already marked `consumed`. Unconsumed entries survive.
+**NEVER SKIP THIS STEP TO AVOID CLOBBERING SOMEONE ELSE'S STATE.** A SESSION.md may legitimately hold several still-valid next-session prompts, and the ledger below exists precisely so you never have to choose between overwriting a handoff and abandoning yours. Skipping is the *worst* outcome: your opener is lost entirely, which is the one thing this design is built to prevent. If a prior handoff is present, demote it and write yours — both survive.
 
-THEN write the new active header + `## Next session prompt` (the full rewrite below). The `## Prior sessions` section is managed by these helpers — the rewrite replaces only the front-matter + active body, never the ledger.
+**Multi-session ledger (several valid prompts can coexist — nothing is ever lost):** if the existing SESSION.md has `lastEvent: handoff` and its `sessionId` differs from this session's (or is absent — treat an unidentifiable handoff as *someone else's*), DEMOTE it before overwriting the active slot. Source `bin/lib-session-state.sh` and, reading the prior file's values first, call:
+- `kt_ss_ledger_add "{project_root}" "<prior sessionId>" "<prior at>" "<prior currentFocus>" "<prior nextAction>" "<prior next-session-prompt>"` — moves the prior active entry into `## Pending handoffs` (newest-first). **Pass the prompt at FULL fidelity — do not collapse it to one line.** An unconsumed prompt is still-valid work; collapsing it degrades a mandate nobody has used yet. Block boundaries are declared by an explicit `<!-- aria:entry-end -->` terminator, so a stored prompt may safely contain column-0 `## ` lines and nested fences.
+- `kt_ss_ledger_prune "{project_root}"` — drops any entry a resume already marked `consumed`. **Unconsumed entries always survive**, at full fidelity.
 
-**Gitignore it, never commit it:** SESSION.md is ephemeral per-session state (atlas reads from disk; PROGRESS.md is the durable log). If `{project_root}` is a git repo and `.gitignore` doesn't already ignore `SESSION.md`, append a `SESSION.md` line to `{project_root}/.gitignore`. **Never stage SESSION.md** — exclude it from the Step 5 / 3d commit.
+**Never demote a `lastEvent: in-progress` marker.** That is a live session's own breadcrumb, not a handoff — it carries no prompt, so a ledger entry for it would be empty. Overwrite it and move on.
+
+THEN write the new active header + `## Next session prompt` (the full rewrite below). `## Pending handoffs` is managed by these helpers — the rewrite replaces only the front-matter + active body, never the pending section. (Files written before this rename carry `## Prior sessions`; the helpers keep using it for those, so nothing is orphaned.)
+
+**Before writing, check what this session left behind (two cheap reads, both report-only):**
+
+1. **Recorded Rule 22 bypasses.** Read `${TMPDIR:-/tmp}/aria-r22-bypass-<session_id>` if it exists — each line is an in-place file mutation made through the shell, which routed around the Edit/Write gate and so landed with no scope assessment recorded. The PreToolUse hook only *warns* (denying would block legitimate work), so a warning that was ignored leaves no other trace. Report the count and the idioms in the closing summary — not as a failure, as a fact the next reader should have. If the file is absent, say nothing.
+2. **Pending handoffs.** If `## Pending handoffs` (or a legacy `## Prior sessions`) holds entries still marked `unconsumed`, state how many and name their sessions in the closing summary. A prompt that is stored but never surfaced is lost in practice — this is the second of three checkpoints (the others are `/wrapup` and resume).
+
+**Tracked or ignored — read `session_state_tracked` (default `false`):**
+
+- **`false` (default) — ignore it, never commit it.** SESSION.md is ephemeral per-session state (atlas reads from disk; PROGRESS.md is the durable log). If `{project_root}` is a git repo and SESSION.md is **not already tracked**, ensure `.gitignore` ignores it. **Never stage SESSION.md** — exclude it from the Step 5 / 3d commit.
+- **`true` — it is a tracked artifact.** Do **NOT** add an ignore line, and **DO** stage it with the Step 5 / 3d commit. If an ignore line already exists, remove it: leaving one makes the config assert something git is not doing. Choose this when SESSION.md carries a decision trail you need versioned — most often in a repo with no `PROGRESS.md`, where SESSION.md *is* the durable log and the default's rationale does not hold.
+
+⛔ **Test tracking with `git -C {project_root} ls-files --error-unmatch SESSION.md`, never "is the pattern already in `.gitignore`?"** An ignore rule is a **no-op on an already-tracked path**, so a pattern check can never become true for a tracked file and the clause **appends on every run** — one observed `.gitignore` had accumulated four identical `SESSION.md` lines. ⚠ `git check-ignore` cannot serve as the test either: it consults the index, so it reports a **tracked** file as *not ignored*.
 
 ## Step 4: Single Combined-Go Review (default mode only)
 
@@ -3202,7 +3280,7 @@ Apply approved drafts in order. For `auto` and `snap` modes, this runs immediate
    - Stage the listed files (specific paths, never `git add -A`)
    - Commit with the drafted message
    - **Never push.** This applies in both modes regardless of how the repo is hosted.
-5. **3f:** If a prior unconsumed `handoff` entry exists (different `sessionId`), run `kt_ss_ledger_add` (single-line prompt) + `kt_ss_ledger_prune` FIRST (demote + prune), THEN write `{project_root}/SESSION.md` (handoff state — full rewrite of front-matter + active body + `## Next session prompt`, create if absent; the `## Prior sessions` ledger is managed by the helpers, not the rewrite). Skip if `session_state` is off or the user `skip`-ped 3f.
+5. **3f:** If a prior unconsumed `handoff` entry exists (different or absent `sessionId`), run `kt_ss_ledger_add` (**full-fidelity prompt — never collapsed**) + `kt_ss_ledger_prune` FIRST (demote + prune), THEN write `{project_root}/SESSION.md` (handoff state — full rewrite of front-matter + active body + `## Next session prompt`, create if absent; `## Pending handoffs` is managed by the helpers, not the rewrite). Never demote a `lastEvent: in-progress` marker, and **never skip 3f to avoid clobbering** — demote instead, so both survive. Skip only if `session_state` is off or the user `skip`-ped 3f.
 
 If any step fails (e.g., commit hook rejects), surface the failure inline and stop — do not silently continue.
 
@@ -3252,10 +3330,12 @@ Emit the closing report. **The next-session opener is the headline artifact** �
 
 ```
 {full opener from Step 3e}
-```
 
 Read on resume: {primary AGENTS.md path} for current state.
 ```
+```
+
+The `Read on resume:` line MUST sit INSIDE the opener fence (the last line of the pasteable block), never after the closing ```` ``` ````. It is part of the artifact the user pastes into the next session — if it lands outside the fence it is silently dropped on paste. (Step 3e's opener already carries a `Read first:` pointer inside the fence; this `Read on resume:` line is the Step-8 report's echo of it and must stay equally inside.)
 
 ## Rules
 
@@ -3440,9 +3520,21 @@ Skip this step entirely unless `session_state: true` in `.cursor/aria-knowledge.
 
 Write `{project_root}/SESSION.md` (project root from Step 1) as a **wrapup-state** snapshot, following the contract at `aria-atlas/docs/TEMPLATE_SESSION.md`. **Full rewrite** (wrapup is an authoritative close). This is a deliberate exception to the "don't create files" rule — create it if absent.
 
-**Consume on clean close (multi-session ledger):** a `/wrapup` is a clean close, not a handoff — it adds NO `## Prior sessions` entry for the wrapped session itself (there is no next-session prompt to retain). If the existing SESSION.md has a `## Prior sessions` block, source `bin/lib-session-state.sh` and call `kt_ss_ledger_prune "{project_root}"` to drop any entries a resume already marked `consumed`. Unconsumed prior handoffs survive — wrapping up one session never silently discards another's pending pickup.
+**Consume on clean close (multi-session ledger):** a `/wrapup` is a clean close, not a handoff — it adds NO pending entry for the wrapped session itself (there is no next-session prompt to retain). If the existing SESSION.md has a `## Pending handoffs` block (or a legacy `## Prior sessions` one), source `bin/lib-session-state.sh` and call `kt_ss_ledger_prune "{project_root}"` to drop any entries a resume already marked `consumed`. Unconsumed handoffs survive at full fidelity — wrapping up one session never silently discards another's pending pickup.
 
-**Gitignore it, never commit it:** SESSION.md is ephemeral per-session state (atlas reads it from disk; PROGRESS.md is the durable log). If `{project_root}` is a git repo and its `.gitignore` doesn't already ignore `SESSION.md`, append a `SESSION.md` line to `{project_root}/.gitignore`. **Never `git add` SESSION.md** — it is intentionally untracked, so it must not appear in the Step 6 commit.
+**Before closing, check what this session left behind (two cheap reads, both report-only):**
+
+1. **Recorded Rule 22 bypasses.** Read `${TMPDIR:-/tmp}/aria-r22-bypass-<session_id>` if it exists — each line is an in-place file mutation made through the shell, which routed around the Edit/Write gate and so landed with no scope assessment recorded. The PreToolUse hook only *warns* (denying would block legitimate work), so a warning that was ignored leaves no other trace. Report the count and the idioms in the close-out summary — not as a failure, as a fact worth knowing before the session ends. If the file is absent, say nothing.
+2. **Pending handoffs.** If `## Pending handoffs` (or a legacy `## Prior sessions`) still holds `unconsumed` entries, state how many and name their sessions. A clean close does not consume another session's pickup, so this is the last chance to notice one before the session is gone — the third of three checkpoints (the others are `/handoff` and resume).
+
+**Never skip this step to avoid clobbering another session's state.** Skipping loses more than writing does: the prune only ever removes entries already marked consumed, so running it cannot destroy pending work. If you are unsure whether another session owns the file, run the prune and write — that is the safe direction, not the risky one.
+
+**Tracked or ignored — read `session_state_tracked` (default `false`):**
+
+- **`false` (default) — ignore it, never commit it.** SESSION.md is ephemeral per-session state (atlas reads it from disk; PROGRESS.md is the durable log). If `{project_root}` is a git repo and SESSION.md is **not already tracked**, ensure `.gitignore` ignores it. **Never `git add` SESSION.md** — it must not appear in the Step 6 commit.
+- **`true` — it is a tracked artifact.** Do **NOT** add an ignore line, and **DO** stage it with the Step 6 commit. If an ignore line already exists, remove it: leaving one makes the config assert something git is not doing. Choose this when SESSION.md carries a decision trail you need versioned — most often in a repo with no `PROGRESS.md`, where SESSION.md *is* the durable log and the default's rationale does not hold.
+
+⛔ **Test tracking with `git -C {project_root} ls-files --error-unmatch SESSION.md`, never "is the pattern already in `.gitignore`?"** An ignore rule is a **no-op on an already-tracked path**, so a pattern check can never become true for a tracked file and the clause **appends on every run** — one observed `.gitignore` had accumulated four identical `SESSION.md` lines. ⚠ `git check-ignore` cannot serve as the test either: it consults the index, so it reports a **tracked** file as *not ignored*. (That inversion is itself useful — "not ignored" from `check-ignore` on a file you believe is ignored means it is tracked.)
 
 Header fields:
 - `lastEvent: wrapup`
@@ -3534,7 +3626,7 @@ The discipline this enforces: before the first edit lands, every planned step ge
 - After a multi-step plan is articulated (in chat, in TodoWrite, in a `.md` plan file) but no code has been written yet
 - After `/brainstorming` concludes with an action plan
 - After `/distill` produces a task spec that's about to be executed
-- After a Linear ticket's Technical Intake is drafted and the implementer is about to begin
+- After a ticket's Technical Intake is drafted and the implementer is about to begin
 - Before kicking off a long autonomous run (e.g., `combined go`) on a non-trivial plan
 - As a soft-suggested response to "let me implement…", "I'll just code it…", "ok ship it" when no validation exists yet
 
@@ -3550,18 +3642,19 @@ Parse the invocation arguments. The first positional argument is the **scope key
 | **session** | `/prospect session` | `--session` | Synonym for **plan**. Reserved for cases where the user wants to emphasize "everything articulated this conversation" rather than a single plan artifact. |
 | **todos** | `/prospect todos` | `--todos` | Just the active TodoWrite list — a thin mode for quick checks |
 | **file** | `/prospect file <path>` | `--plan <path>` | Read the markdown file at `<path>` as the plan |
-| **linear** | `/prospect linear <id>` | `--linear <id>` | Read the ticket's Technical Intake (and Product Intake for goal context) via Linear MCP. If MCP unavailable, ask user to paste. |
+| **ticket** | `/prospect ticket <id>` | `--ticket <id>`, `linear`/`--linear` (legacy) | Read the ticket's Technical Intake (and Product Intake for goal context) via the connected project-tracker MCP — Linear, Jira/Atlassian, Asana, Monday, ClickUp, Notion-as-tracker, GitHub Issues. If no tracker MCP is connected, ask the user to paste. |
 | **branch** | `/prospect branch <name>` | `--branch <name>` | Uncommitted/unpushed local changes on the branch — `git diff <main-branch>...<name>` — treated as a plan-in-progress (NOT shipped yet) |
 
 **Argument parsing rules:**
 - If the first positional arg matches a scope keyword (case-insensitive), use it. Otherwise treat it as an arg to the default `plan` scope.
-- Backward-compat flag forms (`--plan`, `--linear`, `--branch`, `--todos`, `--session`) remain accepted indefinitely. Both `/prospect linear LINEAR-123` and `/prospect --linear LINEAR-123` resolve identically.
-- Modifier flags (apply to any scope): `--linear-post` (post the prospect verdict to detected Linear tickets at end), `--no-source` (skip Step 3.5's Evidence-Sourcing Pass), `--lens=overbuild` (run the over-build review pass — see "Over-build lens" section; opt-in, off by default).
+- Backward-compat flag forms (`--plan`, `--ticket`, `--branch`, `--todos`, `--session`) remain accepted indefinitely. Both `/prospect ticket ABC-123` and `/prospect --ticket ABC-123` resolve identically.
+- **Legacy vendor spellings still work.** The `ticket` scope was named `linear` before the surface was made tracker-agnostic, so `/prospect linear <id>` and `--linear <id>` resolve exactly as `ticket`/`--ticket` do, and `--linear-post` resolves as `--tracker-post`. They are aliases, not separate behaviour — never advertise them as the canonical form.
+- Modifier flags (apply to any scope): `--ticket-post` (post the prospect verdict to detected tickets at end; alias `--linear-post`), `--no-source` (skip Step 3.5's Evidence-Sourcing Pass), `--lens=overbuild` (run the over-build review pass — see "Over-build lens" section; opt-in, off by default).
 
 After mode detection, gather:
 
 1. **Goal** — Ask the user: "What is this plan supposed to accomplish? (One sentence is fine.)" If they don't reply, fall back to the plan's first heading or stated objective.
-2. **Tickets** — Scan plan text/commits/branch name with regex `\b([A-Z]{2,}-\d+)\b` for Linear-style ticket IDs. If found AND Linear MCP is available, fetch each ticket's Product/Technical Intake + acceptance criteria to use as the goal-anchor in §4.6. If Linear MCP is unavailable, note "ticket context unavailable" but continue.
+2. **Tickets** — Scan plan text/commits/branch name with regex `\b([A-Z]{2,}-\d+)\b` for ticket IDs (the pattern is vendor-neutral — it matches DEV-123, PROJ-45, JIRA-9 alike). If found AND a project-tracker MCP is available, fetch each ticket's Product/Technical Intake + acceptance criteria to use as the goal-anchor in §4.6. If a project-tracker MCP is unavailable, note "ticket context unavailable" but continue.
 3. **Pre-execution evidence** — Ask the user: "For each step in this plan, do you have evidence the step is necessary and that the underlying assumption is correct? (✅ measured / ⚠ inferred / ❌ contradicted / ❓ untested)" Show the per-step list and accept inline replies. If user can't supply evidence for any step, mark those ❓ — those steps will resolve to DEFER unless §4.7 produces supporting hypothesis confidence.
 
 If scope is `branch` (or invoked via `--branch`) and the diff is non-trivial (>50 LOC across >3 files), warn: "Branch already has substantive code — consider `/retrospect range main..HEAD` instead, which is calibrated for already-written changes." Continue if user confirms.
@@ -3572,7 +3665,7 @@ If the user's config (`.cursor/aria-knowledge.local.md`) has `active_knowledge_s
 
 **Algorithm:**
 
-1. **Build query.** Combine, separated by spaces: the Goal sentence from Step 0; the plan's first heading or the first 3 TodoWrite items; any detected Linear ticket IDs (e.g., `LINEAR-123`); the file basename if scope is `file`; the branch name if scope is `branch`.
+1. **Build query.** Combine, separated by spaces: the Goal sentence from Step 0; the plan's first heading or the first 3 TodoWrite items; any detected ticket IDs (e.g., `ABC-123`); the file basename if scope is `file`; the branch name if scope is `branch`.
 
 2. **Read the index.** `Read` `<knowledge_folder>/index.md` (resolve `<knowledge_folder>` from the config's `knowledge_folder` field). Parse the `## Tag Index` section for `### tagname` headers — that's the matching vocabulary (~77 known tags as of v2.15.0). Ignore the `## Other Tags` section (freeform tier, intentionally excluded from auto-surfacing).
 
@@ -3601,7 +3694,7 @@ If the user's config (`.cursor/aria-knowledge.local.md`) has `active_knowledge_s
 
 11. **Tracked artifacts surfacing (added v2.16.1).** After Step 10's carry-forward, ALSO surface CODEMAP + STITCH for the plan's project. The shared lib at `scripts/aria/lib-tracked-artifacts.sh` implements equivalent logic for hooks; this step inlines the algorithm for skill-context portability.
 
-    a. **Detect project tag.** Try in order: `--group=<tag>` from Step 0 if provided → first Linear-ticket ID prefix that maps to a `projects_list` tag → first `projects_list[<tag>].path` whose `path` appears as substring in the plan source path (from Step 0 `Source:` field). If no detection, skip the rest of Step 11.
+    a. **Detect project tag.** Try in order: `--group=<tag>` from Step 0 if provided → first ticket-ID prefix that maps to a `projects_list` tag → first `projects_list[<tag>].path` whose `path` appears as substring in the plan source path (from Step 0 `Source:` field). If no detection, skip the rest of Step 11.
 
     b. **Resolve project root via Bash.** Parse `projects_list:` from `.cursor/aria-knowledge.local.md` frontmatter (comma-separated `tag:path`). For the detected tag, compute `project_root = $HOME/Projects/<path>`. If directory doesn't exist, skip.
 
@@ -3628,10 +3721,10 @@ Before producing any verdict, emit the anchor so the rest of the report can be t
 ```
 Anchor:
   Goal:    <stated goal>
-  Mode:    <plan | session | todos | file | linear | branch>
-  Source:  <plan file path | TodoWrite snapshot | Linear-id | branch-name | session messages>
+  Mode:    <plan | session | todos | file | ticket | branch>
+  Source:  <plan file path | TodoWrite snapshot | ticket-id | branch-name | session messages>
   Scope:   <step count, files-to-touch estimate, repos-affected>
-  Tickets: <LINEAR-123 (Acceptance: ...), LINEAR-456 (...) | (none) | (unavailable)>
+  Tickets: <ABC-123 (Acceptance: ...), ABC-456 (...) | (none) | (unavailable)>
   Evidence: <user-supplied per-step evidence table | (untested)>
 ```
 
@@ -3700,7 +3793,7 @@ For each AUTO-SOURCEABLE (or the auto-portion of MIXED) question, execute the so
 - **Version control**: Bash with `git log`, `git diff`, `git show`, `git blame`
 - **Public web**: WebFetch (specific URL — library docs, official spec) and WebSearch (when the URL is unknown). Per Rule 33, prefer official sources over inferred ones; per Rule 27, verify identifiers/versions are still current
 - **Local probes**: Bash for `curl`, `gh`, log-tail, file-existence checks
-- **MCP queries** that don't require new credentials and that the user has already authorized in this session (Linear, Supabase, etc.). If a query would require new auth or interactive consent, demote to USER-INPUT instead
+- **MCP queries** that don't require new credentials and that the user has already authorized in this session (a project tracker — Linear, Jira, Asana, etc. — Supabase, and so on). If a query would require new auth or interactive consent, demote to USER-INPUT instead
 
 Record findings in this format:
 
@@ -3869,7 +3962,7 @@ Tally:
   Unverifiable-yet (🚫):              <N>   (post-Step-3.5)
   Under-specified (🌫):               <N>
   Theory-driven refactors:           <N>
-  Tied to Linear acceptance:         <N>
+  Tied to ticket acceptance:         <N>
   Discovered-during-planning:        <N>
   Pattern hits this run:             <N>
 
@@ -4030,9 +4123,9 @@ After Step 4 produces the report, write outputs to the configured destinations:
   ---
   type: prospect
   date: <YYYY-MM-DD>
-  scope: <plan | session | todos | file | linear | branch>
+  scope: <plan | session | todos | file | ticket | branch>
   goal: <one-line stated goal from §4.1 Anchor>
-  tickets: [<LINEAR-123>, <LINEAR-456>]   # empty list if none
+  tickets: [<ABC-123>, <ABC-456>]   # empty list if none
   steps_count: <N>
   sourcing_pass:
     candidates: <N>
@@ -4058,7 +4151,7 @@ After Step 4 produces the report, write outputs to the configured destinations:
   Project-scoped intake goes to `projects/<proj>/`; agnostic intake goes to the shared knowledge tree. Follow the standard aria intake confirmation flow (suggest, user reviews, write on approval).
 
 ### Opt-in
-- **Linear comment:** Only when invoked with `--linear-post`. Post the Overall verdict from §4.8 + the action verdict list to each Linear ticket detected. Use Linear MCP `save_comment`. Never post the full report — too much detail for the ticket.
+- **Tracker comment:** Only when invoked with `--ticket-post` (legacy alias `--linear-post`). Post the Overall verdict from §4.8 + the action verdict list to each ticket detected. Use a project-tracker MCP `save_comment`. Never post the full report — too much detail for the ticket.
 
 ### Pattern library write-backs
 If §4.9 produced a novel pattern and the user approved adding it, the pattern entry is written to either:
@@ -4078,7 +4171,7 @@ Cues (non-exhaustive, judgment-based):
 - A long planning conversation has produced a coherent plan but no edits have happened yet
 - Brainstorming concluded with an action plan
 - /distill produced a task spec
-- A Linear ticket's Technical Intake was just drafted and the user is about to begin
+- A ticket's Technical Intake was just drafted and the user is about to begin
 - The plan touches >3 files OR >1 repo OR has any step rated L (>100 LOC)
 - The plan rewrites working code without naming a measured problem location
 
@@ -4152,7 +4245,7 @@ Parse the invocation arguments. The first positional argument is the **scope key
 **Argument parsing rules:**
 - If the first positional arg matches a scope keyword (case-insensitive), use it. Otherwise treat it as auto-range and try to parse the args under the legacy flag form.
 - Backward-compat flag forms (`--range`, `--pr`, `--session`, `--commit`) remain accepted indefinitely. Both `/retrospect range a..b` and `/retrospect --range a..b` resolve identically.
-- Modifier flags (apply to any scope): `--linear-post` (post the retrospective verdict to detected Linear tickets at end), `--no-source` (skip Step 3.5's Evidence-Sourcing Pass), `--lens=overbuild` (run the over-build review pass — see "Over-build lens" section; opt-in, off by default).
+- Modifier flags (apply to any scope): `--ticket-post` (post the retrospective verdict to detected tickets at end; legacy alias `--linear-post` still accepted), `--no-source` (skip Step 3.5's Evidence-Sourcing Pass), `--lens=overbuild` (run the over-build review pass — see "Over-build lens" section; opt-in, off by default).
 
 ### Deployment detection cascade (Q2.1=3)
 
@@ -4168,7 +4261,7 @@ Print the resolved marker source ("Detected via gh release: v1.4.2 (2026-05-01)"
 After mode detection, gather:
 
 1. **Goal** — Ask the user: "What was this release/range supposed to fix? (One sentence is fine.)" If they don't reply, fall back to commit message subjects + PR description.
-2. **Tickets** — Scan commit messages with regex `\b([A-Z]{2,}-\d+)\b` for Linear-style ticket IDs. If any are found AND Linear MCP is available, fetch each ticket's Product/Technical Intake + recent comments. If Linear MCP is unavailable, note "ticket context unavailable" but continue.
+2. **Tickets** — Scan commit messages with regex `\b([A-Z]{2,}-\d+)\b` for ticket IDs (the pattern is vendor-neutral — it matches DEV-123, PROJ-45, JIRA-9 alike). If any are found AND a project-tracker MCP is available, fetch each ticket's Product/Technical Intake + recent comments. If a project-tracker MCP is unavailable, note "ticket context unavailable" but continue.
 3. **Post-deploy outcome** — Ask the user: "For each fix, what's the post-ship evidence? (✅ closed / ⚠ partial / ❌ failed / ❓ untested)" Show the per-commit list and accept inline replies. If user can't supply evidence for any fix, mark those ❓ and note that §10 will recommend instrumentation.
 
 If scope is `session` (or invoked via `--session`), skip post-deploy outcome (no production yet) and tag all fixes 🚫 unvalidatable; their actions will resolve to HOLD-PENDING-DEPLOY.
@@ -4179,7 +4272,7 @@ If the user's config (`.cursor/aria-knowledge.local.md`) has `active_knowledge_s
 
 **Algorithm:**
 
-1. **Build query.** Combine, separated by spaces: the Goal sentence from Step 0; the first 3 commit subjects in the bundle range; PR title if scope is `pr`; any detected Linear ticket IDs (e.g., `LINEAR-123`); the resolved deployment marker label if scope is `deployment`; the range descriptor (e.g., `v0.4.2..HEAD`).
+1. **Build query.** Combine, separated by spaces: the Goal sentence from Step 0; the first 3 commit subjects in the bundle range; PR title if scope is `pr`; any detected ticket IDs (e.g., `ABC-123`); the resolved deployment marker label if scope is `deployment`; the range descriptor (e.g., `v0.4.2..HEAD`).
 
 2. **Read the index.** `Read` `<knowledge_folder>/index.md` (resolve `<knowledge_folder>` from the config's `knowledge_folder` field). Parse the `## Tag Index` section for `### tagname` headers — that's the matching vocabulary (~77 known tags as of v2.15.0). Ignore the `## Other Tags` section (freeform tier, intentionally excluded from auto-surfacing).
 
@@ -4237,7 +4330,7 @@ Anchor:
   Goal:    <stated goal>
   Mode:    <auto-range | commit | range | pr | session | release | deployment>
   Range:   <commit range descriptor, e.g. v0.4.2..HEAD, 12 commits, 38 files>
-  Tickets: <LINEAR-123 (Acceptance: ...), LINEAR-456 (...) | (none) | (unavailable)>
+  Tickets: <ABC-123 (Acceptance: ...), ABC-456 (...) | (none) | (unavailable)>
   Outcome: <user-supplied per-fix status table | (untested) | (per-session — no deploy)>
 ```
 
@@ -4318,7 +4411,7 @@ Fix #N: <subject>
 
 **Auto-source candidates (retrospect-specific):**
 - **Production log queries** — `mcp__vercel__get_logs`, `mcp__supabase__get_logs`, `Bash gh run view`, log-tail via SSH. Look for: (a) absence of the error event the fix targeted, (b) presence of the success event, (c) post-deploy regression signals.
-- **Linear ticket comments** — `mcp__linear__list_comments <ticket-id>` for any ticket cited in commit messages. QA, support, and product comments often record post-deploy outcome ("verified fixed in PROD," "still reproducing," etc.). High-signal source.
+- **Ticket comments** — via whichever project-tracker MCP is connected (Linear, Jira/Atlassian, Asana, Monday, ClickUp, Notion-as-tracker, GitHub Issues), using that server's list-comments verb — e.g. `mcp__linear__list_comments <ticket-id>` on Linear. Probe for what is actually connected rather than assuming a vendor; skip this source if none is. For any ticket cited in commit messages. QA, support, and product comments often record post-deploy outcome ("verified fixed in PROD," "still reproducing," etc.). High-signal source.
 - **Repro test execution** — if the bug had a documented repro and the test infrastructure is local, run it: `Bash <test-command>` (read-only or sandboxed). NEVER run repro tests that mutate production data.
 - **GH commit/check status** — `Bash gh api repos/<owner>/<repo>/commits/<sha>/check-runs` → CI green / red post-fix.
 - **Web fetch on monitoring dashboards** — only if URLs are known and public (rare; usually demoted to USER-INPUT).
@@ -4503,7 +4596,7 @@ Tally:
   Bundle-unverified (🤷):            <N>   (post-Step-3.5.1, §4.2)
   Not-in-bundle (❌):                 <N>   (post-Step-3.5.1, §4.2)
   Theory-driven refactors:          <N>
-  Required by Linear acceptance:    <N>
+  Required by ticket acceptance:    <N>
   Discovered-during-process:        <N>
   Pattern hits this run:            <N>
 
@@ -4572,7 +4665,7 @@ Action verdict:
   ...
 ```
 
-For REVERT actions, provide the exact `git revert <sha>` command. For REDO-MINIMAL actions, provide the minimal alternative diff (from §4.3). For FOLLOWUP-TICKET actions, draft a Linear ticket title + Product/Technical Intake skeleton. For RESHIP-AND-VERIFY actions (introduced when §4.2 emitted ❌ Not-in-bundle), provide: (a) the re-deploy command appropriate to the project (`gh workflow run deploy.yml --ref main`, `vercel --prod`, project-specific deploy script — pick from `aria-config.md`'s `projects_list[<tag>]` if present, otherwise prompt user), and (b) a one-line directive: "After re-deploy, re-run `/retrospect deployment` to confirm the bundle now contains the fix and validate outcome."
+For REVERT actions, provide the exact `git revert <sha>` command. For REDO-MINIMAL actions, provide the minimal alternative diff (from §4.3). For FOLLOWUP-TICKET actions, draft a ticket title + Product/Technical Intake skeleton. For RESHIP-AND-VERIFY actions (introduced when §4.2 emitted ❌ Not-in-bundle), provide: (a) the re-deploy command appropriate to the project (`gh workflow run deploy.yml --ref main`, `vercel --prod`, project-specific deploy script — pick from `aria-config.md`'s `projects_list[<tag>]` if present, otherwise prompt user), and (b) a one-line directive: "After re-deploy, re-run `/retrospect deployment` to confirm the bundle now contains the fix and validate outcome."
 
 End with an **Overall recommendation** in 1–3 sentences.
 
@@ -4677,7 +4770,7 @@ After Step 4 produces the report, write outputs to the configured destinations:
   date: <YYYY-MM-DD>
   scope: <commit | range | pr | session | release | deployment | auto-range>
   goal: <one-line stated goal from §4.1 Anchor>
-  tickets: [<LINEAR-123>, <LINEAR-456>]   # empty list if none
+  tickets: [<ABC-123>, <ABC-456>]   # empty list if none
   fixes_count: <N>
   sourcing_pass:
     bundle_marker:
@@ -4712,7 +4805,7 @@ After Step 4 produces the report, write outputs to the configured destinations:
   Project-scoped intake goes to `projects/<proj>/`; agnostic intake goes to the shared knowledge tree. Follow the standard aria intake confirmation flow (suggest, user reviews, write on approval).
 
 ### Opt-in
-- **Linear comment:** Only when invoked with `--linear-post`. Post a *summary* (the Overall recommendation from §4.8 + the action verdict list) to each Linear ticket detected in commit messages. Use Linear MCP `save_comment`. Never post the full report — too much detail for the ticket.
+- **Tracker comment:** Only when invoked with `--ticket-post` (legacy alias `--linear-post`). Post a *summary* (the Overall recommendation from §4.8 + the action verdict list) to each ticket detected in commit messages. Use a project-tracker MCP `save_comment`. Never post the full report — too much detail for the ticket.
 
 ### Pattern library write-backs
 If §4.9 produced a novel pattern and the user approved adding it, the pattern entry is written to either:
@@ -5127,7 +5220,7 @@ Read `.cursor/aria-knowledge.local.md` and extract `knowledge_folder`. If the fi
 
 ## Step 1: Resolve Mode, Topic, Grounding
 
-Parse arguments: first positional = **mode** (`project` | `knowledge` | `deep-dive`). Remaining text = **topic**. `--ground=<path|glob|url>[,...]` = optional grounding artifacts.
+Parse arguments: first positional = **mode** (`project` | `knowledge` | `deep-dive`). Remaining text = **topic**. `--ground=<path|glob|url>[,...]` = optional grounding artifacts. `--socratic` and `--battery` = cadence overrides (Step 3); both are also accepted bare (`socratic`, `battery`). They are **mutually exclusive** — if both appear, take `--socratic` (the more conservative grain) and say in one line that you did.
 
 If no mode given, ask: "Which interview — `project` (scope a new build), `knowledge` (get a topic into the KB), or `deep-dive` (extract rationale behind something you already built)?"
 
@@ -5149,20 +5242,35 @@ For `project` and `knowledge`, grounding is optional — proceed to Step 2 regar
 
 For each grounding artifact: file/dir/glob → Read/Glob/Grep; URL → WebFetch; project folder → read its CLAUDE.md + top-level structure; data file → read/parse. Record key observations — these become the evidence you cite in questions. (`deep-dive` always has ≥1; `project`/`knowledge` may have none.)
 
-## Step 3: Choose Cadence (in-session)
+## Step 3: Cadence — `guided` by default, `--battery` to opt out
 
-Recommend a cadence in one line, then accept an override:
-- `deep-dive` → recommend **battery**
-- `project` / `knowledge` WITH grounding or a broad topic → recommend **battery**
-- `project` / `knowledge`, focused + ungrounded → recommend **socratic**
+**`guided` is the default for all three modes.** Do not recommend a cadence, do not ask which one — just run `guided` unless `--battery` was passed. The old behavior (recommend `battery` for anything grounded or broad) made the all-at-once path the effective default, which is the wrong default: a numbered wall of questions has to be answered by scrolling and referencing numbers, and because a batch is derived before any answer arrives, it necessarily keeps asking things an earlier answer already made irrelevant.
 
-> "This looks like a **battery** interview (grounded / broad): I research, then present a full clustered question set you answer at once. Or **socratic**: one question at a time, adapting as we go. [battery] — reply to switch."
+**`--battery` is the escape hatch, not a co-equal option.** Mention it **once, in one line, and only** when the derived question set is large enough that sequential dialogs would genuinely be worse than a list (roughly >12 questions — in practice a broad `deep-dive`). Then proceed with `guided` without waiting for a reply:
+
+> "This derives ~N questions. Staying guided — small dialogs, adapting as we go. Reply `--battery` any time if you'd rather take the whole set at once as a list."
+
+**`--socratic` pins the grain, it is not a third cadence.** There are two cadences, and they differ on **when the questions are derived**, not on how many appear at once: `guided` re-derives after every answer, `battery` derives the whole set before the first one. `--socratic` is `guided` with the dialog grain pinned to exactly one question — same adaptive loop, no clustering. Reach for it when the user has said they want one at a time, or when they distrust the clustering judgment; `guided` already collapses to one question wherever the independence test fails, so this is a manual override of that judgment, not a different process. Record it in Step 6 as `cadence: socratic` — the artifact then states the grain the answers were given at, which a later reader needs.
 
 ## Step 4: Interview
 
-**battery cadence:** Derive a question set for the mode (banks below), grounded with cited evidence where artifacts exist. Cluster by **leverage** (highest-impact first), number them, present all at once, invite answers in any order/prose.
+### `guided` cadence (the default)
 
-**socratic cadence:** Ask ONE question, wait, adapt the next to the answer. Maintain a running **coverage ledger** (which mode-bank items are satisfied / thin / waved-off).
+Ask in **small dialogs of 1-4 questions**, using the platform's question/picker affordance — one dialog, wait, then derive the next from what came back. Never present a numbered list the user has to answer by number.
+
+**Every question carries suggested answers.** Offer 2-4 concrete candidate answers per question, drawn from the mode's question bank and — where grounding artifacts exist — from the evidence itself (a real value read out of the code or doc beats an invented placeholder). The free-text / custom answer is always available in the affordance, so a suggestion set is a **shortcut, never a constraint**; say so once at the start and don't repeat it per question. **Never invent a suggestion to fill a slot** — two real candidates are better than four with two fabricated, and a fabricated option in an elicitation interview is worse than none because it can be picked.
+
+**Cluster size is contextual, not fixed.** Put 2-4 questions in one dialog only when they are **mutually independent** — no answer to one can change the wording, the options, or the relevance of another in the same dialog. Anything that branches goes alone. When unsure, ask it alone: the cost of an extra dialog is one round-trip, while the cost of a batched question its neighbour invalidated is precisely the failure this cadence exists to remove.
+
+**`--socratic` pins the grain to one.** When it was passed, ask exactly one question per dialog for the whole interview and skip the independence test entirely — there is nothing to cluster. Everything else is unchanged: same suggested answers, same custom fill, same re-derive-after-each-dialog loop, same coverage ledger. Do not batch "just these two, they're obviously independent" — the flag exists precisely to take that call away from you.
+
+**Adapt, and drop what died.** After each dialog, re-derive before asking again: strike questions the last answers made irrelevant, add the ones they opened, re-cluster the remainder. Never carry a pre-derived list forward unchanged — that is `battery` wearing `guided`'s clothes.
+
+Maintain a running **coverage ledger** (which mode-bank items are satisfied / thin / waved-off).
+
+### `battery` cadence (only when `--battery` was passed)
+
+Derive a question set for the mode (banks below), grounded with cited evidence where artifacts exist. Cluster by **leverage** (highest-impact first), number them, present all at once, invite answers in any order/prose. **State the known limitation once, up front:** the set is fixed before your first answer, so some questions will read as irrelevant by the time you reach them — skip those outright rather than answering around them.
 
 **Hybrid stop (both cadences):** cover the mode's checklist floor, probe where answers are thin, and always honor an early "done". Periodically surface coverage: "Covered: X, Y. Still thin: Z. Say 'done' to stop early."
 
@@ -5203,7 +5311,7 @@ Each file opens with this frontmatter (fill `mode`/`cadence`/`slug`; list `groun
 ---
 type: interview
 mode: project | knowledge | deep-dive
-cadence: socratic | battery
+cadence: guided | socratic | battery   # socratic = guided pinned to one question per dialog
 date: YYYY-MM-DD
 slug: <kebab-topic>
 grounding:
@@ -5266,6 +5374,10 @@ Parse the first argument (case-insensitive):
 - `commit` (optionally followed by a `<hash>`) → commit mode
 - `push` → push mode
 - `pull` → pull mode
+- `project` → **project mode** — consume a *second* argument as the breadth selector:
+  - no second arg → **project-nearest** (the current session's main project)
+  - `all` → **project-roster** (every project in `projects_list`)
+  - any other token `<name>` → **project-named** (the `<name>:` tag in `projects_list`)
 - anything else / no arg → **session mode** (default)
 
 ## Mode Resolution
@@ -5290,6 +5402,57 @@ Commits that *came down to me* on the last pull. Resolve the range:
 
 **push vs pull:** `push` = what *I* sent up (`@{push}..HEAD`, my commits); `pull` = what *came down to me* (`ORIG_HEAD..HEAD`, others' commits I merged). Opposite directions.
 
+### Project mode (`project [<name>|all]`)
+
+Where the modes above orient you *temporally* (this session, this repo's git), `project` mode orients you *laterally* — the current state of one project, or of the whole portfolio. A terminal-table analogue of the aria-atlas dashboard. The second argument selects breadth (resolved in Step 0).
+
+**Roster resolution (named + roster sub-modes).** Read `.cursor/aria-knowledge.local.md` and parse the `projects_list:` frontmatter key — comma-separated `tag:path` entries; expand a leading `~` in any path. This is the same roster `/aria-assist` reads; **be read-only on `projects_list` — never write it.** If `projects_list` is empty/absent:
+- **project-roster** → hard stop: "Roster unconfigured — run `/setup` to populate `projects_list`." Do not guess a roster.
+- **project-named** → fall back to treating `<name>` as a literal filesystem path if it exists; else the same unconfigured message.
+
+**Resolve the project path per breadth:**
+- **project-nearest** (no second arg) → walk up from cwd to the nearest `CLAUDE.md`/`PROGRESS.md` (the same Step-1 resolver the other aria-knowledge skills use). No `projects_list` needed.
+- **project-named** (`<name>`) → the typed `<name>` IS the `projects_list` tag (`/recap project cs` → the `cs:` entry). Unknown tag → list the available tags and stop (no fuzzy matching).
+- **project-roster** (`all`) → iterate every `tag:path` entry.
+
+**Per-project read (tolerant — a missing/malformed file degrades to a blank/omitted row, never throws):**
+- **`SESSION.md`** (nearest, then sub-project roots if present): `lastEvent` (`in-progress`/`wrapup`/`handoff`) → *current state*; the embedded next-session prompt → an *in-flight* fragment.
+- **`PROGRESS.md`** (nearest): the most recent dated/`## ` arc heading + its open (TODO / in-progress) items.
+- **Git — only if the directory is a git repo AND Bash is available:** `git -C <path> log -1 --stat` (last commit) + `git -C <path> status --short` (dirty tree). **If not a git repo → silently omit the commit and working-tree rows** (per-project version of the Runtime-Gate Bash check).
+
+**Output — single project (nearest / named).** Full orientation, keeping the standard `What / Where / Status` table. Each substantive item carries an indented `↳` **context sub-row** with a short sentence (so "T0 completed" reads with what T0 *was*). Repo rows are absent entirely when the project is not a git repo. Headline: `project <tag-or-path> · <lastEvent or '—'> · last touched <date>`. **Always print the resolved project path** so the user can verify which project was read.
+
+```
+Recap — project cs · handoff · last touched 2026-06-25
+
+| What | Where | Status |
+|------|-------|--------|
+| Current state: handoff — next-session opener embedded | SESSION.md | ready |
+| Latest arc: native Space comment-replies | PROGRESS.md 2026-06-24 | in-progress |
+|   ↳ Space comment-replies: threaded replies under Space posts, native SwiftUI | | |
+| Last commit: feat: tap-through routing for Space notifs | a1b2c3d | done |
+|   ↳ routed notification taps to the correct Space/post detail view | | |
+| Working tree: 2 files modified, uncommitted | git status | open |
+| Open: RenderPreview gate for comment-reply cell | PROGRESS open items | open |
+```
+
+**Output — all projects (roster).** Terse rows + one short in-flight fragment, **recency-sorted** (most-recent `SESSION.md`/`PROGRESS.md` mtime first). Cap visible rows (~8–12); summarize the tail as a `+N more (older)` row. Headline shows the total count only (recency-sort, no activity-tier thresholds).
+
+```
+Recap — all projects · 18 total
+
+| Project | State   | In flight                    | Touched |
+|---------|---------|------------------------------|---------|
+| cs      | handoff | native Space comment-replies | 06-25   |
+| aria    | in-prog | recap project mode           | 06-25   |
+| df      | wrapup  | df-editor row affordance     | 06-24   |
+| …       | …       | …                            | …       |
+| +12 more (older)        |         |                              |         |
+```
+
+- `State` = SESSION.md `lastEvent`, or `—` if no SESSION.md. `In flight` = a ~6-word fragment from the next-session prompt or the latest PROGRESS heading (blank if neither). `Touched` = most-recent mtime of SESSION.md / PROGRESS.md (MM-DD).
+- **Escalation offer** (never auto-run): single-project → "Want a `/retrospect` on this for validation?"; roster → "Want a `/aria-assist` PM review across these?"
+
 ## Output — one consistent shape (all modes)
 
 Emit a headline frame line, then the table:
@@ -5304,6 +5467,7 @@ Recap — {headline frame}
 ```
 
 - `What` = the change/action at a high level. `Where` = the file/area/skill touched. `Status` = done / in-progress / open.
+- **Self-descriptive or annotate (all modes).** If a `What` cell isn't understandable on its own — a bare artifact name (`group G`, `T0`, a flag/config key, a ticket ID) — append a short detail clause (≤~8 words) so the row reads without prior context: `group G — 9 recap-mode contract assertions`, not `group G`; `T0 — auth-token refactor`, not `T0`. A cell that already reads plainly (`Bump version to 2.37.1`) needs no addition. This sharpens "Glance, not essay" rather than fighting it: every row must be understandable at a glance, which a bare token isn't. (Single-project mode does this via the `↳` context sub-row; terse roster rows use the inline `— detail` form to stay one line.)
 - Git modes populate rows from commit subjects + changed paths; session/arc from the conversation/PROGRESS synthesis.
 - Cap at ~8–12 rows; if more, add a final `| +N more … | | |` summary row.
 - **Close with an optional offer** (never auto-run): "Want a `/retrospect` on this for validation?"
@@ -5312,9 +5476,825 @@ Recap — {headline frame}
 
 - **Read-only — never write.** No logs, no files, no SESSION.md, nothing. `allowed-tools` excludes `Write`/`Edit` by design; honor it.
 - **Orient, don't judge.** No verdicts, no validation, no per-fix scrutiny — that's `/retrospect`. Recap states what happened; it may offer to escalate.
-- **Be honest about inference.** `pull` prints its resolved range; `arc` states its inferred boundary. Never present a guessed scope as certain.
+- **Be honest about inference.** `pull` prints its resolved range; `arc` states its inferred boundary; `project` prints the resolved project path (single) or the roster total (all). Never present a guessed scope as certain.
 - **Glance, not essay.** Keep the table scannable; summarize the tail rather than listing 40 commits.
 - **Not `/handoff`.** Recap orients the current reader; it does not package state for a next session or write any artifact.
+
+---
+
+## /auto
+
+
+# /auto — Drive an autonomous execution arc
+
+
+**Cursor port — `/auto` runtime differences (intentional):** Cursor has no `CronCreate`, no `/statusline` usage payload, and no `auto-runloop.sh`. **D1** (usage window): ask rather than infer — there is no statusline to read. **D2** (scheduled resume): instruction-only; if a recurring prompt is needed, Cursor `/loop` is the analog, never CronCreate. **`self-restart` is a no-op** (the Claude Code wrapper is `claude -p` only). Standing directives D3–D7 still apply. `/preflight` still satisfies the commit gate. Rule 22 uses the edit-intent marker, not transcript deny.
+
+Drive a piece of work end-to-end under the autonomous decision-routing posture, stopping only where a human decision is genuinely load-bearing. This is the *entry point* that wires together the process skills you already have — `brainstorming`, `/prospect`, `superpowers:test-driven-development` / `superpowers:subagent-driven-development`, `/retrospect` — into one continuous arc, so a single invocation runs the whole chain instead of you re-approving each step.
+
+It does NOT re-define the decide-vs-ask policy. That policy is **Rule 35** (decision routing) in `template/rules/working-rules.md`, scaled by the **`autonomy`** config posture. `/auto` *applies* Rule 35 to a concrete arc and adds the operational discipline an unattended run needs: what to *never* stop for, how to read the binding budget, how to pick the next unit of work, and how (optionally) to self-perpetuate across usage resets. Distilled from real autonomous runs — the friction points below are ones that actually bit.
+
+## When to use
+
+- The user hands off a goal, plan, spec, ticket, or `SESSION.md`/handoff and signals latitude to run without per-step approval ("combined go", "continue autonomously", "go with your recommendation", "do as much as you can", "just build it", "take this and run", "run overnight"). A bare "go" alone is ambiguous — treat it as a `/auto` arc only when the surrounding context is clearly "drive this work autonomously," not when it's conversational ("go ahead and read that", "go with option B").
+- After `brainstorming` or `/distill` concludes and the user says "ok, build it."
+- At the start of a long or unattended arc the user wants driven to a durable checkpoint with minimal interruption.
+
+**When NOT to use** (route to the right skill instead):
+- One plan you want pressure-tested before any code → `/prospect`.
+- Work that's already written/shipped and you want it validated → `/retrospect`.
+- A session you're trying to pass off to the next session or a coworker → `/handoff`.
+- A finished session with nothing pending → `/wrapup`.
+
+`/auto` is the *driver*; those are the *gates and bookends* it calls. It doesn't replace them — it sequences them.
+
+## Standing Directives — always on, never need asking for
+
+These bind every `/auto` run in every mode. They are not modifiers and cannot be turned off.
+
+- **D1 — Usage: the 5-hour figure binds; the 7-day figure is ignored.** When a statusline is
+  visible, gate only on the 5-hour number. The 7-day number is never a reason to slow,
+  shrink, defer, or stop. At **90%** 5h, arm or re-arm the resume schedule (Step 6). At
+  **95%** 5h, PAUSE: checkpoint, commit, then wait for the reset if a resume is armed, else
+  `/handoff`. When no statusline is visible (the desktop runtime reports an unreliable
+  figure), do not infer a number and do not gate on one — ask.
+- **D2 — A scheduled prompt never starts with `/`.** Applies to every scheduling mechanism.
+  A leading `/token` is parsed as an unknown command and the whole mandate is silently
+  discarded. Lead with prose; name a skill mid-sentence if you must reference one. The
+  prompt must instruct the next scheduled run to start prose-first too. Enforced by
+  `bin/pre-cron-check.sh`, not by this paragraph — the prose form of this rule shipped once
+  and was violated twice afterward.
+- **D3 — Foundational is always the answer**, unless the foundational fix would itself
+  derail the arc. Never take the patching branch to protect schedule (Rules 18 and 38).
+  Every firing of that carve-out is a D7 ledger entry.
+- **D4 — Local commits only; push is never grantable.** No modifier — including `full` —
+  pre-authorizes a push. Push stays a legitimate stop in every mode.
+- **D5 — Report the live model name at every checkpoint**, so a silent model swap is visible.
+- **D6 — A non-blocking stop never idles the run.** Note it, keep working, surface it at
+  handoff.
+- **D7 — The judgment ledger.** Any decision that could not be **Validated** (checked
+  against ground truth, not asserted), **Deterministic** (same inputs, same verdict for
+  anyone re-running it), **Traced** (the check is nameable and re-runnable), and
+  **Confirmed after** (what was predicted actually held once built) is logged. All four
+  hold → an ordinary `[DECISION]` line. **Any one fails → a ledger entry.** The ledger is a
+  filter over the `[DECISION]` trail, not a parallel system.
+
+  Write to `<knowledge_folder>/logs/auto/<YYYY-MM-DD>-<slug>-judgments.md`, resolving
+  `knowledge_folder` from `.cursor/aria-knowledge.local.md`. Create `logs/auto/` lazily.
+  Entry shape:
+
+      ### J<N> — <the decision, one line>
+      - **Chose:** <what was done>
+      - **Alternative not taken:** <what was rejected>
+      - **Why not deterministic:** <which of the four tests failed, and how>
+      - **Would be falsified by:** <the concrete check that would prove it wrong>
+      - **Blast radius / reversal:** <files · commit · how to undo>
+      - **Type:** judgment | D3-carve-out
+      - **Disposition:** pending → accepted | revisit | reverted
+
+  At arc close the ledger is reported **first**, ahead of the landed-work summary, and the
+  user is explicitly prompted to review each entry (accept / revisit / revert); dispositions
+  are written back into the file. **Stamp a disposition the moment the answer arrives, not
+  at close** — an entry still reading "pending" after it has been answered misreports what
+  needs the user's attention, which is the exact cost this ledger exists to remove. An
+  answer can arrive obliquely: an instruction that keeps or widens the thing under review
+  resolves it as surely as an explicit accept. If the arc ends via a context wall, a scheduled handoff,
+  or a restart rather than a clean close, carry the ledger path in the `/handoff` opener and
+  `SESSION.md` so the resuming session surfaces it before starting new work. **An empty
+  ledger is stated, never omitted:** "0 judgment calls — every decision was deterministically
+  validated." Silence and zero must stay distinguishable.
+
+## Step 0: Parse mode, posture, and the queue-complete toggle
+
+`/auto` is an **explicit, in-the-moment grant of autonomous latitude** — invoking it *means* "drive this autonomously, now." It overrides the standing `autonomy` config for the duration of the arc and never changes that config. Four modes, three stackable modifiers, and a toggle:
+
+| Mode | Trigger | What it does |
+|---|---|---|
+| **arc** (default) | `/auto <goal>` or `/auto arc <goal>` | Full chain: brainstorm → spec → /prospect → plan → /prospect → execute → /retrospect. The default whenever a goal is given without a mode keyword. (A **bare** `/auto` with no goal opens `config` instead — see Parsing.) |
+| **execute** | `/auto execute <plan-path \| ticket-id \| "the plan">` | A plan/spec already exists. Skip ideation; run /prospect → build (TDD/SDD) → /retrospect. |
+| **plan** | `/auto plan [<goal>]` | Produce a prospected, cold-executable plan and STOP. Runs brainstorm → spec → /prospect → plan → /prospect. **No code.** The mirror of `execute`. |
+| **config** | `/auto config [<goal>]` | Guided setup: walk every run setting one at a time as a picker (so nothing has to be remembered), assemble the run-config, then drive the arc with it. Configures THIS run only — never persists (that's `/setup`'s job). See Step 0¾. |
+
+**Modifiers** (stackable, any position, case-insensitive):
+
+- **`full`** — maximum authority on every axis **except push**: tools/MCP/plugins
+  pre-approved · Workflow fan-out ON (default is hard-OFF) · cumulative subagent cap
+  10 → 30 · fan-out budget-fraction gate 25% → 40% · self-decide every
+  objectively-validatable fork. (**Arming a resume is NOT an authority grant** — it belongs
+  to the presence axis below, and `full` deliberately says nothing about it.) `full` is defined by its
+  boundary: **every grant except the one that leaves the machine** (D4). It **raises the
+  three Step 5 fan-out stopgaps but does not remove them** — raised, finite, still live,
+  because an unattended max-authority run is the case most exposed to unbounded spend, and
+  the budget-fraction gate is what protects D1's 95% pause.
+*(There is deliberately no `preflight` mode, and it is **not** an alias for `config` any more.
+It was one until v2.44.1, when `/preflight` shipped as a real skill — the executed pre-completion
+checklist — and the two meanings collided head-on: the same word named a settings picker in one
+place and a verification gate in another. Retired rather than repurposed, because every candidate
+new meaning is already owned: "run the checklist" is `/preflight` (and an arc now runs it
+automatically when the commit gate demands it), "check the plan before executing" is `/prospect`,
+already in the chain. A third spelling would add a word and no capability — the same reasoning
+that retired `loop`. Retired, **not** deleted: the parser must recognise `preflight` and redirect,
+never let it fall through to a goal, since `/auto full preflight` would otherwise launch an arc to
+build something called "preflight".)*
+
+*(There is deliberately no `loop` modifier. An earlier draft had one meaning
+"unattended + continue + self-restart", but once arming moved to the presence axis where it
+belongs, `loop` reduced to a strict alias for `unattended continue` — adding a word and no
+capability. It had already produced the drift a redundant word invites, claiming
+resume-arming that `full` also claimed, and it was the worst of the mid-prose collisions:
+`/auto fix the render loop bug`. The overnight run is `/auto full unattended continue` —
+one word per axis, no special cases.)*
+- **`attended` / `unattended`** — the **presence** axis: is a human reachable right now?
+  Two values, and **the arc contract always states which is in force**, because it changes
+  what happens to every question the run produces. Neither is inferred silently: if the
+  invocation does not say, `config` asks (Step 0¾ knob 7), and a bare run defaults to
+  `attended` — assuming someone is there is the safe error, since the cost is one surfaced
+  question rather than an hour of unreviewed autonomy.
+  - **`attended`** — a **non-blocking** residual is surfaced **immediately** rather than
+    noted and batched to the handoff. D6 ("a non-blocking stop never idles the run") is
+    thrift when you are asleep and waste when you are at the desk: an answer worth ten
+    seconds of yours can otherwise cost an hour of second-best work. `attended` narrows D6,
+    it does not repeal it — the run still never *idles* waiting, it asks and keeps working
+    and takes the answer when it arrives. Blocking residuals halt as always.
+  - **`unattended`** — nobody is reachable. Non-blocking residuals are noted and carried to
+    the handoff (D6 unchanged), and a resume that fires does so **silently, without**
+    expecting anyone to see it. Presence does **not** decide *whether* a resume is armed —
+    unfinished work at the usage wall does (Step 6). Under `attended`, the same resume is
+    armed and simply **announces itself** when it fires.
+
+  **Two different walls need two different mechanisms — do not conflate them:**
+
+  | Wall | Mechanism | Effect |
+  |---|---|---|
+  | **Usage** — the 5h window is exhausted | the **resume schedule** (Step 6) | Re-fires *this* session after the reset, local work intact |
+  | **Context** — the window hits 90% | **`self-restart`** + `bin/auto-runloop.sh` | Relaunches a **fresh process** with a clean window |
+
+  A resume schedule cannot rescue a context wall (it re-enters the same full session), and a
+  fresh process does not help when the limit is usage. `unattended` arms the resume for the
+  usage wall; the context wall needs `self-restart` **explicitly**, because it cannot be
+  made to work implicitly. **`self-restart` is inert unless the external
+  wrapper is already running** — invoked directly in a normal session it writes the restart
+  signal and stops with nothing to consume it, so say so rather than implying the run is
+  self-healing.
+- **`tickets`** — tracker-bound. Work selection comes from the connected tracker by
+  priority; comment on the ticket at every commit; never claim a ticket without verified
+  validation.
+
+  **Resolving the tracker — never hardcode a vendor.** Probe at runtime for a connected
+  `~~project-tracker` MCP and adapt, as `/digest` does: Linear · Asana · Atlassian/Jira ·
+  Monday · ClickUp · Notion-as-tracker · GitHub Issues. Probing is prose-only; there is no
+  helper API (ADR-015). If `ticketing_plugins` is set in `.cursor/aria-knowledge.local.md`
+  (comma-separated `tag:plugin-command` pairs, read directly from the file the way
+  `/audit-knowledge` reads it), it wins — that is the user's explicit declaration.
+  **Never verify that a mapped command is actually installed:** enumerating installed
+  plugins couples this skill to runtime internals that can change, and a loud failure at
+  invocation beats a silently-absent hint. Detect ticket IDs with the vendor-neutral `\b([A-Z]{2,}-\d+)\b`. With
+  no tracker connected and no mapping, say so once and fall back to the Step 4
+  work-selection order — `tickets` never hard-fails an arc.
+
+**Three orthogonal axes — set each independently.** `full` sets *how much latitude*;
+`continue`/`stop` set *how long*; `attended`/`unattended` set *whether a human is reachable*.
+Keeping them separate is what makes every combination expressible:
+
+- `/auto full` — max authority, scoped: stops when the queue clears
+- `/auto full unattended continue` — max authority, overnight: never idles, nothing is asked,
+  resume armed for the usage wall (add `self-restart` only if the wrapper is actually running)
+- `/auto full attended` — max authority and you are at the desk: everything pre-approved
+  except what genuinely cannot be determined, and *that* reaches you the moment it arises
+- `/auto attended` — default authority, but residuals come to you live rather than at handoff
+
+**On-queue-complete toggle** (a trailing `continue` or `stop` keyword, default **stop**): what to do once the *planned* queue is done.
+- **`stop`** (default) — checkpoint + `/handoff` when the queue is clear; do NOT pick up new work. The right choice for a scoped "just do X" run. Default to this if unset — don't over-reach the remit.
+- **`continue`** — keep finding the next valuable work autonomously (see Step 4); for unattended / overnight runs. Don't stop at the arc boundary.
+
+**Context-self-restart flag** (a trailing `self-restart` keyword, default **off**): only meaningful with `continue`. When set, a context-window wall does NOT terminally stop the arc — instead the skill writes a restart-signal file that the external `bin/auto-runloop.sh` wrapper watches, so the arc resumes in a FRESH process (clean context). See Step 3¾. Requires the wrapper to be running and a permission allowlist (the wrapper spawns `claude -p --dangerously-skip-permissions`, which the auto-mode classifier blocks unless allowlisted). Without the flag, a context wall behaves exactly as today (terminal stop + `/handoff`).
+
+**Parsing.** If the first arg case-insensitively matches `arc`, `execute`, `plan`, or `config`, that's the mode; otherwise the mode is `arc`.
+
+**`preflight` is a RETIRED mode keyword and must never fall through to a goal.** It used to alias `config`. If the first arg is `preflight`, do **not** start an arc with the goal "preflight" — recognise it, run nothing, and route: the pre-completion checklist is the standalone **`/preflight`** skill; the per-run settings picker is **`/auto config`**. Falling through here would be the worst outcome available — under `full`, a retired word silently becomes a work order.
+
+**Modifiers are recognised only at the ENDS — never mid-prose.** Scan the contiguous run of modifier tokens at the start (after any mode keyword) and the contiguous run at the end; **once goal prose begins, every remaining token is goal.** This matters because the modifier names are ordinary English words: an anywhere-in-args scan turns `/auto fix the **render loop** bug` into an unattended self-restarting run, and "do a full review" or "close the tickets" the same way. Worked cases:
+
+- `/auto full unattended tickets clear the payments queue` → mode `arc`, modifiers `{full, unattended, tickets}`, goal "clear the payments queue"
+- `/auto fix the render loop bug` → mode `arc`, **no modifiers**, goal "fix the render loop bug"
+- `/auto ship the CSV exporter continue self-restart` → goal "ship the CSV exporter", toggle `continue`, flag `self-restart`
+
+A trailing `continue`/`stop` sets the on-queue-complete toggle; a trailing `self-restart` sets the context-restart flag (honored only alongside `continue`).
+
+**A bare invocation falls through to `config`.** When there is **no mode keyword and no goal text**, open the guided picker (Step 0¾) rather than inferring a goal. **Modifiers and toggles do not count as goal context** — they say *how* to run, never *what* to run — so `/auto`, `/auto full`, `/auto unattended` and `/auto full continue` all open the picker, **pre-seeded** with whatever was typed so nothing is re-asked. The alternative is guessing a goal from `SESSION.md`, which is precisely the stale-resume hazard "Verify before you trust" warns about: a saved prompt may describe work already shipped. When a goal *is* named as "continue from SESSION.md / the latest handoff," resolve it through Step 4's work-selection order as before.
+
+**Two ways to handle unspecified settings — you remember nothing either way:**
+- **Default (`/auto [goal]`)** — pick the safe default for everything unspecified and **surface them all in the arc contract** (Step 0.5) before driving. You *react* to the shown list; you never have to *recall* what's configurable. Minimal friction.
+- **Guided (`/auto config`)** — when you'd rather set the knobs deliberately, the walkthrough (Step 0¾) **presents each one as options, one at a time**, so the option list lives in the picker, not your memory. You opt into this per run.
+
+**Relation to the `autonomy` config.** The standing `autonomy` config (`default`/`balanced`/`autonomous`, owned by `/setup`) sets how autonomous I am on sessions where you *didn't* invoke `/auto`. `/auto` is the in-the-moment override for *this* arc — it runs at full self-decide latitude regardless of the config value, including at `autonomy: default`. You never need to flip the config to use `/auto`; the invocation is the grant. Don't bother reading the config value — it can't change `/auto`'s behavior, and the arc contract (Step 0.5) already announces the autonomous posture, so a separate "your standing default is X" note would be redundant ceremony. `/auto` never writes the config either — changing the standing posture is `/setup`'s job, exclusively (one writer, no drift).
+
+## Step 0¾: Guided config walkthrough (`config` mode only)
+
+Runs ONLY when invoked as `/auto config`. Skip entirely for `arc`/`execute`. Purpose: let the user set each run setting deliberately **without having to remember any of them** — present each as a picker, one at a time, with the safe default pre-marked. Use the platform's question/picker affordance (one question per knob); accept a bare-number/keyword reply; "skip" on any knob takes its default.
+
+Walk these in order, **one at a time** (do not dump all seven at once — the point is recognition-not-recall, one decision per step):
+
+1. **Goal / source** — this prompt's goal · continue from `SESSION.md`/latest handoff · a plan path · a ticket ID from your connected tracker. (If a goal was passed as `/auto config <goal>`, pre-seed it and confirm.)
+2. **On-queue-complete** — `stop` (scoped: checkpoint + /handoff when the queue's clear — *default*) · `continue` (keep finding new work; for unattended/overnight).
+3. **Push policy** — commit local, no push (*default*) · commit + push per host convention. (Push remains an ungranted-approval stop regardless — this only sets the intent.)
+4. **Fan-out / subagents** — inline-only · bounded individual subagents, ~10 cumulative cap (*default*) · raise the cap to N · allow the Workflow swarm (multi-agent orchestration). (Maps to the Step 5 stopgaps.)
+5. **Budget ceiling** — default 25%-of-remaining-window per fan-out burst (*default*) · a different fraction · a hard "stop the arc at X% usage." (Maps to the Step 5 budget-fraction gate + a live abort floor.)
+6. **Resume at the usage wall** — arm (*default when the goal is non-trivial*) · off. If the 5-hour window runs out with the goal unfinished, a resume fires **+5 min after** the reset and picks the work back up (Step 6). **Not gated on #2 or #7** — an unfinished goal warrants a resume whether or not you asked for new work afterwards, and whether or not anyone is watching; presence only decides if it announces itself.
+7. **Presence** — `attended` (*default*: you are reachable, so a non-blocking residual is surfaced immediately rather than batched to the handoff) · `unattended` (nobody is reachable; residuals are carried to the handoff and the run arms its own resume). **Always ask this one** — it is cheap to answer and it changes what happens to every question the arc produces, so a run should never proceed without knowing it. Pre-seeded from the invocation when `attended` or `unattended` was passed.
+
+After the walkthrough, assemble the picks into the run-config and proceed to Step 0.5 — the **arc contract is then a confirmation of what you just chose**, not a fresh set of defaults. **Nothing persists**: these picks configure THIS arc only; the standing `autonomy` posture and any saved defaults are untouched (changing standing defaults is `/setup`'s job — `/auto` never writes config, in any mode).
+
+## Step 0.4: Load the standing user rules
+
+Before stating the contract, load the user's own standing rules so the whole arc runs aware of them — `/auto` must never drive an autonomous arc blind to the rules the user has already written down. This is separate from Rule 35: Rule 35 (in the plugin-managed `working-rules.md`) is the decide-vs-ask *routing* policy; `user-rules.md` is the user's own *substantive* rules (how they want work done — commit/push discipline, design taste, rejection criteria, ARIA-behavior preferences). `/auto` applies both.
+
+1. **Resolve + read.** Read `.cursor/aria-knowledge.local.md` and extract `knowledge_folder` (same resolution the `/rules` skill uses). Read `{knowledge_folder}/rules/user-rules.md` if it exists. It is **optional and user-owned** — it may be absent (pre-v2.8.1 setups) or present with no `### U` rules yet. If absent, or present but empty of rules, treat it as **no standing user rules** and continue — a missing file is never a stop.
+2. **Hold as active constraints for the arc.** When real user rules are present, treat each as a **binding constraint applied wherever it is contextually relevant** across the whole arc — not just consulted once. A user rule about pushing gates the push step; one about design taste informs execution and review; one about rejection criteria shapes what you accept as done. This is stronger than "be aware": where a user rule speaks to the situation at hand, it **governs**.
+3. **The one carve-out — validated proof with critical impact wins.** A user rule does NOT govern in the narrow case where applying it would be **actively detrimental** or would **contradict validated empirical proof whose violation carries critical impact** (a safety, correctness, or data-loss consequence you have actually verified against ground truth — not a hunch, and not mere inconvenience). This mirrors the skill's "verify before you trust" discipline: ground truth you have confirmed outranks a standing assumption. When this carve-out fires, do NOT silently override — treat the conflict as a **legitimate stop** (Step 2): surface the specific user rule, the validated proof that opposes it, and the critical impact, and let the user resolve it. The carve-out is an escalation trigger, not a license to ignore a rule.
+4. **Compose, don't duplicate.** `/auto` *loads and applies* user-rules.md; it does not restate the rules' content in the report, re-implement `/rules`, or fork the file. If the user asks *what* their rules are mid-arc, defer to `/rules`. This step is purely: make the arc operate under them.
+
+Loading is one read at arc start; the rules then travel with the arc the same way Rule 35 does.
+
+## Step 0.5: State the contract before driving
+
+Before the first action, post a short **arc contract** so the autonomy is legible — the user should never be surprised by what you decided alone vs. what you'll stop for:
+
+> **Arc:** <one-line goal> · **Mode:** <arc | execute> · **On-complete:** <continue | stop>
+> **Standing rules loaded:** user-rules.md — <U1…UN applied where contextually relevant | none (absent or no rules yet)> (from Step 0.4).
+> **I'll decide myself:** objectively-validatable forks (checked against real code/corpus/docs, held to Rules 13/14/18 — simplest/robust/clean, no unneeded abstraction).
+> **I'll handle without stopping:** knowledge placement, tool/permission approvals, backlog/deferral, ticket filing, the normal commit cadence, and running `/preflight` when the commit gate requires it (see Pre-answered below).
+> **I'll stop and ask on:** product/UX taste with no objective answer · an irreversible/outward-facing action not covered by policy *that blocks the task* · a true no-visibility fact only you have · a genuine costly fork empirical investigation can't decide.
+> **Gates that run but don't count as stopping:** /prospect (pre-code), /retrospect (post-build).
+> **Presence:** <attended — non-blocking residuals come to you as they arise | unattended — residuals batched to the handoff, resume armed>. Always stated; never inferred silently.
+> **Usage:** gating on 5h only; 7d ignored · arm at 90% · pause at 95% (D1).
+> **Push:** local commits only — never pre-authorized by any modifier, including `full` (D4).
+> **Tools:** MCP / plugins / skills pre-approved.
+> **Foundational:** always preferred; any carve-out is logged (D3 → D7).
+> **Judgment ledger:** `<resolved path>` — reported first at close, for your review (D7).
+> **Model:** <live model name> — re-reported at each checkpoint (D5).
+
+This contract is the operative form of Rule 35's routing table for *this* arc. You don't re-derive the table — you instantiate it.
+
+## Verify before you trust (the #1 rule — most friction traces here)
+
+Before acting on **any** assertion — a resume prompt, a handoff, a stale doc, your own memory, a cached metric, a `SESSION.md` "next" line — **verify it empirically against the live source.** Run `git log`/`git status`, read the live state file, grep the real code. A resume prompt may be stale (the work is already shipped — don't redo it); a cached usage % may be stale (window reset → trust the reset *timestamp* vs now, not the number). For backend behavior, API contracts, or field shapes, read the source-of-truth repos FIRST (backend + the shipped client) — never assume, and don't file a "backend gap" until the repos genuinely don't answer it. This is the discipline that earns the right to self-decide: "validated" means checked against ground truth, not asserted.
+
+## Pre-answered — handle and keep going (do NOT stop for these)
+
+Rule 35 says route by question type; these are the recurring autonomous-run cases pre-routed to **act**, so an unattended arc doesn't stall on them:
+
+- **Knowledge placement** — never pause to ask *where* something goes. Make it durable in the best location you can judge (memory · /prospect+/retrospect log · contract doc · CLAUDE.md + PROGRESS). Unsure → drop it to the general intake backlog for a future audit to sort. Placement is never a stop.
+- **Tool / MCP / permission approvals** — assume the build/test/lint, sim, git, Cron, MCP, and skill verbs are pre-approved (a companion allowlist in the user's `.claude/settings.local.json` makes this real at the harness level — see Notes). If one tool is genuinely blocked, route to the working alternative and note it. Only OS-level GUI popups need a live human — flag once and route around.
+- **Backlog / deferral** — a known follow-on (out-of-scope feature, separate-team backend change, device-gated smoke) → file/note it and DEFER. Don't stop to ask whether to defer.
+- **Tickets** — create freely in the connected tracker: status backlog/Undefined, assigned to the user for post-session review, both intakes present (Technical Intake marked DRAFT), enriched via comments. Never stop to ask whether/how to file.
+- **Known-pattern git/scope** — stage named in-scope files, commit, push (per the contract's push policy). Don't ask permission for the normal commit cadence.
+- **A preflight-gated commit** — if the commit gate would deny (`preflight_gate: deny`, or a `preflight_deny_repos` / `preflight_deny_paths` match), run `/preflight` for real and proceed; a recorded verdict of any kind satisfies the gate. Never ask whether to run it, never fake the marker, never disable the gate, and never let three denials degrade it. See Commit discipline.
+- **Self-recommended chain choices** — a spec/prospect/plan fork a recommendation already answers → take the recommendation. "Self-recommended + answerable" is not a stop.
+
+## Step 1: Drive the arc
+
+Run the chain by **invoking the real skills** via the `Skill` tool, not by summarizing them. Composition keeps the gates honest: the quality checks are the actual checks, and improvements to those skills flow through automatically.
+
+**Degrade gracefully when a composed skill or tool is absent.** `brainstorming`, `writing-plans`, `test-driven-development`, and `subagent-driven-development` are Superpowers skills (strongly recommended, optional). If one isn't installed, name what's missing, fall back to doing that phase inline (a plain brainstorm, a hand-written plan, manual red-green-refactor), and say the gate ran in degraded form. The `execute <ticket-id>` path needs a connected project-tracker MCP — if unavailable, ask the user to paste the ticket rather than proceed on a missing plan.
+
+### arc mode — full chain
+
+1. **Brainstorm** (`superpowers:brainstorming`) — only if the *shape* of the solution is a real open question. A concrete plan or tightly-scoped goal skips straight to spec (Rule 35: don't deliberate what's already answered).
+2. **Spec** (`superpowers:writing-plans` or `/distill`) — surface every autonomous design decision as an explicit `[DECISION]` line so the next gate can ratify it; that's how self-approval stays auditable.
+3. **/prospect** the spec/plan. Apply PROCEED-WITH-CHANGES amendments **in place, now**. A KILL/DEFER verdict on a load-bearing step *is* a stop — surface it.
+4. **Plan** — if the spec isn't already a cold-executable plan, write one.
+5. **/prospect** the plan only if it materially differs from the spec you already pre-mortemed (re-prospecting an unchanged artifact is ceremony, not a check).
+6. **Execute** (`superpowers:test-driven-development`, or `subagent-driven-development` for independent multi-task plans). Per-edit Rule 22 still fires — that's the execution-time scope check, separate from the plan-level gates.
+7. **/retrospect** the shipped range. Fix what it surfaces if objectively-validatable; surface what it can't resolve.
+
+**Mechanical / contract-driven change** (no design judgment) → skip brainstorm/spec and just build it — still test + gate.
+
+### execute mode — plan exists
+
+Skip steps 1–2. Resolve the plan source (path → `Read`; ticket ID → tracker MCP fetch if available; quoted string → treat as the plan), then run 3 → 6 → 7.
+
+### Verification reality — verify for real, classify honestly
+
+Use the project's **real working verification path** (e.g. RenderPreview for SwiftUI; a live round-trip vs staging where reachable; the actual app, not just unit tests) to confirm the build does what it should. Be HONEST about what's device-/GUI-gated vs headlessly verifiable — **classify it, never fake or silently skip.** Unit-tested + render-verified with only an OS-delivery slice left unobserved is a *documented residual*, not a pass to claim and not a failure to hide. A live end-to-end check is the only thing that proves model == backend; fixtures only prove fixture == model.
+
+### Commit discipline (per task)
+
+Each task = **one atomic commit**. Gate BEFORE committing: run the FULL suite + build + lint as the **bare exit code**, READ green, THEN commit — never chain `&& commit` after a non-test command (a `| grep`/typecheck between the suite and the commit swallows the test exit and commits red). Run ALL relevant gates; they cover disjoint surfaces (app build ≠ test-target compile). Commit only in-scope **named** files (`git add <paths>`, never `-A`); verify `git status` first (parallel sessions may have dirtied the tree). Push only per the contract's push policy; **never force-push**, and verify the ahead-count returns to 0 after pushing.
+
+**The preflight commit gate — satisfy it, never route around it.** A user may configure `pre-commit-preflight-check.sh` to DENY commits (`preflight_gate: deny`, a `preflight_deny_repos` substring matching the target repo, or a `preflight_deny_paths` glob matching a staged path — all read from `.cursor/aria-knowledge.local.md`). Under an autonomous arc that is not an obstacle to work past: **before the first commit of the arc that the gate would deny, actually run `/preflight`** on the work about to be sealed, then commit. The marker is session-scoped, so one genuine run clears the gate for the remainder of the arc — this costs one checklist, not one per task.
+
+Three ways to get this wrong, all forbidden:
+
+- **Never write the marker file** (`${TMPDIR}/aria-preflight-<session_id>`) or otherwise fake a recorded run. That is bypassing a gate, not passing one, and it is exactly the ungranted-authorization case `/auto` must never self-issue.
+- **Never flip `preflight_gate` to `off`, and never edit the user's config to widen your own permissions.** `/setup` is the sole writer of those keys.
+- **Never let the circuit breaker do the work.** Three consecutive denials degrade the gate to allow-with-warning for the whole session — so "just keep retrying" doesn't stall the arc, it silently *disables the user's gate* and then proceeds. A degraded gate is a worse outcome than a stopped arc.
+
+A recorded **FAIL** verdict satisfies the gate too, and recording one then proceeding is a legitimate, visible choice — the failure this guards against is not running the checks at all. So a preflight FAIL is **not** a stop: record it, note it in the arc's judgment ledger, and keep going unless the finding is itself load-bearing. Re-run `/preflight` at Step 8 before reporting the arc done — that is the moment the skill actually exists for.
+
+**Throughout:** apply Rule 35 at every fork — investigate the resolvable parts first, then surface only the residual that's genuinely about the user. When you surface one, present concrete options + a recommendation (label A/B for a terse reply), then continue from the pick without restarting the chain.
+
+## Step 2: The stop-rule and checkpoints
+
+**Run to a durable checkpoint, not to exhaustion.** A durable checkpoint is committed/persisted work that survives a fresh session — not a mid-edit pause. You don't need permission to *continue past* a checkpoint under an autonomous grant; you report at it.
+
+**Legitimate stops — the ONLY reasons to ask** (everything else has a pre-answered default above):
+- **Product / UX taste with no objective answer** (e.g. "should threads nest or flatten?") — design direction is the user's.
+- **An action needing approval not already granted** — an irreversible or outward-facing op not covered by policy (a **push** beyond the contract's push policy, a **prod deploy**, external comms, a **destructive op** / deleting non-recoverable data, a **shared-DB migration**), a **scope change** beyond the stated goal, or **credentials / prod-data access**. BUT only HALT if it *blocks* the current task — if it's non-blocking, NOTE it and CONTINUE other work; never idle the whole run on a side-question. (Surface all noted items at `/handoff`.)
+- **A true no-visibility fact only the user has** (a constraint not in any repo/doc; a teammate conversation).
+- **A genuine fork where both branches are plausible AND the wrong one is costly AND empirical investigation can't decide it.**
+
+**A fork is a stop only AFTER investigation can't decide it — measure before escalating.** The 4th bullet is the trap: "load-bearing fork" reads like a license to stop, but most forks that *feel* load-bearing are just unfinished investigation. Before calling anything a stop, ask "is this an empirical question I can resolve myself?" (Rule 35: investigate the resolvable, ask only the residual.) In particular, a **reactive fix-forward cascade** — the same failure recurring as you patch each instance (model N, then N+1, then N+2…) — is a **smell, not a fork**: step back and probe whether one upstream change dissolves the whole class, pick the objectively-better option, and continue. Don't sink cycles into the reactive path and *then* escalate the choice you could have decided by measuring. Escalate only the genuine residual the 4th bullet describes: both branches plausible, the wrong one costly, AND investigation genuinely can't decide.
+
+A safety-classifier block is never routed around — pivot to a safe local path and report.
+
+## Step 3: Budget — check the LIVE statusline between every task
+
+Know **which budget binds**, because it decides the right resume tool:
+- **Context** → at 90%, AUTO-run `/extract` (no judgment — its dedup handles "nothing new"), then keep going. Context-bound work CAN'T be saved by a cron (a cron re-enters the same full session) → `/handoff` to a durable on-disk opener for a fresh session.
+- **5-hour / 7-day usage** → keep working toward the limit. Usage-bound work CAN be continued by a session-only cron at the reset boundary (it re-fires *this* session with local work intact).
+- Don't gate, defer, or shrink an action on a number you haven't re-read **live this turn** — read the statusline state file, not a stale hook-alert figure (a window may have reset). If you're not gating on budget, don't mention it.
+
+## Step 3¾ (optional): Context-self-restart across a fresh process
+
+Default OFF. Active **only** when this is a `continue` run **AND** the `self-restart` flag was set. Without both, a context wall behaves exactly as the Step 3 Context bullet describes (extract → `/handoff` → terminal stop) — unchanged.
+
+The problem this solves: an unattended `continue` arc that hits the context wall would otherwise halt until a human restarts it. A cron can't fix this (a cron re-enters the *same* full session). The skill itself **cannot** reset its own context either — `/clear` is a REPL built-in that **neither a skill nor a hook can issue** (both verified). The only autonomous path to clean context is a **fresh `claude` process**, which an external wrapper provides.
+
+So when active, at 90% context — instead of terminally stopping — do this and then **stop cleanly**. The skill never issues `/clear` (it cannot — and even if it could, the wrapper's fresh process is the cleaner reset); you do NOT self-resume; you hand the restart to the wrapper:
+
+1. **AUTO-run `/extract`** (same as the default Context path).
+2. **Run `/handoff`** to produce a full, self-sufficient, **prose-first** next-session opener at `SESSION.md`. Prose-first is mandatory — the opener must NOT start with a slash command (a leading `/auto` is parsed as an unknown command and the whole mandate is silently discarded); `/handoff`'s opener already leads with prose.
+3. **Write the restart-signal file** `<cwd>/.claude/auto-restart-requested` containing **one line: the absolute path to that opener**. Presence of the file = "restart requested"; its content = the opener the wrapper relaunches with. (Mark the write site `[SELFRESTART-PRE]` so a later `/retrospect` can confirm it fired.)
+4. **Stop cleanly.** The arc is now a durable on-disk checkpoint; the in-process work is done.
+
+`bin/auto-runloop.sh` (shipped with the plugin) is the external piece: it launched this run, watches for the signal file on exit, consumes it (so a crash can't loop forever), and relaunches a **fresh** `claude -p` headless process with the opener. **The wrapper must already be running** for this to do anything — if `/auto` was invoked directly in an interactive REPL (no wrapper), `self-restart` still writes the signal and stops, but nothing restarts it; note that in the handoff. **Permission caveat:** the wrapper spawns `claude -p --dangerously-skip-permissions`, which the auto-mode classifier blocks unless the user has added a Bash permission allowlist rule for it — surface this when recommending an unattended run.
+
+## Step 4: Work selection (and the On-queue-complete toggle)
+
+**Always validate before executing** (hard gate, every queued item): re-validate the plan + the live state + staleness before starting. `git log` to confirm the item is still un-done (don't redo shipped work); re-read the spec against current code; re-/prospect if the plan is old or the code moved under it. Only execute once validated current.
+
+**Work the existing queue in its intended order:** `SESSION.md` "Next session prompt" / handoff opener → the project's prospected plan/spec → PROGRESS "NEXT" → an existing TODO/ROADMAP/backlog — each through the validate-before-executing gate.
+
+**When the planned queue is complete, obey the toggle:**
+- **`stop`** (default) → do NOT pick up new work. Leave a verified-clean checkpoint + `/handoff`.
+- **`continue`** → find the next valuable work autonomously, in order: (1) explicit "NEXT/deferred" in CLAUDE.md/PROGRESS; (2) a follow-on the just-finished retrospect surfaced; (3) the next roadmap/backlog item; (4) a `/readiness-audit` or `/retrospect` to surface the next thing; (5) cheap durable prep (contract traces, specs for queued features) that advances a future arc without a taste call. **Never invent a feature** — if nothing explicit is ready, do high-certainty objectively-valuable work that needs no taste call (strengthen the green baseline; `/codemap` or doc-sync if stale; trace + spec the next likely feature, left prospected; a `/readiness-audit`; close now-doable residuals). If even that is exhausted → `/handoff` with "no queued work — awaiting direction" rather than spinning.
+
+If the next unit needs more context headroom than remains → STOP at a clean checkpoint and `/handoff` rather than fragment it. (Exception: on a `continue` + `self-restart` run, take the Step 3¾ path instead — checkpoint, write the restart-signal, and let the wrapper resume in a fresh process.)
+
+## Step 5: Subagents & fan-out — budgeted, with hard stopgaps
+
+DEFAULT to doing the work **inline**. A single agent (you) with inline tools is the efficient baseline; subagents are a deliberate, budgeted escalation. **NEED-IT gate before spawning any subagent:** legit reasons = (a) a broad fan-out read whose raw output would bloat your context but you only need the conclusion (delegate the search, keep the answer); (b) genuinely independent parallel work with no shared state; (c) an adversarial/second-opinion check. NOT legit = "be thorough," a single-file lookup you can do yourself, or work with sequential dependencies. Every subagent costs *your* context (dispatch + returned summary) even though its own tool output stays in its context — so delegate to SAVE context, never to spend it; require a tight structured result. Escalate, don't pre-commit: start inline/single-agent, widen to parallel only if the first pass proves it needs the breadth.
+
+The NEED-IT gate is a *per-spawn quality check* — it is NOT a cumulative budget ceiling. 90 individually-justified spawns still drain the window. So THREE HARD stopgaps sit ON TOP of the NEED-IT gate, each covering a distinct runaway axis (count-in-one-burst · spend-in-one-burst · count-over-time). They are about *aggregate spend and blast radius*, not per-spawn merit. All thresholds below are built-in defaults; the user may override any of them in the invocation (e.g. `/auto … workflow`, `… fanout=40%`, `… agents=20`). There is no standing config key for these today — they are invocation-scoped (a persistent default would belong in `/setup`, not invented here).
+
+- **Workflow is opt-in only — hard OFF by default** (caps one-shot *count*). The Workflow tool (multi-agent orchestration; fans out dozens at once) does NOT fire unless the user's invocation explicitly opted into it (`/auto … workflow`, or a clear "use a workflow / fan out agents / orchestrate this with subagents" in the request). A bare `/auto` — even an unattended `continue` run — runs inline + bounded individual subagents ONLY. The 90-agent sweep cannot happen unbidden. Non-negotiable invariant, not a judgment call.
+- **Budget-fraction pre-flight gate** (caps one-shot *spend*). Before launching ANY fan-out (a `parallel()`/`pipeline()` over many items, an N-way audit/research sweep, or an opted-in Workflow), read the **live** remaining usage (the statusline state file — never a stale number, per Step 3) and *estimate* the fan-out's cost. If one shot would spend more than **~25% of the remaining usage window** (default; overridable via `fanout=<pct>`), STOP and surface it: the planned fan-out width, the estimated spend, the remaining window, and options (proceed · shrink to a smaller batch · serialize · skip). This is the direct fix for the "a single wide task drains the budget *between* the between-task checks" hole — the gate fires *before* the spend, sized to what's actually left, so it tightens as the window depletes. A fresh window may permit a wide sweep; the same sweep at 70%-used is refused.
+- **Cumulative per-arc subagent cap** (caps *count-over-time* — the drip case). Maintain a running count of total subagents spawned this arc. After **~10 total** (default; overridable via `agents=<N>`), STOP and re-confirm before delegating more — report the count, what they accomplished, and the remaining work, then let the user raise the cap or switch to inline. This catches the slow drip the budget-fraction gate misses: many small individually-justified spawns over a long `continue` run, none of which trips the per-burst gate but which sum to a real drain. The counter is per-arc and resets only on a new `/auto` invocation.
+
+These three are orthogonal — Workflow-opt-in bounds a single huge swarm, the budget gate bounds one expensive burst, the cumulative cap bounds slow accumulation. A run can pass any two and still be caught by the third.
+
+**Grain, once you DO fan out: one agent per shared-context cluster, not per item.** The stopgaps above bound *whether/how much* to delegate; this bounds *how to carve the work* once you're delegating. The intuitive "one agent per task/item" is usually the wrong default — it pays twice: **(1) redundant context re-loading** (N agents each re-derive the context their items share — that spends the very context delegation was meant to save), and **(2) seam-blindness** (a per-item agent can't see its neighbor items, so it makes locally-reasonable, globally-wrong choices at the seams — divergent identifiers, missed cross-item constraints). So the default grain is **one agent per cluster of items that share a context** — a file neighborhood, a repo, a document, a domain — keyed on *what the items share*, not *how many* there are. Split down to per-item ONLY when one of three forces requires it: **write-contention** (two agents would edit the same file set concurrently → serialize in one agent or split into separate waves), **per-item auditability** (the work needs a clean per-task review gate a blended cluster report would obscure — code with compounding failures earns this; inline content usually doesn't), or **context-ceiling** (the cluster won't fit one agent's working window with accuracy to spare — past which you just move seam-blindness inside one agent). Absent one of these, cluster — and if you split, say why.
+
+## Step 6 (optional): Self-perpetuating run via resume cron
+
+**Arm whenever work remains unfinished and the binding budget is usage, not context** (context-bound cannot be resumed by a schedule — see Step 3). **Arming is NOT gated on presence, and NOT gated on `continue`.**
+
+That distinction is load-bearing and was wrong in v2.43.0. `continue` governs whether to find **new** work once the planned queue is clear — it says nothing about **finishing the goal you were already given**. Gating arming on it stranded the common case: a scoped `/auto full attended <goal>` that hit the 95% pause mid-goal simply stopped, goal unfinished, with nothing scheduled to pick it up. The question that decides arming is **"is the work I was given actually done?"**, not "will there be more after it?" and not "is anyone watching?".
+
+**Presence changes only how the resume behaves, never whether it exists:** an `unattended` resume fires silently, without expecting anyone to see it; an `attended` resume **announces itself** when it fires, so you know work restarted while you were away from the keyboard. Both are armed on the same condition.
+
+**Mechanisms are gated on availability first, capability second.** `CronCreate` is the **baseline and the default**: it is the only one present in **every runtime**. Its session-only nature is an accepted constraint, not a defect — an unattended run keeps its session open by design.
+
+| Mechanism | Available | Survives session death | Fresh context | Use for |
+|---|---|---|---|---|
+| **`CronCreate`** — the default | **Always, every runtime** | No — **session-only**, in-memory; recurring auto-expires at 7 days; fires only while the REPL is idle | No — re-enters this session | Usage-bound resume with the session left open. The normal unattended run. |
+| **A persisted scheduled task** | **Desktop runtime only** — probe, never assume | Yes — runs at next app launch if missed | Yes | A resume that must survive the session ending, where the runtime offers it |
+| **launchd** (the `pm-schedule.sh` pattern) | macOS only; user opts in | Yes — OS-level | Yes — a fresh `claude` invocation | Truly session-independent recurring work on the CLI |
+| **`bin/auto-runloop.sh`** (`self-restart`) | Wrapper must already be running | Wrapper-dependent | Yes — a fresh `claude -p` process | A context wall mid-arc (Step 3¾) |
+
+**Selection rule.** Default to `CronCreate`. Reach past it only when the resume genuinely must survive the session ending — and then **probe what this runtime actually offers** rather than naming a mechanism the user may not have. State which one you chose and why. **Never promise durability the runtime cannot deliver.** The mechanisms are not substitutes: a schedule resumes work at a *time*, `self-restart` recovers from a *context wall*.
+
+**Do not pass `durable: true`** — the tool documents it as having no effect; all jobs are session-only.
+
+Arm it EARLY and re-arm at or before 90% usage — never wait until the end (the session can die first and break the chain): `recurring:false`, fire **5 minutes AFTER the next 5-hour reset boundary** (NOT at the exact reset minute — firing at the boundary risks landing before the window has actually reset/propagated, re-firing into a still-exhausted window and breaking the chain; the +5-min guard band ensures the new window is live). The prompt = a compressed mandate + "VERIFY STATE FIRST, this prompt may be stale" + "re-create this same cron for the next cycle before stopping (again +5 min after the following reset)." **The cron prompt MUST lead with prose — never start it with a slash command** (a leading `/auto` or any `/command` is parsed as an unknown command and the whole mandate is silently discarded; phrase the mandate in prose and, if you must reference a skill, name it mid-sentence). This is the same prose-first hazard as the Step 3¾ restart opener — one rule, two arming sites. Arming a cron is part of the autonomous remit when the user asked for a self-perpetuating run; it is NOT something to do silently on an ordinary scoped arc.
+
+## Step 7: Knowledge capture (as you go — durable, best-guess location, never blocking)
+
+Write memories / `/prospect`+`/retrospect` logs / contract docs **at the moment of learning**. Update CLAUDE.md Status + PROGRESS each milestone (lead with the new state, demote prior detail under a pointer, never delete). Save a stated design/process decision as a memory immediately, with the WHY. Unsure where it goes → general backlog, keep moving (placement is pre-answered above).
+
+## Step 8: Close the arc
+
+Leave a **verified-clean checkpoint** (tests green, tree clean, pushed if policy allows). Report what landed, the `[DECISION]` trail, and every noted-but-not-blocking item you surfaced. Then `/handoff (auto)` with a next-session opener that itself says "VERIFY STATE FIRST — this prompt may be stale." Offer `/wrapup` instead if the work is fully done and nothing carries forward. Don't auto-run a push/deploy inside the close — that's the ungranted-approval case unless the contract's push policy already granted it.
+
+## Notes
+
+- **`/auto` applies policy, it doesn't redefine it.** The decide-vs-ask *logic* is Rule 35; this skill adds *operational* discipline (never-stop list, budget-binding, work-selection, subagent gate, resume-cron). If you want to change *when to ask*, edit Rule 35 — keep the single source of truth.
+- **Two rule sources, both loaded, neither restated.** `/auto` operates under two distinct rule files and owns *neither*: **Rule 35** in the plugin-managed `working-rules.md` is the decide-vs-ask *routing* policy (edit it to change *when to ask*); **`user-rules.md`** is the user's own *substantive* standing rules, loaded in Step 0.4 and applied as binding constraints for the arc (edit them via `/rules`-adjacent flows / `/audit-knowledge` promotion, never here). `/auto` reads and applies both; it restates neither. To see the rules' content, use `/rules`.
+- **`/auto` never writes config.** It runs autonomously for the arc on the strength of the invocation; the standing `autonomy` posture changes only via `/setup` (one writer, no drift).
+- **Tool allowlist companion.** For unattended runs, a pre-authorized `permissions.allow` list in the user's `.claude/settings.local.json` makes "tools are preset" real: the skill tells the model not to ask, the settings tell the harness not to gate. Keep them in sync — when a new tool causes a mid-run stop, add it there.
+- **Self-restart wrapper — permission setup (example, follow only when you actually run one).** The `self-restart` flag needs `bin/auto-runloop.sh`, which spawns `claude -p --dangerously-skip-permissions`. That tripwires TWO independent gates, and you must clear BOTH:
+  1. **The permissions system** — allowlist the wrapper in `.claude/settings.local.json`. Match how you invoke it (`sh <path>` vs `<path>` directly):
+     ```json
+     {
+       "permissions": {
+         "allow": [
+           "Bash(sh */plugin-claude-code/bin/auto-runloop.sh:*)"
+         ]
+       }
+     }
+     ```
+     (Use the absolute path on your machine; `:*` is the trailing-args shorthand. Verified vs the current settings schema, 2026-06-27.)
+  2. **The auto-mode classifier** (a SECOND gate, only when auto mode is ON) — it independently hard-denies spawning an unattended `--dangerously-skip-permissions` agent, and **`permissions.allow` does NOT override it** (docs: "the classifier is a second gate that runs after permissions"). So either: run the wrapper from a **normal interactive session with auto mode OFF** (the allowlist alone suffices there), OR have your org's `autoMode` config trust it. Do NOT expect the allowlist rule alone to clear an auto-mode run.
+
+  This is intentionally an example to copy when needed, not a setting this plugin writes — enabling `--dangerously-skip-permissions` is a standing security relaxation you should opt into deliberately, at the moment of a real unattended run, never by default.
+
+---
+
+## /roadmap
+
+
+# /roadmap — Per-Project Feature Roadmap Grid
+
+Render a project's **feature roadmap** as a compact `Feature / Band / Status` table — where each feature sits across the version trajectory (the *Band*) and its one current state (the *Status*) — synthesized from the project's own docs and persisted to a committed `ROADMAP.md`. The version-plane counterpart to `/recap` (which orients *temporally* — what just happened) and to aria-atlas (the live *visual* session dashboard). `/roadmap` answers "where does each feature sit, and what's ready to build next?"
+
+## Step 0: Resolve Mode
+
+Parse the first argument (case-insensitive):
+- `refresh` → **refresh mode** — force re-synthesis + rewrite without the staleness prompt. Consume an optional second argument as the project `<name>`.
+- any other token `<name>` → **project-named** — the `<name>:` tag in `projects_list`.
+- no argument → **project-nearest** — the current project (walk up from cwd).
+
+### Resolver (verbatim from /recap)
+
+- **project-nearest** (no arg) → walk up from cwd to the nearest `CLAUDE.md`/`PROGRESS.md` (the same Step-1 resolver the other aria-knowledge skills use). No `projects_list` needed.
+- **project-named** (`<name>`) → read `.cursor/aria-knowledge.local.md` and parse the `projects_list:` frontmatter key — comma-separated `tag:path` entries; expand a leading `~` in any path. The typed `<name>` IS the `projects_list` tag (`/roadmap cs` → the `cs:` entry). **Unknown tag → list the available tags and stop (no fuzzy matching).** This is the same roster `/aria-assist` and `/recap` read; **be read-only on `projects_list` — never write it.**
+
+**Always print the resolved project path** so the user can verify which project was read.
+
+## Step 1: Read Flow (render-then-offer)
+
+The persisted `ROADMAP.md` is the fast read, but it is never trusted blindly — every read checks staleness against its sources and offers a refresh when stale.
+
+```
+1. Resolve project (Step 0). PRINT the resolved path.
+2. ROADMAP.md exists at the project root?
+   - NO  → synthesize from sources, stamp, write, render (mark FRESH).
+   - YES → compute staleness (Step 2).
+```
+
+### Hand-authored guard (no-clobber + notify)
+
+If `ROADMAP.md` exists but has **no `synthesized_at` stamp** in its frontmatter, treat it as **hand-authored** (the stamp is the discriminator — its absence covers both "hand-written" and "a different concept entirely," e.g. a cross-subproject *portfolio* roadmap like `df/ROADMAP.md`). **Notify the user** — e.g. *"`ROADMAP.md` looks hand-authored (no `synthesized_at` stamp) — rendering as-is, will not overwrite without `/roadmap refresh`"* — render it as-is, and **never auto-overwrite**. Converting it to a synthesized file requires an explicit `/roadmap refresh` with a confirm.
+
+## Step 2: Staleness (source-stamp)
+
+The artifact carries a stamp in YAML frontmatter:
+
+```yaml
+---
+synthesized_at: 2026-06-25
+synthesized_from_commit: a1b2c3d   # HEAD at synthesis; OMITTED when not a git repo / no Bash
+sources: [CLAUDE.md, PROGRESS.md]
+---
+```
+
+**Stale** ⇔ any source's mtime is newer than `synthesized_at`, **OR** `git log <synthesized_from_commit>..HEAD` is non-empty. Because `ROADMAP.md` is **committed** and shared, the commit-delta signal correctly catches *anyone's* intervening commits — a teammate's `CLAUDE.md` edit pulled in after synthesis registers as stale. No extra machinery for the multi-author case.
+
+- **Fresh** → render the persisted grid (mark FRESH).
+- **Stale** → **render the persisted grid, then** offer refresh, citing why — e.g. *"stale — 4 commits + CLAUDE.md edited since `a1b2c3d`; refresh from synthesis? (y/n)"*. On `y` → re-synthesize + rewrite. A bare invocation **never** auto-rewrites.
+
+**Graceful degradation:** no git repo or no Bash → drop the commit-delta signal, fall back to **mtime-only** staleness, omit `synthesized_from_commit` from the stamp, and say so. Never present a guessed signal as certain.
+
+## Step 3: Synthesize the Grid
+
+Read the sources — the project `CLAUDE.md` (especially the `Last reviewed` footer + status blocks) and `PROGRESS.md` (arc headings + open items). Derive a `Feature / Band / Status` table.
+
+### Band (the *when* — version-trajectory axis)
+
+| Band | Meaning | Resolved from |
+|------|---------|---------------|
+| Shipped | Released at/before current | versions ≤ current in CLAUDE.md / CHANGELOG |
+| Current | The in-flight release | the version the footer/PROGRESS treats as live |
+| Next | The immediately planned release | "next up", "vN target", nearest planned |
+| Later | Planned / someday | "deferred", "future", "Phase N+" |
+
+Bands **collapse gracefully**: a young project shows only the bands it has and *notes which were empty* rather than rendering blank columns.
+
+### Status (exactly one state per feature)
+
+| Glyph | State | Source |
+|-------|-------|--------|
+| ✓ | done | transcribed (shipped/complete in prose) |
+| ◐ | in-progress | transcribed ("active", "underway", "in-progress") |
+| ⛔ | blocked | transcribed — **cites the blocker phrase** |
+| ▷ | buildable | **inferred** — Band=Next ∧ no blocker found (overridable) |
+
+**Buildable is the only inference:** ▷ ⇔ `Band = Next` AND **no blocker found** for the feature. Conservative — absence of evidence is NOT buildable unless the feature is in Next; a feature with any named blocker is ⛔, never ▷.
+
+### Rendered shape
+
+```
+Roadmap — <project> · synthesized 2026-06-25 from a1b2c3d · FRESH
+Resolved path: /Users/.../<project>
+
+| Feature | Band | Status |
+|---------|------|--------|
+| <feature — short detail if the name isn't self-descriptive> | Current | ✓ done |
+| <feature> | Next | ▷ buildable |
+| <feature> | Next | ⛔ blocked |
+| <feature> | Later | ⛔ blocked |
+| +N more (Shipped) | | |
+
+⛔ blockers (cited):
+  · <feature> — "<the exact blocker phrase from the prose>"
+
+▷ buildable (Next, no blocker found — override if wrong):
+  · <feature> · <feature>
+```
+
+The **evidence blocks below the grid** are the honesty mechanism: every ⛔ **cites** the phrase that justifies it; every ▷ is explicitly "no blocker found — override if wrong", so the one inferred axis stays falsifiable.
+
+**Legibility:** self-descriptive rows (a bare feature name gets a short `— detail` clause when not clear on its own); cap + summarize the tail (~12–15 feature rows, then a `+N more (Shipped)` summary row grouping the shipped tail).
+
+## Step 4: Write (only on synthesis / approved refresh)
+
+When synthesizing (first run) or on an approved refresh, write the grid + frontmatter stamp to `ROADMAP.md` at the project root. **`ROADMAP.md` is committed** (a shareable team artifact — teammates see the synthesized roadmap). The skill **writes only `ROADMAP.md`** and **leaves committing to the user** — it never auto-commits and never touches any source file. The file simply appears in `git status` for the user to stage.
+
+## Rules
+
+- **Write only `ROADMAP.md`** — only on first synthesis, an approved refresh (`y`), or `/roadmap refresh`. Never touch CLAUDE.md / PROGRESS.md / SESSION.md / any source. Never auto-commit.
+- **Read-only on `projects_list`** — never write the roster (same rule as `/recap`).
+- **Buildable is the only inference** — narrow (Next + no blocker found), overridable, evidence shown.
+- **Print the resolved project path + the staleness verdict (and why)** every run. Never present a guessed scope as certain.
+- **Degrade loudly** — no git/Bash → mtime-only staleness, say so.
+- **Honor the hand-authored guard** — no `synthesized_at` stamp → notify + render as-is + never overwrite without `/roadmap refresh`.
+- **Not `/recap`** — recap orients *temporally* (what just happened); roadmap orients on the *version-trajectory plane*. May offer "`/recap` for recent changes."
+- **Not `/aria-assist`** — assist *recommends what to do today* (PM judgment + writes proposals); roadmap *renders state* and stops. May offer to escalate to `/aria-assist` for prioritization.
+- **Not aria-atlas** — atlas is the live *visual* session-state dashboard; roadmap is the terminal *feature-by-version* artifact.
+
+---
+
+## /preflight
+
+
+# /preflight — the checklist you run before you report
+
+`/prospect` looks forward at a plan. `/retrospect` looks back at shipped work. **This runs at the
+moment in between: you believe you are done, and you are about to say so.**
+
+## What this is NOT
+
+**It is not `superpowers:verification-before-completion`,** which owns the principle — *no completion
+claim without fresh verification evidence* — and owns it well. That skill answers **whether** to
+verify. This one answers **what to verify**, and specifically: the checks whose *absence produces no
+signal at all*.
+
+If you have not internalised the Iron Law, read that skill first. This one assumes it and adds the
+cases where you ran a verification, it passed, and the thing was still broken.
+
+## The two failure families this exists for
+
+Every check below descends from one of these. Neither produces an error, a failing test, or a warning.
+
+1. **The check's FORM bounds what it can find.** A search whose pattern bounds its result; a review
+   whose scope bounds its result; a probe whose anchor bounds its result. The instrument reports
+   truthfully about the thing it measured — and you asked it the wrong question.
+2. **A decision correct in isolation, wrong in context**, where nothing you looked at was measuring
+   the part that broke. A green build measures compilation, not reachability. A docstring records a
+   decision without disclosing it. A model's name states one job, not both.
+
+> **The consequence they share: the absence of a problem signal is not evidence there is no problem.**
+> Family 1 because your check couldn't see it. Family 2 because nothing was checking.
+
+## How to run it
+
+Work through the checks that apply to your change. **Every applicable check gets a recorded result.**
+An unrun check is not a pass — it blocks the verdict.
+
+Each check has **three** outcomes, never two:
+
+| | |
+|---|---|
+| **PASS** | the check ran and the property holds |
+| **FAIL** | the check ran and the property does not hold |
+| **INVALID** | the check could not distinguish absence from a broken probe — **report no verdict, fix the probe** |
+
+The third outcome is the whole point. A probe that returns "nothing found" because it was pointed at
+a path that does not exist reads exactly like a clean result.
+
+---
+
+## P1 — Requirements diff · *does what shipped match what was asked?*
+
+**A rationalisation in code is not a disclosure.** Nobody diffs docstrings against requirements at
+review, so an omission explained in the source is invisible in exactly the place it needed a second
+opinion.
+
+1. List every field, endpoint, behaviour and response shape the request named. Mark each
+   **shipped / not shipped**. Mechanical; it takes a minute.
+2. Every "not shipped" goes in a **ticket comment** — not a docstring, not a commit message, not a
+   PR body.
+3. **"There is nowhere to store this" is a question, not a decision.** Say so and stop. Do not narrow
+   the deliverable to fit the schema you found — that is the signal the request and the schema
+   disagree, and that is the owner's call.
+4. Check what the **UI promises** against what you returned. A surface labelled with a word the data
+   cannot support is a defect even when every line is correct.
+5. Where you substituted something, **name the substitution.** "Returned the resolved email instead
+   of the requested username" is reviewable; silence is not.
+6. **Enumerate the paths, don't re-read the diff.** A fix can close a disclosure on two code paths
+   and leave it open on a third — re-reading the change will not show you the path you never touched.
+
+---
+
+## P2 — Consumer census · *does this symbol have a second job?*
+
+**A model's name and fields do not tell you its jobs.** A row can be a record *and* a permission at
+the same time; a delete that is obviously right for the first is a silent privilege change for the
+second, and nothing in the model, the migration or your endpoint will mention it.
+
+```bash
+# every consumer, minus vendored code and migrations
+grep -rn "<SYMBOL>" --include='*.<ext>' . | grep -v "/<vendor_dir>/\|/migrations/"
+
+# of those, which sit inside an authorization decision?
+grep -rn "<SYMBOL>" --include='*.<ext>' . | grep -viE "test|migration" \
+  | grep -iE "allow|permission|access|authoriz|can_view|visibility|entitle"
+```
+
+1. Run it **before** writing the endpoint, not after.
+2. **Write out what each consumer uses it for.** The census is worthless unread; writing it is what
+   surfaces the surprise.
+3. If any consumer is an authorization or access check, **a delete on that model is a permission
+   change** — say so explicitly and get it ruled on rather than shipping it inside a feature.
+4. Ask what the **absence** of a row means, not just its presence. Where presence grants something,
+   deletion revokes it — and "cancel" is then the wrong word for the button.
+5. **Beware the inverted fix.** On discovering a row doubles as a grant, do not "clean up" by
+   deleting it at some lifecycle point. That revokes access. The fix is usually a new column or a
+   derived flag.
+6. **Aliasing:** can two rows point at the same underlying resource? If so, deleting A's "old"
+   resource may destroy B's live one.
+
+---
+
+## P3 — Reachability · *is it actually wired in?*
+
+**A green build measures compilation, not reachability.** A component nothing imports is tree-shaken
+out: it compiles, it deploys, and it is not in the product.
+
+**Frontend**
+
+```bash
+# does anything import it? zero here = the feature does not exist
+grep -rn "<COMPONENT>" src --include='*.js' | grep -v "<COMPONENT>/"
+```
+
+After deploy, read the **source map's module list**, not the bundle's strings — a string search
+cannot distinguish "not deployed yet" from "deployed but tree-shaken." Both return zero. **Always
+include a control module from the same page**, or "absent" is indistinguishable from a broken probe.
+
+**Backend / any callable**
+
+Ask what makes it reachable, then verify *that*: a route table entry, a registered webhook, a
+scheduled job actually installed, a feature flag. **Include a control** — a sibling you did not touch
+— so a zero result is interpretable.
+
+⚠ **A test that calls a function directly does not exercise its routing.** If your suite invokes the
+handler rather than the URL, the suite stays green with the route deleted. That is a real gap, not a
+pedantic one; check the wiring separately and say which you verified.
+
+⚠ **Never write "build green" or "tests pass" as evidence of shipping.** Say "imported and present in
+the bundle," or "routed at `<path>`," or make no claim.
+
+---
+
+## P4 — Census bound · *what could this search NOT have found?*
+
+**Report the instrument, not just the result.** A census reports its own bound or it is not a census.
+
+1. **Run ≥2 idioms.** A symbol may be reached by a bare name, a dynamic dispatch, a `**kwargs` spread,
+   a re-export, or a differently-quoted string. One idiom returning zero is not absence.
+2. **Census by BEHAVIOUR, not by name.** Names move; behaviour is what you care about. Resolve an
+   argument back to its assignment rather than pattern-matching the call.
+3. ⛔ **`grep | wc -l` cannot report failure.** A missing path, a genuine absence and a real zero all
+   print `0`. Read grep's **exit code**, or verify the path first.
+4. **Discount definitions, re-exports and tests.** A symbol existing is not a symbol running; what
+   remains after those are removed is the answer.
+5. **State the bound in the report.** "Censused X across A, B, C excluding D — this is a code census,
+   not a data census." A bound stated is a bound a reader can challenge.
+6. **A handed-over finding list is a LOWER bound.** Re-census in your own consumer.
+
+---
+
+## P5 — Non-vacuity · *did the test actually execute the code?*
+
+**The most dangerous green is the one that ran nothing.** A request refused upstream, a fixture
+missing a field, an exception swallowed into a success envelope — the assertions never execute and
+every one of them passes.
+
+1. **Assert a POSITIVE signal that the code ran**, not merely the absence of a failure: a call count,
+   a success envelope, an observable side effect. Put it in the shared fixture so it protects every
+   test, not the one that happened to notice.
+2. ⚠ **An HTTP status is not that signal** where the codebase wraps failures in a 200 envelope. Check
+   the envelope's own success field.
+3. **Scope the guard to the right unit.** A blanket "this was never called" can fail for a reason
+   unrelated to the property under test — and, worse, can pass while the defect is live if the
+   defect operates by a different route.
+4. **Ask what ELSE produces this outcome.** An outcome consistent with your hypothesis is not the
+   cause. Was the precondition for failure ever actually met?
+
+---
+
+## P6 — Mutation · *have you SEEN the guard go red?*
+
+**Never cite a gate you have not watched fail.** This applies to guards you wrote *and* guards you
+inherited.
+
+1. Break the thing the guard protects. Confirm it goes red, and that it reds **for the stated
+   reason** rather than erroring.
+2. **Restore from a byte backup taken before the mutation**, then `cmp`. Do not restore with version
+   control if the working edit is uncommitted — that discards it.
+3. Check the kill lands in the **right scope**. A mutation in module A reddening only module B's
+   tests means the two are coupled, or one is inert.
+4. ⚠ **On a scripted multi-file edit, read the insert/delete ratio.** For a purely additive change,
+   deletions should be zero or exactly the lines you meant to rewrite. A net-negative diff on an
+   additive edit is a first-class signal that something was dropped.
+
+---
+
+## Output
+
+Emit a compact table, then the verdict. Do not bury a FAIL in prose.
+
+```
+PREFLIGHT — <scope>
+P1 requirements diff   PASS    3 named / 3 shipped
+P2 consumer census     FAIL    ProfileInvites is read by 2 authz views — delete = permission change
+P3 reachability        PASS    routed at /api/x, control /api/y present
+P4 census bound        PASS    2 idioms, exit codes read; CODE census, data not checked
+P5 non-vacuity         PASS    envelope asserted + 5 size-writes observed
+P6 mutation            INVALID probe restored from git, working edit lost — redo from byte backup
+
+VERDICT: NOT READY — 1 FAIL, 1 INVALID
+```
+
+**Any FAIL or INVALID ⇒ do not make the claim.** Fix, or state the limitation explicitly in the same
+sentence as the claim. An INVALID is not a soft pass — it means you do not know.
+
+**Skipped checks are listed as skipped, with why.** "N/A — no model touched" is a result. Silence is
+not.
+
+## Recording
+
+**Always write the session marker — this is what the commit gate reads.** One line per run,
+appended:
+
+```bash
+printf '%s\t%s\t%s\n' "$(date +%H:%M)" "<VERDICT>" "<scope>" \
+  >> "${TMPDIR:-/tmp}/aria-preflight-${CLAUDE_SESSION_ID}"
+```
+
+`pre-commit-preflight-check.sh` fires on `git commit` and warns when no marker exists for the
+session. **Any recorded verdict satisfies it, including NOT READY** — recording a FAIL and
+committing anyway is a legitimate, visible choice; the failure being guarded against is not running
+the checks at all.
+
+One baseline and two escalations, none a sub-setting of the other:
+
+| | |
+|---|---|
+| `preflight_gate: off` | never fires |
+| `preflight_gate: warn` *(default)* | warns on code commits — **and denies on any `preflight_deny_repos` or `preflight_deny_paths` match** |
+| `preflight_gate: deny` | denies every code commit; both lists are irrelevant |
+
+Both lists escalate from **any** baseline, exactly as `critical_paths` escalates Rule 22 regardless of
+the surrounding setting. They match different things, and the difference is load-bearing:
+
+- **`preflight_deny_paths`** — space-separated globs matched against **repo-relative** staged paths.
+  A bare filename therefore will not match that file nested in a subdirectory, and because the docs
+  filter runs first, a `*.md` entry here can never fire.
+- **`preflight_deny_repos`** — comma-separated substrings matched against the repository's resolved
+  absolute path. This is the only way to say *"always gate this repo"*: staged paths are repo-relative,
+  so the repo name appears nowhere in the string a path glob sees. Substring matching over-matches a
+  same-named sibling — for a gate, the safe direction.
+
+Docs-only diffs are silent under every combination, including a gated repo. That is deliberate: a gate
+that fires on a README edit is the one that gets switched off wholesale.
+
+Then write the table to `<knowledge_folder>/logs/preflight/<date>-<scope>.md` when the change is
+non-trivial, and run aria's standard intake. A preflight that found something is a candidate
+insight — the pattern that produced the FAIL is usually more reusable than the fix.
+
+## Composes with
+
+- **`superpowers:verification-before-completion`** — owns the Iron Law. Run it; this adds the *what*.
+- **`/prospect`** — same discipline, earlier: before the work rather than before the claim.
+- **`/retrospect`** — after shipping. A FAIL here that you shipped anyway belongs there.
+- **Rule 22 / Rule 38** — per-edit scope, and closing the class rather than the instance.
+
+> **Why a skill and not a rule.** Every check here descends from a rule someone already knew. The
+> failures happened anyway — including one where a defective probe was run within an hour of reading
+> the note warning against it. Reading a rule does not execute it. **Run the checks.**
 
 ---
 
@@ -5365,7 +6345,7 @@ Walk the user through configuring their knowledge folder and plugin settings. Sa
 
 ## Step 1: Check for Existing Config
 
-**Read the installed port version first.** Parse `scripts/aria/VERSION` (plain text, one line — e.g. `2.35.2-cursor.0`):
+**Read the installed port version first.** Parse `scripts/aria/VERSION` (plain text, one line — e.g. `2.46.2-cursor.0`):
 
 ```bash
 INSTALLED_VERSION=$(cat "scripts/aria/VERSION" 2>/dev/null | tr -d '[:space:]')
@@ -5529,12 +6509,20 @@ The summary line precedes the bundle text. If the user later questions "did the 
 > - **Ideas staleness threshold:** 7 days (during `/audit-knowledge`, mark idea files in `intake/ideas/` older than this with `[STALE — still relevant?]` to prompt Accept/Reject/Defer decisions)
 > - **Task-boundary capture:** true (save structural snapshot on agent `stop` via `task_boundary_capture`; Cursor has no PreCompact transcript hook)
 > - **Active knowledge surfacing:** true (when enabled, four hooks — sessionStart, stop, beforeShellExecution with cd, beforeReadFile — and two skills — /prospect, /retrospect — auto-load context at trigger moments. **Two kinds of context get surfaced (v2.16.1 expansion):** (a) **knowledge files** matched by tag against the user's task/cd-target/skill-input, and (b) **tracked artifacts** — CODEMAP directory + STITCH for the detected project (boundary-detected; not the full CODEMAP). Both surface with staleness annotations against `codemap_staleness_threshold_days` (default 14) and `stitch_staleness_threshold_days` (default 30); grossly-stale artifacts (>2× threshold) refuse to load with a warning. Companion surfaces — /audit-config, /stats, /handoff, /wrapup — also gate their tracked-artifact surfacing on this flag. Set to `false` for passive mode where hooks only suggest `/context <tag>` and all proactive artifact loading is suppressed (users load manually via /context). Active mode honors a session-scoped dedup ledger at `/tmp/aria-active-{session_id}` so the same file/artifact isn't re-Read across triggers. See CONFIG.md for the trigger sites and the ≥2-tag-match threshold + 5-file cap policy.)
-> - **Session state file (`SESSION.md`):** false (when on, aria-knowledge writes a per-project `SESSION.md` — `in-progress` at session start, `wrapup`/`handoff` at close — and offers to resume from it at session start; enables re-entry + the aria-atlas status board. Files are created at project roots only when on. Change later via `session_state` in `.cursor/aria-knowledge.local.md`. A companion `session_stale_days` key [default 7] controls when a saved resume prompt is treated as possibly-stale: an older entry triggers a "still relevant? [resume / archive / keep]" prompt at session start instead of being presented as live — it never auto-evicts.)
+> - **Session state file (`SESSION.md`):** false (when on, aria-knowledge writes a per-project `SESSION.md` — `in-progress` at session start, `wrapup`/`handoff` at close — and offers to resume from it at session start; enables re-entry + the aria-atlas status board. Files are created at project roots only when on. Change later via `session_state` in `.cursor/aria-knowledge.local.md`. A companion `session_stale_days` key [default 7] controls when a saved resume prompt is treated as possibly-stale: an older entry triggers a "still relevant? [resume / archive / keep]" prompt at session start instead of being presented as live — it never auto-evicts. A second companion key `session_state_tracked` [default false] decides whether `SESSION.md` is **git-ignored** or **committed**: the default treats it as ephemeral, while `true` treats it as a tracked decision-trail artifact that `/wrapup` and `/handoff` stage with their commit. Set it `true` in repos with no `PROGRESS.md`, where `SESSION.md` *is* the durable log and the ephemeral rationale does not apply. ⚠ Whichever it is set to, both skills test tracking with `git ls-files --error-unmatch`, not by looking for the pattern in `.gitignore` — an ignore rule is a no-op on an already-tracked path, so a pattern check never becomes true and the ignore line is appended on every run.)
 > - **Auto-prospect (`auto_prospect`):** off (when `nudge`, writing a plan to `docs/plans/` or `docs/superpowers/plans/` prompts an offer to run `/prospect file <path>`; when `run`, it runs inline. `docs/specs/` is intentionally not a trigger. Change later via `auto_prospect` in `.cursor/aria-knowledge.local.md`.)
 > - **Autonomy posture (`autonomy`):** default (decision-routing posture, Rule 35). `default` injects nothing — no behavior change, no context cost. `balanced` injects an investigate-first directive each session: ask on intent/preference/judgment-with-no-gainable-visibility + ungranted explicit approval; act on mechanical/objectively-validatable. `autonomous` injects the full posture: decide objectively-validatable forks yourself (checked against the build-philosophy bar, Rules 13/14/18), run quality gates as checks-not-stops, stop only on a no-visibility judgment call or ungranted explicit approval. Turn it up when you want the agent to spend fewer of your decisions on what it can resolve itself. Change later via `autonomy` in `.cursor/aria-knowledge.local.md`.)
 > - **Auto-retrospect (`auto_retrospect`):** off (when `nudge` [recommended], a `git push` of ≥`retrospect_min_commits` commits to a branch in `retrospect_branches` prompts an offer to run `/retrospect range <old>..<new>`; `run` runs it inline — note the post-push session is not disposable, so `run` adds real cost. Gates: `retrospect_min_commits` default 3, `retrospect_branches` default `main,master,production`.)
 > - **Usage alert threshold (`usage_alert_threshold`):** off (Claude Code only — requires `/statusline` meter + snapshot file; Cursor has no equivalent. Leave `off` unless you add a custom integration.)
 > - **Critical paths:** (empty) comma-separated path patterns that always require HIGH impact assessment (e.g., auth/*,payments/*,migrations/*)
+> - **Preflight commit gate (`preflight_gate`):** warn (what happens on a `git commit` with no `/preflight` recorded this session. `off` = never fires; `warn` = a reminder; `deny` = block every code commit. Any recorded preflight — of any verdict — satisfies the gate for the rest of the session, so even `deny` costs one run, not one per commit. Docs-only commits are always silent. An unrecognized value falls back to `warn`, never `off`.)
+> - **Preflight deny paths (`preflight_deny_paths`):** (empty) space-separated globs matched against **repo-relative** staged paths. An *escalation*, independent of the gate: `warn` + named paths = warn generally, block on these. Note the docs filter runs first, so `*.md` paths can never be covered here.
+> - **Preflight deny repos (`preflight_deny_repos`):** (empty) comma-separated substrings matched against the repository's absolute path — the way to say "always gate this repo", which deny_paths cannot express (staged paths are repo-relative and never contain the repo name). Substring, so it over-matches a same-named sibling; for a gate that is the safe direction. Same independence as deny_paths.
+> - **Style-audit lookback (`style_lookback_days`):** 90 (on `/audit style`'s first-ever run, how many days of session-log history to window the initial scan to. Later runs resume incrementally from the style-audit log's last stamp, so this only matters cold-start or after a `window <D>` override. Change later via `style_lookback_days` in `.cursor/aria-knowledge.local.md`.)
+> - **Style-audit session cap (`style_max_sessions`):** 50 (the over-cap gate `/audit style` Step 1b stops at before scanning — exceeding it prompts `recent`/`all`/`window <D>`/`cancel` rather than silently truncating. Change later via `style_max_sessions`.)
+> - **Style-audit log path (`style_audit_log`):** `{knowledge_folder}/logs/style-audit-log.md` (where `/audit style` stamps its incremental scan boundary after each run. Change later via `style_audit_log`.)
+> - **External-fetch gate (`external_fetch_gate`):** off (when `on`, the first `WebFetch`/`WebSearch` per session aimed at a surface your knowledge folder or memory dirs already cover is denied **once**, naming the matched files; the retry passes. Coverage is keyed on the URL's registrable domain, or on vendor-like words in a search query — ordinary English words are filtered out. It is an *interrupt, not a verification*: it cannot confirm you read the file. Change later via `external_fetch_gate` in `.cursor/aria-knowledge.local.md`.)
+> - **External-fetch ambient cap (`external_fetch_max_hits`):** 8 (above this many matching files the surface is treated as ambient and the gate stays silent — a host mentioned in 76 files carries no signal, and surfacing them all trains you to dismiss the hook. Change later via `external_fetch_max_hits`.)
 > - **Ticketing plugins:** (empty) comma-separated `tag:plugin-command` pairs mapping a project tag to its ticket-drafting plugin (e.g., `proj-a:foo-ticket,proj-b:bar-ticket`). When set, `/audit-knowledge` prints a hint to use that plugin's command when an idea's project matches a mapped tag during the `Accept → tracker` disposition. Hint only — never auto-invokes. Leave empty if you don't use a ticketing plugin or prefer to copy ideas into your tracker manually. Plugin commands are bare names — no leading `/`. Validate input: each pair must contain exactly one `:` separating tag from command; project tags cannot contain `:` or `,`; plugin commands cannot start with `/` (strip leading `/` and warn if found).
 > - **Project-specific knowledge tier:** disabled (creates `projects/{tag}/` subdirectories for project-specific decisions and patterns; opt in if you want to organize knowledge by project alongside the cross-project tree. If enabled, you'll be asked an inline follow-up about auto-loading project context on session start.)
 >
@@ -5635,6 +6623,7 @@ auto_capture: [true/false from Step 6, default true]
 active_knowledge_surfacing: [true/false from Step 6, default true]
 session_state: [true/false from Step 6, default false]
 session_stale_days: [integer, default 7]
+session_state_tracked: [true/false, default false]
 auto_prospect: [off/nudge/run, default off]
 auto_retrospect: [off/nudge/run, default off]
 autonomy: [default/balanced/autonomous, default default]
@@ -5642,6 +6631,15 @@ retrospect_min_commits: [integer, default 3]
 retrospect_branches: [comma-list, default main,master,production]
 usage_alert_threshold: [value from Step 6, default 80; or `off` to disable usage injection]
 critical_paths: [comma-separated patterns from Step 6, default empty]
+planning_paths: [comma-separated patterns from Step 6, default empty]
+external_fetch_gate: [on/off from Step 6, default off]
+external_fetch_max_hits: [integer from Step 6, default 8]
+preflight_gate: [off | warn | deny, from Step 6, default warn]
+preflight_deny_paths: [space-separated globs from Step 6, default empty]
+preflight_deny_repos: [comma-separated repo-path substrings from Step 6, default empty]
+style_lookback_days: [integer from Step 6, default 90]
+style_max_sessions: [integer from Step 6, default 50]
+style_audit_log: [path from Step 6, default {knowledge_folder}/logs/style-audit-log.md]
 ticketing_plugins: [comma-separated tag:plugin-command pairs from Step 6, default empty]
 projects_enabled: [true/false from Step 6, default false]
 projects_list: [comma-separated tag:path pairs from Step 6, default empty]
@@ -5709,6 +6707,13 @@ After writing the config file, read it back and verify that each value can be ex
    - `auto_prospect` / `auto_retrospect` — confirm each is `off`, `nudge`, or `run`
    - `usage_alert_threshold` — confirm it's `off` or a plain integer in 1–100 (matches Step 6 input; default 80). Any other value is reset to 80.
    - `critical_paths` — confirm it's a comma-separated string of path patterns (or empty)
+   - `planning_paths` — confirm it's a comma-separated string of path patterns (or empty)
+   - `preflight_gate` — confirm it is exactly `off`, `warn` or `deny`. Any other value is rewritten to `warn`, never to `off`: a typo must not silently disable a gate the user believes is on.
+   - `preflight_deny_paths` — confirm it's a space-separated string of globs (or empty). **Independent of `preflight_gate`, not a sub-setting of it**: these paths deny from any baseline, the same way `critical_paths` escalates Rule 22 regardless of surroundings. So `preflight_gate: warn` + named paths = "warn on code commits, but block on these" — the configuration most users want. Empty means no escalation. ⚠ Patterns are matched against **repo-relative** staged paths, and the docs filter drops `*.md`/`*.txt`/`*.rst`/`docs/*` before matching — so a `.md` path here can never fire, and a bare filename will not match that file nested in a subdirectory.
+   - `preflight_deny_repos` — confirm it's a comma-separated string of substrings (or empty); no spaces around commas. Matched against the repository's resolved absolute path, so it expresses "always gate this repo" — which `preflight_deny_paths` structurally cannot, staged paths being repo-relative. Independent of the gate, exactly like `preflight_deny_paths`. Empty means no escalation.
+   - `style_lookback_days` — confirm it's the integer from Step 6 (default 90)
+   - `style_max_sessions` — confirm it's the integer from Step 6 (default 50)
+   - `style_audit_log` — confirm it's a path string (default `{knowledge_folder}/logs/style-audit-log.md`, with `{knowledge_folder}` resolved to the actual configured path)
    - `ticketing_plugins` — confirm it's a comma-separated string of `tag:plugin-command` pairs (or empty); validate no project tag contains `:` or `,`; validate plugin-command values do not start with `/`
    - `last_setup_version` — confirm it matches `INSTALLED_VERSION` captured in Step 1 (this run's plugin version); validate it's a semver-shaped string of digits and dots (no `v` prefix, no quotes, no trailing whitespace). If it's missing or doesn't match, rewrite the line and re-verify
    - `projects_enabled` — confirm it's `true` or `false`
@@ -5716,7 +6721,7 @@ After writing the config file, read it back and verify that each value can be ex
    - `projects_remotes` — confirm it's a comma-separated string of `tag:url-pattern` pairs (or empty); validate no project tag contains `:` or `,`
    - `projects_promotion_threshold` — confirm it's a plain integer ≥ 1 (matches Step 6 input)
    - `auto_load_project_context` — confirm it's `true` or `false`
-   - **Empty-sentinel check** — for string-valued keys with an empty default (`critical_paths`, `ticketing_plugins`, `projects_list`, `projects_remotes`): confirm the raw extracted value is not the literal string `null`, `""`, `none`, or `[]`. If the key is intended to be empty, the value after the colon must be truly empty (nothing or a single trailing space). Rewrite the key as `key:` and re-verify.
+   - **Empty-sentinel check** — for string-valued keys with an empty default (`critical_paths`, `planning_paths`, `preflight_deny_paths`, `preflight_deny_repos`, `ticketing_plugins`, `projects_list`, `projects_remotes`): confirm the raw extracted value is not the literal string `null`, `""`, `none`, or `[]`. If the key is intended to be empty, the value after the colon must be truly empty (nothing or a single trailing space). Rewrite the key as `key:` and re-verify.
 
 **Skill-only field validation (`projects_groups`)** — if the field is present in the config, run structural-only checks. Do not attempt to flatten or rewrite this field; it's parsed by skills, not bash, so the verification mirrors that consumer.
 
@@ -5875,12 +6880,16 @@ Print the command reference table. No config or file access needed.
 |---------|-------------|
 | /setup | Configure knowledge folder, audit cadences, and plugin settings |
 | /extract | Capture insights, decisions, and feedback from the current conversation |
+| /audit [knowledge\|config\|style\|all] | Umbrella audit dispatcher — routes to the sub-audit named, or runs all in sequence with no arg |
 | /audit-knowledge (alias: /knowledge-audit) | Review backlogs, promote to knowledge files, rebuild index |
 | /audit-config (alias: /config-audit) | Check project configs and docs for drift and broken references |
+| /audit style | Log-mining audit over session transcripts for revealed working-style rules (opt-in — not part of routine cadence) |
 | /audit-share | Promote personal knowledge to the team-shared `_project-knowledge/` tier |
 | /prospect [plan/session/todos/file/linear/branch] | Forward-looking pre-mortem on a plan before any code — per-step risk verdicts (PROCEED/SHRINK/SPLIT/DEFER/KILL), evidence-sourcing pass, simpler-alternative discipline |
+| /preflight [ticket/file] | Executed pre-completion checklist run just before you claim done — six checks (requirements diff, consumer census, reachability, census bound, non-vacuity, mutation), three outcomes each; an unrun check blocks the verdict |
 | /retrospect [--range/--pr/--session/--commit] | Structured retrospective on a shipped commit range — per-fix validation, simpler-alternative discipline, re-diagnosis, action verdicts, failure-mode pattern check |
 | /recap [arc\|commit\|push\|pull] | Read-only orientation — a scannable What/Where/Status table of recent work (this session by default; or the last arc/commit/push/pull). Summarizes, never validates; writes nothing |
+| /roadmap [<name>\|refresh] | Per-project feature roadmap — a Feature/Band/Status grid (Shipped/Current/Next/Later × done/in-progress/blocked/buildable) synthesized from CLAUDE.md + PROGRESS.md, persisted to a committed ROADMAP.md with staleness-aware refresh. Renders + offers refresh when stale; never auto-commits |
 | /foundational-review <scope-root> [--decision "..."] [--extend] | Foundational review chain before an irreversible decision (freeze/tag/flip/re-scope): verdict + premises + A–F → design spec → cold-executable plan → composed /prospect → kickoff. Requires a named irreversible decision (else redirects). |
 | /readiness-audit <scope-root> [--for "<event>"] | Surface readiness audit (sibling of /foundational-review): parallel exploration → controller re-verification of agent claims → tiered evidence-celled findings → phased remediation. Read-only probes; no decision anchor needed. |
 | /context [tags] | Load relevant knowledge files by topic (supports AND/OR, project expansion) |
@@ -5900,7 +6909,7 @@ Print the command reference table. No config or file access needed.
 | /stitch <mode> <group> | Cross-repo binding (auth/endpoints/entities/drift) for a product group |
 | /wrapup [auto\|snap] | End-of-session close-out — update PROGRESS/CLAUDE.md, prompt for commit, verify continuity. `auto` runs silently; `snap` runs like auto but archives the transcript via /snapshot for later extraction instead of /extract (use when context is high) |
 | /handoff [auto\|brief\|snap] | Express handoff — same coverage as /wrapup, one combined-go review (or `auto` for silent), always emits a paste-ready next-session opener. `brief` mode produces a copy/paste coworker brief (Hey [coworker]-style prose, 80-150 words) instead of next-session opener — no PROGRESS/CLAUDE/memory/commit/extract side effects. `snap` mode runs like auto but archives the transcript via /snapshot for later extraction instead of /extract (use when context is high) |
-| /snapshot | Save the current session transcript to intake/task-boundary-captures/ on demand |
+| /snapshot | On-demand task-boundary capture (git + hook state) to intake/task-boundary-captures/ |
 | /statusline [on\|off\|status] | Install/remove the CLI status-line meter — context-window bar + 5h/7d plan-usage % (Claude Code only) |
 | /help | This command reference |
 
@@ -5915,10 +6924,11 @@ These are recommendations only — ARIA does not force a model. Switch per sessi
 | /extract | Highest-capability Opus, medium-to-high effort | Judgment-heavy: distinguishing reusable signal from ephemeral noise, writing non-obvious Why/How-to-apply lines. |
 | /audit-knowledge | Highest-capability Opus, medium-to-high effort | Cross-references backlogs against the promoted index, decides promotion vs. discard, detects emerging themes. |
 | /audit-config | Highest-capability Opus, medium-to-high effort | Reads across AGENTS.md files and configs to detect drift and broken references. |
+| /preflight | Whatever model is doing the work — no escalation | Deliberately runnable at any tier. The checks are mechanical (census, importers, call counts, mutation); escalating the model would imply the gate is a judgment call, and its whole premise is that judgment already failed once. |
 | /retrospect | Highest-capability Opus, medium-to-high effort | Multi-stage judgment per fix: validation status assignment, simpler-alternative identification, hypothesis generation, failure-mode pattern matching, action verdict synthesis. Highest leverage from stronger models. |
 | /foundational-review, /readiness-audit | Highest-ceiling available (Fable at extreme stakes, else Opus), xhigh effort | The reviewer model is spent on alternatives-steelmanning, portfolio/product judgment, and the irreversibility inventory; semi-agentic read-trace-reason loop benefits from xhigh. Executor tasks the chain emits route to Opus by default. |
 | /ask | Highest-capability Opus, medium-to-high effort (ambiguous topics) or Sonnet (mid-tier) for scoped lookups | Research + draft + categorize. Drop to Sonnet when the question is narrow. |
-| /interview | Highest-capability Opus for deep-dive/battery (ambiguous, evidence-cited, leverage-clustered question generation) or Sonnet (mid-tier) for focused socratic project/knowledge runs | The deep-dive battery cadence is judgment-heavy (cite evidence, cluster by leverage, hunt negative space); focused socratic elicitation is lighter. Spans tiers like /ask. |
+| /interview | Highest-capability Opus for deep-dive (ambiguous, evidence-cited, leverage-clustered question generation) or Sonnet (mid-tier) for focused guided project/knowledge runs | Deep-dive is judgment-heavy (cite evidence, cluster by leverage, hunt negative space) and re-deriving after every guided dialog compounds that; focused elicitation is lighter. Spans tiers like /ask. |
 | /codemap create | Highest-capability Opus (large-context variant preferred) | Full-repo traversal benefits from a large context window so sections aren't truncated mid-generation. |
 | /codemap update, /codemap section, /wrapup, /handoff, /intake, /distill, /stitch | Sonnet (mid-tier), medium effort | Structured work with clear prescribed output. |
 | /index, /stats, /backlog, /rules, /context, /intake, /snapshot, /statusline, /help, /setup | Sonnet (mid-tier), low effort | Mechanical or retrieval-only — higher models add no measurable lift. |

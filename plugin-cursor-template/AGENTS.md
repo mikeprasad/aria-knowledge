@@ -14,8 +14,11 @@ Config is at `.cursor/aria-knowledge.local.md`. Run the setup command below if i
 | `/setup` or "set up ARIA" | Configure knowledge folder and preferences |
 | `/help` or "aria help" | Print the full command reference |
 | `/extract` or "extract session knowledge" | Capture decisions, insights, references from this conversation |
+| `/audit` or "run an audit" | Dispatcher for knowledge / config / style / usage sub-audits |
 | `/audit-knowledge` (alias `/knowledge-audit`) or "audit knowledge" | Review intake backlogs, promote approved items |
 | `/audit-config` (alias `/config-audit`) or "audit config" | Check project configs and docs for drift |
+| `/audit style` or "mine my working style" | Evidence-gated working-style rules from session transcripts (opt-in) |
+| `/audit usage` or "is ARIA worth it" | Value/ROI report over your own knowledge corpus (opt-in) |
 | `/audit-share` (alias `/share-audit`) or "share knowledge" | Batch-review personal knowledge for promotion to team-shared project knowledge (requires `projects_enabled: true`) |
 | `/context <tags>` or "load knowledge about X" | Load relevant knowledge files by tag |
 | `/index` or "rebuild knowledge index" | Rebuild `knowledge/index.md` |
@@ -23,11 +26,7 @@ Config is at `.cursor/aria-knowledge.local.md`. Run the setup command below if i
 | `/backlog` or "show backlog" | View pending intake items |
 | `/stats` or "knowledge stats" | Knowledge base health dashboard |
 | `/ask <question>` or "research and save: X" | Research a question, save answer as a knowledge doc |
-| `/clip <url or text>` or "save this" | Quick-save URL or snippet to `knowledge/intake/clippings/` |
-| `/clip-thread <url>` or "clip this thread" | Capture chat/email thread via MCP to `intake/clippings/` |
-| `/intake <path>` or "import from file" | Bulk import knowledge from files or URLs |
-| `/intake doc <url or title>` or "capture this doc" | Structured single-doc capture under `intake/docs/` |
-| `/extract-doc <url>` or "extract from this page" | Decompose one doc into intake backlog entries (MCP) |
+| `/intake` or "save this" / "import from file" | Clip a URL/text, bulk-import files, or `/intake extract` / `doc` / `thread` |
 | `/meeting-notes` or "capture meeting notes" | Fold meeting transcript into `intake/meetings/` (MCP or paste) |
 | `/digest` or "weekly digest" | Cross-tool rollup into `intake/digests/` |
 | `/sync-decisions` or "mirror decisions to wiki" | Push approved decisions to external docs (MCP write) |
@@ -36,11 +35,17 @@ Config is at `.cursor/aria-knowledge.local.md`. Run the setup command below if i
 | `/stitch <mode> <group>` or "stitch repos" | Cross-repo binding (auth/endpoints/entities/drift) for a product group |
 | `/prospect <plan>` or "pre-mortem this plan" | Plan pre-mortem with risk enforcement + Evidence-Sourcing Pass |
 | `/retrospect [--range/--pr/--session/--commit]` or "retrospective" | Structured retrospective on shipped work — per-fix validation, simpler-alternative discipline, action verdicts |
-| `/handoff [auto\|brief]` or "handoff session" | Passoff — next-session opener or coworker brief |
+| `/preflight` or "preflight this" | Pre-completion checklist before claiming done / shipping / posting a result |
+| `/auto` or "just build it" / "run this arc" | Autonomous execution arc (Rule 35). Cursor: no CronCreate / statusline / self-restart |
+| `/roadmap` or "show the roadmap" | Per-project Band×Status feature grid from AGENTS.md + PROGRESS.md |
+| `/recap` or "what just happened" | Read-only orientation table; `/recap project [name\|all]` for roster glance |
+| `/interview` or "interview me about this" | Guided Q&A to capture tacit knowledge |
+| `/foundational-review` / `/readiness-audit` | Decision-anchored review / recurring readiness audit |
+| `/handoff [auto\|brief\|snap]` or "handoff session" | Passoff — next-session opener or coworker brief |
 | `/snapshot` or "capture task boundary" | Write a non-transcript task-boundary capture under `intake/task-boundary-captures/` (git + hook + config state) |
-| `/wrapup [auto]` or "wrap up session" | Session close-out — update tracking, commit, capture via /extract |
+| `/wrapup [auto\|snap]` or "wrap up session" | Session close-out — update tracking, commit, capture via /extract |
 
-Full skill instructions are in `.cursor/rules/`. Aliases (`/knowledge-audit`, `/config-audit`, `/share-audit`) are accepted as alternate phrasings of their canonical commands.
+Full skill instructions are in `.cursor/rules/`. Aliases (`/knowledge-audit`, `/config-audit`, `/share-audit`) are accepted as alternate phrasings of their canonical commands. `/audit knowledge|config|style|usage` routes through the `/audit` dispatcher.
 
 ## Rule 22 — Edit Discipline (MANDATORY)
 
@@ -123,6 +128,17 @@ If any are due, you will receive a prompt. Note the prompt but you do not need t
 | `auto_capture` | true | Auto-capture task-boundary insights |
 | `active_knowledge_surfacing` | true | Enable automatic context surfacing on task start |
 | `session_state` | false | Enable SESSION.md producer + resume (atlas integration) |
+| `session_state_tracked` | false | If true, SESSION.md is committed (not gitignored). Workspace repos often want `true` |
+| `session_stale_days` | 7 | Age after which a saved resume prompt is treated as possibly-stale |
+| `autonomy` | default | SessionStart Rule 35 posture: `default` (silent) / `balanced` / `autonomous` |
+| `planning_paths` | empty | Path patterns that downgrade Rule 22 to the abbreviated planning marker (protect always wins) |
+| `preflight_gate` | warn | `off` / `warn` / `deny` on `git commit` with no `/preflight` this session |
+| `preflight_deny_paths` | empty | Staged-path globs that deny a commit regardless of baseline |
+| `preflight_deny_repos` | empty | Substrings matched against the commit's git toplevel (deny regardless of baseline) |
+| `external_fetch_gate` | off | When `on`, first WebFetch/WebSearch per surface that local files already cover is denied once |
+| `external_fetch_max_hits` | 8 | Ambient-surface cap — above this many matching files the fetch gate stays silent |
+| `style_lookback_days` | 90 | `/audit style` first-run lookback window |
+| `style_max_sessions` | 50 | `/audit style` over-cap gate |
 | `subagent_capture` | true | Archive subagent transcripts on subagentStop |
 | `subagent_capture_types` | generalPurpose,explore,shell,... | Subagent types to archive |
 | `subagent_selfreport_types` | explore | Subagent types that get self-report nudge |

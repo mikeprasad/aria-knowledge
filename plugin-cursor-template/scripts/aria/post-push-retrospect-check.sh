@@ -14,7 +14,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 case "$KT_AUTO_RETROSPECT" in nudge|run) ;; *) exit 0 ;; esac
 
 # Gate 2: is this a git push?
-COMMAND=$(echo "$INPUT" | grep -o '"command":"[^"]*"' | head -1 | sed 's/"command":"//;s/"$//')
+COMMAND=$(printf '%s' "$INPUT" | grep -o '"command":"[^"]*"' | head -1 | sed 's/"command":"//;s/"$//')
 case "$COMMAND" in *"git push"*) ;; *) exit 0 ;; esac
 
 # Gate 3: force-push skip. Space-wrap $COMMAND so an end-of-command flag

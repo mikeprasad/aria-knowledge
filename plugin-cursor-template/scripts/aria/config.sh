@@ -27,6 +27,10 @@ if [ -f "$KT_CONFIG" ]; then
   KT_AUTO_CAPTURE=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^auto_capture:' | sed 's/^auto_capture: *//')
   KT_ACTIVE_SURFACING=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^active_knowledge_surfacing:' | sed 's/^active_knowledge_surfacing: *//')
   KT_CRITICAL_PATHS=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^critical_paths:' | sed 's/^critical_paths: *//')
+  KT_PLANNING_PATHS=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^planning_paths:' | sed 's/^planning_paths: *//')
+  KT_PREFLIGHT_GATE=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^preflight_gate:' | sed 's/^preflight_gate: *//')
+  KT_PREFLIGHT_DENY_PATHS=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^preflight_deny_paths:' | sed 's/^preflight_deny_paths: *//')
+  KT_PREFLIGHT_DENY_REPOS=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^preflight_deny_repos:' | sed 's/^preflight_deny_repos: *//')
   KT_PROJECTS_ENABLED=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^projects_enabled:' | sed 's/^projects_enabled: *//')
   KT_PROJECTS_LIST=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^projects_list:' | sed 's/^projects_list: *//')
   KT_PROJECTS_REMOTES=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^projects_remotes:' | sed 's/^projects_remotes: *//')
@@ -45,12 +49,18 @@ if [ -f "$KT_CONFIG" ]; then
   KT_SUBAGENT_CAPTURE_TYPES=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^subagent_capture_types:' | sed 's/^subagent_capture_types: *//')
   KT_SUBAGENT_SELFREPORT_TYPES=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^subagent_selfreport_types:' | sed 's/^subagent_selfreport_types: *//')
   KT_SESSION_STATE=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^session_state:' | sed 's/^session_state: *//')
+  KT_SESSION_STATE_TRACKED=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^session_state_tracked:' | sed 's/^session_state_tracked: *//')
   KT_AUTO_PROSPECT=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^auto_prospect:' | sed 's/^auto_prospect: *//')
   KT_AUTONOMY=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^autonomy:' | sed 's/^autonomy: *//' | tr -d ' ')
   KT_AUTO_RETROSPECT=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^auto_retrospect:' | sed 's/^auto_retrospect: *//')
   KT_RETROSPECT_MIN_COMMITS=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^retrospect_min_commits:' | sed 's/^retrospect_min_commits: *//')
   KT_RETROSPECT_BRANCHES=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^retrospect_branches:' | sed 's/^retrospect_branches: *//')
   KT_USAGE_ALERT_THRESHOLD=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^usage_alert_threshold:' | sed 's/^usage_alert_threshold: *//')
+  KT_STYLE_LOOKBACK_DAYS=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^style_lookback_days:' | sed 's/^style_lookback_days: *//')
+  KT_STYLE_MAX_SESSIONS=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^style_max_sessions:' | sed 's/^style_max_sessions: *//')
+  KT_STYLE_AUDIT_LOG=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^style_audit_log:' | sed 's/^style_audit_log: *//')
+  KT_EXTERNAL_FETCH_GATE=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^external_fetch_gate:' | sed 's/^external_fetch_gate: *//')
+  KT_EXTERNAL_FETCH_MAX_HITS=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^external_fetch_max_hits:' | sed 's/^external_fetch_max_hits: *//')
 
   # Defaults if not set
   KT_CADENCE_KNOWLEDGE=${KT_CADENCE_KNOWLEDGE:-7}
@@ -73,7 +83,10 @@ if [ -f "$KT_CONFIG" ]; then
   KT_SUBAGENT_CAPTURE_TYPES=${KT_SUBAGENT_CAPTURE_TYPES:-generalPurpose,explore,shell,code-reviewer,code-architect,code-explorer}
   KT_SUBAGENT_SELFREPORT_TYPES=${KT_SUBAGENT_SELFREPORT_TYPES:-explore}
   KT_SESSION_STATE=${KT_SESSION_STATE:-false}
+  KT_SESSION_STATE_TRACKED=${KT_SESSION_STATE_TRACKED:-false}
   KT_AUTO_PROSPECT=${KT_AUTO_PROSPECT:-off}
+  KT_EXTERNAL_FETCH_GATE=${KT_EXTERNAL_FETCH_GATE:-off}
+  KT_EXTERNAL_FETCH_MAX_HITS=${KT_EXTERNAL_FETCH_MAX_HITS:-8}
   KT_AUTONOMY=${KT_AUTONOMY:-default}
   KT_AUTO_RETROSPECT=${KT_AUTO_RETROSPECT:-off}
   KT_RETROSPECT_MIN_COMMITS=${KT_RETROSPECT_MIN_COMMITS:-3}
@@ -87,7 +100,24 @@ if [ -f "$KT_CONFIG" ]; then
   esac
   KT_SUBAGENT_CAPTURE_TYPES=$(printf '%s' "$KT_SUBAGENT_CAPTURE_TYPES" | tr -d ' ')
   KT_SUBAGENT_SELFREPORT_TYPES=$(printf '%s' "$KT_SUBAGENT_SELFREPORT_TYPES" | tr -d ' ')
+  # Preflight commit gate. Default WARN: escalation to deny is opt-in.
+  # Unrecognized values fall back to warn rather than to off — a typo must not
+  # silently disable a gate.
+  case "$KT_PREFLIGHT_GATE" in
+    off|warn|deny) : ;;
+    *) KT_PREFLIGHT_GATE="warn" ;;
+  esac
+  case "$KT_EXTERNAL_FETCH_GATE" in
+    on|off) : ;;
+    *) KT_EXTERNAL_FETCH_GATE="off" ;;
+  esac
+  case "$KT_EXTERNAL_FETCH_MAX_HITS" in
+    ''|*[!0-9]*) KT_EXTERNAL_FETCH_MAX_HITS=8 ;;
+  esac
   # KT_CRITICAL_PATHS intentionally has no default — empty means no critical paths
+  # KT_PLANNING_PATHS intentionally has no default — empty means no user planning paths
+  #   (the hooks still apply their built-in planning globs, e.g. docs/specs, .cursor/skills/*/templates)
+  # KT_PREFLIGHT_DENY_PATHS / KT_PREFLIGHT_DENY_REPOS have no default — empty means no escalation
   # KT_PROJECTS_LIST and KT_PROJECTS_REMOTES intentionally have no defaults — empty means "no projects configured"
 
   # Validate knowledge_folder is non-empty
@@ -131,6 +161,10 @@ if [ -f "$KT_CONFIG" ]; then
   case "$KT_SESSION_STATE" in
     true|false) ;;
     *) KT_SESSION_STATE=false ;;
+  esac
+  case "$KT_SESSION_STATE_TRACKED" in
+    true|false) ;;
+    *) KT_SESSION_STATE_TRACKED=false ;;
   esac
   case "$KT_ACTIVE_SURFACING" in
     true|false) ;; # valid

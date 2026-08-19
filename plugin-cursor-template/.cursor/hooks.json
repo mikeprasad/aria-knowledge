@@ -9,10 +9,13 @@
     ],
     "afterFileEdit": [
       { "command": "bash scripts/aria/post-edit-check.sh" },
-      { "command": "bash scripts/aria/post-plan-prospect-check.sh" }
+      { "command": "bash scripts/aria/post-plan-prospect-check.sh" },
+      { "command": "bash scripts/aria/post-edit-tautology-check.sh" }
     ],
     "beforeShellExecution": [
-      { "command": "bash scripts/aria/bash-cd-check.sh" }
+      { "command": "bash scripts/aria/bash-cd-check.sh" },
+      { "command": "bash scripts/aria/pre-bash-write-check.sh" },
+      { "command": "bash scripts/aria/pre-commit-preflight-check.sh" }
     ],
     "afterShellExecution": [
       {
@@ -22,6 +25,18 @@
     ],
     "beforeReadFile": [
       { "command": "bash scripts/aria/pre-explore-codemap-check.sh" }
+    ],
+    "preToolUse": [
+      {
+        "command": "bash scripts/aria/pre-external-fetch-check.sh",
+        "matcher": "WebFetch|WebSearch|MCP:.*[Ww]eb"
+      }
+    ],
+    "beforeMCPExecution": [
+      {
+        "command": "bash scripts/aria/pre-external-fetch-check.sh",
+        "matcher": "[Ww]eb|[Ff]etch|[Ss]earch"
+      }
     ],
     "subagentStart": [
       { "command": "bash scripts/aria/subagent-start-selfreport.sh" }

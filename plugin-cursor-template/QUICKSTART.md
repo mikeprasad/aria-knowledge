@@ -78,7 +78,7 @@ Edit any file in the repo — you should see a `[Rule 22]` reminder in the agent
 
 | Capability | Claude Code | Cursor port |
 |---|---|---|
-| Hook events | `SessionStart`, `PreToolUse`, `PostToolUse`, `PreCompact`, `PostCompact`, `TaskCreated` | `sessionStart`, `beforeFileEdit`, `afterFileEdit`, `beforeShellExecution`, `beforeReadFile`, `stop` |
+| Hook events | `SessionStart`, `PreToolUse`, `PostToolUse`, `PreCompact`, `PostCompact`, `TaskCreated` | `sessionStart`, `beforeFileEdit`, `afterFileEdit`, `beforeShellExecution`, `afterShellExecution`, `beforeReadFile`, `preToolUse`, `beforeMCPExecution`, `subagentStart`/`Stop`, `stop` |
 | Rule 22 enforcement | Transcript-scoped scan in `pre-edit-check.sh` (structural deny) | Edit-intent marker (`record-edit-intent.sh`) + `beforeFileEdit` advisory + AGENTS.md/.cursor/rules instructions |
 | Task-boundary capture | `PreCompact` transcript snapshot | `stop` hook → `capture-task-boundary.sh` writes git + config + hook state under `intake/task-boundary-captures/` |
 | Slash commands | Native Claude Code skill runtime | Natural-language triggers documented in `.cursor/rules/*.mdc` (slash names recognized; trigger phrases work too) |
@@ -138,11 +138,11 @@ Code, write, debug, refactor — normal flow. ARIA stays mostly invisible. Two i
 ### Mid-session capture
 
 ```
-/clip <url>              # capture a URL or snippet for later reference
-/clip-thread <url>       # capture Slack/Teams/Gmail thread (MCP)
+/intake <url>            # clip a URL or snippet for later reference
+/intake thread <url>     # capture Slack/Teams/Gmail thread (MCP)
 /meeting-notes paste     # fold meeting notes (paste or MCP)
 /intake doc <url>        # structured single-doc capture
-/extract-doc <url>       # decompose external doc into backlog (MCP)
+/intake extract <url>    # decompose external doc into backlog (MCP)
 /snapshot                # task-boundary capture under intake/task-boundary-captures/
 ```
 
@@ -153,6 +153,7 @@ Inline `★ Insight` blocks the agent emits during work get auto-captured to you
 ```
 /wrapup              # session close-out (PROGRESS, AGENTS.md, memory, commit, /extract)
 /wrapup auto         # same, silent — /extract always runs (no judgment-skip)
+/wrapup snap         # auto, but archive via /snapshot instead of live /extract
 ```
 
 Passoff (next session or coworker):
@@ -160,6 +161,7 @@ Passoff (next session or coworker):
 ```
 /handoff             # combined-go review + paste-ready next-session opener
 /handoff auto        # silent passoff — /extract always runs
+/handoff snap        # auto, but archive via /snapshot instead of live /extract
 /handoff brief       # 80–150 word coworker brief only (no file writes)
 ```
 
@@ -177,8 +179,8 @@ capture → govern → promote → apply → refresh
 
 | Phase | What happens | Primary skills |
 |-------|-------------|----------------|
-| **Capture** | Insights, decisions, URLs, snippets enter the intake backlog | `/clip`, `/snapshot`, `/extract`, inline `★ Insight` blocks |
-| **Govern** | You review intake at audit cadence; decide what's load-bearing vs noise | `/audit-knowledge` |
+| **Capture** | Insights, decisions, URLs, snippets enter the intake backlog | `/intake`, `/snapshot`, `/extract`, inline `★ Insight` blocks |
+| **Govern** | You review intake at audit cadence; decide what's load-bearing vs noise | `/audit-knowledge` (or `/audit`) |
 | **Promote** | Approved items move from intake into the promoted knowledge tree (`approaches/`, `decisions/`, etc.) with tags | `/audit-knowledge` (auto-routes) |
 | **Apply** | Promoted knowledge actively shapes the next decision via tag-based retrieval + Rule 22 enforcement | `/context`, `/rules`, `/codemap`, `/stitch`, `/distill`, `/prospect`, `/retrospect` |
 | **Refresh** | Stale items get re-verified, archived, or removed | `/audit-knowledge` (staleness sub-mode), `/index` (drift detection) |
@@ -203,7 +205,8 @@ The point is the apply phase. Knowledge that gets captured but never retrieved i
 |----------|-----|
 | Honor Rule 22 markers — and run `record-edit-intent.sh` before Edit/Write | Cursor can't structurally enforce, so the marker is your discipline. Bypassing defeats the audit trail |
 | Use `/prospect` before multi-step plans | Pre-mortem catches assumption errors before the first edit lands |
-| `/clip` and `/snapshot` are cheap | If something feels worth keeping, capture it. Audit triages later |
+| Run `/preflight` before claiming done | Catches checks whose absence produces no error |
+| `/intake` and `/snapshot` are cheap | If something feels worth keeping, capture it. Audit triages later |
 | Keep commits atomic | Per ARIA's commit discipline — one concern per commit makes `/retrospect` output useful |
 
 ### Session end (last 2 minutes)
@@ -255,7 +258,7 @@ The `beforeFileEdit` hook reads this marker to verify you assessed before the ed
 
 ### "I just discovered a useful approach mid-session"
 
-Drop an inline `★ Insight` block in your reply, or run `/clip` with a snippet. At session end, `/extract` will collect it into `knowledge/intake/insights-backlog.md`. The next `/audit-knowledge` lets you promote it.
+Drop an inline `★ Insight` block in your reply, or run `/intake` with a snippet. At session end, `/extract` will collect it into `knowledge/intake/insights-backlog.md`. The next `/audit-knowledge` lets you promote it.
 
 ### "Switching projects mid-session"
 
@@ -278,5 +281,7 @@ Drop an inline `★ Insight` block in your reply, or run `/clip` with a snippet.
 - **Hook events** are defined in `.cursor/hooks.json`. Cursor resolves `command` paths relative to the hooks.json file location (`.cursor/`); the port uses paths relative to the repo root, which Cursor resolves correctly when scripts are at `scripts/aria/*.sh`.
 - **Path validation**: at session start, the hook reads `.cursor/aria-knowledge.local.md`. If `knowledge_folder` is not an absolute path or the folder doesn't exist, you'll see a prompt to run `/setup`.
 - **Permissions**: scripts run with the user's permissions. The port avoids destructive operations; the only writes are under the configured `knowledge_folder` and to `/tmp/aria-hook-debug.log`.
-- **Fail-open**: every hook script is fail-open. A bug in a hook will never block an edit, shell command, or read.
+- **Fail-open on parse errors**: most hooks fail open. Two exceptions can **deny**: `pre-commit-preflight-check.sh` (when `preflight_gate: deny` or a deny-path/repo matches) and `pre-external-fetch-check.sh` (when `external_fetch_gate: on`). Both still fail open on unparseable input.
 - **Compaction**: there is no compaction lifecycle in Cursor. The port's `stop` hook + `capture-task-boundary.sh` substitute writes a non-transcript snapshot at task end.
+- **`/auto`**: compiled into `aria-commands.mdc`. No CronCreate, no statusline usage figure, no `self-restart` wrapper. Recurring prompts: Cursor `/loop`.
+- **`/statusline` and `/aria-assist`**: Claude Code only — not in this port.
