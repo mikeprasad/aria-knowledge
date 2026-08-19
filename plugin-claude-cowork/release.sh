@@ -21,7 +21,12 @@ VERBOSE=0
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_MANIFEST="$REPO_ROOT/.claude-plugin/plugin.json"
-ARIA_KNOWLEDGE_TEMPLATE="${ARIA_KNOWLEDGE_REPO:-$REPO_ROOT/../aria-knowledge/plugin/template}"
+# Canonical template dir. Cowork lives at <repo>/plugin-claude-cowork/, so canonical
+# is a SIBLING: <repo>/plugin-claude-code/template. The previous default resolved to
+# <repo>/aria-knowledge/plugin/template -- a doubled path that has never existed in
+# this layout -- so the parity check below silently skipped on every release. That is
+# why working-rules.md drifted two paragraphs behind canonical undetected.
+ARIA_KNOWLEDGE_TEMPLATE="${ARIA_KNOWLEDGE_REPO:-$REPO_ROOT/../plugin-claude-code/template}"
 
 log()  { printf '\033[0;36m[release]\033[0m %s\n' "$*"; }
 ok()   { printf '\033[0;32m[  ok   ]\033[0m %s\n' "$*"; }
@@ -121,7 +126,13 @@ fi
 if [[ -d "$ARIA_KNOWLEDGE_TEMPLATE" ]]; then
     log "template-parity check vs $ARIA_KNOWLEDGE_TEMPLATE"
     DRIFT_COUNT=0
-    for f in rules/working-rules.md rules/change-decision-framework.md rules/enforcement-mechanisms.md aliases.md intake/intake-doc.md; do
+    # PLUGIN-MANAGED files only. User-owned files (aliases.md, rules/user-rules.md,
+    # rules/user-examples.md) are DELIBERATELY divergent -- each port seeds them with
+    # runtime-flavoured examples (cowork ships meeting/brief/doc, canonical ships
+    # rn/ts/k8s) and /aria-setup never diff-prompts them. Checking them produced a
+    # permanent ~20-line false positive, and a check that always warns is a check
+    # everyone learns to ignore. Do NOT re-add them here.
+    for f in rules/working-rules.md rules/change-decision-framework.md rules/enforcement-mechanisms.md rules/retrospect-patterns.md rules/overbuild-patterns.md intake/intake-doc.md; do
         cowork_file="$REPO_ROOT/template/$f"
         upstream_file="$ARIA_KNOWLEDGE_TEMPLATE/$f"
         if [[ -f "$cowork_file" && -f "$upstream_file" ]]; then
@@ -130,7 +141,15 @@ if [[ -d "$ARIA_KNOWLEDGE_TEMPLATE" ]]; then
                 # Split diff capture from filter pipeline — diff returns 1 when files differ
                 # (expected here), and with pipefail+set -e that propagates fatal otherwise.
                 DIFF_OUTPUT=$(diff "$cowork_file" "$upstream_file" || true)
-                CHANGES=$(printf '%s\n' "$DIFF_OUTPUT" | { grep -v "/aria-setup\|/setup" || true; } | wc -l | tr -d ' ')
+                # Count CONTENT lines only ('<' / '>'), not diff METADATA. The prior
+                # `wc -l` counted the '1c1' and '---' lines too, and those survive the
+                # grep -v filter -- so a file whose ONLY difference was the sanctioned
+                # /setup <-> /aria-setup substitution still counted 2 and warned. The
+                # check flagged the exact divergence it exists to tolerate, on all three
+                # plugin-managed rules files, on every run.
+                # `|| true` is required: grep -c exits 1 on a zero count, which is fatal
+                # under the `set -euo pipefail` above.
+                CHANGES=$(printf '%s\n' "$DIFF_OUTPUT" | { grep -v "/aria-setup\|/setup" || true; } | { grep -c '^[<>]' || true; })
                 if [[ "$CHANGES" -gt 0 ]]; then
                     warn "TEMPLATE-PARITY drift: $f differs beyond expected /setup ↔ /aria-setup substitution"
                     DRIFT_COUNT=$((DRIFT_COUNT + 1))
@@ -150,7 +169,11 @@ if [[ -d "$ARIA_KNOWLEDGE_TEMPLATE" ]]; then
         ok "template-parity check clean"
     fi
 else
-    vlog "aria-knowledge template path not found at $ARIA_KNOWLEDGE_TEMPLATE — skipping parity check"
+    # warn, NOT vlog. This branch is the check failing to run at all, and it went
+    # unnoticed for months because vlog prints nothing at normal verbosity -- a
+    # broken path and a clean result were indistinguishable. A skipped check must
+    # be louder than a passing one.
+    warn "template-parity check SKIPPED — canonical template not found at $ARIA_KNOWLEDGE_TEMPLATE (drift is NOT ruled out)"
 fi
 
 # --- stage ------------------------------------------------------------------

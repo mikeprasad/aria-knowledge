@@ -113,7 +113,7 @@ The folder is reachable. Read the expected structure from `${CLAUDE_PLUGIN_ROOT}
 `intake/`, `intake/clippings/`, `intake/notes/`, `intake/attachments/`, `decisions/`, `approaches/`, `guides/`, `references/`, `archive/`, `rules/`, `logs/`
 
 **Expected files** (copy from `${CLAUDE_PLUGIN_ROOT}/template/<file>` if missing):
-`README.md`, `OVERVIEW.md`, `LOCAL.md`, `aliases.md` *(user-owned, added v0.3.0 — see "User-owned templates" below)*, `intake/insights-backlog.md`, `intake/decisions-backlog.md`, `intake/extraction-backlog.md`, `intake/rules-backlog.md`, `rules/working-rules.md`, `rules/change-decision-framework.md`, `rules/enforcement-mechanisms.md`, `rules/user-rules.md`, `rules/user-examples.md` *(user-owned, added v0.3.0 — see "User-owned templates" below)*, `logs/knowledge-audit-log.md`, `logs/config-audit-log.md`, plus the directory READMEs (`approaches/README.md`, `archive/README.md`, etc.).
+`README.md`, `OVERVIEW.md`, `LOCAL.md`, `aliases.md` *(user-owned, added v0.3.0 — see "User-owned templates" below)*, `intake/insights-backlog.md`, `intake/decisions-backlog.md`, `intake/extraction-backlog.md`, `intake/rules-backlog.md`, `rules/working-rules.md`, `rules/change-decision-framework.md`, `rules/enforcement-mechanisms.md`, `rules/retrospect-patterns.md`, `rules/user-rules.md`, `rules/user-examples.md` *(user-owned, added v0.3.0 — see "User-owned templates" below)*, `logs/knowledge-audit-log.md`, `logs/config-audit-log.md`, plus the directory READMEs (`approaches/README.md`, `archive/README.md`, etc.).
 
 **Excluded** (Code-only per ADR-005): `distill/`, `stitch/` — do NOT scaffold these in aria-cowork.
 

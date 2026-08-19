@@ -4,6 +4,21 @@ All notable changes to aria-cowork are documented here. Format follows [Keep a C
 
 Cross-plugin parity callouts (per ADR-006) note when changes coordinate with aria-knowledge releases.
 
+## [1.6.0] — 2026-08-19
+
+**Close the canonical parity gap — and repair the check that was supposed to catch it.** Coordinated with aria-knowledge v2.46.3.
+
+Cowork sat at parity target 2.36.0 while canonical reached 2.46.2. Most of that distance is not portable: `planning_paths`, the preflight and external-fetch gates, `session_state_tracked` and `lib-session-state.sh` are all hooks or shell, and `/auto` has no cowork counterpart. Measured against a skills-only, hook-less, shell-less runtime, the real gap was four items.
+
+- **`template/rules/working-rules.md` — two missing preamble paragraphs.** "Two strictness tiers" (gates vs defaults) and "Tie-breaker for genuine ties" (prefer reversibility and an audit trail). Censused across all five ports: canonical, antigravity, codex and cursor each carry both; cowork alone carried neither. The file now differs from canonical only by the sanctioned `/setup` ↔ `/aria-setup` header substitution.
+- **`template/rules/retrospect-patterns.md` — shipped for the first time.** Cowork's own `/prospect` and `/retrospect` instruct reading `<knowledge_folder>/rules/retrospect-patterns.md` in 18 places, and the port did not contain the file. Ported byte-identically from canonical: it is 287 lines with zero shell, git, `/setup` or Claude-Code references, so no adaptation was warranted — the same treatment `overbuild-patterns.md` already receives.
+- **`/aria-setup` scaffolds it.** Step 4's expected-files list is a copy manifest, not a directory sweep, so an unlisted file never reaches a user's knowledge folder. For a cowork-only install that made the reference above unresolvable by construction. `rules/overbuild-patterns.md` is deliberately **not** added: no port lists it, so adding it to cowork alone would create divergence rather than close it. That gap is real but product-wide.
+- **`release.sh`'s template-parity check never ran, and could not have passed if it had.** Two independent defects. Its canonical path resolved to `<repo>/aria-knowledge/plugin/template` — a doubled directory that has never existed in this layout — and the miss branch logged through `vlog`, which prints nothing at normal verbosity. A broken path and a clean result were indistinguishable, which is why the drift above accumulated unseen. Separately, the drift counter used `wc -l` on filtered diff output, which counts diff *metadata* (`1c1`, `---`) alongside content; a file whose only difference was the sanctioned header substitution still counted 2 and warned. The check flagged the exact divergence it exists to tolerate, on every plugin-managed rules file, every run. Now: the path points at the sibling `plugin-claude-code/template`, the counter counts only `<`/`>` content lines (guarded with `|| true`, since `grep -c` exits 1 on zero under `set -euo pipefail`), the miss branch warns, and the checked set is plugin-managed files only — the user-owned `aliases.md` was removed, as its ~20-line divergence is deliberate per-runtime seeding and a check that always warns is a check everyone learns to ignore.
+
+Validated by mutation in three directions rather than by a single green run: a clean tree reports clean; injected drift is caught and names the file; a broken canonical path warns at default verbosity. The working-rules file was restored from a byte backup and `cmp`-verified after the drift arm, never `git checkout`, since the tree carries other sessions' uncommitted work.
+
+- **Parity:** coordinates with aria-knowledge v2.46.3. No skill bodies, descriptions or manifest entries changed; summed description budget unchanged at 8,722 / 9,000.
+
 ## [1.5.0] — 2026-06-29
 
 **Sync the universal working-rules to canonical parity (coordinated with aria-knowledge v2.38.0).** Two new rules + two strengthened, plus closing a real drift: cowork's `working-rules.md` was missing **Rule 35** entirely (a v2.35.0 tracked-drift gap). Brought to full canonical parity (Rules 35 + 36 + 37), preserving only the `/aria-setup` header-comment divergence.
