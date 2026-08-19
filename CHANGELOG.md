@@ -2,6 +2,32 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.46.3 — 2026-08-19
+
+**A ports release. `plugin-claude-code` itself is byte-unchanged** — `git diff v2.46.2..HEAD -- plugin-claude-code/` is empty. The version moves so the four port artifacts can ship, since all six stable aliases attach to a canonical release tag.
+
+**All four ports reach v2.46.2 content parity, and `check-port-drift.sh` reports 106 ok / 0 lag / 0 drifted / 0 missing for the first time.**
+
+### Ports
+
+- **antigravity** — synced in `0a856ad` (2026-08-18) and committed but never pushed, so it had not shipped either. Skill set is identical to canonical's 36.
+- **openai-codex** — 2.36.0-codex.0 → 2.46.2-codex.0. Adds 7 skills and 6 hook scripts. Skill set is 35 vs canonical's 36; the absentee is `/statusline`, documented at `PORTING.md:61-63` as intentionally not ported because Codex exposes no plugin statusline slot — a correct divergence, guarded by its own test. Validated by the port's own suite, 24/24, bare exit 0. No interpreter here has pytest, so the suite ran under a minimal zero-arg runner whose ability to report failure was proven first with an injected failing control.
+- **cursor-template** — 2.36.0-cursor.0 → 2.46.2-cursor.0. Validated by the compiler, which is the real oracle for a compiled port: re-running `port-skills-to-mdc.py` against current canonical skills reproduced the committed `.mdc` byte-for-byte, with a positive control confirming `git diff` could see a change at all.
+- **claude-cowork** — v1.5.0 → **v1.7.0**; see `plugin-claude-cowork/CHANGELOG.md`. `/intake` absorbs `/clip`, `/clip-thread` and `/extract-doc` (breaking); `/audit-knowledge` gains Step 2f, which is what makes clip-whole safe; `/interview` defaults to `guided`; the two missing working-rules preamble paragraphs and `retrospect-patterns.md` land.
+
+### Two detectors that could not have caught this
+
+Both are the same shape as the v2.46.2 fixes: a check whose form prevented it from reporting.
+
+- **cowork's `release.sh` template-parity check never ran.** Its canonical path resolved to `<repo>/aria-knowledge/plugin/template`, a doubled directory that has never existed in this layout, and the miss branch logged through `vlog` — silent at normal verbosity, so a broken path and a clean result were indistinguishable. That is why cowork's rules drift accumulated unseen. Separately, its drift counter used `wc -l` on filtered diff output, counting diff *metadata* alongside content, so a file whose only difference was the sanctioned `/setup` ↔ `/aria-setup` header still counted 2 and warned — it flagged the exact divergence it exists to tolerate, on every plugin-managed rules file, every run. Both fixed; mutation-proven in three directions (clean → clean, injected drift → named, broken path → warns at default verbosity).
+- **The lag line keys on the version string, so a canonical patch bump marks every port as lagging even when nothing portable changed.** Bumping 2.46.2 → 2.46.3 immediately produced four `lag` rows against byte-identical canonical content. The ports were re-baselined to 2.46.3 on the measured precondition that canonical's content is unchanged between the two tags. Worth recording as a known property rather than a bug: it is the same "a permanent signal is not a detector" failure v2.46.2 removed, surfacing in a different operand.
+
+### Known residual — cowork
+
+Five canonical skills remain absent from cowork: `audit` (dispatcher), `audit-share`, `audit-style`, `recap`, `roadmap`. All five declare `Bash` in `allowed-tools`; **zero of cowork's 24 skills do** (canonical: 25 of 36). `audit-style` mines local session logs through a shell and a bundled Python script, which a skills-only runtime cannot do at all. Porting all five also costs +2,702 description chars against 990 of headroom under a 9,000 cap that fails the install empirically at 9,233.
+
+**`PORT-LEDGER.json` cannot express this** — it hashes files that exist, so an unported skill is invisible to it rather than "drifted". The residual is therefore recorded in `plugin-claude-cowork/CLAUDE.md`, and a clean drift report should not be read as meaning those five are done. They are an open design question requiring cowork-native redesign, not drift.
+
 ## 2.46.1 — 2026-08-16
 
 **Fixed — the preflight gate never fired on `git -C <dir> commit`, and always fired on `git commit-tree`.**
