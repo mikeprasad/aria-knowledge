@@ -239,7 +239,11 @@ log "stable alias: $(basename "$STABLE_PATH")"
 # --- expected-content sanity check ------------------------------------------
 # v0.3.0 ships 20 skills + intake-doc.md template + 14 template files.
 # Quick existence checks (release-time, not exhaustive).
-expected_skills="ask audit-config audit-knowledge context extract handoff index intake prospect retrospect rules snapshot stats wrapup aria-setup help backlog clip foundational-review readiness-audit interview"
+# `clip` was removed from this list in v1.7.0 when it, `clip-thread` and
+# `extract-doc` were folded into `/intake` and archived under skills/.archived/.
+# A retired name left here warns on every build, and a check that always warns
+# stops being read — which is how the template-parity check above went unnoticed.
+expected_skills="ask audit-config audit-knowledge context extract handoff index intake prospect retrospect rules snapshot stats wrapup aria-setup help backlog foundational-review readiness-audit interview"
 missing_skills=""
 # Capture unzip listing once — avoids SIGPIPE+pipefail false-positives when
 # grep -q early-exits inside a piped pipeline (kills unzip, pipefail trips).

@@ -52,11 +52,11 @@ Check Claude's available tool list for `~~docs` MCPs:
 - **If `~~docs` IS NOT connected OR input is `paste` (or empty):** offer paste fallback (Step 2 paste branch).
 - **If input is `paste` even with `~~docs` connected:** respect the explicit paste choice; skip MCP fetch.
 
-Unlike `/extract-doc`, `/clip-thread`, `/digest`, and `/sync-decisions`, this skill does NOT hard-stop when no `~~docs` MCP is present. Meeting transcripts often arrive via paste (from Granola, from a meeting tool's export button, from hand-typed notes) — closing that path would defeat the skill's primary use case.
+Unlike `/intake extract`, `/intake thread`, `/digest`, and `/sync-decisions`, this skill does NOT hard-stop when no `~~docs` MCP is present. Meeting transcripts often arrive via paste (from Granola, from a meeting tool's export button, from hand-typed notes) — closing that path would defeat the skill's primary use case.
 
 ## Step 2 (MCP branch): Parse + Fetch from ~~docs
 
-Same as `/extract-doc` Step 2-3. Routing table:
+Same as `/intake` doc-mode steps D2-D3. Routing table:
 
 | Input shape | Routes to |
 |---|---|
@@ -184,22 +184,22 @@ Captured meeting "<title>" to intake/meetings/<date>-<slug>.md.
 - Decisions: <N>
 - Open questions: <N>
 
-Next: add a reaction in the "## Reaction" section (or wait for /audit-knowledge to surface it). Action items + decisions may be worth extracting separately via /extract-doc on this file if you want them in the standard intake backlogs.
+Next: add a reaction in the "## Reaction" section (or wait for /audit-knowledge to surface it). Action items + decisions may be worth extracting separately via `/intake extract` on this file if you want them in the standard intake backlogs.
 ```
 
 ## Rules
 
 - **Never delete the source doc.** Read-only on the MCP side.
 - **Preserve the raw transcript verbatim.** The structured sections are derived; the raw transcript is the source-of-truth. Both ship in the same file so audit / future re-extraction has the source.
-- **Strip secrets if obvious** — same redaction rules as `/clip-thread`. Note redactions in frontmatter.
+- **Strip secrets if obvious** — same redaction rules as `/intake` thread mode. Note redactions in frontmatter.
 - **Default `(none identified)` over fabrication.** If a section can't be reliably parsed, mark it empty rather than guess.
 - **One meeting per invocation.** Multiple meetings = multiple `/meeting-notes` calls.
 
 ## Notes
 
-- The Reaction section pattern matches `/intake doc` (v0.3.0) and `/clip-thread` (v1.0.0) — capture artifacts ship with a user-fillable "why this matters" slot that Claude never autocompletes.
+- The Reaction section pattern matches `/intake doc` (v0.3.0) and `/intake` thread mode (v1.0.0, absorbed from `/clip-thread` in v1.7.0) — capture artifacts ship with a user-fillable "why this matters" slot that Claude never autocompletes.
 - Bidirectional per [ADR-014](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/014-bidirectional-feature-flow.md) — aria-knowledge v2.18.0 ships an identical body.
 - Output schema is byte-identical per [ADR-013](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/013-cowork-modified-skills-schema-identical-outputs.md). Both plugins write to `intake/meetings/` in the shared knowledge folder.
 - **Paste-fallback divergence** documented in [ADR-015](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/015-capability-probe-pattern.md) §"Application across the 5 MCP-consuming skills" — this is the one skill that doesn't hard-stop on missing MCPs.
-- The skill is **intake-only** — it doesn't promote meeting notes to `references/` or `decisions/`. That's `/audit-knowledge`'s job at next audit, or the user can manually promote via `/extract-doc` on this file to split out decisions/action items.
+- The skill is **intake-only** — it doesn't promote meeting notes to `references/` or `decisions/`. That's `/audit-knowledge`'s job at next audit, or the user can manually promote via `/intake extract` on this file to split out decisions/action items.
 - Composes naturally with Granola exports — Granola's Markdown format already includes participants + transcript + (optionally) extracted action items. The paste branch picks this up cleanly.

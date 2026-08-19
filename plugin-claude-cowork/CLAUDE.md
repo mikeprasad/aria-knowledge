@@ -1,5 +1,28 @@
 # CLAUDE.md — aria-cowork
 
+## ⚠ Parity residual (2026-08-19, v1.7.0) — READ BEFORE ANY PARITY CLAIM
+
+**v1.7.0 brought cowork to canonical v2.46.2 parity for everything portable**, and `PORT-LEDGER.json` is stamped accordingly (`parity_target: 2.46.2`, all surfaces `ok`). **That stamp does NOT mean cowork has every canonical skill.**
+
+**Five canonical skills remain absent, and the ledger structurally cannot say so** — it hashes files that exist, so a skill that was never ported is invisible to it, not "drifted":
+
+| Absent | Why it is not a simple port |
+|---|---|
+| `audit` (dispatcher) | routes to sub-audits; portable only once its targets exist |
+| `audit-share` | 11 Bash references |
+| `audit-style` | mines `~/.claude/projects/*.jsonl` through a shell **and** a bundled Python script — structurally impossible in a runtime with neither |
+| `recap` | 3 of its 5 modes (commit/push/pull) are pure git |
+| `roadmap` | git-based staleness detection |
+
+**All five declare `Bash` in `allowed-tools`. Zero of cowork's 24 skills do** (canonical: 25 of 36 — positive control). Each therefore needs a **cowork-native redesign**, the way `/snapshot` got 3-path source acquisition and `/daily-audit` replaced SessionStart — not a copy.
+
+⛔ **There is also a hard budget ceiling.** Summed `SKILL.md` description chars are capped at **9,000** by `release.sh`, with *empirical install failure* at 9,233. Cowork sits at **8,010**. Porting all five costs **+2,702** → 10,712, which fails the build. Even two of the five needs description trimming across the existing 24 first.
+
+⇒ Treat these as an **open design question, not drift**. Do not "fix" them by copying canonical, and do not read the clean drift report as meaning they are done.
+
+A separate eight (`auto`, `preflight`, `statusline`, `codemap`, `stitch`, `distill`, `aria-assist`, `audit-usage`) are Code-canonical by nature and correctly absent.
+
+
 **Status (2026-05-19):** **v1.1.0 SHIPPED publicly** at `mikeprasad/aria-cowork` — three same-day releases on top of the first public release ceremony: v1.0.0 (initial public ship) → v1.0.1 (install-fix patch from parallel session: `google_docs` → `google docs` MCP id + Cowork validator description-length fixes + aggregate-description preflight in release.sh) → v1.1.0 (minor: `/wrapup` vs `/handoff` intent split + `/wrapup auto` mode, mirroring aria-knowledge v2.19.0; no new skills, no MCP changes, no schema changes — pure behavioral/documentation refactor). First MCP-consuming release + v1.0 stable-contract claim per ADR-006. v1.0.0 ship cycle: originally planned as v0.4.0; bumped to v1.0.0 mid-build per Mike's directive (capability triggers landed); shipped as initial public release ceremony (git init + push to mikeprasad/aria-cowork + gh release create). 6 new Cowork-native skills (5 bidirectional MCP-consuming: clip-thread / extract-doc / meeting-notes / digest / sync-decisions, ported byte-faithfully from aria-knowledge v2.18.0 per ADR-013 + ADR-014; plus 1 cowork-only: daily-audit, first-message audit-cadence substitute since Cowork has no SessionStart hook per ADR-004). Skill manifest 20 → 26 (24 distinct + 2 aliases). Ships `.mcp.json` + `CONNECTORS.md` foundation (12 MCPs across 4 categories: chat / email / project tracker / docs) plus 2 new ADRs (015 capability-probe pattern, 016 Rule 22 advisory preamble for external writes). Coordinated release pair with aria-knowledge v2.18.0. **First WRITE-side skill in either ARIA plugin** (`/sync-decisions` mirrors approved decisions to ~~docs MCP per ADR-016 with explicit per-write go-gate). v0.3.0 history below: major parity-catch-up release with aria-knowledge v2.14.0 → v2.17.0. Cowork's skill manifest grew from 10 → 20 skills (18 distinct + 2 aliases for /audit-knowledge ↔ /knowledge-audit and /audit-config ↔ /config-audit). Adds 5 planned-but-missing skills (/extract, /snapshot, /wrapup, /audit-knowledge, /audit-config) + 3 net-new skills not in original ADR-005 triage (/prospect, /retrospect, /handoff with three modes including new `brief`). Knowledge folder schema parity: aliases.md user-owned template (v2.16.0), semantic-hints frontmatter convention (v2.16.0), archive-cohort conventions for never-delete (v2.15.1+2), working-rules.md sync to v2.14.3+ baseline (Behavioral Foundation preamble + Rule 20 dual-form + 7 rule refinements), user-examples.md with cowork-flavored seed. 7 cowork-modified skills produce schema-identical knowledge-folder outputs per ADR-013. v0.3.0 also introduced the bidirectional feature flow precedent (B2 `/handoff brief` + B5 `/intake doc` originated in cowork's design discussion, shipped in aria-knowledge v2.17.0 first per schema-source-of-truth) — see ADR-014. **Cowork install works.** Prior release sequence (v0.2.1 through v0.2.5) preserved in CHANGELOG.md. Persistent-grant + default-path architecture per ADR-008 unchanged. Memory file at `~/.claude/projects/.../memory/project_aria_cowork.md` has full session history.
 
 **Cross-plugin compatibility (since v0.3.0 / aria-knowledge v2.17.0):** Features may originate in either plugin and port to the other; aria-knowledge remains the schema source-of-truth (output formats, knowledge-folder conventions, archive structures). v0.3.0's `/handoff brief` and `/intake doc` modes are the first cowork-originated features ported into aria-knowledge. See ADR-014 for the architectural rationale.

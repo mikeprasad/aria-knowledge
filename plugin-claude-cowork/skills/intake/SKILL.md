@@ -1,7 +1,7 @@
 ---
 name: intake
-description: 'Bulk-import knowledge from files/dirs/URLs/pasted content into the intake backlogs, OR capture one doc via a 5-section template (doc mode). Triggers — "/aria-cowork:intake", "/aria-cowork:intake doc", "import knowledge from", "scan this for knowledge", "onboard this". (Cowork variant — namespaced-only.)'
-argument-hint: '[doc <url-or-title>] | <path|directory|glob|url> [path2] [path3]'
+description: 'Capture knowledge into the intake tree, dispatching by input shape — a bare URL or text snippet clips whole; "extract <src>" decomposes it into the backlogs; "doc <src>" captures one doc via a 5-section template; "thread <id|url>" pulls a Slack/Teams/Gmail conversation via MCP; files/dirs/globs bulk-scan. Triggers — "/aria-cowork:intake", "clip this", "save this link", "save this snippet", "capture this URL", "archive this conversation", "import knowledge from", "scan this for knowledge", "onboard this". (Cowork variant — namespaced-only.)'
+argument-hint: '[extract <src>] | [doc <url-or-title>] | [thread <id-or-url>] | <url|text|path|directory|glob> [path2]'
 ---
 
 # /intake — Bulk Knowledge Import + Doc-Anchored Capture
@@ -41,7 +41,89 @@ The default knowledge folder is `~/Projects/knowledge/` (expand `~` to your home
 
 Use `<knowledge_folder>` for all file operations during this session. The absolute `knowledge_folder` from config is for reference (so aria-knowledge in Code reaches the same folder); during a Cowork session, the sandbox path resolves to the same files.
 
-**Mode detection:** If the first argument matches `doc` (case-insensitive), this is a doc-mode capture. Set `mode = doc`; the remaining arguments (if any) are the source URL, file path, or title. Jump to "Doc Mode Steps" below. Otherwise set `mode = bulk` and proceed to Step 1.
+**Mode detection (first match wins):**
+
+1. First arg `== extract` (case-insensitive) → `mode = extract`. The remaining arg is ONE source (URL / file / dir / doc-URL); decompose it into backlog entries by running the bulk-scan logic (Step 1 onward) on that single source. `extract` is **standalone** — it does NOT combine with `doc`/`thread` (no `/intake extract doc …`); a doc to decompose is just `/intake extract <doc-url>`. If the arg after `extract` is literally `doc` or `thread`, treat as malformed and prompt for clarification.
+2. First arg `== doc` → `mode = doc`. Jump to "Doc Mode Steps" (D1–D6), unchanged.
+3. First arg `== thread` → `mode = thread`. Jump to "Thread Mode Steps" (T1–T5) below.
+4. *(auto)* Single arg whose host is a chat/email service (`slack.com`, `teams.microsoft.com`, `mail.google.com`, outlook/office) → `mode = thread` (no keyword needed).
+5. *(auto)* Single arg matching `^https?://` OR free text (not an existing path) → `mode = clip-whole`. Jump to "Clip-Whole Steps" (C1–C3) below.
+6. *(auto)* Args are existing file paths / directories / globs, OR multiple sources → `mode = bulk`. Proceed to Step 1 (bulk scan, unchanged).
+7. No args → ask: *"What would you like to intake? (a URL, text, file/dir/glob; or `extract <src>` to decompose, `doc <src>` for a reflection capture, `thread <id>` for a chat/email thread)"*.
+
+The mental model: default = *capture this whole*; `extract` = *decompose it*; `doc` = *reflect on it (5-section)*; `thread` = the one source that needs naming (or auto-detected from a chat URL). **Note (behavior change from prior versions):** a bare URL now CLIPS WHOLE — it no longer auto-mines into backlogs. To mine a single URL, use `/aria-cowork:intake extract <url>` (or let `/aria-cowork:audit-knowledge` Step 2f decompose the clipping later).
+
+---
+
+## Clip-Whole Steps (mode = clip-whole)
+
+Capture the source **whole** as one clipping for later review at `/aria-cowork:audit-knowledge` Step 2f. Runs C1–C3 and exits. (Absorbs the retired `/aria-cowork:clip`.)
+
+### C1: Acquire content
+- **URL:** WebFetch; extract the page title + a summary (do NOT copy full page content — respect copyright). Capture the URL as `source`.
+- **Text snippet:** use the provided text verbatim as the body; title = first line.
+
+### C2: Write the clipping
+Resolve target `<knowledge_folder>/intake/clippings/{slug}.md` (slug from title; append `-2`/`-3` until unique). Write:
+
+```
+---
+source: [URL or "manual"]
+date: YYYY-MM-DD
+tags: [user-provided tags, or auto-detected from index.md, or empty array]
+---
+
+# [Title or first line of text]
+
+[Summary for URLs, full text for snippets]
+```
+
+**Tag detection:** if the user didn't provide tags, match title/content words against known tags in `<knowledge_folder>/index.md` (if it exists). Only high-confidence matches — don't guess.
+
+### C3: Confirm
+```
+Clipped to intake/clippings/{slug}.md
+Tags: [tags or "none"]
+Reviewed at the next /aria-cowork:audit-knowledge run (Step 2f).
+```
+
+**Exit after C3.**
+
+---
+
+## Thread Mode Steps (mode = thread)
+
+Pull a chat or email thread from a connected MCP into one clipping. Runs T1–T5 and exits. (Absorbs the retired `/aria-cowork:clip-thread`; its mechanics are carried here in full rather than compressed — this is the Cowork-native path, and the MCPs it depends on are normally connected in Cowork.)
+
+### T1: Probe connected MCPs
+Check the available tool list for `~~chat` and `~~email` MCPs. At least ONE must be connected.
+
+- **`~~chat`** (slack, ms365): Slack threads or Teams channel messages.
+- **`~~email`** (gmail, ms365): Gmail or MS365 email threads.
+
+If NEITHER category has a connected MCP, output the standard fallback notice and stop:
+
+> No required MCPs connected for thread mode. Connect one of: Slack, Microsoft 365 Teams (for `~~chat`) or Gmail, Microsoft 365 Outlook (for `~~email`) via Cowork Settings → Connectors (or Claude Code's `.mcp.json` for the Code surface). See [CONNECTORS.md](../../CONNECTORS.md). Skipping this run.
+
+### T2: Parse input
+Accept any of:
+- **A Slack thread URL** — `https://<workspace>.slack.com/archives/<channel>/<message-ts>` or a thread permalink
+- **A Teams message link** — `https://teams.microsoft.com/l/message/...`
+- **A Gmail thread ID or URL** — `https://mail.google.com/mail/u/0/#inbox/<thread-id>` or the bare thread ID
+- **A bare thread/conversation identifier** — an opaque string the connected MCP can resolve
+
+Optionally followed by tags (e.g. `slack #engineering`, `email customer-feedback`).
+
+### T3: Fetch thread content
+Pull the thread via the matching MCP: messages in order, plus metadata (participants, timestamps, channel or subject).
+
+### T4: Compose the clipping
+Use the threaded shape — a `## Context` block (participants, channel/subject, date range), then `## Thread` with one `### <Author> — <timestamp>` section per message in order, preserving `## Reaction` annotations where the source carries them. A threaded conversation loses its meaning when flattened, which is why this mode exists rather than reusing C2's snippet body.
+
+### T5: Write + report
+Write to `<knowledge_folder>/intake/clippings/{YYYY-MM-DD}-{slug}.md` with the same frontmatter shape as C2 (`source` = thread URL or id). Confirm as in C3.
+
+**Exit after T5.**
 
 ---
 

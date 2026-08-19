@@ -6,6 +6,8 @@ argument-hint: <thread-url-or-id> [tags]
 
 # /clip-thread — Capture Chat/Email Thread to Intake
 
+> **RETIRED 2026-08-19 (cowork v1.7.0).** Folded into `/aria-cowork:intake`: thread → `/aria-cowork:intake thread <id|url>`, or just paste a Slack/Teams/Gmail URL and it auto-detects (steps T1–T5). Kept for reference only — not a live skill (archived under `skills/.archived/`, excluded from discovery and from the summed-description budget). The five steps below were carried into `/intake` in full rather than compressed, because a threaded conversation loses its meaning when flattened into a snippet body. Mirrors canonical's v2.33.0 retirement.
+
 Save a chat thread or email conversation to `intake/clippings/{YYYY-MM-DD}-{slug}.md` for review and promotion. Unlike `/clip` (URL/snippet) or `/intake` (bulk/doc-anchored), `/clip-thread` is shaped specifically for *threaded* conversations — Slack threads, Teams channel discussions, Gmail conversation chains, MS365 email threads.
 
 ## Runtime Gate (per ADR-094)

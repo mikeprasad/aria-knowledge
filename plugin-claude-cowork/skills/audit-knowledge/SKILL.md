@@ -308,6 +308,35 @@ Append-only — if a subsequent audit on the same date also ledgers snapshots, a
 
 **User override (explicit, v2.15.2+):** If the user explicitly approves or asks for a snapshot deletion that skips even the ledger (phrases like *"delete the snapshots without writing a ledger"*, *"just rm them"*), the bare deletion is permitted. The default remains ledger-clear; this override exists for cases where the user has explicit reason to skip both archive AND ledger (e.g., snapshots contain sensitive content they want untraceable). **Before honoring, surface the snapshot count + canonical-source pointers that would have been ledgered** and confirm. User-approved bare deletes are one-off; subsequent snapshot operations in the same audit default back to ledger-clear.
 
+## Step 2f: Review Clippings
+
+Scan `<knowledge_folder>/intake/clippings/` for `.md` files **and image files** (`.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`). **If the directory doesn't exist or is empty**, skip silently to Step 3.
+
+This step is what makes clip-whole safe. `/aria-cowork:intake` captures a bare URL, text snippet, or chat/email thread whole into `intake/clippings/` and says it will be reviewed here — without this step those files would be written and never read again.
+
+**If clippings exist**, report the count and total size — broken out as markdown vs images (e.g. "N clipping(s): M markdown, K images") — then ask:
+
+> "Found N clipping(s) (total ~X KB) — saved URLs / snippets / threads (captured via `/aria-cowork:intake` or dropped into the folder by hand), plus K image(s). Options:"
+> 1. **Graduate** (default) — preserve each clipping whole as a durable source in `references/sources/` AND mine it for knowledge
+> 2. **Skip** — leave for the next audit
+
+**Image cost guard:** if there are **more than 5 images**, warn that each is a non-trivial vision read and offer **review all / review first N / defer the rest to next audit** before processing. (≤5: process inline.)
+
+Under **Graduate**, for each markdown clipping:
+
+1. **Derive tags.** Propose tags from the clipping's content, matched against the existing tag vocabulary in `index.md` (mirror `/aria-cowork:index`'s tagging). If the clipping already carries `/intake` frontmatter `tags:`, carry them over. **Show the proposed tags for confirm/edit** before writing.
+2. **Preserve the source.** Ensure the clipping has `Last updated:` + the confirmed `tags:` frontmatter, then move the whole file to `<knowledge_folder>/references/sources/{filename}.md` (create `references/sources/` if absent). **Cowork divergence:** canonical gates this on `git mv` vs plain `mv` via a shell check; Cowork has no shell, so read the file, write it to the destination, then remove the original using the file tools. Verify the destination exists before removing the source — never delete a clipping you have not confirmed landed.
+3. **Mine all six buckets** (insights, decisions, feedback, project context, references, ideas) — same scan as `/aria-cowork:extract`. Append findings to the appropriate backlog (`insights-backlog.md` / `decisions-backlog.md` / `extraction-backlog.md`) and route ideas to `intake/ideas/`. Reference-type fragments become curated notes destined for **top-level** `references/` (a distinct tier from the raw source now in `references/sources/`). Because the whole source is preserved in `references/sources/`, dedup any reference fragment against it before promoting — promote a fragment only when it is a distinct, smaller, independently-useful note, not a restatement of the source.
+4. **Ledger as graduated.** Create `<knowledge_folder>/archive/audit-{date}/clippings/` if needed; append an entry to its `REMOVED.md`: filename + source + clip-date + `disposition: graduated` + destination `references/sources/{filename}.md`.
+5. **No minable content:** the source STILL graduates to `references/sources/` (archival value). Ledger note `disposition: graduated (source only, no fragments mined)`.
+
+**Image clippings** take a vision sub-flow instead of the markdown mine path:
+
+1. **Vision-read** the image via the Read tool (model-native; no OCR or script dependency, so this works unchanged in Cowork). If the image is unreadable or corrupt, skip it with a one-line note in the Step 6 report and leave it in `clippings/` — don't graduate a file you couldn't open.
+2. **Transcribe** the content to text — a faithful rendering of the visual (nodes + edges for a diagram, on-screen text for a screenshot, series/values for a chart), not just a caption. If content is ambiguous, transcribe what's legible and flag the uncertainty in the transcription body.
+3. **Derive + confirm tags** (same as markdown step 1).
+4. **Tier decision (per image):** ask whether the transcription is a **faithful-twin** of the image (→ write it to `references/sources/{name}.md`, beside the asset) or **distilled knowledge** that stands alone (→ write it to top-level `references/{name}.md`). Suggest a default — twin if it largely restates an existing synthesis, distilled if it stands alone — and let the user confirm.
+
 ## Step 3: Scan Memory Files (aria-knowledge-only — SKIPPED in cowork)
 
 **Cowork divergence per item #16b:** This step is aria-knowledge-only. aria-knowledge reads `~/.claude/projects/{cwd-encoded}/memory/*.md` to surface extractable items from Claude Code's auto-memory. Cowork's persistent-grant model can't reach `~/.claude/` per probe 12 — folder access is path-restricted.

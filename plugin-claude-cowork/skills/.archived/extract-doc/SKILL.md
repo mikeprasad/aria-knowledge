@@ -6,6 +6,8 @@ argument-hint: <doc-url-or-id> [tags]
 
 # /extract-doc — Extract Insights from a Doc to Intake Backlog
 
+> **RETIRED 2026-08-19 (cowork v1.7.0).** Folded into `/aria-cowork:intake`: decompose a doc → `/aria-cowork:intake extract <doc-url>`; the 5-section reflection capture → `/aria-cowork:intake doc <src>` (steps D1–D6, which cowork already shipped). Kept for reference only — not a live skill (archived under `skills/.archived/`, excluded from discovery and from the summed-description budget). Mirrors canonical's v2.33.0 retirement.
+
 Pull knowledge-worthy items from a single connected `~~docs` source (Notion page, Google Doc, Confluence page, Box doc, Egnyte file) into `intake/insights-backlog.md`. Unlike `/intake doc` (which captures the doc itself as one structured artifact for later reaction), `/extract-doc` **decomposes** the doc into N intake entries — one per insight, decision, or question worth surfacing at audit.
 
 ## Runtime Gate (per ADR-094)

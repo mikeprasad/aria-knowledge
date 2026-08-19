@@ -4,20 +4,44 @@ All notable changes to aria-cowork are documented here. Format follows [Keep a C
 
 Cross-plugin parity callouts (per ADR-006) note when changes coordinate with aria-knowledge releases.
 
-## [1.6.0] — 2026-08-19
+## [1.7.0] — 2026-08-19
 
-**Close the canonical parity gap — and repair the check that was supposed to catch it.** Coordinated with aria-knowledge v2.46.3.
+**Full canonical parity pass: `/intake` consolidation, `/interview` guided cadence, the rules gaps, and the check that was supposed to catch all of it.** Coordinated with aria-knowledge v2.46.3.
 
-Cowork sat at parity target 2.36.0 while canonical reached 2.46.2. Most of that distance is not portable: `planning_paths`, the preflight and external-fetch gates, `session_state_tracked` and `lib-session-state.sh` are all hooks or shell, and `/auto` has no cowork counterpart. Measured against a skills-only, hook-less, shell-less runtime, the real gap was four items.
+### `/intake` absorbs `/clip`, `/clip-thread` and `/extract-doc` (breaking)
 
-- **`template/rules/working-rules.md` — two missing preamble paragraphs.** "Two strictness tiers" (gates vs defaults) and "Tie-breaker for genuine ties" (prefer reversibility and an audit trail). Censused across all five ports: canonical, antigravity, codex and cursor each carry both; cowork alone carried neither. The file now differs from canonical only by the sanctioned `/setup` ↔ `/aria-setup` header substitution.
-- **`template/rules/retrospect-patterns.md` — shipped for the first time.** Cowork's own `/prospect` and `/retrospect` instruct reading `<knowledge_folder>/rules/retrospect-patterns.md` in 18 places, and the port did not contain the file. Ported byte-identically from canonical: it is 287 lines with zero shell, git, `/setup` or Claude-Code references, so no adaptation was warranted — the same treatment `overbuild-patterns.md` already receives.
-- **`/aria-setup` scaffolds it.** Step 4's expected-files list is a copy manifest, not a directory sweep, so an unlisted file never reaches a user's knowledge folder. For a cowork-only install that made the reference above unresolvable by construction. `rules/overbuild-patterns.md` is deliberately **not** added: no port lists it, so adding it to cowork alone would create divergence rather than close it. That gap is real but product-wide.
-- **`release.sh`'s template-parity check never ran, and could not have passed if it had.** Two independent defects. Its canonical path resolved to `<repo>/aria-knowledge/plugin/template` — a doubled directory that has never existed in this layout — and the miss branch logged through `vlog`, which prints nothing at normal verbosity. A broken path and a clean result were indistinguishable, which is why the drift above accumulated unseen. Separately, the drift counter used `wc -l` on filtered diff output, which counts diff *metadata* (`1c1`, `---`) alongside content; a file whose only difference was the sanctioned header substitution still counted 2 and warned. The check flagged the exact divergence it exists to tolerate, on every plugin-managed rules file, every run. Now: the path points at the sibling `plugin-claude-code/template`, the counter counts only `<`/`>` content lines (guarded with `|| true`, since `grep -c` exits 1 on zero under `set -euo pipefail`), the miss branch warns, and the checked set is plugin-managed files only — the user-owned `aliases.md` was removed, as its ~20-line divergence is deliberate per-runtime seeding and a check that always warns is a check everyone learns to ignore.
+Canonical retired those three into `/intake` in v2.33.0; cowork never received it. `/aria-cowork:intake` now dispatches by input shape: a bare URL or text snippet **clips whole**; `extract <src>` decomposes into the backlogs; `doc <src>` is the 5-section reflection capture (unchanged); `thread <id|url>` pulls a chat or email conversation, and a pasted Slack/Teams/Gmail URL auto-detects without the keyword; files, directories and globs bulk-scan.
 
-Validated by mutation in three directions rather than by a single green run: a clean tree reports clean; injected drift is caught and names the file; a broken canonical path warns at default verbosity. The working-rules file was restored from a byte backup and `cmp`-verified after the drift arm, never `git checkout`, since the tree carries other sessions' uncommitted work.
+**Behaviour change:** a bare URL previously mined into backlogs and now clips whole. To mine one URL, use `/aria-cowork:intake extract <url>`, or let the audit decompose the clipping later.
 
-- **Parity:** coordinates with aria-knowledge v2.46.3. No skill bodies, descriptions or manifest entries changed; summed description budget unchanged at 8,722 / 9,000.
+The three skills are **archived, not deleted** (Rule 6) under `skills/.archived/`, each carrying a pointer header naming its replacement invocation, and their trigger phrases — "clip this", "save this link", "save this snippet", "capture this URL", "archive this conversation" — are absorbed into `/intake`'s description so those requests still route. `/help`'s command table is repointed.
+
+Thread mode carries cowork's **own** five-step mechanics in full — MCP probe with CONNECTORS.md guidance, multi-format input parsing, threaded Context/Thread/Reaction composition — rather than canonical's compressed three-step block. Cowork's `/clip-thread` held 15 MCP references against `/intake`'s 2; copying canonical's version would have silently dropped them, and a threaded conversation loses its meaning when flattened into a snippet body.
+
+**`/audit-knowledge` gains Step 2f (Review Clippings)**, which is what makes clip-whole safe: `/intake` tells the user a clipping will be reviewed at the next audit, and without this step those files were written and never read. Canonical shipped both halves in v2.33.0 and cowork had received neither. Ported with one divergence — canonical gates the source move on a `git mv`-vs-`mv` shell check, and Cowork has no shell, so the move is read/write/remove with a verify-before-delete guard. The image vision sub-flow ports unchanged, since it uses the Read tool.
+
+### `/interview` asks adaptively by default
+
+v2.45.1 fixed canonical's `/interview` to default to `guided` — small dialogs of 1–4 mutually-independent questions, re-derived after every answer — with `--socratic` pinning the grain to one and `--battery` as an opt-out escape hatch. That release's headline was its external-fetch hook fix, which is correctly N/A here, and the `/interview` half was skipped with it. Cowork read `guided`=0 and still recommended `battery` for anything grounded or broad, making the numbered-wall path the effective default.
+
+Ported with the affordance adapted: canonical asks via the platform's question/picker, which Cowork does not have, so a dialog is the questions asked conversationally in one message — visually separable, never numbered, since numbering is what turns a dialog back into a battery.
+
+### Rules parity
+
+`template/rules/working-rules.md` gains the two missing preamble paragraphs, **"Two strictness tiers"** (gates vs defaults) and **"Tie-breaker for genuine ties"** (prefer reversibility and an audit trail). Censused across all five ports: canonical, antigravity, codex and cursor each carried both; cowork alone carried neither. The file now differs from canonical only by the sanctioned `/setup` ↔ `/aria-setup` header.
+
+`template/rules/retrospect-patterns.md` ships for the first time — cowork's own `/prospect` and `/retrospect` instruct reading it in 18 places and the port did not contain it. Copied byte-identically (287 lines, zero shell/git/setup/Claude-Code references), matching how `overbuild-patterns.md` is already treated. `/aria-setup` now scaffolds it: Step 4's expected-files list is a copy manifest, not a directory sweep, so an unlisted file never reaches a user's knowledge folder. `overbuild-patterns.md` is deliberately **not** added — no port lists it, so adding it to cowork alone would create divergence rather than close it.
+
+### `release.sh`'s template-parity check never ran, and could not have passed if it had
+
+Two independent defects. Its canonical path resolved to `<repo>/aria-knowledge/plugin/template` — a doubled directory that has never existed in this layout — and the miss branch logged through `vlog`, which prints nothing at normal verbosity, so a broken path and a clean result were indistinguishable. That is why the rules drift above accumulated unseen. Separately, the drift counter used `wc -l` on filtered diff output, counting diff *metadata* (`1c1`, `---`) alongside content, so a file whose only difference was the sanctioned header substitution still counted 2 and warned — it flagged the exact divergence it exists to tolerate, on every plugin-managed rules file, every run.
+
+Now: the path points at the sibling `plugin-claude-code/template`; the counter counts only `<`/`>` content lines, guarded with `|| true` since `grep -c` exits 1 on zero under `set -euo pipefail`; the miss branch warns; and the checked set is plugin-managed files only. The user-owned `aliases.md` was removed from it — its ~20-line divergence is deliberate per-runtime seeding, and a check that always warns is a check everyone learns to ignore.
+
+Validated by mutation in three directions rather than one green run: a clean tree reports clean, injected drift is caught and names the file, and a broken canonical path warns at default verbosity.
+
+- **Parity:** coordinates with aria-knowledge v2.46.3. Skill manifest 27 → **24** (three retired to `.archived/`). Summed description budget **8,722 → 8,055** against a 9,000 cap — the consolidation freed more than the absorbed triggers cost, putting cowork back under the 8,500 warn line.
+- **Still open:** five canonical skills remain absent (`audit` dispatcher, `audit-share`, `audit-style`, `recap`, `roadmap`). Each declares `Bash` in `allowed-tools`, which no cowork skill does, so each needs a cowork-native redesign rather than a port — `audit-style` in particular mines local session-log files through a shell and a Python script. Tracked as a design question, not drift.
 
 ## [1.5.0] — 2026-06-29
 

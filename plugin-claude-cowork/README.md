@@ -37,8 +37,8 @@ First MCP-consuming release + v1.0 stable-contract claim. Originally built as v0
 
 **5 bidirectional skills** (also ship in aria-knowledge v2.18.0; byte-faithful imports per ADR-013):
 
-- **`/clip-thread`** — Capture a chat or email thread from a connected `~~chat` or `~~email` MCP (Slack, Teams, Gmail, MS365). Source-type detection by URL pattern; per-message structure + reactions + attachment notes; user-fill reaction section.
-- **`/extract-doc`** — Decompose a single Notion / Confluence / Google Doc / Box / Egnyte page (via `~~docs` MCP) into N intake-backlog entries for audit routing. Differs from `/intake doc` which captures one doc as one artifact.
+- **`/intake thread <id|url>`** — Capture a chat or email thread from a connected `~~chat` or `~~email` MCP (Slack, Teams, Gmail, MS365). Source-type detection by URL pattern (so a pasted Slack link needs no keyword); per-message structure + reactions + attachment notes; user-fill reaction section. *(Absorbed the standalone `/clip-thread` in v1.7.0.)*
+- **`/intake extract <doc-url>`** — Decompose a single Notion / Confluence / Google Doc / Box / Egnyte page (via `~~docs` MCP) into N intake-backlog entries for audit routing. Differs from `/intake doc`, which captures one doc as one artifact. *(Absorbed the standalone `/extract-doc` in v1.7.0.)*
 - **`/meeting-notes`** — Fold a meeting transcript into structured intake (participants / topics / action items / decisions / open questions + raw transcript). Source can be a `~~docs` MCP page OR pasted transcript text (Granola, hand-typed notes, transcript exports) — the one skill with a paste fallback when no MCP is connected.
 - **`/digest`** — Cross-tool weekly rollup synthesizing what's pending / shipped / blocked across `~~chat` + `~~email` + `~~project tracker` + `~~docs`. Probes all 4 categories and degrades gracefully when partial connection.
 - **`/sync-decisions`** — Mirror approved decisions from `decisions/` out to a connected `~~docs` MCP destination. **First WRITE-side ARIA skill** — embeds Rule 22 advisory preamble per ADR-016 with explicit per-decision go-gate. Logs every sync to `logs/sync-decisions.md`.
@@ -244,7 +244,7 @@ The asymmetry is by design. Layer-2 enforcement requires a hook surface; Cowork 
 The following are NOT in v0.3.0 — planned for future releases:
 
 - **MCP integrations** (Slack, Notion, Linear, Gmail, etc.) — `.mcp.json` + `CONNECTORS.md` customization guide for orgs adopting aria-cowork
-- **Cowork-native skills**: `/digest` (cross-tool weekly rollup), `/clip-thread` (Slack/Teams/email thread capture), `/extract-doc` (Notion/Google Doc/Confluence insight extraction), `/sync-decisions` (mirror approved decisions out to team docs), `/meeting-notes` (fold meeting transcript into intake), `/daily-audit` (first-message audit substitute)
+- **Cowork-native skills**: `/digest` (cross-tool weekly rollup), `/intake thread` (Slack/Teams/email thread capture), `/intake extract` (Notion/Google Doc/Confluence insight extraction), `/sync-decisions` (mirror approved decisions out to team docs), `/meeting-notes` (fold meeting transcript into intake), `/daily-audit` (first-message audit substitute)
 - **Cowork transcript MCP integration** — when/if Cowork exposes a current-session transcript surface, `/snapshot` Path 1 (MCP-verbatim) will become the primary source path
 
 ## Spec and design docs

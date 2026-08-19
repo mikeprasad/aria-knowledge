@@ -6,6 +6,8 @@ argument-hint: <url or text> [tags]
 
 # /clip — Quick Capture to Intake
 
+> **RETIRED 2026-08-19 (cowork v1.7.0).** Folded into `/aria-cowork:intake`: clip → `/aria-cowork:intake <url|text>` (auto clip-whole, steps C1–C3). Kept for reference only — not a live skill (archived under `skills/.archived/`, excluded from discovery and from the summed-description budget). Mirrors canonical's v2.33.0 retirement.
+
 Save a URL or text snippet to `intake/clippings/` for later review and promotion.
 
 ## Runtime Gate (per ADR-094)

@@ -38,8 +38,7 @@ If `Bash` is NOT available (normal Cowork runtime), proceed to Step 0.
 |---------|-------------|
 | /aria-setup | First-run scaffold: attach folder, write aria-config.md, seed structure (now with access probe, alias validation, advanced-options, self-validation audit) |
 | /help | This command reference |
-| /clip [url or text] | Quick-save a URL or text snippet to intake for later review |
-| /intake [path or url] | Bulk import knowledge from files, URLs, or pasted content |
+| /intake [url, text, path, or `extract`/`doc`/`thread` &lt;src&gt;] | Capture into intake, dispatching by shape — a bare URL or snippet clips whole, `extract` decomposes, `doc` is a 5-section capture, `thread` pulls a chat/email conversation, files/globs bulk-scan |
 | /ask [question] | Research a question, check existing knowledge, save answer as a knowledge doc |
 | /context [tags] | Load relevant knowledge files by topic (supports AND/OR, alias resolution, semantic-hint matching) |
 | /index | Rebuild the tag-based knowledge index with aliases + semantic hints + cross-references |
@@ -71,8 +70,8 @@ See `template/TEMPLATE-PARITY.md` for the shared-template registry + sync status
 | Command | Description |
 |---------|-------------|
 | /digest | Cross-tool weekly rollup (chat + email + tracker + docs → intake/digests/) |
-| /clip-thread | Capture a Slack/Teams/email thread to intake |
-| /extract-doc | Pull insights from a Notion/Google Doc/Confluence page |
+| /intake thread &lt;id or url&gt; | Capture a Slack/Teams/email thread to intake (or just paste the URL — auto-detected) |
+| /intake extract &lt;doc url&gt; | Pull insights from a Notion/Google Doc/Confluence page into the backlogs |
 | /sync-decisions | Mirror approved decisions out to your team docs/wiki |
 | /meeting-notes | Fold a meeting transcript into intake |
 | /daily-audit | First-message audit substitute (covers what aria-knowledge's SessionStart hook does in Code) |

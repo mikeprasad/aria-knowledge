@@ -39,11 +39,11 @@ Wait for an explicit reply:
 
 If `Bash` is NOT available (normal Cowork runtime), proceed to Step 0.
 
-## When to use this vs `/extract` vs `/clip`
+## When to use this vs `/extract` vs `/intake`
 
 - **/snapshot** — raw archive (or structured recall when raw unavailable), no synthesis. Use before switching context, before a risky operation, or any time you want the full conversation preserved.
 - **/extract** — synthesizes knowledge from the current conversation into backlogs/ideas. Use when you want captured *insights*, not the full transcript.
-- **/clip** — saves a single URL or snippet. Unrelated to session transcripts.
+- **/intake** — captures external sources: a bare URL or snippet clipped whole, files and globs scanned, a doc or chat thread pulled in. Unrelated to session transcripts.
 
 `/snapshot` is intentionally orthogonal: it preserves the raw record (or best-available approximation) so `/extract` (or a human review) can work from it later.
 

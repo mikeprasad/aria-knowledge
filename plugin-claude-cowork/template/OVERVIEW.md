@@ -15,7 +15,7 @@ ARIA's premise: **promoted knowledge has to be authored, governed, and applied b
 ARIA structures knowledge work into five phases. Both aria-cowork and aria-knowledge implement them, with different surface affordances per phase.
 
 ### 1. Capture
-Pull knowledge into staging without committing yet. In aria-cowork: `/clip` (URLs/snippets), `/intake` (bulk), `/ask` (research). In aria-knowledge (Code): adds `/extract` from active conversations. Output lands in `intake/` backlogs.
+Pull knowledge into staging without committing yet. In aria-cowork: `/intake` (a bare URL or snippet clips whole; files/globs bulk-scan), `/ask` (research). In aria-knowledge (Code): adds `/extract` from active conversations. Output lands in `intake/` backlogs.
 
 ### 2. Govern (Phase 2+ in aria-cowork)
 Review staged items, decide what's worth promoting, archive the rest. Currently a manual sweep; v0.2.0 adds `/audit-knowledge` to automate the cadence.
@@ -53,7 +53,7 @@ Audit cadences flag stale content, suggest promotions from freeform tags, detect
 - **MCP integrations** (Slack, Notion, Linear, Gmail, etc.) for cross-tool capture
 - **`/extract`** from active conversations (no automated transcript API in Cowork — uses agent self-recall + paste fallback)
 - **`/audit-knowledge`** for governance cadence
-- **Cowork-native skills:** `/digest`, `/clip-thread`, `/extract-doc`, `/sync-decisions`, `/meeting-notes`, `/daily-audit`
+- **Cowork-native skills:** `/digest`, `/intake thread`, `/intake extract`, `/sync-decisions`, `/meeting-notes`, `/daily-audit`
 
 ### Hooks (Phase 2+, optional)
 
@@ -122,7 +122,7 @@ ARIA's job is to remove friction from the parts that AREN'T judgment (capture, o
 
 After `/aria-setup`:
 
-1. **Capture as you work.** Hit interesting URLs? `/clip`. Researching a question? `/ask`. Bulk-importing notes? `/intake <path>`.
+1. **Capture as you work.** Hit interesting URLs? `/intake <url>`. Researching a question? `/ask`. Bulk-importing notes? `/intake <path>`.
 2. **Apply when starting new work.** `/context <topic>` surfaces relevant approaches, decisions, and references.
 3. **Refresh periodically.** Run `/index` to rebuild the tag index after capture sweeps.
 
