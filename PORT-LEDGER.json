@@ -1,15 +1,15 @@
 {
   "claude-code": {
-    "version": "2.46.3",
-    "parity_target": "2.46.3",
-    "last_parity_pass": "2026-08-19",
+    "version": "2.46.4",
+    "parity_target": "2.46.4",
+    "last_parity_pass": "2026-08-20",
     "sla": "undeclared",
     "surfaces": {}
   },
   "claude-cowork": {
     "version": "1.7.0",
-    "parity_target": "2.46.3",
-    "last_parity_pass": "2026-08-19",
+    "parity_target": "2.46.4",
+    "last_parity_pass": "2026-08-20",
     "sla": "undeclared",
     "surfaces": {
       "plugin-claude-cowork/skills/aria-setup/SKILL.md": "c46ec2d8fb82722dbaedbd06af63f46bdeded62464350705ca2c710e2d69bfe3",
@@ -41,8 +41,8 @@
   },
   "openai-codex": {
     "version": "2.46.2-codex.0",
-    "parity_target": "2.46.3",
-    "last_parity_pass": "2026-08-19",
+    "parity_target": "2.46.4",
+    "last_parity_pass": "2026-08-20",
     "sla": "undeclared",
     "surfaces": {
       "plugin-openai-codex/skills/aria-assist/SKILL.md": "8d29cb9c3b5f955c6f2a93ea73c662587fb320f40ac610f769421530abddd683",
@@ -91,8 +91,8 @@
   },
   "cursor-template": {
     "version": "2.46.2-cursor.0",
-    "parity_target": "2.46.3",
-    "last_parity_pass": "2026-08-19",
+    "parity_target": "2.46.4",
+    "last_parity_pass": "2026-08-20",
     "sla": "undeclared",
     "surfaces": {
       "plugin-cursor-template/.cursor/rules/aria-commands.mdc": "d33bdeabbdadfbf4fba63a68be3f79f866779af212eefcb69f88855c2e7225d8",
@@ -101,8 +101,8 @@
   },
   "antigravity": {
     "version": "2.46.2",
-    "parity_target": "2.46.3",
-    "last_parity_pass": "2026-08-19",
+    "parity_target": "2.46.4",
+    "last_parity_pass": "2026-08-20",
     "sla": "undeclared",
     "surfaces": {
       "plugin-antigravity/skills/aria-assist/SKILL.md": "ba71fb4692c5d6f313ea32fc63113d9db0ef6cc070658d0dafb93664934867de",

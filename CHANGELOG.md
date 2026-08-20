@@ -2,6 +2,22 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.46.4 — 2026-08-20
+
+**Fixed — the preflight gate read the wrong repository when a commit named one that does not exist.**
+
+`bin/pre-commit-preflight-check.sh` parses a leading `cd <dir>` to decide which repo's index to enumerate. When that target was not a directory it blanked `REPO_DIR`, which fell through to `REPO_DIR="."` — the hook's own cwd. So `cd /some/typo-path && git commit` denied the commit while citing staged files from a repository the command never named. The comment four lines above the resolver says reading the wrong repo's index "would make every verdict meaningless rather than merely wrong"; the code did exactly that. Section `[11]`'s stated contract — *every input the hook cannot read must behave as approval* — was not true for this input.
+
+Now: if a `cd` target was named, does not exist, and no `git -C` supplied an alternative, the hook exits 0. The `git -C` fallback and the `.` default are both preserved for their real cases.
+
+**The test that should have caught it had certified it as working.** `[11]`'s "nonexistent repo -> fail open" asserted `""`, and `""` is produced *both* by the intended fail-open branch *and* by the cwd fallback finding nothing staged. It was therefore vacuous whenever it was green, and it only ever went red when a developer happened to have files staged — which is how it surfaced. It now runs from a fixture repo that **has** `app.py` staged, so a cwd fallback would deny and `""` proves the intended branch ran; a new armed-fixture control asserts that same cwd does deny a commit with no `cd`, or the main assertion could pass against an unarmed fixture. **147 passed / 0 failed with nothing staged and again with files staged** — the condition that used to flip it. Mutation-proven: removing the guard turns the assertion red for its own named reason.
+
+**Removed — three hook scripts the Codex port never wired.** `plugin-openai-codex/bin/` shipped `post-edit-tautology-check.sh`, `post-plan-prospect-check.sh` and `post-push-retrospect-check.sh` to users while referencing none of them. Codex routes every hook through the single `bin/codex-hook.py` entrypoint, where all three behaviours already live as `tautology_message()`, `auto_prospect_message()` and `auto_retrospect_message()` — each verified defined *and* called against a negative control. Found as one file and censused as a class: of the 27 scripts in that directory, exactly these three had zero references. Verified safe four ways before deleting (no test, no release gate, no ledger surface, and `PORTING.md`'s own claim is "Codex **adapter** coverage"), and `PORTING.md` now records the convention so a future hand-sync does not re-copy them. The hazard was never the bytes — it was the same logic in two places with only one of them running.
+
+**Documented — why `check-port-drift.sh`'s lag line compares version strings.** Comment-only, zero executable lines changed. This was opened as a defect ("a patch bump marks every port as lagging even when nothing portable changed") and the measurement falsified it: across the 11 canonical tag-to-tag transitions from v2.40.0 to v2.46.3, **10 of 11 bumps carried change under `plugin-claude-code/{skills,template}`**, and 3 of 5 *patch* bumps did. The claim had been generalised from a single observation. Both cheaper-looking alternatives die on the same data — severity-filtering is wrong in both directions, and there is no well-defined portable surface to hash (cursor compiles to `.mdc`, cowork diverges by ADR-014, some canonical skills have no port). The note exists so the next reader does not re-derive the wrong conclusion and break a working detector.
+
+Ports: canonical + codex artifacts rebuilt. The two `bin/` changes are Claude-Code-canonical (the preflight hook exists in exactly one runtime), so no mirrored surface moved and the port ledger is re-baselined on that measured basis.
+
 ## 2.46.3 — 2026-08-19
 
 **A ports release.** Canonical's only change is a comment genericization (below); no behaviour moves. The version bumps so the four port artifacts can ship, since all six stable aliases attach to a canonical release tag.
