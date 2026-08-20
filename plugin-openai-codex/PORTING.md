@@ -64,6 +64,19 @@ unless the user explicitly overrides `KT_CONFIG` or `ARIA_KNOWLEDGE_CONFIG`.
 - Hosted Codex web search is not on the local plugin hook path. `pre-external-fetch-check.sh` is wired for local/MCP-style `WebFetch` and `WebSearch` calls when they appear in hook payloads.
 - Hooks are enabled by default in current Codex, but plugin-bundled hooks still
   require user trust review before they run.
+- **Codex routes every hook through the single `bin/codex-hook.py` entrypoint, so
+  post-event checks are implemented as functions inside it, not as standalone
+  `.sh` scripts.** ⛔ **Do NOT copy canonical's `post-*-check.sh` files into this
+  port on a parity sync.** Three of them (`post-edit-tautology-check.sh`,
+  `post-plan-prospect-check.sh`, `post-push-retrospect-check.sh`) were copied in
+  and shipped for a while while being referenced by nothing — their logic already
+  lived in `codex-hook.py` as `tautology_message()`, `auto_prospect_message()` and
+  `auto_retrospect_message()`, each defined and called. Removed 2026-08-19 per the
+  Rule 6 carve-out for never-wired code. The hazard is not the wasted bytes: it is
+  that the same logic in two places, with only one of them running, means a future
+  edit to the shell copy silently changes nothing. **Check `codex-hook.py` for an
+  existing function before adding any `bin/` script here.** Canonical retains the
+  `.sh` files, which remain the reference implementation.
 
 ## v2.46.2 update (2026-08-19) — Current Claude parity pass
 
