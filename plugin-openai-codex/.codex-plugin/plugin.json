@@ -1,6 +1,6 @@
 {
   "name": "aria-knowledge",
-  "version": "2.46.2-codex.0",
+  "version": "2.46.4-codex.0",
   "description": "Codex port of ARIA - Applied Reasoning and Insight Architecture. Tracks the Claude-standard knowledge schema while adapting skills, hooks, preflight/prospect/retrospect automation, subagent capture, and Codex tool-boundary behavior.",
   "author": {
     "name": "Mike Prasad"
