@@ -129,8 +129,23 @@ assert_eq "no session_id -> fail open" "" "$out"
 out=$(printf 'not json at all' | KT_CONFIG="$CFG_DENY" sh "$HOOK" 2>/dev/null)
 assert_eq "garbage stdin -> fail open" "" "$out"
 
-out=$(pf_run "$CFG_DENY" pf13 "cd /nonexistent-repo-xyz && git commit -m x")
+# Run this one from INSIDE a repo that has staged code, so the assertion can
+# actually fail. Previously it ran from the test runner's cwd -- the real
+# aria-knowledge checkout -- and the hook's cwd fallback enumerated whatever the
+# developer happened to have staged. That made "" ambiguous: it meant BOTH "the
+# hook failed open on the nonexistent repo" AND "the hook read cwd and found
+# nothing staged", so the assertion was vacuous whenever it passed and produced a
+# spurious failure whenever someone had files staged. With cwd = $PF_CODE (which
+# has app.py staged), a cwd fallback would DENY, so "" now proves the hook
+# resolved /nonexistent-repo-xyz and failed open.
+out=$(cd "$PF_CODE" && pf_run "$CFG_DENY" pf13 "cd /nonexistent-repo-xyz && git commit -m x")
 assert_eq "nonexistent repo -> fail open" "" "$out"
+
+# fixture-armed control: from that same cwd, a commit with NO `cd` must be seen,
+# or the assertion above passes for the wrong reason (an unarmed fixture).
+pf_fresh pf13b
+out=$(cd "$PF_CODE" && pf_run "$CFG_DENY" pf13b "git commit -m x")
+assert_eq "fixture armed: staged code in cwd does deny" 1 "$(pf_has 'PREFLIGHT REQUIRED' "$out")"
 
 # [12] nothing staged (e.g. `git commit -a`, which cannot be enumerated safely)
 PF_EMPTY="$PF_TMP/empty"; mkdir -p "$PF_EMPTY"; pf_repo "$PF_EMPTY"

@@ -70,10 +70,20 @@ GATE="${KT_PREFLIGHT_GATE:-warn}"
 # every verdict meaningless rather than merely wrong.
 REPO_DIR=$(printf '%s' "$COMMAND" | sed -n 's/^[[:space:]]*cd[[:space:]]\{1,\}\([^&;|]*\).*/\1/p' \
   | head -1 | sed 's/[[:space:]]*$//')
+CD_NAMED="$REPO_DIR"
 [ -n "$REPO_DIR" ] && [ ! -d "$REPO_DIR" ] && REPO_DIR=""
 if [ -z "$REPO_DIR" ]; then
   REPO_DIR=$(printf '%s' "$COMMAND" | sed -n 's/.*git[[:space:]]\{1,\}-C[[:space:]]\{1,\}\([^ ]*\).*/\1/p' | head -1)
 fi
+# A cd target was named, it does not exist, and no `git -C` named an alternative.
+# Abstain. Falling through to "." here would read the HOOK'S cwd -- a DIFFERENT
+# repo from the one the commit names -- which is precisely the "meaningless rather
+# than merely wrong" failure the comment above warns about, and it silently cited
+# an unrelated repo's staged files in the denial message. This path was asserted by
+# test [11] "nonexistent repo -> fail open", but that assertion compared against ""
+# from a cwd that usually had nothing staged, so it passed without ever exercising
+# the branch.
+[ -z "$REPO_DIR" ] && [ -n "$CD_NAMED" ] && exit 0
 [ -z "$REPO_DIR" ] && REPO_DIR="."
 [ ! -d "$REPO_DIR" ] && exit 0
 
