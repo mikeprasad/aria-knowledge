@@ -75,6 +75,30 @@ These bind every `/auto` run in every mode. They are not modifiers and cannot be
 
   Write to `<knowledge_folder>/logs/auto/<YYYY-MM-DD>-<slug>-judgments.md`, resolving
   `knowledge_folder` from `~/.claude/aria-knowledge.local.md`. Create `logs/auto/` lazily.
+
+  **Frontmatter is required.** Begin the file with exactly this block, then the entries:
+
+      ---
+      type: auto-judgment-ledger
+      date: <YYYY-MM-DD>
+      arc: "<one line naming the arc this ledger belongs to>"
+      status: <all-dispositioned | has-pending>
+      tags: [auto, judgment-ledger, <project-tag(s)>, <topic tags>]
+      ---
+
+  `status` is what makes the ledger queryable — it is the field that answers *"which arcs still
+  have judgments waiting on me?"* across every ledger at once, which is currently answerable only
+  by reading prose. Set `has-pending` while any entry is unresolved; set `all-dispositioned` only
+  when every entry has been accepted, revisited or reverted.
+
+  **`tags:` are required — a ledger IS a knowledge artifact** (Mike's ruling, 2026-08-18), so it
+  belongs in the tag index alongside `/prospect` and `/retrospect` logs. Shape is **family →
+  artifact-kind → project → topics**, matching those siblings: lead with `auto` (the emitting
+  skill, as a `/prospect` log leads with `prospect`), then `judgment-ledger`, then the project
+  tag(s), then any topic tags. ⚠ Do **not** derive this convention from a single ledger — measured
+  across the corpus 2026-08-20, `auto` leads 13 of 16 tagged ledgers while `judgment-ledger` and the
+  older `judgments` split 8/7, so one file is not evidence of a house style.
+
   Entry shape:
 
       ### J<N> — <the decision, one line>
