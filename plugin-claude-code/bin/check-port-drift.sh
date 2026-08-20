@@ -30,6 +30,27 @@
 # Test seam: PORT_LEDGER overrides the ledger path; PORT_LEDGER_ROOT overrides the
 # base dir surfaces resolve against (both default to the resolved repo root).
 #
+# THE LAG LINE IS A VERSION-STRING COMPARISON, AND THAT IS CORRECT — do not "fix" it
+# to compare content or to stay quiet on patch bumps. Measured 2026-08-19 across the
+# 11 canonical tag-to-tag transitions from v2.40.0 to v2.46.3, counting files changed
+# under plugin-claude-code/{skills,template} (the surfaces ports mirror):
+#
+#   10 of 11 bumps carried portable change. Only two did not (v2.46.0→.1 and
+#   v2.46.1→.2, both hook-only fixes, and hooks are Claude-Code-canonical).
+#
+# Both cheaper-looking alternatives are falsified by that data:
+#   * "only lag on minor/major, patches are cosmetic" — 3 of 5 patch bumps carried
+#     portable change (v2.45.1's /interview cadence fix reached cowork as a real gap),
+#     while 2 minor bumps carried none. Wrong in BOTH directions.
+#   * "hash canonical's portable surface instead" — there is no well-defined portable
+#     surface to hash: cursor COMPILES skills to .mdc, cowork diverges by design
+#     (ADR-014), and some canonical skills (/statusline, /auto) have no port at all.
+#
+# So a bump usually DOES mean a port has something to re-verify, and the line saying
+# so is signal, not noise. It is display-only (inside the non-quiet branch), never
+# reaching is_failure() or the --quiet exit code, so it cannot brick a release.
+# Clear it by doing the parity work and re-baselining — never by muting it.
+#
 # Fatality is gated on a DECLARED SLA, not on a version number. release.sh runs this
 # report-only; a port whose `sla` is `undeclared` is tolerated by is_failure() by
 # construction, so declaring an SLA is what makes the gate bite for that port. (A
