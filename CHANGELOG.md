@@ -32,7 +32,9 @@ Both are the same shape as the v2.46.2 fixes: a check whose form prevented it fr
 
 Five canonical skills remain absent from cowork: `audit` (dispatcher), `audit-share`, `audit-style`, `recap`, `roadmap`. All five declare `Bash` in `allowed-tools`; **zero of cowork's 24 skills do** (canonical: 25 of 36). `audit-style` mines local session logs through a shell and a bundled Python script, which a skills-only runtime cannot do at all. Porting all five also costs +2,702 description chars against 990 of headroom under a 9,000 cap that fails the install empirically at 9,233.
 
-**`PORT-LEDGER.json` cannot express this** — it hashes files that exist, so an unported skill is invisible to it rather than "drifted". The residual is therefore recorded in `plugin-claude-cowork/CLAUDE.md`, and a clean drift report should not be read as meaning those five are done. They are an open design question requiring cowork-native redesign, not drift.
+**`PORT-LEDGER.json` cannot express this** — it hashes files that exist, so an unported skill is invisible to it rather than "drifted". The residual is therefore recorded in `plugin-claude-cowork/CLAUDE.md`, and a clean drift report should not be read as meaning those five are done.
+
+**Resolved same day as won't-fix** (Mike, 2026-08-19) once each was measured individually rather than as a group: `audit-style` and `audit-share` are genuinely impossible in a skills-only runtime (a shell plus a Python script over local session logs; git-native `ls-files`/`add`). `recap` and `roadmap` are *partially* portable — their synthesis is git-free and only their git modes are not — so each is a redesign rather than a copy, and neither fits the budget. `audit` is **fully** portable and does fit (+404 → 8,414), and is excluded on value instead: it routes to four sub-audits and cowork has two, both directly invocable. The deciding constraint is the description cap — `audit` + `roadmap` alone reach **9,019 against a 9,000 hard cap** that fails the install at 9,233, so only one of the five fits at all. Reopening starts with a trimming pass across the existing 24 skills, not with porting.
 
 ## 2.46.1 — 2026-08-16
 

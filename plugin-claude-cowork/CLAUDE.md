@@ -1,24 +1,24 @@
 # CLAUDE.md — aria-cowork
 
-## ⚠ Parity residual (2026-08-19, v1.7.0) — READ BEFORE ANY PARITY CLAIM
+## Parity with canonical — SETTLED 2026-08-19, do not re-litigate
 
-**v1.7.0 brought cowork to canonical v2.46.2 parity for everything portable**, and `PORT-LEDGER.json` is stamped accordingly (`parity_target: 2.46.2`, all surfaces `ok`). **That stamp does NOT mean cowork has every canonical skill.**
+**v1.7.0 brought cowork to canonical v2.46.x parity for everything portable**, and `PORT-LEDGER.json` is stamped accordingly (all surfaces `ok`, no lag). **That stamp does NOT mean cowork has every canonical skill** — the ledger hashes files that *exist*, so a skill that was never ported is invisible to it, not "drifted". This section is the part the ledger cannot express.
 
-**Five canonical skills remain absent, and the ledger structurally cannot say so** — it hashes files that exist, so a skill that was never ported is invisible to it, not "drifted":
+**Five canonical skills are deliberately absent. Mike ruled won't-fix on 2026-08-19** after the analysis below. This is a decision, not a backlog item.
 
-| Absent | Why it is not a simple port |
-|---|---|
-| `audit` (dispatcher) | routes to sub-audits; portable only once its targets exist |
-| `audit-share` | 11 Bash references |
-| `audit-style` | mines `~/.claude/projects/*.jsonl` through a shell **and** a bundled Python script — structurally impossible in a runtime with neither |
-| `recap` | 3 of its 5 modes (commit/push/pull) are pure git |
-| `roadmap` | git-based staleness detection |
+| Absent | Portability | Verdict |
+|---|---|---|
+| `audit-style` | ❌ impossible | mines `~/.claude/projects/*.jsonl` through a shell **and** a bundled Python script. A skills-only runtime has neither, and cowork cannot reach `~/.claude/` anyway (probe 12, path-restricted grant). |
+| `audit-share` | ❌ impossible | git-native — `git -C … ls-files --error-unmatch`, `git -C … add`. No git in Cowork. |
+| `recap` | ⚠ partial | 3 of its 5 modes (commit/push/pull) are pure git. The `session` and `arc` modes would port, so this is a **redesign** (drop 3 modes), not a copy. Costs +829 chars — does not fit. |
+| `roadmap` | ⚠ partial | synthesis (CLAUDE.md + PROGRESS.md → grid) is git-free; only staleness detection needs `git log`. Also a redesign. Costs +605 — does not fit. |
+| `audit` (dispatcher) | ✅ **fully portable** | zero git/bash, and it fits (+404 → 8,414, under the warn line). **Excluded on value, not feasibility:** it routes to four sub-audits and cowork has two of them, so it would be a router over `/aria-cowork:audit-knowledge` and `/aria-cowork:audit-config`, both directly invocable already. |
 
-**All five declare `Bash` in `allowed-tools`. Zero of cowork's 24 skills do** (canonical: 25 of 36 — positive control). Each therefore needs a **cowork-native redesign**, the way `/snapshot` got 3-path source acquisition and `/daily-audit` replaced SessionStart — not a copy.
+**The hard constraint that decides the two partials.** `release.sh` caps summed `SKILL.md` description chars at **9,000**, with *empirical install failure* at 9,233. Cowork sits at **8,010**, so headroom is 990 to the cap and 490 to the 8,500 warn line. Measured: `/audit` + `/roadmap` = **9,019 — over the cap, the build fails.** Only ONE of the five fits at all, and it is the one excluded on value. Porting all five costs +2,702 → 10,712.
 
-⛔ **There is also a hard budget ceiling.** Summed `SKILL.md` description chars are capped at **9,000** by `release.sh`, with *empirical install failure* at 9,233. Cowork sits at **8,010**. Porting all five costs **+2,702** → 10,712, which fails the build. Even two of the five needs description trimming across the existing 24 first.
+**Also measured:** all five declare `Bash` in `allowed-tools`; **zero of cowork's 24 skills do** (canonical: 25 of 36 — positive control). Any of them arriving here needs a cowork-native redesign, the way `/snapshot` got 3-path source acquisition and `/daily-audit` replaced SessionStart.
 
-⇒ Treat these as an **open design question, not drift**. Do not "fix" them by copying canonical, and do not read the clean drift report as meaning they are done.
+⇒ **Do not** "fix" these by copying canonical. **Do not** read a clean drift report as meaning they are done. If this is ever reopened, the entry cost is a description-trimming pass across the existing 24 skills to buy budget — that is the blocker, ahead of any porting work.
 
 A separate eight (`auto`, `preflight`, `statusline`, `codemap`, `stitch`, `distill`, `aria-assist`, `audit-usage`) are Code-canonical by nature and correctly absent.
 
