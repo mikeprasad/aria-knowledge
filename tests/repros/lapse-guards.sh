@@ -38,13 +38,13 @@ echo "$OUT" | grep -qi 'Edit' \
   && ok "B names the right tool to use instead" || bad "B guidance" "warning does not point at Edit/Write"
 
 # C — RED: an in-place rename via sed.
-OUT2=$(run_bw "sed -i '' s/_model_has_field/model_has_field/g commonspace/checks.py")
+OUT2=$(run_bw "sed -i '' s/_model_has_field/model_has_field/g proj-a/checks.py")
 echo "$OUT2" | grep -q 'additionalContext' \
   && ok "C warns on sed -i" || bad "C sed -i" "no warning (got: $OUT2)"
 
 # D — GREEN: CREATION of a throwaway probe is NOT the lapse. Measured as the
 # dominant false-positive class; the rule must not fire on it.
-for cmd in "cat > ./diag.spec.ts <<EOF" "cat > commonspace/test_probe_setup.py <<PYEOF"; do
+for cmd in "cat > ./diag.spec.ts <<EOF" "cat > proj-a/test_probe_setup.py <<PYEOF"; do
   O=$(run_bw "$cmd")
   [ -z "$O" ] && ok "D silent on file creation: ${cmd%% *} ..." \
               || bad "D creation" "warned on a throwaway creation: $cmd"

@@ -98,7 +98,7 @@ Two bugfixes, both in guards that had been silently doing the wrong thing for a 
 
 **Fixed — `lib-session-state.sh` appended `SESSION.md` to a project's `.gitignore` on every run, forever.**
 
-The block guarded with `! git check-ignore -q SESSION.md`. Because `check-ignore` consults the index, a **tracked** `SESSION.md` exits 1 ("not ignored"), making the negation always true. Measured: it exits 1 **even when `SESSION.md` is already listed in `.gitignore`**, so the guard could never be satisfied and the append had no upper bound. One line per session per project, indefinitely — `archetypes/.gitignore` reached 4 duplicate lines, was cleaned with an explicit DO-NOT-ADD comment, and had accumulated 2 more directly beneath that warning two days later.
+The block guarded with `! git check-ignore -q SESSION.md`. Because `check-ignore` consults the index, a **tracked** `SESSION.md` exits 1 ("not ignored"), making the negation always true. Measured: it exits 1 **even when `SESSION.md` is already listed in `.gitignore`**, so the guard could never be satisfied and the append had no upper bound. One line per session per project, indefinitely — one project's `.gitignore` reached 4 duplicate lines, was cleaned with an explicit DO-NOT-ADD comment, and had accumulated 2 more directly beneath that warning two days later.
 
 It also never read `session_state_tracked`, so the standing ruling that some repos deliberately **track** `SESSION.md` had no effect here. That knob was wired into `wrapup` and `handoff` in 2.46.0; this shell library was a **third** code path nobody had touched — and the plugin's own docs already prescribed the correct test (`git ls-files --error-unmatch`) in three places.
 

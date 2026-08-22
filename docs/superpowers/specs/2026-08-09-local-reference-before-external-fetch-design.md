@@ -93,7 +93,7 @@ silence, because it trains the reader to dismiss it.
 Domain-frequency distribution across the corpus (402 distinct registrable
 domains): 205 appear in 1 file, 124 in 2–3, 60 in 4–10, 11 in 11–30, 2 in 31+.
 `atlassian.com` sits at 3. The ambient tail is `common.space` (93),
-`thecollab.co` (23), `github.com` (11), `google.com` (11).
+a self-hosted domain (23), `github.com` (11), `google.com` (11).
 
 ⇒ **A hit-count cap is load-bearing, not a nicety.** Above it, stay silent.
 

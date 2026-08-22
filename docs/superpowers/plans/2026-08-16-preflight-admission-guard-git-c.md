@@ -18,7 +18,7 @@ esac
 ```
 
 It is wrong in **both** directions. Measured two-sided against the same repo with the same
-staged file, config `preflight_gate: warn` + `preflight_deny_repos: commonspace-app`:
+staged file, config `preflight_gate: warn` + `preflight_deny_repos: proj-a-app`:
 
 | Command form | Observed | Expected |
 |---|---|---|
@@ -46,7 +46,7 @@ pins docs-only silence as intended — "a gate that fires on a README edit is th
 gets disabled wholesale" (Mike, 2026-08-01). Re-measured this session and it is also
 *narrower* than the memory rows record: the `exit 0` is on `[ -z "$CODE_FILES" ]`, so a
 **mixed** commit (docs + code) still denies. Latent regardless — 0 non-doc tracked files
-under any `docs/` in commonspace-app, 3 in commonspace-ui-v3, all `.json`/`.html`.
+under any `docs/` in proj-a-app, 3 in proj-a-ui, all `.json`/`.html`.
 
 ## The fix
 

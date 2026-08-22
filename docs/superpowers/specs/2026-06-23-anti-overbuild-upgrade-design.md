@@ -84,7 +84,7 @@ Add an **over-build probe to the per-surface agent dispatch** (NOT a "checklist 
 during /prospect 2026-06-23: readiness-audit has no static checklist; it dispatches Explore agents
 per surface in parallel, then a controller re-verifies every load-bearing claim). The over-build probe
 is one more read-only surface in that dispatch list, reading `overbuild-patterns.md` as its rubric.
-This is the "audit Commonspace/Seersite for bloat" reach without a new skill. Each finding is
+This is the "audit proj-a/proj-b for bloat" reach without a new skill. Each finding is
 evidence-celled like the skill's other surface findings and feeds the phased remediation plan
 (triage to phases, NOT a shipping list — per the skill's existing contract). Probe stays read-only
 per the skill's guardrail (no build/run mutation).

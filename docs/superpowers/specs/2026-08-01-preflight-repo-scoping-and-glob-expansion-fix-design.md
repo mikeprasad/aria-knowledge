@@ -32,8 +32,8 @@ pathname expansion **before `case` ever sees it**. Measured:
 
 | cwd | configured pattern | what the loop actually iterates | consequence |
 |---|---|---|---|
-| `cs/commonspace-ui-v3` | `src/*` | **17 literal words** (`src/App.js`, `src/assets`, …) | staged `src/components/Foo.jsx` matches none → **no deny** |
-| `df/df-ui/df-working/src/designframe` | `*df-input.css` | `df-input.css` (leading `*` lost) | staged `df-working/src/designframe/df-input.css` → **no deny** |
+| `cs/proj-a-ui` | `src/*` | **17 literal words** (`src/App.js`, `src/assets`, …) | staged `src/components/Foo.jsx` matches none → **no deny** |
+| `proj-c/ui/working/src/tokens` | `*tokens-input.css` | `tokens-input.css` (leading `*` lost) | staged `working/src/tokens/tokens-input.css` → **no deny** |
 | a cwd with no matching entry | `*df-input.css` | `*df-input.css` (unchanged) | denies correctly |
 
 So the gate's behaviour depends on **where the Bash tool happened to be**, and the failure direction
@@ -45,12 +45,12 @@ threshold or pattern change fixes it.
 
 ### D2 — there is no way to scope the gate to a repository
 
-Mike's actual requirement: *"always gate on anything in `commonspace-app` and `commonspace-ui-v3`."*
+Mike's actual requirement: *"always gate on anything in `proj-a-app` and `proj-a-ui`."*
 
 `preflight_deny_paths` cannot express it. `REPO_DIR` is resolved (lines 51–58) **solely** to run
 `git -C "$REPO_DIR" diff --cached --name-only`; it never enters the matching. Staged paths are
-repo-relative, so committing in `commonspace-app` yields `payment_gateway/views.py` — the repo name
-appears nowhere in the string a pattern is matched against. `*commonspace-app/*` matches nothing.
+repo-relative, so committing in `proj-a-app` yields `payment_gateway/views.py` — the repo name
+appears nowhere in the string a pattern is matched against. `*proj-a-app/*` matches nothing.
 
 The only mechanism that satisfies "always" today is `preflight_gate: deny`, which gates **every code
 commit in every repo** — correct but a blunt superset, and it discards the per-repo intent.
@@ -98,7 +98,7 @@ explicitly. This is itself a test case (T3).
 Comma-separated substrings matched against the target repo's **absolute toplevel path**:
 
 ```
-preflight_deny_repos: commonspace-app,commonspace-ui-v3
+preflight_deny_repos: proj-a-app,proj-a-ui
 ```
 
 Semantics, deliberately mirroring `preflight_deny_paths`:
@@ -130,9 +130,9 @@ fi
 
 **Matching is substring, on the absolute path, case-sensitive.** Consequences, accepted knowingly:
 
-- `commonspace-app` matches `/Users/…/cs/commonspace-app` ✓
-- `cs/commonspace` covers both CS repos in one token ✓
-- a sibling like `commonspace-app-fork` would **also** match ✗
+- `proj-a-app` matches `/Users/…/cs/proj-a-app` ✓
+- `wk/proj-a` covers both of that project's repos in one token ✓
+- a sibling like `proj-a-app-fork` would **also** match ✗
 
 The over-match is the correct failure direction for a gate: it fails **closed**. Under-matching is
 what D1 already proved dangerous — a gate that silently stops gating. Exact-basename equality is the
@@ -165,7 +165,7 @@ exactly why D1 survived.**
 | T1 | cwd holds `decoy.py`; `deny_paths=*.py`; staged `app.py` | DENY | yes — expands to `decoy.py`, no match |
 | T2 | cwd holds `df-input.css`; `deny_paths=*df-input.css`; staged `sub/df-input.css` | DENY | yes — leading `*` lost |
 | T3 | after a hook run, globbing still enabled in the sourcing shell | no leak | n/a — guards the fix |
-| T4 | `deny_repos=commonspace-app`; repo toplevel under a dir of that name | DENY | yes — key does not exist |
+| T4 | `deny_repos=proj-a-app`; repo toplevel under a dir of that name | DENY | yes — key does not exist |
 | T5 | `deny_repos=other-repo`; non-matching repo | warn, **not** deny | yes |
 | T6 | denial message cites `preflight_deny_repos`, not gate or paths | correct attribution | yes |
 | T7 | command with no `cd` / `git -C` (so `REPO_DIR="."`) still resolves + matches | DENY | yes |
@@ -304,7 +304,7 @@ change, its corpus did. Alternative dropped; `Y` now matches only on the config 
 
 Installed to `~/.claude/plugins/marketplaces/local-desktop-app-uploads/aria-knowledge/` (prior
 2.44.0 cache backed up first; `diff -r --exclude=tests` against source returns identical), and
-`preflight_deny_repos: commonspace-app,commonspace-ui-v3` set in the live config. Verified against
+`preflight_deny_repos: proj-a-app,proj-a-ui` set in the live config. Verified against
 the **installed** hook and the **real** config: both repos deny with correct attribution, an
 unrelated repo warns only, a recorded preflight clears the gate, and a docs-only commit in a gated
 repo stays silent (the Q4 residual, behaving as ruled).

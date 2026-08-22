@@ -18,10 +18,10 @@ The stratification in §3 is unsatisfiable on its own pool. Measured 2026-08-22:
 
 | # | Original prospect | Target |
 |---|---|---|
-| 1 | 2026-07-06 | `archetypes/docs/superpowers/plans/2026-07-06-engine-math-fixes.md` |
-| 2 | 2026-07-06 | `collab/co-studio/docs/superpowers/plans/2026-07-06-doctype-registry-unification.md` |
-| 3 | 2026-07-17 | `cs/docs/superpowers/specs/2026-07-17-m2m-accessgate-rename-spec.md` |
-| 4 | 2026-07-21 | `cs/cs-mobile-native/docs/superpowers/specs/2026-07-21-feed-collapsing-chrome-design.md` |
+| 1 | 2026-07-06 | `proj-d/docs/superpowers/plans/2026-07-06-engine-math-fixes.md` |
+| 2 | 2026-07-06 | `proj-e/studio/docs/superpowers/plans/2026-07-06-doctype-registry-unification.md` |
+| 3 | 2026-07-17 | `proj-a/docs/superpowers/specs/2026-07-17-m2m-accessgate-rename-spec.md` |
+| 4 | 2026-07-21 | `proj-a/proj-a-mobile/docs/superpowers/specs/2026-07-21-feed-collapsing-chrome-design.md` |
 
 All four are originally **PROCEED (clean)** — the discriminating arm. The 4-PWC control arm from §3 is **dropped**: at n=4 it would halve the discriminating sample to buy a control for "is the gate still behaving like a gate," which the four runs' own candidate counts already answer.
 
@@ -50,7 +50,7 @@ All four are originally **PROCEED (clean)** — the discriminating arm. The 4-PW
 
 ### A0.4 — Feasibility gate before run 1
 
-First action of execution: one `git worktree add` + `git worktree list` round-trip in the `archetypes` repo. `git worktree add` is additive and does not move a shared HEAD, but it has not been exercised in these repos this session. Failure is loud, so this is a cheap precondition rather than a risk.
+First action of execution: one `git worktree add` + `git worktree list` round-trip in a representative repo. `git worktree add` is additive and does not move a shared HEAD, but it has not been exercised in these repos this session. Failure is loud, so this is a cheap precondition rather than a risk.
 
 ### A0.5 — Unchanged and load-bearing
 
@@ -82,7 +82,7 @@ Four rival causes were ruled out by measurement (`/auto` adoption, plan size, th
 
 ## 3. Sample
 
-Measured 2026-08-22: **585** pre-transition prospect logs carry a verdict; **457** name a target `.md`; **168** of those targets still exist on disk, spread across 11 repos (`df` 40, `aria` 39, `cs` 39, `collab` 23, `devframe` 8, `archetypes` 7, `vox` 6, `roam` 3, `cfi`/`balm`/`shopsource` 1 each).
+Measured 2026-08-22: **585** pre-transition prospect logs carry a verdict; **457** name a target `.md`; **168** of those targets still exist on disk, spread across 11 repos (long tail: the top three hold 40/39/39, the next three 23/8/7, and five more hold 6 or fewer — 1 each at the tail).
 
 **n = 12, stratified deliberately, not randomly:**
 
