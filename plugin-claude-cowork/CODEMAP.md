@@ -1,7 +1,7 @@
 # aria-cowork Codemap
 
 > Feature-organized reference for the aria-cowork plugin (Claude Cowork sibling of aria-knowledge).
-> Last updated: 2026-07-22 | Sections: 7 | Skills: 27 (27 distinct, 0 aliases)
+> Last updated: 2026-07-22 | Last refreshed: **2026-08-26** | Sections: 7 | Skills: **24** (measured on disk 2026-08-26; the prior claim of 27 was stale)
 >
 > **2026-07-22 refresh (update mode):** version drift only — the plugin advanced v1.0.1 → **v1.5.0** since the last stamp. Layout/architecture is otherwise unchanged (still skills-only, persistent-grant, shared knowledge folder). What moved: **skill manifest 26 (24 distinct + 2 aliases) → 27 distinct, 0 aliases.** v1.3.0 added `/foundational-review` + `/readiness-audit` (porting aria-knowledge v2.29.0's review chain) AND removed the 2 audit aliases (`/knowledge-audit`, `/config-audit` — their slash-forms still route via the canonical skills' trigger lists, they just no longer cost a skill dir against the description cap). v1.4.0 added `/interview` (parity with aria-knowledge v2.31.0). v1.5.0 was a `working-rules.md` template sync only (no skill/manifest change). Built artifacts now run through `aria-cowork-1.5.0.plugin`. See Section 2 (Skills) + Section 5 (Built Artifacts) for the refreshed detail. Coordinated aria-knowledge line is now at v2.4x (see `../CLAUDE.md`).
 >
@@ -29,7 +29,7 @@
 
 ## 0. Project Identity & Stack
 
-**Plugin:** aria-cowork v1.5.0 (current on-disk manifest; latest built artifact `aria-cowork-1.5.0.plugin`).
+**Plugin:** aria-cowork **v1.7.0** (on-disk manifest verified 2026-08-26; latest built artifact `aria-cowork-1.7.0.plugin`). The prior v1.5.0 claim was stale — v1.6/v1.7 shipped the /intake consolidation and /interview guided cadence.
 **Type:** Claude Cowork plugin (skills-only — no commands/, hooks/, agents/; ships `.mcp.json` + `CONNECTORS.md` for 12-server MCP framework across 4 categories: chat / email / project tracker / docs).
 **License:** CC BY-NC-SA 4.0 (matches aria-knowledge).
 **Author:** Mike Prasad.
