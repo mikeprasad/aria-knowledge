@@ -28,8 +28,33 @@ out=$(printf '{"session_id":"S1","source":"startup"}' | sh "$SCRIPT" 2>/dev/null
 
 # Path keyed by the resolved (CLI) account, not a hard-coded ~/.claude.json read
 printf '%s' "$out" | grep -q "aria-statusline-state-cli-uuid-1.json" || fail "USAGE_SNAP key not resolved: $out"
-# Staleness/scope rule taught to the agent
-printf '%s' "$out" | grep -qi "resets_at" || fail "missing resets_at staleness rule"
-printf '%s' "$out" | grep -qi "re-read" || fail "missing re-read-fresh directive"
-printf '%s' "$out" | grep -qi "session_id" || fail "missing context session-scope rule"
+# Staleness/scope rule taught to the agent.
+#
+# RE-SCOPED (v2.47.0), not relaxed. This used to assert against
+# session-start-check.sh, which emits systemMessage — a channel that renders to
+# the user's terminal and never reaches the model. So the guard was passing on a
+# payload the agent could not read. The directive now lives in
+# session-start-rules.sh on hookSpecificOutput.additionalContext, so the
+# assertion follows it there and is checked on the DECODED payload: the property
+# is "the agent is taught the rule", and only the decoded value proves that.
+RULES_HOOK="$HERE/../../plugin-claude-code/bin/session-start-rules.sh"
+rules_out=$(sh "$RULES_HOOK" 2>/dev/null)
+printf '%s' "$rules_out" | grep -q "additionalContext" \
+  || fail "session-start-rules.sh did not emit additionalContext: $rules_out"
+printf '%s' "$rules_out" | jq -r '.hookSpecificOutput.additionalContext' 2>/dev/null \
+  | grep -qi "resets_at" || fail "missing resets_at staleness rule in the model-facing payload"
+# And it must NOT have regressed into telling the agent to decide from usage.
+printf '%s' "$rules_out" | jq -r '.hookSpecificOutput.additionalContext' 2>/dev/null \
+  | grep -qi "judging whether to keep going" \
+  && fail "TASK BUDGET regressed: tells the agent to gate stopping on usage"
+# Same re-scope, same reason: these assert content of the TASK BUDGET directive,
+# which now lives in the model-facing hook.
+rules_ctx=$(printf '%s' "$rules_out" | jq -r '.hookSpecificOutput.additionalContext' 2>/dev/null)
+printf '%s' "$rules_ctx" | grep -qi "re-read" || fail "missing re-read-fresh directive"
+printf '%s' "$rules_ctx" | grep -qi "session_id" || fail "missing context session-scope rule"
+# The user-facing hook keeps a pointer to the snapshot, but must no longer carry
+# the directive body — leaving it there keeps a corrected behaviour one
+# channel-flip from returning.
+printf '%s' "$out" | grep -qi "re-read it fresh at decision time" \
+  && fail "old hook still carries the TASK BUDGET directive body"
 echo "PASS statusline-session-start"
