@@ -281,3 +281,92 @@ for k in projects_enabled auto_load_project_context session_start_project_picker
   assert_eq "setup writes ${k}" "yes" \
     "$(grep -q "^${k}: \[" "$SETUP" 2>/dev/null && echo yes || echo no)"
 done
+
+# ---------------------------------------------------------------------------
+# DELIVERY GUARD — the payload must ARRIVE, not merely be emitted
+# ---------------------------------------------------------------------------
+# Added 2026-08-26 (spec 2.6 and 7/AC1, both amended the same day).
+#
+# Every assertion above this line inspects the hook's STDOUT. That is exactly why
+# this file stayed green through 42 sessions in which the harness discarded 90% of
+# the payload before it reached model context: emission was never the failure,
+# delivery was. Two assertions above look like coverage and are not — one greps
+# "Rule 13", the other "RULE 22 ORDERING" which sits ~14k characters in. Both are
+# present in the emission. Neither reaches context.
+#
+# PROXY, named as one, because an unlabelled proxy becomes a claim. These measure
+# what the hook EMITS. The real outcome test is AC1 — classify a fresh session's
+# hook_additional_context record and confirm the LAST rule title survived. This
+# suite never sees a transcript and cannot run it.
+#
+# The ceiling is a downward-only RATCHET, not a target. Read out of cli 2.1.245:
+#   threshold = min(tool.maxResultSizeChars, ceiling)
+# with a per-tool override map behind the server gate "tengu_velvet_ibis". The
+# real cap is therefore PER-TOOL and REMOTELY MUTABLE, so no payload may be sized
+# against it and locating it exactly would not make a hook design safe. The goal
+# is 3,321 ch — the only size measured to cross this channel intact. Lower this
+# baseline as the file/hook split lands. NEVER raise it.
+ARIA_EMIT_CEILING=20322
+
+# The needle: the LAST rule title, derived from the digest, never hardcoded — a
+# literal would keep passing after rule 39 is added, which is the same failure
+# mode as antigravity's hardcoded "34".
+LAST_RULE_TITLE=$(grep -o '^- \*\*Rule [0-9]* — [^*]*\*\*' "$DIGEST" 2>/dev/null \
+  | tail -1 | sed 's/^- \*\*//; s/\*\*$//')
+
+# Positive control FIRST. An empty needle makes every grep below match, so
+# without this the whole guard is satisfied by a broken extraction.
+assert_eq "last-rule-title needle parses non-empty" "yes" \
+  "$([ -n "$LAST_RULE_TITLE" ] && echo yes || echo no)"
+
+# WORST-CASE fixture: every conditional block on at once. Built from the in-repo
+# template plus synthesised U-rules — never the developer's real knowledge folder,
+# which would make the ceiling environment-dependent. 40 headers keeps the inlined
+# index under the hook's own 3000-ch branch point, so the LONG (larger) U-rule
+# variant fires rather than the count-only one.
+KFW="$APM_TMP/kfw"; mkdir -p "$KFW/rules"
+: > "$KFW/rules/user-rules.md"
+urn=1
+while [ "$urn" -le 40 ]; do
+  printf '### U%s — a representative user rule title of realistic length\n' "$urn" \
+    >> "$KFW/rules/user-rules.md"
+  urn=$((urn+1))
+done
+printf '# Index\n\n## Tag Index\n\n### aria\n- a.md\n\n### cs\n- b.md\n' > "$KFW/index.md"
+CFGW="$APM_TMP/aria-cfg-worst.md"
+printf -- '---\nknowledge_folder: %s\nautonomy: autonomous\nsession_state: true\n---\n' \
+  "$KFW" > "$CFGW"
+OUTW="$APM_TMP/ssr-worst.json"
+: > "$OUTW"
+if KT_CONFIG="$CFGW" sh "$HOOK" > "$OUTW" 2>/dev/null; then :; else :; fi
+PW=$(jq -r '.hookSpecificOutput.additionalContext' "$OUTW" 2>/dev/null || echo '')
+
+# Prove the fixture is actually maximal. Without this the size assertion below
+# passes trivially on a fixture that emitted half the blocks.
+assert_eq "worst-case fixture fires the LONG U-rule variant" "no" \
+  "$(printf '%s' "$PW" | grep -q 'too many to index inline' && echo yes || echo no)"
+for blk in 'RULE 22 ORDERING' 'DECISION ROUTING' 'SESSION STATE' 'TASK BUDGET' 'ARIA ACTIVE CONTEXT' 'STANDING USER RULES'; do
+  assert_eq "worst-case fixture carries ${blk}" "yes" \
+    "$(printf '%s' "$PW" | grep -qF "$blk" && echo yes || echo no)"
+done
+
+# The two assertions that are the point of this block.
+# Length must be PATH- and LOCALE-normalised, or the ceiling is not measuring the
+# payload. The payload interpolates the knowledge-folder path 3 times, so a raw
+# count moves with the temp-dir path length: measured 21,074 at a 144-char path
+# vs 20,942 at 100 (exactly 3x the 44-char difference). The FIRST version of this
+# guard used a raw count and SURVIVED its own mutation, because mktemp's path
+# happened to put the total under the ceiling. `wc -m` is no good either — under
+# LC_ALL=C it counts bytes (20,942 vs 20,322). jq's literal string split is both
+# path-independent and locale-independent.
+PW_CH=$(jq -r --arg kf "$KFW" \
+  '.hookSpecificOutput.additionalContext | (. / $kf | join("<KF>")) | length' \
+  "$OUTW" 2>/dev/null || echo 0)
+assert_eq "worst-case emission stays at or under the ratchet" "yes" \
+  "$([ "${PW_CH:-0}" -le "$ARIA_EMIT_CEILING" ] && echo yes || echo no)"
+assert_eq "worst-case emission carries the LAST rule title" "yes" \
+  "$(printf '%s' "$PW" | grep -qF "$LAST_RULE_TITLE" && echo yes || echo no)"
+
+# And the minimal path, which is what most installs actually emit.
+assert_eq "minimal emission carries the LAST rule title" "yes" \
+  "$(jq -r '.hookSpecificOutput.additionalContext' "$OUT" 2>/dev/null | grep -qF "$LAST_RULE_TITLE" && echo yes || echo no)"
