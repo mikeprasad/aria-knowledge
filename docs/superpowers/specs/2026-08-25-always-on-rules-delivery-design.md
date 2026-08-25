@@ -128,6 +128,13 @@ not.** `bin/session-start-rules.sh` ran clean (exit 0, 19,743 ch stdout) and pro
 `<persisted-output>` wrapper: a **2,000-character preview** plus a path to a file on disk.
 The preview length is the constant `K5=2000`, read out of the Claude Code binary.
 
+⚠ **Refinement, measured 2026-08-26: `K5=2000` is the BUDGET; the DELIVERED preview is 1,929 ch.**
+The cut lands on a line boundary — the largest whole-line prefix under the budget — so the last
+delivered character is the end of the `Rule 1` line at char 1,928, and file content at chars
+1,990–2,010 is provably absent from context. ⚠ **And the harness counts CHARACTERS, not bytes:**
+its own wrapper reads `19.1KB` = 19,557/1024, while the file is 19,813 B. A design sized against
+the byte figure is 256 ch off. Size against characters.
+
 | | |
 |---|---|
 | `additionalContext` emitted | 19,557 ch |
@@ -137,8 +144,11 @@ The preview length is the constant `K5=2000`, read out of the Claude Code binary
 | U-rule references delivered | **0 of 19** |
 | `RULE 22 ORDERING` in context | **no** |
 
-⭐ **Reproduced across NINE sessions** — nine byte-identical 19,813-byte persisted payloads,
-i.e. every session since install. Not a one-off.
+⭐ **Reproduced across FORTY-TWO sessions** — 42 distinct session directories, each holding
+exactly one persisted payload, all byte-identical at 19,813 B, all stamped 2026-08-26 between
+01:25 and 03:21, across both project dirs (`-Users-mikeprasad` 30, `-Users-mikeprasad-Projects`
+12). Re-measured 2026-08-26; this read **nine** when the section was written and grew by normal
+use, not by a new defect. Every session since the 01:14 install. Not a one-off.
 
 ⭐ **The cap is PER EMISSION, not per session.** In the same aggregate record, sibling strings
 of 1,018 and 3,321 ch (the output-style plugin and superpowers) passed through **intact**
@@ -163,6 +173,14 @@ characters**. It is 10% of the intent, not a regression.
 19,557 ch. Two probes at 12,000 and 16,385 ch returned whole, but they went through the
 **Bash tool** consumer, not the hook consumer, and do not transfer. Recorded as a bracket,
 not a number, so no design sizes itself against a figure measured on the wrong channel.
+
+⛔ **And the bracket cannot be narrowed from history — measured 2026-08-26.** Across every
+`tool-results/` file in all 171 session directories, the **smallest persisted output of any kind
+is 19,813 B**; only two others exist under 30 KB (23,595 and 28,146), and all 42
+`additionalContext` payloads are the identical 19,813 B. There has never been an emission between
+3,321 and 19,557 ch. **The bracket is wide because no payload of intermediate size has ever
+existed to be measured, not because a measurement failed** — so no amount of transcript
+archaeology closes it. Only a purpose-built emission **on the hook channel** can.
 
 ⚑ **Instrument note, extending §2.1's.** A negative control run in this session returned
 **1**, not 0, because the transcript already contained the command text that carried the
@@ -460,6 +478,22 @@ count string occurrences.**
   Right threshold, wrong unit: the AC was written against a channel assumed lossless, so it
   could not fail for the one reason it now needs to. Asserting the *last* title makes
   truncation the failure it should always have been.
+  ✅ **BUILT 2026-08-26** — `plugin-claude-code/tests/test-aria-rules-digest.sh`, 11 assertions
+  appended: a positive control on the needle, a deterministic worst-case fixture proven to carry
+  all six conditional blocks, a downward-only size ratchet at **20,322** normalised codepoints,
+  and the last-rule-title check on both the minimal and worst-case paths. ⚠ **Named as a PROXY in
+  the code:** it measures what the hook EMITS; the transcript-classification half of AC1 cannot
+  run in a suite that never sees a transcript. Mutation record — M1 ceiling−1 → only the ratchet
+  fires; M2 needle emptied → the control fires **while both last-title assertions stay green**,
+  which is exactly why the control exists; M3 emission truncated before the escape step → both
+  last-title assertions fire; M4 fixture loses `autonomy` → the DECISION ROUTING fixture assertion
+  fires. ⚑ **Four of seven mutation attempts were unfaithful** (a no-op insert, a `sed` that never
+  matched, and twice truncating a variable after its value had been copied out) — every one caught
+  by proving the condition was created, none by re-reading. ⛔ **And the first version of the guard
+  survived its own mutation:** it counted raw characters, and the payload interpolates the
+  knowledge-folder path 3 times, so the total moved with the temp-dir path length (21,074 at a
+  144-char path vs 20,942 at 100). `wc -m` was no better — under `LC_ALL=C` it counts bytes.
+  The measure is now jq's literal string split, which is path- and locale-independent.
 - **AC2** — That same session still produces a `hook_system_message` record containing
   the audit nags. *Red when:* the change is a move rather than a split. AC1 and AC2 must
   pass in the same session; either alone is satisfiable by the wrong implementation.
@@ -674,10 +708,10 @@ design choice is made against evidence rather than preference.
 | Channel | Always-on | Largest size **proven** | Zero user action on a stock install |
 |---|---|---|---|
 | Hook `additionalContext` | yes | **3,321 ch** (19,557 → cut to 2,000) | **yes** |
-| `~/.claude/rules/*.md`, no `paths:` | yes, every project | 2,338 B *(only sample)* | no — one write to user config |
+| `~/.claude/rules/*.md`, no `paths:` | yes, every project | **13,101 B — measured, probe A** | no — one write to user config |
 | `<project>/.claude/rules/*.md` + `paths:` | only on a matching file read | 10,596 B | no |
 | `CLAUDE.md` + `@import` | yes | **261,442 B** | no — writes the user's repo |
-| `claudeMd` settings key | yes | — | no — **managed/policy layers only** |
+| `claudeMd` settings key | **no — inert at user scope** | **0 B — measured, probe B** | n/a |
 | Plugin `rules/` directory | **not loaded** | — | — |
 | Plugin `output-style` | yes | — | yes, but only one style can be active |
 
@@ -689,11 +723,19 @@ Two measured negatives, both worth keeping so they are not re-litigated:
   `skills, agents, hooks, mcp, lsp, output-style, channel` — which has no rules or
   instructions component. **A plugin cannot ship always-on instruction text.** That single
   fact is why the hook was reached for in the first place, and it is the real constraint.
-- ⚠ **`claudeMd` would have been ideal and is out of reach.** It injects CLAUDE.md-formatted
-  instructions with no physical file, but is honoured only in the managed and policy settings
-  layers, which a plugin cannot and must not write. **Documented, not measured** — and this
-  arc has already caught the same doc set wrong once, so it is worth one empirical test at
-  user scope before being treated as settled.
+- ⛔ **`claudeMd` would have been ideal and is now MEASURED out of reach — probe B, 2026-08-26.**
+  It injects CLAUDE.md-formatted instructions with no physical file, but is honoured only in the
+  managed and policy settings layers, which a plugin cannot and must not write. This bullet
+  previously read *"documented, not measured"* and asked for one empirical test, on the grounds
+  that this arc had already caught the same doc set wrong once. **The test was run and the docs
+  are right this time:** a top-level `"claudeMd"` string carrying the sentinel `PROBE-B-QX7K` was
+  written to `~/.claude/settings.json`, the next session started, and the sentinel is absent from
+  model context. ⚠ **It fails SILENTLY** — no warning, no error, no log line; the key is simply
+  ignored, which is why documentation was the only available evidence for so long. ⭐ **The result
+  is interpretable only because probe A was live in the SAME session:** probe A's file arrived in
+  full through the user-scope config channel, proving that channel was working and that this
+  context genuinely receives user config content — so probe B's absence is attributable to the key
+  rather than to a dead session. **A negative result needs a positive control in the same arm.**
 
 ### 10.2 The compressibility measurement
 
@@ -719,10 +761,17 @@ line the design must be drawn on: **not size, but what breaks when the text is a
 
 - **W — one emission, titles only** (~2,149 ch). Zero user action, nothing to configure.
   ⛔ Rejected: drops the literal `[Rule 22]` text, so it fails the one thing that must not fail.
-- **X — two or three emissions: all 38 titles plus the procedural blocks verbatim**
-  (~3,500 ch split into ~1,750-ch emissions). Zero user action; every rule triggered; the
-  damage-preventing text present verbatim. Depends on the cap staying above ~1,800 — roughly
-  5× margin under the only figure measured on this channel.
+- **X — all 38 titles plus the procedural blocks verbatim** (~3,500 ch). Zero user action;
+  every rule triggered; the damage-preventing text present verbatim.
+  ⛔ **CORRECTED 2026-08-26 — there is no zero-machinery split.** This entry read *"two or three
+  emissions … split into ~1,750-ch emissions … roughly 5× margin"*, silently assuming one hook can
+  contribute several emissions. It cannot: `bin/session-start-rules.sh:165` is a single `printf` of
+  a single JSON object with a single `additionalContext` field, and §2.6's per-emission evidence is
+  **siblings from different plugins**, not several records from one script. So the split form needs
+  2–3 **hook entries** and is small-N **Y**, not a cheaper X. The implementable one-hook X is **one
+  emission**, and at ~2,972 ch its margin under the only figure measured on this channel (3,321 ch)
+  is **349 ch / 11.7%** — a measured margin on the right channel, but an order of magnitude tighter
+  than the retracted 5×. Size it against characters, and guard it.
 - **Y — N emissions carrying the full 19,557 ch** (~7 hooks × ~2,800). Zero user action and
   **nothing lost at all**; the per-emission finding in §2.6 is what makes it possible. Costs
   seven process spawns at session start, seven plugin entries, and a Rule 13 objection — and
@@ -733,6 +782,16 @@ line the design must be drawn on: **not size, but what breaks when the text is a
   be the default for every install.
 
 ### 10.4 Recommendation
+
+⛔ **RULED 2026-08-26 (Mike): the file channel is `~/.claude/rules/`, not the `CLAUDE.md`
+`@`-import.** Verbatim: *"A i prefer rules"*. Chosen with the trade stated — the rules channel
+was proven only to 13,101 B against an `@`-import proven to 261,442 B, so it accepts one probe
+session in exchange for never writing the user's repo. Probe C is armed for that (§10.5).
+⛔ **And the architecture changed with it — see §10.7. The four designs in §10.3 all assume one
+channel wins; the measurement says the emission is 61% static / 39% computed, so the split is by
+MUTABILITY, not by audience (§8.1) or fidelity (§10.3).** The text below predates that finding
+and is kept as the reasoning that led to it.
+
 
 **X as the floor, Z as the ceiling, and a loud guard as the thing that makes either durable.**
 
@@ -782,17 +841,116 @@ session start** and re-delivered to subagents from that snapshot — so a rules 
 mid-session reaches neither the creating session nor any subagent it spawns. That is why probe A
 requires a genuinely new session and cannot be closed by delegation.
 
+### 10.7 The cap is per-tool and remotely mutable — read out of the binary, 2026-08-26
+
+**This is the finding that explains why the arc did not converge for three sessions: it was
+trying to pin a number that is not a constant.**
+
+Read from the live binary — `/Users/mikeprasad/.local/share/claude/versions/2.1.245`, a
+Bun-compiled executable with the transpiled JS embedded. ⚠ The `cli.js` at
+`/opt/homebrew/lib/node_modules/@anthropic-ai/claude-code` is **2.0.8**, from October, and
+reading it would have been the same wrong-unit error a third time.
+
+```js
+function Rae(e, t, n = Cae, r = !1) {      // e=toolName  t=maxResultSizeChars  n=ceiling
+  if (!Number.isFinite(t)) return t;
+  if (r) return Math.min(t, n);
+  let s = Me(Byo, {})?.[e];                 // Byo = "tengu_velvet_ibis", map keyed by TOOL NAME
+  if (typeof s === "number" && Number.isFinite(s) && s > 0) return s;
+  return Math.min(t, n);
+}
+```
+
+| Fact | Status |
+|---|---|
+| `K5 = 2000` (preview length) | ✅ **confirmed** — §2.6 was right |
+| `V5 = "<persisted-output>"`, `vrt = "</persisted-output>"` | ✅ confirmed |
+| `threshold = min(tool.maxResultSizeChars, ceiling)` | ✅ measured |
+| override map keyed by **tool name**, gate `"tengu_velvet_ibis"` | ✅ measured |
+| that gate is **server-side**, so the cap is remotely mutable | ⚠ **strong inference, not measured** |
+
+The inference is labelled because it is load-bearing. Basis: `tengu_*` is this binary's
+gate/telemetry namespace throughout (`Dt("tengu_coral_beacon", !1)`,
+`U("tengu_tool_result_persisted", …)`) and no settings-key spelling for it exists. A gate fetch
+was **not** observed.
+
+⛔ **Three consequences, and the third ends the "find the cap" line of work:**
+
+1. **The threshold is per-tool.** This is *structural* confirmation of §2.6's "the Bash-tool
+   probes do not transfer" — not merely an empirical coincidence. Corroborated in-session: a
+   26,389 B Bash tool result came back whole while a 19,557 ch hook payload was wrapped, so the
+   two consumers demonstrably differ by more than 6,800 characters in the same session.
+2. **`tengu_velvet_ibis` is not a lever.** It is a gate name, not a settings key — there is
+   nothing a plugin or a user can set.
+3. ⛔ **No payload may be sized against the cap, and locating it exactly would not make a hook
+   design safe.** X, Y, and the "split by mutability" hook half all rest on a value that can
+   change with no client release and no signal. **Stop sizing against it. Put everything that
+   can be static on the file channel, and make the hook half degradation-tolerant rather than
+   cap-fitted** — i.e. the file carries the *behaviour* and the hook carries only the resolved
+   *values*, so a truncated hook payload is no longer damaging.
+
+⭐ **The composition measurement that makes the split possible.** The emission is assembled at
+`bin/session-start-rules.sh:35-39` — `cat` the static digest, then append generated blocks:
+
+| | Chars | A static file can carry it? |
+|---|---:|---|
+| Static digest (`rules/aria-rules.md`, 38 rules + prose) | 11,960 | ✅ **12,166 B, under probe A's proven 13,101 B** |
+| Generated blocks (`RULE 22 ORDERING`, `DECISION ROUTING`, `SESSION STATE`, `TASK BUDGET`, `ARIA ACTIVE CONTEXT`, `STANDING USER RULES`) | 7,598 | ❌ **no** — each is computed from config or project state |
+| **Emitted total** | **19,557** | |
+
+⛔ **So option Z is NOT a superset of the hook channel** — a file written once is identical in
+every project and cannot carry a block whose content depends on `autonomy`, `session_state`, the
+project's tag index, or `user-rules.md`.
+
+⚑ **A correction worth keeping, because it is the same error twice in one session.** This spec
+was told at one point that "Z at full digest size is unproven by 51%". That was wrong: it compared
+probe A's 13,101 B capacity against the *hook's composed* 19,813 B emission, when a file would
+carry only the 12,166 B static digest. Same wrong-unit shape as probe A itself
+(`feedback_guard_scoped_to_the_wrong_unit`), committed in the same session that named the pattern.
+
+⚠ **Worst case, measured deterministically for the guard:** with every conditional block on and
+the U-rule index at the hook's own internal 3,000-ch branch point, the emission is **20,322
+codepoints** (path- and locale-normalised). That is **6.1× the 3,321 ch** that is the only size
+measured to cross this channel intact.
+
 ### 10.5 Open, and how it gets closed
 
-- **The exact `additionalContext` cap.** Bracket only: >3,321 safe, ≤19,557 truncating. Probe
-  armed 2026-08-26 — `~/.claude/rules/_probe-size.md`, 13,101 B, eight sentinels at known byte
-  offsets (0 / 2,019 / 4,035 / 6,051 / 8,067 / 10,083 / 12,099 / tail 13,051). Whichever
-  sentinels reach context locate the cut to within ~2 KB in **one** session, and this
-  simultaneously answers whether the user-scope rules channel holds 12 KB — the one gap in
-  option Z's default. ⚠ It is armed as an always-on file, so it costs ~3.3k tok in **every**
-  session in every project until deleted: `rm ~/.claude/rules/_probe-size.md`.
-- **Whether `claudeMd` is honoured at user scope.** Blocked: the auto-mode classifier denies
-  agent writes to `settings.json`. Needs `/exit-auto`, an explicit permission rule, or the
-  maintainer making the one-line edit.
+- ✅ **The user-scope rules channel holds 13,101 B — probe A READ 2026-08-26, all eight sentinels
+  present including the tail at 13,051.** Both probes are now removed and the tree is clean,
+  verified with a working positive control so the sentinel absence is a real absence and not a
+  dead grep. This raises the §10.1 proven figure for that channel from 2,338 B to **13,101 B, a
+  5.6× improvement**, and closes the one gap in option Z's default. ⚠ **Bound, and it is the half
+  that matters: 13,101 B is proven, the digest is 19,813 B — Z at full digest size is still
+  unproven by 51%.** Report the bound; do not extrapolate past it. Closing it costs one more
+  session: write the real digest to `~/.claude/rules/aria-rules.md` with a tail sentinel and read
+  it back. Per §10.6's mechanism finding that confirmation is necessarily **next**-session — a
+  rules file created mid-session reaches neither the creating session nor its subagents.
+- ⏳ **PROBE C ARMED 2026-08-26 — does the rules channel carry the whole restructured file?**
+  Under the §10.7 split the file must hold the static digest (11,960 ch) **plus** the conditional
+  blocks rewritten as stated conditionals — bounded above by the hook script's own 13,807 ch, so
+  ~25,800 ch worst case. Probe A proved only 13,101 B, so this is the one measurement the ruled
+  design still needs. ⭐ **It is deliberately armed ABOVE the worst case, at ~32,000 ch, so that a
+  pass settles the channel permanently and no further probe is ever needed.** File
+  `~/.claude/rules/_probe-c-size.md`, **32,056 B**, nine markers `PROBE-C-M4T9-*` at measured
+  offsets **703 / 4,052 / 8,067 / 12,008 / 16,023 / 20,038 / 24,053 / 28,068 / TAIL 32,009**.
+  All nine present ⇒ the channel carries 32 KB and the ruled design is unconditionally safe;
+  the highest present offset otherwise locates the cut to within ~4,000 ch. ⚠ **It costs ~8k tok in EVERY session in EVERY project until
+  deleted — read it next session and remove it:** `rm ~/.claude/rules/_probe-c-size.md`.
+  ⚠ Per §10.6 it cannot be read by the session that created it; the instruction-file set is
+  snapshotted at session start.
+- ⛔ **The exact `additionalContext` cap is STILL OPEN, and probe A could never have closed it.**
+  The bullet above previously sat under this heading and claimed the probe would *"locate the cut
+  to within ~2 KB"*. **It cannot, and the reason is the part worth keeping:** a
+  `~/.claude/rules/*.md` file is delivered through the instruction-file assembly path; the capped
+  payload is delivered through the **hook-output** path. Both are directly observable side by side
+  in one context — the probe file arrived whole inside the `claudeMd` block while the hook payload
+  arrived as a `<persisted-output>` wrapper — so they are demonstrably different consumers with
+  different limits, and a measurement on one does not transfer to the other. ⚑ **§2.6 states this
+  exact rule**, rejecting two earlier probes for going *"through the Bash tool consumer, not the
+  hook consumer"* — and the next section then armed a third probe on a third wrong channel.
+  `feedback_guard_scoped_to_the_wrong_unit`: the instrument was drawn around the wrong unit, and a
+  stated bound did not protect the design that cited it. **The bracket (>3,321 safe, ≤19,557
+  truncating) is unchanged**, and per §2.6 it is unreachable from history — only a purpose-built
+  emission on the hook channel closes it.
 - **OQ1 / dual-field** — still unanswered, and per §8.2 it cannot be run until a hook actually
   emits both fields. Now a low-priority question rather than the deciding one.
