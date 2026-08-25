@@ -24,11 +24,15 @@ kt_json_escape() {
 #
 # ⛔ EMIT THE RESULT WITH printf, NEVER echo. echo's handling of backslash
 # escapes is implementation-defined; under sh it converts the \n sequences this
-# function produces back into REAL newlines, emitting invalid JSON. Four hooks
-# in bin/ currently emit with echo (bash-cd, post-edit, pre-compact,
-# pre-explore-codemap) — they are safe only because they use kt_json_escape,
-# whose output contains no backslash sequences. Any of them adopting this
-# function must switch to printf in the same change.
+# function produces back into REAL newlines, emitting invalid JSON.
+#
+# SIX hooks in bin/ currently emit with echo — bash-cd, post-edit, pre-compact,
+# pre-explore-codemap, session-start, task-context. They are safe only because
+# they use kt_json_escape, whose output contains no backslash sequences. Any of
+# them adopting THIS function must switch to printf in the same change.
+# (Census idiom: `grep -rln "echo .*hookSpecificOutput\|echo .*systemMessage"`.
+# A narrower first pass matching only the literal `echo '{"hookSpecificOutput`
+# found four and missed two — the count is only as wide as the idiom.)
 kt_json_escape_multiline() {
   printf '%s' "$1" \
     | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' -e 's/	/\\t/g' -e 's/\r//g' \
