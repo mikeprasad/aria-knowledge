@@ -71,6 +71,45 @@ STANDING USER RULES (${UR_N}, always in force — the user's own rules, binding 
   fi
 fi
 
+# --- task budget ---
+# ⚠ REWORKED, not copied. The long variant in session-start-check.sh:239
+# instructed the model to consult usage figures "when judging whether to keep
+# going, and before /handoff, /wrapup, or compacting" — i.e. to gate its own
+# stopping decisions on them. That is a behaviour the maintainer has repeatedly
+# corrected, and delivering it as written would cause it rather than merely
+# record it. The capability (answering a usage question) is preserved; the
+# directive (deciding from it) is removed. The short variant was already correct
+# and is carried unchanged in substance.
+if ls "$HOME"/.claude/aria-statusline-state-*.json >/dev/null 2>&1; then
+  MESSAGES="${MESSAGES}
+TASK BUDGET — A usage snapshot is written by the aria-knowledge status-line meter at ${HOME}/.claude/aria-statusline-state-*.json (context-window %, 5-hour, 7-day). Read it when the USER asks about usage, and re-read it fresh at that moment rather than citing a number from earlier in the conversation. Treat the 5-hour/7-day figures as STALE if the current time is past five_hour_resets_at / seven_day_resets_at, and context_pct as unknown if the snapshot's session_id does not match this session. ⛔ Do NOT use these figures to decide whether to stop, shorten, skip a required step, or wrap up — that decision is the user's. If you believe the session is strained, say so and offer options; never resolve it unilaterally toward less work.
+"
+else
+  MESSAGES="${MESSAGES}
+TASK BUDGET — You do not see usage directly (only the user's UI shows it). If strain symptoms appear (responses cutting short, deep session length, compaction warnings), surface them and offer options (finish the current atomic task, call /aria-knowledge:extract, trigger compaction, or continue). Do not assume depletion or wrap up autonomously.
+"
+fi
+
+# --- insight capture ---
+# ⚠ One deviation from verbatim, and it is a defect fix rather than a rewording:
+# the source writes the star as the literal characters \xe2\x98\x85. In a POSIX
+# sh double-quoted string that is NOT an escape — it stays literal, so the
+# directive renders as "\xe2\x98\x85 Insight blocks". Invisible while the channel
+# was unread; visible the moment it reaches the model.
+if [ "$KT_AUTO_CAPTURE" != "false" ]; then
+  MESSAGES="${MESSAGES}
+INSIGHT CAPTURE — After completing discrete tasks, batch-append any uncaptured ★ Insight blocks to ${KT_KNOWLEDGE_FOLDER}/intake/insights-backlog.md. Do not capture mid-task — only at task completion boundaries.
+"
+fi
+
+# --- memory pathway ---
+# ⚠ Second deviation, same justification: the source routes notes to /clip, which
+# was RETIRED into /intake in v2.33.0 and now lives in skills/.archived/. Copying
+# it verbatim would instruct the model to invoke a command that does not exist.
+MESSAGES="${MESSAGES}
+MEMORY PATHWAY — ARIA is the structured memory pathway for this session. For notes, use /intake (URLs, snippets, bulk imports, and thread capture), /extract (session insights), /audit-knowledge (promotion). Recent Claude models have enhanced file-system memory; route it through ARIA to keep the knowledge tree curated.
+"
+
 # --- active knowledge surfacing ---
 # Gate TIGHTENED relative to session-start-check.sh:247, which tests only
 # `[ -f "$INDEX_FILE" ]`. The template now ships an index.md skeleton, so mere

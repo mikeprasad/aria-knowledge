@@ -107,10 +107,18 @@ assert_eq "SESSION STATE absent when off" "no" "$(u2_has 'SESSION STATE')"
 run_hook_with "session_state: true"
 assert_eq "SESSION STATE present when on" "yes" "$(u2_has 'SESSION STATE')"
 
-# The TASK BUDGET long variant must never be migrated here. It instructs the
-# model to gate stopping and wrap-up decisions on usage figures — a behaviour
-# the maintainer has repeatedly corrected. Task 7 reworks it at its source.
-assert_eq "TASK BUDGET long variant never migrated" "no" "$(u2_has 'aria-statusline-state')"
+# SUPERSEDED by the Task 7 ruling, kept as a record rather than deleted.
+#
+# This originally asserted the TASK BUDGET long variant must NEVER appear here,
+# because it instructed the model to gate stopping and wrap-up decisions on
+# usage figures. That was the right assertion under the then-current plan, which
+# left the variant untouched at its source. The ruling changed: the variant is
+# now REWORKED and delivered, keeping the snapshot for answering a usage
+# question while removing the directive to decide from it.
+#
+# The invariant that actually matters is asserted below, at the Unit 1 block —
+# the delivered text must not tell the model to decide from usage. Asserting
+# absence of the snapshot PATH would now fail for the right behaviour.
 
 # The stateful Unit-2 blocks must NOT be copied here.
 #
@@ -212,3 +220,46 @@ assert_eq "audit-knowledge notes a zero-tag rebuild" "yes" \
   "$(grep -q 'Active knowledge surfacing stays off until' "$APM_ROOT/skills/audit-knowledge/SKILL.md" 2>/dev/null && echo yes || echo no)"
 assert_eq "setup populates the index" "yes" \
   "$(grep -q 'Step 7g: Populate the Knowledge Index' "$SETUP" 2>/dev/null && echo yes || echo no)"
+
+# ---------------------------------------------------------------------------
+# Unit 1 completeness + the TASK BUDGET rework
+# ---------------------------------------------------------------------------
+printf -- '---\nknowledge_folder: %s\n---\n' "$KF" > "$CFG"
+FAKEHOME="$APM_TMP/fakehome"; mkdir -p "$FAKEHOME/.claude"
+: > "$U2OUT"
+if HOME="$FAKEHOME" KT_CONFIG="$CFG" sh "$HOOK" > "$U2OUT" 2>/dev/null; then :; else :; fi
+
+assert_eq "TASK BUDGET delivered" "yes" "$(u2_has 'TASK BUDGET')"
+assert_eq "INSIGHT CAPTURE delivered" "yes" "$(u2_has 'INSIGHT CAPTURE')"
+assert_eq "MEMORY PATHWAY delivered" "yes" "$(u2_has 'MEMORY PATHWAY')"
+
+# Latent defects that only become visible once the channel is actually read.
+assert_eq "INSIGHT CAPTURE renders a star, not an escape sequence" "no" \
+  "$(u2_has 'xe2.x98')"
+assert_eq "MEMORY PATHWAY does not route to the archived /clip" "no" \
+  "$(u2_has '/clip')"
+
+# No statusline snapshot in the fake HOME, so the SHORT variant must fire — the
+# one that says don't assume depletion.
+assert_eq "short TASK BUDGET variant used when no statusline" "yes" \
+  "$(u2_has 'assume depletion')"
+
+# With a snapshot present, the long variant fires and must NOT tell the model to
+# gate stopping or wrap-up on usage figures.
+: > "$FAKEHOME/.claude/aria-statusline-state-test.json"
+: > "$U2OUT"
+if HOME="$FAKEHOME" KT_CONFIG="$CFG" sh "$HOOK" > "$U2OUT" 2>/dev/null; then :; else :; fi
+assert_eq "long variant fires when a snapshot exists" "yes" "$(u2_has 'aria-statusline-state')"
+assert_eq "long variant does not gate stopping on usage" "no" \
+  "$(u2_has 'judging whether to keep going')"
+assert_eq "long variant forbids unilateral wrap-up" "yes" \
+  "$(u2_has 'that decision is the user')"
+
+# The defective text must not survive in the old hook either — leaving it there
+# keeps a corrected behaviour one channel-flip away from returning.
+assert_eq "old hook no longer carries the harmful directive" "no" \
+  "$(grep -q 'judging whether to keep going' "$APM_ROOT/bin/session-start-check.sh" && echo yes || echo no)"
+
+# auto_capture=false must suppress INSIGHT CAPTURE (both directions).
+run_hook_with "auto_capture: false"
+assert_eq "INSIGHT CAPTURE suppressed when auto_capture is false" "no" "$(u2_has 'INSIGHT CAPTURE')"

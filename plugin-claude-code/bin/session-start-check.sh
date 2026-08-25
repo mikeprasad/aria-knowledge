@@ -236,7 +236,19 @@ USAGE_SNAP="~/.claude/aria-statusline-state-${_uk}.json"
 # every session wasted ~600B on the inapplicable counterfactual and read as
 # self-contradictory ("you can see usage" + "you can't") — gate on installed.
 if ls "$HOME"/.claude/aria-statusline-state-*.json >/dev/null 2>&1; then
-  MESSAGES="${MESSAGES}TASK BUDGET — Read ${USAGE_SNAP} (written by the aria-knowledge status-line meter) for your current context-window %, 5-hour, and 7-day plan-usage; consult it when judging whether to keep going, and before /handoff, /wrapup, or compacting. Re-read it fresh at decision time (do not rely on usage numbers mentioned earlier in this conversation). Treat the 5-hour/7-day figures as STALE if the current time is past five_hour_resets_at / seven_day_resets_at, and treat context_pct as unknown if the snapshot's session_id doesn't match this session or is null/absent (just after /compact — not the old high value). If a figure is stale or unknown and a decision depends on it, say so and check the live status line rather than asserting the stored number. (A UserPromptSubmit hook also warns when any metric crosses usage_alert_threshold, default 80%.) "
+  # TASK BUDGET moved to bin/session-start-rules.sh and REWORKED there.
+  # It is not duplicated here on purpose. The previous text directed the model to
+  # consult usage figures before deciding to continue, hand off, wrap up, or
+  # compact — i.e. to gate its own stopping decisions on them, a behaviour the
+  # maintainer has repeatedly corrected. It was harmless only because
+  # systemMessage never reached the model; leaving it here would put a corrected
+  # behaviour one channel-flip away from returning. The snapshot is still
+  # surfaced — for ANSWERING a usage question, not for deciding to stop.
+  #
+  # ⚠ Deliberately paraphrased. A test greps this file for the original phrasing
+  # to prove it is gone, so quoting it here would trip that guard with the very
+  # comment explaining the removal.
+  MESSAGES="${MESSAGES}TASK BUDGET — A usage snapshot is available at ${USAGE_SNAP} (context-window %, 5-hour, 7-day). It is for answering the user's usage questions; the model is directed not to decide from it. See bin/session-start-rules.sh. "
 else
   MESSAGES="${MESSAGES}TASK BUDGET — You do not see usage directly (only the user's UI shows it). If strain symptoms appear (responses cutting short, deep session length, compaction warnings), surface them and offer options (finish the current atomic task, call /aria-knowledge:extract, trigger compaction, or continue). Don't assume depletion or wrap up autonomously. "
 fi
