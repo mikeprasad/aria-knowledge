@@ -160,3 +160,18 @@ assert_eq "multiline escape lives in config.sh (shared, not per-hook)" "yes" \
 # newline-stripping behaviour. This asserts the tr stage is still present.
 assert_eq "shared kt_json_escape still strips newlines (unchanged)" "yes" \
   "$(sed -n '/^kt_json_escape()/,/^}/p' "$APM_ROOT/bin/config.sh" | grep -qF "tr '" && echo yes || echo no)"
+
+# ---------------------------------------------------------------------------
+# /setup — the rules pointer offer (structural; runtime behaviour is a skill
+# instruction, not code, so these assert the instruction says the right thing)
+# ---------------------------------------------------------------------------
+SETUP="$APM_ROOT/skills/setup/SKILL.md"
+assert_eq "setup offers a rules pointer" "yes" \
+  "$(grep -q 'Step 7f: Rules Pointer' "$SETUP" 2>/dev/null && echo yes || echo no)"
+assert_eq "rules pointer defaults to NO" "yes" \
+  "$(grep -q 'Rules Pointer (optional, default NO)' "$SETUP" 2>/dev/null && echo yes || echo no)"
+assert_eq "rules pointer uses ls-files, not check-ignore" "yes" \
+  "$(sed -n '/## Step 7f/,/## Step 8/p' "$SETUP" | grep -q 'ls-files --error-unmatch' && echo yes || echo no)"
+# The ADR this narrows must not silently contradict itself (Rule 21).
+assert_eq "the deferral ADR carries its amendment" "yes" \
+  "$(grep -q 'Amended 2026-08-26 — narrowed, not reversed' "$SETUP" 2>/dev/null && echo yes || echo no)"

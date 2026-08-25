@@ -278,6 +278,15 @@ After Project Setup completes (questions 1-6), if `projects_enabled: true` AND `
 
 **CLAUDE.md reference handling deferred to first-write.** Earlier drafts of this spec offered to append `_project-knowledge/` references to project CLAUDE.md files at setup time. That has been removed: documenting a convention before the folder exists is aspirational, batch-applying across all projects loses per-repo nuance (different repos may have different teams / visibility), and a default-`y` prompt for a teammate-affecting change is more aggressive than ARIA's normal posture. The CLAUDE.md reference offer now happens inside `/audit-share` Step 6.5 the first time a file is actually written to a repo's `_project-knowledge/` folder — at that moment the folder + README exist, the user has just made an active sharing decision, and per-repo confirmation with git-tracked detection can be presented in context. Step 6.5b additionally handles the multi-repo container CLAUDE.md case for tags with `projects_groups` entries.
 
+**Amended 2026-08-26 — narrowed, not reversed.** The deferral above still governs
+`_project-knowledge/` references, for exactly the reasons it gives. It does **not** govern a
+*rules pointer*, and the distinction is the objection itself: "documenting a convention
+before the folder exists is aspirational" does not apply to `rules/working-rules.md` and
+`rules/user-rules.md`, which exist the moment `/setup` finishes. Step 7f offers that
+pointer under the same guardrails this ADR was protecting — explicit, **default no**,
+per-repo, showing the exact text before writing, and reporting whether the target is
+git-tracked so a teammate-visible write is a visible decision. Nothing is batch-applied.
+
 **Existing `_project-knowledge/` folder detection:**
 
 Before completing this section, scan for existing `_project-knowledge/` folders. Scan locations depend on whether the project is single-repo or multi-repo (matches `/audit-share` Step 2.3 and `/index` Phase 5 conventions):
@@ -512,6 +521,47 @@ After Step 7b's round-trip verification, run a coverage audit to catch any `KT_*
 4. **If `MISSING_FIELDS` is empty:** print `Self-validation passed: all {N} known fields present in config.`
 
 **Why this exists (v2.15.2 Origin):** the `[NEW]` detection in Step 6's Advanced Options was specced to surface new-since-last-setup keys, but Step 6 is a *soft instruction* to Claude — it's not hook-enforced, so a fast or quiet /setup run can silently skip the detection. Step 7e is a final verification gate that runs against the canonical config.sh source of truth, surfacing any gap regardless of how the wizard got there. Pairs with `/audit-config`'s missing-known-fields cascade check (Step 3b) as the audit-cadence safety net.
+
+## Step 7f: Rules Pointer (optional, default NO)
+
+Runs after the config is written and validated, so the rules files exist before they are
+referenced. Offer **once per repo**, never batch-applied.
+
+ARIA's rules already reach Claude through the SessionStart hook
+(`bin/session-start-rules.sh`). `CLAUDE.md` adds one thing the hook cannot: it is the
+surface Claude Code natively re-injects after `/compact`. This is a backstop, not the
+delivery mechanism — a user who declines loses nothing that the hook provides.
+
+**Detect tracking first**, so the offer can say what a write would mean:
+
+```bash
+git -C "$PWD" ls-files --error-unmatch CLAUDE.md >/dev/null 2>&1 && echo tracked || echo untracked
+```
+
+⚠ Use `ls-files`, not `git check-ignore`. `check-ignore` consults the index and reports a
+**tracked** file as "not ignored" — an inversion that reads backwards until you know it.
+
+Then offer:
+
+> "Add a 4-line ARIA rules pointer to this repo's `CLAUDE.md`? The rules already reach
+> Claude through the SessionStart hook; `CLAUDE.md` is additionally re-injected after
+> `/compact`. This file is [tracked / untracked], so a write here [would be visible to
+> teammates / stays local]. (y/N)"
+
+On an explicit `y`, append exactly:
+
+```markdown
+## ARIA Rules
+Working rules: `{knowledge_folder}/rules/working-rules.md`
+User rules: `{knowledge_folder}/rules/user-rules.md`
+Read either before acting on anything it plausibly covers.
+```
+
+On `n`, no reply, or anything else: **write nothing.** Do not re-offer in the same run.
+
+If `CLAUDE.md` already contains an `## ARIA Rules` heading, skip silently — appending a
+second copy is the append-loop failure that `session_state`'s gitignore clause produced
+before v2.46.0.
 
 ## Step 8: Confirm
 
