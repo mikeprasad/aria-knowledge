@@ -263,3 +263,21 @@ assert_eq "old hook no longer carries the harmful directive" "no" \
 # auto_capture=false must suppress INSIGHT CAPTURE (both directions).
 run_hook_with "auto_capture: false"
 assert_eq "INSIGHT CAPTURE suppressed when auto_capture is false" "no" "$(u2_has 'INSIGHT CAPTURE')"
+
+# ---------------------------------------------------------------------------
+# /setup discoverability (structural — skill instructions, not code)
+# ---------------------------------------------------------------------------
+assert_eq "setup reports which features are off" "yes" \
+  "$(grep -q 'Step 7h: Report What Is Off' "$SETUP" 2>/dev/null && echo yes || echo no)"
+assert_eq "the off-report changes no defaults" "yes" \
+  "$(sed -n '/## Step 7h/,/## Step 8/p' "$SETUP" | grep -q 'Changes no defaults' && echo yes || echo no)"
+assert_eq "advanced options note the settings now have effect" "yes" \
+  "$(grep -q 'These now have a visible effect' "$SETUP" 2>/dev/null && echo yes || echo no)"
+
+# AC11 — pins existing behaviour: /setup must keep writing all five session and
+# project keys. Finding this already true is the expected result; it guards
+# against a later edit dropping one from the Step 6 block.
+for k in projects_enabled auto_load_project_context session_start_project_picker session_state autonomy; do
+  assert_eq "setup writes ${k}" "yes" \
+    "$(grep -q "^${k}: \[" "$SETUP" 2>/dev/null && echo yes || echo no)"
+done

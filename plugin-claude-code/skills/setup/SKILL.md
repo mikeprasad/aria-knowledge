@@ -177,6 +177,12 @@ Record the values.
 
 ### Advanced Options
 
+> **These now have a visible effect.** The session and project settings below
+> (`projects_enabled`, `session_start_project_picker`, `session_state`, `autonomy`) drive
+> directives that reach Claude directly via the SessionStart hook. Before that delivery was
+> fixed they were generated and discarded, so turning one on changed less than it looked
+> like. All still default off; Step 7h reports which ones at the end.
+
 **Always offer** the advanced-settings review on every `/setup` run — both fresh installs and re-runs. New users need to see what's tunable up front rather than discovering it later; returning users need to surface and adjust values they may not have configured initially (e.g., keys added by plugin updates since their last `/setup`). Auto-mode users still see the bundle; pressing enter to accept defaults is an explicit no-op rather than a silent skip.
 
 **Highlight new-since-last-setup keys (re-runs only):** before showing the bundle below, compare each Advanced Option key against the existing config from Step 1. For any key that exists in this spec but is **not** present in the user's current config (the upgrade case — a plugin update added the key after the user's last `/setup`), append `[NEW]` to that bullet's title in the bundle and prepend a one-line note above the bundle:
@@ -577,6 +583,33 @@ why. Promotion and indexing being two separate discoveries is the gap this close
 If the knowledge folder is empty, say so plainly — *"Index built; no tagged files yet.
 Active surfacing turns on once you promote something and re-run `/index`."* — and do not
 treat it as an error.
+
+## Step 7h: Report What Is Off
+
+ARIA's session-lifecycle features all default off, and until now that was largely
+invisible: their directives were generated but never reached the model, so enabling them
+changed less than it appeared to. That is fixed, which makes the defaults worth surfacing.
+
+Emit on `systemMessage` — this asks the user to make a decision, which is what that channel
+is for, and it is the same reasoning that keeps the audit nags there.
+
+```
+ARIA is configured. These features exist and are currently OFF:
+  Project knowledge tier ............ projects_enabled
+  Session resume (SESSION.md) ....... session_state
+  Project picker at session start ... session_start_project_picker
+  Autonomy posture .................. autonomy: default | balanced | autonomous
+Enable any of them by editing ~/.claude/aria-knowledge.local.md, or re-run /setup.
+```
+
+List only the ones actually off — a line claiming a feature is off when the user just
+enabled it is worse than no summary.
+
+**Changes no defaults.** Three of the four are dependent on a `projects_list` a new user
+has not populated, so flipping them would enable machinery with no data. `session_state`
+would write `SESSION.md` files into repos unasked, the posture the Step 7f ADR protects.
+`autonomy` changes agent behaviour for every existing user on upgrade. The gap here is
+discovery, not defaults — see spec §9 OQ5, which stays open.
 
 ## Step 8: Confirm
 
