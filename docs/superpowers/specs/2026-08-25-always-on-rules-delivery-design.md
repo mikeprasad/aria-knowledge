@@ -747,6 +747,41 @@ emitted payload stays under a hard ceiling turns future growth into a red build 
 silent 90% loss — and AC1 (§7, amended) must assert the *last* rule title so truncation cannot
 pass. Any channel can be undone by a payload that grows; only the guard prevents recurrence.
 
+### 10.6 The file channel reaches subagents; the hook channel does not
+
+**Added 2026-08-26, from a subagent dispatched to report its own context.** This was not a
+planned measurement — it fell out of an attempt to read probe A without a fresh session — and
+it is the strongest argument for a file channel yet found.
+
+| Surface | Present in a subagent's context? |
+|---|---|
+| `~/.claude/rules/*.md` (user-scope, no `paths:`) | **yes** |
+| Project `CLAUDE.md` + both `@`-imports (~240 KB) | **yes, in full** |
+| `MEMORY.md` | yes |
+| Hook-delivered `additionalContext` (ARIA's digest, the output-style text, superpowers) | **no** |
+
+⛔ **Consequence: ARIA's rules currently reach subagents NOT AT ALL** — not the 2,000 chars
+that survive the cap, not any of it. Every delegated agent runs with zero ARIA rules. Under a
+file channel (option Z) they would reach the main session *and* every subagent, in full. Option
+X's single emission fixes the main session only.
+
+⭐ Independent corroboration for Z's size claim: the subagent described `project-index.md` as
+"the largest single block in my context", consistent with ~240 KB — a **second** context, assembled
+separately from this session's, carrying that payload without truncation.
+
+⚠ **Evidential bound, stated because the two halves are not equally strong.** The *positive*
+half is proven: the agent reproduced `context7.md` verbatim, and that text appears in **none** of
+its logged transcript records, so it can only have come from its system prompt. The *negative*
+half — that the probe and the hook payload were absent — is the agent's **self-report**, because
+subagent transcripts do not log system prompts, so a record-classification pass cannot see the
+surface in question. The control firing is what makes the self-report credible; it is not a
+substitute for classification. Re-derive from a fresh session if a decision rests on it.
+
+⚑ Mechanism, now measured from a second context: the instruction-file **set is snapshotted at
+session start** and re-delivered to subagents from that snapshot — so a rules file created
+mid-session reaches neither the creating session nor any subagent it spawns. That is why probe A
+requires a genuinely new session and cannot be closed by delegation.
+
 ### 10.5 Open, and how it gets closed
 
 - **The exact `additionalContext` cap.** Bracket only: >3,321 safe, ≤19,557 truncating. Probe
