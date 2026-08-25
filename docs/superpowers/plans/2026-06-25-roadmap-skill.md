@@ -269,7 +269,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 - [ ] **Step 3: Touch a source, invoke `/roadmap` again.** Expected: renders the persisted grid THEN offers refresh, citing the changed source/commit-delta. Decline (`n`) → file unchanged.
 
-- [ ] **Step 4: Invoke `/roadmap` on df** (the hand-authored portfolio case). Expected: detects no `synthesized_at` stamp → notifies "looks hand-authored" → renders as-is → does NOT overwrite `df/ROADMAP.md`. **Verify `git status` in df shows no modification.**
+- [ ] **Step 4: Invoke `/roadmap` on df** (the hand-authored portfolio case). Expected: detects no `synthesized_at` stamp → notifies "looks hand-authored" → renders as-is → does NOT overwrite `proj-c/ROADMAP.md`. **Verify `git status` in df shows no modification.**
 
 - [ ] **Step 5: Invoke `/roadmap <unknown-tag>`.** Expected: lists available `projects_list` tags and stops (no fuzzy match, no guess).
 

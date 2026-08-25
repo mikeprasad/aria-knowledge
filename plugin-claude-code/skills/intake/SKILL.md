@@ -197,9 +197,9 @@ Write to `{knowledge_folder}/intake/clippings/{slug}.md` with the same frontmatt
 
 The user provides one or more sources as arguments. Each source can be:
 
-- **File path** — a single file (e.g., `./docs/architecture.md`, `ss/CLAUDE.md`)
-- **Directory** — scan all `.md` files recursively (e.g., `./docs/`, `ss/`)
-- **Glob pattern** — match specific files (e.g., `ss/**/*.md`, `./notes/*.txt`)
+- **File path** — a single file (e.g., `./docs/architecture.md`, `proj-b/CLAUDE.md`)
+- **Directory** — scan all `.md` files recursively (e.g., `./docs/`, `proj-b/`)
+- **Glob pattern** — match specific files (e.g., `proj-b/**/*.md`, `./notes/*.txt`)
 - **URL** — fetch and scan web content (e.g., `https://docs.example.com/api`)
 
 For each source:
@@ -351,7 +351,7 @@ Knowledge staged in backlogs for next /audit-knowledge to review and promote.
 - **Attribute sources** — every staged item includes the source file path or URL so the audit process knows where it came from. Bulk mode adds source attribution per finding; doc mode captures `source_url`, `source_title`, `source_author` (when known) in frontmatter.
 - **Respect copyright** — for URLs, capture summaries and key points, never full page content. The URL itself is the reference. Applies to both modes — doc mode's "What the doc claims" should be in your own words, not a verbatim excerpt.
 - **Don't over-extract** — a 500-line architecture doc might yield 3-5 knowledge items, not 50. Extract the patterns and decisions, not every detail. In doc mode, "worth keeping" usually has 2-6 bullets, not 20.
-- **Project attribution** — if the source path indicates a project (e.g., `ss/`, `cs/`, `df/`), tag the entries with that project. Otherwise use "intake" or "cross". Same rule for both modes.
+- **Project attribution** — if the source path indicates a project (e.g., `proj-b/`, `proj-a/`, `proj-c/`), tag the entries with that project. Otherwise use "intake" or "cross". Same rule for both modes.
 - **Large directories need confirmation** — if a directory scan finds >10 files, list them and ask before proceeding. The user may want to narrow the scope. Bulk-mode only — doc mode is always single-source.
 - **One intake, one scope** — don't mix sources from different projects in a single intake. If the user provides paths from multiple projects, process each project's sources as a separate group with its own attribution. Doc mode is inherently single-source so this rule applies only to bulk mode.
 - **Doc mode: reaction is the user's voice** — pre-fill "What the doc claims" / "Worth keeping" / "Contested" / "Action" from your D2 scan. Leave "My reaction" as a single-line placeholder for the user to fill. Don't fabricate an opinion you don't actually hold.

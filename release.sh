@@ -110,6 +110,34 @@ else
     warn "gate C skipped: plugin-claude-code/bin/check-port-drift.sh not found"
 fi
 
+# Gate D — public hygiene. FATAL, unlike Gate C, and deliberately so: this repo is
+# public, and a private project identifier in a published artifact cannot be taken
+# back by a later commit. Advisory is what let the class accumulate — on 2026-08-25
+# a census found 113 occurrences across 35 files (client project directories, both
+# repo names of one project, a private domain with its file count, and a portfolio
+# inventory with per-repo commit counts), every one of which entered innocently as
+# a worked example in a design doc or a test fixture.
+#
+# Exit 2 means the matcher's own self-test failed. That is NOT a clean result and
+# must not be treated as one — a dead instrument reads exactly like a clean tree,
+# which is the failure this gate exists to prevent in the first place.
+log "gate D: public hygiene (private identifiers in shipped content)"
+if [[ -x "$REPO_ROOT/plugin-claude-code/bin/check-public-hygiene.sh" ]]; then
+    # `|| gate_d=$?` is load-bearing: this script runs under `set -e`, so a bare
+    # invocation would abort on a non-zero exit BEFORE the code could be captured,
+    # making every message below unreachable and collapsing exit 2 (broken matcher)
+    # into exit 1 (findings) — the one distinction this gate depends on.
+    gate_d=0
+    sh "$REPO_ROOT/plugin-claude-code/bin/check-public-hygiene.sh" "$REPO_ROOT" || gate_d=$?
+    case "$gate_d" in
+        0) ;;
+        2) die "gate D self-test FAILED — the hygiene matcher is broken. Not a clean result; fix it before releasing." ;;
+        *) die "gate D failed: private identifiers found above. Genericize them (this repo uses proj-a / proj-b / proj-c) before releasing." ;;
+    esac
+else
+    die "gate D missing: plugin-claude-code/bin/check-public-hygiene.sh not found or not executable"
+fi
+
 # --- marketplace.json carries no version (current marketplace schema) -------
 # Version's source of truth is plugin.json; the marketplace.json plugins[]
 # entries intentionally have no version field, so there is nothing to sync.

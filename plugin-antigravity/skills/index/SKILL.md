@@ -244,7 +244,7 @@ Determine the authoritative project list using this priority:
 2. **Otherwise** (or as a supplement when `projects_enabled: false`): read the root project CLAUDE.md to find a project table. Look for the closest ancestor directory containing a `CLAUDE.md` with a project table.
 
 For each project (from either source):
-1. Read the project's CLAUDE.md (e.g., `cs/CLAUDE.md`, `ss/CLAUDE.md`) if it exists at the configured path
+1. Read the project's CLAUDE.md (e.g., `proj-a/CLAUDE.md`, `proj-b/CLAUDE.md`) if it exists at the configured path
 2. Extract tech stack, tools, frameworks, and services mentioned
 3. Match extracted keywords against the Known Tags set (including any newly promoted tags from Step 4)
 4. Also check which tags appear on files that mention the project name in their path or content

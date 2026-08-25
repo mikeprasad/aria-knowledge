@@ -32,9 +32,9 @@ pathname expansion **before `case` ever sees it**. Measured:
 
 | cwd | configured pattern | what the loop actually iterates | consequence |
 |---|---|---|---|
-| `cs/proj-a-ui` | `src/*` | **17 literal words** (`src/App.js`, `src/assets`, …) | staged `src/components/Foo.jsx` matches none → **no deny** |
+| `proj-a/proj-a-ui` | `src/*` | **17 literal words** (`src/App.js`, `src/assets`, …) | staged `src/components/Foo.jsx` matches none → **no deny** |
 | `proj-c/ui/working/src/tokens` | `*tokens-input.css` | `tokens-input.css` (leading `*` lost) | staged `working/src/tokens/tokens-input.css` → **no deny** |
-| a cwd with no matching entry | `*df-input.css` | `*df-input.css` (unchanged) | denies correctly |
+| a cwd with no matching entry | `*tokens-input.css` | `*tokens-input.css` (unchanged) | denies correctly |
 
 So the gate's behaviour depends on **where the Bash tool happened to be**, and the failure direction
 is *fail-open* — it silently stops denying. Any pattern containing a glob metacharacter is affected;
@@ -131,7 +131,7 @@ fi
 **Matching is substring, on the absolute path, case-sensitive.** Consequences, accepted knowingly:
 
 - `proj-a-app` matches `/Users/…/cs/proj-a-app` ✓
-- `wk/proj-a` covers both of that project's repos in one token ✓
+- `proj-a` covers both of that project's repos in one token ✓
 - a sibling like `proj-a-app-fork` would **also** match ✗
 
 The over-match is the correct failure direction for a gate: it fails **closed**. Under-matching is
@@ -145,7 +145,7 @@ alternative; see Q3.
 | Alternative | Why rejected |
 |---|---|
 | `IFS=' ' read -ra PATS` + `"${PATS[@]}"` | **Not POSIX.** The hook declares `# shellcheck shell=sh` and the suite invokes it via `sh "$HOOK"`. Bash arrays would break both. (This was proposed in the /setup dialog preview and is wrong.) |
-| Quote the pattern (`case "$f" in "$pat")`) | Kills glob-matching entirely — `*df-input.css` would only match that literal string. Fixes expansion by removing the feature. |
+| Quote the pattern (`case "$f" in "$pat")`) | Kills glob-matching entirely — `*tokens-input.css` would only match that literal string. Fixes expansion by removing the feature. |
 | Glob list approximating the two repos' top-level dirs | Fails on D1 (all such patterns contain `*`), **and** silently stops covering a newly-added Django app dir. Under-covers by construction. |
 | `preflight_gate: deny` as the answer to D2 | Works and cannot silently miss, but gates every repo and throws away the per-repo requirement. Retained as the documented interim posture — see Q2. |
 | Custom `PreToolUse` hook in `Projects/.claude/settings.json` | Precise, but duplicates plugin logic into user settings and leaves the plugin defect live for every other user. |
@@ -163,7 +163,7 @@ exactly why D1 survived.**
 | # | Case | Expected | Red before fix? |
 |---|---|---|---|
 | T1 | cwd holds `decoy.py`; `deny_paths=*.py`; staged `app.py` | DENY | yes — expands to `decoy.py`, no match |
-| T2 | cwd holds `df-input.css`; `deny_paths=*df-input.css`; staged `sub/df-input.css` | DENY | yes — leading `*` lost |
+| T2 | cwd holds `tokens-input.css`; `deny_paths=*tokens-input.css`; staged `sub/tokens-input.css` | DENY | yes — leading `*` lost |
 | T3 | after a hook run, globbing still enabled in the sourcing shell | no leak | n/a — guards the fix |
 | T4 | `deny_repos=proj-a-app`; repo toplevel under a dir of that name | DENY | yes — key does not exist |
 | T5 | `deny_repos=other-repo`; non-matching repo | warn, **not** deny | yes |

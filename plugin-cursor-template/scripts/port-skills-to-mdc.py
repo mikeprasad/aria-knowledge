@@ -220,7 +220,7 @@ def adapt_cursor(text: str) -> str:
         ("Edit CLAUDE.md", "Edit AGENTS.md"),
         ("3b:** Edit CLAUDE.md", "3b:** Edit AGENTS.md"),
         ("primary CLAUDE.md path", "primary AGENTS.md path"),
-        ("ss/CLAUDE.md", "ss/AGENTS.md"),
+        ("proj-b/CLAUDE.md", "proj-b/AGENTS.md"),
         ("nearest dir with CLAUDE.md/PROGRESS.md", "nearest dir with AGENTS.md/CLAUDE.md/PROGRESS.md"),
         ("whose `CLAUDE.md` indexes", "whose `AGENTS.md` or `CLAUDE.md` indexes"),
         ("Claude's available tool list", "Cursor's available MCP tool list"),

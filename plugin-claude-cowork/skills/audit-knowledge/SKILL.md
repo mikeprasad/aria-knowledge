@@ -748,8 +748,8 @@ If any CODEMAP.md files were found, present their status:
 
 | Codemap | Last Updated | Age | Files Changed Since | Status |
 |---------|-------------|-----|--------------------| -------|
-| ss/CODEMAP.md | 2026-04-09 | 14 days | 23 files | Possibly stale |
-| cs/CODEMAP.md | 2026-03-01 | 53 days | 87 files | Stale |
+| proj-b/CODEMAP.md | 2026-04-09 | 14 days | 23 files | Possibly stale |
+| proj-a/CODEMAP.md | 2026-03-01 | 53 days | 87 files | Stale |
 
 Stale codemaps can be refreshed with `/codemap update` (runs in the project directory).
 Note: codemap updates involve significant codebase scanning and may consume substantial tokens.

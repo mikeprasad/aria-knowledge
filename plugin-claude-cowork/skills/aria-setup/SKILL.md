@@ -299,5 +299,5 @@ Knowledge captured here is shared with aria-knowledge in Claude Code (both plugi
 
 - **All filesystem operations use Cowork's native Read/Write tools** with absolute paths (`<KNOWLEDGE_FOLDER>/...`). Never invoke a Filesystem MCP connector (per ADR-003).
 - The skill is **idempotent**: safe to re-run; fresh-mode and update-mode both honor user-owned files.
-- aria-cowork operates on the **persistent-grant pattern**: knowledge folder access lives in `claude_desktop_config.json`, available to every Cowork session. The user works in their actual project folder (cs/, ss/, df/, whatever) and aria-cowork is reachable alongside.
+- aria-cowork operates on the **persistent-grant pattern**: knowledge folder access lives in `claude_desktop_config.json`, available to every Cowork session. The user works in their actual project folder (proj-a/, proj-b/, proj-c/, whatever) and aria-cowork is reachable alongside.
 - See `~/Projects/knowledge/projects/aria-cowork/decisions/008-attached-folder-pattern-for-bidirectional-sharing.md` for the full architectural mechanism (note: filename retains "attached-folder" slug for cross-reference stability; v0.2.0 content describes persistent-grant pattern).

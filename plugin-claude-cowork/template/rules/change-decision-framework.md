@@ -165,10 +165,10 @@ As of v2.10.5, the PreToolUse hook enforces ordering structurally. It parses the
 ```
 [assistant turn]
 Let me fix that line.
-[Edit tool call: df/CLAUDE.md — removes line 51]
+[Edit tool call: proj-c/CLAUDE.md — removes line 51]
 [tool result + hook-injected CHANGE DECISION CHECK reminder]
 
-[Rule 22] Low Impact — remove aspirational line from df/CLAUDE.md.
+[Rule 22] Low Impact — remove aspirational line from proj-c/CLAUDE.md.
 Change — Delete line per cleanup. Solutions — (1) remove [clean]. Execute — done.
 [Rule 22 · Scope] PASS — only target line removed.
 ```
@@ -179,11 +179,11 @@ The edit has already landed. The assessment is performative — there's no way f
 
 ```
 [assistant turn]
-[Rule 22] Low Impact — remove aspirational line from df/CLAUDE.md (doc-only, no behavior).
+[Rule 22] Low Impact — remove aspirational line from proj-c/CLAUDE.md (doc-only, no behavior).
 Change — Delete "Goal: zero cx- classes remaining at v1.0." line + blank line, per approved cleanup.
 Solutions — (1) remove line + blank [clean]; (2) keep line, add tracker [rejected: no tracker]; (3) reword [rejected: not scope].
-Execute — Edit removes both lines. Scope: df/CLAUDE.md only. No secondary impact.
-[Edit tool call: df/CLAUDE.md — removes line 51]
+Execute — Edit removes both lines. Scope: proj-c/CLAUDE.md only. No secondary impact.
+[Edit tool call: proj-c/CLAUDE.md — removes line 51]
 [tool result + hook-injected reminder]
 
 [Rule 22 · Scope] PASS — only target lines removed; cx- migration section preserved.
@@ -280,7 +280,7 @@ Execute — append "→ parents/siblings/dependents?" to lighter check
 
 **Example (flag):**
 ```
-[Rule 22] High Impact — modify df-input.css base .avatar class
+[Rule 22] High Impact — modify tokens-input.css base .avatar class
 Change — need transparent variant for image avatars
 Intake — avatar uses bg-key + p-border-button; combo pattern uses separate modifiers
 Criteria — no break of existing usage, follow combo class pattern
@@ -464,7 +464,7 @@ This is a conversation-level discipline, not a per-tool hook (too token-intensiv
 ## Customization
 
 ### Sensitive Files
-Adjust the list of high-impact files to match your project. The default examples (df-input.css, df-preset.js, CLAUDE.md, working-rules.md, settings files) are project-specific. Replace with your equivalents — database schemas, API route definitions, CI configs, shared component libraries, etc.
+Adjust the list of high-impact files to match your project. The default examples (tokens-input.css, df-preset.js, CLAUDE.md, working-rules.md, settings files) are project-specific. Replace with your equivalents — database schemas, API route definitions, CI configs, shared component libraries, etc.
 
 ### Impact Criteria
 The high/low impact distinction can be tuned. Some teams may want a third tier (medium impact) or different triggers. The key principle: changes that affect behavior or have many dependents get more scrutiny than content updates.

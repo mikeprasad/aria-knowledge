@@ -139,5 +139,5 @@ Follows existing `tests/` pattern:
 1. Is folding the marker into Rule 13 the right call, or does it deserve its own rule despite the bias against rule growth — i.e., is it discoverable enough buried in Rule 13?
 2. `--lens=overbuild` as a modifier flag vs. a first-class scope — does the flag compose cleanly with existing scopes (`/prospect file <path> --lens=overbuild`)?
 3. Does `/readiness-audit` gaining a code-bloat dimension blur its "is this clean/legal/consistent to ship for THIS event?" charter, or is bloat legitimately a readiness concern?
-4. Marker token `aria:simplification` — collision risk with anything already greppable in the consumer repos (cs/ss/df)? Verify before locking.
+4. Marker token `aria:simplification` — collision risk with anything already greppable in the consumer repos (proj-a/ss/df)? Verify before locking.
 5. Is six seed smells the right starting size, or does seeding too many invite false positives before the library is calibrated?

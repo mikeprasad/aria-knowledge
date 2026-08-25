@@ -12,7 +12,7 @@
 
 - **No new numbered working rule** — the marker is a CLAUSE on existing Rule 13 (working-rules.md, currently 35 rules). Verbatim bias: "Write only as much as needed" (Rule 28).
 - **No new standalone skill** — the lens is a mode on 3 existing skills.
-- **Marker token = `aria:simplification`** — verified collision-free across cs/ss/df on 2026-06-23. Do NOT change the token without re-running the collision grep.
+- **Marker token = `aria:simplification`** — verified collision-free across proj-a/ss/df on 2026-06-23. Do NOT change the token without re-running the collision grep.
 - **The lens is OPT-IN** — bare `/prospect`, `/retrospect`, `/readiness-audit` must be byte-for-byte unchanged in behavior. The lens activates only on the explicit `--lens=overbuild` flag (prospect/retrospect) or as a named per-surface probe (readiness-audit).
 - **`--lens=overbuild` slots into the existing "Modifier flags (apply to any scope)" mechanism** — verified present in both prospect & retrospect SKILL.md Step 0. Compose, don't rebuild the parser.
 - **Every over-build finding must cite the failed ladder rung AND a concrete leaner alternative** — a finding that can't name the smaller version is suppressed (reuses prospect's existing discipline). Marker-respect: a hunk already carrying `aria:simplification` is reported "resolved (marked)", never flagged.

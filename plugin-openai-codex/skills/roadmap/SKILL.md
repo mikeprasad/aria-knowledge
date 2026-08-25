@@ -36,7 +36,7 @@ The persisted `ROADMAP.md` is the fast read, but it is never trusted blindly —
 
 ### Hand-authored guard (no-clobber + notify)
 
-If `ROADMAP.md` exists but has **no `synthesized_at` stamp** in its frontmatter, treat it as **hand-authored** (the stamp is the discriminator — its absence covers both "hand-written" and "a different concept entirely," e.g. a cross-subproject *portfolio* roadmap like `df/ROADMAP.md`). **Notify the user** — e.g. *"`ROADMAP.md` looks hand-authored (no `synthesized_at` stamp) — rendering as-is, will not overwrite without `/roadmap refresh`"* — render it as-is, and **never auto-overwrite**. Converting it to a synthesized file requires an explicit `/roadmap refresh` with a confirm.
+If `ROADMAP.md` exists but has **no `synthesized_at` stamp** in its frontmatter, treat it as **hand-authored** (the stamp is the discriminator — its absence covers both "hand-written" and "a different concept entirely," e.g. a cross-subproject *portfolio* roadmap like `proj-c/ROADMAP.md`). **Notify the user** — e.g. *"`ROADMAP.md` looks hand-authored (no `synthesized_at` stamp) — rendering as-is, will not overwrite without `/roadmap refresh`"* — render it as-is, and **never auto-overwrite**. Converting it to a synthesized file requires an explicit `/roadmap refresh` with a confirm.
 
 ## Step 2: Staleness (source-stamp)
 

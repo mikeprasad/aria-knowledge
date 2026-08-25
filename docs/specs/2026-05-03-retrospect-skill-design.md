@@ -393,7 +393,7 @@ The skill is working if, in real use:
 
 1. After every release that surfaces a regression, `/retrospect` (or its soft-suggest offer) fires *before* a new fix is shipped.
 2. Every per-fix verdict carries a Validated? status with named evidence — never a quiet "looks good."
-3. At least one pattern from the canonical library catches a fit on the first non-trivial retrospective run on real CS/SS work.
+3. At least one pattern from the canonical library catches a fit on the first non-trivial retrospective run on real proj-a/proj-b work.
 4. The "next-step evidence ask" (§4.10) blocks at least one speculative fix that would otherwise have shipped.
 5. The pattern library accumulates ≥3 new entries (canonical or project-specific) in the first month of use.
 

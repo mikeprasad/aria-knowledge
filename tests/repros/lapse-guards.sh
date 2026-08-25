@@ -28,7 +28,7 @@ run_bw() { printf '{"tool_name":"Bash","tool_input":{"command":"%s"}}' "$1" | sh
 [ -x "$BW" ] && ok "A bash-write hook exists" || bad "A exists" "missing or not +x"
 
 # B — RED: the dominant real lapse. A python heredoc mutating a tracked doc.
-OUT=$(run_bw "python3 - <<PY\nimport pathlib; p=pathlib.Path('cs/PROGRESS.md'); p.write_text(s)\nPY")
+OUT=$(run_bw "python3 - <<PY\nimport pathlib; p=pathlib.Path('proj-a/PROGRESS.md'); p.write_text(s)\nPY")
 echo "$OUT" | grep -q 'additionalContext' \
   && ok "B warns on .write_text() mutation" || bad "B write_text" "no warning (got: $OUT)"
 echo "$OUT" | grep -q 'permissionDecision' \

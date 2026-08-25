@@ -216,7 +216,7 @@ Why this matters:
   <one-line — what changes about Step #N's verdict if we know this>
 
 What I tried autonomously (if MIXED):
-  <one-line — e.g., "Grep'd /df-working/playground for canonical examples; found 3 candidates at <paths>. Need your call on which is current.">
+  <one-line — e.g., "Grep'd /proj-c-working/playground for canonical examples; found 3 candidates at <paths>. Need your call on which is current.">
 
 Citations / context inline:
   <file:line excerpts, URL pulls, or quoted plan fragments — whatever the answer depends on>
