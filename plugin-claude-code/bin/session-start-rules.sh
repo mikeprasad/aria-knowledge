@@ -83,6 +83,39 @@ STANDING USER RULES (${UR_N}, always in force — the user's own rules, binding 
   fi
 fi
 
+# --- Unit 2: opt-in directives ---
+# Only the two PURE-TEXT blocks are carried here. The other two Unit-2 blocks
+# stay in session-start-check.sh deliberately:
+#   - tracked artifacts: records to the session ledger. Putting it in a SECOND
+#     SessionStart hook means both fire on the same trigger, the first records
+#     the paths, and the second filters them out and emits nothing — so which
+#     channel gets the directive depends on hook execution order, silently.
+#   - CODEMAP staleness: ~70 lines of find/stat/date logic that would drift
+#     between two copies.
+# Both are resolved by the single-emitter collapse (spec §8), not by copying.
+# Text below is copied VERBATIM from session-start-check.sh — do not reword here;
+# a reworded directive is a behaviour change that reads as a copy.
+
+# SESSION.md re-entry offer — gated on session_state (source: :308-309).
+if [ "$KT_SESSION_STATE" = "true" ]; then
+  MESSAGES="${MESSAGES}
+SESSION STATE — After the project/sub-project for this session is identified (by the PWD-based project match, or by what the user names in their opening message), locate SESSION.md at that project root (project root = nearest dir with CLAUDE.md/PROGRESS.md). If it exists with a non-empty '## Next session prompt' block: if the user's opening message included the word 'handoff', open the session by executing that prompt directly (no confirmation); otherwise tell the user a saved resume prompt exists (state its lastEvent + age from the 'at' field) and ask whether to start from it (y/n). If the prompt's 'at' is older than session_stale_days (read from ~/.claude/aria-knowledge.local.md; default 7) days, do NOT present it as live — instead state its age and ask: still relevant? [resume / archive / keep]. 'archive' = move that entry under a '## Archived sessions' heading (atlas ignores it, same as '## Pending handoffs' and the legacy '## Prior sessions'); 'keep' = leave it as-is; 'resume' = execute it. Never auto-drop an aged entry — staleness prompts, it does not evict. ALSO: if a '## Pending handoffs' section (or legacy '## Prior sessions') holds entries still marked 'unconsumed', say how many and offer them alongside the active prompt — a SESSION.md may hold several still-valid next-session prompts, and one that is stored but never offered is lost in practice. If no such prompt exists, stay quiet. The 'in-progress' mark is now written automatically by the PostToolUse hook (post-edit-check.sh) on your first edit — do NOT write SESSION.md yourself here. Offer the resume once per session.
+"
+fi
+
+# Autonomy posture — Rule 35's active per-session push (source: :404-408).
+# autonomy = default (or unset/unknown) injects nothing: zero behaviour change,
+# zero context cost, the safe failure mode.
+if [ "$KT_AUTONOMY" = "balanced" ]; then
+  MESSAGES="${MESSAGES}
+DECISION ROUTING (balanced) — Before asking OR auto-deciding, classify (per Rule 35): resolvable by read/grep/diff/git/config/web → investigate first, then act; objectively validatable → decide and show the validation; mechanical/already-decided → act; the user's intent/preference/judgment with no gainable visibility, or anything needing ungranted explicit approval → ask. Investigate the resolvable parts first; ask only the residual that's genuinely about the user. Either way, the option set is Rule 22 Step 4/5 output: enumerate the real alternatives, filter out any option with a provable defect (name it in one line rather than offering it), and when you decide, show what you rejected plus the validation. Asking is not an escape hatch from the analysis.
+"
+elif [ "$KT_AUTONOMY" = "autonomous" ]; then
+  MESSAGES="${MESSAGES}
+DECISION ROUTING (autonomous) — The user's decision budget is the scarce resource; your speed/context is cheap. Exhaust self-resolvable investigation before spending a human turn. Per Rule 35: decide objectively-validatable forks YOURSELF (checked against ground truth and the build-philosophy bar, Rules 13/14/18 — simplest/robust/clean, no unneeded abstraction). Run quality gates (/prospect pre-code, /retrospect post-ship) as checks, not stops. Stop and ask ONLY when it is a judgment call with no gainable visibility (and none can be gained), or it requires explicit approval not already granted (push, destructive op, scope change, credentials), or the foundational fix would change what the arc IS (its scope boundary, deliverable, or completion criteria) rather than merely make it bigger. Foundational-over-patch is NOT a fork at this setting: take the foundational fix and absorb the larger scope. Either way, the option set is Rule 22 Step 4/5 output: enumerate the real alternatives, filter out any option with a provable defect (name it in one line rather than offering it), and when you decide, show what you rejected plus the validation. Asking is not an escape hatch from the analysis.
+"
+fi
+
 if [ -n "$MESSAGES" ]; then
   # kt_json_escape_multiline, NOT kt_json_escape — see the comment above.
   ESCAPED=$(kt_json_escape_multiline "$MESSAGES")

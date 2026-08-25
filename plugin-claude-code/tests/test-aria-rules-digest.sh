@@ -81,3 +81,52 @@ assert_eq "digest structure survives escaping" "yes" \
 # regression. The fixture's knowledge folder has no user-rules.md at all.
 assert_eq "no U-rule index when user-rules.md is absent" "no" \
   "$(jq -r '.hookSpecificOutput.additionalContext' "$OUT" 2>/dev/null | grep -q 'STANDING USER RULES' && echo yes || echo no)"
+
+# ---------------------------------------------------------------------------
+# Unit 2 — opt-in directives, gated
+# ---------------------------------------------------------------------------
+# Each block is asserted in BOTH directions. A present-only assertion passes
+# against an ungated block, which is the vacuous form this suite exists to avoid.
+U2OUT="$APM_TMP/u2.json"
+run_hook_with() { # $1 = extra config lines
+  printf -- '---\nknowledge_folder: %s\n%s\n---\n' "$KF" "$1" > "$CFG"
+  : > "$U2OUT"
+  if KT_CONFIG="$CFG" sh "$HOOK" > "$U2OUT" 2>/dev/null; then :; else :; fi
+}
+u2_has() { jq -r '.hookSpecificOutput.additionalContext' "$U2OUT" 2>/dev/null | grep -q "$1" && echo yes || echo no; }
+
+run_hook_with "autonomy: default"
+assert_eq "DECISION ROUTING absent at autonomy=default" "no" "$(u2_has 'DECISION ROUTING')"
+run_hook_with "autonomy: balanced"
+assert_eq "DECISION ROUTING present at autonomy=balanced" "yes" "$(u2_has 'DECISION ROUTING (balanced)')"
+run_hook_with "autonomy: autonomous"
+assert_eq "DECISION ROUTING present at autonomy=autonomous" "yes" "$(u2_has 'DECISION ROUTING (autonomous)')"
+
+run_hook_with "session_state: false"
+assert_eq "SESSION STATE absent when off" "no" "$(u2_has 'SESSION STATE')"
+run_hook_with "session_state: true"
+assert_eq "SESSION STATE present when on" "yes" "$(u2_has 'SESSION STATE')"
+
+# The TASK BUDGET long variant must never be migrated here. It instructs the
+# model to gate stopping and wrap-up decisions on usage figures — a behaviour
+# the maintainer has repeatedly corrected. Task 7 reworks it at its source.
+assert_eq "TASK BUDGET long variant never migrated" "no" "$(u2_has 'aria-statusline-state')"
+
+# The stateful Unit-2 blocks must NOT be copied here.
+#
+# The tracked-artifacts block records to the session ledger. Multiple callers of
+# kt_artifact_record_ledger are the DESIGN — three hooks already do it, on
+# different triggers, and kt_artifact_filter_ledger dedups before each records.
+# The hazard is specific to putting it in a SECOND SessionStart hook: both would
+# fire at the same trigger, the first to run would record the paths, and the
+# second would filter them out and emit nothing. Which channel receives the
+# directive would then depend on hook execution order — silently, with no error.
+#
+# The CODEMAP block is a separate reason: ~70 lines of staleness logic that would
+# drift between two copies.
+#
+# Both stay in session-start-check.sh until the single-emitter collapse (spec §8).
+assert_eq "new hook stays out of the ledger" "no" \
+  "$(grep -q 'kt_artifact_record_ledger' "$APM_ROOT/bin/session-start-rules.sh" 2>/dev/null && echo yes || echo no)"
+assert_eq "new hook does not duplicate CODEMAP staleness logic" "no" \
+  "$(grep -q 'CODEMAP Found' "$APM_ROOT/bin/session-start-rules.sh" 2>/dev/null && echo yes || echo no)"
