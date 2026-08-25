@@ -97,8 +97,15 @@ fi
 # usable standalone; the fallback is loudly less precise, hence the notice.
 scan() {
     if [ -n "$TRACKED_OK" ]; then
-        ( cd "$ROOT" && git ls-files -z 2>/dev/null | xargs -0 grep -niE "$1" 2>/dev/null ) \
-            | grep -v "$SELF_NAME" || true
+        # Self-exclusion filters the FILE LIST, never the output lines.
+        # A `grep -v "$SELF_NAME"` on results looked equivalent and was fail-open:
+        # it silently dropped any finding whose line merely MENTIONED this script,
+        # anywhere in the repo. That bug hid a real `CS/SS` leak in CLAUDE.md on the
+        # very commit that introduced the gate — the guard was scoped to the wrong
+        # unit (a line) instead of the right one (a file).
+        ( cd "$ROOT" && git ls-files -z 2>/dev/null \
+            | grep -zv "$SELF_NAME" \
+            | xargs -0 grep -niE "$1" 2>/dev/null ) || true
     else
         grep -rniE "$1" "$ROOT" \
             --exclude-dir=.git \
