@@ -130,3 +130,33 @@ assert_eq "new hook stays out of the ledger" "no" \
   "$(grep -q 'kt_artifact_record_ledger' "$APM_ROOT/bin/session-start-rules.sh" 2>/dev/null && echo yes || echo no)"
 assert_eq "new hook does not duplicate CODEMAP staleness logic" "no" \
   "$(grep -q 'CODEMAP Found' "$APM_ROOT/bin/session-start-rules.sh" 2>/dev/null && echo yes || echo no)"
+
+# ---------------------------------------------------------------------------
+# Compaction — an always-on rule stops being always-on when context is wiped
+# ---------------------------------------------------------------------------
+printf -- '---\nknowledge_folder: %s\n---\n' "$KF" > "$CFG"
+PCOUT="$APM_TMP/pc.json"
+: > "$PCOUT"
+if printf '{"session_id":"test-sess"}' | KT_CONFIG="$CFG" sh "$APM_ROOT/bin/post-compact-check.sh" > "$PCOUT" 2>/dev/null; then :; else :; fi
+
+assert_eq "post-compact emits valid JSON" "yes" \
+  "$(jq -e . "$PCOUT" >/dev/null 2>&1 && echo yes || echo no)"
+assert_eq "post-compact re-injects the digest" "yes" \
+  "$(jq -r '.hookSpecificOutput.additionalContext' "$PCOUT" 2>/dev/null | grep -q 'Rule 13' && echo yes || echo no)"
+# Same structure hazard as the SessionStart payload: post-compact-check.sh also
+# uses kt_json_escape, which strips newlines.
+PC_LINES=$(jq -r '.hookSpecificOutput.additionalContext' "$PCOUT" 2>/dev/null | wc -l | tr -d ' ')
+assert_eq "post-compact digest keeps its structure" "yes" \
+  "$([ "${PC_LINES:-0}" -gt 20 ] && echo yes || echo no)"
+
+# The multiline escape must live in ONE place. Duplicating it into a second
+# hook is the drift hazard refused for the CODEMAP block; it belongs in
+# config.sh as a new shared helper, leaving kt_json_escape untouched.
+assert_eq "multiline escape is defined exactly once" "1" \
+  "$(grep -rl '^kt_json_escape_multiline()' "$APM_ROOT/bin" 2>/dev/null | wc -l | tr -d ' ')"
+assert_eq "multiline escape lives in config.sh (shared, not per-hook)" "yes" \
+  "$(grep -q '^kt_json_escape_multiline()' "$APM_ROOT/bin/config.sh" 2>/dev/null && echo yes || echo no)"
+# The existing helper must NOT be changed — four other hooks depend on its
+# newline-stripping behaviour. This asserts the tr stage is still present.
+assert_eq "shared kt_json_escape still strips newlines (unchanged)" "yes" \
+  "$(sed -n '/^kt_json_escape()/,/^}/p' "$APM_ROOT/bin/config.sh" | grep -qF "tr '" && echo yes || echo no)"

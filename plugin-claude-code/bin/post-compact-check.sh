@@ -50,8 +50,26 @@ if [ "$KT_ACTIVE_SURFACING" = "true" ] && [ -n "$SESSION_ID" ]; then
   fi
 fi
 
+# Block 3: re-inject the always-on rules digest.
+# Compaction is the main way an always-on rule stops being always-on: the
+# SessionStart injection is gone from context and nothing replaces it until the
+# next session.
+DIGEST="$SCRIPT_DIR/../rules/aria-rules.md"
+if [ -f "$DIGEST" ]; then
+  MESSAGES="${MESSAGES}
+ARIA WORKING RULES — re-injected after compaction; still in force for this session.
+
+$(cat "$DIGEST")
+"
+fi
+
 # Emit single additionalContext (hooks emit one JSON per fire).
 if [ -n "$MESSAGES" ]; then
-  MSG=$(kt_json_escape "$MESSAGES")
-  echo '{"hookSpecificOutput":{"hookEventName":"PostCompact","additionalContext":"'"$MSG"'"}}'
+  # kt_json_escape_multiline, NOT kt_json_escape: the latter strips newlines and
+  # would collapse the digest above into one run-on line, silently.
+  MSG=$(kt_json_escape_multiline "$MESSAGES")
+  # printf, NOT echo. echo's handling of backslash escapes is
+  # implementation-defined, and under sh it converts the \n sequences the escape
+  # just produced BACK into real newlines — emitting invalid JSON.
+  printf '{"hookSpecificOutput":{"hookEventName":"PostCompact","additionalContext":"%s"}}\n' "$MSG"
 fi

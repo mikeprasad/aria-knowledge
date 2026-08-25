@@ -24,22 +24,10 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 [ "$KT_CONFIGURED" = "false" ] && exit 0
 [ ! -d "$KT_KNOWLEDGE_FOLDER" ] && exit 0
 
-# Escape for a JSON string value, PRESERVING newlines as the two-character \n
-# escape.
-#
-# ⛔ Deliberately NOT config.sh's kt_json_escape. That helper ends with
-# `tr '\n' ' '` — it STRIPS newlines. Correct for the single-paragraph
-# directives it was written for; wrong here, where it would collapse a
-# multi-hundred-line structured digest into one run-on line, destroying every
-# heading and bullet. The payload would still be valid JSON and the hook would
-# still exit 0, so nothing would surface the damage.
-# ⛔ Do NOT "fix" the shared helper instead — four other hooks depend on its
-# current behaviour and none of them wants structure preserved.
-kt_json_escape_multiline() {
-  printf '%s' "$1" \
-    | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' -e 's/	/\\t/g' -e 's/\r//g' \
-    | awk 'BEGIN{ORS=""} NR>1{print "\\n"} {print}'
-}
+# Emission uses kt_json_escape_multiline (config.sh), NOT kt_json_escape.
+# The latter ends with `tr '\n' ' '` and would collapse this digest into one
+# run-on line — silently, since the payload stays valid JSON and the hook still
+# exits 0. See the helper's own comment for why the two are kept separate.
 
 MESSAGES=""
 
