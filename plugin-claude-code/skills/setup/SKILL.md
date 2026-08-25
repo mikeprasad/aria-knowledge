@@ -563,6 +563,21 @@ If `CLAUDE.md` already contains an `## ARIA Rules` heading, skip silently — ap
 second copy is the append-loop failure that `session_state`'s gitignore clause produced
 before v2.46.0.
 
+## Step 7g: Populate the Knowledge Index
+
+The template ships `index.md` as a skeleton with no tag sections. Run the full `/index`
+logic once here so it reflects whatever the user already has, rather than leaving them to
+discover `/index` separately.
+
+Why this is not optional ceremony: active knowledge surfacing gates on the index having at
+least one `### tag` section, so until `/index` runs, that whole capability is silent. A
+user who promotes knowledge but never runs `/index` gets nothing, and nothing tells them
+why. Promotion and indexing being two separate discoveries is the gap this closes.
+
+If the knowledge folder is empty, say so plainly — *"Index built; no tagged files yet.
+Active surfacing turns on once you promote something and re-run `/index`."* — and do not
+treat it as an error.
+
 ## Step 8: Confirm
 
 Output a summary:

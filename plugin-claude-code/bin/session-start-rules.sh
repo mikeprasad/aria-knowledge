@@ -71,6 +71,22 @@ STANDING USER RULES (${UR_N}, always in force — the user's own rules, binding 
   fi
 fi
 
+# --- active knowledge surfacing ---
+# Gate TIGHTENED relative to session-start-check.sh:247, which tests only
+# `[ -f "$INDEX_FILE" ]`. The template now ships an index.md skeleton, so mere
+# existence no longer implies usefulness: this directive describes a matching
+# procedure that needs >=2 tag matches to do anything, and an index with no tag
+# sections can never supply one. Gating on existence would spend ~223 tok every
+# session on an instruction that provably cannot fire.
+# Text below is VERBATIM from session-start-check.sh:249.
+INDEX_FILE="$KT_KNOWLEDGE_FOLDER/index.md"
+if [ "$KT_ACTIVE_SURFACING" = "true" ] && [ -f "$INDEX_FILE" ] \
+   && grep -q '^### ' "$INDEX_FILE" 2>/dev/null; then
+  MESSAGES="${MESSAGES}
+ARIA ACTIVE CONTEXT — Knowledge index at ${KT_KNOWLEDGE_FOLDER}/index.md. After the user states their first task, do this autonomously (do NOT wait for /context): (1) Read index.md and parse the ## Tag Index section for ### tagname headers; (2) tokenize the user's task text (lowercase, alnum-only, dedupe); (3) find tags whose names exactly match any token; (4) if ≥2 tags match, collect file lines under those tag sections, dedupe by path, cap at top-5; (5) Read each matched file; (6) before answering, output 1-2 sentences naming which files loaded and why each is relevant. Offer once per session and again on clear topic change. The TaskCreated / Bash-cd / PostCompact hooks will auto-surface for those triggers — this instruction covers the SessionStart→first-user-message gap. Honors a session ledger at /tmp/aria-active-\${session_id} (paths already there, don't re-Read).
+"
+fi
+
 # --- Unit 2: opt-in directives ---
 # Only the two PURE-TEXT blocks are carried here. The other two Unit-2 blocks
 # stay in session-start-check.sh deliberately:

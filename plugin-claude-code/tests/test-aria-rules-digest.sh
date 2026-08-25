@@ -175,3 +175,40 @@ assert_eq "rules pointer uses ls-files, not check-ignore" "yes" \
 # The ADR this narrows must not silently contradict itself (Rule 21).
 assert_eq "the deferral ADR carries its amendment" "yes" \
   "$(grep -q 'Amended 2026-08-26 — narrowed, not reversed' "$SETUP" 2>/dev/null && echo yes || echo no)"
+
+# ---------------------------------------------------------------------------
+# index.md — ship the skeleton, and gate on tag CONTENT rather than existence
+# ---------------------------------------------------------------------------
+# These are coupled on purpose. Shipping the template alone would make the old
+# `[ -f index.md ]` gate pass on day one and spend ~223 tok/session describing a
+# matching procedure that cannot match anything until tags exist.
+assert_eq "template ships an index.md skeleton" "yes" \
+  "$([ -f "$APM_ROOT/template/index.md" ] && echo yes || echo no)"
+assert_eq "template index has a Tag Index heading" "yes" \
+  "$(grep -q '^## Tag Index' "$APM_ROOT/template/index.md" 2>/dev/null && echo yes || echo no)"
+assert_eq "template index has zero tag sections" "0" \
+  "$(grep -c '^### ' "$APM_ROOT/template/index.md" 2>/dev/null | tr -d ' ')"
+
+IDXF="$KF/index.md"
+printf -- '---\nknowledge_folder: %s\n---\n' "$KF" > "$CFG"
+
+# Arm A — index exists, ZERO tag sections. Must NOT emit.
+printf '# Knowledge Index\n\n## Tag Index\n\n_No tags yet._\n' > "$IDXF"
+: > "$U2OUT"
+if KT_CONFIG="$CFG" sh "$HOOK" > "$U2OUT" 2>/dev/null; then :; else :; fi
+assert_eq "ACTIVE CONTEXT absent when index has zero tags" "no" "$(u2_has 'ARIA ACTIVE CONTEXT')"
+
+# Arm B — same file, one tag section. Must emit. Both arms are required: a
+# present-only assertion passes against the un-tightened `[ -f ]` gate.
+printf '# Knowledge Index\n\n## Tag Index\n\n### sometag\n- a.md — x\n' > "$IDXF"
+: > "$U2OUT"
+if KT_CONFIG="$CFG" sh "$HOOK" > "$U2OUT" 2>/dev/null; then :; else :; fi
+assert_eq "ACTIVE CONTEXT present when index has a tag" "yes" "$(u2_has 'ARIA ACTIVE CONTEXT')"
+rm -f "$IDXF"
+
+# audit-knowledge must warn when its rebuild produces a tagless index, because
+# after the gate change that silently keeps active surfacing switched off.
+assert_eq "audit-knowledge notes a zero-tag rebuild" "yes" \
+  "$(grep -q 'Active knowledge surfacing stays off until' "$APM_ROOT/skills/audit-knowledge/SKILL.md" 2>/dev/null && echo yes || echo no)"
+assert_eq "setup populates the index" "yes" \
+  "$(grep -q 'Step 7g: Populate the Knowledge Index' "$SETUP" 2>/dev/null && echo yes || echo no)"
