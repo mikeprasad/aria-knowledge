@@ -9,6 +9,13 @@ OQ4 added). Gate report: `knowledge/logs/prospect/2026-08-25-file-always-on-rule
 **Scope:** `plugin-claude-code` only. Codex and Cowork mirror after this is verified.
 **Measured at:** `plugin-claude-code` v2.46.5 (installed v2.46.4), Claude Code session `9936caf6`.
 
+⛔ **AMENDED 2026-08-26 after implementation — the channel fix shipped and the rules still
+do not arrive. `additionalContext` has an undocumented per-emission size cap; the 19,557-char
+payload is delivered as a 2,000-char preview plus a file path, so 90% is discarded silently.
+See §2.6 (measurement), §10 (channel inventory and the reopened decision). §8's question —
+one hook or two — is downstream of this and is no longer the deciding one.**
+Measured at installed **v2.47.0**, Claude Code 2.1.245, session `1e88dad7`.
+
 ---
 
 ## 1. Problem
@@ -112,6 +119,56 @@ gate table in §4.2a, which is what determines this spec's unit boundary.
 
 Therefore the fix is a **split**, not a channel flip. Moving the whole payload would put
 audit nags into model context as noise.
+
+### 2.6 The delivered payload is capped, and the cap is silent — measured 2026-08-26
+
+Added after Unit 1 shipped and was installed. **The channel fix works and the feature does
+not.** `bin/session-start-rules.sh` ran clean (exit 0, 19,743 ch stdout) and produced a real
+`hook_additional_context` record. The harness then replaced the payload with a
+`<persisted-output>` wrapper: a **2,000-character preview** plus a path to a file on disk.
+The preview length is the constant `K5=2000`, read out of the Claude Code binary.
+
+| | |
+|---|---|
+| `additionalContext` emitted | 19,557 ch |
+| Reached model context | 2,000 ch (**10%**) |
+| Discarded | 17,557 ch |
+| Numbered rules delivered | **2 of 38** |
+| U-rule references delivered | **0 of 19** |
+| `RULE 22 ORDERING` in context | **no** |
+
+⭐ **Reproduced across NINE sessions** — nine byte-identical 19,813-byte persisted payloads,
+i.e. every session since install. Not a one-off.
+
+⭐ **The cap is PER EMISSION, not per session.** In the same aggregate record, sibling strings
+of 1,018 and 3,321 ch (the output-style plugin and superpowers) passed through **intact**
+while only the 19,557-ch string was wrapped. Were the cap applied to the concatenation, all
+three would have been wrapped together. This is what makes a multi-emission design possible
+and what answers §8.1 in the opposite direction from its recommendation.
+
+⚠ **Prevalence, for scale:** across 171 session directories and 285 `hook_additional_context`
+samples, ARIA's digest is the **only** payload that trips the cap. Largest sibling delivered
+whole: 3,321 ch.
+
+⛔ **Consequence: §2.3 is not fixed.** `pre-edit-check.sh:362` still denies an Edit/Write
+without a `[Rule 22]` marker, and the only text instructing the model to emit that marker is
+still absent from model context. The channel changed; the outcome did not. In the maintainer's
+workspace the symptom stays hidden because the project `CLAUDE.md` documents the marker
+independently — the same masking §1 identifies.
+
+✅ **Stated fairly, this is still a net gain:** delivered rule text went from **0 to 2,000
+characters**. It is 10% of the intent, not a regression.
+
+⚠ **Bound — the exact cap is unpinned.** Proven safe at 3,321 ch; proven truncating at
+19,557 ch. Two probes at 12,000 and 16,385 ch returned whole, but they went through the
+**Bash tool** consumer, not the hook consumer, and do not transfer. Recorded as a bracket,
+not a number, so no design sizes itself against a figure measured on the wrong channel.
+
+⚑ **Instrument note, extending §2.1's.** A negative control run in this session returned
+**1**, not 0, because the transcript already contained the command text that carried the
+control string — the probe's own text defeated it. Classification by record type was
+unaffected. §2.1's rule holds and widens: in transcript work, *your own instrument is part
+of the corpus.*
 
 ## 3. Decision
 
@@ -355,6 +412,14 @@ mistaken for a regression.
 live payload (`hook_system_message`, session `9936caf6`), except the digest, which does not
 exist yet.
 
+⛔ **STALE AS OF 2026-08-26 — do not quote this table.** It models the digest at ~1,750 tok
+and Unit 1 at ~2,824. As built, the emission is **19,557 ch ≈ 4,900 tok**, of which **~500
+tok is delivered** and the rest discarded (§2.6). ⚑ The gap is a **unit mismatch, not an
+error**: `rules/aria-rules.md` really is 11,960 ch / ~12 KB — the figure the maintainer ruled
+on — but the hook wraps it with ~7,600 ch of other Unit-1 blocks, and the cap applies to the
+**emission**, not the artifact. Re-derive both numbers from a live run before any sizing
+decision, and say which unit each one measures.
+
 | Unit 1 item | ~Tok | New spend? |
 |---|---:|---|
 | Rules digest (new artifact) | ~1,750 | **yes — genuinely new** |
@@ -387,8 +452,14 @@ transcript record classification validated in §2.1 — **classify by record typ
 count string occurrences.**
 
 - **AC1** — A fresh session in a configured project produces a `hook_additional_context`
-  record for `SessionStart` whose content includes at least one working-rule title from
-  the digest. *Red when:* the `additionalContext` emission is reverted.
+  record for `SessionStart` whose content includes **the LAST working-rule title in the
+  digest** (not merely "at least one"). *Red when:* the `additionalContext` emission is
+  reverted, **or the payload is truncated anywhere before its end.**
+  ⛔ **AMENDED 2026-08-26. As originally written this AC passed while 90% of the payload was
+  discarded** — a 2,000-char preview contains Rule 1, which satisfies "at least one" forever.
+  Right threshold, wrong unit: the AC was written against a channel assumed lossless, so it
+  could not fail for the one reason it now needs to. Asserting the *last* title makes
+  truncation the failure it should always have been.
 - **AC2** — That same session still produces a `hook_system_message` record containing
   the audit nags. *Red when:* the change is a move rather than a split. AC1 and AC2 must
   pass in the same session; either alone is satisfiable by the wrong implementation.
@@ -411,8 +482,29 @@ count string occurrences.**
   Subsumes and replaces AC2's role as the split-not-move check.
 - **AC8** (added at gate 1) — `session-start-check.sh` is byte-identical to its
   pre-change state. *Red when:* any edit lands in that file. This is the zero-regression
-  guarantee that justifies the two-hook shape over editing the existing script; verify
-  with `git diff --exit-code -- bin/session-start-check.sh`.
+  guarantee that justifies the two-hook shape over editing the existing script.
+  ✅ **AMENDED 2026-08-26 — ONE named exception, and the ruling predates this amendment.**
+  AC8 now reads: *byte-identical except for the TASK BUDGET block reworked in `d31493c`
+  (+13/−1).* No further edit to that file is permitted under this AC; a second exception
+  requires re-opening AC8, not extending this clause.
+  ⚑ This is **propagation, not a new decision**: `aria-knowledge/CLAUDE.md`'s v2.47.0 footer
+  already records it verbatim — *"THE `TASK BUDGET` REWORK is the one deliberate AC8
+  exception"* — with the reasoning (the long variant directed the model to gate its own
+  stopping decisions on usage figures, a behaviour the maintainer has repeatedly corrected;
+  it was harmless only while the channel was unread, so **delivering it verbatim would have
+  caused it**). The spec's AC8 was simply never reconciled to that ruling, which is the
+  drift class `adopted-with-revisions-must-propagate-to-authoritative-docs`.
+  ⛔ **The stated verification command was ALSO wrong and is corrected.**
+  `git diff --exit-code -- bin/session-start-check.sh` returns **0** here, because it compares
+  the working tree to `HEAD` and the change is *committed* — so the AC's own check could not
+  see its own violation. Verify against the arc's base:
+  `git diff --exit-code origin/main HEAD -- plugin-claude-code/bin/session-start-check.sh`,
+  and expect exactly the `d31493c` hunk.
+  ⚠ **Pattern hit, and it named this in advance:**
+  `acceptance-criterion-a-correct-implementation-cannot-satisfy` (canonical, first identified
+  2026-07-30) calls out "byte-identical" by name as an absolute a *correct* implementation
+  cannot meet when the intended change **is** a diff. An absolute AC needs a named exception
+  list from the start, or a different phrasing.
 - **AC9** (§4.5b) — `template/index.md` exists and contains a `## Tag Index` heading, and
   `setup/SKILL.md:466`'s `../../index.md` link resolves against a freshly scaffolded
   folder. *Red when:* the template file is removed.
@@ -428,6 +520,13 @@ count string occurrences.**
   regression; it is not new work, and finding it already true is the expected result.
 
 ## 8. The end state, and the one measurement that decides it
+
+⛔ **SUPERSEDED IN PRIORITY 2026-08-26 — read §10 first.** This section asks whether the two
+hooks collapse into one. That is a machinery question, and it sits *downstream* of §2.6: with
+the payload capped at 2,000 delivered characters, both the one-hook and two-hook shapes
+deliver 10% of the rules. Nothing here is retracted — §8.1's reasoning still holds on its own
+terms, and §8.2's recipe is corrected in place — but the deciding question is now **which
+channel carries the full rule text at all**, not how many hooks emit it.
 
 **Added 2026-08-26, ruled by Mike.** The two-hook design in §4.2 is a workaround for an
 unverified capability, not the target architecture. Recording the target here so it is not
@@ -492,9 +591,21 @@ session start:
            print(i, a.get('type'), a.get('hookName'))
    " <transcript>.jsonl
    ```
-5. **Pass:** both a `hook_system_message` and a `hook_additional_context` record appear
-   with the **same `hookName`**. Same-name is the discriminator — two records from two
-   different hooks proves nothing about dual-field.
+5. ~~**Pass:** both a `hook_system_message` and a `hook_additional_context` record appear
+   with the **same `hookName`**.~~ ⛔ **THIS DISCRIMINATOR IS UNSATISFIABLE — corrected
+   2026-08-26 by measurement, before the recipe was ever run.** In this build the
+   `hook_additional_context` record is a **per-session aggregate**: exactly one record, a
+   generic `hookName` of `SessionStart`, and a `content` **list** holding one string per
+   contributing hook. `hook_system_message` records are per-hook, named
+   `SessionStart:startup`. The two names therefore can never match, however the hook is
+   written.
+   ✅ **Corrected pass criterion:** the aggregate record's content list contains the
+   dual-emitter's payload string, **and** a `hook_system_message` record bearing that
+   hook's name also appears. Trace each back to its `hook_success` record (which carries
+   the `command`) rather than trusting `hookName` alone.
+   ⚠ **And step 1 was never done:** measured 2026-08-26, `session-start-rules.sh` emits only
+   `hookSpecificOutput` and `session-start-check.sh` only `systemMessage`. No hook emits both,
+   so OQ1 remains unanswered and this recipe cannot be run until one does.
 
 **If it passes** → collapse per §8.1, re-baseline AC8 against the merged file.
 **If it fails** → the two-hook split is forced. The correct shape is then a shared
@@ -551,3 +662,102 @@ until the collapse.
   re-injects after `/compact`? Recorded in workspace notes, not measured. Unmeasurable in
   a session that has not compacted. Affects how much §4.4 is worth, not whether it works;
   §4.3 covers persistence regardless, so a wrong premise costs a redundant pointer.
+
+## 10. The channel inventory, and the decision §2.6 reopens
+
+**Added 2026-08-26.** §2.6 establishes that the hook channel cannot carry 19,557 characters.
+This section enumerates every always-on channel Claude Code actually has, measured, so the
+design choice is made against evidence rather than preference.
+
+### 10.1 What each channel is proven to carry
+
+| Channel | Always-on | Largest size **proven** | Zero user action on a stock install |
+|---|---|---|---|
+| Hook `additionalContext` | yes | **3,321 ch** (19,557 → cut to 2,000) | **yes** |
+| `~/.claude/rules/*.md`, no `paths:` | yes, every project | 2,338 B *(only sample)* | no — one write to user config |
+| `<project>/.claude/rules/*.md` + `paths:` | only on a matching file read | 10,596 B | no |
+| `CLAUDE.md` + `@import` | yes | **261,442 B** | no — writes the user's repo |
+| `claudeMd` settings key | yes | — | no — **managed/policy layers only** |
+| Plugin `rules/` directory | **not loaded** | — | — |
+| Plugin `output-style` | yes | — | yes, but only one style can be active |
+
+Two measured negatives, both worth keeping so they are not re-litigated:
+
+- ⛔ **Plugin `rules/` directories are not read as instructions.** The plugin already ships
+  `rules/aria-rules.md` (11,960 ch) and it appears in **0 of 4,129** lines of
+  `~/.claude/instructions-loaded.log`. Corroborated by the documented plugin component list —
+  `skills, agents, hooks, mcp, lsp, output-style, channel` — which has no rules or
+  instructions component. **A plugin cannot ship always-on instruction text.** That single
+  fact is why the hook was reached for in the first place, and it is the real constraint.
+- ⚠ **`claudeMd` would have been ideal and is out of reach.** It injects CLAUDE.md-formatted
+  instructions with no physical file, but is honoured only in the managed and policy settings
+  layers, which a plugin cannot and must not write. **Documented, not measured** — and this
+  arc has already caught the same doc set wrong once, so it is worth one empirical test at
+  user scope before being treated as settled.
+
+### 10.2 The compressibility measurement
+
+The digest is not irreducible. Measured over `rules/aria-rules.md`:
+
+| Slice | Chars |
+|---|---:|
+| All 38 rule **titles** | 1,693 |
+| Titles + `Rule N — ` prefixes | **~2,149** |
+| Rule **bodies** (elaboration past the title) | 9,411 (247 avg/rule) |
+| Non-rule prose (preamble, tiers, foundation) | 2,549 |
+
+⭐ **A complete trigger index of all 38 rules fits in a single emission**, inside the envelope
+already proven safe. 79% of the rule text is elaboration beyond the title.
+
+⚠ **But a title is not always a sufficient trigger.** For judgment rules ("Rule 11 —
+Popularity is not validation") it is. For rules whose content *is* a literal instruction — the
+`[Rule 22]` marker format and its ordering requirement — the text itself must be present, or
+the blocking hook at `pre-edit-check.sh:362` denies with no instruction available. That is the
+line the design must be drawn on: **not size, but what breaks when the text is absent.**
+
+### 10.3 Four candidate designs
+
+- **W — one emission, titles only** (~2,149 ch). Zero user action, nothing to configure.
+  ⛔ Rejected: drops the literal `[Rule 22]` text, so it fails the one thing that must not fail.
+- **X — two or three emissions: all 38 titles plus the procedural blocks verbatim**
+  (~3,500 ch split into ~1,750-ch emissions). Zero user action; every rule triggered; the
+  damage-preventing text present verbatim. Depends on the cap staying above ~1,800 — roughly
+  5× margin under the only figure measured on this channel.
+- **Y — N emissions carrying the full 19,557 ch** (~7 hooks × ~2,800). Zero user action and
+  **nothing lost at all**; the per-emission finding in §2.6 is what makes it possible. Costs
+  seven process spawns at session start, seven plugin entries, and a Rule 13 objection — and
+  its correctness still rests on an undocumented number.
+- **Z — a file channel**: `~/.claude/rules/aria-rules.md` (user scope, never touches a shared
+  repo) or the `CLAUDE.md` `@`-import (proven at 261 KB). Full fidelity, **and the only option
+  that does not depend on an undocumented cap at all.** Costs a user file write, so it cannot
+  be the default for every install.
+
+### 10.4 Recommendation
+
+**X as the floor, Z as the ceiling, and a loud guard as the thing that makes either durable.**
+
+X guarantees that every user, with zero setup, receives a trigger for all 38 rules and the
+verbatim text of the rules whose absence breaks a tool call. Z gives full fidelity to anyone
+who opts in, and is the only channel immune to the cap. Y is a legitimate alternative if
+"zero setup, zero loss" outranks machinery — it is not rejected, it is a different trade.
+
+⛔ **The guard is the durable part, and it matters more than the channel choice.** This defect
+ran undetected for nine sessions because truncation emits no error. A test asserting the
+emitted payload stays under a hard ceiling turns future growth into a red build instead of a
+silent 90% loss — and AC1 (§7, amended) must assert the *last* rule title so truncation cannot
+pass. Any channel can be undone by a payload that grows; only the guard prevents recurrence.
+
+### 10.5 Open, and how it gets closed
+
+- **The exact `additionalContext` cap.** Bracket only: >3,321 safe, ≤19,557 truncating. Probe
+  armed 2026-08-26 — `~/.claude/rules/_probe-size.md`, 13,101 B, eight sentinels at known byte
+  offsets (0 / 2,019 / 4,035 / 6,051 / 8,067 / 10,083 / 12,099 / tail 13,051). Whichever
+  sentinels reach context locate the cut to within ~2 KB in **one** session, and this
+  simultaneously answers whether the user-scope rules channel holds 12 KB — the one gap in
+  option Z's default. ⚠ It is armed as an always-on file, so it costs ~3.3k tok in **every**
+  session in every project until deleted: `rm ~/.claude/rules/_probe-size.md`.
+- **Whether `claudeMd` is honoured at user scope.** Blocked: the auto-mode classifier denies
+  agent writes to `settings.json`. Needs `/exit-auto`, an explicit permission rule, or the
+  maintainer making the one-line edit.
+- **OQ1 / dual-field** — still unanswered, and per §8.2 it cannot be run until a hook actually
+  emits both fields. Now a low-priority question rather than the deciding one.
