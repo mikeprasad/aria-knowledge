@@ -708,7 +708,7 @@ design choice is made against evidence rather than preference.
 | Channel | Always-on | Largest size **proven** | Zero user action on a stock install |
 |---|---|---|---|
 | Hook `additionalContext` | yes | **3,321 ch** (19,557 → cut to 2,000) | **yes** |
-| `~/.claude/rules/*.md`, no `paths:` | yes, every project | **13,101 B — measured, probe A** | no — one write to user config |
+| `~/.claude/rules/*.md`, no `paths:` | yes, every project | **32,056 B — measured, probe C** | no — one write to user config |
 | `<project>/.claude/rules/*.md` + `paths:` | only on a matching file read | 10,596 B | no |
 | `CLAUDE.md` + `@import` | yes | **261,442 B** | no — writes the user's repo |
 | `claudeMd` settings key | **no — inert at user scope** | **0 B — measured, probe B** | n/a |
@@ -894,7 +894,7 @@ was **not** observed.
 
 | | Chars | A static file can carry it? |
 |---|---:|---|
-| Static digest (`rules/aria-rules.md`, 38 rules + prose) | 11,960 | ✅ **12,166 B, under probe A's proven 13,101 B** |
+| Static digest (`rules/aria-rules.md`, 38 rules + prose) | 11,960 | ✅ **12,166 B, under probe C's proven 32,056 B — 2.6× headroom** |
 | Generated blocks (`RULE 22 ORDERING`, `DECISION ROUTING`, `SESSION STATE`, `TASK BUDGET`, `ARIA ACTIVE CONTEXT`, `STANDING USER RULES`) | 7,598 | ❌ **no** — each is computed from config or project state |
 | **Emitted total** | **19,557** | |
 
@@ -913,19 +913,147 @@ the U-rule index at the hook's own internal 3,000-ch branch point, the emission 
 codepoints** (path- and locale-normalised). That is **6.1× the 3,321 ch** that is the only size
 measured to cross this channel intact.
 
+### 10.8 The split, measured per block — the architecture probe C unblocks
+
+**Added 2026-08-26 (second session), after probe C closed the channel question.** §10.7 ruled the
+split by MUTABILITY and stated the principle — the file carries the behaviour, the hook carries only
+the resolved values. This section measures it per block and turns it into an implementable shape.
+Every figure is measured from a worst-case run of `bin/session-start-rules.sh` unless labelled an
+estimate: 40 U-rules, an `index.md` with tag headers, `autonomy: autonomous`, `session_state: true`,
+path-normalised exactly as the delivery guard normalises.
+
+| Block | Chars | Text a literal? | What varies at runtime | Destination |
+|---|---:|---|---|---|
+| Rules digest + preamble | 12,059 | ✅ a `cat` of a file | nothing | **file** |
+| RULE 22 ORDERING | 711 | ✅ | nothing — unconditional | **file** |
+| MEMORY PATHWAY | 321 | ✅ | nothing — unconditional | **file** |
+| TASK BUDGET | 751 | ✅ (2 variants) | which variant — a `$HOME` file's existence | **file**, condition is model-visible |
+| INSIGHT CAPTURE | 195 | ✅ | gate `auto_capture`; interpolates KF | **file + config value** |
+| ARIA ACTIVE CONTEXT | 864 | ✅ | gate `active_surfacing` + index state; interpolates KF | **file + config value** |
+| SESSION STATE | 1,610 | ✅ | gate `session_state` | **file + config value** |
+| DECISION ROUTING | 1,202 | ✅ (2 variants) | gate `autonomy` | **file + config value** |
+| STANDING USER RULES | 2,610 | ❌ **generated from the user's own file** | the titles themselves | **second file** — below |
+| **Total** | **20,322** | | | |
+
+⭐ **The finding that reframes §10.7's "39% computed": exactly ONE block is genuinely computed.**
+Every other block is a shell literal whose *gate* is computed, not whose *text* is. **17,712 of the
+20,322 chars (87.2%) are static text a bundled file can carry verbatim**; what the hook actually
+contributes is a handful of boolean and enum decisions. The 61/39 figure understated the file's
+reach by 26 points because it counted a block as computed whenever its *emission* was conditional —
+a wrong-unit read of the same shape this spec has now made three times, and the reason to state the
+axis explicitly: **conditional emission is not computed content.**
+
+**So a static file CAN carry conditional behaviour**, by stating the condition for the model to
+evaluate instead of resolving it in shell. Two mechanisms, both needed:
+
+- **Model-visible conditions become stated conditionals, with no hook involvement at all.** TASK
+  BUDGET branches on whether `~/.claude/aria-statusline-state-*.json` exists — something the model
+  can determine for itself. The file carries both variants behind one sentence naming the condition.
+- **Config-visible conditions need one resolved value each.** `autonomy`, `session_state`,
+  `auto_capture`, `active_surfacing` and the knowledge-folder path live in
+  `~/.claude/aria-knowledge.local.md`, which the model has no reason to have read. The file carries
+  every variant keyed by value; the hook emits the values.
+
+⛔ **The file must carry EVERY variant where the emission carries one.** Measured directive
+literals, all variants, before shell substitution: RULE 22 **709** · MEMORY PATHWAY **319** · TASK
+BUDGET **739 + 346** · INSIGHT CAPTURE **211** · ARIA ACTIVE CONTEXT **881** · SESSION STATE
+**1,608** · DECISION ROUTING **763** (balanced) **+ 1,201** (autonomous) = **6,777 ch**. With the
+12,166 B digest that is a **measured floor of 18,943 B** for the file, before a word of conditional
+framing prose is written.
+
+#### The U-rule index cannot stay in the hook — forced by measurement, not preferred
+
+`session-start-rules.sh:62` bounds the inline index at **3,000 chars of titles** before falling back
+to a 171-char pointer. So that block's own ceiling is ~3,000 plus the ~277-char substituted template
+= **~3,277 ch**, and a hook carrying it alongside a config block (~250 ch, estimate) lands at
+**~3,527 ch — above the 3,321 ch that is the only size ever measured to cross this channel intact.**
+
+⇒ The generated index must reach a file too, as a **second, generated** user-scope rules file
+`~/.claude/rules/aria-user-rules.md`. ⚑ **Note the shape of that conclusion: it was not chosen, it
+was forced by two independently measured numbers meeting.** The 3,000-char branch point has been in
+the code since the block was ported and the 3,321-char figure since §2.6; neither was written with
+the other in view. Keeping the index in the hook would leave the post-split payload over the only
+proven-safe figure — i.e. the split would fail at the one thing it exists to fix.
+
+#### The resulting three surfaces
+
+| Surface | Carries | Changes when | Worst case | Reaches subagents |
+|---|---|---|---:|---|
+| `~/.claude/rules/aria-rules.md` — bundled, **byte-identical for every install** | digest + all 8 directives, every variant, gates as stated conditionals | a plugin release | **18,943 B measured** + framing | ✅ |
+| `~/.claude/rules/aria-user-rules.md` — **generated** | the U-rule title index | the user edits `user-rules.md` | ~3,277 ch | ✅ |
+| SessionStart `additionalContext` | **resolved config values only** | every session | **~250 ch (estimate)** | ❌ |
+
+**Hook payload 20,322 → ~250 ch, a 98.8% reduction.** ⛔ **The margin is not the justification and
+must never be quoted as one.** Per §10.7 the cap is per-tool and remotely mutable; what makes this
+design safe is that a truncated hook now costs only *which posture is selected*, and the file states
+the safe default for exactly that case — *"if no autonomy value is present, treat it as `default`,
+which adds no routing directive."* Degradation-tolerant, not cap-fitted. No amount of headroom would
+have bought that property.
+
+⭐ **Aggregate capacity is proven too, and probe C is what proved it — unplanned.** Probe C did not
+run alone: `context7.md` (2,338 B) was live in the same session and arrived whole, its last line on
+disk (`4. Answer from the fetched docs.`) being the last line that reached context. So the channel is
+proven at **34,394 B across two files**, not merely 32,056 B in one. The two-file design needs
+~22,220 B aggregate — inside a figure that has been measured rather than extrapolated from a
+single-file result, which matters because nothing here may be sized against an extrapolation.
+
+#### One fork that is a judgment call, and one that is not
+
+⛔ **Not a fork — `/setup` must NOT bake resolved config values into the file.** It has a provable
+defect: a user who later edits `autonomy` or `session_state` would get no effect and no error, which
+is precisely the failure class this whole arc exists to fix. The file stays generic; the hook stays
+the source of resolved values. Named here in one line rather than offered as an option, per U18.
+
+⏳ **A real fork — what regenerates `aria-user-rules.md`, and when.** Per §10.6 a rules file written
+mid-session reaches neither that session nor its subagents, so **every option carries a one-session
+lag** and the question is only which trigger is least surprising:
+
+1. `/setup` and `/rules` regenerate it. Explicit and simple; silently stale between runs.
+2. A `PostToolUse` hook on writes to `user-rules.md` regenerates it. Event-driven, matches the
+   `MEMORY-FULL.md` precedent already live in this workspace, and the one-session lag is
+   attributable by the user to the edit they just made.
+3. The SessionStart hook rewrites it every session. Self-healing, but writes user config on every
+   launch and still lags one session.
+
+Recommendation is **(2), with (1) as a manual repair path**. None of the three is provably wrong, so
+this is Mike's call, not a decidable fork.
+
+#### ⛔ A defect in the delivery guard, found while measuring for this section
+
+The worst-case fixture in `tests/test-aria-rules-digest.sh` is **environment-dependent**, in exactly
+the way its own comment forbids. It builds the knowledge folder synthetically — *"never the
+developer's real knowledge folder, which would make the ceiling environment-dependent"* — but
+`session-start-rules.sh:83` also branches on `ls "$HOME"/.claude/aria-statusline-state-*.json`, and
+the fixture does not control `$HOME`. Measured two-sided in one session:
+
+| `$HOME` | TASK BUDGET variant | worst-case payload |
+|---|---|---:|
+| the maintainer's real home (statusline meter installed) | **long** | **20,322** ch |
+| an empty home | short | **19,919** ch |
+
+**403 chars of the ratchet are environmental.** It does not false-fail today — 19,919 ≤ 20,322 — but
+the ratchet is meant to be *lowered* as this split lands, and lowering it to a value measured on a
+statusline-free machine makes it fail on the maintainer's. ⚑ The fixture's own maximality proof
+covers the U-rule variant (*"worst-case fixture fires the LONG U-rule variant"*) and not this one,
+so the guard asserts a bound it has not proven maximal — `feedback_guard_scoped_to_the_wrong_unit`,
+inside the guard written to prevent that class. Fix belongs with the ratchet change, not separately:
+both edit the same assertions, and doing them apart means touching one line twice.
+
 ### 10.5 Open, and how it gets closed
 
 - ✅ **The user-scope rules channel holds 13,101 B — probe A READ 2026-08-26, all eight sentinels
   present including the tail at 13,051.** Both probes are now removed and the tree is clean,
   verified with a working positive control so the sentinel absence is a real absence and not a
   dead grep. This raises the §10.1 proven figure for that channel from 2,338 B to **13,101 B, a
-  5.6× improvement**, and closes the one gap in option Z's default. ⚠ **Bound, and it is the half
-  that matters: 13,101 B is proven, the digest is 19,813 B — Z at full digest size is still
-  unproven by 51%.** Report the bound; do not extrapolate past it. Closing it costs one more
-  session: write the real digest to `~/.claude/rules/aria-rules.md` with a tail sentinel and read
-  it back. Per §10.6's mechanism finding that confirmation is necessarily **next**-session — a
-  rules file created mid-session reaches neither the creating session nor its subagents.
-- ⏳ **PROBE C ARMED 2026-08-26 — does the rules channel carry the whole restructured file?**
+  5.6× improvement**, and closes the one gap in option Z's default. ⛔ **Its stated bound — *"13,101 B is proven, the digest is 19,813 B, so Z at full digest size
+  is unproven by 51%"* — is RETIRED on two independent grounds, and both are worth keeping.**
+  First it was the wrong unit (§10.7: a file carries only the 12,166 B static digest, never the
+  hook's composed emission). Second and decisively, **probe C superseded the capacity figure
+  itself** — 32,056 B, below. Neither correction rescued the other: the unit error would have
+  made the bound wrong even at 13,101 B, and the capacity result makes it moot at any unit.
+- ✅ **PROBE C READ 2026-08-26 (second session) — ALL NINE MARKERS PRESENT. The rules channel
+  carries 32,056 B in full, the ruled design is unconditionally safe, and this line of
+  measurement is CLOSED — do not re-arm it.**
   Under the §10.7 split the file must hold the static digest (11,960 ch) **plus** the conditional
   blocks rewritten as stated conditionals — bounded above by the hook script's own 13,807 ch, so
   ~25,800 ch worst case. Probe A proved only 13,101 B, so this is the one measurement the ruled
@@ -933,11 +1061,19 @@ measured to cross this channel intact.
   pass settles the channel permanently and no further probe is ever needed.** File
   `~/.claude/rules/_probe-c-size.md`, **32,056 B**, nine markers `PROBE-C-M4T9-*` at measured
   offsets **703 / 4,052 / 8,067 / 12,008 / 16,023 / 20,038 / 24,053 / 28,068 / TAIL 32,009**.
-  All nine present ⇒ the channel carries 32 KB and the ruled design is unconditionally safe;
-  the highest present offset otherwise locates the cut to within ~4,000 ch. ⚠ **It costs ~8k tok in EVERY session in EVERY project until
-  deleted — read it next session and remove it:** `rm ~/.claude/rules/_probe-c-size.md`.
-  ⚠ Per §10.6 it cannot be read by the session that created it; the instruction-file set is
-  snapshotted at session start.
+  **Result: 9 of 9 present, classified from context and never from disk** — a `cat` of the file
+  returns the same nine markers whether or not the channel delivered them, so a disk read is an
+  instrument that cannot fail. ⭐ **The TAIL marker is the load-bearing one**: any partial delivery
+  presents as a prefix, so markers 1–8 prove nothing about the ceiling; only `TAIL-32009`, arriving
+  with its terminating sentence intact, proves nothing was cut. ⇒ **§10.1's proven figure for this
+  channel rises 13,101 B → 32,056 B (2.4×), clearing the ruled design's ~25,800 ch worst case with
+  ~6.1 KB of headroom.** ⛔ **That headroom is NOT a budget.** §10.7 established that this channel's
+  threshold is per-tool and remotely mutable; 32,056 B is a proven floor at one moment, not a
+  constant, and the whole point of the file/hook split is that no payload is sized against a cap.
+  ✅ Probe file removed the same session (`rm ~/.claude/rules/_probe-c-size.md`); it was untracked
+  in the `~/.claude` repo, so nothing was lost. ⚠ Per §10.6 it could not be read by the session
+  that created it — the instruction-file set is snapshotted at session start — which is why this
+  is stamped by a later session.
 - ⛔ **The exact `additionalContext` cap is STILL OPEN, and probe A could never have closed it.**
   The bullet above previously sat under this heading and claimed the probe would *"locate the cut
   to within ~2 KB"*. **It cannot, and the reason is the part worth keeping:** a
