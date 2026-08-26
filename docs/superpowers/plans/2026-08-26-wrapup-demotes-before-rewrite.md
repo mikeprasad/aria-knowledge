@@ -26,7 +26,7 @@ entries already marked `· consumed`. Against an empty ledger it is a no-op. The
 
 ⇒ **`handoff → wrapup` destroys the prior session's handoff.** `handoff → handoff` is safe.
 
-**Live instance:** archetypes, 2026-08-26. Session `affe189f` left a handoff 8 minutes before this
+**Live instance:** proj-a, 2026-08-26. Session `affe189f` left a handoff 8 minutes before this
 session's `/wrapup`. The clobber was avoided only because the operator skipped the documented step —
 which is itself a rule violation, and the correct action (demote, then write) was never taken.
 

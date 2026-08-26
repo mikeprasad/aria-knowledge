@@ -8,7 +8,7 @@
 # it is a no-op. The rewrite then replaced "## Where we left off" / "## Next session pickup" /
 # "## Next session prompt", which is exactly where /handoff writes a pickup.
 #   => handoff -> wrapup DESTROYED the prior session's handoff. handoff -> handoff was always safe.
-# Live instance: archetypes 2026-08-26, session affe189f's handoff, 8 minutes old.
+# Live instance: proj-a 2026-08-26, session affe189f's handoff, 8 minutes old.
 #
 # ⛔ THE ASSERTIONS ARE TWO-SIDED ON PURPOSE. This guards a CONTRACT SHARED BY TWO SKILLS, so it
 # checks /handoff still carries 3f as well. A guard that watched only /wrapup would go green if
