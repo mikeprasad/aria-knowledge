@@ -6,8 +6,10 @@
 **Status:** GATED — gate 2 (`/prospect`) RUN 2026-08-26, verdict **PROCEED-WITH-CHANGES**.
 All executor-applicable changes are applied below in the same session that ran the gate.
 Report: `knowledge/logs/prospect/2026-08-26-file-rules-file-hook-split.md`.
-⛔ **THREE ASKS ARE OPEN AND TWO TASKS ARE BLOCKED ON THEM** — ASK #1 (standing cost, T1),
-ASK #2 (Fork A, T2), ASK #3 (Fork B, T3b). **Unblocked now: T0, T3a, T6.**
+✅ **ALL THREE ASKS RULED BY MIKE, 2026-08-26 — NOTHING IS BLOCKED.** ASK #1 → **A1**, accept the
+standing cost as designed. ASK #2 → **B1**, the hook writes the file when absent, conditional on
+firing once per session and not per tool use (**answered: `SessionStart`, see T2**). ASK #3 →
+**C 1 and 2**, both triggers, not one.
 ⛔ **This arc CANNOT be self-validated.** Per spec §10.6 the instruction-file set is snapshotted
 at session start, so a file written mid-session reaches neither that session nor its subagents:
 **AC1 and AC2 are both next-session criteria and the arc ends in a handoff by construction.**
@@ -78,6 +80,12 @@ C's ~8k tok/session *"a cost in EVERY session in EVERY project"* and had it dele
 grounds; the permanent file is **63% of that probe's size** and is never deleted. It also reaches
 projects with no ARIA involvement, because `~/.claude/rules/` is user-scope and unconditional.
 
+✅ **RULED A1, Mike 2026-08-26 — accepted as designed.** The cost is now a disclosed, ruled trade
+rather than an unstated one, and it must be named in the release notes (T6). ⛔ Do **not** re-open
+this as a reason to trim the digest later: option (3) in the gate report was rejected precisely
+because §10.2 measured that a title alone is not a sufficient trigger for the rules whose text *is*
+the instruction.
+
 **This is not an argument against the design** — the alternative is rules that reach nobody, and
 the maintainer already carries 331 KB of always-on context by choice. It is an argument that the
 number must be **ruled, not assumed**, since the ruling that chose this channel predates it.
@@ -88,7 +96,7 @@ number must be **ruled, not assumed**, since the ruling that chose this channel 
 changes what gets built.** Options are enumerated with what each costs; recommendations are stated
 but not pre-confirmed.
 
-### Fork A — how does the file reach an install that never re-runs `/setup`?
+### Fork A — ✅ RULED **B1** (Mike, 2026-08-26): the hook writes it when absent
 
 This is the **highest-stakes** question in the plan, because getting it wrong is a silent
 regression for every existing user: they would go from *truncated rules* to *no rules at all*.
@@ -106,12 +114,32 @@ regression for every existing user: they would go from *truncated rules* to *no 
    convergence likely. **Cost: the prompt renders on `systemMessage`, which reaches the user but
    not the model — so a user who ignores it stays on option 2's outcome, silently.**
 
-**Recommendation: (1), narrowed** — write only when the file is absent, never overwrite a file the
-user may have edited, and say plainly in the release notes that the plugin now writes one file to
-`~/.claude/rules/`. The self-healing property is what makes the fix actually reach people, and the
-write is to a directory whose entire purpose is agent instructions.
+✅ **RULED: (1), narrowed.** Mike's condition — *"only triggered once per session and not every
+tool use"* — is satisfied, and the answer to *which hook* is **`SessionStart`, via the existing
+`bin/session-start-rules.sh`**:
 
-### Fork B — what regenerates `aria-user-rules.md`, and when? (spec §10.8)
+- **It cannot fire per tool use.** `PostToolUse` is the only per-tool-call event; this is a
+  different event. Structural, not a matter of configuration.
+- **Zero new process spawns.** That script already runs at SessionStart, already sources
+  `config.sh`, already resolves the knowledge folder. The addition is one guarded line.
+- ⭐ **The absence guard, not the firing count, is what enforces the condition.** Both SessionStart
+  entries register with **no matcher**, so they fire on `startup`, `resume`, `clear` and `compact`
+  alike. Measured against a SessionStart hook that keeps a run log: **518 fires / 366 clusters at a
+  ≤10 s gap = 1.42 fires per cluster** (233 singles · 116 doubles · 15 triples · 2 quads).
+  ⚠ **Bound: that log has no session id and this workspace runs concurrent sessions, so one session
+  firing twice is indistinguishable from two sessions firing once.** The guard makes it moot —
+  exactly one write happens regardless, and every later fire costs one `stat`.
+- ⛔ **Do NOT "fix" this by narrowing the matcher to `startup`.** That would mean a `/clear` or a
+  resume never repairs a missing file. Absence-guarding is strictly better than matcher-narrowing.
+
+⏳ **One sub-decision this ruling does not cover, surfaced rather than buried:** *write-only-when-
+absent* means a plugin upgrade that changes the digest **never reaches an existing install**. Same
+silent-staleness class the arc exists to fix. Planned fix — a version marker on the file's first
+line, refreshed when the plugin version moves; one `head -1` per session. That is the only case in
+which the hook overwrites, and it overwrites a **bundled artifact**, never the user's own
+`working-rules.md`. Mike can veto; it is one line of T2.
+
+### Fork B — ✅ RULED **C 1 and 2** (Mike, 2026-08-26): both triggers, not one
 
 Every option carries a one-session lag (§10.6), so the question is only which trigger is least
 surprising.
@@ -121,9 +149,21 @@ surprising.
    precedent live in this workspace, and the lag is attributable to the edit the user just made.
 3. The SessionStart hook rewrites it every session. Self-healing; writes user config every launch.
 
-**Recommendation: (2), with (1) as a manual repair path.** If Fork A resolves to (1), then (3)
-becomes nearly free and may be preferable for consistency — **the two forks interact, so resolve A
-first.**
+✅ **RULED: (1) AND (2) together** — `/setup` and `/rules` regenerate it, **and** a `PostToolUse`
+hook on writes to `user-rules.md` regenerates it. Not either/or.
+
+⚑ **Why both is the right shape rather than redundant:** they cover disjoint failure modes. (2)
+catches the common case — the user edits a rule and the index follows — but cannot fix an index that
+is already wrong, missing, or was never generated. (1) is the repair path for exactly that, and it
+is the path `/setup` already walks on a fresh install. Neither alone converges from an arbitrary
+starting state.
+
+⛔ **(2) must filter cheaply and FIRST.** `PostToolUse` fires on every `Edit|Write`, so the hook's
+first act is a path test that exits non-zero-cost only for `user-rules.md`. The precedent is in this
+repo: `post-edit-check.sh` reads the tool input, extracts `file_path`, and branches with a `case`
+before doing any real work. Follow that shape — **do not source config or read files before the path
+test.** ⚠ This is the one place in the arc where a hook runs per tool use, and it is accepted because
+its body is a string comparison.
 
 ---
 
@@ -190,22 +230,29 @@ Probe C proved the channel at 32,056 B in one file and 34,394 B aggregate.
 - [ ] **Step 6 — Extend the drift gate** to assert every directive present in
       `session-start-rules.sh` is also present in the file, by name. A new directive added to the
       hook and not the file must go RED. Mutation-verify by deleting one directive from the file.
-- [ ] **Step 6b — GATE (ASK #1): the standing cost is ruled before the file ships.** Do not
-      treat the capacity figure as permission to spend it. Options and the recommendation are in
-      the gate report §10 ASK #1; the measured number is in **Standing cost** above.
+- [x] **Step 6b — GATE (ASK #1): RULED A1 by Mike 2026-08-26** — the standing cost is accepted as
+      designed. Carry the number into the release notes (T6 Step 2); do not treat it as settled
+      quietly, and do not re-open it later as a reason to trim the digest.
 - [ ] **Step 7 — Human review gate (Mike).** The file is what every user reads every session. It is
       not merely a size change; it is new prose framing 8 directives. **Tasks 2–5 wait on this.**
 - [ ] **Step 8 — Commit.** `feat(rules): carry every directive and variant in the static digest`
 
 ## Task 2: `/setup` installs the user-scope rules file
 
-⚠ **Shape depends on Fork A.** Written here for the recommended (1); revise if Mike rules otherwise.
+✅ **UNBLOCKED — Fork A ruled B1.** Two writers, one target.
 
-- [ ] **Step 1** — `/setup` copies the bundled `rules/aria-rules.md` to `~/.claude/rules/aria-rules.md`.
-- [ ] **Step 2** — Never overwrite silently: if the target exists and differs from the bundled file,
-      show the diff summary and ask. A user may have edited it.
-- [ ] **Step 3** — Report the write plainly in `/setup`'s output, naming the path.
-- [ ] **Step 4** — Test: fresh install writes it; existing-and-modified prompts; existing-and-identical is a no-op.
+- [ ] **Step 1** — `bin/session-start-rules.sh` writes `~/.claude/rules/aria-rules.md` **when
+      absent**. Guard on absence first; the guard is what makes the firing count irrelevant.
+- [ ] **Step 2** — Version marker on the file's first line; refresh when the plugin version moves.
+      One `head -1` per session. ⛔ This is the **only** overwrite path, and it overwrites a bundled
+      artifact — never the user's own `working-rules.md`.
+- [ ] **Step 3** — `/setup` writes it too, and reports the write plainly, naming the path. A user
+      running `/setup` should not have to wait for a session restart.
+- [ ] **Step 4** — Test the matrix: absent → written · present-and-current → untouched (assert **no
+      write**, not merely identical content) · present-and-stale-version → refreshed · present-and-
+      hand-edited-at-current-version → **untouched**.
+- [ ] **Step 5** — Measure the added SessionStart cost in the steady state. It must be one `stat`
+      plus one `head -1`; if it is more, the guard is in the wrong order.
 - [ ] **Step 5 — Commit.** `feat(setup): install the always-on rules file to user scope`
 
 ## Task 3: The generated U-rule index file
@@ -231,9 +278,18 @@ only when the fallback arm itself is.
 - [ ] **Step 3** — Add the writer script that renders the same function's output to
       `~/.claude/rules/aria-user-rules.md`.
 
-### T3b — wire the regeneration trigger (DEFER — blocked on Fork B / ASK #3)
+### T3b — wire BOTH regeneration triggers (✅ UNBLOCKED — Fork B ruled C 1+2)
 
-- [ ] **Step 4** — Wire the trigger Mike ruled in Fork B.
+- [ ] **Step 4** — Wire the `PostToolUse` trigger on `Edit|Write`. ⛔ **Path test FIRST**, before
+      sourcing config or reading anything — follow `post-edit-check.sh`'s shape. Exit immediately
+      unless the written path is the configured `user-rules.md`.
+- [ ] **Step 5** — Wire the `/setup` and `/rules` regeneration path, as the repair route for an
+      index that is missing, stale, or was never generated.
+- [ ] **Step 6** — Test that the two triggers converge from every starting state: no file · stale
+      file · current file · file present with `user-rules.md` deleted.
+- [ ] **Step 7** — Measure the `PostToolUse` cost on a NON-matching path. This hook now runs on
+      every edit in every project; if the non-matching path costs more than a `case` test, it is
+      wrong. Assert it.
 - [ ] **Step 3** — Absent or empty `user-rules.md` must write **no file at all**, not an empty one —
       the current "injects nothing" behaviour is correct for a brand-new user.
 - [ ] **Step 4** — Test both tiers and the zero case; mutation-verify the overflow branch.
