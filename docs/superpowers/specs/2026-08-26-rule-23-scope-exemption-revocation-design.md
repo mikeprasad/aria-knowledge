@@ -279,15 +279,26 @@ it is retrospective, and it belongs to a future `/retrospect` — not to this pl
   version `2.48.0`, which is precisely the `committed-is-not-installed` trap: **compare content,
   never versions.** This is a recording criterion, not a sync step.
 
-## 8. Open questions
+## 8. Open questions — CLOSED 2026-08-26
 
-- **OQ1** — should the exemption also cover a ruling the user made in a *previous* session and
-  that is already recorded elsewhere (i.e. is "can you quote him" satisfied by quoting a prior
-  memory file, or only by quoting him directly)? Current draft is silent. Leaning: yes, if the
-  quote and its date travel with it, since the alternative re-gates settled decisions — but
-  this is a judgment call and belongs to Mike.
-- **OQ2** — does the falsifier requirement apply retroactively when *editing* an existing rule
-  that has none? Leaning: state it on touch, do not sweep. Not currently in the text.
+Mike delegated both ("do what you think is best and validate"). Decided, applied, validated.
+
+- **OQ1 — CLOSED: a ruling from an earlier session counts, and the quote carries its date.**
+  Re-gating a decision already made wastes the exact budget the exemption protects, so it must
+  count. The date is the handle a later reader needs to apply the staleness clause — within a
+  session it is implicit, across sessions it is the only one. Note the scope: the date attaches
+  to the CROSS-SESSION case, not as a new tax on every write. That is the same decomposition
+  behind the approved exemption wording, applied consistently.
+- **OQ2 — CLOSED: state-on-touch; do not sweep.** New-rules-only leaves all 38 existing rules
+  permanently exempt, so the requirement never propagates. Sweeping all 38 is a change nobody
+  asked for and is out of scope per §5. On-touch propagates gradually and puts the cost where
+  someone already has the rule in hand.
+- **OQ3 — CLOSED**: exemption wording tightened to *"quote their own words"* + *"a paraphrase is
+  not a quote"*, approved by Mike 2026-08-26.
+
+⚠ Both OQ1 and OQ2 land as PROSE and inherit §7's C4 boundary exactly: measured by mutation,
+deleting the OQ2 sentence leaves the suite at 253 passed / 0 failed / bare exit 0. Nothing
+catches it. That is stated, not implied.
 
 ## 9. Constraints — the repo is not clean
 

@@ -159,13 +159,13 @@ writer.
 - Retro-applying the gate to existing memory files.
 - Building any stale-rule detector.
 
-## 8. Open questions carried from the spec
+## 8. Open questions — ALL CLOSED 2026-08-26
 
-- **OQ1** — does a ruling quoted from a PRIOR session satisfy "can you quote the user saying it",
-  and must the quote carry its date? Not answered in the text as drafted.
-- **OQ2** — does the falsifier requirement apply when EDITING an existing rule that has none?
-  Leaning state-on-touch, do not sweep. Not in the text.
-- **OQ3** — confirm the exemption's wording matches intent: recording a ruling Mike actually made
-  needs no gate; a rule Claude derived does.
+- **OQ1 CLOSED** — a prior-session ruling counts; carry the quote's date. Cross-session only.
+- **OQ2 CLOSED** — the falsifier requirement applies ON TOUCH; do not sweep the existing 38.
+- **OQ3 CLOSED** — exemption tightened to "quote their own words"; "a paraphrase is not a quote".
 
-None blocks T1–T4; all three are text-level refinements Mike can rule on before or after landing.
+All three are prose and inherit the C4 boundary: mutation-measured, deleting the OQ2 sentence
+leaves the suite green. Landed in the rule body, not the digest — the digest is a summary and
+does not contradict; adding refinements to a line that never reaches model context (spec 2.4a)
+buys nothing.
