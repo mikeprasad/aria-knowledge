@@ -528,15 +528,89 @@ After Step 7b's round-trip verification, run a coverage audit to catch any `KT_*
 
 **Why this exists (v2.15.2 Origin):** the `[NEW]` detection in Step 6's Advanced Options was specced to surface new-since-last-setup keys, but Step 6 is a *soft instruction* to Claude — it's not hook-enforced, so a fast or quiet /setup run can silently skip the detection. Step 7e is a final verification gate that runs against the canonical config.sh source of truth, surfacing any gap regardless of how the wizard got there. Pairs with `/audit-config`'s missing-known-fields cascade check (Step 3b) as the audit-cadence safety net.
 
+## Step 7ea: Install the Always-On Rules Files
+
+⛔ **PRECONDITION — skip this whole step unless the writer exists in this port:**
+
+```bash
+cat "${CLAUDE_PLUGIN_ROOT}"/.claude-plugin/plugin.json "${CLAUDE_PLUGIN_ROOT}"/hooks.json 2>/dev/null \
+  | grep -q 'session-start-rules\.sh' && echo applies || echo skip
+```
+
+⚠ The test is **registration**, not file presence, and the difference is the whole
+point. A port's build may copy every canonical `bin/*.sh` indiscriminately, so the
+script can be sitting there unwired — measured: antigravity ships a copy that appears
+in none of its hook manifests, so it never runs. A `[ -f ]` check answered `applies`
+for that port and would have had a user hand-install files into a directory nothing
+reads. Verified discriminating: `applies` for claude-code, `skip` for antigravity and
+codex.
+
+If it prints `skip`, say so in one line and move to Step 7f. This step describes a
+**Claude Code** mechanism: the instruction-file channel plus the hook that maintains
+it. Other runtimes have their own always-on rules surface — Antigravity scaffolds
+`.agents/rules/` in Step 7ca, Cursor compiles `.cursor/rules/*.mdc` — and those are
+already handled by their own steps. ⚠ The port build path-substitutes the directory
+below, which makes this step *look* right in a runtime that has no writer for it, so
+the precondition is the only thing that catches that.
+
+Runs after the config is written and validated, because one of the two files is
+generated from `knowledge_folder`.
+
+ARIA's working rules, its standing directives, and the user's own U-rules are
+delivered as **instruction files under `~/.claude/rules/`**, not through the hook
+payload. In Claude Code that channel is delivered in full and additionally reaches
+**subagents**, which the hook channel does not — before this, every delegated agent
+ran with zero ARIA rules. ⚠ Both of those are measurements about Claude Code's
+channel; neither has been measured for another runtime, which is the second reason
+this step is gated rather than ported.
+
+```
+~/.claude/rules/aria-rules.md       38 working rules + every standing directive
+~/.claude/rules/aria-user-rules.md  the user's own U-rules, as a digest
+```
+
+**Install them now:**
+
+```bash
+sh "${CLAUDE_PLUGIN_ROOT}/bin/session-start-rules.sh" >/dev/null 2>&1
+ls -l ~/.claude/rules/aria-rules.md ~/.claude/rules/aria-user-rules.md 2>/dev/null
+```
+
+⛔ **Invoke the hook rather than copying the files here.** `kt_ensure_rules_files`
+inside that script is the single implementation: it byte-compares the digest against
+the bundled copy and regenerates the U-rule digest only when `user-rules.md` is
+newer. A second copy routine in this skill would be a second write path with nothing
+comparing the two — the drift shape this plugin has already paid for more than once.
+
+**Why this step exists at all**, given the hook self-heals on its own: the hook can
+only take effect from the **next** session, because the instruction-file set is
+snapshotted at session start. Running it here means a user who has just completed
+`/setup` gets the files in place immediately, and — more importantly — `/setup` is
+where a write into the user's own configuration is *expected and consented to*,
+rather than appearing silently later.
+
+**Report both paths in the summary**, naming them explicitly. A file the plugin
+writes into a user's config and never mentions is the defect that produced this
+whole arc: content generated, delivered nowhere, and nobody told.
+
+⚠ Both files are **plugin artifacts** and are replaced whenever the plugin's copy
+changes. The user-editable surface is `{knowledge_folder}/rules/working-rules.md` and
+`.../user-rules.md`; each installed file says so in its own header.
+
 ## Step 7f: Rules Pointer (optional, default NO)
 
 Runs after the config is written and validated, so the rules files exist before they are
 referenced. Offer **once per repo**, never batch-applied.
 
-ARIA's rules already reach Claude through the SessionStart hook
-(`bin/session-start-rules.sh`). `CLAUDE.md` adds one thing the hook cannot: it is the
-surface Claude Code natively re-injects after `/compact`. This is a backstop, not the
-delivery mechanism — a user who declines loses nothing that the hook provides.
+ARIA's rules already reach Claude through the instruction files installed in Step 7ea
+(`~/.claude/rules/`). `CLAUDE.md` adds one thing those cannot: it is the surface Claude
+Code natively re-injects after `/compact`. This is a backstop, not the delivery
+mechanism — a user who declines loses nothing that Step 7ea provides.
+
+⚠ Corrected 2026-08-26: this previously said the rules arrive "through the SessionStart
+hook". They no longer do — the hook payload is capped and delivered only the first
+~2,000 characters, which is why delivery moved to the file channel. The hook now only
+ensures those files exist.
 
 **Detect tracking first**, so the offer can say what a write would mean:
 

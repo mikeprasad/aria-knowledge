@@ -1,4 +1,31 @@
 #!/bin/sh
+# ⛔ RETIRED 2026-08-26 — UNREGISTERED. Kept per Rule 6 as the record of a method
+# that was provably wrong, not as code to restore.
+#
+# It warned when a Bash command mutated a file in place, bypassing the Rule 22
+# gate. The intent was sound; the method was not. Both failure directions come from
+# the same root: it decided from the COMMAND STRING instead of resolving the actual
+# mutation TARGET.
+#
+#   FALSE NEGATIVE — line 34 (now below) exempts when the command string MENTIONS a
+#   temp or scratchpad path. So `cp f /tmp/bak && sed -i ... f` is silent, and that
+#   is backup-then-mutate: the careful pattern this project's own discipline
+#   mandates. Doing the safe thing disarmed the check, which also means its measured
+#   0.674% fire rate is an UNDERESTIMATE — the corpus cannot have counted what the
+#   hook was blind to.
+#
+#   FALSE POSITIVE — the idiom match is unanchored, so any command that merely
+#   QUOTES an idiom trips it. Observed: a `git commit` whose message quoted `sed -i`
+#   as an example was flagged as an in-place mutation.
+#
+# Why not fixed instead: resolving the real target needs a shell-command parser
+# (redirections, quoting, compound statements, heredocs), and this project's
+# standing rule is that a real false positive means KILL the guard rather than tune
+# it. Ruled by Mike, 2026-08-26: "if it is wrong then don't use it."
+#
+# The two Bash hooks that remain are correct for the opposite reason — bash-cd-check.sh
+# RESOLVES the `cd` target before judging, and pre-commit-preflight-check.sh uses an
+# anchored ERE whose accepted residual is documented at the pattern.
 # pre-bash-write-check.sh — PreToolUse:Bash hook.
 #
 # Warns when a shell command MUTATES A FILE IN PLACE, because that routes around

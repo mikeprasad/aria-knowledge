@@ -12,6 +12,33 @@ kt_json_escape() {
   printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' -e 's/	/\\t/g' | tr '\n' ' '
 }
 
+# Escape a string for a JSON value, PRESERVING newlines as the two-character \n
+# escape. Use this for any payload whose STRUCTURE matters — a rules digest, a
+# checklist, anything with headings or bullets.
+#
+# ⛔ Do not "unify" this with kt_json_escape above. That helper ends with
+# `tr '\n' ' '` and STRIPS newlines, which is correct for the single-paragraph
+# directives it was written for; four hooks depend on that behaviour. Collapsing
+# a structured document is silent — the payload stays valid JSON and the hook
+# still exits 0, so nothing surfaces the damage.
+#
+# ⛔ EMIT THE RESULT WITH printf, NEVER echo. echo's handling of backslash
+# escapes is implementation-defined; under sh it converts the \n sequences this
+# function produces back into REAL newlines, emitting invalid JSON.
+#
+# SIX hooks in bin/ currently emit with echo — bash-cd, post-edit, pre-compact,
+# pre-explore-codemap, session-start, task-context. They are safe only because
+# they use kt_json_escape, whose output contains no backslash sequences. Any of
+# them adopting THIS function must switch to printf in the same change.
+# (Census idiom: `grep -rln "echo .*hookSpecificOutput\|echo .*systemMessage"`.
+# A narrower first pass matching only the literal `echo '{"hookSpecificOutput`
+# found four and missed two — the count is only as wide as the idiom.)
+kt_json_escape_multiline() {
+  printf '%s' "$1" \
+    | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' -e 's/	/\\t/g' -e 's/\r//g' \
+    | awk 'BEGIN{ORS=""} NR>1{print "\\n"} {print}'
+}
+
 # >>> kt_resolve_account — KEEP BYTE-IDENTICAL with the statusline-meter.sh inline mirror
 # Resolves the session's account key for usage-snapshot scoping. POSIX sh, no awk
 # intervals (macOS awk lacks them). Echoes TAB-separated "<key>\t<runtime>\t<email>";

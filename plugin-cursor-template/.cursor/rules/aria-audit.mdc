@@ -952,6 +952,16 @@ Run the full `/index` logic:
 
 Apply approved changes, then write the final `index.md`.
 
+**After writing, count tag sections** (`grep -c '^### ' index.md`). If **zero**, note:
+
+> "Index rebuilt with no tag sections. Active knowledge surfacing stays off until at least
+> one promoted file carries a tag — the SessionStart hook gates on tag content, not on the
+> index file existing."
+
+This matters because a tagless index used to be merely unhelpful; since the gate was
+tightened it silently keeps a whole capability switched off, and a rebuild that reports
+success is exactly where that would go unnoticed.
+
 If this is the first audit (no index exists yet), note: "Building knowledge index for the first time."
 
 ## Step 8: Update the Audit Log (always, even if nothing extracted)

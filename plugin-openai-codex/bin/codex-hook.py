@@ -859,7 +859,14 @@ def pre_tool_use(data: dict[str, Any]) -> None:
         shell_payload = dict(data)
         shell_payload["command"] = cmd
         messages: list[str] = []
-        for script in ("bash-cd-check.sh", "pre-bash-write-check.sh", "pre-commit-preflight-check.sh"):
+        # pre-bash-write-check.sh RETIRED 2026-08-26 — it decided from the command
+        # STRING rather than the resolved mutation TARGET, which made it wrong in
+        # both directions: silent on backup-then-mutate (because the command merely
+        # MENTIONS a temp path), and firing on any command that just QUOTES an idiom
+        # like `sed -i`. Ruled out rather than tuned; canonical archived it under
+        # bin/.archived/. The two remaining scripts are correct for the opposite
+        # reason — one resolves its target, the other uses an anchored pattern.
+        for script in ("bash-cd-check.sh", "pre-commit-preflight-check.sh"):
             returncode, stdout, stderr = run_legacy_capture(script, compact_json(shell_payload), cwd_from(data))
             parsed = parse_hook_stdout(stdout)
             if parsed:

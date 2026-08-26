@@ -27,7 +27,7 @@
 #   - GEMINI.md                    (session-lifecycle content)
 #   - bin/antigravity/             (5 wrappers + 1 lib + tests)
 #   - workflows/                   (10 thin-shim workflows for slash-command invocation)
-#   - rules/                       (plugin-bundled rules for Always-On activation)
+#   (rules/ was here until 2026-08-26 — now REGENERATED from canonical, see below)
 #   - overlays/skills/             (port-specific skill bodies applied after canonical copy)
 #   - PORTING.md, README.md, SMOKE-TEST.md
 
@@ -167,6 +167,33 @@ echo "  Copied template/."
 # check.sh (PreCompact/PostCompact → /snapshot skill); session-start-check.sh
 # (SessionStart → GEMINI.md); task-context-check.sh (TaskCreated → inline
 # context-loading in /distill, /codemap skills).
+# --- rules/ regenerated from canonical (was hand-authored until 2026-08-26) ---
+# ⛔ It was a hand-maintained FORK of a generated artifact, and it drifted exactly
+# the way a fork does: it hardcoded "ARIA enforces 34 working rules" and covered 34
+# while the source had 38 — four rules stale, with a false total. That is the very
+# defect the canonical drift gate was written to catch; its comment even names this
+# port as the bug's origin, and it never covered this port.
+#
+# Regenerating removes the fork rather than correcting its contents, so it cannot
+# re-drift on the next canonical change. The sed pass further down rewrites the
+# ~/.claude paths for this runtime, so the copied file addresses the right directory.
+if [ -d "$SRC/rules" ]; then
+  rm -rf "$DST/rules"
+  mkdir -p "$DST/rules"
+  cp "$SRC/rules"/*.md "$DST/rules/" 2>/dev/null || true
+  # Path substitution. The uniform sed pass further down is scoped to
+  # "$DST/bin" -name '*.sh', so it does NOT reach here — measured: the first
+  # regenerated digest still told an Antigravity user its rules lived under
+  # ~/.claude/. Markdown only needs the tilde form; the $HOME/ shell forms appear
+  # only in code.
+  find "$DST/rules" -maxdepth 1 -name '*.md' -exec sed -i.bak \
+    -e 's|~/\.claude/rules|~/.gemini/antigravity/rules|g' \
+    -e 's|~/\.claude|~/.gemini/antigravity|g' \
+    {} \;
+  rm -f "$DST/rules"/*.bak
+  echo "  Regenerated rules/ from canonical ($(ls -1 "$DST/rules"/*.md | wc -l | tr -d ' ') file(s), paths substituted)."
+fi
+
 mkdir -p "$DST/bin"
 # Remove stale top-level canonical scripts from prior builds (glob doesn't
 # recurse, so bin/antigravity/*.sh wrappers are left untouched).
@@ -176,6 +203,20 @@ for f in "$SRC/bin"/*.sh; do
   case "$name" in
     pre-compact-check.sh|post-compact-check.sh|session-start-check.sh|task-context-check.sh)
       echo "  [skip] $name (no Antigravity equivalent event)"
+      continue
+      ;;
+    session-start-rules.sh|lib-user-rules.sh)
+      # Added 2026-08-26. These implement the Claude Code instruction-file channel:
+      # the hook ensures ~/.claude/rules/*.md exist and the library renders the
+      # user-rule digest for them. Antigravity registers NEITHER in hooks.json, so
+      # copying them shipped dead files — measured, session-start-rules.sh appeared
+      # in none of this port's hook manifests. Same shipped-but-unwired class the
+      # codex port was cleaned of in v2.46.4.
+      # ⚠ Antigravity has its own always-on surface (.agents/rules/ via setup Step
+      # 7ca). If that ever grows an equivalent writer, wire it in hooks.json FIRST —
+      # the canonical setup step gates on registration, not on the file existing,
+      # precisely so a copied-but-unregistered script cannot look installed.
+      echo "  [skip] $name (Claude Code instruction-file channel; not wired here)"
       continue
       ;;
   esac

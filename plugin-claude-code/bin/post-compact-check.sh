@@ -51,15 +51,28 @@ if [ "$KT_ACTIVE_SURFACING" = "true" ] && [ -n "$SESSION_ID" ]; then
 fi
 
 # Block 3: re-inject the always-on rules digest.
-# Compaction is the main way an always-on rule stops being always-on: the
-# SessionStart injection is gone from context and nothing replaces it until the
-# next session.
-DIGEST="$SCRIPT_DIR/../rules/aria-rules.md"
-if [ -f "$DIGEST" ]; then
+# Compaction is a way an always-on rule can stop being always-on.
+#
+# ⛔ This used to `cat` the whole digest, and that was the SessionStart defect in a
+# second place: this channel is a hook additionalContext too, so it is capped the
+# same way. Emitting 20 KB delivers roughly the first 2,000 characters and truncates
+# the rules mid-sentence — and it got worse, not better, when the digest absorbed the
+# standing directives and grew from ~12 KB to ~20 KB.
+#
+# So it emits a POINTER at the installed files instead. ~300 characters, which fits
+# under any plausible cap, and it is correct in BOTH of the states we cannot yet
+# distinguish: if the instruction-file set survives compaction, this is a harmless
+# reminder; if it does not, this is the only thing that restores the rules. Choosing
+# the shape that is right either way is cheaper than measuring which state holds —
+# and per the same principle as the rest of this design, nothing here is sized
+# against a cap that is per-tool and can change with no client release.
+#
+# ⛔ Do NOT "restore" the full digest here. Re-reading a file the model can open is
+# strictly better than re-sending a payload the harness will cut.
+INSTALLED_DIGEST="$HOME/.claude/rules/aria-rules.md"
+if [ -f "$INSTALLED_DIGEST" ]; then
   MESSAGES="${MESSAGES}
-ARIA WORKING RULES — re-injected after compaction; still in force for this session.
-
-$(cat "$DIGEST")
+ARIA WORKING RULES — still in force after compaction. The 38 working rules and every standing directive are at ${INSTALLED_DIGEST}, and the user's own standing rules at ${HOME}/.claude/rules/aria-user-rules.md. If either is no longer in your context, Read it before your next tool call rather than proceeding from memory of it.
 "
 fi
 

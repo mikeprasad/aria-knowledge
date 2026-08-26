@@ -279,7 +279,13 @@ def test_pre_tool_use_ignores_stale_transcript_markers_from_previous_turns() -> 
         os.unlink(transcript)
 
 
-def test_pre_tool_use_shell_surfaces_bash_write_and_preflight_warnings() -> None:
+def test_pre_tool_use_shell_surfaces_preflight_warning() -> None:
+    """Renamed 2026-08-26: this also asserted the pre-bash-write-check warning
+    (`"sed -i" in context`). That hook is retired — it decided from the command
+    STRING rather than the resolved mutation TARGET, so it was silent on
+    backup-then-mutate and fired on any command merely QUOTING an idiom. The
+    negative assertion below pins the removal, so a re-wire fails loudly instead of
+    quietly restoring a method that was ruled out."""
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         subprocess.run(["git", "init"], cwd=root, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
@@ -305,8 +311,11 @@ def test_pre_tool_use_shell_surfaces_bash_write_and_preflight_warnings() -> None
             env={"KT_CONFIG": str(config)},
         )
         context = output["hookSpecificOutput"]["additionalContext"]
-        assert "sed -i" in context
         assert "PREFLIGHT" in context
+        # The retired hook warned with the phrase "in place"; its absence is what
+        # proves it is no longer wired. The command above still CONTAINS `sed -i`,
+        # so asserting on that substring would test the fixture, not the hook.
+        assert "in place" not in context
 
 
 def test_pre_tool_use_scheduler_denies_leading_slash_prompt() -> None:

@@ -175,6 +175,12 @@ Record the values.
 
 ### Advanced Options
 
+> **These now have a visible effect.** The session and project settings below
+> (`projects_enabled`, `session_start_project_picker`, `session_state`, `autonomy`) drive
+> directives that reach Claude directly via the SessionStart hook. Before that delivery was
+> fixed they were generated and discarded, so turning one on changed less than it looked
+> like. All still default off; Step 7h reports which ones at the end.
+
 **Always offer** the advanced-settings review on every `/setup` run — both fresh installs and re-runs. New users need to see what's tunable up front rather than discovering it later; returning users need to surface and adjust values they may not have configured initially (e.g., keys added by plugin updates since their last `/setup`). Auto-mode users still see the bundle; pressing enter to accept defaults is an explicit no-op rather than a silent skip.
 
 **Highlight new-since-last-setup keys (re-runs only):** before showing the bundle below, compare each Advanced Option key against the existing config from Step 1. For any key that exists in this spec but is **not** present in the user's current config (the upgrade case — a plugin update added the key after the user's last `/setup`), append `[NEW]` to that bullet's title in the bundle and prepend a one-line note above the bundle:
@@ -275,6 +281,15 @@ After Project Setup completes (questions 1-6), if `projects_enabled: true` AND `
 **Schema note:** the config field `projects_shared_knowledge` is itself the comma-separated tag list (the value IS the scope). Empty/missing = feature disabled. There is no separate boolean toggle; the field's presence and content together encode "enabled and for which projects." A legacy value of `true` (from pre-publish v2.13.0 stubs) is treated the same as empty and triggers Q7 to populate the list properly on `/setup` re-run.
 
 **CLAUDE.md reference handling deferred to first-write.** Earlier drafts of this spec offered to append `_project-knowledge/` references to project CLAUDE.md files at setup time. That has been removed: documenting a convention before the folder exists is aspirational, batch-applying across all projects loses per-repo nuance (different repos may have different teams / visibility), and a default-`y` prompt for a teammate-affecting change is more aggressive than ARIA's normal posture. The CLAUDE.md reference offer now happens inside `/audit-share` Step 6.5 the first time a file is actually written to a repo's `_project-knowledge/` folder — at that moment the folder + README exist, the user has just made an active sharing decision, and per-repo confirmation with git-tracked detection can be presented in context. Step 6.5b additionally handles the multi-repo container CLAUDE.md case for tags with `projects_groups` entries.
+
+**Amended 2026-08-26 — narrowed, not reversed.** The deferral above still governs
+`_project-knowledge/` references, for exactly the reasons it gives. It does **not** govern a
+*rules pointer*, and the distinction is the objection itself: "documenting a convention
+before the folder exists is aspirational" does not apply to `rules/working-rules.md` and
+`rules/user-rules.md`, which exist the moment `/setup` finishes. Step 7f offers that
+pointer under the same guardrails this ADR was protecting — explicit, **default no**,
+per-repo, showing the exact text before writing, and reporting whether the target is
+git-tracked so a teammate-visible write is a visible decision. Nothing is batch-applied.
 
 **Existing `_project-knowledge/` folder detection:**
 
@@ -510,6 +525,163 @@ After Step 7b's round-trip verification, run a coverage audit to catch any `KT_*
 4. **If `MISSING_FIELDS` is empty:** print `Self-validation passed: all {N} known fields present in config.`
 
 **Why this exists (v2.15.2 Origin):** the `[NEW]` detection in Step 6's Advanced Options was specced to surface new-since-last-setup keys, but Step 6 is a *soft instruction* to Claude — it's not hook-enforced, so a fast or quiet /setup run can silently skip the detection. Step 7e is a final verification gate that runs against the canonical config.sh source of truth, surfacing any gap regardless of how the wizard got there. Pairs with `/audit-config`'s missing-known-fields cascade check (Step 3b) as the audit-cadence safety net.
+
+## Step 7ea: Install the Always-On Rules Files
+
+⛔ **PRECONDITION — skip this whole step unless the writer exists in this port:**
+
+```bash
+cat "${CLAUDE_PLUGIN_ROOT}"/.claude-plugin/plugin.json "${CLAUDE_PLUGIN_ROOT}"/hooks.json 2>/dev/null \
+  | grep -q 'session-start-rules\.sh' && echo applies || echo skip
+```
+
+⚠ The test is **registration**, not file presence, and the difference is the whole
+point. A port's build may copy every canonical `bin/*.sh` indiscriminately, so the
+script can be sitting there unwired — measured: antigravity ships a copy that appears
+in none of its hook manifests, so it never runs. A `[ -f ]` check answered `applies`
+for that port and would have had a user hand-install files into a directory nothing
+reads. Verified discriminating: `applies` for claude-code, `skip` for antigravity and
+codex.
+
+If it prints `skip`, say so in one line and move to Step 7f. This step describes a
+**Claude Code** mechanism: the instruction-file channel plus the hook that maintains
+it. Other runtimes have their own always-on rules surface — Antigravity scaffolds
+`.agents/rules/` in Step 7ca, Cursor compiles `.cursor/rules/*.mdc` — and those are
+already handled by their own steps. ⚠ The port build path-substitutes the directory
+below, which makes this step *look* right in a runtime that has no writer for it, so
+the precondition is the only thing that catches that.
+
+Runs after the config is written and validated, because one of the two files is
+generated from `knowledge_folder`.
+
+ARIA's working rules, its standing directives, and the user's own U-rules are
+delivered as **instruction files under `~/.gemini/antigravity/rules/`**, not through the hook
+payload. In Claude Code that channel is delivered in full and additionally reaches
+**subagents**, which the hook channel does not — before this, every delegated agent
+ran with zero ARIA rules. ⚠ Both of those are measurements about Claude Code's
+channel; neither has been measured for another runtime, which is the second reason
+this step is gated rather than ported.
+
+```
+~/.gemini/antigravity/rules/aria-rules.md       38 working rules + every standing directive
+~/.gemini/antigravity/rules/aria-user-rules.md  the user's own U-rules, as a digest
+```
+
+**Install them now:**
+
+```bash
+sh "${CLAUDE_PLUGIN_ROOT}/bin/session-start-rules.sh" >/dev/null 2>&1
+ls -l ~/.gemini/antigravity/rules/aria-rules.md ~/.gemini/antigravity/rules/aria-user-rules.md 2>/dev/null
+```
+
+⛔ **Invoke the hook rather than copying the files here.** `kt_ensure_rules_files`
+inside that script is the single implementation: it byte-compares the digest against
+the bundled copy and regenerates the U-rule digest only when `user-rules.md` is
+newer. A second copy routine in this skill would be a second write path with nothing
+comparing the two — the drift shape this plugin has already paid for more than once.
+
+**Why this step exists at all**, given the hook self-heals on its own: the hook can
+only take effect from the **next** session, because the instruction-file set is
+snapshotted at session start. Running it here means a user who has just completed
+`/setup` gets the files in place immediately, and — more importantly — `/setup` is
+where a write into the user's own configuration is *expected and consented to*,
+rather than appearing silently later.
+
+**Report both paths in the summary**, naming them explicitly. A file the plugin
+writes into a user's config and never mentions is the defect that produced this
+whole arc: content generated, delivered nowhere, and nobody told.
+
+⚠ Both files are **plugin artifacts** and are replaced whenever the plugin's copy
+changes. The user-editable surface is `{knowledge_folder}/rules/working-rules.md` and
+`.../user-rules.md`; each installed file says so in its own header.
+
+## Step 7f: Rules Pointer (optional, default NO)
+
+Runs after the config is written and validated, so the rules files exist before they are
+referenced. Offer **once per repo**, never batch-applied.
+
+ARIA's rules already reach Claude through the instruction files installed in Step 7ea
+(`~/.gemini/antigravity/rules/`). `CLAUDE.md` adds one thing those cannot: it is the surface Claude
+Code natively re-injects after `/compact`. This is a backstop, not the delivery
+mechanism — a user who declines loses nothing that Step 7ea provides.
+
+⚠ Corrected 2026-08-26: this previously said the rules arrive "through the SessionStart
+hook". They no longer do — the hook payload is capped and delivered only the first
+~2,000 characters, which is why delivery moved to the file channel. The hook now only
+ensures those files exist.
+
+**Detect tracking first**, so the offer can say what a write would mean:
+
+```bash
+git -C "$PWD" ls-files --error-unmatch CLAUDE.md >/dev/null 2>&1 && echo tracked || echo untracked
+```
+
+⚠ Use `ls-files`, not `git check-ignore`. `check-ignore` consults the index and reports a
+**tracked** file as "not ignored" — an inversion that reads backwards until you know it.
+
+Then offer:
+
+> "Add a 4-line ARIA rules pointer to this repo's `CLAUDE.md`? The rules already reach
+> Claude through the SessionStart hook; `CLAUDE.md` is additionally re-injected after
+> `/compact`. This file is [tracked / untracked], so a write here [would be visible to
+> teammates / stays local]. (y/N)"
+
+On an explicit `y`, append exactly:
+
+```markdown
+## ARIA Rules
+Working rules: `{knowledge_folder}/rules/working-rules.md`
+User rules: `{knowledge_folder}/rules/user-rules.md`
+Read either before acting on anything it plausibly covers.
+```
+
+On `n`, no reply, or anything else: **write nothing.** Do not re-offer in the same run.
+
+If `CLAUDE.md` already contains an `## ARIA Rules` heading, skip silently — appending a
+second copy is the append-loop failure that `session_state`'s gitignore clause produced
+before v2.46.0.
+
+## Step 7g: Populate the Knowledge Index
+
+The template ships `index.md` as a skeleton with no tag sections. Run the full `/index`
+logic once here so it reflects whatever the user already has, rather than leaving them to
+discover `/index` separately.
+
+Why this is not optional ceremony: active knowledge surfacing gates on the index having at
+least one `### tag` section, so until `/index` runs, that whole capability is silent. A
+user who promotes knowledge but never runs `/index` gets nothing, and nothing tells them
+why. Promotion and indexing being two separate discoveries is the gap this closes.
+
+If the knowledge folder is empty, say so plainly — *"Index built; no tagged files yet.
+Active surfacing turns on once you promote something and re-run `/index`."* — and do not
+treat it as an error.
+
+## Step 7h: Report What Is Off
+
+ARIA's session-lifecycle features all default off, and until now that was largely
+invisible: their directives were generated but never reached the model, so enabling them
+changed less than it appeared to. That is fixed, which makes the defaults worth surfacing.
+
+Emit on `systemMessage` — this asks the user to make a decision, which is what that channel
+is for, and it is the same reasoning that keeps the audit nags there.
+
+```
+ARIA is configured. These features exist and are currently OFF:
+  Project knowledge tier ............ projects_enabled
+  Session resume (SESSION.md) ....... session_state
+  Project picker at session start ... session_start_project_picker
+  Autonomy posture .................. autonomy: default | balanced | autonomous
+Enable any of them by editing ~/.gemini/antigravity/aria-knowledge.local.md, or re-run /setup.
+```
+
+List only the ones actually off — a line claiming a feature is off when the user just
+enabled it is worse than no summary.
+
+**Changes no defaults.** Three of the four are dependent on a `projects_list` a new user
+has not populated, so flipping them would enable machinery with no data. `session_state`
+would write `SESSION.md` files into repos unasked, the posture the Step 7f ADR protects.
+`autonomy` changes agent behaviour for every existing user on upgrade. The gap here is
+discovery, not defaults — see spec §9 OQ5, which stays open.
 
 ## Step 8: Confirm
 

@@ -20,7 +20,24 @@ case "$KT_AUTO_RETROSPECT" in nudge|run) ;; *) exit 0 ;; esac
 # multi-line. Note line ~30 below already used printf for the same reason; this
 # extraction was the one path still exposed.
 COMMAND=$(printf '%s' "$INPUT" | grep -o '"command":"[^"]*"' | head -1 | sed 's/"command":"//;s/"$//')
-case "$COMMAND" in *"git push"*) ;; *) exit 0 ;; esac
+# ⛔ Was `case "$COMMAND" in *"git push"*)`, which MISSED every `git -C <dir> push`
+# — a real push whose text never contains the substring `git push` — so a scripted
+# or `git -C` push produced no retrospect offer at all. Identical miss to the one
+# v2.46.1 fixed in pre-commit-preflight-check.sh; the fix was applied there and not
+# to this sibling. Same anchored ERE, `push` for `commit`.
+#
+# ⚠ Unlike that sibling, the quoted-phrase false positive does NOT matter here and
+# this pattern is NOT the correctness gate. A command that merely mentions the words
+# produces no push summary, so Gate 3 below (the SHA-range line, and it says so at
+# its own comment) rejects it. This is a cheap pre-filter, like the force glob under
+# it — do not promote it into the authoritative test.
+#
+# Validated against 12 forms before the change: matches `git push`, `git -C /d push`,
+# `git -c k=v push`, `git --no-pager push`, `cd /a && git push`; rejects `mygit push`,
+# `git pushx`, `git push-nonexistent`, `git status`, `echo pushing`.
+printf '%s' "$COMMAND" | grep -qE \
+  '(^|[[:space:];&|(])git([[:space:]]+-[^[:space:]]+([[:space:]]+[^-[:space:]][^[:space:]]*)?)*[[:space:]]+push([[:space:]]|$)' \
+  || exit 0
 
 # Gate 3: force-push skip. Space-wrap $COMMAND so an end-of-command flag
 # (e.g. `git push origin main -f`) is caught. NOTE: the SHA-range regex

@@ -194,17 +194,42 @@ assert_eq "new hook does not duplicate CODEMAP staleness logic" "no" \
 printf -- '---\nknowledge_folder: %s\n---\n' "$KF" > "$CFG"
 PCOUT="$APM_TMP/pc.json"
 : > "$PCOUT"
-if printf '{"session_id":"test-sess"}' | KT_CONFIG="$CFG" sh "$APM_ROOT/bin/post-compact-check.sh" > "$PCOUT" 2>/dev/null; then :; else :; fi
+# Fixture HOME with the digest installed, because the pointer is emitted only when
+# there is something to point AT. This hook only reads, so an uncontrolled HOME does
+# not pollute — but it would make the assertion depend on whether the developer
+# happens to have the file, which is the same environment dependency by a different
+# route.
+PCHOME="$APM_TMP/pc-home"; mkdir -p "$PCHOME/.claude/rules"
+cp "$DIGEST" "$PCHOME/.claude/rules/aria-rules.md"
+if printf '{"session_id":"test-sess"}' | HOME="$PCHOME" KT_CONFIG="$CFG" sh "$APM_ROOT/bin/post-compact-check.sh" > "$PCOUT" 2>/dev/null; then :; else :; fi
 
 assert_eq "post-compact emits valid JSON" "yes" \
   "$(jq -e . "$PCOUT" >/dev/null 2>&1 && echo yes || echo no)"
-assert_eq "post-compact re-injects the digest" "yes" \
-  "$(jq -r '.hookSpecificOutput.additionalContext' "$PCOUT" 2>/dev/null | grep -q 'Rule 13' && echo yes || echo no)"
-# Same structure hazard as the SessionStart payload: post-compact-check.sh also
-# uses kt_json_escape, which strips newlines.
-PC_LINES=$(jq -r '.hookSpecificOutput.additionalContext' "$PCOUT" 2>/dev/null | wc -l | tr -d ' ')
-assert_eq "post-compact digest keeps its structure" "yes" \
-  "$([ "${PC_LINES:-0}" -gt 20 ] && echo yes || echo no)"
+
+# ⛔ RE-POINTED 2026-08-26. These asserted post-compact RE-SENT the whole digest.
+# It no longer does, deliberately: this channel is a hook additionalContext and is
+# capped exactly like SessionStart, so emitting ~20 KB delivered roughly the first
+# 2,000 characters and truncated the rules mid-sentence — and it got worse when the
+# digest absorbed the standing directives. It now emits a POINTER at the installed
+# files, which is correct whether or not the instruction-file set survives
+# compaction: a harmless reminder if it does, the only recovery if it does not.
+PC_MSG=$(jq -r '.hookSpecificOutput.additionalContext' "$PCOUT" 2>/dev/null)
+assert_eq "post-compact points at the installed rules file" "yes" \
+  "$(printf '%s' "$PC_MSG" | grep -qF '.claude/rules/aria-rules.md' && echo yes || echo no)"
+assert_eq "post-compact points at the user-rule digest too" "yes" \
+  "$(printf '%s' "$PC_MSG" | grep -qF 'aria-user-rules.md' && echo yes || echo no)"
+assert_eq "post-compact does NOT re-send the digest body" "no" \
+  "$(printf '%s' "$PC_MSG" | grep -q 'Rule 13' && echo yes || echo no)"
+# A pointer that has grown into a dump again is the regression this bounds. The old
+# payload was ~20,000 characters; anything in that range means the body came back.
+assert_eq "post-compact stays a pointer, not a dump" "yes" \
+  "$([ "$(printf '%s' "$PC_MSG" | wc -c)" -lt 1200 ] && echo yes || echo no)"
+# And the guarded arm: no installed file, no pointer — pointing at a path that does
+# not exist would send the reader to a missing file.
+PCEMPTY="$APM_TMP/pc-empty"; mkdir -p "$PCEMPTY/.claude"
+if printf '{"session_id":"test-sess"}' | HOME="$PCEMPTY" KT_CONFIG="$CFG" sh "$APM_ROOT/bin/post-compact-check.sh" > "$APM_TMP/pc2.json" 2>/dev/null; then :; else :; fi
+assert_eq "post-compact emits no rules pointer when the file is absent" "no" \
+  "$(jq -r '.hookSpecificOutput.additionalContext' "$APM_TMP/pc2.json" 2>/dev/null | grep -q 'ARIA WORKING RULES' && echo yes || echo no)"
 
 # The multiline escape must live in ONE place. Duplicating it into a second
 # hook is the drift hazard refused for the CODEMAP block; it belongs in

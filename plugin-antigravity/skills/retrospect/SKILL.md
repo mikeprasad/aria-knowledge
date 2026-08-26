@@ -174,7 +174,7 @@ Fix #N — bundle-marker result:
   Question:           Did fix #N's code reach the deployed bundle?
   Tool used:          <Bash curl <url> | WebFetch <url> | gh run view <id> | mcp__vercel__get_logs | ASK <surfaced-to-user>>
   Finding:            <one-paragraph factual summary, with URL anchor or grep hit>
-  Verdict:            UPGRADED-TO-✅ verified | UPGRADED-TO-❌ NOT-IN-BUNDLE | NO-MOVEMENT (still 🤷) | INCONCLUSIVE
+  Verdict:            UPGRADED-TO-✅ verified | UPGRADED-TO-❌ NOT-IN-BUNDLE | NO-MOVEMENT-CAPABILITY | NO-MOVEMENT-STRUCTURAL | INCONCLUSIVE
   New Bundle-verified?: <updated tag>
 ```
 
@@ -238,7 +238,17 @@ Fix #N — outcome result:
   Tool used:          <listed>
   Finding:            <factual summary with citations>
   User pick (if any): <option N | "skip" | "other: <text>">
-  Verdict:            UPGRADED-TO-✅ Validated | UPGRADED-TO-⚠ partial | UPGRADED-TO-❌ Invalidated | NO-MOVEMENT | INCONCLUSIVE
+  Verdict:            UPGRADED-TO-✅ Validated | UPGRADED-TO-⚠ partial | UPGRADED-TO-❌ Invalidated | NO-MOVEMENT-CAPABILITY | NO-MOVEMENT-STRUCTURAL | INCONCLUSIVE
+```
+
+⛔ **A no-movement verdict MUST pick one of the two — in both sub-passes (3.5.1 bundle-marker and 3.5.2 outcome).** They respond to a better pass in **opposite** directions, so a pooled tally cannot be interpreted later: a falling unresolved rate becomes indistinguishable from a shift in what kind of claims the range happened to contain.
+
+- **`NO-MOVEMENT-CAPABILITY`** — you attempted it and could not settle it from reachable inputs: ran out of search paths, time-boxed out, sources disagreed, the trace got too deep. **A more capable or less constrained pass could plausibly settle it from the same inputs.**
+- **`NO-MOVEMENT-STRUCTURAL`** — the answer is not in reachable inputs at all: needs a **live deploy or served-artifact read**, a running system, production data, a device, or a named human's confirmation. **No amount of reasoning settles it.** This is the common case for a bundle marker whose only oracle is the deployed bundle.
+
+⚠ Classify **at the moment you stop**, while you still know why you stopped — not afterwards from the residual's `Attempt status` label. Measured 2026-08-22 across 5 such entries, **3 were mislabelled**: they carried `ATTEMPTED-FAILED` while describing an on-device recording, a package fetch, and an SSH read of a live box.
+
+```
   New Validated?:     <updated tag with sub-tag where applicable>
 ```
 
@@ -557,18 +567,24 @@ After Step 4 produces the report, write outputs to the configured destinations:
   goal: <one-line stated goal from §4.1 Anchor>
   tickets: [<ABC-123>, <ABC-456>]   # empty list if none
   fixes_count: <N>
+  model: <model executing this gate, e.g. claude-opus-5 — or `unrecorded` if unknown>
+  effort: <reasoning-effort level, e.g. xhigh | high | medium — or `unrecorded` if unknown>
   sourcing_pass:
     bundle_marker:
       candidates: <N>
       upgraded_verified: <N>
       upgraded_not_in_bundle: <N>
-      no_movement: <N>
+      no_movement: <N>                # pooled total; MUST equal the two below
+      no_movement_capability: <N>     # attempted, could not settle — a better pass may resolve
+      no_movement_structural: <N>     # needs a live deploy read / running system / a human
     outcome:
       candidates: <N>
       upgraded_validated: <N>
       upgraded_partial: <N>
       upgraded_invalidated: <N>
-      no_movement: <N>
+      no_movement: <N>                # pooled total; MUST equal the two below
+      no_movement_capability: <N>
+      no_movement_structural: <N>
   patterns_hit: [<pattern-name-1>, <pattern-name-2>]   # from §4.4; empty list if none
   overall_outcome: <closed | partial | unresolved | mixed>   # derived from §4.5 tally + §4.8 overall recommendation
   related: [<paths to overlapping prior runs — see below>]

@@ -189,9 +189,20 @@ Step #N — sourcing result:
   Question:           <repeat decisive question>
   Tool used:          <Read | Grep | WebFetch <url> | Bash <command> | mcp__<server>__<tool>>
   Finding:            <one-paragraph factual summary, with file:line citations or URL anchors>
-  Verdict:            UPGRADED-TO-✅ | UPGRADED-TO-❌ | NO-MOVEMENT (still ⚠/❓/🚫) | INCONCLUSIVE
-  New Risk?:          <new tag, or unchanged if NO-MOVEMENT>
+  Verdict:            UPGRADED-TO-✅ | UPGRADED-TO-❌ | NO-MOVEMENT-CAPABILITY | NO-MOVEMENT-STRUCTURAL | INCONCLUSIVE
+  New Risk?:          <new tag, or unchanged if either NO-MOVEMENT>
 ```
+
+⛔ **A no-movement verdict MUST pick one of the two, and the distinction is not cosmetic.** The two respond to a better model in **opposite** directions, so pooling them makes the aggregate uninterpretable — a rising resolution rate can then be a shift in premise mix rather than any gain in capability.
+
+| Verdict | Means | Test |
+|---|---|---|
+| `NO-MOVEMENT-CAPABILITY` | You attempted it and could not settle it — ran out of search paths, time-boxed out, sources disagreed, the trace got too deep | **A more capable or less time-constrained pass could plausibly settle this from the same inputs.** |
+| `NO-MOVEMENT-STRUCTURAL` | The answer does not exist in reachable inputs — needs code *executed*, a package *installed*, live/production data, a device, or a named human's decision | **No amount of reasoning settles it. Something must happen in the world first.** |
+
+⚠ **Do not infer the category from the residual's `Attempt status` label after the fact.** Measured 2026-08-22 on 5 such entries: **3 were mislabelled** — carrying `ATTEMPTED-FAILED` while describing an on-device recording, an `npm pack`, and an SSH read of a live box. Classify at the moment you stop, when you still know why you stopped.
+
+⚑ There is a third case worth naming when you hit it: **the premise's subject does not exist** (you searched correctly and the thing it asks about is absent at this commit). That is `NO-MOVEMENT-STRUCTURAL` with a note — not a capability failure, and a positive control on the search is required before claiming it.
 
 Constraints:
 - **Rule 33 — verify against current docs**: When sourcing third-party API/SDK behavior, read the official current docs (via WebFetch or `context7` MCP if loaded), not memory or analogy.
@@ -251,7 +262,8 @@ Evidence-Sourcing Pass complete.
   Auto-sourced (❌ falsify):   <N>
   User-resolved (✅ upgrade):  <N>
   User-resolved (❌ falsify):  <N>
-  No movement (still ⚠/❓/🚫): <N>
+  No movement — capability:   <N>   (attempted, unsettled; a better pass may resolve)
+  No movement — structural:   <N>   (🚫 needs execution / install / live data / a human)
   Skipped by user:            <N>
   Skipped by --no-source:     <N>
   Tool calls used:            ~<N>
@@ -359,7 +371,8 @@ Evidence-Sourcing Pass:
   Auto-sourced (❌ falsify):          <N>
   User-resolved (✅ upgrade):         <N>
   User-resolved (❌ falsify):         <N>
-  No movement:                       <N>
+  No movement — capability:          <N>
+  No movement — structural:          <N>
   Skipped by user:                   <N>
   Skipped by --no-source:            <N>
 ```
@@ -514,11 +527,15 @@ After Step 4 produces the report, write outputs to the configured destinations:
   goal: <one-line stated goal from §4.1 Anchor>
   tickets: [<ABC-123>, <ABC-456>]   # empty list if none
   steps_count: <N>
+  model: <model executing this gate, e.g. claude-opus-5 — or `unrecorded` if unknown>
+  effort: <reasoning-effort level, e.g. xhigh | high | medium — or `unrecorded` if unknown>
   sourcing_pass:
     candidates: <N>
     upgraded_validated: <N>
     upgraded_falsified: <N>
-    no_movement: <N>
+    no_movement: <N>                  # pooled total; MUST equal the two fields below
+    no_movement_capability: <N>       # attempted, could not settle — a better model may resolve it
+    no_movement_structural: <N>       # 🚫 needs execution / install / live data / a named human
   patterns_hit: [<pattern-name-1>, <pattern-name-2>]   # from §4.4; empty list if none
   overall_verdict: <PROCEED | PROCEED-WITH-CHANGES | HOLD | KILL>   # from §4.8
   related: [<paths to overlapping prior runs — see below>]
