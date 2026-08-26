@@ -297,9 +297,14 @@ assert_eq "lib-user-rules.sh exists" "yes" "$([ -f "$UR_LIB" ] && echo yes || ec
 
 # Driver: sets KT_KNOWLEDGE_FOLDER, sources the lib, prints the block verbatim.
 # Printed with printf %s so the leading/trailing newlines survive into the file.
+# $2 optionally pins KT_USER_RULES_MAX so the tier boundary is driven directly
+# rather than inferred from "enough rules to exceed the default" — a fixture that
+# has to out-grow a 20,000-char bound is slow, and it silently stops testing the
+# boundary the day the default moves.
 ur_block() {
-  KT_KNOWLEDGE_FOLDER="$1" sh -c '
+  KT_KNOWLEDGE_FOLDER="$1" KT_USER_RULES_MAX="${2:-}" sh -c '
     KT_KNOWLEDGE_FOLDER="$KT_KNOWLEDGE_FOLDER"
+    [ -n "$KT_USER_RULES_MAX" ] || unset KT_USER_RULES_MAX
     . "$1"
     kt_user_rules_block
     printf "%s" "$KT_USER_RULES_BLOCK"
@@ -307,15 +312,26 @@ ur_block() {
 }
 
 # --- tier 1: inline index ---
+# Header form is the canonical one the real corpus uses: '### U<n>. <title>'.
+# Each rule gets a body paragraph AND an '**Origin:' block, so the fixture exercises
+# both the summary extraction and the provenance skip rather than only the happy path.
 URK="$APM_TMP/ur-inline"; mkdir -p "$URK/rules"
 i=1; while [ "$i" -le 5 ]; do
-  printf '### U%s — a short title\n' "$i" >> "$URK/rules/user-rules.md"; i=$((i+1))
+  printf '### U%s. a short title\n\nThe body of rule %s, which is the sentence the digest should carry.\n\n**Origin:** 2026-01-01 — provenance that must NOT be summarised.\n\n' \
+    "$i" "$i" >> "$URK/rules/user-rules.md"; i=$((i+1))
 done
 UB=$(ur_block "$URK")
 assert_eq "U-rules inline tier names the count" "yes" \
   "$(printf '%s' "$UB" | grep -q 'STANDING USER RULES (5,' && echo yes || echo no)"
-assert_eq "U-rules inline tier joins titles with a semicolon" "yes" \
-  "$(printf '%s' "$UB" | grep -q 'U1 — a short title; U2 — a short title' && echo yes || echo no)"
+assert_eq "U-rules digest renders one line per rule" "5" \
+  "$(printf '%s\n' "$UB" | grep -c '^- \*\*U')"
+assert_eq "U-rules digest carries each rule's summary, not just its title" "yes" \
+  "$(printf '%s' "$UB" | grep -q 'U1 — a short title\*\* — The body of rule 1' && echo yes || echo no)"
+# The provenance block records how a rule came to exist, not what it asks of you.
+# Without this, a rule whose body is only an Origin block would summarise as its own
+# changelog — plausible-looking output that is the wrong content entirely.
+assert_eq "U-rules digest skips the Origin provenance block" "no" \
+  "$(printf '%s' "$UB" | grep -q 'provenance that must NOT be summarised' && echo yes || echo no)"
 assert_eq "U-rules inline tier is NOT the pointer variant" "no" \
   "$(printf '%s' "$UB" | grep -q 'too many to index inline' && echo yes || echo no)"
 
@@ -331,15 +347,16 @@ assert_eq "U-rules block closes with a newline" "yes" \
   "$(ur_block "$URK" | tail -c 1 | od -An -c | tr -d ' ' | grep -q '\\n' && echo yes || echo no)"
 
 # --- tier 2: overflow pointer, above 3000 chars of joined titles ---
-URO="$APM_TMP/ur-overflow"; mkdir -p "$URO/rules"
-i=1; while [ "$i" -le 400 ]; do
-  printf '### U%s — a representative user rule title of realistic length\n' "$i" >> "$URO/rules/user-rules.md"; i=$((i+1))
-done
-UBO=$(ur_block "$URO")
-assert_eq "U-rules overflow tier fires above 3000 chars" "yes" \
-  "$(printf '%s' "$UBO" | grep -q 'too many to index inline' && echo yes || echo no)"
+UBO=$(ur_block "$URK" 100)
+assert_eq "U-rules overflow tier fires above KT_USER_RULES_MAX" "yes" \
+  "$(printf '%s' "$UBO" | grep -q 'too many to summarise inline' && echo yes || echo no)"
 assert_eq "U-rules overflow tier still names the count" "yes" \
-  "$(printf '%s' "$UBO" | grep -q 'STANDING USER RULES — 400 of' && echo yes || echo no)"
+  "$(printf '%s' "$UBO" | grep -q 'STANDING USER RULES — 5 of' && echo yes || echo no)"
+# Same corpus, default threshold: the digest must fire. Without this pair the
+# overflow assertion above would pass just as well against a lib that ALWAYS
+# returns the pointer — the tier boundary is only tested by driving both sides.
+assert_eq "U-rules same corpus under the default threshold gives the digest" "no" \
+  "$(printf '%s' "$(ur_block "$URK")" | grep -q 'too many to summarise inline' && echo yes || echo no)"
 
 # --- the two zero cases: inject NOTHING, which is correct for a new user ---
 URZ="$APM_TMP/ur-zero"; mkdir -p "$URZ/rules"
@@ -382,7 +399,25 @@ assert_eq "U-rules with no file emits nothing" "" "$(ur_block "$URN")"
 # construction rather than asserted: at home/kf path lengths of 67, 99 and 116 the
 # RAW length moves (20,561 / 20,689 / 20,757) while the normalised length is
 # 20,311 in all three.
-ARIA_EMIT_CEILING=20311
+# ⛔ RE-SCOPED 2026-08-26. This was a downward-only ratchet on the emission's SIZE.
+# That is a PROXY, and this arc's own audit falsified it: the harness delivers the
+# first K5=2000 characters, so what reaches the model is unchanged whether the
+# payload is 20,311 or 26,144 — measured, 2 of 38 rules arrive in both cases. The
+# number moved and the outcome did not, which is the definition of a proxy that has
+# stopped tracking its subject.
+#
+# ⛔ It is NOT raised to accommodate growth — that is the creep this guard existed to
+# stop. It is REPLACED by an assertion on the outcome it was standing in for: does the
+# rules digest still LEAD the payload, so that the delivered prefix is rules rather
+# than a directive? That is testable today and survives the file/hook split, where the
+# hook's arm becomes a one-session transitional courtesy that is truncated regardless.
+#
+# What remains below is a RUNAWAY CATCH, not a delivery guarantee. It exists to fail
+# if something inlines a whole file — a mature user-rules.md is 66 KB — and is set
+# above the split's expected end state (~33 KB: digest + directives + U-rule digest).
+# Do not read it as a budget, and do not tighten it into one: a tight bound here would
+# again gate ruled capability changes on a number that does not track delivery.
+ARIA_EMIT_RUNAWAY=40000
 
 # The needle: the LAST rule title, derived from the digest, never hardcoded — a
 # literal would keep passing after rule 39 is added, which is the same failure
@@ -463,8 +498,33 @@ PW_CH=$(jq -r --arg kf "$KFW" --arg hm "$HOMEW" \
    | (. / $hm | join("<HOME>"))
    | length' \
   "$OUTW" 2>/dev/null || echo 0)
-assert_eq "worst-case emission stays at or under the ratchet" "yes" \
-  "$([ "${PW_CH:-0}" -le "$ARIA_EMIT_CEILING" ] && echo yes || echo no)"
+assert_eq "worst-case emission stays under the runaway catch" "yes" \
+  "$([ "${PW_CH:-0}" -le "$ARIA_EMIT_RUNAWAY" ] && echo yes || echo no)"
+
+# THE ORDERING ASSERTION — what the size ceiling was standing in for.
+# The harness delivers the first K5=2000 characters and discards the rest, so the
+# only property that decides what the model receives is WHICH BLOCK LEADS. If a
+# directive is ever prepended ahead of the digest, the payload's size will not move
+# and every size-based check stays green while the delivered prefix silently stops
+# being rules. Derived from the digest, never hardcoded.
+FIRST_RULE_TITLE=$(grep -o '^- \*\*Rule [0-9]* — [^*]*\*\*' "$DIGEST" 2>/dev/null \
+  | head -1 | sed 's/^- \*\*//; s/\*\*$//')
+assert_eq "first-rule-title needle parses non-empty" "yes" \
+  "$([ -n "$FIRST_RULE_TITLE" ] && echo yes || echo no)"
+PW_DELIVERED=$(printf '%s' "$PW" | cut -c1-2000)
+# ⚠ BEGINS-WITH, not contains — and the difference is not pedantry. The first version
+# of this assertion used `grep -qF 'ARIA WORKING RULES'` and SURVIVED its mutation: a
+# directive prepended ahead of the digest displaces it by only ~60 chars, so it still
+# appears inside the 2000-char window and a contains-check stays green. That is the
+# same vacuity as the size ceiling this block replaced, reproduced in its replacement.
+# Anchoring to the start is what makes it fail for the reason it exists.
+case "$PW" in
+  "ARIA WORKING RULES"*) PW_LEADS=yes ;;
+  *) PW_LEADS=no ;;
+esac
+assert_eq "the delivered prefix leads with the rules digest" "yes" "$PW_LEADS"
+assert_eq "the delivered prefix reaches the first rule" "yes" \
+  "$(printf '%s' "$PW_DELIVERED" | grep -qF "$FIRST_RULE_TITLE" && echo yes || echo no)"
 assert_eq "worst-case emission carries the LAST rule title" "yes" \
   "$(printf '%s' "$PW" | grep -qF "$LAST_RULE_TITLE" && echo yes || echo no)"
 
