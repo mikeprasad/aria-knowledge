@@ -75,11 +75,16 @@ fi
 # both, and post-push-retrospect-check.sh actually did -- printf on one path,
 # echo on another. An assertion that passes without being able to detect the
 # defect it names is itself a false green.
-# ⚠ pre-bash-write-check.sh was in this list until 2026-08-26 and is now retired
-# (bin/.archived/) — it decided from the command STRING rather than the resolved
-# mutation TARGET. Dropped rather than repointed at the archive: the property this
-# loop guards is about SHIPPED hooks parsing stdin correctly, and an archived script
-# parses nothing. lapse-guards.sh pins the retirement itself.
+# ⚠ pre-bash-write-check.sh was in this list until 2026-08-26, was retired that day,
+# and was RESTORED 2026-08-27 (v2.48.1) with its method replaced — targets are now
+# resolved by bin/pre-bash-write-resolve.py rather than matched in the command string.
+# It is shipped again, so the old "an archived script parses nothing" reason no longer
+# applies. It stays out of THIS loop for a different and narrower reason: it no longer
+# extracts a free-text field at all. It pre-filters with a builtin `case "$INPUT"` and
+# extracts only session_id (with printf, not echo), so the idiom this loop guards has
+# no site in it. Re-add it here the moment it parses one of the fields above.
+# lapse-guards.sh C1 pins the restoration; bash-write-target-resolution.sh proves the
+# behaviour.
 for h in bash-cd-check.sh post-push-retrospect-check.sh pre-cron-check.sh task-context-check.sh; do
   if [ ! -f "$BIN/$h" ]; then
     bad "D $h" "missing"

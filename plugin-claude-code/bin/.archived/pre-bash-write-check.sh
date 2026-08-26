@@ -1,4 +1,13 @@
 #!/bin/sh
+# ➜ SUPERSEDED 2026-08-27 by a LIVE replacement: ../pre-bash-write-check.sh, which keeps this
+#   guard's measured SCOPE unchanged and replaces only its METHOD — targets are now RESOLVED
+#   (heredoc bodies stripped, shlex operator-aware tokenizing, per-statement extraction, temp
+#   exemption applied to the resolved path) instead of matched in the command string, which closes
+#   BOTH failure directions below with one mechanism. Design:
+#   docs/superpowers/specs/2026-08-27-bash-write-target-resolution.md
+#   ⚠ The verdict below is STILL CORRECT and is deliberately not softened — it is the reason the
+#   replacement exists. This line records the state, not a reprieve for the method.
+#
 # ⛔ RETIRED 2026-08-26 — UNREGISTERED. Kept per Rule 6 as the record of a method
 # that was provably wrong, not as code to restore.
 #

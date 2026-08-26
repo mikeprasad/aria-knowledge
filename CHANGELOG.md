@@ -2,6 +2,31 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.48.1 — 2026-08-27
+
+**Restored — `pre-bash-write-check.sh`, with the method replaced rather than tuned.**
+
+v2.48.0 removed this guard and affirmed its purpose in the same breath: *"The intent was sound; the method decided from the command string instead of resolving the mutation target."* It also recorded why the fix was not attempted — resolving the real target needs a shell-command parser handling redirections, quoting, compound statements and heredocs. That parser now exists, is measured, and is what ships here.
+
+The guard warns when a shell command mutates a file in place, because that routes around the Edit/Write tools and therefore around the Rule 22 pre-edit gate — the change lands with no scope assessment recorded.
+
+**Both of the retired guard's failure directions close with one mechanism**, because both came from the same root:
+
+- **False negative.** The old exemption fired when the command *string mentioned* a temp path, so `cp f /tmp/bak && sed -i '' s/a/b/ f` was silent — backup-then-mutate, the careful pattern, disarmed the check. The exemption now applies to the **resolved target**, so it fires.
+- **False positive.** The old idiom match was unanchored, so a `git commit` whose *message* quoted `sed -i` was flagged. Heredoc bodies are stripped before tokenizing and a quoted argument is a single token, so neither form matches.
+
+**Warn-only, and it can never deny.** It exits 0 unconditionally and speaks through `additionalContext`. A blocking design for this same idea was measured to produce three distinct false-positive classes, one of which denied *valid* `[Rule 22]` markers. Warn-only removes all three by construction: no ledger of prior calls, so no cross-session attribution; no transcript parsing, so no marker verdict to get wrong; no denial to be wrong about. Escalating to deny would need a fresh measurement, exactly as the retired guard's own header said.
+
+**Scope is unchanged from the retired guard, deliberately** — in-place mutation only, which was measured across 25,508 real Bash calls at a 0.674% fire rate. `>` creation stays out of scope: widening it would raise the fire rate far above that baseline and turn a guard that fires 1-in-148 into noise. Expect it to fire somewhat *more* than 0.674% now, because that figure could not count what the old exemption was blind to.
+
+⛔ **One thing is narrower than the original: `Path.write_text()` is dropped.** Its target lives inside Python source text, which a shell lexer cannot reach, so keeping it would mean matching the raw command string — precisely the method this release replaces. That loses a measured real lapse; it returns when a resolver can parse Python source. Stated rather than quietly omitted.
+
+Also: a resolved target is reported only if it **exists on disk**. In-place mutation presupposes existence, so this is a definition rather than a heuristic — and it keeps a sed *script* like `s/a/b/` from being named as a mutated file in a message a human reads.
+
+**Tests.** New `tests/repros/bash-write-target-resolution.sh` — 13 controls in which AC1 and AC2 *are* the two historical defects stated executably. Every control mutation-verified; two mutations initially **survived**, revealing that AC2 and AC5 were passing via the existence rule rather than via heredoc stripping and the scope rule, and both fixtures were strengthened until each rule is isolated. `lapse-guards.sh` C1 previously pinned the retirement and correctly went red on restoration; it now pins the restoration plus the invariant that survives it — **the archived copy must never become the registered one**.
+
+⚠ **Residual: the Cursor port still ships a live, registered copy of the old method** (`plugin-cursor-template/scripts/aria/pre-bash-write-check.sh`). Censused: it is the only other copy, and `plugin-antigravity` / `plugin-openai-codex` carry none. Not fixed here — each port needs its own verification.
+
 ## 2.48.0 — 2026-08-26
 
 **Added — the working rules, the standing directives and the user's own rules are delivered through instruction files, and they reach subagents.**

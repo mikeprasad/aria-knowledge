@@ -34,18 +34,41 @@ bad() { printf "FAIL  %s — %s\n" "$1" "$2"; FAIL=$((FAIL + 1)); }
 # any command that just QUOTES an idiom like `sed -i`, including a commit whose
 # MESSAGE did. Ruled out rather than tuned: "if it is wrong then don't use it."
 #
-# ⛔ The ~25 behavioural assertions that stood here are GONE, not skipped, because
-# their subject no longer exists. Re-adding them would require re-wiring a method
-# that was ruled out. These three assert the retirement instead, so a silent
-# re-wire fails loudly.
-[ ! -e "$BW" ] && ok "C1 retired: not shipped in bin/" \
-               || bad "C1 retired" "pre-bash-write-check.sh is back in bin/"
+# ➜ SUPERSEDED 2026-08-27 (v2.48.1). The two assertions that pinned "not shipped"
+# and "not registered" have been REPLACED, not deleted — and they were doing their
+# job: they exist so a silent re-wire fails loudly, and they caught the restoration.
+#
+# What changed is that the restoration is NOT a re-wire of the ruled-out method.
+# The measured SCOPE is unchanged (in-place mutation only, 0.674% of 25,508 calls);
+# only the METHOD is replaced — targets are RESOLVED via bin/pre-bash-write-resolve.py
+# (heredoc bodies stripped, shlex operator-aware tokenizing, per-statement extraction,
+# temp exemption applied to the RESOLVED PATH), which closes BOTH directions above
+# with one mechanism. It is also WARN-ONLY and can never deny.
+#
+# ⛔ THE INVARIANT THAT SURVIVES THE RETIREMENT, and it is the load-bearing one:
+# the ARCHIVED copy must never become the registered one. That is the actual
+# "silent re-wire" this block was written to prevent, and it is now asserted
+# directly rather than as a side effect of asserting absence.
+#
+# Behaviour is proven in tests/repros/bash-write-target-resolution.sh, whose AC1 and
+# AC2 ARE the two historical defects stated as executable controls.
+[ -f "$BW" ] && ok "C1 restored: the corrected hook ships in bin/" \
+             || bad "C1 restored" "pre-bash-write-check.sh is missing from bin/"
 [ -f "$REPO_ROOT/plugin-claude-code/bin/.archived/pre-bash-write-check.sh" ] \
   && ok "C1 archived per Rule 6 with its mechanism recorded" \
   || bad "C1 archive" "the retired hook is not in bin/.archived/"
+grep -q 'SUPERSEDED 2026-08-27' "$REPO_ROOT/plugin-claude-code/bin/.archived/pre-bash-write-check.sh" \
+  && ok "C1 the archive forward-points at its successor" \
+  || bad "C1 archive pointer" "the archive asserts retirement with no pointer to the live hook"
 grep -q 'pre-bash-write-check\.sh' "$MANIFEST" \
-  && bad "C1 unregistered" "the retired hook is registered again in plugin.json" \
-  || ok "C1 unregistered in plugin.json"
+  && ok "C1 the corrected hook is registered" \
+  || bad "C1 registered" "the corrected hook is not registered in plugin.json"
+grep -q '\.archived/pre-bash-write-check\.sh' "$MANIFEST" \
+  && bad "C1 archived-not-registered" "the ARCHIVED hook is registered — the ruled-out method is live" \
+  || ok "C1 the archived copy is not the registered one"
+grep -q 'pre-bash-write-resolve\.py' "$BW" \
+  && ok "C1 the hook delegates to the target resolver, not to string matching" \
+  || bad "C1 method" "the hook does not reference the resolver — the ruled-out method may be back"
 
 # ---------------------------------------------------------------------------
 # C2 — assertions that cannot fail. A tautological assertion is a false green:
