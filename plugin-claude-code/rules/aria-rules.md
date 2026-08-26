@@ -1,5 +1,10 @@
 # ARIA Working Rules — Always-On Digest
 
+> Shipped by the aria-knowledge plugin and copied to `~/.claude/rules/aria-rules.md`,
+> where it is replaced whenever the plugin's copy changes. **Do not edit it there** —
+> edits are overwritten without warning. Your own standing rules belong in
+> `{knowledge_folder}/rules/user-rules.md`, which is yours and is never rewritten.
+
 Loaded into context at the start of every session. For the full reasoning, worked examples,
 triggers, and edge cases behind any rule, read `{knowledge_folder}/rules/working-rules.md`
 (created by `/setup`). Rule numbers are permanent IDs and match that file exactly.
@@ -78,3 +83,60 @@ back to these four.
 Full text, with reasoning and worked examples, at `{knowledge_folder}/rules/working-rules.md`.
 The user's own standing rules — binding alongside these — are at
 `{knowledge_folder}/rules/user-rules.md`.
+
+---
+
+# Standing Directives
+
+In force alongside the rules above. Some always apply; some depend on a condition you
+can check for yourself; the rest depend on a configuration value, which reaches you as
+a short `ARIA CONFIG` line at session start.
+
+⛔ **If no `ARIA CONFIG` line reached you, treat every configuration-gated directive
+below as OFF.** That is the shipped default and the safe failure mode — it is what a
+fresh install does. Never infer a setting from surrounding evidence, and never assume a
+directive applies because it would be useful here.
+
+`{knowledge_folder}` below is the path named in that same `ARIA CONFIG` line.
+
+## Always in force
+
+RULE 22 ORDERING — The Low/High Impact block must appear ABOVE the Edit/Write tool call in the same assistant turn, never below. The PreToolUse hook structurally enforces this: if the [Rule 22] marker is absent from a text block between the previous Edit/Write and this one, the hook returns permissionDecision: deny and blocks the tool call. Retrying without the marker will deny again. Emit the block prospectively, not retroactively — the only valid path is marker-then-edit. Arguments for skipping ('conversation already covered it', 'docs-only edit', 'routine change', 'too trivial') are all invalid — see rules/change-decision-framework.md 'Ordering (required)' and 'Rationalizations that do not apply'.
+
+MEMORY PATHWAY — ARIA is the structured memory pathway for this session. For notes, use /intake (URLs, snippets, bulk imports, and thread capture), /extract (session insights), /audit-knowledge (promotion). Recent Claude models have enhanced file-system memory; route it through ARIA to keep the knowledge tree curated.
+
+## Conditional on your environment — check this one yourself
+
+**If a usage snapshot exists** at `~/.claude/aria-statusline-state-*.json`:
+
+TASK BUDGET — A usage snapshot is written by the aria-knowledge status-line meter at ~/.claude/aria-statusline-state-*.json (context-window %, 5-hour, 7-day). Read it when the USER asks about usage, and re-read it fresh at that moment rather than citing a number from earlier in the conversation. Treat the 5-hour/7-day figures as STALE if the current time is past five_hour_resets_at / seven_day_resets_at, and context_pct as unknown if the snapshot's session_id does not match this session. ⛔ Do NOT use these figures to decide whether to stop, shorten, skip a required step, or wrap up — that decision is the user's. If you believe the session is strained, say so and offer options; never resolve it unilaterally toward less work.
+
+**If no such file exists**, this applies instead:
+
+TASK BUDGET — You do not see usage directly (only the user's UI shows it). If strain symptoms appear (responses cutting short, deep session length, compaction warnings), surface them and offer options (finish the current atomic task, call /aria-knowledge:extract, trigger compaction, or continue). Do not assume depletion or wrap up autonomously.
+
+## Conditional on ARIA configuration
+
+### When `auto_capture` is not `false`
+
+INSIGHT CAPTURE — After completing discrete tasks, batch-append any uncaptured ★ Insight blocks to {knowledge_folder}/intake/insights-backlog.md. Do not capture mid-task — only at task completion boundaries.
+
+### When `active_surfacing` is `true` AND `{knowledge_folder}/index.md` exists and holds at least one `### ` tag header
+
+ARIA ACTIVE CONTEXT — Knowledge index at {knowledge_folder}/index.md. After the user states their first task, do this autonomously (do NOT wait for /context): (1) Read index.md and parse the ## Tag Index section for ### tagname headers; (2) tokenize the user's task text (lowercase, alnum-only, dedupe); (3) find tags whose names exactly match any token; (4) if ≥2 tags match, collect file lines under those tag sections, dedupe by path, cap at top-5; (5) Read each matched file; (6) before answering, output 1-2 sentences naming which files loaded and why each is relevant. Offer once per session and again on clear topic change. The TaskCreated / Bash-cd / PostCompact hooks will auto-surface for those triggers — this instruction covers the SessionStart→first-user-message gap. Honors a session ledger at /tmp/aria-active-${session_id} (paths already there, don't re-Read).
+
+### When `session_state` is `true`
+
+SESSION STATE — After the project/sub-project for this session is identified (by the PWD-based project match, or by what the user names in their opening message), locate SESSION.md at that project root (project root = nearest dir with CLAUDE.md/PROGRESS.md). If it exists with a non-empty '## Next session prompt' block: if the user's opening message included the word 'handoff', open the session by executing that prompt directly (no confirmation); otherwise tell the user a saved resume prompt exists (state its lastEvent + age from the 'at' field) and ask whether to start from it (y/n). If the prompt's 'at' is older than session_stale_days (read from ~/.claude/aria-knowledge.local.md; default 7) days, do NOT present it as live — instead state its age and ask: still relevant? [resume / archive / keep]. 'archive' = move that entry under a '## Archived sessions' heading (atlas ignores it, same as '## Pending handoffs' and the legacy '## Prior sessions'); 'keep' = leave it as-is; 'resume' = execute it. Never auto-drop an aged entry — staleness prompts, it does not evict. ALSO: if a '## Pending handoffs' section (or legacy '## Prior sessions') holds entries still marked 'unconsumed', say how many and offer them alongside the active prompt — a SESSION.md may hold several still-valid next-session prompts, and one that is stored but never offered is lost in practice. If no such prompt exists, stay quiet. The 'in-progress' mark is now written automatically by the PostToolUse hook (post-edit-check.sh) on your first edit — do NOT write SESSION.md yourself here. Offer the resume once per session.
+
+### Keyed on `autonomy`
+
+When `autonomy` is `balanced`:
+
+DECISION ROUTING (balanced) — Before asking OR auto-deciding, classify (per Rule 35): resolvable by read/grep/diff/git/config/web → investigate first, then act; objectively validatable → decide and show the validation; mechanical/already-decided → act; the user's intent/preference/judgment with no gainable visibility, or anything needing ungranted explicit approval → ask. Investigate the resolvable parts first; ask only the residual that's genuinely about the user. Either way, the option set is Rule 22 Step 4/5 output: enumerate the real alternatives, filter out any option with a provable defect (name it in one line rather than offering it), and when you decide, show what you rejected plus the validation. Asking is not an escape hatch from the analysis.
+
+When `autonomy` is `autonomous`:
+
+DECISION ROUTING (autonomous) — The user's decision budget is the scarce resource; your speed/context is cheap. Exhaust self-resolvable investigation before spending a human turn. Per Rule 35: decide objectively-validatable forks YOURSELF (checked against ground truth and the build-philosophy bar, Rules 13/14/18 — simplest/robust/clean, no unneeded abstraction). Run quality gates (/prospect pre-code, /retrospect post-ship) as checks, not stops. Stop and ask ONLY when it is a judgment call with no gainable visibility (and none can be gained), or it requires explicit approval not already granted (push, destructive op, scope change, credentials), or the foundational fix would change what the arc IS (its scope boundary, deliverable, or completion criteria) rather than merely make it bigger. Foundational-over-patch is NOT a fork at this setting: take the foundational fix and absorb the larger scope. Either way, the option set is Rule 22 Step 4/5 output: enumerate the real alternatives, filter out any option with a provable defect (name it in one line rather than offering it), and when you decide, show what you rejected plus the validation. Asking is not an escape hatch from the analysis.
+
+When `autonomy` is `default`, or no value reached you: **no routing directive applies.** Do not substitute one.

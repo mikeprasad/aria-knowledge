@@ -49,12 +49,33 @@ KF="$APM_TMP/kf"; mkdir -p "$KF/rules"
 printf -- '---\nknowledge_folder: %s\n---\n' "$KF" > "$CFG"
 
 HOOK="$APM_ROOT/bin/session-start-rules.sh"
+
+# ⛔ EVERY hook invocation in this file MUST set HOME. The hook writes the
+# user-scope rules files under $HOME/.claude/rules/, so a test that inherits the
+# real HOME mutates the developer's own configuration — measured: an early version
+# of this suite created a 20,623 B ~/.claude/rules/aria-rules.md on a plain test
+# run, installing unreviewed prose into a live config.
+APM_HOME="$APM_TMP/apm-home"; mkdir -p "$APM_HOME/.claude"
+
+# Snapshot the REAL user config so the guard at the end of this file can prove the
+# suite did not touch it. Recorded as existence + size + mtime rather than
+# "absent", because once this feature ships the developer legitimately HAS these
+# files and an absence assertion would be wrong for everyone who installed it.
+APM_REAL_HOME="$HOME"
+apm_real_rules_state() {
+  for f in "$APM_REAL_HOME"/.claude/rules/aria-rules.md \
+           "$APM_REAL_HOME"/.claude/rules/aria-user-rules.md; do
+    if [ -f "$f" ]; then printf '%s:%s:%s\n' "$f" "$(wc -c < "$f" | tr -d ' ')" "$(ls -l "$f" | awk '{print $6,$7,$8}')"
+    else printf '%s:absent\n' "$f"; fi
+  done
+}
+APM_REAL_BEFORE=$(apm_real_rules_state)
 OUT="$APM_TMP/ssr-out.json"
 : > "$OUT"
 # run.sh uses `set -eu` and SOURCES each test, so a bare failing invocation
 # aborts the entire suite with no summary — which reads as "no output" rather
 # than as a red test. An if-condition suspends set -e for the command.
-if KT_CONFIG="$CFG" sh "$HOOK" > "$OUT" 2>/dev/null; then rc=0; else rc=$?; fi
+if HOME="$APM_HOME" KT_CONFIG="$CFG" sh "$HOOK" > "$OUT" 2>/dev/null; then rc=0; else rc=$?; fi
 
 assert_eq "hook exits 0" "0" "$rc"
 assert_eq "emits additionalContext" "yes" \
@@ -91,21 +112,49 @@ U2OUT="$APM_TMP/u2.json"
 run_hook_with() { # $1 = extra config lines
   printf -- '---\nknowledge_folder: %s\n%s\n---\n' "$KF" "$1" > "$CFG"
   : > "$U2OUT"
-  if KT_CONFIG="$CFG" sh "$HOOK" > "$U2OUT" 2>/dev/null; then :; else :; fi
+  if HOME="$APM_HOME" KT_CONFIG="$CFG" sh "$HOOK" > "$U2OUT" 2>/dev/null; then :; else :; fi
 }
 u2_has() { jq -r '.hookSpecificOutput.additionalContext' "$U2OUT" 2>/dev/null | grep -q "$1" && echo yes || echo no; }
 
-run_hook_with "autonomy: default"
-assert_eq "DECISION ROUTING absent at autonomy=default" "no" "$(u2_has 'DECISION ROUTING')"
-run_hook_with "autonomy: balanced"
-assert_eq "DECISION ROUTING present at autonomy=balanced" "yes" "$(u2_has 'DECISION ROUTING (balanced)')"
-run_hook_with "autonomy: autonomous"
-assert_eq "DECISION ROUTING present at autonomy=autonomous" "yes" "$(u2_has 'DECISION ROUTING (autonomous)')"
+digest_has() { grep -qF "$1" "$DIGEST" && echo yes || echo no; }
 
+# ⛔ THE GATING GUARANTEE CHANGED SHAPE, AND THAT IS A REAL TRADE, NOT A BUG.
+# Before the file/hook split the shell DECIDED: a directive gated off simply was
+# not emitted, and the assertions below proved it by its absence. Now the file
+# carries every variant unconditionally and states each condition, and the hook
+# emits only the resolved values — so the model, not the shell, does the gating.
+# Enforcement moved from mechanical to instructed. That is inherent to delivering
+# through a static file (a file written once cannot vary by config), and it is the
+# cost side of the trade that buys full delivery and subagent reach.
+#
+# ⚠ So the old assertions cannot simply be re-pointed: "directive absent from the
+# emission" is now TRUE FOR EVERY CONFIG, because no directive is ever emitted.
+# They would pass forever, for the wrong reason — the tautology class this suite
+# exists to catch. Each is replaced by the two halves that are still falsifiable:
+#   (1) the FILE carries every variant, so the model has something to select from;
+#   (2) the EMISSION reports the value, so the model can tell which one applies.
+# Neither half alone is sufficient and both can fail independently.
+
+assert_eq "digest carries the balanced DECISION ROUTING variant" "yes" \
+  "$(digest_has 'DECISION ROUTING (balanced)')"
+assert_eq "digest carries the autonomous DECISION ROUTING variant" "yes" \
+  "$(digest_has 'DECISION ROUTING (autonomous)')"
+assert_eq "digest states the default-autonomy case explicitly" "yes" \
+  "$(digest_has 'no routing directive applies')"
+
+run_hook_with "autonomy: default"
+assert_eq "config line reports autonomy=default" "yes" "$(u2_has 'autonomy=default')"
+run_hook_with "autonomy: balanced"
+assert_eq "config line reports autonomy=balanced" "yes" "$(u2_has 'autonomy=balanced')"
+assert_eq "config line does not report a stale autonomy" "no" "$(u2_has 'autonomy=autonomous')"
+run_hook_with "autonomy: autonomous"
+assert_eq "config line reports autonomy=autonomous" "yes" "$(u2_has 'autonomy=autonomous')"
+
+assert_eq "digest carries the SESSION STATE directive" "yes" "$(digest_has 'SESSION STATE —')"
 run_hook_with "session_state: false"
-assert_eq "SESSION STATE absent when off" "no" "$(u2_has 'SESSION STATE')"
+assert_eq "config line reports session_state=false" "yes" "$(u2_has 'session_state=false')"
 run_hook_with "session_state: true"
-assert_eq "SESSION STATE present when on" "yes" "$(u2_has 'SESSION STATE')"
+assert_eq "config line reports session_state=true" "yes" "$(u2_has 'session_state=true')"
 
 # SUPERSEDED by the Task 7 ruling, kept as a record rather than deleted.
 #
@@ -200,19 +249,19 @@ assert_eq "template index has zero tag sections" "0" \
 IDXF="$KF/index.md"
 printf -- '---\nknowledge_folder: %s\n---\n' "$KF" > "$CFG"
 
-# Arm A — index exists, ZERO tag sections. Must NOT emit.
-printf '# Knowledge Index\n\n## Tag Index\n\n_No tags yet._\n' > "$IDXF"
-: > "$U2OUT"
-if KT_CONFIG="$CFG" sh "$HOOK" > "$U2OUT" 2>/dev/null; then :; else :; fi
-assert_eq "ACTIVE CONTEXT absent when index has zero tags" "no" "$(u2_has 'ARIA ACTIVE CONTEXT')"
-
-# Arm B — same file, one tag section. Must emit. Both arms are required: a
-# present-only assertion passes against the un-tightened `[ -f ]` gate.
-printf '# Knowledge Index\n\n## Tag Index\n\n### sometag\n- a.md — x\n' > "$IDXF"
-: > "$U2OUT"
-if KT_CONFIG="$CFG" sh "$HOOK" > "$U2OUT" 2>/dev/null; then :; else :; fi
-assert_eq "ACTIVE CONTEXT present when index has a tag" "yes" "$(u2_has 'ARIA ACTIVE CONTEXT')"
+# ⚠ Same shape change as DECISION ROUTING above: the shell no longer gates this,
+# so both of the old arms ("absent with zero tags" / "present with a tag") are now
+# emission-independent and would pass for the wrong reason. The tag-content
+# condition still exists — it moved into the file's stated conditional, where the
+# MODEL evaluates it against the index it is told to read. What stays falsifiable
+# is that the file names the condition precisely enough to be evaluated.
 rm -f "$IDXF"
+assert_eq "digest carries the ACTIVE CONTEXT directive" "yes" \
+  "$(digest_has 'ARIA ACTIVE CONTEXT —')"
+assert_eq "digest states the tag-content condition, not mere existence" "yes" \
+  "$(digest_has 'holds at least one `### ` tag header')"
+assert_eq "digest names the active_surfacing key the condition reads" "yes" \
+  "$(digest_has 'When `active_surfacing` is `true`')"
 
 # audit-knowledge must warn when its rebuild produces a tagless index, because
 # after the gate change that silently keeps active surfacing switched off.
@@ -225,35 +274,44 @@ assert_eq "setup populates the index" "yes" \
 # Unit 1 completeness + the TASK BUDGET rework
 # ---------------------------------------------------------------------------
 printf -- '---\nknowledge_folder: %s\n---\n' "$KF" > "$CFG"
-FAKEHOME="$APM_TMP/fakehome"; mkdir -p "$FAKEHOME/.claude"
-: > "$U2OUT"
-if HOME="$FAKEHOME" KT_CONFIG="$CFG" sh "$HOOK" > "$U2OUT" 2>/dev/null; then :; else :; fi
 
-assert_eq "TASK BUDGET delivered" "yes" "$(u2_has 'TASK BUDGET')"
-assert_eq "INSIGHT CAPTURE delivered" "yes" "$(u2_has 'INSIGHT CAPTURE')"
-assert_eq "MEMORY PATHWAY delivered" "yes" "$(u2_has 'MEMORY PATHWAY')"
+# ⛔ These assert the DIGEST, not an emission, and the reason is not just the split.
+# The old versions passed only because their FAKEHOME happened to be fresh on the
+# first invocation and therefore took the transitional arm; the second invocation
+# found the file the first had written and took the steady-state arm, which emits
+# no directive text at all. So they were order-dependent — reordering the file
+# would have broken them, and the breakage would have read as a regression in the
+# hook. Asserting the digest removes the ordering variable entirely.
+assert_eq "digest carries TASK BUDGET" "yes" "$(digest_has 'TASK BUDGET —')"
+assert_eq "digest carries INSIGHT CAPTURE" "yes" "$(digest_has 'INSIGHT CAPTURE —')"
+assert_eq "digest carries MEMORY PATHWAY" "yes" "$(digest_has 'MEMORY PATHWAY —')"
 
-# Latent defects that only become visible once the channel is actually read.
+# Latent defects that only became visible once the channel was actually read.
+# Both are absence assertions over a file that demonstrably has content, so
+# neither can pass by the payload being empty.
 assert_eq "INSIGHT CAPTURE renders a star, not an escape sequence" "no" \
-  "$(u2_has 'xe2.x98')"
+  "$(digest_has 'xe2\x98')"
 assert_eq "MEMORY PATHWAY does not route to the archived /clip" "no" \
-  "$(u2_has '/clip')"
+  "$(grep -qF '/clip)' "$DIGEST" && echo yes || echo no)"
 
-# No statusline snapshot in the fake HOME, so the SHORT variant must fire — the
-# one that says don't assume depletion.
-assert_eq "short TASK BUDGET variant used when no statusline" "yes" \
-  "$(u2_has 'assume depletion')"
+# BOTH TASK BUDGET variants must be present, because the model — not the shell —
+# now picks between them from the stated condition. Under the old design only one
+# could ever be emitted, so "both present" was not even expressible.
+assert_eq "digest carries the SHORT TASK BUDGET variant" "yes" \
+  "$(digest_has 'assume depletion')"
+assert_eq "digest carries the LONG TASK BUDGET variant" "yes" \
+  "$(digest_has 'aria-statusline-state')"
+assert_eq "digest states the statusline condition for choosing between them" "yes" \
+  "$(digest_has 'If a usage snapshot exists')"
 
-# With a snapshot present, the long variant fires and must NOT tell the model to
-# gate stopping or wrap-up on usage figures.
-: > "$FAKEHOME/.claude/aria-statusline-state-test.json"
-: > "$U2OUT"
-if HOME="$FAKEHOME" KT_CONFIG="$CFG" sh "$HOOK" > "$U2OUT" 2>/dev/null; then :; else :; fi
-assert_eq "long variant fires when a snapshot exists" "yes" "$(u2_has 'aria-statusline-state')"
+# The Task 7 rework, still load-bearing: the long variant must NOT tell the model
+# to gate stopping or wrap-up on usage figures, and must say the decision is the
+# user's. Delivering the pre-rework text verbatim would CAUSE a behaviour the
+# maintainer has repeatedly corrected.
 assert_eq "long variant does not gate stopping on usage" "no" \
-  "$(u2_has 'judging whether to keep going')"
-assert_eq "long variant forbids unilateral wrap-up" "yes" \
-  "$(u2_has 'that decision is the user')"
+  "$(digest_has 'judging whether to keep going')"
+assert_eq "long variant says the decision is the user's" "yes" \
+  "$(digest_has 'that decision is the user')"
 
 # The defective text must not survive in the old hook either — leaving it there
 # keeps a corrected behaviour one channel-flip away from returning.
@@ -365,6 +423,87 @@ assert_eq "U-rules with zero headers emits nothing" "" "$(ur_block "$URZ")"
 URN="$APM_TMP/ur-nofile"; mkdir -p "$URN/rules"
 assert_eq "U-rules with no file emits nothing" "" "$(ur_block "$URN")"
 
+# ---------------------------------------------------------------------------
+# THE TWO ARMS — no flag day
+# ---------------------------------------------------------------------------
+# The hook branches on whether the user-scope digest existed BEFORE it ran, because
+# §10.6 measured that the instruction-file set is snapshotted at session start: a
+# file this hook writes is not delivered until the NEXT session. So the first
+# session after install must still receive everything through the emission.
+#
+# ⛔ Both arms are required and the transitional one is the load-bearing half. An
+# earlier version of this hook tested presence AFTER the ensure step, which made
+# the transitional arm unreachable whenever the write succeeded — measured, that
+# session emitted 270 characters and 0 of 38 rules. A steady-state-only test is
+# green against exactly that defect.
+ARMH="$APM_TMP/arm-home"; rm -rf "$ARMH"; mkdir -p "$ARMH/.claude"
+ARMKF="$APM_TMP/arm-kf"; mkdir -p "$ARMKF/rules"
+printf '### U1. an arm-fixture rule\n\nThe body of the arm-fixture rule.\n' > "$ARMKF/rules/user-rules.md"
+ARMCFG="$APM_TMP/arm-cfg.md"
+printf -- '---\nknowledge_folder: %s\nautonomy: autonomous\nsession_state: true\n---\n' "$ARMKF" > "$ARMCFG"
+arm_run() { HOME="$ARMH" KT_CONFIG="$ARMCFG" sh "$HOOK" 2>/dev/null \
+  | jq -r '.hookSpecificOutput.additionalContext' 2>/dev/null; }
+
+ARM1=$(arm_run)   # file absent at snapshot -> transitional
+ARM2=$(arm_run)   # file now present        -> steady state
+
+# ⚠ Standalone case, NOT nested in $( ). A case pattern's `)` is ambiguous with
+# the command-substitution terminator, so the inline form mis-parses and the
+# assertion fails while the payload is in fact correct — verified: the emission
+# does begin with these bytes.
+case "$ARM1" in
+  "ARIA WORKING RULES"*) ARM1_LEADS=yes ;;
+  *) ARM1_LEADS=no ;;
+esac
+assert_eq "arm 1 leads with the rules digest" "yes" "$ARM1_LEADS"
+# ⚠ Derived HERE, not borrowed from the DELIVERY GUARD block below — that block
+# defines its needle later in the file, so referencing it from here would compare
+# against an EMPTY string, and `grep -qF ''` matches anything. Positive control
+# first, for the same reason.
+ARM_LAST_RULE=$(grep -o '^- \*\*Rule [0-9]* — [^*]*\*\*' "$DIGEST" 2>/dev/null \
+  | tail -1 | sed 's/^- \*\*//; s/\*\*$//')
+assert_eq "arm-block last-rule needle parses non-empty" "yes" \
+  "$([ -n "$ARM_LAST_RULE" ] && echo yes || echo no)"
+assert_eq "arm 1 delivers the LAST rule title" "yes" \
+  "$(printf '%s' "$ARM1" | grep -qF "$ARM_LAST_RULE" && echo yes || echo no)"
+assert_eq "arm 1 delivers a standing directive" "yes" \
+  "$(printf '%s' "$ARM1" | grep -qF 'RULE 22 ORDERING —' && echo yes || echo no)"
+assert_eq "arm 1 delivers the user's own rules" "yes" \
+  "$(printf '%s' "$ARM1" | grep -qF 'an arm-fixture rule' && echo yes || echo no)"
+assert_eq "arm 1 carries the config line" "yes" \
+  "$(printf '%s' "$ARM1" | grep -qF 'ARIA CONFIG —' && echo yes || echo no)"
+
+assert_eq "arm 2 does not duplicate the digest" "no" \
+  "$(printf '%s' "$ARM2" | grep -qF 'RULE 22 ORDERING —' && echo yes || echo no)"
+assert_eq "arm 2 still carries the config line" "yes" \
+  "$(printf '%s' "$ARM2" | grep -qF 'ARIA CONFIG —' && echo yes || echo no)"
+assert_eq "arm 2 is far smaller than arm 1" "yes" \
+  "$([ "$(printf '%s' "$ARM2" | wc -c)" -lt "$(( $(printf '%s' "$ARM1" | wc -c) / 10 ))" ] && echo yes || echo no)"
+
+# The ensure step must have produced BOTH files, or the file channel — the whole
+# point of the split, and the only channel that reaches subagents — is empty.
+assert_eq "ensure step wrote the digest to user scope" "yes" \
+  "$([ -f "$ARMH/.claude/rules/aria-rules.md" ] && echo yes || echo no)"
+assert_eq "ensure step wrote the user-rule digest to user scope" "yes" \
+  "$([ -f "$ARMH/.claude/rules/aria-user-rules.md" ] && echo yes || echo no)"
+assert_eq "installed digest matches the bundled one byte for byte" "yes" \
+  "$(cmp -s "$DIGEST" "$ARMH/.claude/rules/aria-rules.md" && echo yes || echo no)"
+assert_eq "installed user-rule digest carries the user's rule" "yes" \
+  "$(grep -qF 'an arm-fixture rule' "$ARMH/.claude/rules/aria-user-rules.md" && echo yes || echo no)"
+
+# ---------------------------------------------------------------------------
+# THE SUITE MUST NOT TOUCH THE DEVELOPER'S OWN CONFIG
+# ---------------------------------------------------------------------------
+# This hook WRITES to $HOME/.claude/rules/. Measured: before every invocation in
+# this file set a fixture HOME, a plain test run created a 20,623 B
+# ~/.claude/rules/aria-rules.md in the maintainer's live config — installing
+# unreviewed prose that every future session would then load.
+#
+# Compared as existence+size+mtime rather than asserting absence, because once
+# this ships the developer legitimately HAS these files.
+assert_eq "the suite left the real ~/.claude/rules untouched" "$APM_REAL_BEFORE" \
+  "$(apm_real_rules_state)"
+
 # DELIVERY GUARD — the payload must ARRIVE, not merely be emitted
 # ---------------------------------------------------------------------------
 # Added 2026-08-26 (spec 2.6 and 7/AC1, both amended the same day).
@@ -471,8 +610,17 @@ assert_eq "worst-case fixture fires the LONG U-rule variant" "no" \
 # `feedback_guard_scoped_to_the_wrong_unit` inside the guard written to prevent that class.
 # The SHORT variant's opening phrase must be ABSENT; the block-presence loop below proves the
 # block is there at all, so absence-of-short plus presence-of-block pins the LONG variant.
-assert_eq "worst-case fixture fires the LONG TASK BUDGET variant" "no" \
-  "$(printf '%s' "$PW" | grep -q 'You do not see usage directly' && echo yes || echo no)"
+# ⛔ RETIRED — and the reason is worth keeping, because it looks like a regression.
+# This asserted the fixture selected the LONG TASK BUDGET variant, which mattered
+# while the HOOK chose between the two: the choice moved the payload by 403 chars
+# and made the ceiling machine-dependent. The hook no longer emits TASK BUDGET at
+# all — the digest carries BOTH variants and the model picks from a stated
+# condition — so there is no selection left to prove maximal, and the emission
+# now legitimately contains the short variant's text too.
+# Its replacement is "digest carries the SHORT/LONG TASK BUDGET variant" above.
+# ⚠ The fixture's own HOME control is KEPT and is now load-bearing for a different
+# reason than it was written for: the hook WRITES under $HOME/.claude/rules/, so an
+# uncontrolled HOME mutates the developer's live config.
 for blk in 'RULE 22 ORDERING' 'DECISION ROUTING' 'SESSION STATE' 'TASK BUDGET' 'ARIA ACTIVE CONTEXT' 'STANDING USER RULES'; do
   assert_eq "worst-case fixture carries ${blk}" "yes" \
     "$(printf '%s' "$PW" | grep -qF "$blk" && echo yes || echo no)"
