@@ -403,5 +403,38 @@ grep -qiE 'FAIL[^.]{0,40}not[^.]{0,20}stop|preflight FAIL is \*\*not\*\* a stop'
 grep -qiE 'a preflight-gated commit' "$SK" \
   && ok "PFG gate case is pre-answered, not a fork" || bad "PFG preanswered" "not in the pre-answered set"
 
+# FO: the fan-out axis must be PARSEABLE, not merely described in the Step 5 stopgaps prose.
+# Before this group, `workflow` / `fanout=<pct>` / `agents=<N>` appeared in the stopgaps
+# paragraph and in NO modifier list, NO argument-hint and NO description — so under the
+# documented ENDS scan an unrecognised token ends the modifier run and the rest becomes goal:
+# the opt-in silently never registered AND the goal gained a stray word. Failed safe (Workflow
+# stayed hard-OFF, tighter defaults held), which is exactly why it survived shipped docs.
+grep -qF 'the **fan-out** axis: raise or open the three' "$SK" \
+  && ok "FO1 fan-out trio is in the modifier list" || bad "FO1 modifier-list" "fan-out tokens absent from the modifier set"
+
+# Anchored on the argument-hint LINE, not the file: these tokens now appear in the body too,
+# so a file-wide grep would report PASS with the frontmatter still omitting them.
+grep '^argument-hint:' "$SK" | grep -q 'workflow' \
+  && grep '^argument-hint:' "$SK" | grep -q 'fanout=' \
+  && grep '^argument-hint:' "$SK" | grep -q 'agents=' \
+  && ok "FO2 argument-hint advertises the fan-out trio" || bad "FO2 argument-hint" "hint omits a fan-out token"
+
+# Same line-anchoring reason. Six axes: authority, presence, duration, work-source,
+# context-recovery, fan-out. The description said "one word per axis" and then listed three
+# plus two loose extras, so a reader counting axes to check an invocation got the wrong number.
+grep '^description:' "$SK" | grep -qi 'six axes' \
+  && ok "FO3 description states six axes" || bad "FO3 axis-count" "description undercounts the axes"
+
+# The ENDS rule protects mid-prose only. A bare modifier that lands at the very end of a goal
+# IS consumed — true for `tickets`/`continue`/`stop` before this change and now for `workflow`.
+# Stated rather than fixed by widening the scan, which is strictly worse.
+grep -qF 'a bare modifier at the very END of a goal IS consumed' "$SK" \
+  && ok "FO4 trailing-collision exposure is stated" || bad "FO4 trailing" "trailing bare-modifier exposure undocumented"
+
+# Pins ENDS-only for the `=`-bearing tokens against a future "improvement" that widens the
+# scan: a general <word>=<value> match would eat a goal like "checks count=20".
+grep -qF 'Deliberately NOT recognised anywhere-in-args' "$SK" \
+  && ok "FO5 anywhere-scan explicitly rejected" || bad "FO5 anywhere" "no rationale pinning ENDS-only for = tokens"
+
 printf "\n%d passed, %d failed\n" "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

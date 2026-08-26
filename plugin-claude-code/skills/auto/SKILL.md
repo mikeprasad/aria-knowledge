@@ -1,6 +1,6 @@
 ---
-description: "Drive an autonomous execution arc end-to-end — compose brainstorm→spec→/prospect→plan→/prospect→TDD→/retrospect under the Rule 35 posture, decide objectively-validatable forks yourself, and stop only on a load-bearing fork or an ungranted approval. Modes: `arc` (default), `execute <plan|spec|ticket-id>` (skip ideation), `plan` (stop at a prospected plan, no code), `config` (guided per-run knob picker). Stackable, one word per axis: `full` (authority — all except push and deploy) · `attended`|`unattended` (presence) · `continue`|`stop` (duration) · plus `tickets` and `self-restart`. A bare invocation opens the `config` picker instead of guessing a goal. An explicit grant of autonomous latitude that overrides the standing `autonomy` config for the arc and never writes it. Use when the user hands off a goal, plan, ticket, or SESSION.md with latitude to execute WITHOUT per-step approval — 'combined go', 'run overnight', 'just build it', 'do as much as you can'. ENTRY POINT for a multi-step arc, NOT a single concrete change; distinct from /prospect, /retrospect, /handoff, /wrapup. (Code port — ADR-094.)"
-argument-hint: "[arc|execute|plan|config] [<goal | plan-path | ticket-id>] [full] [attended|unattended] [tickets] [continue|stop] [self-restart]"
+description: "Drive an autonomous execution arc end-to-end — compose brainstorm→spec→/prospect→plan→/prospect→TDD→/retrospect under the Rule 35 posture, decide objectively-validatable forks yourself, and stop only on a load-bearing fork or an ungranted approval. Modes: `arc` (default), `execute <plan|spec|ticket-id>` (skip ideation), `plan` (stop at a prospected plan, no code), `config` (guided per-run knob picker). Stackable, six axes: `full` (authority — all except push and deploy) · `attended`|`unattended` (presence) · `continue`|`stop` (duration) · `tickets` (work source) · `self-restart` (context recovery) · `workflow`/`fanout=<pct>`/`agents=<N>` (fan-out). A bare invocation opens the `config` picker instead of guessing a goal. An explicit grant of autonomous latitude that overrides the standing `autonomy` config for the arc and never writes it. Use when the user hands off a goal, plan, ticket, or SESSION.md with latitude to execute WITHOUT per-step approval — 'combined go', 'run overnight', 'just build it', 'do as much as you can'. ENTRY POINT for a multi-step arc, NOT a single concrete change; distinct from /prospect, /retrospect, /handoff, /wrapup. (Code port — ADR-094.)"
+argument-hint: "[arc|execute|plan|config] [<goal | plan-path | ticket-id>] [full] [attended|unattended] [tickets] [workflow] [fanout=<pct>] [agents=<N>] [continue|stop] [self-restart]"
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash, WebFetch, WebSearch
 ---
 
@@ -213,9 +213,19 @@ one word per axis, no special cases.)*
   invocation beats a silently-absent hint. Detect ticket IDs with the vendor-neutral `\b([A-Z]{2,}-\d+)\b`. With
   no tracker connected and no mapping, say so once and fall back to the Step 4
   work-selection order — `tickets` never hard-fails an arc.
+- **`workflow` · `fanout=<pct>` · `agents=<N>`** — the **fan-out** axis: raise or open the three
+  Step 5 stopgaps for this run, one token each. `workflow` opts into the Workflow tool
+  (multi-agent orchestration, hard-OFF by default and never firing unbidden); `fanout=<pct>`
+  replaces the ~25%-of-remaining-window per-burst spend gate; `agents=<N>` replaces the ~10
+  cumulative per-arc subagent cap. All three are **invocation-scoped** — there is no standing
+  config key, and a persistent default would belong in `/setup`, not here. `full` raises the
+  same three stopgaps as a set; these name one each, so they compose with `full` and also work
+  without it.
 
-**Three orthogonal axes — set each independently.** `full` sets *how much latitude*;
-`continue`/`stop` set *how long*; `attended`/`unattended` set *whether a human is reachable*.
+**Six orthogonal axes — set each independently.** `full` sets *how much latitude*;
+`continue`/`stop` set *how long*; `attended`/`unattended` set *whether a human is reachable*;
+`tickets` sets *where work comes from*; `self-restart` sets *how a context wall is handled*;
+the fan-out trio sets *how wide delegation may go*.
 Keeping them separate is what makes every combination expressible:
 
 - `/auto full` — max authority, scoped: stops when the queue clears
@@ -235,11 +245,15 @@ Keeping them separate is what makes every combination expressible:
 
 **`preflight` is a RETIRED mode keyword and must never fall through to a goal.** It used to alias `config`. If the first arg is `preflight`, do **not** start an arc with the goal "preflight" — recognise it, run nothing, and route: the pre-completion checklist is the standalone **`/preflight`** skill; the per-run settings picker is **`/auto config`**. Falling through here would be the worst outcome available — under `full`, a retired word silently becomes a work order.
 
-**Modifiers are recognised only at the ENDS — never mid-prose.** Scan the contiguous run of modifier tokens at the start (after any mode keyword) and the contiguous run at the end; **once goal prose begins, every remaining token is goal.** This matters because the modifier names are ordinary English words: an anywhere-in-args scan turns `/auto fix the **render loop** bug` into an unattended self-restarting run, and "do a full review" or "close the tickets" the same way. Worked cases:
+**Modifiers are recognised only at the ENDS — never mid-prose.** Scan the contiguous run of modifier tokens at the start (after any mode keyword) and the contiguous run at the end; **once goal prose begins, every remaining token is goal.** This matters because the modifier names are ordinary English words: an anywhere-in-args scan turns `/auto fix the **render loop** bug` into an unattended self-restarting run, and "do a **full** review" the same way. Worked cases:
 
 - `/auto full unattended tickets clear the payments queue` → mode `arc`, modifiers `{full, unattended, tickets}`, goal "clear the payments queue"
 - `/auto fix the render loop bug` → mode `arc`, **no modifiers**, goal "fix the render loop bug"
 - `/auto ship the CSV exporter continue self-restart` → goal "ship the CSV exporter", toggle `continue`, flag `self-restart`
+- `/auto full workflow audit the payments surface` → modifiers `{full, workflow}`, goal "audit the payments surface"
+- `/auto ship the exporter fanout=40% agents=20` → goal "ship the exporter", `fanout=40%`, `agents=20`. **A `=`-bearing token cannot collide with goal prose**, so the fan-out knobs need no rule of their own — they ride the same ENDS scan as every other modifier. Deliberately NOT recognised anywhere-in-args: a general `<word>=<value>` scan would eat a legitimate goal like "fix the assertion that checks count=20", which is the mis-parse this whole paragraph exists to prevent.
+
+⚠ **The ENDS rule protects mid-prose only — a bare modifier at the very END of a goal IS consumed.** `/auto rewrite the deploy workflow` parses as goal "rewrite the deploy" + modifier `{workflow}`, and `/auto close the open tickets` as goal "close the open" + modifier `{tickets}`; `continue` and `stop` carry the same exposure. This is a known, accepted cost of a bare-word vocabulary, not a defect to fix by widening the scan (an anywhere scan is strictly worse — see the `render loop` case above). **Put the modifiers first when the goal could end in one of these words.** An earlier draft of this paragraph cited "close the tickets" as a case the ENDS rule handles; it does not, and that example has been corrected.
 
 A trailing `continue`/`stop` sets the on-queue-complete toggle; a trailing `self-restart` sets the context-restart flag (honored only alongside `continue`).
 
