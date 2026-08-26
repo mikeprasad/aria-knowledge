@@ -4,7 +4,7 @@ description: "NOTE: this skill requires connected ~~docs MCPs with WRITE access 
 
 # /sync-decisions — Mirror Decisions to External Docs
 
-Read approved decisions from `{knowledge_folder}/decisions/` and write them out to a connected `~~docs` MCP destination (a Notion page, Confluence space, Google Doc, etc.). The only v2.18.0 skill that writes externally; embeds Rule 22 advisory preamble per [ADR-016](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/016-rule-22-advisory-preamble-for-external-writes.md).
+Read approved decisions from `{knowledge_folder}/decisions/` and write them out to a connected `~~docs` MCP destination (a Notion page, Confluence space, Google Doc, etc.). The only v2.18.0 skill that writes externally; embeds Rule 22 advisory preamble per ADR-016 (`{knowledge_folder}/projects/aria-cowork/decisions/016-rule-22-advisory-preamble-for-external-writes.md`).
 
 ## Step 0: Resolve Config
 
@@ -24,7 +24,7 @@ If NO `~~docs` MCP with write capability is connected, output the standard fallb
 
 > No required MCPs connected for `/sync-decisions`. This skill writes externally — needs a `~~docs` MCP with write capability (page creation or block append). Connect Notion, Atlassian (Confluence), Box, Egnyte, or Google Docs via Claude Code's MCP config (or Cowork Settings → Connectors). See [CONNECTORS.md](../../CONNECTORS.md). Skipping this run.
 
-Per [ADR-015](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/015-capability-probe-pattern.md).
+Per ADR-015 (`{knowledge_folder}/projects/aria-cowork/decisions/015-capability-probe-pattern.md`).
 
 ## Step 2: Enumerate Decisions to Sync
 
@@ -194,9 +194,9 @@ Sync log: logs/sync-decisions.md
 
 ## Notes
 
-- **First WRITE-side skill in either ARIA plugin.** Embedding the Rule 22 advisory preamble verbatim per [ADR-016](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/016-rule-22-advisory-preamble-for-external-writes.md). Future write-side skills MUST embed the same preamble.
-- Bidirectional per [ADR-014](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/014-bidirectional-feature-flow.md) — aria-cowork v0.4.0 imports byte-faithfully. The advisory preamble template is identical across plugins; the only divergence is the Step 0 config path resolution.
-- Output schema is byte-identical per [ADR-013](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/013-cowork-modified-skills-schema-identical-outputs.md). Both plugins write to the same shared `logs/sync-decisions.md` + update the same `synced_to_~~docs:` frontmatter shape.
+- **First WRITE-side skill in either ARIA plugin.** Embedding the Rule 22 advisory preamble verbatim per ADR-016 (`{knowledge_folder}/projects/aria-cowork/decisions/016-rule-22-advisory-preamble-for-external-writes.md`). Future write-side skills MUST embed the same preamble.
+- Bidirectional per ADR-014 (`{knowledge_folder}/projects/aria-cowork/decisions/014-bidirectional-feature-flow.md`) — aria-cowork v0.4.0 imports byte-faithfully. The advisory preamble template is identical across plugins; the only divergence is the Step 0 config path resolution.
+- Output schema is byte-identical per ADR-013 (`{knowledge_folder}/projects/aria-cowork/decisions/013-cowork-modified-skills-schema-identical-outputs.md`). Both plugins write to the same shared `logs/sync-decisions.md` + update the same `synced_to_~~docs:` frontmatter shape.
 - The `synced_to_~~docs:` frontmatter convention is **new in v2.18.0**. Documented in `CONFIG.md` schema section (added in Phase 3a).
 - Composes with `/audit-knowledge` — synced decisions are no different from unsynced for audit purposes. The `synced_to_~~docs:` field is informational, not consumed by audit routing.
 - **Does NOT replace `_project-knowledge/` git-based team sharing.** That mechanism (v2.13.0) is for per-repo team-mate sharing; `/sync-decisions` is for org-wide wiki / docs publishing. Both can run in parallel.

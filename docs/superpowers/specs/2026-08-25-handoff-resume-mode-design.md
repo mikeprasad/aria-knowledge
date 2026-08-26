@@ -23,16 +23,16 @@ prompt`) plus N demoted-but-unconsumed entries. Measured across the workspace 20
 | project | candidates | active | pending |
 |---|---:|---:|---:|
 | `aria` | 3 | 1 | 2 |
-| `cs` | 3 | 1 | 2 |
-| `df` | 2 | 1 | 1 |
-| `shopsource` | 2 | 1 | 1 |
-| `alter/alter-app` | 2 | 1 | 1 |
-| `alter` | 1 | 0 | 1 |
+| `proj-a` | 3 | 1 | 2 |
+| `proj-b` | 2 | 1 | 1 |
+| `proj-c` | 2 | 1 | 1 |
+| `proj-d/proj-d-app` | 2 | 1 | 1 |
+| `proj-d` | 1 | 0 | 1 |
 
 **Multi-candidate is the norm, not the edge case** — 5 of 6 projects holding pending entries have
 ≥2 candidates.
 
-⭐ **The feature has already been invented by hand.** `cs/SESSION.md`'s *active* prompt reads:
+⭐ **The feature has already been invented by hand.** `proj-a/SESSION.md`'s *active* prompt reads:
 *"Verify state, read BOTH pending handoffs below, then pick one (DEV-1442 AC8 is the stronger
 candidate)."* Someone hand-wrote the missing capability into a prompt. That also fixes the expected
 output shape: **a pick, with a recommendation** — not a merge.
@@ -61,7 +61,7 @@ per-entry, so staleness is computable mechanically.
   staleness check at all**. This is exactly Mike's second message, and it is the multi-prompt case.
 - **G3 — a pending entry with no active sibling may surface nothing.** The pending clause is an
   `ALSO:` hanging off *"If it exists with a non-empty '## Next session prompt' block"*. Measured:
-  `alter` has pending=1, active=0 — the precondition fails and the entry is invisible.
+  `proj-d` has pending=1, active=0 — the precondition fails and the entry is invisible.
 
 ## 4. Decisions
 
@@ -72,11 +72,11 @@ per-entry, so staleness is computable mechanically.
 | project | age |
 |---|---:|
 | `aria` | 64d, 63d |
-| `df` | 39d |
-| `alter/alter-app` | 33d |
-| `alter` | 8d |
-| `cs` | 4d, 1d |
-| `shopsource` | 1d |
+| `proj-b` | 39d |
+| `proj-d/proj-d-app` | 33d |
+| `proj-d` | 8d |
+| `proj-a` | 4d, 1d |
+| `proj-c` | 1d |
 
 62% of the pending corpus is stale, two entries by **two months**. A list that did not carry age
 would present mostly-dead options as live — the failure is the common case, not the tail. So every

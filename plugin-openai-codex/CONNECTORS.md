@@ -4,7 +4,7 @@
 
 aria-knowledge files use `~~category` as a placeholder for whatever tool the user connects in that category. For example, `~~project tracker` might mean Linear, Asana, Jira, or any other project tracker with an MCP server.
 
-The plugin is **tool-agnostic** — it describes workflows in terms of categories (chat, email, project tracker, docs) rather than specific products. The [`.mcp.json`](.mcp.json) pre-configures specific MCP servers; **any MCP server in that category works** because skills probe at runtime to discover what's connected (see [ADR-015 capability-probe pattern](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/015-capability-probe-pattern.md)).
+The plugin is **tool-agnostic** — it describes workflows in terms of categories (chat, email, project tracker, docs) rather than specific products. The [`.mcp.json`](.mcp.json) pre-configures specific MCP servers; **any MCP server in that category works** because skills probe at runtime to discover what's connected (see ADR-015 capability-probe pattern (`{knowledge_folder}/projects/aria-cowork/decisions/015-capability-probe-pattern.md`)).
 
 This convention follows Anthropic's published guidance in `cowork-plugin-management/skills/cowork-plugin-customizer/SKILL.md`:
 
@@ -39,9 +39,9 @@ The other skills (capture/govern/apply lifecycle) operate on the local knowledge
 
 **In Claude Code** (this plugin's primary surface): MCPs declared in `.mcp.json` are loaded by Code's MCP client. Connect each via Code's OAuth flow on first use — the runtime prompts you to authenticate against the vendor's MCP endpoint.
 
-**In Claude Cowork** (via the sibling [aria-cowork](https://github.com/mikeprasad/aria-cowork) plugin, when released): Cowork manages MCP connections at the account level via Settings → Connectors. Connect the MCPs you want; aria-cowork's skills will discover them at runtime.
+**In Claude Cowork** (via the sibling aria-cowork plugin, when released): Cowork manages MCP connections at the account level via Settings → Connectors. Connect the MCPs you want; aria-cowork's skills will discover them at runtime.
 
-In both surfaces, you do NOT need to connect all 12 MCPs — connect what you have access to. Skills probe at runtime and gracefully degrade for unconnected categories. See [ADR-015](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/015-capability-probe-pattern.md) for the probe semantics.
+In both surfaces, you do NOT need to connect all 12 MCPs — connect what you have access to. Skills probe at runtime and gracefully degrade for unconnected categories. See ADR-015 (`{knowledge_folder}/projects/aria-cowork/decisions/015-capability-probe-pattern.md`) for the probe semantics.
 
 ## What this plugin does NOT integrate with
 
@@ -53,8 +53,8 @@ In both surfaces, you do NOT need to connect all 12 MCPs — connect what you ha
 ## Related references
 
 - [`.mcp.json`](.mcp.json) — the manifest declaring the 12 MCP servers above.
-- [ADR-003](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/003-cowork-native-mcp-placeholder-pattern.md) — three-mechanism design (named MCPs in manifest, `~~` markers in prose, native I/O for filesystem).
-- [ADR-015](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/015-capability-probe-pattern.md) — runtime capability-probe pattern (prose-only, no API).
-- [ADR-016](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/016-rule-22-advisory-preamble-for-external-writes.md) — Rule 22 advisory preamble for write-side skills (applies to `sync-decisions`).
+- ADR-003 (`{knowledge_folder}/projects/aria-cowork/decisions/003-cowork-native-mcp-placeholder-pattern.md`) — three-mechanism design (named MCPs in manifest, `~~` markers in prose, native I/O for filesystem).
+- ADR-015 (`{knowledge_folder}/projects/aria-cowork/decisions/015-capability-probe-pattern.md`) — runtime capability-probe pattern (prose-only, no API).
+- ADR-016 (`{knowledge_folder}/projects/aria-cowork/decisions/016-rule-22-advisory-preamble-for-external-writes.md`) — Rule 22 advisory preamble for write-side skills (applies to `sync-decisions`).
 - Anthropic reference: `cowork-plugin-management/skills/cowork-plugin-customizer/SKILL.md` — the `~~` marker convention's canonical source.
 - Anthropic reference plugin: [`anthropics/knowledge-work-plugins/productivity`](https://github.com/anthropics/knowledge-work-plugins/tree/main/productivity) — the canonical `.mcp.json` + `CONNECTORS.md` shape that this plugin mirrors.

@@ -70,7 +70,7 @@ Note findings for presentation in Step 6 under a "Clippings" section (report eac
 
 Run:
 ```bash
-SRC=/Users/mikeprasad/Projects/aria/aria-knowledge/plugin-claude-code/skills/audit-knowledge/SKILL.md
+SRC=~/Projects/aria/aria-knowledge/plugin-claude-code/skills/audit-knowledge/SKILL.md
 grep -c "references/sources/" "$SRC"            # expect >= 3
 grep -c "disposition: graduated" "$SRC"          # expect >= 2
 grep -c "Graduate.*default" "$SRC"               # expect >= 1
@@ -82,7 +82,7 @@ Expected: sources≥3, graduated≥2, Graduate-default≥1, Step-2f ledger-clear
 - [ ] **Step 3: Commit.**
 
 ```bash
-cd /Users/mikeprasad/Projects/aria/aria-knowledge
+cd ~/Projects/aria/aria-knowledge
 git add plugin-claude-code/skills/audit-knowledge/SKILL.md
 git commit -m "feat: clippings graduate to references/sources/ (Step 2f, code port)"
 ```
@@ -116,7 +116,7 @@ to:
 
 Run:
 ```bash
-SRC=/Users/mikeprasad/Projects/aria/aria-knowledge/plugin-claude-code/skills/index/SKILL.md
+SRC=~/Projects/aria/aria-knowledge/plugin-claude-code/skills/index/SKILL.md
 grep -nE "references/.*recursive" "$SRC"   # expect 1 hit
 ```
 Expected: one match showing the recursive annotation on the `references/` line.
@@ -124,7 +124,7 @@ Expected: one match showing the recursive annotation on the `references/` line.
 - [ ] **Step 3: Commit.**
 
 ```bash
-cd /Users/mikeprasad/Projects/aria/aria-knowledge
+cd ~/Projects/aria/aria-knowledge
 git add plugin-claude-code/skills/index/SKILL.md
 git commit -m "feat: /index scans references/ recursively (indexes references/sources/)"
 ```
@@ -165,7 +165,7 @@ External resources — research articles, vendor evaluations, tool comparisons, 
 
 Run:
 ```bash
-SRC=/Users/mikeprasad/Projects/aria/aria-knowledge/plugin-claude-code/template/references/README.md
+SRC=~/Projects/aria/aria-knowledge/plugin-claude-code/template/references/README.md
 grep -c "references/sources/" "$SRC"   # expect >= 1
 grep -c "Two tiers" "$SRC"             # expect 1
 ```
@@ -174,7 +174,7 @@ Expected: both present.
 - [ ] **Step 3: Commit.**
 
 ```bash
-cd /Users/mikeprasad/Projects/aria/aria-knowledge
+cd ~/Projects/aria/aria-knowledge
 git add plugin-claude-code/template/references/README.md
 git commit -m "docs: document references/ two-tier layout (template)"
 ```
@@ -193,8 +193,8 @@ git commit -m "docs: document references/ two-tier layout (template)"
 
 Run:
 ```bash
-ls /Users/mikeprasad/Projects/aria/aria-knowledge/tests/repros/ | head
-head -40 /Users/mikeprasad/Projects/aria/aria-knowledge/tests/repros/autonomy-posture.sh
+ls ~/Projects/aria/aria-knowledge/tests/repros/ | head
+head -40 ~/Projects/aria/aria-knowledge/tests/repros/autonomy-posture.sh
 ```
 Expected: see the suite's shebang, helper/assert convention, and exit-code pattern. **Match it** (do not invent a new harness shape).
 
@@ -208,7 +208,7 @@ Use the same assert-helper and `PASS`/`FAIL` + exit-code convention as the inspe
 
 - [ ] **Step 3: Run the suite; verify green.**
 
-Run: `bash /Users/mikeprasad/Projects/aria/aria-knowledge/tests/repros/clippings-graduate.sh`
+Run: `bash ~/Projects/aria/aria-knowledge/tests/repros/clippings-graduate.sh`
 Expected: all assertions PASS, exit 0.
 
 - [ ] **Step 4: Run the FULL repro set to confirm no regressions + the suite-count rises by one.**
@@ -219,7 +219,7 @@ Expected: all suites green; count = previous + 1 (was 22 at 2.35.0 → expect 23
 - [ ] **Step 5: Commit.**
 
 ```bash
-cd /Users/mikeprasad/Projects/aria/aria-knowledge
+cd ~/Projects/aria/aria-knowledge
 git add tests/repros/clippings-graduate.sh
 git commit -m "test: repro suite for clippings graduation"
 ```
@@ -255,7 +255,7 @@ Previously `/audit-knowledge` Step 2f mined a clipping then *deleted* the source
 
 Run:
 ```bash
-SRC=/Users/mikeprasad/Projects/aria/aria-knowledge
+SRC=~/Projects/aria/aria-knowledge
 grep '"version"' "$SRC/plugin-claude-code/.claude-plugin/plugin.json"   # expect 2.35.1
 head -8 "$SRC/CHANGELOG.md" | grep -c "2.35.1"                          # expect 1
 ```
@@ -264,7 +264,7 @@ Expected: version 2.35.1; CHANGELOG top entry is 2.35.1.
 - [ ] **Step 4: Commit.**
 
 ```bash
-cd /Users/mikeprasad/Projects/aria/aria-knowledge
+cd ~/Projects/aria/aria-knowledge
 git add plugin-claude-code/.claude-plugin/plugin.json CHANGELOG.md
 git commit -m "chore: release 2.35.1 — clippings graduation"
 ```

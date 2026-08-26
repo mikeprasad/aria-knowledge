@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to aria-cowork are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/); aria-cowork uses [Semantic Versioning](https://semver.org/) per [ADR-006](https://github.com/mikeprasad/knowledge/projects/aria-cowork/decisions/006-versioning-independence.md).
+All notable changes to aria-cowork are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/); aria-cowork uses [Semantic Versioning](https://semver.org/) per ADR-006 (`{knowledge_folder}/projects/aria-cowork/decisions/006-versioning-independence.md`).
 
 Cross-plugin parity callouts (per ADR-006) note when changes coordinate with aria-knowledge releases.
 
@@ -200,7 +200,7 @@ Whether a SKILL.md body's instruction to use the `Skill` tool to invoke another 
 
 ### Changed — bare-slash routing now relies on aria-knowledge's canonical-owner claim
 
-When both plugins are loaded, bare slash commands (`/handoff`, `/wrapup`, `/extract`, etc.) deterministically resolve to **aria-knowledge** as canonical owner per [ADR-094](https://github.com/mikeprasad/knowledge/blob/main/projects/aria/decisions/094-bare-slash-canonical-owner-and-dual-runtime-gate.md). The routing is driven by aria-knowledge's "Bare-slash canonical (Claude Code)" claim in its skill descriptions (the strong signal for the model's resolver). aria-cowork's 24 colliding skills:
+When both plugins are loaded, bare slash commands (`/handoff`, `/wrapup`, `/extract`, etc.) deterministically resolve to **aria-knowledge** as canonical owner per ADR-094 (`{knowledge_folder}/projects/aria/decisions/094-bare-slash-canonical-owner-and-dual-runtime-gate.md`). The routing is driven by aria-knowledge's "Bare-slash canonical (Claude Code)" claim in its skill descriptions (the strong signal for the model's resolver). aria-cowork's 24 colliding skills:
 
 - Have bare-slash trigger forms (e.g., `"/handoff"`) removed from their trigger lists — only namespaced (`"/aria-cowork:handoff"`) and natural-language triggers remain.
 - Carry a new `## Runtime Gate (per ADR-094)` section in the **body** that fires when Bash IS available (i.e., when invoked from Claude Code) — surfaces a notification suggesting the Code-canonical invocation. Gate is informational, not blocking; user can proceed.
@@ -315,11 +315,11 @@ New skill at `skills/digest/SKILL.md` (~195 lines). Cross-tool rollup synthesizi
 
 ### Added — `/sync-decisions` skill (bidirectional import from aria-knowledge v2.18.0)
 
-New skill at `skills/sync-decisions/SKILL.md` (~215 lines). **First WRITE-side skill in either ARIA plugin.** Mirrors approved decisions from `decisions/` out to a `~~docs` MCP destination (Notion / Confluence / Google Doc / Box / Egnyte). Embeds the 4-step Rule 22 advisory preamble per [ADR-016](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/016-rule-22-advisory-preamble-for-external-writes.md) with explicit per-decision go-gate (`Ready to write? (yes / no / edit)`). Only path to batch is the literal phrase `yes to all`. Logs every sync to `logs/sync-decisions.md`. Adds new `synced_to_~~docs:` frontmatter field on synced decision files. Byte-faithful import per ADR-013.
+New skill at `skills/sync-decisions/SKILL.md` (~215 lines). **First WRITE-side skill in either ARIA plugin.** Mirrors approved decisions from `decisions/` out to a `~~docs` MCP destination (Notion / Confluence / Google Doc / Box / Egnyte). Embeds the 4-step Rule 22 advisory preamble per ADR-016 (`{knowledge_folder}/projects/aria-cowork/decisions/016-rule-22-advisory-preamble-for-external-writes.md`) with explicit per-decision go-gate (`Ready to write? (yes / no / edit)`). Only path to batch is the literal phrase `yes to all`. Logs every sync to `logs/sync-decisions.md`. Adds new `synced_to_~~docs:` frontmatter field on synced decision files. Byte-faithful import per ADR-013.
 
 ### Added — `/daily-audit` skill (cowork-only, no aria-knowledge analog)
 
-New skill at `skills/daily-audit/SKILL.md` (~90 lines). **Cowork-only** per [ADR-014](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/014-bidirectional-feature-flow.md) row 1. First-message audit-cadence substitute since Cowork has no SessionStart hook (per ADR-004). Reads aria-config.md for `last_audit_date` + `last_config_audit_date` + cadence thresholds + stale-ideas count; reports status; recommends `/audit-knowledge` or `/audit-config` invocation if overdue. Recommend-only — never auto-invokes. No MCP dependency. aria-knowledge users get this coverage automatically via `session-start-check.sh` hook, so the skill doesn't ship there.
+New skill at `skills/daily-audit/SKILL.md` (~90 lines). **Cowork-only** per ADR-014 (`{knowledge_folder}/projects/aria-cowork/decisions/014-bidirectional-feature-flow.md`) row 1. First-message audit-cadence substitute since Cowork has no SessionStart hook (per ADR-004). Reads aria-config.md for `last_audit_date` + `last_config_audit_date` + cadence thresholds + stale-ideas count; reports status; recommends `/audit-knowledge` or `/audit-config` invocation if overdue. Recommend-only — never auto-invokes. No MCP dependency. aria-knowledge users get this coverage automatically via `session-start-check.sh` hook, so the skill doesn't ship there.
 
 ### Added — `.mcp.json`
 
@@ -626,7 +626,7 @@ v0.3.0+ may revisit either mechanism if working schemas/structures surface in pu
 - **All 10 skills' Step 0 updated** — use the default knowledge folder path (`~/Projects/knowledge/`, expanding `~` to the user's home directory). Skills then read `<knowledge_folder>/aria-config.md` for any non-default override or schema fields.
 - **`aria-config.md` role**: cross-surface schema bridge between aria-cowork and aria-knowledge. Holds the canonical `knowledge_folder:` field for users with non-default locations. aria-knowledge in Code unchanged — still reads aria-config.md from absolute path with legacy fallback.
 
-### Architecture (per [ADR-008](https://github.com/mikeprasad/knowledge/projects/aria-cowork/decisions/008-attached-folder-pattern-for-bidirectional-sharing.md) v0.2.0)
+### Architecture (per ADR-008 (`{knowledge_folder}/projects/aria-cowork/decisions/008-attached-folder-pattern-for-bidirectional-sharing.md`) v0.2.0)
 
 Two-layer mechanism:
 
@@ -676,12 +676,12 @@ Phase 1 — thin port. First installable release. Validates the attached-folder 
   - `stats` — knowledge folder health metrics
   - `rules` — working-rules + change-decision framework lookup
   - `backlog` — view/manage pending intake
-- **Template seed** — minimal `~/Projects/knowledge/` bootstrap (intake/, decisions/, approaches/, rules/, archive/, README, OVERVIEW). Excludes `distill/` and `stitch/` per [ADR-005](https://github.com/mikeprasad/knowledge/projects/aria-cowork/decisions/005-code-only-skills-excluded.md).
+- **Template seed** — minimal `~/Projects/knowledge/` bootstrap (intake/, decisions/, approaches/, rules/, archive/, README, OVERVIEW). Excludes `distill/` and `stitch/` per ADR-005 (`{knowledge_folder}/projects/aria-cowork/decisions/005-code-only-skills-excluded.md`).
 
 ### Architecture
 
-- **Attached-folder pattern** ([ADR-008](https://github.com/mikeprasad/knowledge/projects/aria-cowork/decisions/008-attached-folder-pattern-for-bidirectional-sharing.md)) — skills resolve absolute path to user-attached folder once at `/setup`, store in `aria-config.md`, reference absolute path everywhere. NOT cwd-relative (Cowork's cwd is a per-session sandbox dir, NOT the attached folder).
-- **No hooks** ([ADR-004](https://github.com/mikeprasad/knowledge/projects/aria-cowork/decisions/004-hook-replacement-strategy.md)) — Cowork supports hooks but the canonical pattern is skill-embedded discipline. aria-cowork ships zero hooks to match the published-plugin convention.
+- **Attached-folder pattern** (ADR-008 (`{knowledge_folder}/projects/aria-cowork/decisions/008-attached-folder-pattern-for-bidirectional-sharing.md`)) — skills resolve absolute path to user-attached folder once at `/setup`, store in `aria-config.md`, reference absolute path everywhere. NOT cwd-relative (Cowork's cwd is a per-session sandbox dir, NOT the attached folder).
+- **No hooks** (ADR-004 (`{knowledge_folder}/projects/aria-cowork/decisions/004-hook-replacement-strategy.md`)) — Cowork supports hooks but the canonical pattern is skill-embedded discipline. aria-cowork ships zero hooks to match the published-plugin convention.
 - **No MCPs in v0.1.0** — `.mcp.json` and named connectors land in v0.2.0. Filesystem I/O uses Cowork's native Read/Write semantics, not the Filesystem MCP connector.
 
 ### Validated
@@ -691,7 +691,7 @@ Phase 1 — thin port. First installable release. Validates the attached-folder 
 ### Cross-plugin parity callouts
 
 - **Schema**: aria-cowork v0.1.0 introduces `aria-config.md` at the knowledge folder root (vs aria-knowledge's `~/.claude/aria-knowledge.local.md`). aria-knowledge v2.13.0 (queued, not yet released) reads the new path first with two-version fallback to legacy. aria-knowledge users continue uninterrupted; aria-cowork users land directly on the new path.
-- **Skill set**: 5 aria-knowledge skills (`codemap`, `stitch`, `distill`, `audit-share`, `share-audit`) are NOT ported per [ADR-005](https://github.com/mikeprasad/knowledge/projects/aria-cowork/decisions/005-code-only-skills-excluded.md) — they're git/repo-bound. aria-knowledge keeps these.
+- **Skill set**: 5 aria-knowledge skills (`codemap`, `stitch`, `distill`, `audit-share`, `share-audit`) are NOT ported per ADR-005 (`{knowledge_folder}/projects/aria-cowork/decisions/005-code-only-skills-excluded.md`) — they're git/repo-bound. aria-knowledge keeps these.
 
 ### Deferred to future versions
 

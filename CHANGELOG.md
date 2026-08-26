@@ -1036,7 +1036,7 @@ Plugin-codex port mirrors the aria-knowledge SKILL.md edits byte-faithfully (ADR
 
 ### Full ADR
 
-See [ADR 094 — Bare-slash canonical owner + dual runtime gate for sibling plugins](https://github.com/mikeprasad/knowledge/blob/main/projects/aria/decisions/094-bare-slash-canonical-owner-and-dual-runtime-gate.md) for the full reasoning, alternatives considered, and per-skill ownership matrix.
+See ADR 094 — Bare-slash canonical owner + dual runtime gate for sibling plugins (`{knowledge_folder}/projects/aria/decisions/094-bare-slash-canonical-owner-and-dual-runtime-gate.md`) for the full reasoning, alternatives considered, and per-skill ownership matrix.
 
 ## [2.19.0] - 2026-05-19
 
@@ -1167,7 +1167,7 @@ Both ADRs include a **Stability and revision triggers** section acknowledging th
 
 ### Cross-plugin parity (bidirectional flow continuing per ADR-014)
 
-5/5 new skills are bidirectional per [ADR-014](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/014-bidirectional-feature-flow.md) row 3 — the cross-tool workflow problem exists in both Code and Cowork surfaces. Per ADR-013 (schema-source-of-truth), aria-knowledge ships first; aria-cowork v1.0.0 imports the 5 SKILL.md bodies byte-faithfully with only the Step 0 config-resolution path diverging per ADR-013's "input-discovery diverges per-surface; output-schema converges per-corpus" principle.
+5/5 new skills are bidirectional per ADR-014 (`{knowledge_folder}/projects/aria-cowork/decisions/014-bidirectional-feature-flow.md`) row 3 — the cross-tool workflow problem exists in both Code and Cowork surfaces. Per ADR-013 (schema-source-of-truth), aria-knowledge ships first; aria-cowork v1.0.0 imports the 5 SKILL.md bodies byte-faithfully with only the Step 0 config-resolution path diverging per ADR-013's "input-discovery diverges per-surface; output-schema converges per-corpus" principle.
 
 aria-cowork v1.0.0 also adds 1 cowork-only skill (`daily-audit` — first-message audit substitute since Cowork has no SessionStart hook per ADR-004). That skill does NOT ship in aria-knowledge.
 

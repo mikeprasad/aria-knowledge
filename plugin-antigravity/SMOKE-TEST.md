@@ -12,7 +12,7 @@ The wrapper-layer logic has bats unit tests (run via `bats plugin-antigravity/te
    ```
 4. Install the plugin (manual method):
    ```sh
-   cp -R /Users/mikeprasad/Projects/aria/aria-knowledge/plugin-antigravity ~/.gemini/config/plugins/aria-knowledge
+   cp -R ~/Projects/aria/aria-knowledge/plugin-antigravity ~/.gemini/config/plugins/aria-knowledge
    ```
 5. Restart Antigravity.
 

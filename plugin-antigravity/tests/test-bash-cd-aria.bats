@@ -12,7 +12,7 @@ setup() {
 }
 
 @test "wrapper allows a cd command and surfaces path knowledge advisory" {
-  PAYLOAD='{"conversationId":"abc","workspacePaths":["/tmp"],"transcriptPath":"/tmp/t","artifactDirectoryPath":"/tmp/art","stepIdx":0,"toolCall":{"name":"run_command","args":{"CommandLine":"cd /Users/mikeprasad/Projects/cs","Cwd":"/tmp"}}}'
+  PAYLOAD='{"conversationId":"abc","workspacePaths":["/tmp"],"transcriptPath":"/tmp/t","artifactDirectoryPath":"/tmp/art","stepIdx":0,"toolCall":{"name":"run_command","args":{"CommandLine":"cd /Users/you/Projects/proj-a","Cwd":"/tmp"}}}'
   result=$(echo "$PAYLOAD" | bash "$WRAPPER" 2>/dev/null)
   decision=$(echo "$result" | jq -r '.decision')
   [ "$decision" = "allow" ]

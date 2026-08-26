@@ -555,7 +555,7 @@ assert_eq "the suite left the real ~/.claude/rules untouched" "$APM_REAL_BEFORE"
 #
 # ⚠ 20,322 -> 20,311 on 2026-08-26 is a CHANGE OF MEASURING UNIT, NOT a smaller
 # payload. Nothing about the emission changed. The old figure counted the real
-# home path (/Users/mikeprasad, 17 ch) literally because only $kf was normalised;
+# home path (the maintainer's home path, 17 ch) literally because only $kf was normalised;
 # the new one substitutes the 6-char <HOME> token, so 20,322 - 17 + 6 = 20,311.
 # Do not read the drop as progress, and do not "restore" 20,322.
 #

@@ -90,7 +90,7 @@ plugin-antigravity.archive-2026-05-24-draft/ ← prior draft, archived per Rule 
 - [ ] **Step 1: Move the directory**
 
 ```bash
-cd /Users/mikeprasad/Projects/aria/aria-knowledge
+cd ~/Projects/aria/aria-knowledge
 mv plugin-antigravity plugin-antigravity.archive-2026-05-24-draft
 ```
 
@@ -153,7 +153,7 @@ docs/superpowers/plans/2026-05-24-antigravity-port-full-implementation.md"
 - [ ] **Step 1: Create the directory tree**
 
 ```bash
-cd /Users/mikeprasad/Projects/aria/aria-knowledge
+cd ~/Projects/aria/aria-knowledge
 mkdir -p plugin-antigravity/bin/antigravity
 mkdir -p plugin-antigravity/skills
 mkdir -p plugin-antigravity/template
@@ -257,7 +257,7 @@ setup() {
 - [ ] **Step 2: Run the test and verify it fails**
 
 ```bash
-cd /Users/mikeprasad/Projects/aria/aria-knowledge
+cd ~/Projects/aria/aria-knowledge
 bats plugin-antigravity/tests/test-lib-antigravity-input.bats
 ```
 
@@ -626,7 +626,7 @@ setup() {
 }
 
 @test "wrapper allows a cd command and surfaces path knowledge advisory" {
-  PAYLOAD='{"conversationId":"abc","workspacePaths":["/tmp"],"transcriptPath":"/tmp/t","artifactDirectoryPath":"/tmp/art","stepIdx":0,"toolCall":{"name":"run_command","args":{"CommandLine":"cd /Users/mikeprasad/Projects/cs","Cwd":"/tmp"}}}'
+  PAYLOAD='{"conversationId":"abc","workspacePaths":["/tmp"],"transcriptPath":"/tmp/t","artifactDirectoryPath":"/tmp/art","stepIdx":0,"toolCall":{"name":"run_command","args":{"CommandLine":"cd /Users/you/Projects/proj-a","Cwd":"/tmp"}}}'
   result=$(echo "$PAYLOAD" | bash "$WRAPPER" 2>/dev/null)
   decision=$(echo "$result" | jq -r '.decision')
   [ "$decision" = "allow" ]
@@ -922,7 +922,7 @@ needed; SessionStart-equivalent content lives in GEMINI.md instead."
 - [ ] **Step 1: Read the canonical .mcp.json**
 
 ```bash
-cat /Users/mikeprasad/Projects/aria/aria-knowledge/plugin-claude-code/.mcp.json
+cat ~/Projects/aria/aria-knowledge/plugin-claude-code/.mcp.json
 ```
 
 Expected: the 12-server HTTP-MCP block with `"type": "http", "url": "..."` shape.
@@ -1108,7 +1108,7 @@ session-lifecycle content goes in GEMINI.md."
 - [ ] **Step 1: Copy skills from canonical**
 
 ```bash
-cd /Users/mikeprasad/Projects/aria/aria-knowledge
+cd ~/Projects/aria/aria-knowledge
 cp -R plugin-claude-code/skills/. plugin-antigravity/skills/
 ls plugin-antigravity/skills/ | wc -l
 ```
@@ -1190,7 +1190,7 @@ Substitutions:
 - [ ] **Step 1: Copy template tree**
 
 ```bash
-cd /Users/mikeprasad/Projects/aria/aria-knowledge
+cd ~/Projects/aria/aria-knowledge
 cp -R plugin-claude-code/template/. plugin-antigravity/template/
 ```
 
@@ -1699,7 +1699,7 @@ The wrapper-layer logic has bats unit tests (run via `bats plugin-antigravity/te
    ```
 4. Install the plugin (manual method):
    ```sh
-   cp -R /Users/mikeprasad/Projects/aria/aria-knowledge/plugin-antigravity ~/.gemini/config/plugins/aria-knowledge
+   cp -R ~/Projects/aria/aria-knowledge/plugin-antigravity ~/.gemini/config/plugins/aria-knowledge
    ```
 5. Restart Antigravity.
 
@@ -1817,7 +1817,7 @@ Run these checks before declaring the plan complete:
 
 This plan is the artifact handed to the next session. To execute:
 
-1. Open a fresh session in `/Users/mikeprasad/Projects/aria/aria-knowledge`.
+1. Open a fresh session in `~/Projects/aria/aria-knowledge`.
 2. Run `/aria-knowledge:handoff auto` outputs from the prior session to load context.
 3. Invoke `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans`.
 4. Work through Tasks 1-18 sequentially; commit after each task per the spec.

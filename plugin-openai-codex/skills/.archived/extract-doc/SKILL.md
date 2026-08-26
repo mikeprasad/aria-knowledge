@@ -27,7 +27,7 @@ If NO `~~docs` MCP is connected, output the standard fallback notice and stop:
 
 > No required MCPs connected for `/extract-doc`. Connect one of: Notion, Atlassian (Confluence), Box, Egnyte, or Google Docs (when available) via Codex MCP configuration. See [CONNECTORS.md](../../CONNECTORS.md). Skipping this run.
 
-Per [ADR-015](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/015-capability-probe-pattern.md).
+Per ADR-015 (`{knowledge_folder}/projects/aria-cowork/decisions/015-capability-probe-pattern.md`).
 
 ## Step 2: Parse Input
 
@@ -151,8 +151,8 @@ Next: review at next /audit-knowledge run. The standard disposition vocabulary (
 
 ## Notes
 
-- Bidirectional per [ADR-014](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/014-bidirectional-feature-flow.md) — aria-cowork v0.4.0 imports byte-faithfully.
-- Output schema is byte-identical across plugins per [ADR-013](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/013-cowork-modified-skills-schema-identical-outputs.md). Both plugins write to the same `insights-backlog.md` / `decisions-backlog.md` / `extraction-backlog.md` / `intake/ideas/*.md` files in the shared knowledge folder.
-- Probe semantics per [ADR-015](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/015-capability-probe-pattern.md).
+- Bidirectional per ADR-014 (`{knowledge_folder}/projects/aria-cowork/decisions/014-bidirectional-feature-flow.md`) — aria-cowork v0.4.0 imports byte-faithfully.
+- Output schema is byte-identical across plugins per ADR-013 (`{knowledge_folder}/projects/aria-cowork/decisions/013-cowork-modified-skills-schema-identical-outputs.md`). Both plugins write to the same `insights-backlog.md` / `decisions-backlog.md` / `extraction-backlog.md` / `intake/ideas/*.md` files in the shared knowledge folder.
+- Probe semantics per ADR-015 (`{knowledge_folder}/projects/aria-cowork/decisions/015-capability-probe-pattern.md`).
 - Composes with `/audit-knowledge` — extracted items follow the same disposition vocabulary as any other intake entry. The `Source:` field is preserved through routing.
 - Differs from `/intake doc` mode (v2.17.0+): `/intake doc` captures ONE structured artifact per doc with user-fillable reaction section; `/extract-doc` decomposes a doc into MULTIPLE intake entries for audit routing. Use `/intake doc` when you want to react to a doc as a whole; use `/extract-doc` when the doc contains many discrete items worth surfacing separately.

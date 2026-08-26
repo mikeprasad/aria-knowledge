@@ -46,7 +46,7 @@ Check Claude's available tool list for `~~docs` MCPs:
 
 - **`~~docs`** (notion, atlassian, box, egnyte, google docs): if connected, available for MCP-sourced meeting docs.
 
-**Branching logic** (this skill diverges from other MCP-consuming skills here — see [ADR-015](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/015-capability-probe-pattern.md) §"Application across the 5 MCP-consuming skills"):
+**Branching logic** (this skill diverges from other MCP-consuming skills here — see ADR-015 (`{knowledge_folder}/projects/aria-cowork/decisions/015-capability-probe-pattern.md`) §"Application across the 5 MCP-consuming skills"):
 
 - **If `~~docs` IS connected AND input looks like a URL/ID:** route through MCP fetch (Step 2 MCP branch).
 - **If `~~docs` IS NOT connected OR input is `paste` (or empty):** offer paste fallback (Step 2 paste branch).
@@ -198,8 +198,8 @@ Next: add a reaction in the "## Reaction" section (or wait for /audit-knowledge 
 ## Notes
 
 - The Reaction section pattern matches `/intake doc` (v0.3.0) and `/intake` thread mode (v1.0.0, absorbed from `/clip-thread` in v1.7.0) — capture artifacts ship with a user-fillable "why this matters" slot that Claude never autocompletes.
-- Bidirectional per [ADR-014](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/014-bidirectional-feature-flow.md) — aria-knowledge v2.18.0 ships an identical body.
-- Output schema is byte-identical per [ADR-013](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/013-cowork-modified-skills-schema-identical-outputs.md). Both plugins write to `intake/meetings/` in the shared knowledge folder.
-- **Paste-fallback divergence** documented in [ADR-015](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/015-capability-probe-pattern.md) §"Application across the 5 MCP-consuming skills" — this is the one skill that doesn't hard-stop on missing MCPs.
+- Bidirectional per ADR-014 (`{knowledge_folder}/projects/aria-cowork/decisions/014-bidirectional-feature-flow.md`) — aria-knowledge v2.18.0 ships an identical body.
+- Output schema is byte-identical per ADR-013 (`{knowledge_folder}/projects/aria-cowork/decisions/013-cowork-modified-skills-schema-identical-outputs.md`). Both plugins write to `intake/meetings/` in the shared knowledge folder.
+- **Paste-fallback divergence** documented in ADR-015 (`{knowledge_folder}/projects/aria-cowork/decisions/015-capability-probe-pattern.md`) §"Application across the 5 MCP-consuming skills" — this is the one skill that doesn't hard-stop on missing MCPs.
 - The skill is **intake-only** — it doesn't promote meeting notes to `references/` or `decisions/`. That's `/audit-knowledge`'s job at next audit, or the user can manually promote via `/intake extract` on this file to split out decisions/action items.
 - Composes naturally with Granola exports — Granola's Markdown format already includes participants + transcript + (optionally) extracted action items. The paste branch picks this up cleanly.

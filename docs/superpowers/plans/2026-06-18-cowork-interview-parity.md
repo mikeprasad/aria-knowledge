@@ -10,7 +10,7 @@
 
 **Executable acceptance criterion (from prospect §6.3):** parity iff (a) 3 modes + cadence + deep-dive basis-gate preserved; (b) output paths + templates byte-identical to canonical; (c) only divergences are the documented cowork adaptations; (d) `release.sh` passes; (e) drift-checker shows `interview = ok`.
 
-**Working directory:** `/Users/mikeprasad/Projects/aria/aria-knowledge`
+**Working directory:** `~/Projects/aria/aria-knowledge`
 
 ---
 

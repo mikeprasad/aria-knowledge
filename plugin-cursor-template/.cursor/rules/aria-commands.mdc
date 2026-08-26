@@ -1672,7 +1672,7 @@ Check Cursor's available MCP tool list for `~~docs` MCPs:
 
 - **`~~docs`** (notion, atlassian, box, egnyte, google docs): if connected, available for MCP-sourced meeting docs.
 
-**Branching logic** (this skill diverges from other MCP-consuming skills here — see [ADR-015](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/015-capability-probe-pattern.md) §"Application across the 5 MCP-consuming skills"):
+**Branching logic** (this skill diverges from other MCP-consuming skills here — see ADR-015 (`{knowledge_folder}/projects/aria-cowork/decisions/015-capability-probe-pattern.md`) §"Application across the 5 MCP-consuming skills"):
 
 - **If `~~docs` IS connected AND input looks like a URL/ID:** route through MCP fetch (Step 2 MCP branch).
 - **If `~~docs` IS NOT connected OR input is `paste` (or empty):** offer paste fallback (Step 2 paste branch).
@@ -1824,9 +1824,9 @@ Next: add a reaction in the "## Reaction" section (or wait for /audit-knowledge 
 ## Notes
 
 - The Reaction section pattern matches `/intake doc` (v2.17.0) and `/intake thread` (v2.18.0 origin) — capture artifacts ship with a user-fillable "why this matters" slot that Claude never autocompletes.
-- Bidirectional per [ADR-014](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/014-bidirectional-feature-flow.md) — aria-cowork v0.4.0 imports byte-faithfully.
-- Output schema is byte-identical per [ADR-013](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/013-cowork-modified-skills-schema-identical-outputs.md). Both plugins write to `intake/meetings/` in the shared knowledge folder.
-- **Paste-fallback divergence** documented in [ADR-015](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/015-capability-probe-pattern.md) §"Application across the 5 MCP-consuming skills" — this is the one skill that doesn't hard-stop on missing MCPs.
+- Bidirectional per ADR-014 (`{knowledge_folder}/projects/aria-cowork/decisions/014-bidirectional-feature-flow.md`) — aria-cowork v0.4.0 imports byte-faithfully.
+- Output schema is byte-identical per ADR-013 (`{knowledge_folder}/projects/aria-cowork/decisions/013-cowork-modified-skills-schema-identical-outputs.md`). Both plugins write to `intake/meetings/` in the shared knowledge folder.
+- **Paste-fallback divergence** documented in ADR-015 (`{knowledge_folder}/projects/aria-cowork/decisions/015-capability-probe-pattern.md`) §"Application across the 5 MCP-consuming skills" — this is the one skill that doesn't hard-stop on missing MCPs.
 - The skill is **intake-only** — it doesn't promote meeting notes to `references/` or `decisions/`. That's `/audit-knowledge`'s job at next audit, or the user can manually promote via `/intake extract` on this file to split out decisions/action items.
 - Composes naturally with Granola exports — Granola's Markdown format already includes participants + transcript + (optionally) extracted action items. The paste branch picks this up cleanly.
 
@@ -1860,7 +1860,7 @@ If NO MCPs in ANY category are connected, output the standard fallback notice an
 
 > No required MCPs connected for `/digest`. Connect at least one of: Slack/MS365 (~~chat), Gmail/MS365 (~~email), Linear/Asana/etc. (~~project tracker), or Notion/Confluence/etc. (~~docs) via Cursor Settings → MCP. See `plugin-claude-cowork/CONNECTORS.md` in the aria-knowledge repo. Skipping this run.
 
-Per [ADR-015](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/015-capability-probe-pattern.md) — degrade gracefully for missing categories; don't fabricate.
+Per ADR-015 (`{knowledge_folder}/projects/aria-cowork/decisions/015-capability-probe-pattern.md`) — degrade gracefully for missing categories; don't fabricate.
 
 ## Step 2: Parse Time Window
 
@@ -2006,9 +2006,9 @@ Disconnected categories surfaced N gap callouts in the digest. Connect more MCPs
 ## Notes
 
 - Most expensive of the v2.18.0 skills in terms of MCP calls — calls 4 categories' worth of tools in one invocation. Run cadence: weekly (Sunday or Monday morning), not on every session.
-- Bidirectional per [ADR-014](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/014-bidirectional-feature-flow.md) — aria-cowork v0.4.0 imports byte-faithfully. The Cowork-side context (conversational sessions, more cross-tool synthesis built into the workflow) makes this skill particularly load-bearing on the Cowork side.
-- Output schema is byte-identical per [ADR-013](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/013-cowork-modified-skills-schema-identical-outputs.md).
-- Probe semantics per [ADR-015](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/015-capability-probe-pattern.md) — graceful degradation built-in for partial-connection scenarios.
+- Bidirectional per ADR-014 (`{knowledge_folder}/projects/aria-cowork/decisions/014-bidirectional-feature-flow.md`) — aria-cowork v0.4.0 imports byte-faithfully. The Cowork-side context (conversational sessions, more cross-tool synthesis built into the workflow) makes this skill particularly load-bearing on the Cowork side.
+- Output schema is byte-identical per ADR-013 (`{knowledge_folder}/projects/aria-cowork/decisions/013-cowork-modified-skills-schema-identical-outputs.md`).
+- Probe semantics per ADR-015 (`{knowledge_folder}/projects/aria-cowork/decisions/015-capability-probe-pattern.md`) — graceful degradation built-in for partial-connection scenarios.
 - Composes with `/audit-knowledge` — digests are intake artifacts and route through standard audit disposition. Most digests will be `Defer` (interesting but not promotion-worthy) or `Bundle` (cluster patterns across multiple digests for a cross-week insight).
 - Inspired by Anthropic's productivity plugin `update --comprehensive` mode, adapted for ARIA's intake-then-audit model rather than productivity's TASKS.md sync model.
 
@@ -2019,7 +2019,7 @@ Disconnected categories surfaced N gap callouts in the digest. Connect more MCPs
 
 # /sync-decisions — Mirror Decisions to External Docs
 
-Read approved decisions from `{knowledge_folder}/decisions/` and write them out to a connected `~~docs` MCP destination (a Notion page, Confluence space, Google Doc, etc.). The only v2.18.0 skill that writes externally; embeds Rule 22 advisory preamble per [ADR-016](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/016-rule-22-advisory-preamble-for-external-writes.md).
+Read approved decisions from `{knowledge_folder}/decisions/` and write them out to a connected `~~docs` MCP destination (a Notion page, Confluence space, Google Doc, etc.). The only v2.18.0 skill that writes externally; embeds Rule 22 advisory preamble per ADR-016 (`{knowledge_folder}/projects/aria-cowork/decisions/016-rule-22-advisory-preamble-for-external-writes.md`).
 
 ## Step 0: Resolve Config
 
@@ -2039,7 +2039,7 @@ If NO `~~docs` MCP with write capability is connected, output the standard fallb
 
 > No required MCPs connected for `/sync-decisions`. This skill writes externally — needs a `~~docs` MCP with write capability (page creation or block append). Connect Notion, Atlassian (Confluence), Box, Egnyte, or Google Docs via Cursor Settings → MCP. See `plugin-claude-cowork/CONNECTORS.md` in the aria-knowledge repo. Skipping this run.
 
-Per [ADR-015](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/015-capability-probe-pattern.md).
+Per ADR-015 (`{knowledge_folder}/projects/aria-cowork/decisions/015-capability-probe-pattern.md`).
 
 ## Step 2: Enumerate Decisions to Sync
 
@@ -2209,9 +2209,9 @@ Sync log: logs/sync-decisions.md
 
 ## Notes
 
-- **First WRITE-side skill in either ARIA plugin.** Embedding the Rule 22 advisory preamble verbatim per [ADR-016](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/016-rule-22-advisory-preamble-for-external-writes.md). Future write-side skills MUST embed the same preamble.
-- Bidirectional per [ADR-014](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/014-bidirectional-feature-flow.md) — aria-cowork v0.4.0 imports byte-faithfully. The advisory preamble template is identical across plugins; the only divergence is the Step 0 config path resolution.
-- Output schema is byte-identical per [ADR-013](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/013-cowork-modified-skills-schema-identical-outputs.md). Both plugins write to the same shared `logs/sync-decisions.md` + update the same `synced_to_~~docs:` frontmatter shape.
+- **First WRITE-side skill in either ARIA plugin.** Embedding the Rule 22 advisory preamble verbatim per ADR-016 (`{knowledge_folder}/projects/aria-cowork/decisions/016-rule-22-advisory-preamble-for-external-writes.md`). Future write-side skills MUST embed the same preamble.
+- Bidirectional per ADR-014 (`{knowledge_folder}/projects/aria-cowork/decisions/014-bidirectional-feature-flow.md`) — aria-cowork v0.4.0 imports byte-faithfully. The advisory preamble template is identical across plugins; the only divergence is the Step 0 config path resolution.
+- Output schema is byte-identical per ADR-013 (`{knowledge_folder}/projects/aria-cowork/decisions/013-cowork-modified-skills-schema-identical-outputs.md`). Both plugins write to the same shared `logs/sync-decisions.md` + update the same `synced_to_~~docs:` frontmatter shape.
 - The `synced_to_~~docs:` frontmatter convention is **new in v2.18.0**. Documented in `CONFIG.md` schema section (added in Phase 3a).
 - Composes with `/audit-knowledge` — synced decisions are no different from unsynced for audit purposes. The `synced_to_~~docs:` field is informational, not consumed by audit routing.
 - **Does NOT replace `_project-knowledge/` git-based team sharing.** That mechanism (v2.13.0) is for per-repo team-mate sharing; `/sync-decisions` is for org-wide wiki / docs publishing. Both can run in parallel.

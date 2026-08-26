@@ -53,7 +53,7 @@ If NEITHER category has a connected MCP, output the standard fallback notice and
 
 > No required MCPs connected for `/clip-thread`. Connect one of: Slack, Microsoft 365 Teams (for ~~chat) or Gmail, Microsoft 365 Outlook (for ~~email) via Cowork Settings → Connectors (or Claude Code's `.mcp.json` for the Code surface). See [CONNECTORS.md](../../CONNECTORS.md). Skipping this run.
 
-Per [ADR-015](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/015-capability-probe-pattern.md), the runtime tool list IS the probe — no explicit API call needed.
+Per ADR-015 (`{knowledge_folder}/projects/aria-cowork/decisions/015-capability-probe-pattern.md`), the runtime tool list IS the probe — no explicit API call needed.
 
 ## Step 2: Parse Input
 
@@ -176,5 +176,5 @@ Next: review at next /audit-knowledge run. Add a reaction in the "## Reaction" s
 
 - Composes with `/audit-knowledge` — clippings written here are routed at next audit per the standard intake-disposition vocabulary (Accept → tracker / roadmap / todo / adr / plan / bundle / rule, or Reject / Defer).
 - The `## Reaction` section is the user's voice slot. `/clip-thread` never fills it (the same precedent `/intake doc` set in v2.17.0 / v0.3.0).
-- This skill is **bidirectional** per [ADR-014](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/014-bidirectional-feature-flow.md) — aria-knowledge v2.18.0 ships an identical body. Output schema is byte-identical per [ADR-013](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/013-cowork-modified-skills-schema-identical-outputs.md).
-- Probe semantics per [ADR-015](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/015-capability-probe-pattern.md).
+- This skill is **bidirectional** per ADR-014 (`{knowledge_folder}/projects/aria-cowork/decisions/014-bidirectional-feature-flow.md`) — aria-knowledge v2.18.0 ships an identical body. Output schema is byte-identical per ADR-013 (`{knowledge_folder}/projects/aria-cowork/decisions/013-cowork-modified-skills-schema-identical-outputs.md`).
+- Probe semantics per ADR-015 (`{knowledge_folder}/projects/aria-cowork/decisions/015-capability-probe-pattern.md`).

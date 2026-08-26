@@ -6,9 +6,9 @@ argument-hint: ''
 
 # /daily-audit — First-Message Audit Cadence Check (Cowork-Only)
 
-Check audit-cadence status at session start and recommend `/audit-knowledge` or `/audit-config` invocation if overdue. The Cowork-side equivalent of aria-knowledge's `session-start-check.sh` hook, which Cowork cannot run (per [ADR-004](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/004-hook-replacement-strategy.md)).
+Check audit-cadence status at session start and recommend `/audit-knowledge` or `/audit-config` invocation if overdue. The Cowork-side equivalent of aria-knowledge's `session-start-check.sh` hook, which Cowork cannot run (per ADR-004 (`{knowledge_folder}/projects/aria-cowork/decisions/004-hook-replacement-strategy.md`)).
 
-**Cowork-only skill.** Does not ship in aria-knowledge — aria-knowledge users get the same coverage automatically via SessionStart hook. The asymmetric application of bidirectional flow per [ADR-014](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/014-bidirectional-feature-flow.md) row 1 (cowork-only when there's no aria-knowledge analog).
+**Cowork-only skill.** Does not ship in aria-knowledge — aria-knowledge users get the same coverage automatically via SessionStart hook. The asymmetric application of bidirectional flow per ADR-014 (`{knowledge_folder}/projects/aria-cowork/decisions/014-bidirectional-feature-flow.md`) row 1 (cowork-only when there's no aria-knowledge analog).
 
 ## Step 0: Resolve config
 
@@ -93,7 +93,7 @@ This step is OPTIONAL — write only if aria-config.md is writable in the curren
 
 ## Notes
 
-- **Cowork-only.** Per [ADR-014](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/014-bidirectional-feature-flow.md) row 1 (cowork-only when there's no aria-knowledge analog). aria-knowledge users get this coverage automatically via `session-start-check.sh` hook fired on SessionStart — Code's hook surface provides what Cowork's runtime cannot.
+- **Cowork-only.** Per ADR-014 (`{knowledge_folder}/projects/aria-cowork/decisions/014-bidirectional-feature-flow.md`) row 1 (cowork-only when there's no aria-knowledge analog). aria-knowledge users get this coverage automatically via `session-start-check.sh` hook fired on SessionStart — Code's hook surface provides what Cowork's runtime cannot.
 - **Manual invocation pattern.** Best run at the start of a Cowork session before deep work. Users may also bake `/daily-audit` into their wrapup routine if they prefer end-of-session cadence surfacing instead of session-start.
 - **Composes with `/wrapup` and `/handoff`.** Those skills already prompt for `/extract`; `/daily-audit` provides the symmetric session-start surface. Together they bookend a session with audit hygiene.
 - **No new schema.** Uses existing `last_audit_date`, `audit_cadence_days`, `last_config_audit_date`, `config_audit_cadence_days`, `ideas_staleness_threshold_days` fields from aria-config.md. Adds optional `daily_audit_last_run:` informational field.

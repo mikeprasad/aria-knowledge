@@ -86,7 +86,7 @@ assert_eq "absent keys -> off|8 (ships default-off)" "off|8" "$out"
 - [ ] **Step 2: Run it and confirm it fails**
 
 ```bash
-(cd /Users/mikeprasad/Projects/aria/aria-knowledge/plugin-claude-code && sh tests/run.sh 2>&1 | tail -20)
+(cd ~/Projects/aria/aria-knowledge/plugin-claude-code && sh tests/run.sh 2>&1 | tail -20)
 ```
 
 Expected: both assertions FAIL — actual is `|` (both variables empty/unset).
@@ -110,7 +110,7 @@ Then, after that block closes (where other defaults are applied), add:
 - [ ] **Step 4: Run the test and confirm it passes**
 
 ```bash
-(cd /Users/mikeprasad/Projects/aria/aria-knowledge/plugin-claude-code && sh tests/run.sh 2>&1 | tail -20)
+(cd ~/Projects/aria/aria-knowledge/plugin-claude-code && sh tests/run.sh 2>&1 | tail -20)
 ```
 
 Expected: both PASS, no regression in the other suites.
@@ -118,7 +118,7 @@ Expected: both PASS, no regression in the other suites.
 - [ ] **Step 5: Commit**
 
 ```bash
-(cd /Users/mikeprasad/Projects/aria/aria-knowledge && git add plugin-claude-code/bin/config.sh plugin-claude-code/tests/test-external-fetch-gate.sh && git commit -m "feat(aria): parse external_fetch_gate + external_fetch_max_hits config keys")
+(cd ~/Projects/aria/aria-knowledge && git add plugin-claude-code/bin/config.sh plugin-claude-code/tests/test-external-fetch-gate.sh && git commit -m "feat(aria): parse external_fetch_gate + external_fetch_max_hits config keys")
 ```
 
 ---
@@ -227,7 +227,7 @@ assert_eq "archive/ excluded from the reason" "0" "$(ef_has 'archive/old.md' "$o
 - [ ] **Step 2: Run and confirm they fail**
 
 ```bash
-(cd /Users/mikeprasad/Projects/aria/aria-knowledge/plugin-claude-code && sh tests/run.sh 2>&1 | tail -30)
+(cd ~/Projects/aria/aria-knowledge/plugin-claude-code && sh tests/run.sh 2>&1 | tail -30)
 ```
 
 Expected: every new assertion FAILs — the hook file does not exist, so `sh "$HOOK"` errors and stdout is empty. **Note AC3/AC4/AC5/AC7/AC8 will PASS vacuously** (empty stdout from a missing file). That is the tautology trap this repo has hit twice. Do not treat them as green until Step 4 — their real proof is that they stay green while AC1/AC6 flip from red to green.
@@ -371,7 +371,7 @@ printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision"
 - [ ] **Step 4: Run the tests and confirm they pass**
 
 ```bash
-(cd /Users/mikeprasad/Projects/aria/aria-knowledge/plugin-claude-code && sh tests/run.sh 2>&1 | tail -30)
+(cd ~/Projects/aria/aria-knowledge/plugin-claude-code && sh tests/run.sh 2>&1 | tail -30)
 ```
 
 Expected: AC1 and AC6 flip red→green; AC3/AC4/AC5/AC7/AC8/AC9 green. If any of the negative controls went red, the hook is over-firing — fix before proceeding.
@@ -381,7 +381,7 @@ Expected: AC1 and AC6 flip red→green; AC3/AC4/AC5/AC7/AC8/AC9 green. If any of
 They passed in Step 2 with no hook at all, so they have not yet been shown to mean anything. Temporarily neuter the cap by editing the comparison to `-gt 99999`, re-run, and confirm **AC4 goes RED**. Restore, re-run, confirm green.
 
 ```bash
-(cd /Users/mikeprasad/Projects/aria/aria-knowledge/plugin-claude-code && sh tests/run.sh 2>&1 | grep -i 'ac4')
+(cd ~/Projects/aria/aria-knowledge/plugin-claude-code && sh tests/run.sh 2>&1 | grep -i 'ac4')
 ```
 
 Expected: RED while neutered, green after restoring. Repeat for AC5 by removing `index` from `EF_STOPWORDS` — AC5 must go RED.
@@ -389,7 +389,7 @@ Expected: RED while neutered, green after restoring. Repeat for AC5 by removing 
 - [ ] **Step 6: Commit**
 
 ```bash
-(cd /Users/mikeprasad/Projects/aria/aria-knowledge && git add plugin-claude-code/bin/pre-external-fetch-check.sh plugin-claude-code/tests/test-external-fetch-gate.sh && git commit -m "feat(aria): pre-external-fetch-check hook — surface local references before an external fetch")
+(cd ~/Projects/aria/aria-knowledge && git add plugin-claude-code/bin/pre-external-fetch-check.sh plugin-claude-code/tests/test-external-fetch-gate.sh && git commit -m "feat(aria): pre-external-fetch-check hook — surface local references before an external fetch")
 ```
 
 ---
@@ -498,7 +498,7 @@ assert_eq "AC13 control: same call denies under a normal budget" "1" "$(ef_has '
 - [ ] **Step 2: Run and confirm the new ones fail**
 
 ```bash
-(cd /Users/mikeprasad/Projects/aria/aria-knowledge/plugin-claude-code && sh tests/run.sh 2>&1 | tail -30)
+(cd ~/Projects/aria/aria-knowledge/plugin-claude-code && sh tests/run.sh 2>&1 | tail -30)
 ```
 
 Expected: AC12's "4th call is NOT denied" FAILs (no breaker yet). AC13 FAILs (no budget yet). AC2 and AC11 should already pass from Task 2's C1 write-then-verify — **if AC11 passes, confirm it is not vacuous** by temporarily reverting the `[ -f "$COOLDOWN_FILE" ] || exit 0` line and watching it go RED.
@@ -567,7 +567,7 @@ then change `[ -n "$EF_HITS" ] || exit 0` to `[ -n "$EF_HITS" ] || ef_allow` and
 - [ ] **Step 5: Run and confirm all pass**
 
 ```bash
-(cd /Users/mikeprasad/Projects/aria/aria-knowledge/plugin-claude-code && sh tests/run.sh 2>&1 | tail -30)
+(cd ~/Projects/aria/aria-knowledge/plugin-claude-code && sh tests/run.sh 2>&1 | tail -30)
 ```
 
 Expected: AC2, AC11, AC12, AC13 green; AC1–AC10 unchanged.
@@ -579,7 +579,7 @@ A breaker that never trips and a breaker that always trips both look green on a 
 - [ ] **Step 7: Commit**
 
 ```bash
-(cd /Users/mikeprasad/Projects/aria/aria-knowledge && git add plugin-claude-code/bin/pre-external-fetch-check.sh plugin-claude-code/tests/test-external-fetch-gate.sh && git commit -m "feat(aria): external-fetch gate safety layer — verified cooldown, deny-rate breaker, self-bounded runtime")
+(cd ~/Projects/aria/aria-knowledge && git add plugin-claude-code/bin/pre-external-fetch-check.sh plugin-claude-code/tests/test-external-fetch-gate.sh && git commit -m "feat(aria): external-fetch gate safety layer — verified cooldown, deny-rate breaker, self-bounded runtime")
 ```
 
 ---
@@ -646,13 +646,13 @@ Add both to the Advanced Options bundle. **This step is not optional bookkeeping
 - [ ] **Step 5: Record tracked-drift**
 
 ```bash
-(cd /Users/mikeprasad/Projects/aria/aria-knowledge && bash plugin-claude-code/bin/check-port-drift.sh --update)
+(cd ~/Projects/aria/aria-knowledge && bash plugin-claude-code/bin/check-port-drift.sh --update)
 ```
 
 - [ ] **Step 6: Run the release gates**
 
 ```bash
-(cd /Users/mikeprasad/Projects/aria/aria-knowledge && ./release.sh 2>&1 | tail -30)
+(cd ~/Projects/aria/aria-knowledge && ./release.sh 2>&1 | tail -30)
 ```
 
 Expected: Gate A all suites pass; Gate B reports a byte count **unchanged from 19,362** (no skill frontmatter added) and under 19,968; Gate C report-only.
@@ -664,7 +664,7 @@ Enable the key in the real config, then fetch the URL from the original incident
 - [ ] **Step 8: Commit**
 
 ```bash
-(cd /Users/mikeprasad/Projects/aria/aria-knowledge && git add plugin-claude-code/.claude-plugin/plugin.json plugin-claude-code/CONFIG.md plugin-claude-code/skills/setup/SKILL.md PORT-LEDGER.json && git commit -m "feat(aria): register the external-fetch gate, wire /setup, bump to 2.45.0")
+(cd ~/Projects/aria/aria-knowledge && git add plugin-claude-code/.claude-plugin/plugin.json plugin-claude-code/CONFIG.md plugin-claude-code/skills/setup/SKILL.md PORT-LEDGER.json && git commit -m "feat(aria): register the external-fetch gate, wire /setup, bump to 2.45.0")
 ```
 
 ---

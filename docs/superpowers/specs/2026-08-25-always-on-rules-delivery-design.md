@@ -846,7 +846,7 @@ requires a genuinely new session and cannot be closed by delegation.
 **This is the finding that explains why the arc did not converge for three sessions: it was
 trying to pin a number that is not a constant.**
 
-Read from the live binary — `/Users/mikeprasad/.local/share/claude/versions/2.1.245`, a
+Read from the live binary — `~/.local/share/claude/versions/2.1.245`, a
 Bun-compiled executable with the transpiled JS embedded. ⚠ The `cli.js` at
 `/opt/homebrew/lib/node_modules/@anthropic-ai/claude-code` is **2.0.8**, from October, and
 reading it would have been the same wrong-unit error a third time.

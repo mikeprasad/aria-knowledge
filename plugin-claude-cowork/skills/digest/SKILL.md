@@ -55,7 +55,7 @@ If NO MCPs in ANY category are connected, output the standard fallback notice an
 
 > No required MCPs connected for `/digest`. Connect at least one of: Slack/MS365 (~~chat), Gmail/MS365 (~~email), Linear/Asana/etc. (~~project tracker), or Notion/Confluence/etc. (~~docs) via Cowork Settings → Connectors (or Claude Code's `.mcp.json` for the Code surface). See [CONNECTORS.md](../../CONNECTORS.md). Skipping this run.
 
-Per [ADR-015](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/015-capability-probe-pattern.md) — degrade gracefully for missing categories; don't fabricate.
+Per ADR-015 (`{knowledge_folder}/projects/aria-cowork/decisions/015-capability-probe-pattern.md`) — degrade gracefully for missing categories; don't fabricate.
 
 ## Step 2: Parse Time Window
 
@@ -201,8 +201,8 @@ Disconnected categories surfaced N gap callouts in the digest. Connect more MCPs
 ## Notes
 
 - Most expensive of the v1.0.0 skills in terms of MCP calls — calls 4 categories' worth of tools in one invocation. Run cadence: weekly (Sunday or Monday morning), not on every session.
-- Bidirectional per [ADR-014](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/014-bidirectional-feature-flow.md) — aria-knowledge v2.18.0 ships an identical body. The Cowork-side context (conversational sessions, more cross-tool synthesis built into the workflow) makes this skill particularly load-bearing on the Cowork side.
-- Output schema is byte-identical per [ADR-013](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/013-cowork-modified-skills-schema-identical-outputs.md).
-- Probe semantics per [ADR-015](https://github.com/mikeprasad/knowledge/blob/main/projects/aria-cowork/decisions/015-capability-probe-pattern.md) — graceful degradation built-in for partial-connection scenarios.
+- Bidirectional per ADR-014 (`{knowledge_folder}/projects/aria-cowork/decisions/014-bidirectional-feature-flow.md`) — aria-knowledge v2.18.0 ships an identical body. The Cowork-side context (conversational sessions, more cross-tool synthesis built into the workflow) makes this skill particularly load-bearing on the Cowork side.
+- Output schema is byte-identical per ADR-013 (`{knowledge_folder}/projects/aria-cowork/decisions/013-cowork-modified-skills-schema-identical-outputs.md`).
+- Probe semantics per ADR-015 (`{knowledge_folder}/projects/aria-cowork/decisions/015-capability-probe-pattern.md`) — graceful degradation built-in for partial-connection scenarios.
 - Composes with `/audit-knowledge` — digests are intake artifacts and route through standard audit disposition. Most digests will be `Defer` (interesting but not promotion-worthy) or `Bundle` (cluster patterns across multiple digests for a cross-week insight).
 - Inspired by Anthropic's productivity plugin `update --comprehensive` mode, adapted for ARIA's intake-then-audit model rather than productivity's TASKS.md sync model.

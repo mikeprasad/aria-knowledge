@@ -92,7 +92,7 @@ with:
 
 Run:
 ```bash
-AK=/Users/mikeprasad/Projects/aria/aria-knowledge/plugin-claude-code/skills/audit-knowledge/SKILL.md
+AK=~/Projects/aria/aria-knowledge/plugin-claude-code/skills/audit-knowledge/SKILL.md
 S2F=$(awk '/^## Step 2f/,/^## Step 3/' "$AK")
 printf '%s' "$S2F" | grep -c '\.png.*\.jpg.*\.jpeg.*\.gif.*\.webp'   # >=1 (scan or sub-flow lists the 5 exts)
 printf '%s' "$S2F" | grep -c 'Vision-read'                           # >=1
@@ -106,7 +106,7 @@ Expected: all ≥1.
 - [ ] **Step 6: Commit.**
 
 ```bash
-cd /Users/mikeprasad/Projects/aria/aria-knowledge
+cd ~/Projects/aria/aria-knowledge
 git add plugin-claude-code/skills/audit-knowledge/SKILL.md
 git commit -m "feat: Step 2f handles image clippings (vision-read → transcribe → graduate) + git-mv per-file-tracked fix"
 ```
@@ -120,7 +120,7 @@ git commit -m "feat: Step 2f handles image clippings (vision-read → transcribe
 
 - [ ] **Step 1: Inspect the harness to match shape.**
 
-Run: `head -25 /Users/mikeprasad/Projects/aria/aria-knowledge/tests/repros/clippings-graduate.sh`
+Run: `head -25 ~/Projects/aria/aria-knowledge/tests/repros/clippings-graduate.sh`
 Expected: see the `#!/bin/sh` + `set -e` + `DIR=…/../..` + `ok()/bad()` + footer convention (this is the sibling repro from the prior arc — match it exactly).
 
 - [ ] **Step 2: Write `tests/repros/image-extraction.sh`** matching that harness, asserting against `plugin-claude-code/skills/audit-knowledge/SKILL.md` Step 2f (scope checks to the Step 2f block via the same `awk '/^## Step 2f/,/^## Step 3/'` slice):
@@ -132,16 +132,16 @@ Expected: see the `#!/bin/sh` + `set -e` + `DIR=…/../..` + `ok()/bad()` + foot
 Use the same `ok()/bad()` + `printf "%d passed, %d failed"` + bare `[ "$FAIL" -eq 0 ]` convention as `clippings-graduate.sh` (exact code deferred to Step 1's inspection — match it).
 
 - [ ] **Step 3: Run the new suite.**
-Run: `sh /Users/mikeprasad/Projects/aria/aria-knowledge/tests/repros/image-extraction.sh`
+Run: `sh ~/Projects/aria/aria-knowledge/tests/repros/image-extraction.sh`
 Expected: all PASS, exit 0.
 
 - [ ] **Step 4: Run the full set, confirm 23→24 green.**
-Run: `sh /Users/mikeprasad/Projects/aria/aria-knowledge/tests/run.sh`
+Run: `sh ~/Projects/aria/aria-knowledge/tests/run.sh`
 Expected: all suites green; SUMMARY = 24 suite(s) passed, 0 failed.
 
 - [ ] **Step 5: Commit.**
 ```bash
-cd /Users/mikeprasad/Projects/aria/aria-knowledge
+cd ~/Projects/aria/aria-knowledge
 git add tests/repros/image-extraction.sh
 git commit -m "test: repro suite for Step 2f image extraction"
 ```
@@ -174,14 +174,14 @@ v2.35.1 made clippings graduate to `references/sources/` but scanned `.md` only 
 
 - [ ] **Step 3: Verify.**
 ```bash
-SRC=/Users/mikeprasad/Projects/aria/aria-knowledge
+SRC=~/Projects/aria/aria-knowledge
 grep '"version"' "$SRC/plugin-claude-code/.claude-plugin/plugin.json"   # 2.35.2
 head -8 "$SRC/CHANGELOG.md" | grep -c "2.35.2"                          # 1
 ```
 
 - [ ] **Step 4: Commit.**
 ```bash
-cd /Users/mikeprasad/Projects/aria/aria-knowledge
+cd ~/Projects/aria/aria-knowledge
 git add plugin-claude-code/.claude-plugin/plugin.json CHANGELOG.md
 git commit -m "chore: release 2.35.2 — Step 2f image extraction"
 ```
