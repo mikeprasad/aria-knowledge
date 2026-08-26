@@ -54,22 +54,15 @@ RULE 22 ORDERING — The Low/High Impact block must appear ABOVE the Edit/Write 
 # session-start-check.sh:411-427 — same gate, same overflow fallback; only the
 # destination channel changes. Absent file or zero rules injects nothing, which
 # is the correct brand-new-user behaviour.
-UR_FILE="$KT_KNOWLEDGE_FOLDER/rules/user-rules.md"
-if [ -f "$UR_FILE" ]; then
-  UR_N=$(grep -c '^### U' "$UR_FILE" 2>/dev/null)
-  if [ "${UR_N:-0}" -gt 0 ]; then
-    UR_HEADERS=$(grep '^### U' "$UR_FILE" 2>/dev/null | sed 's/^### //' | awk '{printf "%s%s", sep, $0; sep="; "}')
-    if [ ${#UR_HEADERS} -gt 3000 ]; then
-      MESSAGES="${MESSAGES}
-STANDING USER RULES — ${UR_N} of the user's own rules are in force, at ${UR_FILE} (too many to index inline). Read that file before acting on anything it plausibly covers.
-"
-    else
-      MESSAGES="${MESSAGES}
-STANDING USER RULES (${UR_N}, always in force — the user's own rules, binding alongside the working rules above): ${UR_HEADERS}. These titles are the index; read ${UR_FILE} for the full text of any rule bearing on the task.
-"
-    fi
-  fi
-fi
+# ⛔ EXTRACTED to lib-user-rules.sh — ONE implementation, TWO callers, no copy.
+# The file channel needs this same rendering (spec §10.8: at its own 3000-char
+# branch point plus a config block the emission is ~3,527 ch, above the 3,321 ch
+# that is the only size measured to cross this channel intact), AND this hook must
+# keep emitting it for installs that do not yet have the file. Two renderings with
+# nothing comparing them would drift silently.
+. "$SCRIPT_DIR/lib-user-rules.sh"
+kt_user_rules_block
+MESSAGES="${MESSAGES}${KT_USER_RULES_BLOCK}"
 
 # --- task budget ---
 # ⚠ REWORKED, not copied. The long variant in session-start-check.sh:239

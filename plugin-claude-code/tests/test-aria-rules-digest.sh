@@ -283,6 +283,71 @@ for k in projects_enabled auto_load_project_context session_start_project_picker
 done
 
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# lib-user-rules.sh — the extracted U-rule index builder
+# ---------------------------------------------------------------------------
+# The extraction was validated at the time by a byte-identity oracle against the
+# pre-extraction hook. That oracle CANNOT survive the commit — the thing it
+# compared against stops existing — so these assert the durable property instead:
+# the contract each tier must satisfy. Mutation-checked (changing the join
+# separator killed the original oracle).
+
+UR_LIB="$APM_ROOT/bin/lib-user-rules.sh"
+assert_eq "lib-user-rules.sh exists" "yes" "$([ -f "$UR_LIB" ] && echo yes || echo no)"
+
+# Driver: sets KT_KNOWLEDGE_FOLDER, sources the lib, prints the block verbatim.
+# Printed with printf %s so the leading/trailing newlines survive into the file.
+ur_block() {
+  KT_KNOWLEDGE_FOLDER="$1" sh -c '
+    KT_KNOWLEDGE_FOLDER="$KT_KNOWLEDGE_FOLDER"
+    . "$1"
+    kt_user_rules_block
+    printf "%s" "$KT_USER_RULES_BLOCK"
+  ' _ "$UR_LIB"
+}
+
+# --- tier 1: inline index ---
+URK="$APM_TMP/ur-inline"; mkdir -p "$URK/rules"
+i=1; while [ "$i" -le 5 ]; do
+  printf '### U%s — a short title\n' "$i" >> "$URK/rules/user-rules.md"; i=$((i+1))
+done
+UB=$(ur_block "$URK")
+assert_eq "U-rules inline tier names the count" "yes" \
+  "$(printf '%s' "$UB" | grep -q 'STANDING USER RULES (5,' && echo yes || echo no)"
+assert_eq "U-rules inline tier joins titles with a semicolon" "yes" \
+  "$(printf '%s' "$UB" | grep -q 'U1 — a short title; U2 — a short title' && echo yes || echo no)"
+assert_eq "U-rules inline tier is NOT the pointer variant" "no" \
+  "$(printf '%s' "$UB" | grep -q 'too many to index inline' && echo yes || echo no)"
+
+# --- the concatenation contract ---
+# The block carries its own leading AND trailing newline, because the inline
+# version it replaced was written as  MESSAGES="${MESSAGES}\n<text>\n".  A
+# refactor that trims either one runs the directives together with no error and
+# no failing assertion anywhere else — which is exactly why it is pinned here.
+UB_RAW=$(ur_block "$URK" | od -c | head -1)
+assert_eq "U-rules block opens with a newline" "yes" \
+  "$(ur_block "$URK" | head -c 1 | od -An -c | tr -d ' ' | grep -q '\\n' && echo yes || echo no)"
+assert_eq "U-rules block closes with a newline" "yes" \
+  "$(ur_block "$URK" | tail -c 1 | od -An -c | tr -d ' ' | grep -q '\\n' && echo yes || echo no)"
+
+# --- tier 2: overflow pointer, above 3000 chars of joined titles ---
+URO="$APM_TMP/ur-overflow"; mkdir -p "$URO/rules"
+i=1; while [ "$i" -le 400 ]; do
+  printf '### U%s — a representative user rule title of realistic length\n' "$i" >> "$URO/rules/user-rules.md"; i=$((i+1))
+done
+UBO=$(ur_block "$URO")
+assert_eq "U-rules overflow tier fires above 3000 chars" "yes" \
+  "$(printf '%s' "$UBO" | grep -q 'too many to index inline' && echo yes || echo no)"
+assert_eq "U-rules overflow tier still names the count" "yes" \
+  "$(printf '%s' "$UBO" | grep -q 'STANDING USER RULES — 400 of' && echo yes || echo no)"
+
+# --- the two zero cases: inject NOTHING, which is correct for a new user ---
+URZ="$APM_TMP/ur-zero"; mkdir -p "$URZ/rules"
+printf '# User rules\n\nprose, no headers\n' > "$URZ/rules/user-rules.md"
+assert_eq "U-rules with zero headers emits nothing" "" "$(ur_block "$URZ")"
+URN="$APM_TMP/ur-nofile"; mkdir -p "$URN/rules"
+assert_eq "U-rules with no file emits nothing" "" "$(ur_block "$URN")"
+
 # DELIVERY GUARD — the payload must ARRIVE, not merely be emitted
 # ---------------------------------------------------------------------------
 # Added 2026-08-26 (spec 2.6 and 7/AC1, both amended the same day).
