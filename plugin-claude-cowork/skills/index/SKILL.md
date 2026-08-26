@@ -162,17 +162,42 @@ If yes, walk through each file: read content, propose 1-3 tags based on content,
 
 ## Step 6: Stale files
 
-Identify files whose `Last updated:` is older than `staleness_threshold_months` months ago (or missing entirely).
+**Scope first — three exclusions, all measured on the 2026-08-05 corpus (942 files), where the naive
+scan returned 240 entries of which only 78 had a review question to answer.**
+
+1. ⛔ **EXCLUDE `decisions/` in both tiers** (`decisions/` and `projects/*/decisions/`). A decision
+   record is immutable history — obsolescence is expressed by **supersession**, never by a date, so a
+   threshold raises no answerable question. Measured: **162 of 240**. Ratified as **ADR 117**.
+2. ⛔ **EXCLUDE files with no frontmatter at all** — directory `README.md`s, probe-test fixtures, and
+   verbatim source dumps. Structural or archival, not guidance. Measured: 25 of 44 undated files.
+   ⚠ **This CHANGES prior cowork behaviour**, which flagged every missing-date file (see the old
+   example row 2 below). That produced a queue dominated by READMEs.
+3. **Report separately, do not flag as stale:** a file that HAS frontmatter but carries neither date
+   field. Measured: 12, of which only 2 were genuine guidance files. *"Needs a date field"* is a
+   different action from *"needs review"*.
+
+**Then read the date — BOTH idioms are in live use.** Accept `Last updated:` **or** `date:`, preferring
+`Last updated:` when both appear. Measured: **7** files carry only `date:`; a `Last updated`-only
+reader calls them undated, which reads as a data-quality gap rather than a detector gap.
+
+Identify remaining files whose resolved date is older than `staleness_threshold_months` months ago.
 
 ```
 ## Stale Files
 
-These files haven't been updated in 6+ months:
+78 files need review (of 942 scanned) — threshold: 3 months
 1. references/some-old-tool.md (last updated 2025-09-15, 8 months ago)
-2. guides/legacy-deployment.md (last updated unknown — no `Last updated:` header)
+2. approaches/some-approach.md (date: 2026-05-14 — `date:` idiom, resolved)
 
-Review needed. Run /audit-knowledge (v0.2.0) to triage, or update manually.
+Exempt, NOT a review queue: 162 decision records (ADR 117 — superseded, not stale)
+Needs a date field (not stale): 2 guidance files
+Excluded as structural: 25 files with no frontmatter
+
+Review needed. Run /audit-knowledge to triage, or update manually.
 ```
+
+⚠ **Report the population, not just the count.** "216 files are stale" and "78 need review of 942
+scanned, 162 exempt" are different claims, and only the second is actionable.
 
 Stale files are surfaced for awareness only. Don't auto-archive or auto-modify.
 
