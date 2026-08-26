@@ -306,7 +306,18 @@ done
 # against it and locating it exactly would not make a hook design safe. The goal
 # is 3,321 ch — the only size measured to cross this channel intact. Lower this
 # baseline as the file/hook split lands. NEVER raise it.
-ARIA_EMIT_CEILING=20322
+#
+# ⚠ 20,322 -> 20,311 on 2026-08-26 is a CHANGE OF MEASURING UNIT, NOT a smaller
+# payload. Nothing about the emission changed. The old figure counted the real
+# home path (/Users/mikeprasad, 17 ch) literally because only $kf was normalised;
+# the new one substitutes the 6-char <HOME> token, so 20,322 - 17 + 6 = 20,311.
+# Do not read the drop as progress, and do not "restore" 20,322.
+#
+# It is now DETERMINISTIC across machines, which it was not before. Proven by
+# construction rather than asserted: at home/kf path lengths of 67, 99 and 116 the
+# RAW length moves (20,561 / 20,689 / 20,757) while the normalised length is
+# 20,311 in all three.
+ARIA_EMIT_CEILING=20311
 
 # The needle: the LAST rule title, derived from the digest, never hardcoded — a
 # literal would keep passing after rule 39 is added, which is the same failure
@@ -333,18 +344,35 @@ while [ "$urn" -le 40 ]; do
   urn=$((urn+1))
 done
 printf '# Index\n\n## Tag Index\n\n### aria\n- a.md\n\n### cs\n- b.md\n' > "$KFW/index.md"
+# The fixture must own $HOME too, not just the knowledge folder. session-start-rules.sh:83
+# branches on `ls "$HOME"/.claude/aria-statusline-state-*.json`, so on a machine without the
+# status-line meter the SHORT TASK BUDGET variant fires and the worst case is 403 ch smaller —
+# measured 20,322 with a real home vs 19,919 with an empty one. A ratchet that moves with the
+# developer's machine is not a ratchet. Own home + a stub snapshot pins the LONG variant.
+# ⚠ A DEDICATED home, deliberately not the $FAKEHOME above: that one only gains its stub at
+# line ~249, so reusing it would make this fixture's variant depend on assertion ORDER.
+HOMEW="$APM_TMP/homew"; mkdir -p "$HOMEW/.claude"
+: > "$HOMEW/.claude/aria-statusline-state-worst.json"
 CFGW="$APM_TMP/aria-cfg-worst.md"
 printf -- '---\nknowledge_folder: %s\nautonomy: autonomous\nsession_state: true\n---\n' \
   "$KFW" > "$CFGW"
 OUTW="$APM_TMP/ssr-worst.json"
 : > "$OUTW"
-if KT_CONFIG="$CFGW" sh "$HOOK" > "$OUTW" 2>/dev/null; then :; else :; fi
+if HOME="$HOMEW" KT_CONFIG="$CFGW" sh "$HOOK" > "$OUTW" 2>/dev/null; then :; else :; fi
 PW=$(jq -r '.hookSpecificOutput.additionalContext' "$OUTW" 2>/dev/null || echo '')
 
 # Prove the fixture is actually maximal. Without this the size assertion below
 # passes trivially on a fixture that emitted half the blocks.
 assert_eq "worst-case fixture fires the LONG U-rule variant" "no" \
   "$(printf '%s' "$PW" | grep -q 'too many to index inline' && echo yes || echo no)"
+# Sibling of the line above, and it was missing. A maximality proof must cover EVERY branch
+# that changes size, or the ceiling bounds a payload never shown to be maximal — the U-rule
+# branch was proven and the TASK BUDGET branch was not, which is
+# `feedback_guard_scoped_to_the_wrong_unit` inside the guard written to prevent that class.
+# The SHORT variant's opening phrase must be ABSENT; the block-presence loop below proves the
+# block is there at all, so absence-of-short plus presence-of-block pins the LONG variant.
+assert_eq "worst-case fixture fires the LONG TASK BUDGET variant" "no" \
+  "$(printf '%s' "$PW" | grep -q 'You do not see usage directly' && echo yes || echo no)"
 for blk in 'RULE 22 ORDERING' 'DECISION ROUTING' 'SESSION STATE' 'TASK BUDGET' 'ARIA ACTIVE CONTEXT' 'STANDING USER RULES'; do
   assert_eq "worst-case fixture carries ${blk}" "yes" \
     "$(printf '%s' "$PW" | grep -qF "$blk" && echo yes || echo no)"
@@ -359,8 +387,16 @@ done
 # happened to put the total under the ceiling. `wc -m` is no good either — under
 # LC_ALL=C it counts bytes (20,942 vs 20,322). jq's literal string split is both
 # path-independent and locale-independent.
-PW_CH=$(jq -r --arg kf "$KFW" \
-  '.hookSpecificOutput.additionalContext | (. / $kf | join("<KF>")) | length' \
+# ⚠ TWO paths must be normalised, not one. The LONG TASK BUDGET variant interpolates ${HOME}
+# into its TEXT, so the payload grows one char per char of home-directory path: measured
+# 20,374 at a 69-char home vs 20,407 at 102 — exactly the 33-char difference, and exactly the
+# same class of bug the $kf normalisation already fixes. Normalising only $kf left the ceiling
+# a function of the developer's username length.
+PW_CH=$(jq -r --arg kf "$KFW" --arg hm "$HOMEW" \
+  '.hookSpecificOutput.additionalContext
+   | (. / $kf | join("<KF>"))
+   | (. / $hm | join("<HOME>"))
+   | length' \
   "$OUTW" 2>/dev/null || echo 0)
 assert_eq "worst-case emission stays at or under the ratchet" "yes" \
   "$([ "${PW_CH:-0}" -le "$ARIA_EMIT_CEILING" ] && echo yes || echo no)"
