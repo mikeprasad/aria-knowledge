@@ -185,14 +185,24 @@ Skip this step entirely unless `session_state: true` in `~/.claude/aria-knowledg
 
 Write `{project_root}/SESSION.md` (project root from Step 1) as a **wrapup-state** snapshot, following the contract at `aria-atlas/docs/TEMPLATE_SESSION.md`. **Full rewrite** (wrapup is an authoritative close). This is a deliberate exception to the "don't create files" rule — create it if absent.
 
-**Consume on clean close (multi-session ledger):** a `/wrapup` is a clean close, not a handoff — it adds NO pending entry for the wrapped session itself (there is no next-session prompt to retain). If the existing SESSION.md has a `## Pending handoffs` block (or a legacy `## Prior sessions` one), source `bin/lib-session-state.sh` and call `kt_ss_ledger_prune "{project_root}"` to drop any entries a resume already marked `consumed`. Unconsumed handoffs survive at full fidelity — wrapping up one session never silently discards another's pending pickup.
+**Demote before you rewrite, then consume (multi-session ledger).** Source `bin/lib-session-state.sh`, then in this order:
+
+1. **Demote a prior session's pickup.** If the existing SESSION.md holds an unconsumed `handoff` entry (different or absent `sessionId`), call `kt_ss_ledger_add` (**full-fidelity prompt — never collapsed**) FIRST, THEN write. This mirrors `/handoff` step 3f exactly, for the same reason: the full rewrite below replaces `## Where we left off`, `## Next session pickup` and `## Next session prompt` — precisely where `/handoff` puts a pickup. Without the demote, wrapping up one session **destroys** another session's handoff. **Never demote a `lastEvent: in-progress` marker** — that is a live session's own breadcrumb, not a handoff; it carries no prompt, so the ledger entry would be empty. Overwrite it and move on.
+2. **Prune.** Call `kt_ss_ledger_prune "{project_root}"` to drop any entries a resume already marked `consumed`.
+3. **Then** perform the full rewrite.
+
+A `/wrapup` is a clean close, not a handoff — it adds NO pending entry for the **wrapped** session itself (there is no next-session prompt to retain). Step 1 is about someone *else's* pickup, not your own.
+
+⛔ **Do not restate this as "unconsumed handoffs survive at full fidelity."** That is TRUE of entries already inside `## Pending handoffs` and **FALSE of a handoff sitting in the active body**, which is where `/handoff` writes one. Step 1 is what makes the reassuring version true; without it, the sentence certifies the unsafe path.
+
+⚠ **Tracked runtime drift:** `plugin-antigravity` and `plugin-openai-codex` carry this same step **without** the step-1 demote. Claude-Code is canonical this round; they close at the next parity pass.
 
 **Before closing, check what this session left behind (two cheap reads, both report-only):**
 
 1. **Recorded Rule 22 bypasses.** Read `${TMPDIR:-/tmp}/aria-r22-bypass-<session_id>` if it exists — each line is an in-place file mutation made through the shell, which routed around the Edit/Write gate and so landed with no scope assessment recorded. The PreToolUse hook only *warns* (denying would block legitimate work), so a warning that was ignored leaves no other trace. Report the count and the idioms in the close-out summary — not as a failure, as a fact worth knowing before the session ends. If the file is absent, say nothing.
 2. **Pending handoffs.** If `## Pending handoffs` (or a legacy `## Prior sessions`) still holds `unconsumed` entries, state how many and name their sessions. A clean close does not consume another session's pickup, so this is the last chance to notice one before the session is gone — the third of three checkpoints (the others are `/handoff` and resume).
 
-**Never skip this step to avoid clobbering another session's state.** Skipping loses more than writing does: the prune only ever removes entries already marked consumed, so running it cannot destroy pending work. If you are unsure whether another session owns the file, run the prune and write — that is the safe direction, not the risky one.
+**Never skip this step to avoid clobbering another session's state — demote instead.** Skipping loses your own close-out and still leaves the other session's pickup at the mercy of the next writer. ⚠ Note what is and is not dangerous here: the **prune** cannot destroy pending work (it only removes entries already marked consumed) — the **full rewrite** is the destructive operation, and step 1 above is what makes it safe. If you are unsure whether another session owns the file, demote, prune, and write: that is the safe direction, not the risky one.
 
 **Tracked or ignored — read `session_state_tracked` (default `false`):**
 
