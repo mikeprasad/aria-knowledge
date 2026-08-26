@@ -10,23 +10,29 @@ Drive a piece of work end-to-end under the autonomous decision-routing posture, 
 
 It does NOT re-define the decide-vs-ask policy. That policy is **Rule 35** (decision routing) in `template/rules/working-rules.md`, scaled by the **`autonomy`** config posture. `/auto` *applies* Rule 35 to a concrete arc and adds the operational discipline an unattended run needs: what to *never* stop for, how to read the binding budget, how to pick the next unit of work, and how (optionally) to self-perpetuate across usage resets. Distilled from real autonomous runs — the friction points below are ones that actually bit.
 
-## Runtime Gate (per ADR-094)
+## Runtime precondition — Bash required
 
-**Canonical resolution:** This is the Claude Code variant. When both `plugin-claude-code` and `plugin-claude-cowork` are loaded in the same session, bare `/auto` resolves to this skill — aria-knowledge (Code) is the canonical owner per ADR-094 §Part 1. The Cowork variant is namespaced-only: `/aria-cowork:auto`.
+**`/auto` ships in the Claude Code port only, and that is deliberate.** It is not part of ADR-094's bare-slash collision set: no Cowork counterpart of this skill exists, so there is no canonical-owner question to resolve here and nothing to hand off to. What this section checks is a **capability**, not an ownership — do not restore a redirect to a Cowork variant.
 
 **Before Step 0:** Check that the `Bash` tool is available. If `Bash` is NOT available (you are in Claude Cowork or another non-Code runtime), surface this and wait for an explicit reply:
 
-> ⚠️ **Runtime mismatch — you invoked aria-knowledge's `/auto` from a non-Code runtime.**
+> ⚠️ **Runtime mismatch — `/auto` needs Bash, and this runtime does not have it.**
 >
-> This variant runs `git` status/commit, the autonomy-config probe, and (optionally) `CronCreate` via Bash, which isn't available here. The runtime-appropriate variant is `/aria-cowork:auto`.
+> The arc runs `git` status/commit, the autonomy-config probe, the preflight commit gate, and (optionally) `CronCreate` through Bash. **There is no Cowork counterpart of this skill** — it is Code-only, so the choice is to run degraded or to stop.
 >
-> **Use `/aria-cowork:auto` instead?** (`y` / `n`)
+> Running degraded loses every Bash-backed step: no commit, no `git` verification of live state, no commit gate, no resume schedule. The gates that are pure reasoning still run. To drive the chain by hand instead, the individual gates exist natively here — `/aria-cowork:prospect` before code, `/aria-cowork:retrospect` after, and `/aria-cowork:handoff` or `/aria-cowork:wrapup` to close.
+>
+> **Stop here rather than run degraded?** (`y` / `n`)
 
-- **`y` / `yes`** — Invoke `aria-cowork:auto` with the same arguments via the `Skill` tool; that variant takes over.
-- **`n` / `no`** — Proceed with this variant anyway; subsequent Bash failures are expected.
+- **`y` / `yes`** — Stop cleanly, naming the individual Cowork gates above as the manual route.
+- **`n` / `no`** — Proceed with this skill anyway; subsequent Bash failures are expected. Announce each one as it happens, and never report a Bash-backed step as done when it did not run.
 - **No / other reply** — Treat as "do not proceed" and exit cleanly.
 
-This gate is NOT suspended by any mode — `/auto` is inherently autonomous, so confirming the right runtime is the one precondition that still matters. If `Bash` is available, proceed to Step 0.
+The question is polarised so the answers keep the same meaning as every other ADR-094 gate: **`y` declines to run this variant, `n` runs it anyway.** Only the question differs, because there is no sibling variant to offer — asking "proceed anyway?" here would invert `n` against the rest of the family.
+
+This precondition is NOT suspended by any mode — `/auto` is inherently autonomous, so confirming the runtime can actually carry the arc is the one check that still matters. If `Bash` is available, proceed to Step 0.
+
+⚠ **Removal trigger (Rule 37):** if a Cowork counterpart is ever built, this section reverts to a standard ADR-094 Runtime Gate with a live redirect, and this skill joins the collision set. Measured 2026-08-26: no such counterpart exists, Cowork's summed description budget stands at 8,010 of 9,000 so fitting one needs roughly a 193-char trim, and the Bash-backed machinery above would need a Cowork-native substitute — the budget is the smaller of the two obstacles.
 
 ## When to use
 

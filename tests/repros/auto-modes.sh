@@ -55,9 +55,16 @@ grep -qiE 'override.* the standing|overrides the standing|explicit.* grant|invoc
 grep -qiE 'not count as stopping|not stops|checks, not stops|don.t count as stopping' "$SK" \
   && ok "H gates-are-checks-not-stops" || bad "H gates" "doesn't distinguish gates from stops"
 
-# I: ADR-094 Runtime Gate present (5-port discipline) + canonical-owner framing
+# I: ADR-094 acknowledged (5-port discipline) + this skill's scope within it.
 grep -qiF 'ADR-094' "$SK" && ok "I ADR-094 runtime gate" || bad "I ADR-094" "no runtime gate"
-grep -qiF 'aria-cowork:auto' "$SK" && ok "I namespaced cowork variant named" || bad "I cowork" "no namespaced variant"
+# The second leg previously asserted the skill NAMES a namespaced `/auto` Cowork variant. That
+# variant exists in no port — verified in plugin-claude-cowork/skills with a positive control —
+# so the assertion certified a broken redirect as correct for as long as it stood. It came from
+# the ADR-094 colliding-name template, not from a measurement. Replaced, not deleted: the true
+# fact is that this skill is Code-only and therefore outside the collision set. Directly
+# contradicts nothing else in this suite; FG1 asserts the dead token's absence.
+grep -qiF 'ships in the Claude Code port only' "$SK" \
+  && ok "I declared Code-only (outside the collision set)" || bad "I code-only" "Code-only scope not declared"
 
 # J: routes AWAY to the right sibling when /go is the wrong tool (anti-overtrigger)
 for sib in "/prospect" "/retrospect" "/handoff" "/wrapup"; do
@@ -435,6 +442,46 @@ grep -qF 'a bare modifier at the very END of a goal IS consumed' "$SK" \
 # scan: a general <word>=<value> match would eat a goal like "checks count=20".
 grep -qF 'Deliberately NOT recognised anywhere-in-args' "$SK" \
   && ok "FO5 anywhere-scan explicitly rejected" || bad "FO5 anywhere" "no rationale pinning ENDS-only for = tokens"
+
+# FG: the runtime precondition must check a CAPABILITY, not offer a nonexistent variant.
+# /auto is Code-only and outside ADR-094's collision set, but its section was copied from the
+# colliding-name template and offered to hand off to a Cowork /auto that has never existed in
+# any port — a `y` reply would have called the Skill tool on a missing skill. The section now
+# checks Bash availability and routes a `stop` to the Cowork gates that DO exist.
+#
+# NOTE: the skill body deliberately says "no Cowork counterpart" instead of naming the dead
+# token, precisely so FG1 can assert the token's absence without matching the skill's own prose.
+# If someone reintroduces the literal for readability, FG1 fails by design — rephrase the
+# skill, do not weaken this assertion.
+if grep -qF 'aria-cowork:auto' "$SK"; then
+  bad "FG1 dead-redirect" "names a Cowork /auto variant that exists in no port"
+else
+  ok "FG1 no redirect to a nonexistent Cowork variant"
+fi
+
+grep -qF 'do not restore a redirect to a Cowork variant' "$SK" \
+  && ok "FG2 do-not-restore instruction present" || bad "FG2 no-restore" "nothing stops the redirect being re-added"
+
+# The redirect and the Bash check lived in one section; removing the first must not take the
+# second with it. This is the assertion that would catch an over-broad deletion.
+grep -qiF 'check that the `Bash` tool is available' "$SK" \
+  && ok "FG3 Bash capability check survived" || bad "FG3 bash-check" "runtime capability precondition lost"
+
+# Polarity guard. Across the other ADR-094 gates `n` means "run this variant anyway"; phrasing
+# this one as "proceed anyway?" would invert `n` for this skill alone.
+grep -qF 'declines to run this variant' "$SK" \
+  && ok "FG4 y/n polarity matches the other gates" || bad "FG4 polarity" "y/n meaning not pinned against the family"
+
+# The stop branch must route somewhere real. All four exist in plugin-claude-cowork/skills.
+# One cause, one assertion: the loop collects the misses and reports them together rather than
+# emitting a separate failure per gate, which made a single defect read as five.
+FG5_MISSING=""
+for g in prospect retrospect handoff wrapup; do
+  grep -qF "aria-cowork:$g" "$SK" || FG5_MISSING="$FG5_MISSING /aria-cowork:$g"
+done
+[ -z "$FG5_MISSING" ] \
+  && ok "FG5 stop branch routes to all four real Cowork gates" \
+  || bad "FG5 manual-route" "stop branch omits:$FG5_MISSING"
 
 printf "\n%d passed, %d failed\n" "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
