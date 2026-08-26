@@ -2,6 +2,34 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.48.0 — 2026-08-26
+
+**Added — the working rules, the standing directives and the user's own rules are delivered through instruction files, and they reach subagents.**
+
+Measured before this release, in every session since install: **2 of 38 working rules arrived, 0 of 8 standing directives, 0 of the user's own rules, and subagents received nothing at all.** The rules were generated correctly and then discarded, because `additionalContext` on a hook is delivered as roughly the first 2,000 characters plus a file path. The digest led the payload, so a reader received Rule 1, half of Rule 2, and a pointer to a file nobody opened.
+
+Delivery moves to `~/.claude/rules/`, which is delivered in full and additionally reaches **subagents** — the hook channel does not, so every delegated agent previously ran with zero ARIA rules.
+
+- `~/.claude/rules/aria-rules.md` — 38 working rules plus every standing directive, each variant present, gates written as conditionals the model evaluates, with an explicit default for "no configuration reached you".
+- `~/.claude/rules/aria-user-rules.md` — the user's own U-rules as a **digest** (title plus a one-line summary), not a bare title index. Previously the plugin's rules arrived ready to apply while the user's arrived as headlines they would have to go and read; that asymmetry was an artifact of how each was built, not a decision.
+- The `SessionStart` hook now emits only the **resolved configuration values** a static file cannot know. A truncated emission therefore costs "which posture is selected" and nothing else — the design is degradation-tolerant rather than sized against a cap that is per-tool and can change with no client release.
+- `/setup` gains Step 7ea, which installs both files by invoking the hook's own ensure function rather than re-implementing the copy. Its precondition tests hook **registration**, not file presence, so it correctly skips in runtimes that carry the script unwired.
+- `post-compact` emits a pointer at the installed files instead of re-sending the digest. It was `cat`ing ~20 KB into the same capped channel — the same defect in a second place, and it got worse when the digest absorbed the directives.
+
+**Removed — `pre-bash-write-check.sh`, a guard that was provably wrong in both directions.**
+
+It warned when a shell command mutated a file in place, bypassing the Rule 22 gate. The intent was sound; the method decided from the **command string** instead of resolving the mutation **target**. It exempted any command whose text merely *mentioned* a temp path, so backup-then-mutate — the careful pattern — was silent; and its idiom match was unanchored, so a commit whose *message* quoted `sed -i` was flagged as an in-place mutation. Archived with the mechanism recorded rather than deleted.
+
+**Fixed — `post-push-retrospect-check.sh` missed every `git -C <dir> push`.**
+
+Its gate was `case "$COMMAND" in *"git push"*)`, so a scripted push produced no retrospect offer at all. This is the identical defect v2.46.1 fixed in `pre-commit-preflight-check.sh`; the fix existed forty lines away and had not been applied to its sibling.
+
+**Fixed — the antigravity port's bundled rules file was a stale fork.**
+
+It hardcoded "ARIA enforces 34 working rules" and covered 34 while the source had 38 — the exact defect the canonical drift gate exists to catch, in the port the gate's own comment names as the bug's origin and never covered. Closed by removing the fork rather than correcting it: `build.sh` now regenerates `rules/` from canonical. The port also stopped shipping two scripts it registers nowhere.
+
+**Note on versioning.** There is no 2.47.0 entry. That version was built and installed locally but never pushed, tagged or released, so nothing depends on one; this entry is written self-contained and covers the whole arc. Reconstructing a retrospective 2.47.0 entry is left as a deliberate decision rather than done silently — the same call made at v2.45.1.
+
 ## 2.46.4 — 2026-08-20
 
 **Fixed — the preflight gate read the wrong repository when a commit named one that does not exist.**
