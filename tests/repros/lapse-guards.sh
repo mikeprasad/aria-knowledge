@@ -23,52 +23,29 @@ PASS=0; FAIL=0
 ok()  { printf "PASS  %s\n" "$1"; PASS=$((PASS + 1)); }
 bad() { printf "FAIL  %s — %s\n" "$1" "$2"; FAIL=$((FAIL + 1)); }
 
-run_bw() { printf '{"tool_name":"Bash","tool_input":{"command":"%s"}}' "$1" | sh "$BW" 2>/dev/null || true; }
-
-[ -x "$BW" ] && ok "A bash-write hook exists" || bad "A exists" "missing or not +x"
-
-# B — RED: the dominant real lapse. A python heredoc mutating a tracked doc.
-OUT=$(run_bw "python3 - <<PY\nimport pathlib; p=pathlib.Path('proj-a/PROGRESS.md'); p.write_text(s)\nPY")
-echo "$OUT" | grep -q 'additionalContext' \
-  && ok "B warns on .write_text() mutation" || bad "B write_text" "no warning (got: $OUT)"
-echo "$OUT" | grep -q 'permissionDecision' \
-  && bad "B warn-only" "emitted a permissionDecision; C1 must be warn-only" \
-  || ok "B is warn-only (never denies)"
-echo "$OUT" | grep -qi 'Edit' \
-  && ok "B names the right tool to use instead" || bad "B guidance" "warning does not point at Edit/Write"
-
-# C — RED: an in-place rename via sed.
-OUT2=$(run_bw "sed -i '' s/_model_has_field/model_has_field/g proj-a/checks.py")
-echo "$OUT2" | grep -q 'additionalContext' \
-  && ok "C warns on sed -i" || bad "C sed -i" "no warning (got: $OUT2)"
-
-# D — GREEN: CREATION of a throwaway probe is NOT the lapse. Measured as the
-# dominant false-positive class; the rule must not fire on it.
-for cmd in "cat > ./diag.spec.ts <<EOF" "cat > proj-a/test_probe_setup.py <<PYEOF"; do
-  O=$(run_bw "$cmd")
-  [ -z "$O" ] && ok "D silent on file creation: ${cmd%% *} ..." \
-              || bad "D creation" "warned on a throwaway creation: $cmd"
-done
-
-# E — GREEN: ordinary read-only work must stay silent.
-for cmd in "git status" "grep -rn foo src/" "ls -la" "npm test"; do
-  O=$(run_bw "$cmd")
-  [ -z "$O" ] && ok "E silent on: $cmd" || bad "E silent $cmd" "warned on a benign command"
-done
-
-# F — GREEN: temp and scratchpad writes are exempt (11.4% of all calls; all legitimate).
-for cmd in "sed -i '' s/a/b/ /tmp/x.py" "python3 -c \\\"open('/private/tmp/claude-501/scratchpad/z.py','w')\\\""; do
-  O=$(run_bw "$cmd")
-  [ -z "$O" ] && ok "F exempt: temp/scratchpad path" || bad "F exempt" "warned on a temp path: $cmd"
-done
-
-# G — GREEN: appending to a markdown backlog is legitimate (1.27% of calls, all benign).
-O=$(run_bw "cat >> \\\"\$KF/intake/insights-backlog.md\\\" <<EOF")
-[ -z "$O" ] && ok "G silent on a markdown append" || bad "G markdown" "warned on an .md append"
-
-# H — registered in the manifest.
-grep -q 'pre-bash-write-check.sh' "$MANIFEST" \
-  && ok "H registered in plugin.json" || bad "H registered" "hook not wired"
+# ---------------------------------------------------------------------------
+# C1 — RETIRED 2026-08-26. What remains here PINS the retirement.
+#
+# pre-bash-write-check.sh warned when a shell command mutated a file in place,
+# bypassing the Rule 22 gate. The intent was sound; the method decided from the
+# COMMAND STRING instead of resolving the mutation TARGET, and that made it wrong
+# in both directions — silent on backup-then-mutate (the command merely MENTIONS a
+# temp path, and that is the careful pattern this project mandates), and firing on
+# any command that just QUOTES an idiom like `sed -i`, including a commit whose
+# MESSAGE did. Ruled out rather than tuned: "if it is wrong then don't use it."
+#
+# ⛔ The ~25 behavioural assertions that stood here are GONE, not skipped, because
+# their subject no longer exists. Re-adding them would require re-wiring a method
+# that was ruled out. These three assert the retirement instead, so a silent
+# re-wire fails loudly.
+[ ! -e "$BW" ] && ok "C1 retired: not shipped in bin/" \
+               || bad "C1 retired" "pre-bash-write-check.sh is back in bin/"
+[ -f "$REPO_ROOT/plugin-claude-code/bin/.archived/pre-bash-write-check.sh" ] \
+  && ok "C1 archived per Rule 6 with its mechanism recorded" \
+  || bad "C1 archive" "the retired hook is not in bin/.archived/"
+grep -q 'pre-bash-write-check\.sh' "$MANIFEST" \
+  && bad "C1 unregistered" "the retired hook is registered again in plugin.json" \
+  || ok "C1 unregistered in plugin.json"
 
 # ---------------------------------------------------------------------------
 # C2 — assertions that cannot fail. A tautological assertion is a false green:
@@ -129,37 +106,32 @@ echo "$OUT7" | grep -q 'additionalContext' \
 OUT8=$(run_ta "/x/tests/repros/thing.sh" "[ \$got = \$want ] && ok A || bad A x\n")
 [ -z "$OUT8" ] && ok "R silent on a real shell comparison" || bad "R shell real" "warned on a valid test: $OUT8"
 
-# --- S: bypass LEDGER. The guard stays warn-only (a deny would block legitimate in-place
-# edits), so a warning the model ignores would leave no trace. Recording each bypass costs
-# one append at detect time and lets /wrapup and /handoff report them after the fact --
-# catching the ignored-warning case without ever blocking a command.
-SLEDGER="${TMPDIR:-/tmp}/aria-r22-bypass-testsess"
-rm -f "$SLEDGER"
-run_bw_sid() {
-  printf '{"session_id":"testsess","tool_name":"Bash","tool_input":{"command":"%s"}}' "$1" | sh "$BW" 2>/dev/null || true
-}
+# --- S: the bypass LEDGER is GONE with its only writer.
+# The retired hook was the sole producer of ${TMPDIR}/aria-r22-bypass-<session_id>
+# — measured: grep for that name across bin/ returns only bin/.archived/. So the
+# ledger can no longer be populated, and the two closing skills that REPORTED it
+# had their instruction removed rather than left describing an empty file. This
+# assertion is what keeps those two facts in step.
+#
+# ⚠ Asserted POSITIVELY, on the retraction, not negatively on the path. The first
+# version grepped the skills for `aria-r22-bypass` and expected zero — and it failed,
+# because the retraction text NAMES the retired path in order to explain itself. A
+# guard that reads the very text its own fix adds is the recurring
+# `own-comment-enters-the-text-its-guard-reads` shape; a mention is not a read.
+for sk in handoff wrapup; do
+  grep -qi 'no ledger to read' "$REPO_ROOT/plugin-claude-code/skills/$sk/SKILL.md" \
+    && ok "S /$sk no longer reads the writerless ledger" \
+    || bad "S $sk orphan" "still instructs reading a ledger whose only writer is archived"
+done
 
-run_bw_sid "sed -i s/a/b/ src/app.ts" >/dev/null
-[ -f "$SLEDGER" ] && ok "S bypass recorded to a session ledger" || bad "S ledger" "no ledger written"
-grep -q 'sed -i' "$SLEDGER" 2>/dev/null \
-  && ok "S ledger names the idiom" || bad "S idiom" "ledger entry lacks the idiom"
-
-# A second bypass appends rather than replacing — the count is what /wrapup reports.
-run_bw_sid "python3 -c p.write_text(x)" >/dev/null
-[ "$(wc -l < "$SLEDGER" | tr -d ' ')" -eq 2 ] \
-  && ok "S ledger appends (2 entries)" || bad "S append" "expected 2 entries, got $(wc -l < "$SLEDGER" | tr -d ' ')"
-
-# A benign command must not write a ledger entry.
-run_bw_sid "git status" >/dev/null
-[ "$(wc -l < "$SLEDGER" | tr -d ' ')" -eq 2 ] \
-  && ok "S benign command adds no entry" || bad "S benign" "a benign command was recorded"
-rm -f "$SLEDGER"
-
-# T: both closing skills must report the ledger AND check pending handoffs.
+# T: both closing skills must check pending handoffs.
+# ⚠ The bypass-ledger half of this was REMOVED 2026-08-26 and its removal is not a
+# relaxation — it directly contradicted S above. It required both skills to report a
+# ledger whose only writer is now archived, so satisfying T would have meant keeping
+# an instruction to read a file that can never have entries. S asserts the absence; T
+# asserted the presence; only one can be right, and the writer decides which.
 for sk in handoff wrapup; do
   F="$REPO_ROOT/plugin-claude-code/skills/$sk/SKILL.md"
-  grep -qi 'aria-r22-bypass' "$F" \
-    && ok "T /$sk reports the bypass ledger" || bad "T $sk bypass" "does not surface recorded bypasses"
   grep -qi 'Pending handoffs' "$F" \
     && ok "T /$sk checks pending handoffs" || bad "T $sk pending" "does not check pending handoffs"
 done

@@ -75,7 +75,12 @@ fi
 # both, and post-push-retrospect-check.sh actually did -- printf on one path,
 # echo on another. An assertion that passes without being able to detect the
 # defect it names is itself a false green.
-for h in bash-cd-check.sh post-push-retrospect-check.sh pre-cron-check.sh pre-bash-write-check.sh task-context-check.sh; do
+# ⚠ pre-bash-write-check.sh was in this list until 2026-08-26 and is now retired
+# (bin/.archived/) — it decided from the command STRING rather than the resolved
+# mutation TARGET. Dropped rather than repointed at the archive: the property this
+# loop guards is about SHIPPED hooks parsing stdin correctly, and an archived script
+# parses nothing. lapse-guards.sh pins the retirement itself.
+for h in bash-cd-check.sh post-push-retrospect-check.sh pre-cron-check.sh task-context-check.sh; do
   if [ ! -f "$BIN/$h" ]; then
     bad "D $h" "missing"
   elif grep -q 'echo "\$INPUT" | grep -o .\{0,4\}"\(command\|content\|prompt\|new_string\|task_subject\|task_description\)"' "$BIN/$h"; then
