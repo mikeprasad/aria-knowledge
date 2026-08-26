@@ -208,6 +208,47 @@ suite on one machine becomes a red suite on another. Spec §10.8, final subsecti
 
 ## Task 1: Restructure `rules/aria-rules.md` into the full static file
 
+⛔⛔ **BLOCKED 2026-08-26 — a sequencing defect neither the plan nor the gate caught, found while
+starting T1. Do not write the content until this is ruled.**
+
+`session-start-rules.sh:38` includes the digest as **`$(cat "$DIGEST")`** — the bundled file goes
+into the emission **1:1**. So growing that file grows the hook payload by exactly the amount added,
+and T5's premise that the emission only ever *shrinks* is false: the **fallback arm grows**, because
+the file must carry **every variant** where the emission carried only the **selected** one.
+
+Measured / computed (framing is the only estimate):
+
+| Fallback-arm shape | Emission |
+|---|---:|
+| 1 — hook keeps its inline directive copies | 29,490 ch — double-carries every directive |
+| 2 — hook drops them; the file is self-sufficient | 22,846 ch |
+| 3 — inline directives only, no digest | 9,254 ch — loses all 38 rules for that session |
+| *today, for reference* | *20,311 ch* |
+| file-present arm (the steady state) | ~250 ch |
+
+⛔ **Two consequences.**
+
+**(a) AC4 becomes unsatisfiable the moment T1 lands.** It reads *"with the file absent, the emission
+is byte-identical to today's"* — but T1 changes the very file the fallback arm cats, so byte-identity
+with today is impossible unless the hook keeps a second, frozen copy of the digest. AC4 must be
+restated, not quietly failed.
+
+**(b) The single ratchet cannot span both arms.** They differ by ~90×. It has to become two guards:
+a hard, tiny ceiling on the file-present arm, and something else on the fallback arm.
+
+⭐ **And the reframing that probably decides it: in the fallback arm the SIZE barely matters.** The
+cap delivers ~2,000 ch of *any* of these three shapes, so 22,846 and 20,311 are indistinguishable in
+what actually arrives. What matters is **what sits in the first 2,000 characters**, and today that is
+the digest's preamble plus the Behavioural Foundation. ⇒ The fallback arm wants an **ordering**
+assertion, not a size one — and the ratchet's real remaining job is guarding the **steady-state**
+arm, which is the one that is no longer capped at all.
+
+**Recommendation: shape 2** (the file is self-sufficient; the hook stops duplicating what it cats),
+with AC4 restated as *"the fallback arm's first 2,000 characters still lead with the rules digest"*
+and the ratchet split per arm. ⚠ Mike's call — shape 3 is defensible if a one-session loss of the
+rules is preferred to a payload that is mostly discarded.
+
+
 Spec §10.8. Measured floor **18,943 B** (12,166 digest + 6,777 of directive literals) plus framing.
 Probe C proved the channel at 32,056 B in one file and 34,394 B aggregate.
 
