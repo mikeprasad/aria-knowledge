@@ -2,7 +2,21 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status:** GATED — gate 2 (`/prospect`) RUN 2026-08-25, verdict **PROCEED-WITH-CHANGES**.
+> ⛔ **STAMPED SPENT 2026-08-26 — DO NOT RE-EXECUTE. Every task in this plan is SHIPPED.**
+> Its 54 checkboxes read `- [ ]` because they were never ticked during execution, **not** because
+> the work is outstanding — a plan that reads 0/54 while its work is live is a re-execution hazard,
+> which is why this banner exists rather than a checkbox sweep.
+> **Evidence, measured 2026-08-26:** commits `51ae86e..a1988ee` carry Tasks 1–7 (`51ae86e` digest +
+> drift gate · `1de289e` the second hook · `aebc634` Unit 2 · `98e4597` post-compact re-injection ·
+> `c5f39db` the `/setup` pointer offer · `9f4db02` `template/index.md` + gate tightening · `886d442`
+> opt-in surfacing · `d31493c` the TASK BUDGET rework); all four artifacts exist on disk
+> (`rules/aria-rules.md` 12,166 B · `bin/session-start-rules.sh` 13,902 B ·
+> `tests/test-aria-rules-digest.sh` 21,842 B · `template/index.md` 797 B); both `SessionStart`
+> entries are registered in `plugin.json`; suite 213 passed / 0 failed.
+> **Successor:** `2026-08-26-rules-file-hook-split.md` — the file/hook split, which supersedes this
+> plan's single-channel architecture per spec §10.7–§10.8.
+
+**Status:** SPENT (see banner). Historical record below. GATED — gate 2 (`/prospect`) RUN 2026-08-25, verdict **PROCEED-WITH-CHANGES**.
 All five amendments applied in the same session that ran the gate: multiline JSON escape
 (Task 2, blocking), structure assertion + its mutation check (Task 2 Steps 1/5b, blocking),
 hermetic `KT_CONFIG` fixture hoisted to one definition (Task 2 Step 1), human digest review
