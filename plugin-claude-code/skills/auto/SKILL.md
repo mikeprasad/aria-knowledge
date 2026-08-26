@@ -1,5 +1,5 @@
 ---
-description: "Drive an autonomous execution arc end-to-end — compose brainstorm→spec→/prospect→plan→/prospect→TDD→/retrospect under the Rule 35 posture, decide objectively-validatable forks yourself, and stop only on a load-bearing fork or an ungranted approval. Modes: `arc` (default), `execute <plan|spec|ticket-id>` (skip ideation), `plan` (stop at a prospected plan, no code), `config` (guided per-run knob picker). Stackable, one word per axis: `full` (authority — all except push) · `attended`|`unattended` (presence) · `continue`|`stop` (duration) · plus `tickets` and `self-restart`. A bare invocation opens the `config` picker instead of guessing a goal. An explicit grant of autonomous latitude that overrides the standing `autonomy` config for the arc and never writes it. Use when the user hands off a goal, plan, ticket, or SESSION.md with latitude to execute WITHOUT per-step approval — 'combined go', 'run overnight', 'just build it', 'do as much as you can'. ENTRY POINT for a multi-step arc, NOT a single concrete change; distinct from /prospect, /retrospect, /handoff, /wrapup. (Code port — ADR-094.)"
+description: "Drive an autonomous execution arc end-to-end — compose brainstorm→spec→/prospect→plan→/prospect→TDD→/retrospect under the Rule 35 posture, decide objectively-validatable forks yourself, and stop only on a load-bearing fork or an ungranted approval. Modes: `arc` (default), `execute <plan|spec|ticket-id>` (skip ideation), `plan` (stop at a prospected plan, no code), `config` (guided per-run knob picker). Stackable, one word per axis: `full` (authority — all except push and deploy) · `attended`|`unattended` (presence) · `continue`|`stop` (duration) · plus `tickets` and `self-restart`. A bare invocation opens the `config` picker instead of guessing a goal. An explicit grant of autonomous latitude that overrides the standing `autonomy` config for the arc and never writes it. Use when the user hands off a goal, plan, ticket, or SESSION.md with latitude to execute WITHOUT per-step approval — 'combined go', 'run overnight', 'just build it', 'do as much as you can'. ENTRY POINT for a multi-step arc, NOT a single concrete change; distinct from /prospect, /retrospect, /handoff, /wrapup. (Code port — ADR-094.)"
 argument-hint: "[arc|execute|plan|config] [<goal | plan-path | ticket-id>] [full] [attended|unattended] [tickets] [continue|stop] [self-restart]"
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash, WebFetch, WebSearch
 ---
@@ -61,8 +61,12 @@ These bind every `/auto` run in every mode. They are not modifiers and cannot be
 - **D3 — Foundational is always the answer**, unless the foundational fix would itself
   derail the arc. Never take the patching branch to protect schedule (Rules 18 and 38).
   Every firing of that carve-out is a D7 ledger entry.
-- **D4 — Local commits only; push is never grantable.** No modifier — including `full` —
-  pre-authorizes a push. Push stays a legitimate stop in every mode.
+- **D4 — Local commits only; push is never grantable by a standard modifier.** No modifier —
+  including `full` — pre-authorizes a push. **Push must be explicitly directed, else it is not
+  allowed. The same applies to deploy.** An explicit direction is the user naming it: in the
+  invocation, as the answer to the `config` walkthrough's push/deploy policy, or in a standing
+  instruction. Absent one, both stay legitimate stops in every mode. A modifier is not a
+  direction — that is the whole distinction this rule draws.
 - **D5 — Report the live model name at every checkpoint**, so a silent model swap is visible.
 - **D6 — A non-blocking stop never idles the run.** Note it, keep working, surface it at
   handoff.
@@ -135,7 +139,7 @@ These bind every `/auto` run in every mode. They are not modifiers and cannot be
 
 **Modifiers** (stackable, any position, case-insensitive):
 
-- **`full`** — maximum authority on every axis **except push**: tools/MCP/plugins
+- **`full`** — maximum authority on every axis **except push and deploy**: tools/MCP/plugins
   pre-approved · Workflow fan-out ON (default is hard-OFF) · cumulative subagent cap
   10 → 30 · fan-out budget-fraction gate 25% → 40% · self-decide every
   objectively-validatable fork. (**Arming a resume is NOT an authority grant** — it belongs
@@ -255,7 +259,7 @@ Walk these in order, **one at a time** (do not dump all seven at once — the po
 
 1. **Goal / source** — this prompt's goal · continue from `SESSION.md`/latest handoff · a plan path · a ticket ID from your connected tracker. (If a goal was passed as `/auto config <goal>`, pre-seed it and confirm.)
 2. **On-queue-complete** — `stop` (scoped: checkpoint + /handoff when the queue's clear — *default*) · `continue` (keep finding new work; for unattended/overnight).
-3. **Push policy** — commit local, no push (*default*) · commit + push per host convention. (Push remains an ungranted-approval stop regardless — this only sets the intent.)
+3. **Push / deploy policy** — commit local, no push (*default*) · commit + push per host convention · commit + push + deploy. **Answering this IS an explicit direction under D4** — a step granted here is authorized for this run and is no longer an approval stop. Anything not granted still stops. (Per-run only; never persists. Offer the deploy option only where the project has a deploy path.)
 4. **Fan-out / subagents** — inline-only · bounded individual subagents, ~10 cumulative cap (*default*) · raise the cap to N · allow the Workflow swarm (multi-agent orchestration). (Maps to the Step 5 stopgaps.)
 5. **Budget ceiling** — default 25%-of-remaining-window per fan-out burst (*default*) · a different fraction · a hard "stop the arc at X% usage." (Maps to the Step 5 budget-fraction gate + a live abort floor.)
 6. **Resume at the usage wall** — arm (*default when the goal is non-trivial*) · off. If the 5-hour window runs out with the goal unfinished, a resume fires **+5 min after** the reset and picks the work back up (Step 6). **Not gated on #2 or #7** — an unfinished goal warrants a resume whether or not you asked for new work afterwards, and whether or not anyone is watching; presence only decides if it announces itself.
@@ -286,7 +290,7 @@ Before the first action, post a short **arc contract** so the autonomy is legibl
 > **Gates that run but don't count as stopping:** /prospect (pre-code), /retrospect (post-build).
 > **Presence:** <attended — non-blocking residuals come to you as they arise | unattended — residuals batched to the handoff, resume armed>. Always stated; never inferred silently.
 > **Usage:** gating on 5h only; 7d ignored · arm at 90% · pause at 95% (D1).
-> **Push:** local commits only — never pre-authorized by any modifier, including `full` (D4).
+> **Push / deploy:** <local commits only (*default*) | push granted | push + deploy granted> — never pre-authorized by any modifier, including `full`; granted only by explicit direction (D4).
 > **Tools:** MCP / plugins / skills pre-approved.
 > **Foundational:** always preferred; any carve-out is logged (D3 → D7).
 > **Judgment ledger:** `<resolved path>` — reported first at close, for your review (D7).
@@ -358,7 +362,7 @@ A recorded **FAIL** verdict satisfies the gate too, and recording one then proce
 
 **Legitimate stops — the ONLY reasons to ask** (everything else has a pre-answered default above):
 - **Product / UX taste with no objective answer** (e.g. "should threads nest or flatten?") — design direction is the user's.
-- **An action needing approval not already granted** — an irreversible or outward-facing op not covered by policy (a **push** beyond the contract's push policy, a **prod deploy**, external comms, a **destructive op** / deleting non-recoverable data, a **shared-DB migration**), a **scope change** beyond the stated goal, or **credentials / prod-data access**. BUT only HALT if it *blocks* the current task — if it's non-blocking, NOTE it and CONTINUE other work; never idle the whole run on a side-question. (Surface all noted items at `/handoff`.)
+- **An action needing approval not already granted** — an irreversible or outward-facing op not covered by policy (a **push** or **deploy** beyond the contract's push/deploy policy, external comms, a **destructive op** / deleting non-recoverable data, a **shared-DB migration**), a **scope change** beyond the stated goal, or **credentials / prod-data access**. BUT only HALT if it *blocks* the current task — if it's non-blocking, NOTE it and CONTINUE other work; never idle the whole run on a side-question. (Surface all noted items at `/handoff`.)
 - **A true no-visibility fact only the user has** (a constraint not in any repo/doc; a teammate conversation).
 - **A genuine fork where both branches are plausible AND the wrong one is costly AND empirical investigation can't decide it.**
 
@@ -443,7 +447,7 @@ Write memories / `/prospect`+`/retrospect` logs / contract docs **at the moment 
 
 ## Step 8: Close the arc
 
-Leave a **verified-clean checkpoint** (tests green, tree clean, pushed if policy allows). Report what landed, the `[DECISION]` trail, and every noted-but-not-blocking item you surfaced. Then `/handoff (auto)` with a next-session opener that itself says "VERIFY STATE FIRST — this prompt may be stale." Offer `/wrapup` instead if the work is fully done and nothing carries forward. Don't auto-run a push/deploy inside the close — that's the ungranted-approval case unless the contract's push policy already granted it.
+Leave a **verified-clean checkpoint** (tests green, tree clean, pushed if policy allows). Report what landed, the `[DECISION]` trail, and every noted-but-not-blocking item you surfaced. Then `/handoff (auto)` with a next-session opener that itself says "VERIFY STATE FIRST — this prompt may be stale." Offer `/wrapup` instead if the work is fully done and nothing carries forward. Don't auto-run a push or deploy inside the close unless the contract's push/deploy policy explicitly granted that step (D4) — ungranted, it is the ungranted-approval case and stops.
 
 ## Notes
 
