@@ -411,8 +411,9 @@ grep -q 'DEC-LIVE' "$DD/SESSION.md" \
 # --- M9: D4 — a stored prompt with a column-0 "### " must not hijack the block boundary ----------
 # prune's terminator branch reset `drop` on ANY /^### /, so a consumed block whose stored prompt
 # contains such a heading lost its boundary and leaked its tail. Same failure the function's own
-# comment says it fixed for "## ". Real fixture text: cs/SESSION.md's active body carries exactly
-# this shape today, so this is one demote away from live.
+# comment says it fixed for "## ". The fixture shape is real, not invented: a live SESSION.md in this
+# author's busiest project carries exactly these headings in its ACTIVE body today, so this is one
+# demote away from live.
 ED="$TMP/mhash"; mkdir -p "$ED"
 cat > "$ED/SESSION.md" <<'EEOF'
 ---

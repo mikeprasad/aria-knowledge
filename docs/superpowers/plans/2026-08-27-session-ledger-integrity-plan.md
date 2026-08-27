@@ -150,10 +150,10 @@ exactly the class D2 exists to tolerate.
 ⚑ Failure direction is safe: if a prose heading ever carried ≥2 separators, the result is the OLD
 bounded leak, never deletion.
 ⚠ **Reachability, corrected by a better instrument:** NO file on disk is currently mixed
-(`cs/SESSION.md` is 12 entries / 12 terminators). A first pass using `grep -c '^### '` reported it as
-mixed — because that count includes cs's **3 prose headings in its active body**, i.e. the measuring
-instrument was confounded by the defect it was measuring. So this regression is **LATENT**, not live —
-but cs's prose headings confirm D4 itself is one demote from live.
+(the busiest project's is 12 entries / 12 terminators). A first pass using `grep -c '^### '` reported
+it as mixed — because that count includes that file's **3 prose headings in its active body**, i.e.
+the measuring instrument was confounded by the defect it was measuring. So this regression is
+**LATENT**, not live — but those prose headings confirm D4 itself is one demote from live.
 
 Leave the legacy branch alone — it has no terminator and its single-line-prompt invariant makes the old
 inference sound.
