@@ -12,7 +12,7 @@ Generate a value-analysis report computed against the user's OWN knowledge corpu
 
 ## Runtime Gate (per ADR-094)
 
-**Canonical resolution:** This is the Claude Code variant — canonical owner per ADR-094 §Part 1. The Cowork variant (when built) is namespaced-only: `/aria-cowork:audit-usage`.
+**Canonical resolution:** This is the Claude Code variant, and the only one — **no Cowork counterpart of this skill exists** (a settled exclusion). Do not offer or invoke one.
 
 **Before Step 0:** Check that the `Bash` tool is available. If `Bash` is NOT available:
 

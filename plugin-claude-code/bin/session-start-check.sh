@@ -164,7 +164,7 @@ if [ -f "$CONFIG_LOG" ]; then
     if [ -n "$LAST_CA_EPOCH" ]; then
       DAYS_SINCE_CA=$(( (TODAY_EPOCH - LAST_CA_EPOCH) / 86400 ))
       if [ "$DAYS_SINCE_CA" -ge "$KT_CADENCE_CONFIG" ]; then
-        MESSAGES="${MESSAGES}Config audit due (${DAYS_SINCE_CA} days). Run /audit config? (or /audit config, or /audit for all) "
+        MESSAGES="${MESSAGES}Config audit due (${DAYS_SINCE_CA} days). Run /audit config? (or /audit for the full menu) "
       fi
     else
       CA_DUE=true
@@ -176,7 +176,7 @@ else
   CA_DUE=true
 fi
 if [ "$CA_DUE" = "true" ]; then
-  MESSAGES="${MESSAGES}No previous Config Audit found. Run /audit config? (or /audit config, or /audit for all) "
+  MESSAGES="${MESSAGES}No previous Config Audit found. Run /audit config? (or /audit for the full menu) "
 fi
 
 # Check for plugin version upgrade — version-mismatch takes precedence over cadence.

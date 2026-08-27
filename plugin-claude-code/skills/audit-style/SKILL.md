@@ -12,23 +12,9 @@ Mine your own past session-log corpus for working-style rules you have already r
 
 ## Runtime Gate (per ADR-094)
 
-**Canonical resolution:** This is the Claude Code variant. When both `plugin-claude-code` and `plugin-claude-cowork` are loaded in the same session (most common in Claude Desktop), bare `/audit style` resolves to this skill — aria-knowledge (Code) is the canonical owner of all dual-port skills per ADR-094 §Part 1. The Cowork variant is namespaced-only: `/aria-cowork:audit-style`.
+**Canonical resolution:** This is the Claude Code variant, and the only one — **no Cowork counterpart of this skill exists** (Cowork ships neither `/audit style` nor a namespaced variant; a settled exclusion). Do not offer or invoke one.
 
-**Before Step 0:** Check that the `Bash` tool is available in this session. If `Bash` is NOT available (you are running in Claude Cowork or another non-Code runtime), surface the following notification and wait for explicit user confirmation:
-
-> ⚠️ **Runtime mismatch — you invoked aria-knowledge's `/audit style` from a non-Code runtime.**
->
-> This variant reads the local Claude Code transcript corpus at `~/.claude/projects/{cwd-encoded}/*.jsonl` via Bash + the bundled `extract-user-prose.py` — paths Cowork's persistent-grant model can't reach. For the Cowork-native variant, use `/aria-cowork:audit-style`.
->
-> **Use `/aria-cowork:audit-style` instead?** (`y` / `n`)
-
-Wait for an explicit reply:
-
-- **`y` / `yes`** — Use the `Skill` tool to invoke `aria-cowork:audit-style` with the same arguments the user provided to this invocation. Do not proceed with this skill's steps.
-- **`n` / `no`** — Proceed with this (aria-knowledge) variant anyway despite the runtime mismatch. The user has explicitly opted in.
-- **No response / any other reply** — Treat as "do not proceed" and exit cleanly without running either variant.
-
-**This gate applies even when `mode = auto`** per ADR-094 §Part 3. Auto mode's "implicit-yes on all gates" rule is suspended for the runtime-mismatch check.
+**Before Step 0 — Bash capability precondition:** this skill reads the local Claude Code transcript corpus at `~/.claude/projects/{cwd-encoded}/*.jsonl` via Bash + the bundled `extract-user-prose.py`. If the `Bash` tool is NOT available in this session, the corpus is structurally unreachable — state that plainly ("`/audit style` needs Bash and local transcript access, and no Cowork counterpart exists — it cannot run here") and exit cleanly. There is no degraded mode: without the corpus there is nothing to mine. **This precondition applies even when `mode = auto`** per ADR-094 §Part 3.
 
 If `Bash` is available, proceed to Step 0.
 

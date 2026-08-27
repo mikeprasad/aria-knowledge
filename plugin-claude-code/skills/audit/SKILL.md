@@ -13,7 +13,7 @@ invocations for the whole family** (see "Canonical forms and compatibility" belo
 
 ## Runtime Gate (per ADR-094)
 
-**Canonical resolution:** This is the Claude Code variant. When both `plugin-claude-code` and `plugin-claude-cowork` are loaded in the same session (most common in Claude Desktop), bare `/audit` resolves to this skill — aria-knowledge (Code) is the canonical owner of all dual-port skills per ADR-094 §Part 1. The Cowork variant is namespaced-only: `/aria-cowork:audit`.
+**Canonical resolution:** This is the Claude Code variant, and the only `/audit` dispatcher — **Cowork has no `/audit` counterpart** (excluded on its summed-description cap, a settled decision), so there is no namespaced variant to redirect to. Cowork's audit facets are the namespaced sub-skills it does ship: `/aria-cowork:audit-knowledge` and `/aria-cowork:audit-config`.
 
 **Before Step 0:** Check that the `Bash` tool is available in this session. If `Bash` is NOT available (you are running in Claude Cowork or another non-Code runtime), surface the following notification and wait for explicit user confirmation:
 

@@ -2,9 +2,18 @@
 
 All notable changes to ARIA will be documented in this file.
 
-## Unreleased
+## 2.49.0 — 2026-08-27
 
 **New `/audit rules` sub-audit + the audit family commits to its space forms.**
+
+*Pre-release retrospective fixes (same day):* the leftover-parenthetical cleanup had fixed the
+knowledge nudges and missed the identical config twins (`guard-scoped-to-the-wrong-unit`, on the
+fix itself); and the dispatcher rewrite had re-shipped inherited false claims — `/aria-cowork:audit`
+named as the Cowork variant when cowork has no dispatcher, and `audit-style`'s gate offering the
+nonexistent `/aria-cowork:audit-style` (a `y` reply would have failed). All closed as a class:
+config nudges fixed, the dispatcher's canonical line states reality, `audit-style` and
+`audit-usage` gates are now honest Bash capability preconditions. A full-file rewrite owns every
+claim in it, inherited ones included.
 
 **W1 — `/audit rules`** mines the user's distilled knowledge corpus (memory feedback rows and their
 indexes, the rules backlog incl. `/audit style`'s staged output — never transcripts) for recurring
