@@ -88,7 +88,7 @@ Target by mode:
 - `project` → `{knowledge_folder}/intake/projects/{YYYY-MM-DD}-{slug}.md`
 - `knowledge` / `deep-dive` → `{knowledge_folder}/intake/interviews/{YYYY-MM-DD}-{slug}.md`
 
-Lazy-create the subfolder if missing. Write the file. Report the path and note: "Staged for manual review — promote later via /extract or by hand (not auto-swept by /audit-knowledge)."
+Lazy-create the subfolder if missing. Write the file. Report the path and note: "Staged for manual review — promote later via /extract or by hand (not auto-swept by /audit knowledge)."
 
 ---
 

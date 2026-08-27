@@ -101,4 +101,4 @@ Enable via `/setup` Advanced Options. When enabled, each configured project gets
 - **Decision files:** Cross-project ADRs in `decisions/` use `YYYY-NNN-` prefix (e.g., `2026-001-auth-strategy.md`) — self-dating and resetting per year. Project-level ADRs in `projects/{tag}/decisions/` use sequential numeric prefix (`001-`, `002-`) per-project, since each project's ADRs are a separate namespace.
 - **Don't delete — archive:** Move deprecated content to `archive/` with pointers
 - **Tag your files:** Include `tags: [tag1, tag2]` in YAML frontmatter for all promoted files. See `LOCAL.md` for the tag convention.
-- **`index.md` is generated:** Rebuilt by `/index` and `/audit-knowledge`. Never hand-edit it.
+- **`index.md` is generated:** Rebuilt by `/index` and `/audit knowledge`. Never hand-edit it.

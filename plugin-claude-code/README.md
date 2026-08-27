@@ -13,7 +13,7 @@ An active knowledge and development discipline plugin for Claude Code. Captures 
 1. Run `/setup` to configure your knowledge folder
 2. Start working — hooks capture knowledge automatically
 3. Run `/extract` after tasks to save insights
-4. Run `/audit-knowledge` to review and promote
+4. Run `/audit knowledge` to review and promote
 
 See [QUICKSTART.md](QUICKSTART.md) for a detailed walkthrough of your first 3 sessions.
 
@@ -23,8 +23,9 @@ See [QUICKSTART.md](QUICKSTART.md) for a detailed walkthrough of your first 3 se
 |---------|-------------|
 | `/setup` | Configure knowledge folder and plugin settings |
 | `/extract` | Capture insights and decisions from the current conversation |
-| `/audit-knowledge` | Review backlogs and promote to knowledge files |
-| `/audit-config` | Check configs and docs for drift |
+| `/audit knowledge` | Review backlogs and promote to knowledge files |
+| `/audit config` | Check configs and docs for drift |
+| `/audit rules` | Mine your distilled corrections for promotable standing rules (approval-gated) |
 | `/context [tags]` | Load relevant knowledge by topic |
 | `/index` | Rebuild the tag-based knowledge index |
 | `/rules [number]` | Look up a working rule |

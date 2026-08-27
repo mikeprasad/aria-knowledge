@@ -169,7 +169,7 @@ tags: [digest, weekly|monthly|quarterly]
 
 ## Reaction
 
-<intentionally left empty — the user's reaction. /audit-knowledge surfaces this for review.>
+<intentionally left empty — the user's reaction. /audit knowledge surfaces this for review.>
 ```
 
 Report to user:
@@ -200,5 +200,5 @@ Disconnected categories surfaced N gap callouts in the digest. Connect more MCPs
 - Bidirectional per ADR-014 (`{knowledge_folder}/projects/aria-cowork/decisions/014-bidirectional-feature-flow.md`) — aria-cowork v0.4.0 imports byte-faithfully. The Cowork-side context (conversational sessions, more cross-tool synthesis built into the workflow) makes this skill particularly load-bearing on the Cowork side.
 - Output schema is byte-identical per ADR-013 (`{knowledge_folder}/projects/aria-cowork/decisions/013-cowork-modified-skills-schema-identical-outputs.md`).
 - Probe semantics per ADR-015 (`{knowledge_folder}/projects/aria-cowork/decisions/015-capability-probe-pattern.md`) — graceful degradation built-in for partial-connection scenarios.
-- Composes with `/audit-knowledge` — digests are intake artifacts and route through standard audit disposition. Most digests will be `Defer` (interesting but not promotion-worthy) or `Bundle` (cluster patterns across multiple digests for a cross-week insight).
+- Composes with `/audit knowledge` — digests are intake artifacts and route through standard audit disposition. Most digests will be `Defer` (interesting but not promotion-worthy) or `Bundle` (cluster patterns across multiple digests for a cross-week insight).
 - Inspired by Anthropic's productivity plugin `update --comprehensive` mode, adapted for ARIA's intake-then-audit model rather than productivity's TASKS.md sync model.

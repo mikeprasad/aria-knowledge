@@ -222,6 +222,6 @@ Sync log: logs/sync-decisions.md
 - Bidirectional per ADR-014 (`{knowledge_folder}/projects/aria-cowork/decisions/014-bidirectional-feature-flow.md`) — aria-cowork v0.4.0 imports byte-faithfully. The advisory preamble template is identical across plugins; the only divergence is the Step 0 config path resolution.
 - Output schema is byte-identical per ADR-013 (`{knowledge_folder}/projects/aria-cowork/decisions/013-cowork-modified-skills-schema-identical-outputs.md`). Both plugins write to the same shared `logs/sync-decisions.md` + update the same `synced_to_~~docs:` frontmatter shape.
 - The `synced_to_~~docs:` frontmatter convention is **new in v2.18.0**. Documented in `CONFIG.md` schema section (added in Phase 3a).
-- Composes with `/audit-knowledge` — synced decisions are no different from unsynced for audit purposes. The `synced_to_~~docs:` field is informational, not consumed by audit routing.
+- Composes with `/audit knowledge` — synced decisions are no different from unsynced for audit purposes. The `synced_to_~~docs:` field is informational, not consumed by audit routing.
 - **Does NOT replace `_project-knowledge/` git-based team sharing.** That mechanism (v2.13.0) is for per-repo team-mate sharing; `/sync-decisions` is for org-wide wiki / docs publishing. Both can run in parallel.
 - Future direction (post-v2.18.0): a `/sync-rules` or `/sync-references` skill could follow the same pattern if external mirroring of other knowledge artifacts is wanted. ADR-016's preamble template ports forward.

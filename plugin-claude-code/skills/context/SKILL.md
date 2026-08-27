@@ -274,9 +274,9 @@ Details:
 
   Apply the block's `age_string` after the date and `marker` after the description. The rendered line is `- YYYY-MM-DD {age_string} — {type} — {description}{marker}` — byte-identical to pre-2.16 output.
 - **Multi-project entries:** if the frontmatter `project:` field has comma-separated project tags (e.g., `cs,ss`), include the file for each matching project query.
-- **Not selectable:** ideas are informational. They do NOT appear in the numbered file list and are not loadable via "all" or numbers. To triage them, use `/audit-knowledge` (structured disposition flow) or edit the files in `intake/ideas/` directly.
+- **Not selectable:** ideas are informational. They do NOT appear in the numbered file list and are not loadable via "all" or numbers. To triage them, use `/audit knowledge` (structured disposition flow) or edit the files in `intake/ideas/` directly.
 - **Omission:** if no ideas match, omit the section entirely (do not show an empty "Pending Ideas" heading).
-- **Non-project queries:** skip this section entirely when the query is topic-only (e.g., `/context api` or `/context architecture`). Ideas surfacing is project-scoped; cross-project ideas reach the user through `/audit-knowledge`, not `/context`.
+- **Non-project queries:** skip this section entirely when the query is topic-only (e.g., `/context api` or `/context architecture`). Ideas surfacing is project-scoped; cross-project ideas reach the user through `/audit knowledge`, not `/context`.
 - **Legacy-file handling:** if `intake/ideas-backlog.md` exists alongside `intake/ideas/`, do NOT parse it here. Surface a one-line informational note at the end of the Pending Ideas block: "(Legacy `ideas-backlog.md` detected — run `/setup` to migrate pre-2.11 entries into this view.)"
 
 Show the file's tags in brackets after the description so the user can see why each file matched.

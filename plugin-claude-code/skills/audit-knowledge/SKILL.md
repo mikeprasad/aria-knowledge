@@ -1,20 +1,22 @@
 ---
-description: "Scan Claude memory and plans for extractable knowledge. Use when user asks for 'knowledge audit', 'audit knowledge', 'check for extractable knowledge', 'scan memory', or at session start when audit cadence is exceeded. Also invoked as '/knowledge-audit'. (Code port — ADR-094.)"
+description: "Internal facet of the audit family — invoke via '/audit knowledge'. Scans Claude memory and plans for extractable knowledge (backlog-to-promotion review). (Code port — ADR-094.)"
 argument-hint: "[detailed]"
 allowed-tools: Read, Glob, Grep, Write, Edit, Bash
 ---
 
-# /audit-knowledge — Knowledge Repository Audit
+# /audit knowledge — Knowledge Repository Audit
+
+Canonical invocation: **`/audit knowledge`**. The direct `/audit-knowledge` form is retained for compatibility and is not advertised.
 
 Scan `~/.claude/` memory and plan files, compare against what's already in the knowledge folder and project-level docs, and surface anything worth extracting.
 
 ## Runtime Gate (per ADR-094)
 
-**Canonical resolution:** This is the Claude Code variant. When both `plugin-claude-code` and `plugin-claude-cowork` are loaded in the same session (most common in Claude Desktop), bare `/audit-knowledge` resolves to this skill — aria-knowledge (Code) is the canonical owner of all 24 dual-port skills per ADR-094 §Part 1. The Cowork variant is namespaced-only: `/aria-cowork:audit-knowledge`.
+**Canonical resolution:** This is the Claude Code variant. When both `plugin-claude-code` and `plugin-claude-cowork` are loaded in the same session (most common in Claude Desktop), bare `/audit knowledge` resolves to this skill — aria-knowledge (Code) is the canonical owner of all 24 dual-port skills per ADR-094 §Part 1. The Cowork variant is namespaced-only: `/aria-cowork:audit-knowledge`.
 
 **Before Step 0:** Check that the `Bash` tool is available in this session. If `Bash` is NOT available (you are running in Claude Cowork or another non-Code runtime), surface the following notification and wait for explicit user confirmation:
 
-> ⚠️ **Runtime mismatch — you invoked aria-knowledge's `/audit-knowledge` from a non-Code runtime.**
+> ⚠️ **Runtime mismatch — you invoked aria-knowledge's `/audit knowledge` from a non-Code runtime.**
 >
 > This variant scans `~/.claude/projects/{cwd}/memory/` and `~/.claude/plans/` via Bash — paths Cowork's persistent-grant model can't reach. For the Cowork-native variant (audits the attached folder's `intake/` subfolder only), use `/aria-cowork:audit-knowledge`.
 >
@@ -65,13 +67,13 @@ Record the count — it feeds both the prompt message and Step 8's `Trigger:` au
 
 **Determine how this skill was invoked:**
 
-- **User-requested** (user said `/audit-knowledge`, "audit knowledge", "scan memory", etc.): **Always run the full audit**, regardless of how recently the last audit was. Skip directly to Step 2.
+- **User-requested** (user said `/audit knowledge`, "audit knowledge", "scan memory", etc.): **Always run the full audit**, regardless of how recently the last audit was. Skip directly to Step 2.
 - **Session-start check** (triggered by the SessionStart hook): Check whether either trigger fired.
   - **Entry-count trigger** (primary): if `backlog_count >= audit_trigger_threshold`, prompt per tier:
-    - `count ≥ threshold + 30` → *"Knowledge audit overdue — N entries, plan for multi-pass. Run /audit-knowledge?"*
-    - `count ≥ threshold + 15` → *"Knowledge audit recommended — N entries, near one-pass ceiling. Run /audit-knowledge?"*
-    - `count ≥ threshold` → *"Knowledge audit suggested — N entries ready for review. Run /audit-knowledge?"*
-  - **Elapsed-days trigger** (safety net): if no entry-count tier fired AND `days_since >= audit_cadence_knowledge`, prompt: *"Knowledge audit due — N days since last audit. Run /audit-knowledge?"*
+    - `count ≥ threshold + 30` → *"Knowledge audit overdue — N entries, plan for multi-pass. Run /audit knowledge?"*
+    - `count ≥ threshold + 15` → *"Knowledge audit recommended — N entries, near one-pass ceiling. Run /audit knowledge?"*
+    - `count ≥ threshold` → *"Knowledge audit suggested — N entries ready for review. Run /audit knowledge?"*
+  - **Elapsed-days trigger** (safety net): if no entry-count tier fired AND `days_since >= audit_cadence_knowledge`, prompt: *"Knowledge audit due — N days since last audit. Run /audit knowledge?"*
   - **Neither fired**: report the last audit date + current backlog count + days-since, then stop. *"Last knowledge audit was N day(s) ago (YYYY-MM-DD). Backlog at M entries (threshold T). Next trigger at M=T entries or N=C days."*
 
 ## Step 1b: Check Index Freshness

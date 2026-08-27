@@ -1,5 +1,5 @@
 ---
-description: "Rebuild the knowledge tag index. Scans promoted files, normalizes tags, flags untagged files, suggests freeform-to-known promotions, detects stale files, suggests cross-references, updates project-to-tag mappings, and regenerates index.md. Use when user says '/index', 'rebuild index', 'update index', 'reindex knowledge'. Also called automatically by /audit-knowledge. (Code port — ADR-094.)"
+description: "Rebuild the knowledge tag index. Scans promoted files, normalizes tags, flags untagged files, suggests freeform-to-known promotions, detects stale files, suggests cross-references, updates project-to-tag mappings, and regenerates index.md. Use when user says '/index', 'rebuild index', 'update index', 'reindex knowledge'. Also called automatically by /audit knowledge. (Code port — ADR-094.)"
 argument-hint: ""
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
@@ -354,9 +354,9 @@ These steps were silently skipped in the first 35+ `/index` passes (added to the
 - **`n`** — skip Steps 8.x entirely; proceed to Step 9 with frontmatter-only data; resulting `index.md` will omit the `## Cross-Reference Suggestions`, `## Entities`, `## Skill Connections`, `## Cross-Project Promotion Candidates` sections
 - **`partial: <substep-list>`** — run a subset (e.g., `partial: 8d` runs only cross-project; `partial: 8,8d` runs cross-reference + cross-project, skips entity detection + skill connections). Useful when one substep is the user's actual interest and the other three are noise for this pass.
 
-### When `/index` is called from `/audit-knowledge` Step 7b
+### When `/index` is called from `/audit knowledge` Step 7b
 
-If `/index` is being invoked as part of `/audit-knowledge`'s Step 7b rebuild (not stand-alone), the heavy-pass gate **still fires** — the audit user is the same human; ask them once. If the user declines or chose `partial`, the audit's Step 5b drift-detection capabilities are degraded (skill-knowledge drift relies on Step 8c output, cross-project candidate detection relies on Step 8d). Surface this degradation explicitly in `/audit-knowledge` Step 6's "Integrity Issues" section with a "Limited by Steps 8.x skip" note.
+If `/index` is being invoked as part of `/audit knowledge`'s Step 7b rebuild (not stand-alone), the heavy-pass gate **still fires** — the audit user is the same human; ask them once. If the user declines or chose `partial`, the audit's Step 5b drift-detection capabilities are degraded (skill-knowledge drift relies on Step 8c output, cross-project candidate detection relies on Step 8d). Surface this degradation explicitly in `/audit knowledge` Step 6's "Integrity Issues" section with a "Limited by Steps 8.x skip" note.
 
 ### When the user pre-authorizes via argument
 
@@ -370,7 +370,7 @@ When pre-authorized, skip the prompt and proceed accordingly. Audit-time invocat
 
 ### Skill-spec history (informational)
 
-Steps 8.x were defined in the spec from v1.0 but never invoked because routine `/index` calls treated them as frontmatter-tier work. 35+ passes silently skipped. v2.20.0 (2026-05-20) introduces this gate after the 37th-pass `/audit-knowledge` first invoked Steps 8.x via parallel agent (one-time baseline) and the resulting agent output ran ~3 min producing 599 lines of findings — Mike confirmed the cost-value gate-explicit pattern over routine-silent-skip.
+Steps 8.x were defined in the spec from v1.0 but never invoked because routine `/index` calls treated them as frontmatter-tier work. 35+ passes silently skipped. v2.20.0 (2026-05-20) introduces this gate after the 37th-pass `/audit knowledge` first invoked Steps 8.x via parallel agent (one-time baseline) and the resulting agent output ran ~3 min producing 599 lines of findings — Mike confirmed the cost-value gate-explicit pattern over routine-silent-skip.
 
 ## Step 8: Cross-Reference Pass
 
@@ -431,7 +431,7 @@ This data is used when generating the `## Entities` section in Step 9. No user i
 
 ## Step 8c: Skill Connection Discovery
 
-Scan for connections between the plugin's skills and knowledge files. This enables `/audit-knowledge` to detect when a skill evolves but its related knowledge docs haven't been updated.
+Scan for connections between the plugin's skills and knowledge files. This enables `/audit knowledge` to detect when a skill evolves but its related knowledge docs haven't been updated.
 
 **Scan skill files:**
 
@@ -498,9 +498,9 @@ For each candidate group, collect:
 - The shared tags (excluding project tags)
 - A suggested cross-project location (typically `approaches/{descriptive-name-derived-from-shared-tags-or-title}.md`)
 
-This data is used when generating the `## Cross-Project Promotion Candidates` section in Step 9. **No user interaction at this step** — just collection. Promotion itself happens in `/audit-knowledge` Step 5e (Phase 3 of the project knowledge feature).
+This data is used when generating the `## Cross-Project Promotion Candidates` section in Step 9. **No user interaction at this step** — just collection. Promotion itself happens in `/audit knowledge` Step 5e (Phase 3 of the project knowledge feature).
 
-**Rationale for surfacing in the index:** the index is a regularly-rebuilt artifact. Detecting candidates here means users see them whenever they look at the index, not only when they explicitly run `/audit-knowledge`. Lower-friction discovery, same downstream promotion workflow.
+**Rationale for surfacing in the index:** the index is a regularly-rebuilt artifact. Detecting candidates here means users see them whenever they look at the index, not only when they explicitly run `/audit knowledge`. Lower-friction discovery, same downstream promotion workflow.
 
 ## Step 9: Rebuild and Write `index.md`
 
@@ -637,7 +637,7 @@ four are zero.)
 - Appears in: projects/{tag1}/patterns/file.md, projects/{tag2}/patterns/file.md
 - Shared tags: tag-a, tag-b, tag-c
 - Suggested location: approaches/{descriptive-name}.md
-- Run `/audit-knowledge` Step 5e to promote (synthesizes content + adds `originally_at:` provenance)
+- Run `/audit knowledge` Step 5e to promote (synthesizes content + adds `originally_at:` provenance)
 
 (Repeat for each candidate group from Step 8d, sorted by number of projects involved descending then alphabetically. Omit this section entirely if `projects_enabled: false` or no candidates detected.)
 ```

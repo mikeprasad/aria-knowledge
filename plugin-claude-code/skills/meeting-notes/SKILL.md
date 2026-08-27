@@ -161,7 +161,7 @@ tags: [meeting, <project-tag-if-inferable>]
 
 ## Reaction
 
-<intentionally left empty — the user's reaction / why this meeting is worth keeping in knowledge. /audit-knowledge surfaces this for review.>
+<intentionally left empty — the user's reaction / why this meeting is worth keeping in knowledge. /audit knowledge surfaces this for review.>
 ```
 
 ## Step 5: Write + Report
@@ -180,7 +180,7 @@ Captured meeting "<title>" to intake/meetings/<date>-<slug>.md.
 - Decisions: <N>
 - Open questions: <N>
 
-Next: add a reaction in the "## Reaction" section (or wait for /audit-knowledge to surface it). Action items + decisions may be worth extracting separately via `/intake extract` on this file if you want them in the standard intake backlogs.
+Next: add a reaction in the "## Reaction" section (or wait for /audit knowledge to surface it). Action items + decisions may be worth extracting separately via `/intake extract` on this file if you want them in the standard intake backlogs.
 ```
 
 ## Rules
@@ -197,5 +197,5 @@ Next: add a reaction in the "## Reaction" section (or wait for /audit-knowledge 
 - Bidirectional per ADR-014 (`{knowledge_folder}/projects/aria-cowork/decisions/014-bidirectional-feature-flow.md`) — aria-cowork v0.4.0 imports byte-faithfully.
 - Output schema is byte-identical per ADR-013 (`{knowledge_folder}/projects/aria-cowork/decisions/013-cowork-modified-skills-schema-identical-outputs.md`). Both plugins write to `intake/meetings/` in the shared knowledge folder.
 - **Paste-fallback divergence** documented in ADR-015 (`{knowledge_folder}/projects/aria-cowork/decisions/015-capability-probe-pattern.md`) §"Application across the 5 MCP-consuming skills" — this is the one skill that doesn't hard-stop on missing MCPs.
-- The skill is **intake-only** — it doesn't promote meeting notes to `references/` or `decisions/`. That's `/audit-knowledge`'s job at next audit, or the user can manually promote via `/intake extract` on this file to split out decisions/action items.
+- The skill is **intake-only** — it doesn't promote meeting notes to `references/` or `decisions/`. That's `/audit knowledge`'s job at next audit, or the user can manually promote via `/intake extract` on this file to split out decisions/action items.
 - Composes naturally with Granola exports — Granola's Markdown format already includes participants + transcript + (optionally) extracted action items. The paste branch picks this up cleanly.

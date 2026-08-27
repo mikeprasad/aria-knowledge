@@ -30,7 +30,7 @@ Nothing captured at this stage is canonical. It's raw signal waiting for review.
 
 ### Govern
 
-On a configurable cadence, the knowledge audit (`/audit-knowledge`) scans your backlogs, memory files, and plans. It categorizes everything it finds:
+On a configurable cadence, the knowledge audit (`/audit knowledge`) scans your backlogs, memory files, and plans. It categorizes everything it finds:
 
 - **Already captured** — knowledge that's already in your docs or CLAUDE.md files
 - **Implementation-specific** — session plans, debug steps, one-time fixes (valuable in the moment, not reusable)
@@ -73,9 +73,9 @@ Knowledge bases rot when nothing forces a review. Refresh keeps the base from qu
 
 - **`Last updated` frontmatter on every knowledge file** enables mechanical staleness checks.
 - **Configurable thresholds** — `ideas_staleness_threshold_days` (default 7) for `intake/ideas/` entries; `staleness_threshold_months` for promoted knowledge files.
-- **Audit cadences** — SessionStart hook prompts when `/audit-knowledge` or `/audit-config` is overdue.
+- **Audit cadences** — SessionStart hook prompts when `/audit knowledge` or `/audit config` is overdue.
 - **Stale-first surfacing** during audits — stale items sort above fresh ones and demand explicit disposition; fresh items pass through informationally.
-- **Drift detection** — `/audit-config` scans CLAUDE.md files and configs for broken references; `/audit-knowledge` Step 5b3 checks skill-knowledge connections; `/codemap update` refreshes incrementally via git diff; `/index` flags untagged or stale files and suggests cross-references.
+- **Drift detection** — `/audit config` scans CLAUDE.md files and configs for broken references; `/audit knowledge` Step 5b3 checks skill-knowledge connections; `/codemap update` refreshes incrementally via git diff; `/index` flags untagged or stale files and suggests cross-references.
 - **Rule 22 enforcement** — every Edit/Write requires a visible impact assessment and post-edit scope check. No silent drift because no silent edits.
 - **`/stats`** dashboard surfaces backlog depth, audit status, codemap dates, tag coverage, and gaps at a glance.
 
@@ -111,7 +111,7 @@ projects/
 
 Files under `projects/{tag}/**` are automatically tagged with the project tag (path-derived), surfaced via `/context {tag}` alongside cross-project files, and considered for cross-project promotion when patterns appear in ≥`projects_promotion_threshold` projects (default 2).
 
-The promotion ladder extends to three tiers: **project pattern → cross-project approach → universal rule**. `/audit-knowledge` Step 5e detects when project-specific patterns deserve promotion to the cross-project tree, synthesizes the merged content with provenance preservation (`originally_at:` frontmatter), and offers stub-and-reference disposition for the source files.
+The promotion ladder extends to three tiers: **project pattern → cross-project approach → universal rule**. `/audit knowledge` Step 5e detects when project-specific patterns deserve promotion to the cross-project tree, synthesizes the merged content with provenance preservation (`originally_at:` frontmatter), and offers stub-and-reference disposition for the source files.
 
 This tier is fully opt-in — `projects_enabled: false` by default. Existing users see no behavior change unless they explicitly enable it. New users can opt in during `/setup` Advanced Options.
 
@@ -125,7 +125,7 @@ When `projects_shared_knowledge` is set to a comma-separated tag list in config 
 <project-root>/
 └── _project-knowledge/
     ├── README.md                                    (auto-created on first share — convention explainer for non-ARIA teammates)
-    ├── IDEAS-BACKLOG.md                             (the project's idea queue moves here; routed via /audit-knowledge → Accept→backlog)
+    ├── IDEAS-BACKLOG.md                             (the project's idea queue moves here; routed via /audit knowledge → Accept→backlog)
     ├── {YYYY-MM-DD}-{author}-{slug}.md              (repo-scoped insights, decisions, approaches, rules)
     └── cross/
         ├── IDEAS-BACKLOG.md                         (cross-repo idea queue)
@@ -151,8 +151,8 @@ Knowledge Repository is powered by **aria-knowledge**, a Claude Code plugin that
 | `/setup` | Configure knowledge folder, validate structure, set audit cadences |
 | `/extract` | Scan conversation for uncaptured knowledge and stage to backlogs |
 | `/wrapup` | End-of-session handoff — runs `/extract`, updates PROGRESS.md/CLAUDE.md, prompts for commit |
-| `/audit-knowledge` | Review backlogs and memory for promotable knowledge, detect themes, check integrity |
-| `/audit-config` | Check CLAUDE.md files, configs, and docs for drift, broken references, staleness |
+| `/audit knowledge` | Review backlogs and memory for promotable knowledge, detect themes, check integrity |
+| `/audit config` | Check CLAUDE.md files, configs, and docs for drift, broken references, staleness |
 | `/context [tags]` | Load relevant knowledge by topic with project tag expansion |
 | `/index` | Rebuild tag index with cross-references, entity detection, and skill-knowledge connections |
 | `/codemap [mode]` | Generate feature-organized codebase maps (create/inventory/update/section) |
@@ -246,7 +246,7 @@ The manifest compresses ceremony **only** when every safety layer clears:
 
 Two consumers:
 
-**(a) Skills with structured bulk flows.** `/audit-knowledge` writes a manifest after user approval of its promotion plan (Step 7a) and clears it after the audit log is written (Step 8b). The skill's instructions tell Claude how to classify each approved op. This is the primary v2.10.0 consumer. Future releases may extend `/wrapup` and `/extract` as `intake/ideas/` entries indicate demand.
+**(a) Skills with structured bulk flows.** `/audit knowledge` writes a manifest after user approval of its promotion plan (Step 7a) and clears it after the audit log is written (Step 8b). The skill's instructions tell Claude how to classify each approved op. This is the primary v2.10.0 consumer. Future releases may extend `/wrapup` and `/extract` as `intake/ideas/` entries indicate demand.
 
 **(b) Claude executing a user plan.** When Claude is about to perform a declared multi-file task (e.g., user shares `docs/plans/feature-x.md` listing 10 files to create + modify), Claude can write the manifest itself before starting:
 
@@ -361,7 +361,7 @@ Neither system is universally better. They solve different problems. The questio
 2. Run `/setup` to configure your knowledge folder and preferences
 3. Start working — the plugin captures knowledge automatically via hooks
 4. Run `/extract` when you finish a task or before switching context
-5. Run `/audit-knowledge` when prompted (or any time) to review and promote
+5. Run `/audit knowledge` when prompted (or any time) to review and promote
 
 The knowledge folder is plain markdown — it works great as an [Obsidian](https://obsidian.md) vault. We recommend using [Obsidian Web Clipper](https://obsidian.md/clipper) to save articles and references directly into `intake/clippings/`, where ARIA's audit process can review and promote them.
 

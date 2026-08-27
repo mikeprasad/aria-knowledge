@@ -1,5 +1,5 @@
 ---
-description: "Capture knowledge from outside the conversation. A single URL or text snippet is clipped whole to intake/clippings/; files/directories/globs are bulk-scanned into the backlogs; `extract <source>` decomposes a source into backlog entries; `doc <source>` captures a structured 5-section reflection (claims/worth-keeping/contested/action/reaction); `thread <id>` pulls a chat/email thread via MCP. Use when user says '/intake', 'intake from', 'import knowledge from', 'scan this file for knowledge', 'onboard this project', 'clip this', 'save this link', 'save this snippet', 'capture this URL', 'clip this thread', 'save this Slack thread', 'capture this email chain', 'extract insights from this doc', 'mine this Notion page', 'capture a doc', 'log notes on this doc'. Unlike /extract (current conversation), /intake captures external sources; clipped/bulk items are reviewed at the next /audit-knowledge run. (Code port — ADR-094.)"
+description: "Capture knowledge from outside the conversation. A single URL or text snippet is clipped whole to intake/clippings/; files/directories/globs are bulk-scanned into the backlogs; `extract <source>` decomposes a source into backlog entries; `doc <source>` captures a structured 5-section reflection (claims/worth-keeping/contested/action/reaction); `thread <id>` pulls a chat/email thread via MCP. Use when user says '/intake', 'intake from', 'import knowledge from', 'scan this file for knowledge', 'onboard this project', 'clip this', 'save this link', 'save this snippet', 'capture this URL', 'clip this thread', 'save this Slack thread', 'capture this email chain', 'extract insights from this doc', 'mine this Notion page', 'capture a doc', 'log notes on this doc'. Unlike /extract (current conversation), /intake captures external sources; clipped/bulk items are reviewed at the next /audit knowledge run. (Code port — ADR-094.)"
 argument-hint: "[extract|doc|thread] <url|text|path|glob|id> [tags]"
 allowed-tools: Read, Glob, Grep, Write, Edit, WebFetch, Bash
 ---
@@ -49,7 +49,7 @@ Use `{knowledge_folder}` as the base path for all file operations in subsequent 
 6. *(auto)* Args are existing file paths / directories / globs, OR multiple sources → `mode = bulk`. Proceed to Step 1 (bulk scan, unchanged).
 7. No args → ask: "What would you like to intake? (a URL, text, file/dir/glob; or `extract <src>` to decompose, `doc <src>` for a reflection capture, `thread <id>` for a chat/email thread)".
 
-The mental model: default = *capture this whole*; `extract` = *decompose it*; `doc` = *reflect on it (5-section)*; `thread` = the one source that needs naming (or auto-detected from a chat URL). **Note (behavior change from prior versions):** a bare URL now CLIPS WHOLE — it no longer auto-mines into backlogs. To mine a single URL, use `/intake extract <url>` (or let `/audit-knowledge` Step 2f decompose the clipping later).
+The mental model: default = *capture this whole*; `extract` = *decompose it*; `doc` = *reflect on it (5-section)*; `thread` = the one source that needs naming (or auto-detected from a chat URL). **Note (behavior change from prior versions):** a bare URL now CLIPS WHOLE — it no longer auto-mines into backlogs. To mine a single URL, use `/intake extract <url>` (or let `/audit knowledge` Step 2f decompose the clipping later).
 
 ---
 
@@ -129,7 +129,7 @@ On `yes`, write the entry to `{knowledge_folder}/intake/docs/{YYYY-MM-DD}-{slug}
 - **Path:** {knowledge_folder}/intake/docs/{YYYY-MM-DD}-{slug}.md
 - **Tags:** {tag list}
 
-Entry staged in intake/docs/ for next /audit-knowledge to review and promote.
+Entry staged in intake/docs/ for next /audit knowledge to review and promote.
 ```
 
 **Exit after report.** Doc mode runs D1 → D6 only; bulk-mode steps (Step 1 onward) are not executed.
@@ -138,7 +138,7 @@ Entry staged in intake/docs/ for next /audit-knowledge to review and promote.
 
 ## Clip-Whole Steps (mode = clip-whole)
 
-Capture the source **whole** as one clipping for later review at `/audit-knowledge` Step 2f. Runs C1–C3 and exits. (Absorbs the retired `/clip`.)
+Capture the source **whole** as one clipping for later review at `/audit knowledge` Step 2f. Runs C1–C3 and exits. (Absorbs the retired `/clip`.)
 
 ### C1: Acquire content
 - **URL:** WebFetch; extract the page title + a summary (do NOT copy full page content — respect copyright). Capture the URL as `source`.
@@ -165,7 +165,7 @@ tags: [user-provided tags, or auto-detected from index.md, or empty array]
 ```
 Clipped to intake/clippings/{slug}.md
 Tags: [tags or "none"]
-Reviewed at the next /audit-knowledge run (Step 2f).
+Reviewed at the next /audit knowledge run (Step 2f).
 ```
 
 **Exit after C3.**
@@ -342,7 +342,7 @@ Route each approved item to the appropriate backlog file using the same format a
 - **References:** N staged
 - **Skipped:** N duplicates, N excluded by user
 
-Knowledge staged in backlogs for next /audit-knowledge to review and promote.
+Knowledge staged in backlogs for next /audit knowledge to review and promote.
 ```
 
 ## Rules

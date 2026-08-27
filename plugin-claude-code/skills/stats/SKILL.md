@@ -87,7 +87,7 @@ If the header is missing or unparseable, show `(no date)` for that entry.
 
 If no CODEMAP.md files are found under cwd, the section still renders with a single line noting absence.
 
-**Presentation-only.** This step does not classify stale/current or run git-activity checks. Staleness classification with file-change detection belongs to `/audit-knowledge` Step 5d — `/stats` just surfaces the raw date so the user can decide whether to run the audit.
+**Presentation-only.** This step does not classify stale/current or run git-activity checks. Staleness classification with file-change detection belongs to `/audit knowledge` Step 5d — `/stats` just surfaces the raw date so the user can decide whether to run the audit.
 
 ## Step 3b: Cross-Project Tracked Artifacts (added v2.16.1)
 
@@ -106,7 +106,7 @@ For each `tag:path` entry in `projects_list`:
    - If missing, note as single-repo (suppress this row entirely if user prefers terseness — or render "(single-repo, no STITCH)").
 4. Classify against thresholds: `codemap_staleness_threshold_days` (default 14) and `stitch_staleness_threshold_days` (default 30). Status = fresh / STALE (>threshold) / REFUSAL-ZONE (>2× threshold).
 
-**Presentation-only.** Same discipline as Step 3a — surfaces dates + status without auto-acting. Pairs with `/audit-config` Step 5a, which produces actionable findings.
+**Presentation-only.** Same discipline as Step 3a — surfaces dates + status without auto-acting. Pairs with `/audit config` Step 5a, which produces actionable findings.
 
 ## Step 4: Index Health (if index.md exists)
 

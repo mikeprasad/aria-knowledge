@@ -45,7 +45,7 @@ title: Short title matching the filename slug
 
 `/extract` writes these automatically. If you're filing by hand, follow the same frontmatter + body shape.
 
-## Disposition (during `/audit-knowledge`)
+## Disposition (during `/audit knowledge`)
 
 Each idea is surfaced with a two-step prompt: a top-level choice (Accept / Reject / Defer / Reclassify) plus an Accept submenu of destinations.
 
@@ -73,7 +73,7 @@ Unlike the knowledge backlogs, ideas **never promote directly into `approaches/`
 
 ## Staleness
 
-During `/audit-knowledge`, idea files older than `ideas_staleness_threshold_days` (default 7, configurable in `~/.claude/aria-knowledge.local.md`) are tagged `[STALE — still relevant?]` and require an explicit Accept / Reject / Defer decision — you can't implicitly defer a stale idea.
+During `/audit knowledge`, idea files older than `ideas_staleness_threshold_days` (default 7, configurable in `~/.claude/aria-knowledge.local.md`) are tagged `[STALE — still relevant?]` and require an explicit Accept / Reject / Defer decision — you can't implicitly defer a stale idea.
 
 Staleness is computed from the `date:` field in the frontmatter, falling back to the `YYYY-MM-DD` prefix in the filename if frontmatter is missing or malformed.
 
@@ -107,7 +107,7 @@ Or on next `/setup`: if a legacy `intake/ideas-backlog.md` is detected alongside
 The new per-file format is what ARIA v2.11+ skills read and write. Leaving `ideas-backlog.md` in place means:
 
 - New ideas from `/extract` land here as per-file, not in the old backlog.
-- `/audit-knowledge` will only see ideas in this directory; old entries become invisible.
+- `/audit knowledge` will only see ideas in this directory; old entries become invisible.
 - `/context {project}` will only surface ideas from here.
 
 Running the migration preserves your existing entries. Skipping it silently strands them.

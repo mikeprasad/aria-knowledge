@@ -125,7 +125,7 @@ bash ${CLAUDE_PLUGIN_ROOT}/bin/digest-transcript.sh "{capture_path}" "/tmp/aria-
 
 Fold any findings from the digest into the SAME six buckets from Step 2 (insights, decisions, feedback, project context, references, ideas). They then flow through Step 3 (dedup) and Step 4 (append) with the conversation's own findings.
 
-**Ledger-clear after Step 4:** once a capture's findings have been appended to a backlog, create `{knowledge_folder}/archive/extract-{date}/subagent-captures/` if needed, append an entry to its `REMOVED.md` (filename + parent-session-id + agent_type + agent_id), then `rm` the capture `.md`. Leave any captures you did not process (no extractable content, or skipped) for `/audit-knowledge`.
+**Ledger-clear after Step 4:** once a capture's findings have been appended to a backlog, create `{knowledge_folder}/archive/extract-{date}/subagent-captures/` if needed, append an entry to its `REMOVED.md` (filename + parent-session-id + agent_type + agent_id), then `rm` the capture `.md`. Leave any captures you did not process (no extractable content, or skipped) for `/audit knowledge`.
 
 ## Step 3: Deduplicate
 
@@ -250,7 +250,7 @@ After appending, output a brief summary:
 - **Ideas:** N new (written to intake/ideas/ — one file per idea; routed at audit time to tracker / roadmap / todo / adr / backlog / bundle / rule)
 - **Skipped:** N duplicates
 
-Knowledge staged in backlogs for next audit to review and promote. Ideas staged for the Accept submenu — pick destination per idea at next `/audit-knowledge`.
+Knowledge staged in backlogs for next audit to review and promote. Ideas staged for the Accept submenu — pick destination per idea at next `/audit knowledge`.
 ```
 
 If nothing was found:

@@ -39,10 +39,12 @@ If `Bash` is available, proceed to Step 0.
 |---------|-------------|
 | /setup | Configure knowledge folder, audit cadences, and plugin settings |
 | /extract | Capture insights, decisions, and feedback from the current conversation |
-| /audit [knowledge\|config\|style\|all] | Umbrella audit dispatcher — routes to the sub-audit named, or runs all in sequence with no arg |
-| /audit-knowledge (alias: /knowledge-audit) | Review backlogs, promote to knowledge files, rebuild index |
-| /audit-config (alias: /config-audit) | Check project configs and docs for drift and broken references |
+| /audit [knowledge\|config\|style\|usage\|rules\|all] | Umbrella audit dispatcher — routes to the sub-audit named (trailing args pass through), or presents a menu with no arg |
+| /audit knowledge | Review backlogs, promote to knowledge files, rebuild index |
+| /audit config | Check project configs and docs for drift and broken references |
 | /audit style | Log-mining audit over session transcripts for revealed working-style rules (opt-in — not part of routine cadence) |
+| /audit usage | Value/ROI report over your own knowledge corpus (opt-in — not routine cadence) |
+| /audit rules | Mine distilled corrections for promotable standing rules; promotes only on explicit approval (opt-in — not routine cadence) |
 | /audit-share | Promote personal knowledge to the team-shared `_project-knowledge/` tier |
 | /prospect [plan/session/todos/file/linear/branch] | Forward-looking pre-mortem on a plan before any code — per-step risk verdicts (PROCEED/SHRINK/SPLIT/DEFER/KILL), evidence-sourcing pass, simpler-alternative discipline |
 | /preflight [ticket/file] | Executed pre-completion checklist run just before you claim done — six checks (requirements diff, consumer census, reachability, census bound, non-vacuity, mutation), three outcomes each; an unrun check blocks the verdict |
@@ -57,7 +59,7 @@ If `Bash` is available, proceed to Step 0.
 | /backlog [type] | View and manage pending intake items |
 | /stats | Knowledge base health dashboard — file counts, backlogs, audit status |
 | /ask [question] | Research a question, check existing knowledge, save answer as a knowledge doc |
-| /intake [url or text] | Clip a single URL/snippet whole → intake/clippings/ (reviewed at next /audit-knowledge) |
+| /intake [url or text] | Clip a single URL/snippet whole → intake/clippings/ (reviewed at next /audit knowledge) |
 | /intake [path or dir or glob] | Bulk import knowledge from files, directories, or globs into the backlogs |
 | /intake extract [source] | Decompose a source (URL/file/doc via ~~docs MCP) into backlog entries |
 | /intake doc [url or title] | Capture a single doc with 5-section structured body (claims/keeping/contested/action/reaction) → intake/docs/ |
@@ -81,8 +83,8 @@ These are recommendations only — ARIA does not force a model. Switch per sessi
 | Skill | Recommended Model | Why |
 |-------|-------------------|-----|
 | /extract | Highest-capability Opus, medium-to-high effort | Judgment-heavy: distinguishing reusable signal from ephemeral noise, writing non-obvious Why/How-to-apply lines. |
-| /audit-knowledge | Highest-capability Opus, medium-to-high effort | Cross-references backlogs against the promoted index, decides promotion vs. discard, detects emerging themes. |
-| /audit-config | Highest-capability Opus, medium-to-high effort | Reads across CLAUDE.md files and configs to detect drift and broken references. |
+| /audit knowledge | Highest-capability Opus, medium-to-high effort | Cross-references backlogs against the promoted index, decides promotion vs. discard, detects emerging themes. |
+| /audit config | Highest-capability Opus, medium-to-high effort | Reads across CLAUDE.md files and configs to detect drift and broken references. |
 | /preflight | Whatever model is doing the work — no escalation | Deliberately runnable at any tier. The checks are mechanical (census, importers, call counts, mutation); escalating the model would imply the gate is a judgment call, and its whole premise is that judgment already failed once. |
 | /retrospect | Highest-capability Opus, medium-to-high effort | Multi-stage judgment per fix: validation status assignment, simpler-alternative identification, hypothesis generation, failure-mode pattern matching, action verdict synthesis. Highest leverage from stronger models. |
 | /foundational-review, /readiness-audit | Highest-ceiling available (Fable at extreme stakes, else Opus), xhigh effort | The reviewer model is spent on alternatives-steelmanning, portfolio/product judgment, and the irreversibility inventory; semi-agentic read-trace-reason loop benefits from xhigh. Executor tasks the chain emits route to Opus by default. |
@@ -94,9 +96,9 @@ These are recommendations only — ARIA does not force a model. Switch per sessi
 
 Always pick the latest release within each tier — ARIA pins capability *tiers*, not version numbers, so this guidance survives model updates.
 
-`Fable` (displayed "Fable 5") is the tier above Opus. Its edge is raw capability/judgment, **not** context size — Fable and Opus share the same 1M-token window. Treat it as a step-up only for the most judgment-heavy, high-stakes runs where a wrong or shallow answer is costly (`/extract`, `/audit-knowledge`, `/retrospect` on genuinely hard sessions). It costs ~2× Opus, so reach for it when difficulty — not data volume — justifies the spend; the Opus rows otherwise stand. (Note: the "large-context variant preferred" qualifier on `/codemap create` above is legacy — any current top-tier model, Opus 4.8 included, already carries the 1M window, so full-repo traversal no longer needs a special variant.)
+`Fable` (displayed "Fable 5") is the tier above Opus. Its edge is raw capability/judgment, **not** context size — Fable and Opus share the same 1M-token window. Treat it as a step-up only for the most judgment-heavy, high-stakes runs where a wrong or shallow answer is costly (`/extract`, `/audit knowledge`, `/retrospect` on genuinely hard sessions). It costs ~2× Opus, so reach for it when difficulty — not data volume — justifies the spend; the Opus rows otherwise stand. (Note: the "large-context variant preferred" qualifier on `/codemap create` above is legacy — any current top-tier model, Opus 4.8 included, already carries the 1M window, so full-repo traversal no longer needs a special variant.)
 
 Any model below Sonnet-equivalent capability is not recommended for any ARIA skill — the judgment/cross-reference demands exceed its strengths.
 
-The honest test: will a stronger model change what ends up in the knowledge base? For `/extract` and `/audit-knowledge`, yes, measurably. For `/index` and `/stats`, no.
+The honest test: will a stronger model change what ends up in the knowledge base? For `/extract` and `/audit knowledge`, yes, measurably. For `/index` and `/stats`, no.
 ```

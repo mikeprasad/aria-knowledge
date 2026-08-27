@@ -81,7 +81,7 @@ Based on the answer content, suggest where it belongs:
 | How X works (operational) | `guides/` | Supabase auth setup |
 | What others say about X | `references/` | Stripe webhook best practices |
 | We chose X because Y | `decisions/` | Why cursor over offset pagination |
-| X must/must not (principle) | `rules/` | Rare — usually via `/audit-knowledge` |
+| X must/must not (principle) | `rules/` | Rare — usually via `/audit knowledge` |
 
 ## Step 5: Draft Knowledge Doc
 

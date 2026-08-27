@@ -213,7 +213,7 @@ one word per axis, no special cases.)*
   Monday · ClickUp · Notion-as-tracker · GitHub Issues. Probing is prose-only; there is no
   helper API (ADR-015). If `ticketing_plugins` is set in `~/.claude/aria-knowledge.local.md`
   (comma-separated `tag:plugin-command` pairs, read directly from the file the way
-  `/audit-knowledge` reads it), it wins — that is the user's explicit declaration.
+  `/audit knowledge` reads it), it wins — that is the user's explicit declaration.
   **Never verify that a mapped command is actually installed:** enumerating installed
   plugins couples this skill to runtime internals that can change, and a loud failure at
   invocation beats a silently-absent hint. Detect ticket IDs with the vendor-neutral `\b([A-Z]{2,}-\d+)\b`. With
@@ -472,7 +472,7 @@ Leave a **verified-clean checkpoint** (tests green, tree clean, pushed if policy
 ## Notes
 
 - **`/auto` applies policy, it doesn't redefine it.** The decide-vs-ask *logic* is Rule 35; this skill adds *operational* discipline (never-stop list, budget-binding, work-selection, subagent gate, resume-cron). If you want to change *when to ask*, edit Rule 35 — keep the single source of truth.
-- **Two rule sources, both loaded, neither restated.** `/auto` operates under two distinct rule files and owns *neither*: **Rule 35** in the plugin-managed `working-rules.md` is the decide-vs-ask *routing* policy (edit it to change *when to ask*); **`user-rules.md`** is the user's own *substantive* standing rules, loaded in Step 0.4 and applied as binding constraints for the arc (edit them via `/rules`-adjacent flows / `/audit-knowledge` promotion, never here). `/auto` reads and applies both; it restates neither. To see the rules' content, use `/rules`.
+- **Two rule sources, both loaded, neither restated.** `/auto` operates under two distinct rule files and owns *neither*: **Rule 35** in the plugin-managed `working-rules.md` is the decide-vs-ask *routing* policy (edit it to change *when to ask*); **`user-rules.md`** is the user's own *substantive* standing rules, loaded in Step 0.4 and applied as binding constraints for the arc (edit them via `/rules`-adjacent flows / `/audit knowledge` promotion, never here). `/auto` reads and applies both; it restates neither. To see the rules' content, use `/rules`.
 - **`/auto` never writes config.** It runs autonomously for the arc on the strength of the invocation; the standing `autonomy` posture changes only via `/setup` (one writer, no drift).
 - **Tool allowlist companion.** For unattended runs, a pre-authorized `permissions.allow` list in the user's `.claude/settings.local.json` makes "tools are preset" real: the skill tells the model not to ask, the settings tell the harness not to gate. Keep them in sync — when a new tool causes a mid-run stop, add it there.
 - **Self-restart wrapper — permission setup (example, follow only when you actually run one).** The `self-restart` flag needs `bin/auto-runloop.sh`, which spawns `claude -p --dangerously-skip-permissions`. That tripwires TWO independent gates, and you must clear BOTH:

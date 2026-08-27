@@ -12,7 +12,7 @@ Close out the current session cleanly: review what got done, update project trac
 
 - **Default (`/wrapup`)** — Per-step gated review. Each tracked surface (session summary, PROGRESS, CLAUDE.md, memory, commit, /extract prompt) prompts for explicit confirmation before writing.
 - **`auto` (`/wrapup auto`)** — Implicit-yes on all gates. Run silently. Apply all drafts and chain `/extract` without confirmation. Emit final report only. Use when the session is short and unambiguous, or when you've already authorized a combined-go (`yes to all`, `yes to all with extract`).
-- **`snap` (`/wrapup snap`)** — Like `auto`, but archives the raw transcript via `/snapshot` for later extraction **instead of** running `/extract` now. Use when context is high: you still get the full silent close-out + commit, but defer the expensive, compaction-risky knowledge synthesis to a later session (or the next `/audit-knowledge` digest pass, which reads the snapshot automatically).
+- **`snap` (`/wrapup snap`)** — Like `auto`, but archives the raw transcript via `/snapshot` for later extraction **instead of** running `/extract` now. Use when context is high: you still get the full silent close-out + commit, but defer the expensive, compaction-risky knowledge synthesis to a later session (or the next `/audit knowledge` digest pass, which reads the snapshot automatically).
 
 **`snap` is `auto` plus one swap.** Everywhere a step below says "If `mode = auto` (or `snap`)", `snap` follows auto's behavior exactly — implicit-yes, silent, apply all drafts, no per-step prompts. The single difference is the capture step (Step 8): `snap` runs `/snapshot` (archive the transcript for later) while `auto` runs `/extract` (synthesize now). Nothing else differs.
 
@@ -248,7 +248,7 @@ If any item shows a gap (uncommitted changes skipped, PROGRESS.md not updated), 
 
 ## Step 8: Capture Session Knowledge
 
-**If `mode = snap`:** Do NOT run `/extract`. Instead invoke the `/snapshot` skill to archive the raw transcript to `intake/pre-compact-captures/` for later extraction. This is snap mode's defining difference: capture is deferred, not synthesized now. Like auto, this always runs — there is no skip path. The snapshot is the deferred-extraction handoff: a later `/extract`, or the next `/audit-knowledge` digest pass (which reads `intake/pre-compact-captures/` automatically), synthesizes knowledge from it when context isn't a constraint. Use snap when context is high and running `/extract` now would risk compaction mid-synthesis. (`/snapshot` requires Bash, which the Step-0 runtime gate already guaranteed.)
+**If `mode = snap`:** Do NOT run `/extract`. Instead invoke the `/snapshot` skill to archive the raw transcript to `intake/pre-compact-captures/` for later extraction. This is snap mode's defining difference: capture is deferred, not synthesized now. Like auto, this always runs — there is no skip path. The snapshot is the deferred-extraction handoff: a later `/extract`, or the next `/audit knowledge` digest pass (which reads `intake/pre-compact-captures/` automatically), synthesizes knowledge from it when context isn't a constraint. Use snap when context is high and running `/extract` now would risk compaction mid-synthesis. (`/snapshot` requires Bash, which the Step-0 runtime gate already guaranteed.)
 
 **If `mode = auto`:** ALWAYS invoke the `/extract` skill. No judgment-skip allowed — even if the session feels short, conversational, or seems to have nothing new to extract, run `/extract` anyway. The model running this step must not pre-judge whether extraction is worthwhile; `/extract` has its own dedup logic (per its Rules section: "Never ask for confirmation — scan and dump") that correctly handles the "nothing to add" case by reporting `No uncaptured knowledge found`. The wrapup skill must not make that judgment on `/extract`'s behalf. Auto mode's "implicit-yes on all gates" rule converts to **"extract always runs"** here — there is no skip path in auto mode.
 
@@ -266,7 +266,7 @@ Output a brief closing summary:
 
 [1-2 lines: what was updated]
 
-[If mode = snap: **Knowledge capture:** transcript snapshotted to intake/pre-compact-captures/ for later extraction (run /extract in a fresh session, or let the next /audit-knowledge digest pass synthesize it). /extract was NOT run this session.]
+[If mode = snap: **Knowledge capture:** transcript snapshotted to intake/pre-compact-captures/ for later extraction (run /extract in a fresh session, or let the next /audit knowledge digest pass synthesize it). /extract was NOT run this session.]
 
 **Next session pickup:** Read [path to PROGRESS.md or CLAUDE.md]
 ```
@@ -282,5 +282,5 @@ Use the heading **`Session Wrapup Complete`** for `/wrapup` runs — distinct fr
 - **Skip gracefully** — if a file doesn't exist (no PROGRESS.md, no CLAUDE.md, no memory), skip that step and note it. Don't create files that don't already exist as part of the project's conventions.
 - **SESSION.md is the one create-exception.** Unlike PROGRESS.md/CLAUDE.md/memory (skip-gracefully if absent), SESSION.md is *always written* when `session_state` is on — created at the project root if it doesn't exist. It's a new convention that must bootstrap. This is the only file /wrapup creates rather than skips.
 - **Delegate extraction** — /wrapup prompts for /extract but does not perform extraction itself. The /extract skill has its own deduplication and formatting logic.
-- **`snap` defers, never drops, capture.** In snap mode /wrapup runs `/snapshot` instead of `/extract` — it must always run the snapshot (no skip path, same as auto's "extract always runs" invariant). The raw transcript is preserved so a later /extract or /audit-knowledge digest can synthesize it; snap never means "skip knowledge capture," only "capture cheaply now, synthesize later." snap is otherwise byte-for-byte auto behavior (silent, implicit-yes, local commit only, never push).
+- **`snap` defers, never drops, capture.** In snap mode /wrapup runs `/snapshot` instead of `/extract` — it must always run the snapshot (no skip path, same as auto's "extract always runs" invariant). The raw transcript is preserved so a later /extract or /audit knowledge digest can synthesize it; snap never means "skip knowledge capture," only "capture cheaply now, synthesize later." snap is otherwise byte-for-byte auto behavior (silent, implicit-yes, local commit only, never push).
 - **One passoff per session** — if the user runs /wrapup again in the same session, check what was already done and skip completed steps. Don't duplicate entries.

@@ -50,4 +50,4 @@ fi
 
 echo "Transcript snapshot saved → $SNAPSHOT_FILE"
 echo "Source: $TRANSCRIPT_PATH"
-echo "Run /extract now (in-context), or /audit-knowledge will review this snapshot at the next audit cycle."
+echo "Run /extract now (in-context), or /audit knowledge will review this snapshot at the next audit cycle."

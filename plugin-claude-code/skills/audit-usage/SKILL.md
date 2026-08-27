@@ -1,10 +1,12 @@
 ---
-description: "Generate a value/ROI report for YOUR knowledge corpus — cost-surface token math plus prospect/retrospect quality distributions, month trends, and an honest confound-aware read of whether ARIA is earning its keep. Opt-in, never routine. Trigger: '/audit usage', 'is ARIA worth it', 'value analysis', 'usage report'. (Code port — ADR-094.)"
+description: "Internal facet of the audit family — invoke via '/audit usage'. Value/ROI report over your own knowledge corpus (cost surface + quality distributions + trends). (Code port — ADR-094.)"
 argument-hint: ""
 allowed-tools: Read, Glob, Grep, Bash, Write
 ---
 
 # /audit usage — Value/ROI Self-Analysis
+
+Canonical invocation: **`/audit usage`**. The direct `/audit-usage` form is retained for compatibility and is not advertised.
 
 Generate a value-analysis report computed against the user's OWN knowledge corpus — the user-facing counterpart to the plugin's published `docs/value-analysis.md` (which is the author's N=1 digest). Deterministic metrics come from `bin/usage-metrics.sh`; the interpretive narrative is written here, gated on sample size.
 

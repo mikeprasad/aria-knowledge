@@ -49,7 +49,7 @@ The script:
 1. Reads `~/.claude/aria-knowledge.local.md` via `config.sh` — stops with a setup message if unconfigured.
 2. Locates the current session's transcript by picking the most recently modified `*.jsonl` under `~/.claude/projects` (fractional-second mtime, to disambiguate concurrent Claude Code windows).
 3. Copies it to `{knowledge_folder}/intake/pre-compact-captures/{YYYY-MM-DD}_{session-id-8-chars}.md`.
-4. Prints the snapshot path, the source transcript path, and pointers to the two review paths — `/extract` for in-context synthesis now, or `/audit-knowledge` which will review the snapshot at the next audit cycle via digest mode.
+4. Prints the snapshot path, the source transcript path, and pointers to the two review paths — `/extract` for in-context synthesis now, or `/audit knowledge` which will review the snapshot at the next audit cycle via digest mode.
 
 ## Step 2: Relay The Output
 

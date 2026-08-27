@@ -1,20 +1,22 @@
 ---
-description: "Audit project configuration and documentation for drift, staleness, and broken references. Use when user asks for 'config audit', 'docs audit', 'check setup', 'audit configs', 'review CLAUDE.md files', or at session start when audit cadence is exceeded. Also invoked as '/config-audit'. (Code port — ADR-094.)"
+description: "Internal facet of the audit family — invoke via '/audit config'. Audits project configuration and docs for drift, staleness, and broken references. (Code port — ADR-094.)"
 argument-hint: ""
 allowed-tools: Read, Glob, Grep, Write, Edit, Agent
 ---
 
-# /audit-config — Configuration & Documentation Health Check
+# /audit config — Configuration & Documentation Health Check
+
+Canonical invocation: **`/audit config`**. The direct `/audit-config` form is retained for compatibility and is not advertised.
 
 Scan all CLAUDE.md files, `.claude/settings.local.json` configs, plugin manifests, and knowledge files for drift, broken references, and staleness.
 
 ## Runtime Gate (per ADR-094)
 
-**Canonical resolution:** This is the Claude Code variant. When both `plugin-claude-code` and `plugin-claude-cowork` are loaded in the same session (most common in Claude Desktop), bare `/audit-config` resolves to this skill — aria-knowledge (Code) is the canonical owner of all 24 dual-port skills per ADR-094 §Part 1. The Cowork variant is namespaced-only: `/aria-cowork:audit-config`.
+**Canonical resolution:** This is the Claude Code variant. When both `plugin-claude-code` and `plugin-claude-cowork` are loaded in the same session (most common in Claude Desktop), bare `/audit config` resolves to this skill — aria-knowledge (Code) is the canonical owner of all 24 dual-port skills per ADR-094 §Part 1. The Cowork variant is namespaced-only: `/aria-cowork:audit-config`.
 
 **Before Step 0:** Check that the `Bash` tool is available in this session. If `Bash` is NOT available (you are running in Claude Cowork or another non-Code runtime), surface the following notification and wait for explicit user confirmation:
 
-> ⚠️ **Runtime mismatch — you invoked aria-knowledge's `/audit-config` from a non-Code runtime.**
+> ⚠️ **Runtime mismatch — you invoked aria-knowledge's `/audit config` from a non-Code runtime.**
 >
 > This variant scans local files via Bash + Agent for sub-audits and stats `.claude/settings.local.json`, none of which are reachable here. For the Cowork-native variant (audits CLAUDE.md + CONFIG.md + plugin manifests reachable from the attached knowledge folder), use `/aria-cowork:audit-config`.
 >
@@ -44,7 +46,7 @@ Note the "Last Audit" date and calculate days since.
 
 **Determine how this skill was invoked:**
 
-- **User-requested** (user said `/audit-config`, "audit configs", "check setup", etc.): **Always run the full audit**, regardless of how recently the last audit was. Skip directly to Step 2.
+- **User-requested** (user said `/audit config`, "audit configs", "check setup", etc.): **Always run the full audit**, regardless of how recently the last audit was. Skip directly to Step 2.
 - **Session-start check** (triggered by the SessionStart hook): Check if the configured cadence has been exceeded.
   - If **cadence exceeded**: Prompt the user — *"It's been N days since the last config & docs audit. Want me to check for drift?"* If they agree, proceed to Step 2. If not, stop.
   - If **within cadence**: Report the last audit date and stop. *"Last config & docs audit was N day(s) ago (YYYY-MM-DD). Next check due in M days."*

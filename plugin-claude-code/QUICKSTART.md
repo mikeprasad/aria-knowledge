@@ -21,7 +21,7 @@ Before wrapping up, run **`/extract`** to capture decisions, feedback, reference
 
 The session-start hook will prompt: *"Want me to scan for extractable knowledge?"*
 
-Run **`/audit-knowledge`** to govern (review) what's been captured, then promote what's worth keeping:
+Run **`/audit knowledge`** to govern (review) what's been captured, then promote what's worth keeping:
 - Approve items to promote them into your knowledge repository
 - Reject items to clear them from backlogs
 - Defer or reclassify items that aren't ready
@@ -46,8 +46,8 @@ With an index built, ARIA surfaces trusted knowledge automatically and the refre
 |---------|-------------|
 | `/setup` | Configure plugin, check for updates |
 | `/extract` | Capture knowledge from current conversation |
-| `/audit-knowledge` | Review backlogs and promote to knowledge files |
-| `/audit-config` | Check project configs and docs for drift |
+| `/audit knowledge` | Review backlogs and promote to knowledge files |
+| `/audit config` | Check project configs and docs for drift |
 | `/audit-share` (or `/share-audit`) | Batch-review personal knowledge for promotion to per-repo `_project-knowledge/` (opt-in via `projects_shared_knowledge`) |
 | `/context [tags]` | Load relevant knowledge by topic — surfaces team-shared files alongside personal/project tiers when shared knowledge is enabled |
 | `/index` | Rebuild the tag-based knowledge index |

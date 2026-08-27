@@ -1,10 +1,12 @@
 ---
-description: "Mine your past session-log history for revealed working-style rules — how you actually work, proven by what you did (definition of done, rejection criteria, debugging approach, design taste, writing voice). Evidence-gated: a rule ships only with >=2 distinct sessions of dated verbatim quotes. Stages to the rules backlog for normal audit review. Opt-in. Trigger: '/audit style', 'mine my working style', 'audit my style'."
+description: "Internal facet of the audit family — invoke via '/audit style'. Mines session-log history for revealed working-style rules; receipt-gated (>=2 distinct sessions of dated verbatim quotes)."
 argument-hint: "[recent|all|window <days>]"
 allowed-tools: Read, Glob, Grep, Bash, Write, Edit
 ---
 
 # /audit style — Working-Style Sub-Audit
+
+Canonical invocation: **`/audit style`** (args ride the umbrella: `/audit style recent`). The direct `/audit-style` form is retained for compatibility and is not advertised.
 
 Mine your own past session-log corpus for working-style rules you have already revealed through action — not rules you're asked to invent, rules extracted from what you actually said and did across real sessions. Evidence-gated at every step: a candidate that cannot show its receipts does not ship, no matter how plausible it sounds.
 
@@ -30,7 +32,7 @@ Wait for an explicit reply:
 
 If `Bash` is available, proceed to Step 0.
 
-**Opt-in only, never cadence-fired:** unlike `/audit-knowledge` and `/audit-config`, `/audit style` is **never** triggered by a SessionStart hook, an activity threshold, or any other automatic cadence. It runs only on an explicit, user-typed invocation (`/audit style`, "mine my working style", "audit my style"). There is no ambient trigger to suspend or account for — this gate section and Step 4b's preview gate are the only checkpoints.
+**Opt-in only, never cadence-fired:** unlike `/audit knowledge` and `/audit config`, `/audit style` is **never** triggered by a SessionStart hook, an activity threshold, or any other automatic cadence. It runs only on an explicit, user-typed invocation (`/audit style`, "mine my working style", "audit my style"). There is no ambient trigger to suspend or account for — this gate section and Step 4b's preview gate are the only checkpoints.
 
 ## Step 0: Config + Corpus Locate
 
@@ -125,7 +127,7 @@ For every candidate that survives Step 3's gate, redact each surviving quote bef
 
 Redaction happens here so the report, the card, and any write all use the redacted quotes. **No file is written in this step** — where the survivors go (staged to `rules-backlog.md`, promoted to `feedback_*.md`, or nothing) is the user's choice at the Step 6 disposition gate, made against the full report + card. The redacted survivors are simply held for Steps 5–6.
 
-**The write surface is fixed regardless of disposition:** staged survivors go to `{knowledge_folder}/intake/rules-backlog.md` (the `### YYYY-MM-DD — {title}` block below the `---` separator, rule statement + inline dated redacted receipts — the shape `/audit-knowledge` already expects). Promotion to `feedback_*.md` (or `rules/user-rules.md`) happens ONLY on the explicit promote-now disposition, and even then follows `/audit-knowledge`'s three-target logic. **The default disposition never writes `feedback_*.md`** — that stays a human-gated decision.
+**The write surface is fixed regardless of disposition:** staged survivors go to `{knowledge_folder}/intake/rules-backlog.md` (the `### YYYY-MM-DD — {title}` block below the `---` separator, rule statement + inline dated redacted receipts — the shape `/audit knowledge` already expects). Promotion to `feedback_*.md` (or `rules/user-rules.md`) happens ONLY on the explicit promote-now disposition, and even then follows `/audit knowledge`'s three-target logic. **The default disposition never writes `feedback_*.md`** — that stays a human-gated decision.
 
 ## Step 5: Report (the report IS the preview — nothing is written yet)
 
@@ -202,18 +204,18 @@ Present ONE decision. This is the only write-authorizing prompt (it absorbs the 
 ```
 Disposition for the M passed rules:
   [keep]     Keep as recommended (default) — stage to rules-backlog.md for review
-             at the next /audit-knowledge. Nothing written to feedback_*.md.
+             at the next /audit knowledge. Nothing written to feedback_*.md.
   [promote]  Promote the passed rules to user memory (feedback_*.md / user-rules.md)
-             NOW, via /audit-knowledge's three-target logic.
+             NOW, via /audit knowledge's three-target logic.
   [specify]  Decide per-rule, or something else (tell me).
   [cancel]   Write nothing (the card file already saved; sessions stay eligible next run).
 
 Press Enter / "keep" for the default.
 ```
 
-- **`keep` (default, incl. bare Enter / any non-committal reply):** append the M passed rules to `rules-backlog.md` (Step 4's shape); they flow through `/audit-knowledge`'s existing `rule` disposition on the user's normal cadence. **Nothing is written to `feedback_*.md`.** Advance the audit-log boundary.
-- **`promote`:** the user has explicitly authorized direct promotion — write the passed rules to `feedback_*.md` (or `rules/user-rules.md` for cross-project ARIA-behavior rules, or a project-tier `working-rules.md`) per `/audit-knowledge`'s three-target logic. This is the ONLY path that writes user memory, and only on this explicit choice. Advance the boundary.
+- **`keep` (default, incl. bare Enter / any non-committal reply):** append the M passed rules to `rules-backlog.md` (Step 4's shape); they flow through `/audit knowledge`'s existing `rule` disposition on the user's normal cadence. **Nothing is written to `feedback_*.md`.** Advance the audit-log boundary.
+- **`promote`:** the user has explicitly authorized direct promotion — write the passed rules to `feedback_*.md` (or `rules/user-rules.md` for cross-project ARIA-behavior rules, or a project-tier `working-rules.md`) per `/audit knowledge`'s three-target logic. This is the ONLY path that writes user memory, and only on this explicit choice. Advance the boundary.
 - **`specify`:** surface the passed rules and take per-rule instructions (stage some, promote some, drop some) or any freeform direction. Follow it exactly; never invent a disposition the user didn't give.
 - **`cancel`:** write nothing to backlog or memory; the card file from Step 5b remains. Do NOT advance the audit-log boundary.
 
-**Restate the invariants:** `/audit style` is **opt-in only** (no cadence/SessionStart/threshold trigger — explicit invocation only), and its **default never writes `feedback_*.md`** — direct promotion happens only on the explicit `promote`/`specify` choice; otherwise memory is reached only through the human-gated `/audit-knowledge` review, same as any other rule-backlog entry.
+**Restate the invariants:** `/audit style` is **opt-in only** (no cadence/SessionStart/threshold trigger — explicit invocation only), and its **default never writes `feedback_*.md`** — direct promotion happens only on the explicit `promote`/`specify` choice; otherwise memory is reached only through the human-gated `/audit knowledge` review, same as any other rule-backlog entry.

@@ -2,6 +2,46 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## Unreleased
+
+**New `/audit rules` sub-audit + the audit family commits to its space forms.**
+
+**W1 — `/audit rules`** mines the user's distilled knowledge corpus (memory feedback rows and their
+indexes, the rules backlog incl. `/audit style`'s staged output — never transcripts) for recurring
+corrections that deserve promotion to numbered standing rules. Clusters by theme, verifies every
+quote at its source file (an index row's slug is never evidence), classifies TRANSCRIPTION vs
+DERIVED per Rule 23's one-step test, ranks on a ≥2-distinct-sessions recurrence bar with a visible
+watch list, and **writes a rule only on an explicit approval naming the candidates** — the default
+disposition stages to the rules backlog. Promotion mechanics include a new
+`bin/check-rule-lead-bytes.sh` (the always-on digest truncates rule leads at 240 **bytes**, so a
+chars check passes leads that truncate mid-claim — measured), digest regeneration through
+`session-start-rules.sh` only, and cue-preserving collapse of superseded index rows. Opt-in, never
+cadence-fired. Dogfood-validated live against a fixture corpus (clustering, the recurrence bar,
+dedupe-with-citation, and the contradicting-index-row gate all exercised).
+
+**W2 — audit verb migration.** The `/audit <verb>` space forms are now the canonical, advertised
+invocations for the whole family; the hyphenated direct forms (`/audit-knowledge`, `/audit-config`,
+`/audit-style`, `/audit-usage`, `/audit-rules`) survive only as unadvertised compatibility aliases
+(the legacy-`linear`-spellings posture — the sub-skill files remain the dispatcher's delegation
+targets). The dispatcher gains **argument passthrough** (`/audit style recent`,
+`/audit rules promote R1 R3`) — args are legal only after a recognized verb, so the unknown-verb
+branch is unweakened. 111 prose occurrences migrated across 34 files under a reviewed, path-safe
+sweep (archived tombstones untouched); the four sub-skill descriptions demoted to one-line internal
+form with their trigger vocabularies absorbed into `/audit`'s description; the SessionStart cadence
+nudges name the space forms; a permanent test ratchet keeps unadvertised hyphen forms at zero.
+Also fixed in passing: `/help` had never gained a `/audit usage` command-table row (v2.41.0 gap).
+
+**Gate B (skill-discovery budget):** 19,622 B before → **19,653 of 19,968 after** — the four
+demotions (~1,150 B freed) funded both the absorbed umbrella description and the new skill's
+451 B; no budget raise needed. Tests 280 passed / 0 failed (new `tests/test-audit-rules.sh`:
+byte-helper arms incl. the bytes-not-chars discriminator, dispatcher/skill text invariants, the
+zero-hyphen ratchet with an archived-copies positive control; three mutations each caught by their
+named assertion). Design records: `docs/superpowers/specs/2026-08-27-audit-rules-sub-audit-design.md`,
+`docs/superpowers/specs/2026-08-27-audit-verb-migration-design.md`,
+`docs/superpowers/plans/2026-08-27-audit-rules-and-verb-migration-plan.md` (all gated).
+Ports: antigravity/cursor inherit at their next build-script run; codex hand-sync; cowork keeps its
+hyphen forms (no dispatcher there — settled cap won't-fix).
+
 ## 2.48.2 — 2026-08-27
 
 **SESSION.md ledger integrity — a demote gate resting on a false premise, and matchers that could only see the format they wrote.**
