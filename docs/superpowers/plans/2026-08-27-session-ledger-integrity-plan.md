@@ -3,10 +3,17 @@
 **Status:** GATED 2026-08-27 — **PROCEED-WITH-CHANGES**; both changes (C1 three edits not two,
 C2 one-mutation-one-named-control) applied in this revision.
 **Gate 2:** `knowledge/logs/prospect/2026-08-27-file-session-ledger-plan-gate2.md`.
-⛔ **EXECUTION-READY BUT HELD.** Both gates are green and no code has been written, by instruction.
+✅ **EXECUTED AND SPENT 2026-08-27 — DO NOT RE-RUN.** Mike gave the go; T0–T7 all ran and shipped as
+**v2.48.2**. `session-state.sh` 44 → 55 assertions, `wrapup-demotes-before-rewrite.sh` 9 → 14, full
+suite 38 suites / 0 failed / bare exit 0, **11 of 11 mutations caught by their named control** with
+every file restored byte-identical. D3 (T7) executed as ruled.
 **Spec:** `docs/superpowers/specs/2026-08-27-session-ledger-integrity.md` (GATED, C1–C4 applied).
 **Gate 1:** `knowledge/logs/prospect/2026-08-27-file-session-ledger-integrity.md`.
-⛔ **THIS ARC HOLDS AT A GATED PLAN BY INSTRUCTION.** Do not execute without a fresh go.
+**Gate 3 (delta, A1 + two T0 findings):** `knowledge/logs/prospect/2026-08-27-file-session-ledger-a1-delta-gate.md`
+— PROCEED-WITH-CHANGES; **two of its three questions came back FALSIFIED**, and its changes D1/D2/D3
+are folded in below. ⛔ **Read gate 3 before touching D4 or D3 again**: the D4 wording this plan
+originally carried would have destroyed live handoffs, and D3's ruling implemented literally would
+have been unreachable code.
 **Scope:** D1 and D2∧D4. **D3 is split out** and carried as an open decision in the spec §3.
 
 ## Baseline to establish FIRST (T0)
@@ -109,10 +116,47 @@ The entry now *matches*, so instrumentation and review both read "handled", and 
 prune to zero, and the live `unconsumed` entry survives. **Assert the WRITE lands, never only that the
 pattern fires.**
 
-**D4 — same function:** inside the terminator branch, do **not** reset `drop` on `^### ` while a block
-is open. The `<!-- aria:entry-end -->` terminator is the declared boundary; the header test is only for
-*starting* a block. Leave the legacy branch alone — it has no terminator and its single-line-prompt
-invariant makes the old inference sound.
+**D4 — same function.** ⛔⛔ **GATE-3 CHANGE D3 — THE ORIGINAL WORDING OF THIS PARAGRAPH WAS
+"do not reset `drop` on `^### ` while a block is open", AND EXECUTED LITERALLY IT DESTROYS LIVE
+HANDOFFS.** Measured 2026-08-27, three awk variants on two fixtures:
+
+| variant | D4 leak (`fx-d4`) | live handoff survives a missing terminator (`fx-noterm`) |
+|---|---|---|
+| current (HEAD) | **1 — bug reproduced** | ✓ |
+| **unconditional (the old wording)** | 0 | ⛔⛔ **0 — output reduced to the bare `## Pending handoffs` heading** |
+| **discriminated (ship this)** | 0 | ✓ |
+
+That reset is currently the **only recovery path** when a consumed block lacks a terminator, so removing
+it unconditionally trades a bounded 2-line leak for **unbounded deletion of everything after the block**
+— the same class of harm as D1. ⚑ **And it PASSES a D4-only fixture**, so a suite covering only the
+original bug certifies the worse fix.
+
+**Ship the DISCRIMINATED form:** inside the terminator branch, a `^### ` line ends an open drop **only
+if it is a real entry header**, defined as **≥2 occurrences of `" · "`**. Otherwise it is block content
+and is dropped with the block.
+
+```awk
+function is_entry_header(s) { n = gsub(/ · /, " · ", s); return (n >= 2) }
+...
+if ($0 ~ /^### / && is_entry_header($0)) { drop = ($0 ~ /· consumed /) ? 1 : 0; if (drop) next; print; next }
+```
+
+⛔ **The threshold is measured, not chosen.** Census of **all 28** `^### ` lines in **all 80**
+`SESSION.md` on disk: **25/25 real entry headers carry ≥3** `" · "`; **3/3 prose headings carry 0**.
+Threshold ≥2 leaves one field of margin. ⛔ **Do NOT substitute a token-shape test** — `^### [^ ]+ · `
+was tried and **FAILS on 2 of 25** real headers (`### 527a613a (parallel session, …) · …` and
+`### e95b0202 (contract-coherence) · …`), both hand-written with a parenthetical after the sid, i.e.
+exactly the class D2 exists to tolerate.
+⚑ Failure direction is safe: if a prose heading ever carried ≥2 separators, the result is the OLD
+bounded leak, never deletion.
+⚠ **Reachability, corrected by a better instrument:** NO file on disk is currently mixed
+(`cs/SESSION.md` is 12 entries / 12 terminators). A first pass using `grep -c '^### '` reported it as
+mixed — because that count includes cs's **3 prose headings in its active body**, i.e. the measuring
+instrument was confounded by the defect it was measuring. So this regression is **LATENT**, not live —
+but cs's prose headings confirm D4 itself is one demote from live.
+
+Leave the legacy branch alone — it has no terminator and its single-line-prompt invariant makes the old
+inference sound.
 
 - **Acceptance:** AC3, AC4, AC6.
 
@@ -130,8 +174,35 @@ already present, so each control reds for its own reason with no stub needed.
 | D2-f | the rewrite actually lands on a bold header (not just the match) | yes |
 | D4-a | consumed block with a column-0 `### ` in its prompt is removed WHOLE | yes |
 | D4-b | the adjacent live entry survives byte-identical | **no — control** |
-| **A1-C** *(rewrite of the existing `C`)* | Step 6.5's clause names a **non-empty-prompt** condition and does not gate on `handoff` alone | **yes** — reds against the current false clause; **this discharges AC2, do not add a separate AC2 control** |
-| **A1-floor** | the two `awk` slices stay above their length floors | **no — pre-existing vacuity guard** |
+| **A1-C** *(rewrite of the existing `C`)* | wrapup Step 6.5 names a **non-empty-prompt** condition, and the retired rationale's substring `it carries no prompt, so` is **ABSENT** | **yes** — reds against the current false clause |
+| **A1-H** *(NEW slice `HCLAUSE`)* | `handoff/SKILL.md:227`'s clause likewise names the condition and no longer carries the retired substring | **yes** — and without this AC2 is FALSE, see below |
+| **A1-floor** | all three `awk` slices stay above their length floors | **no — pre-existing vacuity guard** |
+| **D4-c** *(NEW — the control that decides D4)* | a **consumed block with NO terminator** followed by a live entry: the live entry SURVIVES | **no — green on HEAD**; it is the control that fails the *unconditional* fix. ⛔ Without it the worse fix passes |
+| **D3-a** *(new unit, T7)* | every status the library emits is in `{unconsumed, consumed}` — driven behaviourally through `ledger_add` then `mark_consumed` | **no — green on HEAD**; reds when a third verb is introduced |
+
+⛔⛔ **GATE-3 CHANGE D1 — AC2 IS FALSE AS WRITTEN, MEASURED.** The suite reads two slices:
+`WSEC = awk '/^## Step 6.5/,/^## Step 7/'` (wrapup) and `HSEC = awk '/^5\. \*\*3f:/,/^$/'` (handoff 3f
+only). **`handoff/SKILL.md:227` — the handoff clause, edit site 3 — is OUTSIDE both**, and the sole
+`HSEC` assertion is `E` (`kt_ss_ledger_add` present). ⇒ **3 of T1's 4 edit sites are guarded by
+nothing**, so rewriting `C` guards 1 of 4. A third slice `HCLAUSE` with its own floor is required.
+
+⛔ **COLLISION MATRIX for T1 — every row measured, every row must hold:**
+
+| assertion | constraint T1 must satisfy |
+|---|---|
+| `A1b` `ledger_add.*(then\|before).*(write\|rewrite)` | **line-scoped** ⇒ the gate rewrite MUST keep `kt_ss_ledger_add` and `THEN write` on the **SAME LINE** |
+| `B` `different or absent .?sessionId` | keep that phrase **verbatim**; T1 widens the `lastEvent` condition, not the sessionId one |
+| `D` exact-sentence absence | ⛔ **do not quote** the forbidden survival sentence anywhere in Step 6.5 |
+| `F` `antigravity\|codex` | the drift note must stay inside `WSEC` |
+| floors | do **not** change the `## Step 6.5` or `5. **3f:` heading lines, or every check below goes vacuous |
+
+⛔⛔ **AND THE TRAP THAT BITES THE FIX ITSELF — pattern `own-comment-enters-the-text-its-guard-reads`.**
+`A1-C`/`A1-H` assert the retired substring `it carries no prompt, so` is **ABSENT**. T1 is instructed to
+*state why the old rationale was wrong* — so if the replacement prose, or any in-file warning, quotes
+that phrase in order to correct it, **the guard fails on correct text**. The retired claim must be
+**DESCRIBED, never reproduced**, in the prose and in the warning. ⚑ Note the substring is shared by both
+files (wrapup: *"…so the ledger entry would be empty"*; handoff: *"…so a ledger entry for it would be
+empty"*), so one forbidden string covers both sites.
 
 ⛔ **AC4 is discharged by an EXISTING control, not a new one.** `session-state.sh` already carries
 `M4 unconsumed block survives prune`. The obligation is to **fire it red** by temporarily using the
@@ -160,6 +231,42 @@ Against a **copy** in the scratchpad — the live hooks are called by other sess
 | reset `drop` on `^### ` again | **D4-a** |
 | restore the anchored `sub(/· unconsumed$/…)` | **D2-f** (the write-lands control) |
 | **A1** restore the old false clause verbatim in wrapup Step 6.5 | **A1-C** (the rewritten in-progress control), and *only* A1-C. ⛔ Prove the condition was created by grepping the restored sentence — the ORIGINAL `C` passes under this mutation, which is precisely why it was rewritten |
+| **A1-h** restore the old false clause in `handoff/SKILL.md:227` only | **A1-H**, and *only* A1-H (proves the new slice is load-bearing and that wrapup's control cannot cover handoff) |
+| **D4-u** replace the discriminated reset with the **unconditional** form | **D4-c** (missing-terminator control), and *only* D4-c. ⛔ `D4-a` stays GREEN under this mutation — that is the whole point, and why D4-c must exist |
+| **D3-m** change `unconsumed` → `pending` in `kt_ss_ledger_add` | **D3-a**, and only D3-a (proves the closed-set assertion is behavioural, not a restatement of a literal) |
+
+## T7 — D3: the closed set at the writer (its own unit — Mike's ruling, 2026-08-27)
+
+**Ruling:** closed set at the WRITER + fix the one live entry BY HAND. ⛔ **NOT**
+prunable-if-not-unconsumed; `prune`'s blast radius stays unchanged.
+
+⛔⛔ **GATE-3 CHANGE D2 — DO NOT IMPLEMENT THIS AS A REJECTION BRANCH. IT WOULD BE UNREACHABLE CODE.**
+Measured at HEAD: `kt_ss_ledger_add:178` embeds the literal `unconsumed` inside its block string — there
+is **no status parameter** — and `kt_ss_ledger_mark_consumed:227` writes `consumed`. Zero skills instruct
+a hand-written entry. **So code structurally cannot emit an out-of-set verb; only a hand edit can**, and
+a branch validating a status has no input to validate. Writing one would add exactly the kind of guard
+that cannot fire that this whole arc exists to remove.
+
+**Three parts, in this order:**
+
+1. **Hand-fix the live entry.** `Projects/SESSION.md:285` reads
+   `### 56567bf4-… · 2026-07-30T17:21:30Z · handoff · ⛔ RETIRED 2026-08-15` — matched by neither
+   matcher, so permanently stuck. Rewrite its status to `· consumed 2026-08-15 by retired-by-hand`:
+   it enters the closed set, keeps the retirement date, is honest (the entry is not pending), becomes
+   prunable, and is recoverable because that file is tracked. Surgical edit on a unique anchor — the
+   file is shared with parallel sessions.
+2. **A BEHAVIOURAL closed-set assertion (`D3-a`).** Drive `kt_ss_ledger_add` then
+   `kt_ss_ledger_mark_consumed` on a fixture and assert every real entry header's status is in
+   `{unconsumed, consumed}`. ⛔ Assert on the **emitted file**, never by grepping the library for its
+   own literals — that is a restatement, not a guard. Mutation `D3-m` proves it.
+3. **A note at the writer that DESCRIBES the hazard.** Per `comment-is-not-a-guard` the note is not the
+   guard; part 2 is. ⛔ And per `own-comment-enters-the-text-its-guard-reads`, do not have the note
+   name a verb any assertion greps for.
+
+⚠ **Named residual, NOT built:** the three ledger checkpoints in `/handoff`, `/wrapup` and resume all
+count `unconsumed`, so an out-of-set entry is invisible to them **as well as** to both matchers. Making
+those checkpoints report out-of-set statuses would close the detection half — deliberately out of scope
+here, since Mike's ruling covers the writer and the one entry.
 
 ⛔ **One mutation, one NAMED control — gate change C2.** The earlier table read *"D2-e **or** M4"*, which
 lets either outcome be read as success. Each row above names exactly one control, and each must be shown
@@ -183,7 +290,9 @@ port residuals. Grep for stray version strings.
   not ship D2 alone.
 
 ## Explicitly NOT in this plan
-- D3 (unknown status verbs) — split out, needs a ruling.
+- ~~D3 (unknown status verbs) — split out, needs a ruling.~~ ✅ **RULED 2026-08-27 and now IN scope as
+  T7** (closed set at the writer + hand-fix the one entry). Its implementation changed at gate 3 — see
+  T7's change D2: a rejection branch would be unreachable code.
 - The reviewer's optional `post-edit-check.sh` root fix.
 - codex / cursor port edits.
 - Any change to what `kt_ss_ledger_add` **writes**.

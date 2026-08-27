@@ -219,6 +219,19 @@ for f in "$SRC/bin"/*.sh; do
       echo "  [skip] $name (Claude Code instruction-file channel; not wired here)"
       continue
       ;;
+    pre-bash-write-check.sh)
+      # Added 2026-08-27, same reasoning as the two above and measured the same way. This wrapper is
+      # a Claude Code PreToolUse:Bash hook and it is NOT registered in this port's hooks.json, so
+      # copying it ships a dead file — the shipped-but-unwired class the codex port was cleaned of
+      # in v2.46.4.
+      # ⛔ It is ALSO structurally broken here even if someone registers it: the wrapper shells out to
+      # pre-bash-write-resolve.py, and this loop copies only *.sh, so the resolver can never arrive.
+      # Without it the wrapper exits 0 at its `[ -f "$RESOLVER" ] || exit 0` guard — silently, which
+      # is a FALSE PASS indistinguishable from a working guard. Wiring it up means copying the
+      # resolver AND registering an Antigravity pre-tool event; do both or neither.
+      echo "  [skip] $name (PreToolUse:Bash; unregistered here, and its .py resolver is not copied)"
+      continue
+      ;;
   esac
   cp "$f" "$DST/bin/$name"
   chmod +x "$DST/bin/$name"

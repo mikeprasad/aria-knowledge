@@ -1,5 +1,5 @@
 ---
-description: "Drive an autonomous execution arc end-to-end — compose brainstorm→spec→/prospect→plan→/prospect→TDD→/retrospect under the Rule 35 posture, decide objectively-validatable forks yourself, and stop only on a load-bearing fork or an ungranted approval. Modes: `arc` (default), `execute <plan|spec|ticket-id>` (skip ideation), `plan` (stop at a prospected plan, no code), `config` (guided per-run knob picker). Stackable, one word per axis: `full` (authority — all except push and deploy) · `attended`|`unattended` (presence) · `continue`|`stop` (duration) · plus `tickets` and `self-restart`. A bare invocation opens the `config` picker instead of guessing a goal. An explicit grant of autonomous latitude that overrides the standing `autonomy` config for the arc and never writes it. Use when the user hands off a goal, plan, ticket, or SESSION.md with latitude to execute WITHOUT per-step approval — 'combined go', 'run overnight', 'just build it', 'do as much as you can'. ENTRY POINT for a multi-step arc, NOT a single concrete change; distinct from /prospect, /retrospect, /handoff, /wrapup. (Code port — ADR-094.)"
+description: "Drive an autonomous execution arc end-to-end — compose brainstorm→spec→/prospect→plan→/prospect→TDD→/retrospect under the Rule 35 posture, decide objectively-validatable forks yourself, and stop only on a load-bearing fork or an ungranted approval. Modes: `arc` (default), `execute <plan|spec|ticket-id>` (skip ideation), `plan` (stop at a prospected plan, no code), `config` (guided per-run knob picker). Stackable, six axes: `full` (authority — all except push and deploy) · `attended`|`unattended` (presence) · `continue`|`stop` (duration) · `tickets` (work source) · `self-restart` (context recovery) · `workflow`/`fanout=<pct>`/`agents=<N>` (fan-out). A bare invocation opens the `config` picker instead of guessing a goal. An explicit grant of autonomous latitude that overrides the standing `autonomy` config for the arc and never writes it. Use when the user hands off a goal, plan, ticket, or SESSION.md with latitude to execute WITHOUT per-step approval — 'combined go', 'run overnight', 'just build it', 'do as much as you can'. ENTRY POINT for a multi-step arc, NOT a single concrete change; distinct from /prospect, /retrospect, /handoff, /wrapup. (Code port — ADR-094.)"
 ---
 
 # /auto — Drive an autonomous execution arc
@@ -7,6 +7,30 @@ description: "Drive an autonomous execution arc end-to-end — compose brainstor
 Drive a piece of work end-to-end under the autonomous decision-routing posture, stopping only where a human decision is genuinely load-bearing. This is the *entry point* that wires together the process skills you already have — `brainstorming`, `/prospect`, `superpowers:test-driven-development` / `superpowers:subagent-driven-development`, `/retrospect` — into one continuous arc, so a single invocation runs the whole chain instead of you re-approving each step.
 
 It does NOT re-define the decide-vs-ask policy. That policy is **Rule 35** (decision routing) in `template/rules/working-rules.md`, scaled by the **`autonomy`** config posture. `/auto` *applies* Rule 35 to a concrete arc and adds the operational discipline an unattended run needs: what to *never* stop for, how to read the binding budget, how to pick the next unit of work, and how (optionally) to self-perpetuate across usage resets. Distilled from real autonomous runs — the friction points below are ones that actually bit.
+
+## Runtime precondition — Bash required
+
+**`/auto` ships in the Claude Code port only, and that is deliberate.** It is not part of ADR-094's bare-slash collision set: no Cowork counterpart of this skill exists, so there is no canonical-owner question to resolve here and nothing to hand off to. What this section checks is a **capability**, not an ownership — do not restore a redirect to a Cowork variant.
+
+**Before Step 0:** Check that the `Bash` tool is available. If `Bash` is NOT available (you are in Claude Cowork or another non-Code runtime), surface this and wait for an explicit reply:
+
+> ⚠️ **Runtime mismatch — `/auto` needs Bash, and this runtime does not have it.**
+>
+> The arc runs `git` status/commit, the autonomy-config probe, the preflight commit gate, and (optionally) `CronCreate` through Bash. **There is no Cowork counterpart of this skill** — it is Code-only, so the choice is to run degraded or to stop.
+>
+> Running degraded loses every Bash-backed step: no commit, no `git` verification of live state, no commit gate, no resume schedule. The gates that are pure reasoning still run. To drive the chain by hand instead, the individual gates exist natively here — `/aria-cowork:prospect` before code, `/aria-cowork:retrospect` after, and `/aria-cowork:handoff` or `/aria-cowork:wrapup` to close.
+>
+> **Stop here rather than run degraded?** (`y` / `n`)
+
+- **`y` / `yes`** — Stop cleanly, naming the individual Cowork gates above as the manual route.
+- **`n` / `no`** — Proceed with this skill anyway; subsequent Bash failures are expected. Announce each one as it happens, and never report a Bash-backed step as done when it did not run.
+- **No / other reply** — Treat as "do not proceed" and exit cleanly.
+
+The question is polarised so the answers keep the same meaning as every other ADR-094 gate: **`y` declines to run this variant, `n` runs it anyway.** Only the question differs, because there is no sibling variant to offer — asking "proceed anyway?" here would invert `n` against the rest of the family.
+
+This precondition is NOT suspended by any mode — `/auto` is inherently autonomous, so confirming the runtime can actually carry the arc is the one check that still matters. If `Bash` is available, proceed to Step 0.
+
+⚠ **Removal trigger (Rule 37):** if a Cowork counterpart is ever built, this section reverts to a standard ADR-094 Runtime Gate with a live redirect, and this skill joins the collision set. Measured 2026-08-26: no such counterpart exists, Cowork's summed description budget stands at 8,010 of 9,000 so fitting one needs roughly a 193-char trim, and the Bash-backed machinery above would need a Cowork-native substitute — the budget is the smaller of the two obstacles.
 
 ## When to use
 
@@ -193,9 +217,19 @@ one word per axis, no special cases.)*
   invocation beats a silently-absent hint. Detect ticket IDs with the vendor-neutral `\b([A-Z]{2,}-\d+)\b`. With
   no tracker connected and no mapping, say so once and fall back to the Step 4
   work-selection order — `tickets` never hard-fails an arc.
+- **`workflow` · `fanout=<pct>` · `agents=<N>`** — the **fan-out** axis: raise or open the three
+  Step 5 stopgaps for this run, one token each. `workflow` opts into the Workflow tool
+  (multi-agent orchestration, hard-OFF by default and never firing unbidden); `fanout=<pct>`
+  replaces the ~25%-of-remaining-window per-burst spend gate; `agents=<N>` replaces the ~10
+  cumulative per-arc subagent cap. All three are **invocation-scoped** — there is no standing
+  config key, and a persistent default would belong in `/setup`, not here. `full` raises the
+  same three stopgaps as a set; these name one each, so they compose with `full` and also work
+  without it.
 
-**Three orthogonal axes — set each independently.** `full` sets *how much latitude*;
-`continue`/`stop` set *how long*; `attended`/`unattended` set *whether a human is reachable*.
+**Six orthogonal axes — set each independently.** `full` sets *how much latitude*;
+`continue`/`stop` set *how long*; `attended`/`unattended` set *whether a human is reachable*;
+`tickets` sets *where work comes from*; `self-restart` sets *how a context wall is handled*;
+the fan-out trio sets *how wide delegation may go*.
 Keeping them separate is what makes every combination expressible:
 
 - `/auto full` — max authority, scoped: stops when the queue clears
@@ -215,11 +249,15 @@ Keeping them separate is what makes every combination expressible:
 
 **`preflight` is a RETIRED mode keyword and must never fall through to a goal.** It used to alias `config`. If the first arg is `preflight`, do **not** start an arc with the goal "preflight" — recognise it, run nothing, and route: the pre-completion checklist is the standalone **`/preflight`** skill; the per-run settings picker is **`/auto config`**. Falling through here would be the worst outcome available — under `full`, a retired word silently becomes a work order.
 
-**Modifiers are recognised only at the ENDS — never mid-prose.** Scan the contiguous run of modifier tokens at the start (after any mode keyword) and the contiguous run at the end; **once goal prose begins, every remaining token is goal.** This matters because the modifier names are ordinary English words: an anywhere-in-args scan turns `/auto fix the **render loop** bug` into an unattended self-restarting run, and "do a full review" or "close the tickets" the same way. Worked cases:
+**Modifiers are recognised only at the ENDS — never mid-prose.** Scan the contiguous run of modifier tokens at the start (after any mode keyword) and the contiguous run at the end; **once goal prose begins, every remaining token is goal.** This matters because the modifier names are ordinary English words: an anywhere-in-args scan turns `/auto fix the **render loop** bug` into an unattended self-restarting run, and "do a **full** review" the same way. Worked cases:
 
 - `/auto full unattended tickets clear the payments queue` → mode `arc`, modifiers `{full, unattended, tickets}`, goal "clear the payments queue"
 - `/auto fix the render loop bug` → mode `arc`, **no modifiers**, goal "fix the render loop bug"
 - `/auto ship the CSV exporter continue self-restart` → goal "ship the CSV exporter", toggle `continue`, flag `self-restart`
+- `/auto full workflow audit the payments surface` → modifiers `{full, workflow}`, goal "audit the payments surface"
+- `/auto ship the exporter fanout=40% agents=20` → goal "ship the exporter", `fanout=40%`, `agents=20`. **A `=`-bearing token cannot collide with goal prose**, so the fan-out knobs need no rule of their own — they ride the same ENDS scan as every other modifier. Deliberately NOT recognised anywhere-in-args: a general `<word>=<value>` scan would eat a legitimate goal like "fix the assertion that checks count=20", which is the mis-parse this whole paragraph exists to prevent.
+
+⚠ **The ENDS rule protects mid-prose only — a bare modifier at the very END of a goal IS consumed.** `/auto rewrite the deploy workflow` parses as goal "rewrite the deploy" + modifier `{workflow}`, and `/auto close the open tickets` as goal "close the open" + modifier `{tickets}`; `continue` and `stop` carry the same exposure. This is a known, accepted cost of a bare-word vocabulary, not a defect to fix by widening the scan (an anywhere scan is strictly worse — see the `render loop` case above). **Put the modifiers first when the goal could end in one of these words.** An earlier draft of this paragraph cited "close the tickets" as a case the ENDS rule handles; it does not, and that example has been corrected.
 
 A trailing `continue`/`stop` sets the on-queue-complete toggle; a trailing `self-restart` sets the context-restart flag (honored only alongside `continue`).
 

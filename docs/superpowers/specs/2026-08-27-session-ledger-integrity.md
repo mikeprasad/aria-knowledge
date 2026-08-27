@@ -5,7 +5,12 @@ C2 split D3 out, C3 bind D2+D4, C4 reuse the existing inversion control) applied
 Gate: `knowledge/logs/prospect/2026-08-27-file-session-ledger-integrity.md`.
 ⛔ **D2 AND D4 SHIP AS ONE CHANGE — gate change C3.** D4's terminator-respecting fix is what makes D2's
 looser header match safe; shipping D2 alone widens a live hazard rather than closing one.
-⛔ **HOLD BEFORE EXECUTE** — this arc stops at a gated plan by instruction. No code.
+✅ **EXECUTED AND SPENT 2026-08-27 — shipped as v2.48.2. DO NOT RE-RUN.** All four defects addressed:
+D1, D2∧D4 in the plan's T1–T6, and D3 in T7 as ruled. ⛔ Two of this spec's own claims were falsified
+at execution and are corrected in place — **D2's fourth header form** (a parenthetical after a matching
+sid works today; a truncated sid is not fixed by the loosened match at all) and **D4's fix direction**
+(unconditional removal destroys live handoffs). See gate 3:
+`knowledge/logs/prospect/2026-08-27-file-session-ledger-a1-delta-gate.md`.
 **Origin:** two independent reports from a reviewer, both **validated by reproduction** rather than by
 reading, plus two further defects found while validating them.
 **Target:** v2.48.2 (current released: v2.48.1).

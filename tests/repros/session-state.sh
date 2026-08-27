@@ -339,5 +339,160 @@ kt_ss_ledger_prune "$LD"
 grep -q 'LEG-1' "$LD/SESSION.md" \
   && bad "M7 legacy prune" "legacy consumed entry not pruned" || ok "M7 legacy '## Prior sessions' still pruned"
 
+# --- M8: D2 — the matchers must tolerate hand-written header DECORATION -------------------------
+# kt_ss_ledger_add writes ONE canonical shape, but humans hand-write entries: measured 2026-08-27,
+# 2 of 25 real headers across every SESSION.md on this machine carry a parenthetical after the sid.
+# The old matchers accepted only the canonical shape, returned 0 and changed nothing — so the
+# fail-safe contract HID the class, and the failed automatic mark is what forces the manual one that
+# reintroduces the unmatchable format.
+#
+# ⛔ ASSERT THE WRITE LANDS, never only that the pattern fired. Measured: with the match loosened but
+# the paired sub() left anchored to `· unconsumed$`, bold and trailing-title headers MATCH and are
+# never REWRITTEN — the same silent no-op moved one layer in, now reading as "handled".
+DD="$TMP/mdec"; mkdir -p "$DD"
+cat > "$DD/SESSION.md" <<'DEOF'
+---
+lastEvent: handoff
+---
+
+## Pending handoffs
+
+### `DEC-BT` · 2026-08-01T00:00:00Z · handoff · unconsumed
+- prompt: backticked sid
+<!-- aria:entry-end -->
+
+### DEC-TT · 2026-08-01T00:00:00Z · handoff · unconsumed · my title
+- prompt: trailing title after the status
+<!-- aria:entry-end -->
+
+### DEC-BD · 2026-08-01T00:00:00Z · handoff · **unconsumed**
+- prompt: bold status
+<!-- aria:entry-end -->
+
+### DEC-CANON · 2026-08-01T00:00:00Z · handoff · unconsumed
+- prompt: canonical control
+<!-- aria:entry-end -->
+
+### DEC-LIVE · 2026-08-01T00:00:00Z · handoff · unconsumed
+- prompt: MUST-SURVIVE-PRUNE
+<!-- aria:entry-end -->
+DEOF
+for _f in DEC-BT DEC-TT DEC-BD DEC-CANON; do
+  kt_ss_ledger_mark_consumed "$DD" "$_f" "2026-08-02T00:00:00Z" "tester"
+done
+for _f in DEC-BT DEC-TT DEC-BD; do
+  if awk -v s="$_f" '$0 ~ ("^### .*" s) && /consumed/ && !/unconsumed/ { f=1 } END { exit !f }' "$DD/SESSION.md"; then
+    ok "M8 $_f: mark_consumed WROTE the status"
+  else
+    bad "M8 $_f" "header still unconsumed — the match and its paired write must BOTH tolerate decoration"
+  fi
+done
+# canonical control: proves the probe can succeed, so an all-fail run is not read as a bad probe
+awk '$0 ~ /^### .*DEC-CANON/ && /consumed/ && !/unconsumed/ { f=1 } END { exit !f }' "$DD/SESSION.md" \
+  && ok "M8 canonical control still marks" || bad "M8 canonical" "even the canonical form stopped marking — the probe or the matcher is broken"
+kt_ss_ledger_prune "$DD"
+if grep -qE 'DEC-BT|DEC-TT|DEC-BD|DEC-CANON' "$DD/SESSION.md"; then
+  bad "M8 prune" "a marked-consumed decorated entry survived prune — prune's own status test is still anchored"
+else
+  ok "M8 all four marked entries pruned"
+fi
+# THE INVERSION GUARD. A naive /consumed/ also matches `unconsumed`, which would make prune DELETE
+# live handoffs — strictly worse than the bug. M4 above is the canonical instance of this check;
+# this is its decorated-fixture sibling.
+grep -q 'DEC-LIVE' "$DD/SESSION.md" \
+  && ok "M8 live unconsumed entry survives prune (inversion guard)" \
+  || bad "M8 INVERSION" "prune deleted a live UNCONSUMED handoff — the status test matched 'unconsumed' as 'consumed'"
+
+# ⚠ NAMED RESIDUAL, deliberately NOT asserted as fixed: a header carrying a TRUNCATED sid while the
+# caller passes the full one is matched by neither the old nor the new form — measured, the full sid
+# is simply not present in the line, so no loosening of the header pattern can reach it. Closing it
+# would need prefix matching, which could mark the WRONG entry. Out of scope by design.
+
+# --- M9: D4 — a stored prompt with a column-0 "### " must not hijack the block boundary ----------
+# prune's terminator branch reset `drop` on ANY /^### /, so a consumed block whose stored prompt
+# contains such a heading lost its boundary and leaked its tail. Same failure the function's own
+# comment says it fixed for "## ". Real fixture text: cs/SESSION.md's active body carries exactly
+# this shape today, so this is one demote away from live.
+ED="$TMP/mhash"; mkdir -p "$ED"
+cat > "$ED/SESSION.md" <<'EEOF'
+---
+lastEvent: handoff
+---
+
+## Pending handoffs
+
+### HSH-OLD · 2026-08-01T00:00:00Z · handoff · consumed 2026-08-02 by x
+- prompt:
+Some prose.
+
+### Findings recorded this session, all committed and pushed
+
+TAIL-MUST-NOT-LEAK
+<!-- aria:entry-end -->
+
+### HSH-LIVE · 2026-08-03T00:00:00Z · handoff · unconsumed
+- prompt: LIVE-MUST-SURVIVE
+<!-- aria:entry-end -->
+EEOF
+kt_ss_ledger_prune "$ED"
+grep -q 'TAIL-MUST-NOT-LEAK' "$ED/SESSION.md" \
+  && bad "M9a prune leak" "a column-0 '### ' inside a stored prompt ended the block early and leaked its tail" \
+  || ok "M9a consumed block with an inner '### ' removed whole"
+grep -q 'LIVE-MUST-SURVIVE' "$ED/SESSION.md" \
+  && ok "M9b adjacent live entry survives" || bad "M9b" "prune ate the adjacent live entry"
+
+# ⛔⛔ M9c IS THE CONTROL THAT DECIDES D4's FIX, and without it the WORSE fix passes. Removing the
+# `^### ` reset UNCONDITIONALLY closes M9a — and destroys everything after an unterminated consumed
+# block, because that reset is the only recovery path when a terminator is missing. Measured: the
+# unconditional form reduced this fixture to its bare heading. The shipped form ends a drop only on a
+# line that IS an entry header (>=2 " · " separators — 25/25 real headers carry >=3, 3/3 prose
+# headings carry 0), which closes M9a AND keeps this recovery.
+FD="$TMP/mnoterm"; mkdir -p "$FD"
+cat > "$FD/SESSION.md" <<'FEOF'
+---
+lastEvent: handoff
+---
+
+## Pending handoffs
+
+### NT-OLD · 2026-08-01T00:00:00Z · handoff · consumed 2026-08-02 by x
+- prompt: consumed body with NO terminator after it
+
+### NT-LIVE · 2026-08-03T00:00:00Z · handoff · unconsumed
+- prompt: NOTERM-LIVE-MUST-SURVIVE
+<!-- aria:entry-end -->
+FEOF
+kt_ss_ledger_prune "$FD"
+grep -q 'NOTERM-LIVE-MUST-SURVIVE' "$FD/SESSION.md" \
+  && ok "M9c unterminated consumed block does not eat the next live entry" \
+  || bad "M9c RECOVERY LOST" "an unterminated consumed block swallowed a LIVE handoff — the boundary reset must be discriminated, not removed"
+
+# --- M10: D3 — every status the LIBRARY emits is in the closed set ------------------------------
+# Mike's ruling 2026-08-27: closed set at the WRITER. ⛔ NOT implementable as a rejection branch:
+# kt_ss_ledger_add embeds the literal `unconsumed` and has no status parameter, so a validating
+# branch would be unreachable code. This asserts the invariant BEHAVIOURALLY instead — on the file
+# the writers actually emit — so it reds if a third verb is ever introduced.
+CD="$TMP/mclosed"; mkdir -p "$CD"
+printf -- '---\nlastEvent: handoff\n---\n' > "$CD/SESSION.md"
+kt_ss_ledger_add "$CD" "CS-1" "2026-08-01T00:00:00Z" "f" "n" "p"
+kt_ss_ledger_add "$CD" "CS-2" "2026-08-02T00:00:00Z" "f" "n" "p"
+kt_ss_ledger_mark_consumed "$CD" "CS-2" "2026-08-03T00:00:00Z" "tester"
+_ss_offset() {
+  awk '/^### / { n = gsub(/ · /, " · "); if (n < 2) next
+                 if ($0 ~ /(^|[^a-z])unconsumed([^a-z]|$)/) next
+                 if ($0 ~ /(^|[^a-z])consumed([^a-z]|$)/) next
+                 print }' "$1"
+}
+_out=$(_ss_offset "$CD/SESSION.md")
+[ -z "$_out" ] \
+  && ok "M10 every status the library emits is in {unconsumed, consumed}" \
+  || bad "M10 closed set" "library emitted an out-of-set status: $_out"
+# DEAD-INSTRUMENT CONTROL: a check that has only ever returned empty is unproven. Inject the exact
+# real-world violation (Projects/SESSION.md carried this verb for four weeks) and require a hit.
+printf '### CS-3 · 2026-08-04T00:00:00Z · handoff · RETIRED-BY-HAND 2026-08-15\n' >> "$CD/SESSION.md"
+[ -n "$(_ss_offset "$CD/SESSION.md")" ] \
+  && ok "M10 control: an out-of-set status IS detected" \
+  || bad "M10 DEAD INSTRUMENT" "the closed-set check cannot see a violation, so its empty result proved nothing"
+
 printf "\n%d passed, %d failed\n" "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

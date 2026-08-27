@@ -2,6 +2,32 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.48.2 — 2026-08-27
+
+**SESSION.md ledger integrity — a demote gate resting on a false premise, and matchers that could only see the format they wrote.**
+
+Four defects, all reproduced before being fixed. Two came from a reviewer's reports; two were found while validating those.
+
+**D1 — the demote gate destroyed live pickups.** `/wrapup` and `/handoff` both carved out an exception: *never demote a `lastEvent: in-progress` marker, because it carries no prompt.* The premise is false. `kt_ss_mark_inprogress` rewrites only front-matter keys and passes the body through with a bare `{ print }`, so such a marker routinely carries the previous session's entire `## Next session prompt` — and `post-edit-check.sh` creates that state automatically whenever a second session edits in a project holding a handoff. The consequence was not stale state; it was **overwriting a live handoff**.
+
+The rule is now *demote when the prompt block is non-empty*, skipping only the fresh marker whose body is `(session in progress)` — the one state that would store an empty entry. **Four edit sites, not one:** the positive gate keyed on `handoff` in three places, so an `in-progress` entry never reached the demote path at all and editing the clause alone was a measured no-op.
+
+**D2 — the matchers accepted only the exact format `kt_ss_ledger_add` writes.** A backticked sid, a trailing ` · title`, or a bold `**unconsumed**` left the file byte-unchanged: both helpers returned 0 and changed nothing, so the fail-safe contract hid the class. Self-perpetuating, because the failed automatic mark forces a manual one in exactly the format that breaks it. Fixed with **three** interlocking edits — a looser header match, a word-bounded status test, and (the one that matters) **a write that replaces the WORD rather than an end-of-line-anchored phrase**. With the first two applied and not the third, decorated headers *matched* and were never *rewritten* — the same silent no-op relocated one layer in, now reading as "handled".
+
+Word-bounding is what keeps the inverse safe: a naive `/consumed/` also matches `unconsumed`, which would make prune **delete live handoffs**.
+
+**D4 — a stored prompt containing a column-0 `### ` line hijacked the block boundary.** `kt_ss_ledger_prune` reset its drop state on any `^### `, so a consumed block whose prompt held such a heading leaked its tail. The same failure the function's own comment says it fixed for `## `.
+
+⛔ **The obvious fix for D4 is worse than the bug, and this was measured rather than reasoned.** Removing that reset unconditionally closes the leak *and* swallows a live handoff whenever a consumed block lacks a terminator, because the reset is the only recovery path in that case — one fixture was reduced to its bare heading. It also passes a leak-only fixture, so a suite covering just the original bug certifies it. What ships instead is a **discriminated** boundary: a `^### ` line ends an open block only if it is a real entry header, defined as carrying at least two `" · "` separators. That threshold is measured across every `SESSION.md` on one machine — 25 of 25 real entry headers carry three or more, 3 of 3 prose headings carry none. A token-shape test was tried first and failed on 2 of 25, both hand-written headers with a parenthetical after the sid.
+
+**D3 — a status verb outside `{unconsumed, consumed}` was permanently stuck.** One live entry read `⛔ RETIRED`, matched by neither helper and closed by neither D2's fix nor prune. Ruled: a closed set at the writer, plus a one-off hand fix of that entry. ⛔ Deliberately **not** implemented as a rejection branch — both writers embed their status literal and take no status parameter, so a validating branch would be unreachable code. The invariant is asserted behaviourally instead, on the file the writers emit, with a control proving the check can see a violation.
+
+**Validation:** 11 mutations, each caught by one named control, each proven to have created its condition on disk, every file restored byte-identical. `session-state.sh` 44 → 55 assertions; `wrapup-demotes-before-rewrite.sh` 9 → 14. Full suite 38 suites, 0 failed, bare exit 0.
+
+⚑ **A pre-existing assertion could not fail for the right reason.** `wrapup-demotes-before-rewrite.sh` tested that Step 6.5 contained the string `in-progress` — which both the false rule and any correction contain, so it passed either way; and had the corrected wording dropped the hyphenated form, it would have *failed* while its own message asserted the false premise. It now asserts the retired rationale's exact wording is **absent** and the non-empty-prompt condition is **present**, on both skills. Three of the four D1 edit sites had no assertion at all before this release.
+
+**Ports:** antigravity rebuilt (library byte-identical to canonical; both skills carry the fix). `build.sh` now **skips** `pre-bash-write-check.sh` — copying it shipped a dead file, unregistered in that port's `hooks.json` and unable to work anyway because the loop copies only `*.sh` and the wrapper shells out to a `.py` resolver. codex and cursor stay tracked-drift and still carry the D1 clause.
+
 ## 2.48.1 — 2026-08-27
 
 **Restored — `pre-bash-write-check.sh`, with the method replaced rather than tuned.**

@@ -222,9 +222,27 @@ kt_ss_ledger_mark_consumed() {
   _ss_f="$1/SESSION.md"; _ss_sid="$2"; _ss_ts="$3"; _ss_by="$4"
   [ -f "$_ss_f" ] || return 0
   _ss_tmp="$_ss_f.$$.tmp"
+  # THREE things matter here and they are interlocking; changing one alone reintroduces the bug.
+  #
+  # 1. The header match is `^### .*<sid>`, not `^### <sid> `. Entries are hand-written as well as
+  #    generated — measured 2026-08-27, 2 of 25 real headers on one machine carry a parenthetical
+  #    after the sid — and the anchored form silently matched nothing for a backticked sid.
+  # 2. The status test is WORD-BOUNDED, not end-of-line anchored, so a trailing ` · title` or a bold
+  #    `**unconsumed**` is still recognised.
+  # 3. ⛔ THE WRITE REPLACES THE WORD, NOT THE ANCHORED PHRASE. This is the edit that is easy to omit
+  #    and it is the one that matters: measured with 1 and 2 applied but not 3, bold and
+  #    trailing-title headers MATCHED and were NEVER REWRITTEN — so instrumentation and review both
+  #    read "handled" while the file was unchanged. That is the same silent no-op as the original
+  #    bug, moved one layer in, and it is strictly worse because it now looks correct.
+  #
+  # ⚠ Word-bounding is what keeps this safe in the other direction: `unconsumed` does NOT match
+  # /(^|[^a-z])consumed([^a-z]|$)/ because the `c` is preceded by `n`. prune depends on that.
+  # ⚠ NOT closed, deliberately: a header carrying a TRUNCATED sid while the caller passes the full
+  # one is matched by neither form — the full sid is not present in the line at all, so no loosening
+  # of this pattern reaches it. Prefix matching could mark the WRONG entry, so it stays out.
   awk -v sid="$_ss_sid" -v ts="$_ss_ts" -v by="$_ss_by" '
-    $0 ~ ("^### " sid " ") && /· unconsumed$/ {
-      sub(/· unconsumed$/, "· consumed " ts " by " by); print; next
+    $0 ~ ("^### .*" sid) && /(^|[^a-z])unconsumed([^a-z]|$)/ {
+      sub(/unconsumed/, "consumed " ts " by " by); print; next
     }
     { print }
   ' "$_ss_f" > "$_ss_tmp" 2>/dev/null && mv "$_ss_tmp" "$_ss_f" 2>/dev/null
@@ -250,20 +268,44 @@ kt_ss_ledger_prune() {
   _ss_f="$1/SESSION.md"
   [ -f "$_ss_f" ] || return 0
   _ss_tmp="$_ss_f.$$.tmp"
+  # A "### " line is an ENTRY HEADER only if it carries >= 2 " · " separators. Everything else at
+  # column 0 inside an open block is CONTENT and is dropped with the block.
+  #
+  # ⛔⛔ DO NOT "SIMPLIFY" THIS TO AN UNCONDITIONAL `if (drop) next`. Measured 2026-08-27 on fixtures:
+  # the unconditional form closes the inner-"### " leak AND swallows a LIVE handoff whenever a
+  # consumed block lacks a terminator, because this reset is the only recovery path in that case —
+  # one fixture was reduced to its bare "## Pending handoffs" heading. It trades a bounded 2-line leak
+  # for unbounded deletion, which is the same class of harm as demoting over a live pickup.
+  # ⚠ And it PASSES a leak-only fixture, so tests/repros/session-state.sh carries M9c specifically to
+  # fail it. If M9c is ever deleted, this comment is the only thing left standing between the two.
+  #
+  # ⛔ The threshold is MEASURED, not chosen: across all 28 column-0 "### " lines in all 80 SESSION.md
+  # on one machine, 25/25 real entry headers carry >= 3 separators and 3/3 prose headings carry 0.
+  # A token-shape test was tried first and FAILED on 2 of 25 (a parenthetical after the sid).
+  # ⚑ Failure direction is safe: a prose heading with >= 2 separators degrades to the old bounded
+  # leak, never to deletion.
+  #
+  # The status test is word-bounded for the same reason as mark_consumed's, and this is where that
+  # matters most: a naive /consumed/ ALSO matches `unconsumed`, which would make prune delete live
+  # handoffs. `unconsumed` fails /(^|[^a-z])consumed([^a-z]|$)/ because the `c` is preceded by `n`.
   awk '
+    function is_entry_header(s, n) { n = gsub(/ · /, " · ", s); return (n >= 2) }
+
     # pass 1: does this file use explicit terminators?
     NR == FNR { if ($0 == "<!-- aria:entry-end -->") term = 1; next }
 
-    # pass 2 — terminator format: boundaries are the header and the terminator only.
+    # pass 2 — terminator format: boundaries are an entry header and the terminator only.
     term {
-      if ($0 ~ /^### /) { drop = ($0 ~ /· consumed /) ? 1 : 0; if (drop) next; print; next }
+      if ($0 ~ /^### / && is_entry_header($0)) { drop = ($0 ~ /(^|[^a-z])consumed([^a-z]|$)/) ? 1 : 0; if (drop) next; print; next }
       if ($0 == "<!-- aria:entry-end -->") { if (drop) { drop = 0; next } print; next }
       if (!drop) print
       next
     }
 
-    # pass 2 — legacy format: prompts are single-line, so "## " inference is safe.
-    /^### / { drop = ($0 ~ /· consumed /) ? 1 : 0; if (drop) next }
+    # pass 2 — legacy format: prompts are single-line, so "## " inference is safe. The header
+    # inference stays as-is here (the only boundary mechanism this format has); only the status test
+    # gains the word boundary, so a legacy bold `**consumed**` entry prunes too.
+    /^### / { drop = ($0 ~ /(^|[^a-z])consumed([^a-z]|$)/) ? 1 : 0; if (drop) next }
     /^## / && $0 !~ /^### / { drop = 0 }
     { if (!drop) print }
   ' "$_ss_f" "$_ss_f" > "$_ss_tmp" 2>/dev/null && mv "$_ss_tmp" "$_ss_f" 2>/dev/null
