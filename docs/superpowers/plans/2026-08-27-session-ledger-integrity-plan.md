@@ -13,7 +13,13 @@ C2 one-mutation-one-named-control) applied in this revision.
 
 ⛔ Record before touching anything, or a later failure cannot be attributed.
 - `sh tests/run.sh` — **bare exit code**, never through a pipe. Record suite count.
-- `sh tests/repros/session-state.sh` alone — record `N passed, M failed` (expect 49 assertions).
+- `sh tests/repros/session-state.sh` alone — record `N passed, M failed`.
+  ⛔ **CORRECTED 2026-08-27 — this line said "expect 49 assertions" and 49 is WRONG in both units.**
+  Measured at `daf3b61`: **44 passed, 0 failed, bare exit 0**, and the source carries **44** `ok "`
+  call sites, so it is not a source-vs-executed mismatch — the figure was simply wrong. A session
+  comparing against 49 at T5 would read 5 assertions as **vanished**, which in this workspace is the
+  tell for a shared-test-DB collision, and would chase a phantom. **Re-measure rather than trusting
+  this number**; T3 adds controls, so T5's expected total is 44 + however many land.
 - `git -C . rev-parse --short HEAD`; confirm the tree is clean apart from any parallel-session file,
   which must be left alone.
 - **Acceptance:** two recorded numbers to compare against at T5.
@@ -39,6 +45,42 @@ restore it.
 
 - **Acceptance:** AC1 + AC2. A control asserts the gate no longer keys on `handoff` alone; a second
   asserts the fresh-marker case still skips.
+
+### ⛔ AMENDMENT A1 (2026-08-27, found at T0 — NOT covered by either gate)
+
+**A fifth subject exists and the plan named none of it: `tests/repros/wrapup-demotes-before-rewrite.sh`.**
+It slices wrapup Step 6.5 — the exact text site 1a/1b edits — behind a vacuity floor, and carries
+**9 assertions** that ran green in the T0 baseline. Two of them bear on D1:
+
+| assertion | what it actually tests | effect of T1 |
+|---|---|---|
+| **C** `in-progress marker exception carried across` | `grep -qiE 'in-progress'` over Step 6.5 — the **string only** | ⛔ **cannot fail either way** — see below |
+| **D** `unqualified survival claim absent` | absence of one exact old sentence | unaffected (already absent) |
+
+⛔ **Assertion C is a control that cannot distinguish the bug from the fix, and BOTH of its outcomes
+mislead.** The current false clause contains `in-progress`; any corrected clause will too, so C passes
+having verified nothing. And if the corrected wording shifts to the parenthetical `(session in
+progress)` form, C **fails** — while its failure message asserts the false premise verbatim
+(*"a live session's breadcrumb carrying no prompt — demoting it stores an empty entry"*), i.e. the
+suite would argue for restoring the defect.
+
+⭐ **The structural point: C and AC2 are the same assertion at two different scopes.** AC2 wants
+*"the positive gate no longer keys on `handoff` alone"*; C wants *"the exception survives the port"*.
+Discharging AC2 by adding a control **elsewhere** would leave two guards on one clause, one of which
+cannot fail — the dead-by-construction shape. **So AC2 is discharged by REWRITING C in place.**
+
+**Disposition — REWRITE, not delete** (a check proven unable to fail is one or the other, and which
+must be named): the invariant C guards is real — a *fresh* marker with an empty prompt must still be
+skipped — it is the **unit** that is wrong. C must assert the **condition** (the clause names a
+non-empty-prompt test and no longer gates on `handoff` alone), not the presence of a hyphenated word.
+Its failure message must be rewritten in the same edit; leaving it is how the false premise survives
+its own removal.
+
+⚠ **This is a gate delta.** Neither gate examined this file, so T1's site count is unchanged (still
+four edit sites) but its **test** surface grows by one file, and T3/T5 below gain the rows marked A1.
+⚠ **Floor check, already verified:** both `awk` slices (`/^## Step 6.5/,/^## Step 7/` and
+`/^5\. \*\*3f:/,/^$/`) are guarded by explicit length floors, so if a T1 edit changes a heading the
+suite fails loudly at the floor rather than passing over empty text. Do not remove those floors.
 
 ## T2 — D2 ∧ D4: the matchers, as ONE change
 
@@ -72,11 +114,6 @@ is open. The `<!-- aria:entry-end -->` terminator is the declared boundary; the 
 *starting* a block. Leave the legacy branch alone — it has no terminator and its single-line-prompt
 invariant makes the old inference sound.
 
-**D4 — same function:** inside the terminator branch, do **not** reset `drop` on `^### ` while a block
-is open. The `<!-- aria:entry-end -->` terminator is the declared boundary; the header test is only for
-*starting* a block. Leave the legacy branch alone — it has no terminator and its single-line-prompt
-invariant makes the old inference sound.
-
 - **Acceptance:** AC3, AC4, AC6.
 
 ## T3 — Controls, RED FIRST
@@ -93,6 +130,8 @@ already present, so each control reds for its own reason with no stub needed.
 | D2-f | the rewrite actually lands on a bold header (not just the match) | yes |
 | D4-a | consumed block with a column-0 `### ` in its prompt is removed WHOLE | yes |
 | D4-b | the adjacent live entry survives byte-identical | **no — control** |
+| **A1-C** *(rewrite of the existing `C`)* | Step 6.5's clause names a **non-empty-prompt** condition and does not gate on `handoff` alone | **yes** — reds against the current false clause; **this discharges AC2, do not add a separate AC2 control** |
+| **A1-floor** | the two `awk` slices stay above their length floors | **no — pre-existing vacuity guard** |
 
 ⛔ **AC4 is discharged by an EXISTING control, not a new one.** `session-state.sh` already carries
 `M4 unconsumed block survives prune`. The obligation is to **fire it red** by temporarily using the
@@ -120,6 +159,7 @@ Against a **copy** in the scratchpad — the live hooks are called by other sess
 | drop the word boundary from mark_consumed's match | **D2-c** (bold), and *only* D2-c |
 | reset `drop` on `^### ` again | **D4-a** |
 | restore the anchored `sub(/· unconsumed$/…)` | **D2-f** (the write-lands control) |
+| **A1** restore the old false clause verbatim in wrapup Step 6.5 | **A1-C** (the rewritten in-progress control), and *only* A1-C. ⛔ Prove the condition was created by grepping the restored sentence — the ORIGINAL `C` passes under this mutation, which is precisely why it was rewritten |
 
 ⛔ **One mutation, one NAMED control — gate change C2.** The earlier table read *"D2-e **or** M4"*, which
 lets either outcome be read as success. Each row above names exactly one control, and each must be shown

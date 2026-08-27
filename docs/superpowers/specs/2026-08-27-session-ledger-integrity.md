@@ -113,7 +113,27 @@ cold. It **blocks nothing else** — D1, D2 and D4 are independent of it — so 
 decision would be the expensive error, and inventing the contract to make the plan look complete would
 be the worse one.
 
-**Carried as an open decision with its evidence attached.** Three options, each with a consequence:
+## ✅ D3 RULED 2026-08-27 (Mike) — closed set at the WRITER + fix the one entry BY HAND
+
+**The contract:** `kt_ss_ledger_add` rejects (or normalises) a write whose status verb is outside
+`{unconsumed, consumed}`, so the stuck state becomes **unreachable going forward**; the single existing
+`⛔ RETIRED 2026-08-15` entry is corrected in **one manual edit**, not by a matcher change.
+
+⛔ **`prune`'s blast radius is NOT widened. Do not implement the prunable-if-not-unconsumed option** —
+it was considered and rejected below.
+
+⚑ **What made this decidable was a reframe, and it is worth keeping because it dissolves an axis rather
+than choosing on it: "clear the stuck entry" is NOT a property of the matchers at all.** One hand edit
+clears it. Once that is separated out, the only genuinely open question is what the **writer** should do
+about a verb it does not know — and prevention-at-the-writer answers that without touching the function
+whose inversion trap (a naive `/consumed/` also matching `unconsumed`) is the sharpest hazard in this
+arc. The three-way fork was three-way only because two different goals were bundled into it.
+
+⚠ **Still out of scope for the D1/D2∧D4 plan** — this is its own unit with its own gate. It blocks
+nothing; the plan's `Explicitly NOT in this plan` list stands, now as *ruled but unbuilt* rather than
+*needs a ruling*.
+
+**The options as weighed, kept as the record (Rule 21).** Three options, each with a consequence:
 
 | option | consequence |
 |---|---|
@@ -163,8 +183,11 @@ therefore below D1/D2/D3 — but it sits in the function being edited, so leavin
 - **AC6** A consumed block whose stored prompt contains a column-0 `### ` line is removed **whole**, with
   an adjacent live entry surviving byte-identical (D4).
 - **AC7** Every control is mutation-verified — each seen red for its own named reason.
-- **AC8** No behaviour change for files already in the canonical format: the existing 49 session-state
-  assertions stay green.
+- **AC8** No behaviour change for files already in the canonical format: the existing session-state
+  assertions stay green. ⛔ **CORRECTED 2026-08-27 — this read "the existing 49"; the measured
+  baseline at `daf3b61` is 44** (44 executed, 44 `ok "` call sites in source — wrong in both units,
+  not a unit mismatch). Re-measure at T0 rather than trusting a written count: an AC asserting a
+  number a healthy tree cannot produce fails for a reason that has nothing to do with the change.
 
 ## 6. Non-goals
 
@@ -194,7 +217,8 @@ therefore below D1/D2/D3 — but it sits in the function being edited, so leavin
 
 ## 7. Open questions for `/prospect`
 
-- **OQ1** D3's contract — closed set, prunable-if-not-unconsumed, or deliberately permanent?
+- **OQ1** ✅ **CLOSED 2026-08-27 — Mike ruled: closed set at the WRITER, plus a one-off hand fix of the
+  existing entry. See §3.** Not prunable-if-not-unconsumed; `prune`'s blast radius is unchanged.
 - **OQ2** Does the looser `^### .*<sid>` header match (§2) create a collision with stored prompt content,
   and does D4's fix make it safe or merely narrower?
 - **OQ3** Do the ports' skills carry the demote step, and does fixing canonical alone leave them worse?
