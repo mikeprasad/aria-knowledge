@@ -18,23 +18,18 @@ This skill is **orchestration + artifact templates only**. The substance — the
 
 ## Runtime Gate (per ADR-094)
 
-**Canonical resolution:** This is the Claude Code variant. When both `plugin-claude-code` and `plugin-claude-cowork` are loaded in the same session (most common in Claude Desktop), bare `/foundational-review` resolves to this skill — aria-knowledge (Code) is the canonical owner of all dual-port skills per ADR-094 §Part 1. (No Cowork variant ships yet — tracked-drift for a later parity pass.)
+**Canonical resolution:** This is the Claude Code variant. When both `plugin-claude-code` and `plugin-claude-cowork` are loaded in the same session (most common in Claude Desktop), bare `/foundational-review` resolves to this skill — aria-knowledge (Code) is the canonical owner of all dual-port skills per ADR-094 §Part 1. The Cowork variant is namespaced-only: `/aria-cowork:foundational-review`.
 
-**Before Step 0:** Check that the `Bash` tool is available in this session. If `Bash` is NOT available (you are running in Claude Cowork or another non-Code runtime), surface the following notification and wait for explicit user confirmation:
+**Before Step 0 — runtime self-correction.** Check whether the `Bash` tool is available in this session. If `Bash` is NOT available (you are running in Claude Cowork or another non-Code runtime), this invocation reached the wrong variant for the runtime. **Do not ask — redirect.** Announce it in one line, then use the `Skill` tool to invoke `aria-cowork:foundational-review` with the same arguments the user provided, and do not run this skill's steps:
 
-> ⚠️ **Runtime mismatch — you invoked aria-knowledge's `/foundational-review` from a non-Code runtime.**
+> ↪️ **Redirecting to `/aria-cowork:foundational-review` — you invoked the aria-knowledge (Code) variant, but you are running in Claude Cowork or another non-Code runtime.**
 >
-> The chain's Step 6 commits artifacts via `git`, and the survey leans on live `git`/`grep` probes. In Cowork those degrade to copy-paste commit messages and manual file checks. No Cowork-native variant ships yet.
->
-> **Proceed with this Code variant anyway?** (`y` / `n`)
+> The chain's Step 6 commits artifacts via `git`, and the survey leans on live `git`/`grep` probes. In Cowork those degrade to copy-paste commit messages and manual file checks. A Cowork-native variant DOES ship as `/aria-cowork:foundational-review`, and is the correct target here.
 
-Wait for an explicit reply:
+⛔ **The redirect is unconditional** — every mode including `auto`, and no opt-out. Reaching this variant under that condition is always a mis-invocation, so there is nothing for the user to decide. Design record: `docs/superpowers/specs/2026-08-28-runtime-gate-auto-redirect-design.md` (D2 auto-redirect, D3 no escape hatch, D6 announce-don't-swap-silently).
 
-- **`y` / `yes`** — Proceed with this variant; commit/probe steps degrade to copy-paste + manual checks where the tools are absent. The user has explicitly opted in.
-- **`n` / `no`** — Exit cleanly without running.
-- **No response / any other reply** — Treat as "do not proceed" and exit cleanly.
+If `Bash` is available, proceed to Step 0.
 
-**This gate applies even when running unattended** per ADR-094 §Part 3 — the runtime-mismatch check is never bypassed.
 
 If `Bash` is available, proceed to Step 0.
 

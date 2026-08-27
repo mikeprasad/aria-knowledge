@@ -12,19 +12,16 @@ The Cowork variant. The recurring surface sibling of `/aria-cowork:foundational-
 
 **Canonical resolution:** This is the Claude Cowork variant — namespaced-only. When both ports are loaded, bare `/readiness-audit` resolves to aria-knowledge's variant (Code is canonical owner per ADR-094 §Part 1). To reach this skill use `/aria-cowork:readiness-audit`. Do NOT match bare `/readiness-audit`.
 
-**Before Step 0:** Check whether the `Bash` tool is available. If `Bash` IS available (Claude Code or another shell runtime), surface and wait:
+**Before Step 0 — runtime self-correction.** Check whether the `Bash` tool is available in this session. If `Bash` IS available (you are running in Claude Code or another runtime with shell access), this invocation reached the wrong variant for the runtime. **Do not ask — redirect.** Announce it in one line, then use the `Skill` tool to invoke `readiness-audit` with the same arguments the user provided, and do not run this skill's steps:
 
-> ⚠️ **Runtime mismatch — you invoked aria-cowork's `/readiness-audit` from a runtime with shell access.**
+> ↪️ **Redirecting to `/readiness-audit` — you invoked the aria-cowork variant, but you are running in Claude Code or another runtime with shell access.**
 >
 > This variant probes surfaces sequentially via file tools and asks you to paste anything it can't reach (no Bash, no parallel subagents, no `git diff --stat`). For the Code-native variant (parallel exploration + a real artifact `git diff --stat` check), use `/readiness-audit` (the aria-knowledge canonical).
->
-> **Use `/readiness-audit` instead?** (`y` / `n`)
 
-- **`y` / `yes`** — Invoke `readiness-audit` (bare-slash canonical) with the same args via the `Skill` tool; do not proceed here. Default-yes path.
-- **`n` / `no`** — Proceed with this variant anyway (explicit opt-in).
-- **No response / other** — do not proceed; exit cleanly.
+⛔ **The redirect is unconditional** — every mode including `auto`, and no opt-out. Reaching this variant under that condition is always a mis-invocation, so there is nothing for the user to decide. Design record: `docs/superpowers/specs/2026-08-28-runtime-gate-auto-redirect-design.md` (D2 auto-redirect, D3 no escape hatch, D6 announce-don't-swap-silently).
 
-**Applies even when `mode = auto`** per ADR-094 §Part 3. If `Bash` is NOT available (normal Cowork runtime), proceed to Step 0.
+If `Bash` is NOT available (normal Cowork runtime), proceed to Step 0.
+
 
 ## When to use
 

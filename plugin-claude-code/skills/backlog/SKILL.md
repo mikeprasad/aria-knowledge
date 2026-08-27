@@ -12,21 +12,13 @@ View pending items across all four backlogs, or manage entries.
 
 **Canonical resolution:** This is the Claude Code variant. When both `plugin-claude-code` and `plugin-claude-cowork` are loaded in the same session (most common in Claude Desktop), bare `/backlog` resolves to this skill — aria-knowledge (Code) is the canonical owner of all 24 dual-port skills per ADR-094 §Part 1. The Cowork variant is namespaced-only: `/aria-cowork:backlog`.
 
-**Before Step 0:** Check that the `Bash` tool is available in this session. If `Bash` is NOT available (you are running in Claude Cowork or another non-Code runtime), surface the following notification and wait for explicit user confirmation:
+**Before Step 0 — runtime self-correction.** Check whether the `Bash` tool is available in this session. If `Bash` is NOT available (you are running in Claude Cowork or another non-Code runtime), this invocation reached the wrong variant for the runtime. **Do not ask — redirect.** Announce it in one line, then use the `Skill` tool to invoke `aria-cowork:backlog` with the same arguments the user provided, and do not run this skill's steps:
 
-> ⚠️ **Runtime mismatch — you invoked aria-knowledge's `/backlog` from a non-Code runtime.**
+> ↪️ **Redirecting to `/aria-cowork:backlog` — you invoked the aria-knowledge (Code) variant, but you are running in Claude Cowork or another non-Code runtime.**
 >
 > Behavior is largely the same in both runtimes; for the Cowork-native variant (reads backlogs from the attached knowledge folder rather than `~/.claude/aria-knowledge.local.md`), use `/aria-cowork:backlog`.
->
-> **Use `/aria-cowork:backlog` instead?** (`y` / `n`)
 
-Wait for an explicit reply:
-
-- **`y` / `yes`** — Use the `Skill` tool to invoke `aria-cowork:backlog` with the same arguments the user provided to this invocation. Do not proceed with this skill's steps; the cowork variant takes over and runs to completion. This is the default-yes path — auto-redirect is the helpful action.
-- **`n` / `no`** — Proceed with this (aria-knowledge) variant anyway despite the runtime mismatch. The user has explicitly opted in.
-- **No response / any other reply** — Treat as "do not proceed" and exit cleanly without running either variant.
-
-**This gate applies even when `mode = auto`** per ADR-094 §Part 3. Auto mode's "implicit-yes on all gates" rule is suspended for the runtime-mismatch check — auto trusts that the user invoked the correct variant, and this gate enforces that precondition. All other auto-mode gates remain bypassed. The friction cost is now low: on `y`, the auto-redirect runs the correct variant with the original args.
+⛔ **The redirect is unconditional** — every mode including `auto`, and no opt-out. Reaching this variant under that condition is always a mis-invocation, so there is nothing for the user to decide. Design record: `docs/superpowers/specs/2026-08-28-runtime-gate-auto-redirect-design.md` (D2 auto-redirect, D3 no escape hatch, D6 announce-don't-swap-silently).
 
 If `Bash` is available, proceed to Step 0.
 

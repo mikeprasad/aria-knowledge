@@ -2,6 +2,55 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.51.0 — 2026-08-28
+
+**Runtime gates self-correct instead of asking. Bare `/skillname` belongs to Code.**
+
+⚠ **Behaviour change:** invoking a skill from the wrong runtime no longer stops to ask. The gate
+announces the mismatch in one line and runs the correct variant with your original arguments.
+**The `n` branch — "run the mismatched variant anyway" — is gone**, deliberately: the Cowork
+variant inside Claude Code is *strictly worse*, since it skips the memory and plans paths precisely
+because it assumes no shell. There is nothing legitimate to preserve.
+
+**The detection was never the problem.** Bash-availability already identified the right variant
+without user input; the gate then stopped to ask anyway — its own text conceded the point, reading
+*"This is the default-yes path — auto-redirect is the helpful action."* Now it just does it.
+
+**Bare forms belong to Code (ADR-094 §Part 1), and that is enforced by description content**, not
+by any harness rule: Code descriptions carry the bare triggers, Cowork descriptions carry only
+`/aria-cowork:<x>`. Measured, 22 of 24 already complied. One did not — `cowork/interview`
+advertised bare `'/interview'` against a colliding Code skill, and now advertises the namespaced
+form with the marker its siblings carry. `aria-setup` and `daily-audit` lack the marker and are
+**correct**: their names are deliberately distinct, so no bare collision exists.
+
+**The two halves compose into a self-correcting system**, which is why they shipped together: bare
+`/x` → Code → redirects to Cowork if the runtime is Cowork; `/aria-cowork:x` → Cowork → redirects
+to Code if the runtime is Code. Neither entry point can strand you, and neither change alone
+achieves that.
+
+⛔ **Seven Code gates are deliberately excluded** — `audit`, `audit-rules`, `audit-style`,
+`audit-usage`, `auto`, `recap`, `roadmap`. No Cowork counterpart exists, and **a redirect gate is
+only honest when a redirect target exists**; they keep a capability-precondition shape. This is the
+v2.49.0 lesson, and `[RG2]` now guards it so it cannot decay.
+
+⛔⛔ **The inverse defect, found while sweeping: three Code gates claimed a counterpart was missing
+that exists.** `foundational-review`, `interview` and `readiness-audit` each asserted *"No Cowork
+variant ships yet"* while Cowork ships **all three** — so a Cowork user invoking `/readiness-audit`
+was offered a *degraded Code run* instead of the Cowork-native variant that was sitting right
+there. Corrected on all three and guarded by `[RG4]`.
+
+**First test coverage these gates have ever had.** Zero tests touched any of the 57 runtime gates
+before this release — measured, not assumed. `tests/test-runtime-gates.sh` derives the in-scope set
+from **counterpart existence** rather than a hardcoded list (a hardcoded list rots the next time a
+skill is ported), and all four assertion families are mutation-verified: each mutation reds its
+named control and restores byte-identical.
+
+**Gates:** plugin suite **293 passed / 0 failed** (was 286), hook-repro **38 suites / 484
+assertions**, both bare exit 0; Gate B unchanged at 19,519 of 19,968. ADR-094 amended in place —
+§Part 1 stands, §Part 2's question and §Part 3's auto-mode exception are superseded. Design record:
+`docs/superpowers/specs/2026-08-28-runtime-gate-auto-redirect-design.md`; plan gated
+PROCEED-WITH-CHANGES before any code.
+
 ## 2.50.0 — 2026-08-27
 
 **`/audit share` becomes a verb; `/audit all` is removed.**

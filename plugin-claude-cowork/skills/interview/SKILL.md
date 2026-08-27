@@ -1,5 +1,5 @@
 ---
-description: "ELICIT knowledge by interviewing the user, then stage to intake/ for manual review (elicit-side counterpart to /extract /intake /clip). Modes: 'project' (scope a build), 'knowledge' (a topic into the KB), 'deep-dive' (rationale behind something you built — needs a basis). Use when user says '/interview', 'interview me about X', 'grill me on X', 'deep dive on X', 'scope this project'. (Cowork variant — namespaced-only.)"
+description: "ELICIT knowledge by interviewing the user, then stage to intake/ for manual review (elicit-side counterpart to /extract /intake /clip). Modes: 'project' (scope a build), 'knowledge' (a topic into the KB), 'deep-dive' (rationale behind something you built — needs a basis). Use when user says '/aria-cowork:interview', 'interview me about X', 'grill me on X', 'deep dive on X', 'scope this project'. (Cowork variant — namespaced-only.)"
 argument-hint: "<project|knowledge|deep-dive> [topic] [--ground=<path|glob|url>[,...]] [--socratic|--battery]"
 allowed-tools: Read, Glob, Grep, Write, Edit, WebFetch
 ---
@@ -12,19 +12,16 @@ Interview the user to draw out knowledge that lives in their head (and in their 
 
 **Canonical resolution:** This is the Claude Cowork variant — namespaced-only. When both `plugin-claude-code` and `plugin-claude-cowork` are loaded in the same session, bare `/interview` resolves to aria-knowledge's variant — Code is the canonical owner of all dual-port skills per ADR-094 §Part 1. To reach this skill, use the namespaced form: `/aria-cowork:interview`. Do NOT match bare `/interview` — that belongs to aria-knowledge.
 
-**Before Step 0:** Check whether the `Bash` tool is available in this session. If `Bash` IS available (you are running in Claude Code or another runtime with shell access), surface the following notification and wait for explicit user confirmation:
+**Before Step 0 — runtime self-correction.** Check whether the `Bash` tool is available in this session. If `Bash` IS available (you are running in Claude Code or another runtime with shell access), this invocation reached the wrong variant for the runtime. **Do not ask — redirect.** Announce it in one line, then use the `Skill` tool to invoke `interview` with the same arguments the user provided, and do not run this skill's steps:
 
-> ⚠️ **Runtime mismatch — you invoked aria-cowork's `/interview` from a runtime with shell access.**
+> ↪️ **Redirecting to `/interview` — you invoked the aria-cowork variant, but you are running in Claude Code or another runtime with shell access.**
 >
 > This variant runs conversationally and resolves your knowledge folder by reading the config file directly (no Bash). For the Code-native variant, use `/interview` (the aria-knowledge canonical).
->
-> **Use `/interview` instead?** (`y` / `n`)
 
-- **`y` / `yes`** — Use the `Skill` tool to invoke `interview` (the bare-slash canonical) with the same arguments. Do not proceed here; the aria-knowledge variant takes over. This is the default-yes path.
-- **`n` / `no`** — Proceed with this (aria-cowork) variant anyway. The user has explicitly opted in.
-- **No response / any other reply** — Treat as "do not proceed" and exit cleanly.
+⛔ **The redirect is unconditional** — every mode including `auto`, and no opt-out. Reaching this variant under that condition is always a mis-invocation, so there is nothing for the user to decide. Design record: `docs/superpowers/specs/2026-08-28-runtime-gate-auto-redirect-design.md` (D2 auto-redirect, D3 no escape hatch, D6 announce-don't-swap-silently).
 
-**This gate applies even when `mode = auto`** per ADR-094 §Part 3. If `Bash` is NOT available (normal Cowork runtime), proceed to Step 0.
+If `Bash` is NOT available (normal Cowork runtime), proceed to Step 0.
+
 
 ## Step 0: Resolve Config
 

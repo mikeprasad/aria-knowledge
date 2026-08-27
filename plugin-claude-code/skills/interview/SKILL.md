@@ -10,11 +10,15 @@ Interview the user to draw out knowledge that lives in their head (and in their 
 
 ## Runtime Gate (per ADR-094)
 
-**Canonical resolution:** This is the Claude Code variant. v1 ships Code-only — there is no Cowork variant of `/interview` yet (documented port follow-on). If `Bash` is NOT available (you are running in Claude Cowork or another non-Code runtime), surface:
+**Canonical resolution:** This is the Claude Code variant. When both `plugin-claude-code` and `plugin-claude-cowork` are loaded in the same session (most common in Claude Desktop), bare `/interview` resolves to this skill — aria-knowledge (Code) is the canonical owner of all dual-port skills per ADR-094 §Part 1. The Cowork variant is namespaced-only: `/aria-cowork:interview`.
 
-> ⚠️ **Runtime mismatch — `/interview` is a Claude Code skill and needs the `Bash` tool to resolve your knowledge folder.** This skill has no Cowork variant yet. Proceed anyway? (`y` / `n`)
+**Before Step 0 — runtime self-correction.** Check whether the `Bash` tool is available in this session. If `Bash` is NOT available (you are running in Claude Cowork or another non-Code runtime), this invocation reached the wrong variant for the runtime. **Do not ask — redirect.** Announce it in one line, then use the `Skill` tool to invoke `aria-cowork:interview` with the same arguments the user provided, and do not run this skill's steps:
 
-On `y`, continue (config read may fail gracefully — ask the user to paste their knowledge-folder path). On `n` / no reply, exit cleanly.
+> ↪️ **Redirecting to `/aria-cowork:interview` — you invoked the aria-knowledge (Code) variant, but you are running in Claude Cowork or another non-Code runtime.**
+>
+> This variant resolves your knowledge folder via Bash, which is unavailable there. The Cowork-native variant reads the config file directly and runs conversationally.
+
+⛔ **The redirect is unconditional** — every mode including `auto`, and no opt-out. Reaching this variant under that condition is always a mis-invocation, so there is nothing for the user to decide. Design record: `docs/superpowers/specs/2026-08-28-runtime-gate-auto-redirect-design.md` (D2 auto-redirect, D3 no escape hatch, D6 announce-don't-swap-silently).
 
 If `Bash` is available, proceed to Step 0.
 

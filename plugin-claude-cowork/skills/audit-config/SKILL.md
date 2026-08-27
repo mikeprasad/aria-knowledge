@@ -22,21 +22,13 @@ Plugin attribution in audit-log entries uses `aria-cowork@{INSTALLED_VERSION}`. 
 
 **Canonical resolution:** This is the Claude Cowork variant — namespaced-only. When both `plugin-claude-code` and `plugin-claude-cowork` are loaded in the same session (most common in Claude Desktop), bare `/audit-config` resolves to aria-knowledge's variant — Code is the canonical owner of all 24 dual-port skills per ADR-094 §Part 1. To reach this skill, use the namespaced form: `/aria-cowork:audit-config`. Do NOT match bare `/audit-config` — that belongs to aria-knowledge.
 
-**Before Step 0:** Check whether the `Bash` tool is available in this session. If `Bash` IS available (you are running in Claude Code or another runtime with shell access), surface the following notification and wait for explicit user confirmation:
+**Before Step 0 — runtime self-correction.** Check whether the `Bash` tool is available in this session. If `Bash` IS available (you are running in Claude Code or another runtime with shell access), this invocation reached the wrong variant for the runtime. **Do not ask — redirect.** Announce it in one line, then use the `Skill` tool to invoke `audit-config` with the same arguments the user provided, and do not run this skill's steps:
 
-> ⚠️ **Runtime mismatch — you invoked aria-cowork's `/audit-config` from a runtime with shell access.**
+> ↪️ **Redirecting to `/audit-config` — you invoked the aria-cowork variant, but you are running in Claude Code or another runtime with shell access.**
 >
 > This variant uses `CONFIG.md`-driven field enumeration and skips `CODEMAP.md` / `STITCH.md` checks per ADR-005 — but you appear to be in Claude Code, where the canonical aria-knowledge variant uses `bin/config.sh` + Agent sub-audits + tracked-artifact staleness. For the Code-native variant, use `/audit-config` (the aria-knowledge canonical).
->
-> **Use `/audit-config` instead?** (`y` / `n`)
 
-Wait for an explicit reply:
-
-- **`y` / `yes`** — Use the `Skill` tool to invoke `audit-config` (the bare-slash canonical, which routes to aria-knowledge when both ports are loaded) with the same arguments the user provided to this invocation. Do not proceed with this skill's steps; the aria-knowledge variant takes over and runs to completion. This is the default-yes path — auto-redirect is the helpful action.
-- **`n` / `no`** — Proceed with this (aria-cowork) variant anyway despite the runtime mismatch. The user has explicitly opted in.
-- **No response / any other reply** — Treat as "do not proceed" and exit cleanly without running either variant.
-
-**This gate applies even when `mode = auto`** per ADR-094 §Part 3. Auto mode's "implicit-yes on all gates" rule is suspended for the runtime-mismatch check — auto trusts that the user invoked the correct variant, and this gate enforces that precondition. All other auto-mode gates remain bypassed. The friction cost is now low: on `y`, the auto-redirect runs the correct variant with the original args.
+⛔ **The redirect is unconditional** — every mode including `auto`, and no opt-out. Reaching this variant under that condition is always a mis-invocation, so there is nothing for the user to decide. Design record: `docs/superpowers/specs/2026-08-28-runtime-gate-auto-redirect-design.md` (D2 auto-redirect, D3 no escape hatch, D6 announce-don't-swap-silently).
 
 If `Bash` is NOT available (normal Cowork runtime), proceed to Step 0.
 

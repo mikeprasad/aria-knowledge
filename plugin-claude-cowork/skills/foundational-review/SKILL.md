@@ -12,19 +12,16 @@ The Cowork variant of the foundational review chain. Same genre as `/aria-cowork
 
 **Canonical resolution:** This is the Claude Cowork variant — namespaced-only. When both `plugin-claude-code` and `plugin-claude-cowork` are loaded in the same session, bare `/foundational-review` resolves to aria-knowledge's variant — Code is the canonical owner of all dual-port skills per ADR-094 §Part 1. To reach this skill, use the namespaced form: `/aria-cowork:foundational-review`. Do NOT match bare `/foundational-review` — that belongs to aria-knowledge.
 
-**Before Step 0:** Check whether the `Bash` tool is available in this session. If `Bash` IS available (you are running in Claude Code or another runtime with shell access), surface the following notification and wait for explicit user confirmation:
+**Before Step 0 — runtime self-correction.** Check whether the `Bash` tool is available in this session. If `Bash` IS available (you are running in Claude Code or another runtime with shell access), this invocation reached the wrong variant for the runtime. **Do not ask — redirect.** Announce it in one line, then use the `Skill` tool to invoke `foundational-review` with the same arguments the user provided, and do not run this skill's steps:
 
-> ⚠️ **Runtime mismatch — you invoked aria-cowork's `/foundational-review` from a runtime with shell access.**
+> ↪️ **Redirecting to `/foundational-review` — you invoked the aria-cowork variant, but you are running in Claude Code or another runtime with shell access.**
 >
 > This variant runs conversationally (no Bash, no parallel subagents — it reads via file tools and asks you to paste anything it can't reach). For the Code-native variant (parallel agent exploration, `git`/`gh` via Bash, automatic commit + kickoff), use `/foundational-review` (the aria-knowledge canonical).
->
-> **Use `/foundational-review` instead?** (`y` / `n`)
 
-- **`y` / `yes`** — Use the `Skill` tool to invoke `foundational-review` (the bare-slash canonical) with the same arguments. Do not proceed here; the aria-knowledge variant takes over. This is the default-yes path.
-- **`n` / `no`** — Proceed with this (aria-cowork) variant anyway. The user has explicitly opted in.
-- **No response / any other reply** — Treat as "do not proceed" and exit cleanly.
+⛔ **The redirect is unconditional** — every mode including `auto`, and no opt-out. Reaching this variant under that condition is always a mis-invocation, so there is nothing for the user to decide. Design record: `docs/superpowers/specs/2026-08-28-runtime-gate-auto-redirect-design.md` (D2 auto-redirect, D3 no escape hatch, D6 announce-don't-swap-silently).
 
-**This gate applies even when `mode = auto`** per ADR-094 §Part 3. If `Bash` is NOT available (normal Cowork runtime), proceed to Step 0.
+If `Bash` is NOT available (normal Cowork runtime), proceed to Step 0.
+
 
 ## When to use
 

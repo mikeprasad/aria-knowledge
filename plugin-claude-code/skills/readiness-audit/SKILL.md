@@ -15,23 +15,18 @@ This skill is **orchestration + artifact templates only**. The format spec and t
 
 ## Runtime Gate (per ADR-094)
 
-**Canonical resolution:** This is the Claude Code variant. When both `plugin-claude-code` and `plugin-claude-cowork` are loaded in the same session (most common in Claude Desktop), bare `/readiness-audit` resolves to this skill — aria-knowledge (Code) is the canonical owner of all dual-port skills per ADR-094 §Part 1. (No Cowork variant ships yet — tracked-drift for a later parity pass.)
+**Canonical resolution:** This is the Claude Code variant. When both `plugin-claude-code` and `plugin-claude-cowork` are loaded in the same session (most common in Claude Desktop), bare `/readiness-audit` resolves to this skill — aria-knowledge (Code) is the canonical owner of all dual-port skills per ADR-094 §Part 1. The Cowork variant is namespaced-only: `/aria-cowork:readiness-audit`.
 
-**Before Step 0:** Check that the `Bash` tool is available in this session. If `Bash` is NOT available (you are running in Claude Cowork or another non-Code runtime), surface the following notification and wait for explicit user confirmation:
+**Before Step 0 — runtime self-correction.** Check whether the `Bash` tool is available in this session. If `Bash` is NOT available (you are running in Claude Cowork or another non-Code runtime), this invocation reached the wrong variant for the runtime. **Do not ask — redirect.** Announce it in one line, then use the `Skill` tool to invoke `aria-cowork:readiness-audit` with the same arguments the user provided, and do not run this skill's steps:
 
-> ⚠️ **Runtime mismatch — you invoked aria-knowledge's `/readiness-audit` from a non-Code runtime.**
+> ↪️ **Redirecting to `/aria-cowork:readiness-audit` — you invoked the aria-knowledge (Code) variant, but you are running in Claude Cowork or another non-Code runtime.**
 >
-> The audit leans on live read-only probes (`git`, `grep`, build dry-runs) and commits the report via `git`. In Cowork those degrade to manual file checks and a copy-paste commit message. No Cowork-native variant ships yet.
->
-> **Proceed with this Code variant anyway?** (`y` / `n`)
+> The audit leans on live read-only probes (`git`, `grep`, build dry-runs) and commits the report via `git`. In Cowork those degrade to manual file checks and a copy-paste commit message. A Cowork-native variant DOES ship as `/aria-cowork:readiness-audit`, and is the correct target here.
 
-Wait for an explicit reply:
+⛔ **The redirect is unconditional** — every mode including `auto`, and no opt-out. Reaching this variant under that condition is always a mis-invocation, so there is nothing for the user to decide. Design record: `docs/superpowers/specs/2026-08-28-runtime-gate-auto-redirect-design.md` (D2 auto-redirect, D3 no escape hatch, D6 announce-don't-swap-silently).
 
-- **`y` / `yes`** — Proceed with this variant; probe/commit steps degrade to manual checks + copy-paste where the tools are absent. The user has explicitly opted in.
-- **`n` / `no`** — Exit cleanly without running.
-- **No response / any other reply** — Treat as "do not proceed" and exit cleanly.
+If `Bash` is available, proceed to Step 0.
 
-**This gate applies even when running unattended** per ADR-094 §Part 3.
 
 If `Bash` is available, proceed to Step 0.
 
