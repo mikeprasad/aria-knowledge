@@ -101,13 +101,28 @@ AR10C=$(grep -c 'after a recognized verb' "$AUDIT" || true)
 [ "$AR10C" -ge 1 ] && AR10C=yes || AR10C=no
 assert_eq "[AR10c] args only after a recognized verb" "yes" "$AR10C"
 
-# [AR11] five legs in /audit all, and the fifth delegates to audit-rules
-AR11=$(grep -c 'five sub-audits' "$AUDIT" || true)
+# [AR11] The verb set is exactly the six sub-audits, and `all` is retired (v2.50.0).
+# Asserted on the unknown-verb message — the ONE place the canonical list is enumerated
+# for the user, so a stray prose mention elsewhere cannot satisfy it.
+# NOTE: the previous form grepped 'five sub-audits' and was satisfied by an unrelated
+# sentence in the intro ("A thin umbrella over the five sub-audits"). It therefore stayed
+# GREEN through the deletion of the entire /audit all section — a guard scoped to the
+# wrong unit. Do not reintroduce a bare phrase-presence grep here.
+AR11=$(grep -c 'Valid verbs: knowledge, config, style, usage, rules, share\.' "$AUDIT" || true)
 [ "$AR11" -ge 1 ] && AR11=yes || AR11=no
-assert_eq "[AR11] all runs five sub-audits" "yes" "$AR11"
-AR11B=$(grep -c 'invoke `audit-rules`' "$AUDIT" || true)
-[ "$AR11B" -ge 1 ] && AR11B=yes || AR11B=no
-assert_eq "[AR11b] a leg invokes audit-rules" "yes" "$AR11B"
+assert_eq "[AR11] unknown-verb branch enumerates the six canonical verbs" "yes" "$AR11"
+
+# [AR11b] every verb resolves to a delegation target in Step 2 — per verb, not in aggregate,
+# so a missing one names itself instead of hiding in a count.
+for _v in knowledge config style usage rules share; do
+  _c=$(grep -c "invoke \`audit-$_v\`" "$AUDIT" || true)
+  [ "$_c" -ge 1 ] && _got=yes || _got=no
+  assert_eq "[AR11b] Step 2 delegates $_v -> audit-$_v" "yes" "$_got"
+done
+
+# [AR11c] `all` is gone: no verb-table row, no menu entry, no sequence section.
+AR11C=$(grep -c '/audit all' "$AUDIT" || true)
+assert_eq "[AR11c] no /audit all verb survives" "0" "$AR11C"
 
 # [AR12] MC5 — the umbrella description absorbed the facet trigger vocabularies
 DESC="$(awk '/^description:/{print; exit}' "$AUDIT")"
@@ -128,7 +143,7 @@ assert_eq "[AR13] session-start-check.sh never names audit-rules" "0" "$AR13C"
 # compat marker. Path forms (a word char / '.' / '/' / '-' / '_' before the slash,
 # e.g. skills/audit-style/...) are NOT command forms and are excluded by the
 # leading-context class. skills/.archived/ is historical record and excluded.
-MC2_HITS=$(grep -rnE '(^|[^A-Za-z0-9_./-])/audit-(knowledge|config|style|usage|rules)' \
+MC2_HITS=$(grep -rnE '(^|[^A-Za-z0-9_./-])/audit-(knowledge|config|style|usage|rules|share)' \
   "$PCC/skills" "$PCC/bin" "$PCC/template" "$PCC/rules" \
   "$PCC/CONFIG.md" "$PCC/QUICKSTART.md" "$PCC/README.md" 2>/dev/null \
   | grep -v '/.archived/' | grep -v '__pycache__' | grep -viE 'compat' | wc -l | tr -d ' ')

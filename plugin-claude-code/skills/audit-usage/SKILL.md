@@ -73,7 +73,7 @@ Print a 3-4 line inline summary (needs-changes rate, clean rate, per-fix-verdict
 
 ## Rules
 
-- **Opt-in only** — never fired by a cadence nudge; only explicit `/audit usage`, `/audit all`, or menu pick.
+- **Opt-in only** — never fired by a cadence nudge; only explicit `/audit usage` or a menu pick.
 - **Honest on small samples** — print every `n`; gate trends on ≥10/month; never fabricate on a zero corpus.
 - **Metrics are the script's job** — do not re-derive counts inline; `bin/usage-metrics.sh` is the single source of truth. The skill only interprets and persists.
 - **The user's corpus, not the author's** — the report reflects THIS user's logs; do not import the published doc's numbers.

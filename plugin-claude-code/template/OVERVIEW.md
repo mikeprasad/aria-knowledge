@@ -132,7 +132,7 @@ When `projects_shared_knowledge` is set to a comma-separated tag list in config 
         └── {YYYY-MM-DD}-{author}-{slug}.md          (cross-cutting items)
 ```
 
-The new `/audit-share` skill (alias `/share-audit`) is the batch-review surface for promotion. Walk personal knowledge folders, review recommendations grouped by destination, approve all/numbers/modify/skip per item. Personal copies stay in your knowledge folder; team copies are independent records committed through normal git/PR review. Files in both places carry frontmatter back-pointers (`shared:` on personal copies, `origin:`/`shared_by:`/`shared_at:` on team copies) for provenance.
+The new `/audit share` skill is the batch-review surface for promotion. Walk personal knowledge folders, review recommendations grouped by destination, approve all/numbers/modify/skip per item. Personal copies stay in your knowledge folder; team copies are independent records committed through normal git/PR review. Files in both places carry frontmatter back-pointers (`shared:` on personal copies, `origin:`/`shared_by:`/`shared_at:` on team copies) for provenance.
 
 Read-side: `/index` (Phase 5) scans `_project-knowledge/` folders into the tag index; `/context` surfaces team-shared files as a third grouping in query results (above project-specific and cross-project). Tag-based discovery works seamlessly across all three tiers.
 

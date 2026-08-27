@@ -2,6 +2,49 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.50.0 — 2026-08-27
+
+**`/audit share` becomes a verb; `/audit all` is removed.**
+
+⚠ **Breaking:** `/audit all` no longer exists. It degrades to the unknown-verb branch, which
+lists the valid verbs — an explicit message, not a silent failure or a wrong action. Note that
+v2.49.0's release notes, published earlier the same day, named `all` as a valid verb.
+
+**`/audit share`.** `audit-share` was the one member of the family unreachable by the family's
+own canonical form. W2 (v2.49.0) made `/audit <verb>` the advertised way in and demoted the
+hyphen forms to unadvertised compat — which left `/audit share` hitting *"'share' is not a valid
+/audit sub-command"*, an error implying a working skill does not exist. It is now the sixth verb,
+with a delegation target, a menu entry and a demoted one-line description like its four siblings.
+⛔ The exclusion was never a decision: the W2 spec and plan do not mention `audit-share`, and
+`git log -S` shows the dispatcher has never named it. Inheritance, not intent.
+
+**`all` is removed.** Six sub-audits is past the point where "run them all in sequence, each to
+completion" is a sensible default — and **four of the six are opt-in by design**, explicitly
+excluded from cadence, so a run-everything was firing them against their own stated posture.
+Share makes that sharper still: it writes into a team-shared and possibly public repo, which is
+the wrong thing for a blind sequence to reach. Removing `all` dissolved that objection rather
+than forcing an exception into it.
+
+**Sibling-surface sync — 16 sites across 5 files**, not the one the plan first named. Found by
+running the ratchet's own regex as a census, the instrument that polices this afterwards. Seven
+were in `/setup`, which **invokes** the skill inline as the post-setup cold-start sweep — a
+behavioural surface, not documentation. Two more sit inside the README template this skill writes
+into teammates' repos.
+
+**A guard that could not fail.** `[AR11]` claimed to assert *"all runs five sub-audits"* via
+`grep -c 'five sub-audits'` — satisfied by an unrelated intro sentence, so it stayed **green
+through the deletion of the entire `/audit all` section**. It now asserts the canonical verb list
+where it is enumerated for the user, delegation per verb (named individually, so a missing one
+identifies itself), and `all`'s absence. The MC2 hyphen ratchet gained `share`; without that the
+newly-canonical form would have shipped with no ratchet at all.
+
+**Gates:** plugin suite **286 passed / 0 failed** (was 280), hook-repro **38 suites / 484
+assertions**, both bare exit 0. Gate B **19,519 of 19,968** — headroom grew 315 B → **449 B**, the
+demotion paying for itself. Ratchet mutation-verified: a planted `/audit-share` command form reds
+`[AR14]` specifically, then restores byte-identical. Design record:
+`docs/superpowers/plans/2026-08-27-audit-share-verb-and-all-removal-plan.md` (gated —
+PROCEED-WITH-CHANGES; the gate falsified the plan's own sibling-surface step before any code).
+
 ## 2.49.0 — 2026-08-27
 
 **New `/audit rules` sub-audit + the audit family commits to its space forms.**

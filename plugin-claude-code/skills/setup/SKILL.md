@@ -278,11 +278,11 @@ After Project Setup completes (questions 1-6), if `projects_enabled: true` AND `
 **Validate input:**
 - Q7 answer is a comma-separated tag list, or empty (= feature disabled). Each tag must already exist in `projects_list`. If a tag is not in `projects_list`, show the offending tag and re-prompt: *"Tag '{tag}' is not in projects_list. Available: {projects_list tags}. Re-enter:"*. Empty input is valid and means feature disabled.
 - Q8 author_tag must be 1-12 characters, alphanumerics + hyphens only (the value will appear in filenames). If invalid, show offending characters and re-prompt.
-- If Q7 returned a non-empty list but Q8 produces an empty value AND no derivable git user.name exists, warn: *"Author tag is required for shared knowledge. You can set `author_tag` later in `~/.claude/aria-knowledge.local.md`, but `/audit-share` will refuse to run until it's set."* Continue setup with `author_tag:` empty.
+- If Q7 returned a non-empty list but Q8 produces an empty value AND no derivable git user.name exists, warn: *"Author tag is required for shared knowledge. You can set `author_tag` later in `~/.claude/aria-knowledge.local.md`, but `/audit share` will refuse to run until it's set."* Continue setup with `author_tag:` empty.
 
 **Schema note:** the config field `projects_shared_knowledge` is itself the comma-separated tag list (the value IS the scope). Empty/missing = feature disabled. There is no separate boolean toggle; the field's presence and content together encode "enabled and for which projects." A legacy value of `true` (from pre-publish v2.13.0 stubs) is treated the same as empty and triggers Q7 to populate the list properly on `/setup` re-run.
 
-**CLAUDE.md reference handling deferred to first-write.** Earlier drafts of this spec offered to append `_project-knowledge/` references to project CLAUDE.md files at setup time. That has been removed: documenting a convention before the folder exists is aspirational, batch-applying across all projects loses per-repo nuance (different repos may have different teams / visibility), and a default-`y` prompt for a teammate-affecting change is more aggressive than ARIA's normal posture. The CLAUDE.md reference offer now happens inside `/audit-share` Step 6.5 the first time a file is actually written to a repo's `_project-knowledge/` folder — at that moment the folder + README exist, the user has just made an active sharing decision, and per-repo confirmation with git-tracked detection can be presented in context. Step 6.5b additionally handles the multi-repo container CLAUDE.md case for tags with `projects_groups` entries.
+**CLAUDE.md reference handling deferred to first-write.** Earlier drafts of this spec offered to append `_project-knowledge/` references to project CLAUDE.md files at setup time. That has been removed: documenting a convention before the folder exists is aspirational, batch-applying across all projects loses per-repo nuance (different repos may have different teams / visibility), and a default-`y` prompt for a teammate-affecting change is more aggressive than ARIA's normal posture. The CLAUDE.md reference offer now happens inside `/audit share` Step 6.5 the first time a file is actually written to a repo's `_project-knowledge/` folder — at that moment the folder + README exist, the user has just made an active sharing decision, and per-repo confirmation with git-tracked detection can be presented in context. Step 6.5b additionally handles the multi-repo container CLAUDE.md case for tags with `projects_groups` entries.
 
 **Amended 2026-08-26 — narrowed, not reversed.** The deferral above still governs
 `_project-knowledge/` references, for exactly the reasons it gives. It does **not** govern a
@@ -295,7 +295,7 @@ git-tracked so a teammate-visible write is a visible decision. Nothing is batch-
 
 **Existing `_project-knowledge/` folder detection:**
 
-Before completing this section, scan for existing `_project-knowledge/` folders. Scan locations depend on whether the project is single-repo or multi-repo (matches `/audit-share` Step 2.3 and `/index` Phase 5 conventions):
+Before completing this section, scan for existing `_project-knowledge/` folders. Scan locations depend on whether the project is single-repo or multi-repo (matches `/audit share` Step 2.3 and `/index` Phase 5 conventions):
 
 - **Single-repo project** (no `projects_groups[tag]` entry): probe `<project-root>/_project-knowledge/`.
 - **Multi-repo project** (`projects_groups[tag]` set): probe each sub-repo declared in the group (`<project-root>/<sub-repo>/_project-knowledge/`), in declaration order. Skip sub-repos whose path doesn't exist on disk.
@@ -488,17 +488,17 @@ Scaffold the project tier using the final config values:
 
 Runs only if the config just written has a non-empty `projects_shared_knowledge` tag list AND a non-empty `author_tag`. Skip entirely otherwise — no action, no output.
 
-This step does NOT auto-create `_project-knowledge/` folders in any repo. Folders are created on demand by `/audit-share` Step 5 (when the user actually shares the first file to that repo). This avoids littering empty folders into repos the user may not actively use.
+This step does NOT auto-create `_project-knowledge/` folders in any repo. Folders are created on demand by `/audit share` Step 5 (when the user actually shares the first file to that repo). This avoids littering empty folders into repos the user may not actively use.
 
 **Initial sync offer:**
 
 Prompt the user:
 
-> *"Run `/audit-share` now to review your existing personal knowledge for sharing? This is the cold-start sweep — without it, the feature is enabled but nothing is shared yet (every audit-share run is opt-in per item). (Y/n, default y):"*
+> *"Run `/audit share` now to review your existing personal knowledge for sharing? This is the cold-start sweep — without it, the feature is enabled but nothing is shared yet (every audit-share run is opt-in per item). (Y/n, default y):"*
 
-If yes: invoke `/audit-share` inline as the next action. The user will see the audit-share batch summary and decide what to share. Setup's Step 8 (Confirm) runs after audit-share completes.
+If yes: invoke `/audit share` inline as the next action. The user will see the audit-share batch summary and decide what to share. Setup's Step 8 (Confirm) runs after audit-share completes.
 
-If no: continue to Step 8. Note in setup output: *"Shared knowledge enabled but not yet populated. Run `/audit-share` anytime to do an initial sweep, or it'll surface candidates as they accumulate in your knowledge folder."*
+If no: continue to Step 8. Note in setup output: *"Shared knowledge enabled but not yet populated. Run `/audit share` anytime to do an initial sweep, or it'll surface candidates as they accumulate in your knowledge folder."*
 
 ## Step 7e: Self-Validation Audit (v2.15.2+)
 
