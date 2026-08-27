@@ -787,6 +787,17 @@ line the design must be drawn on: **not size, but what breaks when the text is a
 `@`-import.** Verbatim: *"A i prefer rules"*. Chosen with the trade stated — the rules channel
 was proven only to 13,101 B against an `@`-import proven to 261,442 B, so it accepts one probe
 session in exchange for never writing the user's repo. Probe C is armed for that (§10.5).
+⛔ **STAMP 2026-08-27 — this trade is SPENT and its premise no longer holds. Probe C RAN**: the
+channel is proven at **32,056 B single-file and 34,394 B aggregate**
+(`plans/2026-08-26-rules-file-hook-split.md:253`), and the probe file is **removed** from
+`~/.claude/rules/` so it is no longer costing tokens. The "proven only to 13,101 B" comparison that
+justified accepting a probe session is therefore stale — 13,101 was the largest payload probe A
+happened to test, i.e. a floor, never a ceiling. ⚑ Corroborated the same day by a zero-cost
+instrument that needs no probe file at all: a running session's **own delivered context**, checked
+with one tail sentinel per file (including the last in alphabetical load order) plus a
+38-of-38 rule-and-section census — 29,875 B confirmed delivered in full. Lower than probe C, so
+corroboration rather than replacement, but obtainable in any session for free. **Prefer that method
+over arming another probe file.**
 ⛔ **And the architecture changed with it — see §10.7. The four designs in §10.3 all assume one
 channel wins; the measurement says the emission is 61% static / 39% computed, so the split is by
 MUTABILITY, not by audience (§8.1) or fidelity (§10.3).** The text below predates that finding
@@ -904,7 +915,7 @@ project's tag index, or `user-rules.md`.
 
 ⚑ **A correction worth keeping, because it is the same error twice in one session.** This spec
 was told at one point that "Z at full digest size is unproven by 51%". That was wrong: it compared
-probe A's 13,101 B capacity against the *hook's composed* 19,813 B emission, when a file would
+probe A's 13,101 B capacity (⛔ **a FLOOR, not a capacity — see the 2026-08-27 stamp above; probe C proved 32,056 B single-file / 34,394 B aggregate**) against the *hook's composed* 19,813 B emission, when a file would
 carry only the 12,166 B static digest. Same wrong-unit shape as probe A itself
 (`feedback_guard_scoped_to_the_wrong_unit`), committed in the same session that named the pattern.
 
