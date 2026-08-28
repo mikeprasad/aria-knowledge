@@ -116,7 +116,12 @@ Replace the guillotine at `lib-user-rules.sh:73-78` with:
 | (iii) | over, no boundary, **and** `length(p) <= CEILING` | **carried whole** |
 | (iv) | over, no boundary, over CEILING | **title only** |
 
-- `WINDOW = 240` — **unchanged, and it is a contract** (`audit-rules/SKILL.md:134` Step 7.2).
+- `WINDOW = 240` — unchanged **in this slice**, and paired with `check-rule-lead-bytes.sh`'s default
+  (`audit-rules/SKILL.md:134` Step 7.2 asks an author to verify a lead fits it).
+  ⚠ **CORRECTED 2026-08-28 (retrospect): this read "and it is a contract", which overstates it.**
+  The gate holds 240 because the generator does; it was created to fix a chars-vs-bytes unit error,
+  and the generator's 240 was an implementation choice under a ruling about titles vs summaries.
+  ⇒ The window is revisable as a **coordinated two-constant change**; AC-T2f polices the pairing.
 - `CEILING` — proposed **800**. Inert today (longest live lead 565 B) and bounds only the
   pathological case. Named as a constant with its reason in a comment.
 - **AC-T2a** Live corpus renders **10 full / 7 sentence-cut / 8 carried-whole / 0 title-only**.

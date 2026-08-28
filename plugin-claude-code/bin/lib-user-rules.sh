@@ -71,13 +71,21 @@ kt_user_rules_block() {
   [ "${_kt_ur_n:-0}" -gt 0 ] || return 0
   KT_USER_RULES_COUNT="$_kt_ur_n"
 
-  # ⛔ WINDOW IS A CONTRACT, NOT A TUNABLE. /audit rules Step 7 item 2 mandates that a
-  # rule lead over this budget "is reworded before proceeding, never shipped to
-  # truncate", and bin/check-rule-lead-bytes.sh enforces it at promotion with the SAME
-  # default. The two numbers being equal is deliberate, not coincidence — raising this
-  # one alone relaxes an authoring contract silently. Guarded by a test asserting the
-  # RELATIONSHIP between them (not this literal, which would go red on a correct
-  # coordinated change).
+  # ⛔ THIS NUMBER AND bin/check-rule-lead-bytes.sh's DEFAULT MUST MOVE TOGETHER.
+  # /audit rules Step 7 item 2 tells an author to verify a new lead fits this budget, and
+  # that gate defaults to the same value. The pairing is what matters: change one alone and
+  # the gate starts reporting leads the generator renders fine, or stops reporting leads it
+  # truncates. A test asserts the RELATIONSHIP, not this literal — a literal pin would guard
+  # spelling and go red on a correct coordinated change.
+  #
+  # ⚠ 240 is NOT an independently-ruled authoring budget, and an earlier version of this
+  # comment wrongly called it "a contract, not a tunable". Traced 2026-08-28: the audit gate
+  # holds 240 BECAUSE this generator does (its skill text is descriptive — "the builder
+  # truncates … verify each lead fits"), and it was created to fix a chars-vs-bytes unit
+  # error, not to set a budget. This 240 in turn came from an implementation choice under a
+  # 2026-08-26 ruling whose subject was titles-vs-summaries, and which cited 320 ch/rule as
+  # the density to match. So the value is open to revision as a PAIR; what is not open is
+  # letting the two drift apart.
   _kt_ur_window=240
   # Absolute bound on rendering (iii): a lead that cannot be cut honestly is carried
   # whole, but not without limit. Deliberately inert on a healthy corpus.

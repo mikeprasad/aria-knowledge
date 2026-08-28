@@ -177,8 +177,19 @@ Per U18: options with a provable defect are named and excluded here rather than 
 | A5 | Window 600 + sentence-else-title | ⛔ **EXCLUDED — same ground as A2.** |
 | **A6** | **Keep 240; sentence-cut where possible, carry the lead WHOLE where not** | ✅ **Recommended.** |
 
-⛔ **A1, A2, A3 and A5 are all excluded on ONE ground, and it is not byte cost.** `/audit rules`
-Step 7 item 2 (`skills/audit-rules/SKILL.md:134`) makes 240 a **binding authoring contract**:
+⛔ **CORRECTED 2026-08-28 (retrospect). The exclusion ground below is WEAKER than stated, and A2/A5
+are REOPENED as a live question for Mike.** Traced three ways — the skill's wording is descriptive
+(*"the builder truncates … verify each lead fits"*), the audit spec's own D9 rationale says the gate
+was created to fix a **chars-vs-bytes unit error**, and the generator's 240 came from an
+implementation choice under a 2026-08-26 ruling about **titles vs summaries** that cited 320 ch/rule.
+⇒ **240 is not an independently-ruled budget; the gate mirrors the generator.** The real invariant is
+that the two move TOGETHER, which AC-T2f asserts and which is satisfiable at 240 or at 600.
+⚠ **What survives:** §1.4's measurement is independent of this framing — the pairing IS shaping
+authoring, so widening the window widens the authoring budget. That is a consequence to weigh, not a
+prohibition. A1 remains excluded (it is D1). Original text follows, retained as the record:
+
+`/audit rules` Step 7 item 2 (`skills/audit-rules/SKILL.md:134`) was read as making 240 a
+**binding authoring contract**:
 
 > *"The always-on digest builder truncates each rule's first paragraph at **240 BYTES** … a failing
 > lead is reworded before proceeding, **never shipped to truncate**."*
