@@ -40,14 +40,20 @@
 #   - When non-empty it carries its own LEADING and TRAILING newline, so a caller
 #     concatenates it directly. A refactor that trims either runs the surrounding
 #     directives together, with no error and nothing else failing.
-#   - Each rule renders as  - **U<n> — <title>** — <first paragraph, <=240 ch>
-#     Truncation backs off to the last space, so it can never split a multi-byte
-#     character; an ellipsis marks it. The '**Origin:' provenance block is skipped —
-#     it records how a rule came to exist, not what it asks of you.
+#   - Each rule renders as  - **U<n> — <title>** — <lead paragraph>, in ONE of four
+#     ways, none of which severs a claim (2026-08-28, replacing a hard cut):
+#       (i)   lead <= window                        -> full lead
+#       (ii)  over, a '. ' boundary in the window   -> cut there (a whole sentence)
+#       (iii) over, no boundary, <= ceiling         -> carried WHOLE
+#       (iv)  over, no boundary, past the ceiling   -> title only
+#     There is no ellipsis and no mid-word cut: the old space-backoff is GONE because
+#     nothing truncates mid-lead any more. The '**Origin:' provenance block is skipped
+#     when it leads and ends the lead when it follows — it records how a rule came to
+#     exist, not what it asks of you.
 #     Bold markers are stripped (they would nest inside the line's own bold title);
 #     backticks are deliberately KEPT, because a rule naming `sed -i` or `Edit|Write`
 #     is quoting a literal, and stripping the span makes it read as prose.
-#   - Two tiers. Above KT_USER_RULES_MAX (default 20000) the digest is replaced by a
+#   - Two tiers. Above KT_USER_RULES_MAX (default 21000, see A1 below) the digest is replaced by a
 #     count-plus-pointer. The bound protects the FILE channel, which is the primary
 #     consumer; the hook's fallback copy is truncated by the harness anyway, so it
 #     needs no separate bound. The old 3000 was sized for the hook and would
@@ -65,18 +71,55 @@ kt_user_rules_block() {
   [ "${_kt_ur_n:-0}" -gt 0 ] || return 0
   KT_USER_RULES_COUNT="$_kt_ur_n"
 
-  _kt_ur_digest=$(awk '
-    function flush(   p) {
+  # ⛔ WINDOW IS A CONTRACT, NOT A TUNABLE. /audit rules Step 7 item 2 mandates that a
+  # rule lead over this budget "is reworded before proceeding, never shipped to
+  # truncate", and bin/check-rule-lead-bytes.sh enforces it at promotion with the SAME
+  # default. The two numbers being equal is deliberate, not coincidence — raising this
+  # one alone relaxes an authoring contract silently. Guarded by a test asserting the
+  # RELATIONSHIP between them (not this literal, which would go red on a correct
+  # coordinated change).
+  _kt_ur_window=240
+  # Absolute bound on rendering (iii): a lead that cannot be cut honestly is carried
+  # whole, but not without limit. Deliberately inert on a healthy corpus.
+  _kt_ur_ceiling=800
+
+  # LC_ALL=C so length()/substr() count BYTES, matching check-rule-lead-bytes.sh. Without
+  # it the unit is awk-and-locale dependent — BSD awk counts bytes, gawk under a UTF-8
+  # locale counts characters — so the generator and its own gate would silently disagree
+  # off-macOS about what "240" means.
+  # Multi-byte safety (branch ii): the window scan may split a UTF-8 sequence, but every
+  # continuation byte is >= 0x80 while '.' and ' ' are ASCII, so a split can never
+  # fabricate a boundary; and the cut itself indexes the ORIGINAL string.
+  _kt_ur_digest=$(LC_ALL=C awk -v window="$_kt_ur_window" -v ceiling="$_kt_ur_ceiling" '
+    function flush(   p, w, cut, i, k) {
       if (tag == "") return
       p = para
       gsub(/\*\*/, "", p)
-      if (length(p) > 240) {
-        p = substr(p, 1, 240)
-        sub(/[^ ]*$/, "", p)
-        sub(/[ \t]+$/, "", p)
-        p = p "\342\200\246"
+      if (length(p) <= window) {
+        # (i) fits — full lead.
+        printf "%s- **%s — %s** — %s", sep, tag, title, p
+      } else {
+        w = substr(p, 1, window)
+        cut = 0; i = 1
+        while ((k = index(substr(w, i), ". ")) > 0) { cut = i + k; i = i + k }
+        if (cut > 40) {
+          # (ii) cut at the LAST sentence boundary inside the window. The 40 is a
+          # usefulness floor: a boundary at position 10 would leave a 9-character
+          # body, which says less than the title does.
+          printf "%s- **%s — %s** — %s", sep, tag, title, substr(p, 1, cut - 1)
+        } else if (length(p) <= ceiling) {
+          # (iii) no boundary to cut at — carry the lead WHOLE rather than sever a
+          # claim. A severed qualifier can invert the meaning of a rule ("never X unless
+          # Y" cut before "unless" instructs the opposite), so a few extra bytes are
+          # the cheaper side of that trade.
+          printf "%s- **%s — %s** — %s", sep, tag, title, p
+        } else {
+          # (iv) uncuttable AND past the ceiling — title only, so one malformed rule
+          # cannot emit without bound. Inert on any corpus whose longest lead is
+          # under the ceiling; a fixture is what exercises it.
+          printf "%s- **%s — %s**", sep, tag, title
+        }
       }
-      printf "%s- **%s — %s** — %s", sep, tag, title, p
       sep = "\n"
       tag = ""
     }
@@ -90,20 +133,39 @@ kt_user_rules_block() {
       title = line
       sub(/^U[0-9]+[.:)]?[ \t]*/, "", title)
       para = ""
+      collecting = 1
       next
     }
-    tag != "" && para == "" {
+    tag != "" && collecting {
       t = $0
       sub(/^[ \t]+/, "", t)
       sub(/[ \t]+$/, "", t)
-      if (t == "") next
-      if (t ~ /^\*\*Origin:/) next
-      para = t
+      # Blank line ENDS the lead paragraph. Before the paragraph starts it is just
+      # spacing under the heading, so it is skipped rather than treated as an end.
+      if (t == "") { if (para != "") collecting = 0; next }
+      # The provenance block records how a rule came to exist, not what it asks of
+      # you. Skipped when it LEADS; when it follows the lead it is a new paragraph,
+      # so it ends collection instead of being joined in.
+      if (t ~ /^\*\*Origin:/) { if (para == "") next; collecting = 0; next }
+      # D3 (2026-08-28): accumulate the WHOLE paragraph. The old guard was
+      # `para == ""`, which captured only the FIRST line and discarded the rest with
+      # no ellipsis and no signal — strictly worse than truncation, which at least
+      # marks itself. check-rule-lead-bytes.sh:52 already joins the paragraph, so
+      # the gate and the generator measured different quantities; they now agree by
+      # construction rather than by the corpus happening to be single-line.
+      para = (para == "" ? t : para " " t)
     }
     END { flush() }
   ' "$_kt_ur_file" 2>/dev/null)
 
-  _kt_ur_max="${KT_USER_RULES_MAX:-20000}"
+  # A1 (maintainer ruling, 2026-08-28): the digest may not exceed what the PLUGIN's own
+  # always-on rules digest takes (rules/aria-rules.md, 21,221 B measured) — the user's
+  # rules never dominate the always-on surface over the framework's. Stated as a
+  # RELATIONSHIP so it stays meaningful as both files change.
+  # ⛔ It is NOT derived from channel capacity, and must not be: the channel threshold is
+  # per-tool and remotely mutable, so no payload may be sized against it
+  # (docs/superpowers/specs/2026-08-25-always-on-rules-delivery-design.md §10.7).
+  _kt_ur_max="${KT_USER_RULES_MAX:-21000}"
   if [ -z "$_kt_ur_digest" ] || [ ${#_kt_ur_digest} -gt "$_kt_ur_max" ]; then
     KT_USER_RULES_BLOCK="
 STANDING USER RULES — ${_kt_ur_n} of the user's own rules are in force, at ${_kt_ur_file} (too many to summarise inline). Read that file before acting on anything it plausibly covers.

@@ -197,14 +197,20 @@ A lead renders as one of three things, and **none of them severs a claim**:
 | (ii) | lead > 240 B **and** a `. ` boundary exists inside the window | cut at that boundary — a complete sentence | **7** |
 | (iii) | lead > 240 B **and** no boundary exists | **carried whole** | **8** |
 
-| Option | Digest | vs today | Severed claims | Rule text lost |
+⛔ **UNIT CORRECTED 2026-08-28 (execution). The first draft of this table mixed two units** —
+`today` was a **full block** figure while `A4` and `A5` were **rule-lines-only** — so every delta
+was computed across units. The block carries a constant **246 B** header, so the *ranking* was
+unaffected and no decision changes; the *deltas* were wrong. Restated below in **full-block bytes
+throughout**, measured.
+
+| Option | Digest (full block) | vs today | Severed claims | Rule text lost |
 |---|---:|---:|---:|---|
 | today — 240 guillotine | 8,097 | — | **15** | severed tails |
-| A4 — else title-only | 5,498 | −2,599 | 0 | **8 rule bodies** |
-| **A6 — else whole** | **8,561** | **+464** | **0** | **none** |
-| A5 — window 600 | 10,211 | +2,114 | 0 | none, but breaks the 240 contract |
+| A4 — else title-only | 5,744 | −2,353 | 0 | **8 rule bodies** |
+| **A6 — else whole** | **8,807** | **+710** | **0** | **none** |
+| A5 — window 600 | 10,457 | +2,360 | 0 | none, but breaks the 240 contract |
 
-⭐ **A6 costs +464 B — 1.5% of the channel — and is the only option that severs nothing, loses no
+⭐ **A6 costs +710 B — 2.2% of the channel — and is the only option that severs nothing, loses no
 text, and leaves the authoring contract intact.** It dominates A5 (cheaper, same honesty, contract
 preserved) and dominates A4 on content (A4 withdraws 8 bodies that ship today).
 

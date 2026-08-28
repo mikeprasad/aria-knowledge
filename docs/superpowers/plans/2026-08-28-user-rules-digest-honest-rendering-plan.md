@@ -1,8 +1,14 @@
 # Plan — user-rules digest: honest rendering (A6), and the valve deferred
 
-**Status:** GATED ×2 — gate 2 (`/prospect`) run 2026-08-28, verdict **PROCEED-WITH-CHANGES**;
-all 5 required changes applied. Gate 2: `knowledge/logs/prospect/2026-08-28-file-user-rules-digest-honest-rendering.md`.
-⛔ **Still no code.** Slice 1's T1/T2/T2c/T0 need nothing from Mike; T4b awaits a yes/no.
+**Status:** ⛔ **SLICE 1 EXECUTED AND SPENT — do NOT re-execute a task.** Gated ×2
+(`knowledge/logs/prospect/2026-08-28-file-user-rules-digest-{budget,honest-rendering}.md`), all 10
+required changes applied, then executed 2026-08-28 as v2.52.0. T0 all 7 trip-wires matched · T1
+byte-identical on the live corpus · T2/T2c 10/7/8/0 with 0 ellipses · **T2d added at execution, see
+below** · T3 20+3 assertions, 5 mutations each killed by its NAMED control · T4/T5 done ·
+T6 live digest regenerated, **15 ellipses → 0**. Gate A: plugin **316/0**, hook-repro **38 suites**,
+both bare exit 0. Gate D clean, positive-controlled.
+⚠ **Still open: A1's valve landed (21,000) but slice 2's whole-digest title tier did not** — see §3.
+**T4b (header over-budget count) was VALIDATED AGAINST and not built** — see its section.
 **Spec:** `docs/superpowers/specs/2026-08-28-user-rules-digest-budget-design.md` (GATED)
 **Gate 1:** `knowledge/logs/prospect/2026-08-28-file-user-rules-digest-budget.md` — PROCEED-WITH-CHANGES,
 all 5 required changes applied to the spec before this plan was written.
@@ -19,7 +25,7 @@ plugin carries it; `plugin-antigravity/build.sh:208` has an explicit skip arm).
 | **2 — the valve** | D2's self-imposed budget + whole-digest title tier | **Yes — needs Mike's number** (spec §5). |
 
 ⛔ **Slice 1 must not wait on slice 2.** D1 and D3 are live rendering defects with measured fixes;
-D2 is a mis-calibrated threshold whose urgency A6 *reduces* (slice 1 leaves the digest at 8,561 B
+D2 is a mis-calibrated threshold whose urgency A6 *reduces* (slice 1 leaves the digest at 8,807 B (full block)
 growing ~320 B per new rule, so ~35 more rules before it reaches even 20,000 B). Coupling them would
 hold a measured fix behind a judgment call.
 
@@ -28,8 +34,8 @@ renderer at whole-digest scope. That is the only dependency, and it points the r
 
 ⛔ **STATE PLAINLY, so a later reader does not read it as this arc's oversight: D2 remains OPEN after
 slice 1, by design.** `KT_USER_RULES_MAX` stays at its measured-unreachable 20,000. Slice 1 does not
-create that defect — it **inherits** it — and A6 does not worsen it (+464 B against a 20,000 B
-threshold). ⚠ Branch (iv) is likewise not a dead path: it never fires on live data but a synthetic
+create that defect — it **inherits** it — and A6 does not worsen it (+710 B against a 21,000 B
+threshold, itself raised this arc per ruling A1). ⚠ Branch (iv) is likewise not a dead path: it never fires on live data but a synthetic
 fixture exercises it, and the repo's *"a check that cannot fail is not documentation"* ruling governs
 **checks**, not defensive **branches**.
 
@@ -44,7 +50,11 @@ because a T0 figure was quoted in the wrong unit.
 ⛔ **Every row carries a RUNNABLE command.** Gate 2 found three rows naming a quantity whose
 "method" was a description — *"shipped generator, `KT_KNOWLEDGE_FOLDER` set"* is not something an
 executing session can run, and **a trip-wire nobody can run is decoration.** Set
-`export KT_KNOWLEDGE_FOLDER=/Users/mikeprasad/Projects/knowledge` first; `UR="$KT_KNOWLEDGE_FOLDER/rules/user-rules.md"`.
+`. plugin-claude-code/bin/config.sh` first — it resolves `KT_KNOWLEDGE_FOLDER` from
+`~/.claude/aria-knowledge.local.md`, which is the same path the generator itself uses. Then
+`UR="$KT_KNOWLEDGE_FOLDER/rules/user-rules.md"`. ⚠ Do **not** hardcode a home path here: Gate D
+(public hygiene, FATAL) rejects a real account name in tracked content, and it caught exactly that
+in this table's first draft — making the trip-wires runnable is what introduced it.
 
 | Quantity | Expected | Command |
 |---|---|---|
@@ -56,11 +66,15 @@ executing session can run, and **a trip-wire nobody can run is decoration.** Set
 | Leads > 240 B | **15**, exit **1** | `sh plugin-claude-code/bin/check-rule-lead-bytes.sh "$UR" \| grep -c '^OVER'` |
 | Multi-line first paragraphs | **0** | `awk '/^### U[0-9]+/{c=1;n=0;next} c{if($0~/^[ \t]*$/){if(n>0){if(n>1)m++;c=0};next}n++} END{print m+0}' "$UR"` |
 
-⚠ **`wc -c` on a pipeline measures the block, not the file** — the two differ by exactly the 161 B
-header the generated file carries. Gate 1 flagged that two prior arcs halted a healthy tree on
-exactly this kind of unit mismatch. **Read which of the two a row names before comparing.**
-| Plugin suite | `plugin-claude-code/tests/run.sh` bare exit **0** | 11 `test-*.sh`, auto-globbed |
+| Plugin suite | `plugin-claude-code/tests/run.sh` bare exit **0** | `test-*.sh`, auto-globbed |
 | Repro suite | `tests/run.sh` bare exit **0** | `repros/*.sh` |
+
+⚠ **`wc -c` on a pipeline measures the block, not the file** — the two differ by exactly the 161 B
+header the generated file carries, and the block/rule-lines pair differ by a further 246 B. Gate 1
+flagged that two prior arcs halted a healthy tree on exactly this kind of unit mismatch, and this
+plan then made the same slip itself (AC-T2c). **Read which of the three a row names before comparing.**
+⚑ This note was orphaning the two suite rows out of the table until it was moved below them —
+inserting prose into the middle of a markdown table is invisible in source and obvious when rendered.
 
 ⚠ **Read the bare exit code, never a piped one.** Both runners are gated on their own exit; a
 `| tail` reports the pipe's status and has produced a false green in this repo twice.
@@ -107,7 +121,10 @@ Replace the guillotine at `lib-user-rules.sh:73-78` with:
   pathological case. Named as a constant with its reason in a comment.
 - **AC-T2a** Live corpus renders **10 full / 7 sentence-cut / 8 carried-whole / 0 title-only**.
 - **AC-T2b** `grep -c '…'` on the generated digest is **0** (from 15).
-- **AC-T2c** Digest block is **8,561 B** (+464 vs baseline); rule lines still **25**.
+- **AC-T2c** Digest block is **8,807 B** (+710 vs the 8,097 B baseline); rule lines still **25**.
+  ⚠ **State the unit.** 8,561 B is the same render measured as *rule lines only*; the block adds a
+  constant 246 B header. The plan's first draft compared A6's rule-lines figure against today's
+  block figure and reported +464 — wrong by 246 B in one direction. Ranking unaffected, delta was not.
 - **AC-T2d** No rendering severs a claim: every emitted body ends at a lead's end, a `. ` boundary,
   or is absent (title-only). Assert by construction, not by eyeballing.
 - **AC-T2e** A synthetic 2,000-B uncuttable lead renders **title-only**, not whole.
@@ -116,6 +133,37 @@ Replace the guillotine at `lib-user-rules.sh:73-78` with:
   backoff is safe for the same reason (both `.` and ` ` are ASCII and cannot appear inside a UTF-8
   continuation byte). **State this in a comment** — it is the argument, not the code, that a future
   reader needs.
+
+### T2d — the regeneration guard was blind to the generator (ADDED AT EXECUTION)
+
+⛔ **T6 could not pass, and that is how this was found.** `session-start-rules.sh` regenerated the
+installed digest only when the SOURCE was newer than the output:
+
+```sh
+[ ! -f "$INSTALLED_URULES" ] || [ "$SOURCE_URULES" -nt "$INSTALLED_URULES" ]
+```
+
+That test is blind to the **generator** changing. So T2's rendering fix produced a **byte-identical
+file** through it, and had it shipped, **every existing user would have kept their old severed digest**
+until they happened to edit `user-rules.md`. The fix would have shipped and done nothing.
+
+⛔ **A timestamp test cannot be repaired by adding the generator to it.** `release.sh` ships the
+plugin as a **zip**, and unzip preserves stored mtimes, so a freshly-installed generator is routinely
+*older* than the user's existing rendering — the guard would stay silent on the commonest upgrade path.
+
+✅ **Fix: compare CONTENT, which is what the digest arm eight lines above already does**, and for the
+reason its own comment gives — *"Exact, self-healing across plugin upgrades, and no version marker to
+keep in sync."* Render to a temp in the same directory, `cmp`, `mv` only on difference.
+- Cost measured: **12.0 ms** per session start against the hook's **10 s** timeout (0.12%); the
+  digest arm already spends 3.4 ms on its own `cmp`.
+- The temp+`mv` also makes the write **atomic** — the old in-place `>` truncated the live always-on
+  file and could leave it partial. Not scope creep: comparing content requires rendering it somewhere.
+- The temp name does not end in `.md`, so the instruction-file glob cannot pick it up mid-write.
+- **AC-T2d** (assertions UD12a/b/c) A corrupted installed rendering self-heals **even though it is
+  NEWER than the source** — the discriminating condition, since that is exactly where a timestamp
+  test skips. Mutation-proven two-sided: content guard heals it (25 rules), timestamp gate leaves it
+  corrupted (0 rules).
+- ⚑ Idempotence preserved: a second run leaves the file's mtime untouched.
 
 ### T3 — Tests and the mutation ledger
 

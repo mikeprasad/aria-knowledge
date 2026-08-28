@@ -2,6 +2,33 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.52.0 — 2026-08-28
+
+**The always-on user-rule digest no longer severs a claim — and the 240-byte window turns out to be a contract, not a setting.** 15 of 25 rules in a real corpus rendered with their operative text cut to an ellipsis. A severed qualifier can invert a rule: a lead reading *never X unless Y*, cut before *unless*, instructs the opposite of the rule.
+
+The obvious fix was to raise the window until the corpus fits. That was wrong, and the reason is the useful part: `/audit rules` Step 7 item 2 already mandates that a lead over the budget *"is reworded before proceeding, never shipped to truncate"*, and item 6 grandfathers the older rules explicitly. So the budget is an authoring contract with a live enforcement path (`bin/check-rule-lead-bytes.sh`), and the evidence that it works is in the corpus — the seven newest rules all land between 209 and 234 bytes against a 240 budget. Raising the window would have relaxed the contract and dismantled the discipline in one move.
+
+**A lead now renders in one of four ways, none of which severs a claim** (`bin/lib-user-rules.sh`):
+
+- fits the window → the full lead
+- over, with a `. ` boundary inside the window → cut there, so the line ends on a whole sentence
+- over, with no boundary → **carried whole**, because a few extra bytes are cheaper than an inverted rule
+- over, no boundary, and past an absolute ceiling → the title alone, so one malformed rule cannot emit without bound
+
+Measured on a 25-rule corpus: 10 / 7 / 8 / 0, **zero ellipses**, +710 B. The mid-word backoff is gone — nothing truncates mid-lead any more, so the problem it solved stopped existing.
+
+**Also fixed: a multi-line lead silently lost everything after its first line.** The capture guard was `para == ""`, so only the first line survived and the remainder was discarded with no ellipsis and no signal — worse than truncation, which at least marks itself. `check-rule-lead-bytes.sh` joins the whole paragraph, so the gate and the generator had been measuring different quantities; they now agree by construction. Latent, not live: no rule in the measured corpus was multi-line, which is the only reason they had agreed, and the fix is byte-identical on that corpus.
+
+**And the generator now runs its awk under `LC_ALL=C`, matching its own gate.** Without it the unit of `length()` is awk-and-locale dependent — BSD awk counts bytes, gawk under a UTF-8 locale counts characters — so the two would have silently disagreed about what "240" means anywhere off macOS.
+
+⛔ **And the fix would have reached nobody, which a failing acceptance check is what caught.** The hook regenerated the installed digest only when the *source* was newer than the output — a test blind to the **generator** changing. So this release's rendering change produced a **byte-identical file** through it, and every existing user would have kept their old severed digest until they happened to edit `user-rules.md`. Adding the generator to that timestamp test does not repair it either: the plugin ships as a **zip**, and unzip preserves stored mtimes, so a freshly-installed generator is routinely *older* than the user's existing rendering. The guard now compares **content**, which is what the sibling arm eight lines above it already did and for the reason its own comment gives — *"exact, self-healing across plugin upgrades, and no version marker to keep in sync."* Rendering to a temp and moving it also makes the write **atomic**, where the old in-place redirect truncated the live always-on file and could leave it partial. Cost measured at 12 ms per session start against the hook's 10 s timeout. Mutation-proven both directions: the content guard heals a corrupted rendering, the timestamp gate leaves it corrupted.
+
+`KT_USER_RULES_MAX` moves 20,000 → 21,000. The old value could not fire: the digest was 8,097 B and the channel's remaining room was 2,577 B, so the channel truncated its own tail long before the valve tripped — the graceful degradation was present, correct, and unreachable. The new value is stated as a relationship (the user's digest may not exceed what the plugin's own rules digest takes) rather than derived from channel capacity, which the always-on delivery design forbids: that threshold is per-tool and remotely mutable, so no payload may be sized against it.
+
+New suite `tests/test-user-rules-digest.sh`, 20 assertions, auto-discovered. Five mutations, each killed by its **named** control and each restored from a byte backup verified with `cmp`: reverting the paragraph accumulation, deleting the sentence branch, deleting the carry-whole branch, removing the ceiling, and raising the window. The window guard asserts the **relationship** to the gate's default rather than the literal — a literal pin would guard spelling and go red on a correct coordinated change to both.
+
+Gate A: plugin 313/0 and the hook-repro suite, both bare exit 0. Gate B unchanged (no frontmatter touched). Gate D clean, positive-controlled. **Minor bump on precedent, not mechanics:** v2.48.0 made this same class of change — the U-rule block went from a bare title index to a digest — and took a minor; v2.42.0 states the rule, a new always-on injection being a new user-inheritable surface. Counter-argument recorded rather than hidden: these are defect fixes, so a patch was arguable. **Ports:** `lib-user-rules.sh` exists in `plugin-claude-code` only — the antigravity build carries an explicit skip arm for it — so there is no port drift to reconcile.
+
 ## 2.51.0 — 2026-08-28
 
 **Runtime gates self-correct instead of asking. Bare `/skillname` belongs to Code.**
