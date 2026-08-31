@@ -1,0 +1,643 @@
+# `/auto` resume-and-restart per wall and per runtime — Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Make `/auto` cover both the usage wall and the context wall in both runtimes, with presence selecting the *mechanism* rather than *whether* a resume is armed.
+
+**Architecture:** Prose-only change to three diverged `skills/auto/SKILL.md` ports plus one new `/setup` knob. No new scripts. Three mechanisms already exist (`CronCreate`, `mcp__scheduled-tasks__create_scheduled_task`, `bin/auto-runloop.sh`) and one runtime classifier already exists (`kt_resolve_account`); this connects them per wall and per runtime instead of hardcoding one default.
+
+**Tech Stack:** Markdown skill definitions; `bin/config.sh` (POSIX sh, read-only here); `permissions.allow` in `~/.claude/settings.json`.
+
+**Spec:** `docs/superpowers/specs/2026-08-31-auto-resume-and-restart-per-wall-per-runtime-design.md` (committed `1de8164`)
+
+**Gate:** `knowledge/logs/prospect/2026-09-01-file-auto-resume-and-restart-per-wall-per-runtime.md` (committed `35e00f7`) — verdict PROCEED-WITH-CHANGES. All three required changes are applied in this plan: **#3 SHRINK** (Task B2 uses a capability check as primary, classifier advisory), **#10 SPLIT** (Phase C is 10a only; 10b is out of scope), **#11 DEFER** (Task D1, blocking nothing in A or B).
+
+## Global Constraints
+
+Exact values copied from the spec. Every task's requirements implicitly include this section.
+
+- **Three ports, diverged.** `plugin-claude-code` (65,104 B, md5 `024e8cbe…`), `plugin-antigravity` (64,895 B, `11abea01…`), `plugin-openai-codex` (52,099 B, `c85bc2f8…`). `plugin-claude-cowork` has no `auto` skill. **No patch applies to more than one port unchanged.**
+- **Per-port reason required.** The gate's `census-does-not-license-its-disposition` hit: codex is a trimmed port missing 2 of 4 defect sites, which is evidence it is deliberately reduced. **Every port edit states why that port is being edited.** Never inherit "3 files" from a census as an instruction.
+- **D1 — arming condition is UNCHANGED.** Arm whenever work is unfinished and the binding budget is usage. **Not gated on presence. Not gated on `continue`.** `SKILL.md:443/445/447` and config knob 6 must survive untouched.
+- **D4 — push is never grantable by any modifier, including `full`.**
+- **D2 (aria's) — a scheduled prompt never starts with `/`.** Applies to every scheduling mechanism.
+- **D8 — no new modifier word.** Nothing new to type in any branch.
+- **Routing — `desktop` → Desktop branch · `desktop-unknown` → Desktop branch · `cli` → CLI branch.** `desktop-unknown` means Desktop-with-unresolved-*account*, never unknown-runtime.
+- **Capability presence is the authority; the classifier is the hint.**
+- **Never modify `bin/config.sh`.** Line 42 is marked `KEEP BYTE-IDENTICAL` with a `statusline-meter.sh` mirror. This plan only reads it.
+
+## File Structure
+
+| File | Responsibility in this plan |
+|---|---|
+| `plugin-claude-code/skills/auto/SKILL.md` | Canonical port. All of Phase A + Phase B land here first. |
+| `plugin-antigravity/skills/auto/SKILL.md` | Near-parity port. Carries 4 of 5 defects. Mirrors A + B. |
+| `plugin-openai-codex/skills/auto/SKILL.md` | Trimmed port. Carries 3 of 5 defects. **Mirrors only the defects it actually has.** |
+| `plugin-claude-code/skills/setup/SKILL.md` | Gains the Phase C allowlist knob. |
+| `~/.claude/settings.json` | **Not edited by this plan.** Phase C ships the knob; the user runs it. |
+
+## Phase ordering — and why
+
+**Phase A is documentation truth. Phase B is the mechanism. A must land first and must be independently committable.**
+
+The gate's frame check found two goals riding together: five documentation corrections (unfalsifiably safe — they replace measured falsehoods) bundled with one mechanism change (resting on a premise validated by a single probe). They share files but not risk profiles. Sequencing truth-first means a stall in B or C cannot hold the corrections hostage.
+
+---
+
+## Phase A — Documentation truth
+
+### Task A1: Correct the port-scope claim
+
+**Why this port set:** all three carry the false sentence (measured: `grep -c` = 1 each).
+
+**Files:**
+- Modify: `plugin-claude-code/skills/auto/SKILL.md:15`
+- Modify: `plugin-antigravity/skills/auto/SKILL.md` (same sentence, different line)
+- Modify: `plugin-openai-codex/skills/auto/SKILL.md` (same sentence, different line)
+
+**Interfaces:**
+- Consumes: nothing.
+- Produces: nothing. Pure correction.
+
+- [ ] **Step 1: Write the failing acceptance check**
+
+```bash
+cd /Users/mikeprasad/Projects/aria/aria-knowledge
+for p in plugin-claude-code plugin-antigravity plugin-openai-codex; do
+  printf '%-22s %s\n' "$p" "$(/usr/bin/grep -c 'ships in the Claude Code port only' "$p/skills/auto/SKILL.md")"
+done
+```
+
+- [ ] **Step 2: Run it to confirm it fails**
+
+Expected now: `1` for every port. That is the defect — the sentence is false; two other ports carry the skill.
+
+- [ ] **Step 3: Make the edit, per port**
+
+Replace the clause `**`/auto` ships in the Claude Code port only, and that is deliberate.**` with:
+
+```
+**`/auto` ships in three ports — `plugin-claude-code` (canonical), `plugin-antigravity`, and
+`plugin-openai-codex` — which have diverged (three distinct md5s as of 2026-09-01). Cowork has no
+`auto` skill, which is why this section checks a CAPABILITY and not an ownership: there is no
+canonical-owner question to resolve here and nothing to hand off to. Do not restore a redirect to
+a Cowork variant.**
+```
+
+Keep the rest of the paragraph (the ADR-094 sentence and the do-not-restore warning) intact.
+
+- [ ] **Step 4: Run the check to confirm it passes**
+
+Expected: `0` for every port. Then confirm the replacement landed:
+
+```bash
+/usr/bin/grep -c 'ships in three ports' plugin-*/skills/auto/SKILL.md
+```
+
+Expected: `1` per port.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add plugin-claude-code/skills/auto/SKILL.md plugin-antigravity/skills/auto/SKILL.md plugin-openai-codex/skills/auto/SKILL.md
+git commit -m "fix(auto): the skill ships in three ports, not one"
+```
+
+---
+
+### Task A2: Correct the stale modifier count
+
+**Why this port set:** all three (measured: `grep -c 'three stackable modifiers'` = 1 each). The sentence sits at the top of the parse section, which is the first thing a reader of the invocation surface meets.
+
+**Files:**
+- Modify: all three `skills/auto/SKILL.md` (canonical is `:137`)
+
+- [ ] **Step 1: Write the failing acceptance check**
+
+```bash
+/usr/bin/grep -c 'three stackable modifiers' plugin-*/skills/auto/SKILL.md
+```
+
+- [ ] **Step 2: Run it to confirm it fails**
+
+Expected now: `1` per port. The bullet list below it has **four** groups / **eight** tokens, and the paragraph ~80 lines later correctly says "Six orthogonal axes."
+
+- [ ] **Step 3: Make the edit**
+
+Replace `Four modes, three stackable modifiers, and a toggle:` with:
+
+```
+Four modes, eight stackable modifier tokens across six orthogonal axes, and a toggle:
+```
+
+- [ ] **Step 4: Run the check to confirm it passes**
+
+```bash
+/usr/bin/grep -c 'three stackable modifiers' plugin-*/skills/auto/SKILL.md   # expect 0
+/usr/bin/grep -c 'six orthogonal axes' plugin-*/skills/auto/SKILL.md          # expect >=2 (this line + the existing paragraph)
+```
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add plugin-*/skills/auto/SKILL.md
+git commit -m "fix(auto): modifier count agrees with the axis count"
+```
+
+---
+
+### Task A3: Stop saying presence arms the resume
+
+**Why this port set:** `unattended` arms the resume` = claude-code **1**, antigravity **1**, codex **0**. `arms its own resume` (config knob 7) = **1 in all three**. So codex gets only the knob-7 edit. This is the per-port reason the Global Constraints demand.
+
+**Files:**
+- Modify: `plugin-claude-code/skills/auto/SKILL.md:201` and knob 7 (`:286`)
+- Modify: `plugin-antigravity/skills/auto/SKILL.md` (both sites)
+- Modify: `plugin-openai-codex/skills/auto/SKILL.md` (knob 7 only)
+
+**Interfaces:**
+- Consumes: nothing.
+- Produces: the corrected presence semantics that Task B1's table relies on.
+
+- [ ] **Step 1: Write the failing acceptance check**
+
+```bash
+for p in plugin-claude-code plugin-antigravity plugin-openai-codex; do
+  f="$p/skills/auto/SKILL.md"
+  printf '%-22s arms-the-resume=%s  own-resume=%s  ungated-rule=%s\n' "$p" \
+    "$(/usr/bin/grep -c 'unattended\` arms the resume' "$f")" \
+    "$(/usr/bin/grep -c 'arms its own resume' "$f")" \
+    "$(/usr/bin/grep -c 'NOT gated on presence' "$f")"
+done
+```
+
+- [ ] **Step 2: Run it to confirm it fails**
+
+Expected now: the first two columns non-zero where the sites exist, while `ungated-rule` is already `1`. **The file contradicts itself** — that disagreement is the defect.
+
+- [ ] **Step 3: Make the edits**
+
+At the presence-axis bullet, replace `` `unattended` arms the resume for the usage wall; the context wall needs `self-restart` **explicitly** `` with:
+
+```
+`unattended` selects the DURABLE resume mechanism for the usage wall (it does not decide whether
+one is armed — see Step 6); the context wall needs `self-restart` **explicitly**
+```
+
+At config knob 7, replace `(nobody is reachable; residuals are carried to the handoff and the run arms its own resume)` with:
+
+```
+(nobody is reachable; residuals are carried to the handoff, and the resume — armed on its own
+condition per knob 6 — uses the DURABLE mechanism rather than a session-only one)
+```
+
+- [ ] **Step 4: Run the check to confirm it passes**
+
+```bash
+/usr/bin/grep -c 'arms the resume\|arms its own resume' plugin-*/skills/auto/SKILL.md   # expect 0
+/usr/bin/grep -c 'NOT gated on presence' plugin-*/skills/auto/SKILL.md                  # expect UNCHANGED
+```
+
+The second check is the one that matters: **D1's ungated rule must survive this task untouched.** If it changed, the task overreached.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add plugin-*/skills/auto/SKILL.md
+git commit -m "fix(auto): presence selects the resume mechanism, never whether one is armed"
+```
+
+---
+
+### Task A4: Document the approval-stall trap
+
+**Why this port set:** measured **0 of 3** ports document it. It is the silent-failure mode of the whole Desktop path, so every port that can reach a Desktop durable mechanism needs it.
+
+**Files:**
+- Modify: all three `skills/auto/SKILL.md` — inside Step 6, directly beneath the mechanism table
+
+- [ ] **Step 1: Write the failing acceptance check**
+
+```bash
+/usr/bin/grep -ci 'permission gate\|not allowlisted' plugin-*/skills/auto/SKILL.md
+```
+
+- [ ] **Step 2: Run it to confirm it fails**
+
+Expected now: `0` per port.
+
+- [ ] **Step 3: Add the trap block**
+
+Insert beneath Step 6's mechanism table:
+
+```
+⛔ **THE SILENT FAILURE MODE — read before arming a durable resume.** A scheduled task stalls on
+the first Bash call that is **not** in `permissions.allow`: it fires, sets `lastRunAt`, flips
+`enabled: false`, and executes NOTHING. Measured two-sided 2026-08-31 — an unallowlisted command
+(`printf`) stalled with a `tool_use` and no `tool_result` anywhere in its transcript; an
+allowlisted one (`ls`) executed normally, cold and unattended.
+
+⇒ **`lastRunAt` is a DISPATCH oracle, not a success oracle.** A stalled task reports as having run
+and is never retried. **Verify a resume by an artifact the task itself produces.**
+
+⇒ Satisfy the precondition once, via `/setup` (it installs a narrow allowlist). "Run now" also
+captures approvals but needs a human, so it does not serve a cold unattended run. A **recurring**
+task does not help either: approvals inherit forward only when a human GRANTED them, so recurring
+relocates the human step rather than removing it.
+
+⚠ `ls ~/.claude/scheduled-tasks/` is not a registration oracle — de-registering a task leaves its
+`SKILL.md` on disk by design. Use `list_scheduled_tasks`.
+```
+
+- [ ] **Step 4: Run the check to confirm it passes**
+
+Expected: non-zero per port. Then confirm the oracle correction specifically:
+
+```bash
+/usr/bin/grep -c 'DISPATCH oracle' plugin-*/skills/auto/SKILL.md   # expect 1 per port
+```
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add plugin-*/skills/auto/SKILL.md
+git commit -m "docs(auto): document the scheduled-task approval stall and its dispatch-vs-success oracle"
+```
+
+---
+
+### Task A5: Phase A holistic check
+
+The gate's `per-task-review-blind-spot-needs-final-holistic-pass` applies: A1–A4 each touched the same three files.
+
+- [ ] **Step 1: Confirm no self-contradiction remains**
+
+```bash
+cd /Users/mikeprasad/Projects/aria/aria-knowledge
+for p in plugin-claude-code plugin-antigravity plugin-openai-codex; do
+  f="$p/skills/auto/SKILL.md"
+  echo "--- $p"
+  for pat in 'ships in the Claude Code port only' 'three stackable modifiers' 'arms the resume' 'arms its own resume'; do
+    printf '  %-40s %s\n' "$pat" "$(/usr/bin/grep -c "$pat" "$f")"
+  done
+  printf '  %-40s %s\n' 'NOT gated on presence (must be 1)' "$(/usr/bin/grep -c 'NOT gated on presence' "$f")"
+done
+```
+
+Expected: first four all `0`; the last `1`.
+
+- [ ] **Step 2: Confirm Phase A changed no mechanism**
+
+```bash
+git diff HEAD~4 --stat
+/usr/bin/grep -c 'create_scheduled_task' plugin-*/skills/auto/SKILL.md
+```
+
+Expected: only the three `SKILL.md` files in the diffstat, and the `create_scheduled_task` count **unchanged from before Phase A** — Phase A is truth-only. If it moved, Phase A leaked mechanism work.
+
+- [ ] **Step 3: Commit if anything was corrected**
+
+```bash
+git add -p
+git commit -m "fix(auto): Phase A holistic pass"
+```
+
+---
+
+## Phase B — The mechanism
+
+### Task B1: Re-key Step 6 per wall and per runtime
+
+**Files:**
+- Modify: `plugin-claude-code/skills/auto/SKILL.md` Step 6 (table + Selection rule, canonical `:449-458`)
+- Modify: the same section in both other ports
+
+**Interfaces:**
+- Consumes: Task A3's corrected presence semantics.
+- Produces: the mechanism-selection table that Task B2's probe feeds and Task B3's Desktop branch cites.
+
+- [ ] **Step 1: Write the failing acceptance check**
+
+```bash
+f=plugin-claude-code/skills/auto/SKILL.md
+printf 'default-CronCreate-claim=%s  selection-table=%s\n' \
+  "$(/usr/bin/grep -c 'CronCreate\` is the \*\*baseline and stays the default' "$f")" \
+  "$(/usr/bin/grep -c 'presence selects the mechanism' "$f")"
+```
+
+- [ ] **Step 2: Run it to confirm it fails**
+
+Expected now: the default-CronCreate claim present, the selection table absent.
+
+- [ ] **Step 3: Replace the Selection rule with the presence×runtime table**
+
+```
+**Selection rule — the WALL picks the timing, PRESENCE picks the mechanism, the RUNTIME picks
+what is available.** Arming is decided by D1's condition and nothing here changes it.
+
+| Presence | Runtime | Mechanism | Why |
+|---|---|---|---|
+| `unattended` | Desktop-class | `create_scheduled_task` (`fireAt`) | nobody keeps the app open or the Mac awake |
+| `unattended` | CLI | `launchd` if installed, else `CronCreate` **and state the exposure** | no `scheduled-tasks` verb on the CLI |
+| `attended` | either | `CronCreate` | the session is being watched |
+
+⛔ **Never default a CLI user to a Desktop mechanism.** That constraint is inherited verbatim from
+the 2026-07-30 design and is the reason this is a probe and not a default. What changed is a
+premise that design never examined — *"an unattended run keeps its session open by design"* —
+which Mac sleep, app auto-update, crash and OS restart each falsify.
+```
+
+- [ ] **Step 4: Run the check to confirm it passes**
+
+```bash
+/usr/bin/grep -c 'presence selects the mechanism' plugin-*/skills/auto/SKILL.md   # expect 1 per port
+/usr/bin/grep -c 'Never default a CLI user' plugin-*/skills/auto/SKILL.md          # expect 1 per port
+```
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add plugin-*/skills/auto/SKILL.md
+git commit -m "feat(auto): select the resume mechanism by presence and runtime, not one default"
+```
+
+---
+
+### Task B2: Capability-first runtime probe (gate SHRINK applied)
+
+**The gate shrank this task.** The spec's D3 proposed reusing `kt_resolve_account()`. The gate's finding: the spec already states *capability presence is the authority*, so spending a `config.sh` dependency to restate it adds a second consumer to a file marked `KEEP BYTE-IDENTICAL`. **Capability check is primary; the classifier is advisory only and optional.**
+
+**Files:**
+- Modify: all three `skills/auto/SKILL.md`, Step 6, directly above Task B1's table
+
+**Interfaces:**
+- Consumes: Task B1's table (it is what the probe selects from).
+- Produces: nothing consumed downstream — this is a prose instruction, not an API.
+
+- [ ] **Step 1: Write the failing acceptance check**
+
+```bash
+/usr/bin/grep -c 'is the verb callable' plugin-*/skills/auto/SKILL.md
+```
+
+- [ ] **Step 2: Run it to confirm it fails** — expected `0` per port.
+
+- [ ] **Step 3: Add the probe instruction**
+
+```
+**Resolving the runtime — probe the CAPABILITY, never the name.** The only question that decides
+the mechanism is *is the verb callable here?* Check for `create_scheduled_task`; if it is present
+this is a Desktop-class runtime and the durable mechanism is available. If it is absent, take the
+CLI row — **including when other signals say Desktop.** Availability, not identity, is the
+authority, which is what makes a misread classification unable to select an absent mechanism.
+
+⚠ Optional corroboration only: `kt_resolve_account()` (`bin/config.sh`) returns `{cli, desktop,
+desktop-unknown}`. If you consult it, note that **`desktop-unknown` means Desktop with an
+unresolved ACCOUNT — it is a Desktop-class value, not an unknown runtime**, so it takes the
+Desktop row. ⛔ Never modify that function; its first block is kept byte-identical with a
+statusline mirror.
+```
+
+- [ ] **Step 4: Run the check to confirm it passes**
+
+```bash
+/usr/bin/grep -c 'is the verb callable' plugin-*/skills/auto/SKILL.md         # expect 1 per port
+/usr/bin/grep -c 'unresolved ACCOUNT' plugin-*/skills/auto/SKILL.md          # expect 1 per port
+```
+
+The second grep is the mutation guard for the error the spec's own first draft made — routing `desktop-unknown` to CLI. Revert that sentence and the check goes red.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add plugin-*/skills/auto/SKILL.md
+git commit -m "feat(auto): resolve the runtime by capability, with the classifier advisory only"
+```
+
+---
+
+### Task B3: Add the Desktop context-wall branch
+
+**Files:**
+- Modify: `plugin-claude-code/skills/auto/SKILL.md` Step 3¾ (canonical `:404`)
+- Modify: `plugin-antigravity/skills/auto/SKILL.md` Step 3¾
+- **Skip codex** — measured `grep -c 'only autonomous path to clean context'` = **0**; the trimmed port has no Step 3¾ claim to correct. Editing it would invent a section the port deliberately omits.
+
+- [ ] **Step 1: Write the failing acceptance check**
+
+```bash
+/usr/bin/grep -c 'only autonomous path to clean context' plugin-claude-code/skills/auto/SKILL.md plugin-antigravity/skills/auto/SKILL.md
+```
+
+- [ ] **Step 2: Run it to confirm it fails**
+
+Expected now: `1` each. The claim is false on Desktop, and the file's own Step 6 table contradicts it with a `Fresh context: Yes` row.
+
+- [ ] **Step 3: Replace the claim and add the branch**
+
+Replace `The only autonomous path to clean context is a **fresh `claude` process**, which an external wrapper provides.` with:
+
+```
+On the **CLI** the only autonomous path to clean context is a fresh `claude` process, which the
+external wrapper provides. On a **Desktop-class runtime there is a second path and no wrapper is
+needed**: a scheduled task starts with no memory of the conversation, so scheduling one a couple of
+minutes out and stopping cleanly IS a fresh-context relaunch.
+
+**Desktop-class branch** (take this when `create_scheduled_task` is callable):
+1. AUTO-run `/extract`.
+2. Run `/handoff` for a prose-first opener. ⛔ Prose-first is mandatory — a leading slash command
+   is parsed as an unknown command and the whole mandate is silently discarded.
+3. `create_scheduled_task` with `fireAt` ≈ now + 2 minutes and the opener as the prompt.
+4. Stop cleanly.
+
+⚠ This branch inherits the approval precondition in Step 6: if the arc's Bash patterns are not
+allowlisted, the resumed task stalls silently. Report availability in the arc contract; never arm
+a path that will stall.
+```
+
+- [ ] **Step 4: Run the check to confirm it passes**
+
+```bash
+/usr/bin/grep -c 'only autonomous path to clean context' plugin-claude-code/skills/auto/SKILL.md plugin-antigravity/skills/auto/SKILL.md  # expect 0
+/usr/bin/grep -c 'Desktop-class branch' plugin-claude-code/skills/auto/SKILL.md plugin-antigravity/skills/auto/SKILL.md                    # expect 1
+/usr/bin/grep -c 'Desktop-class branch' plugin-openai-codex/skills/auto/SKILL.md                                                           # expect 0
+```
+
+The third check is the deliberate-skip guard: codex must NOT gain this branch.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add plugin-claude-code/skills/auto/SKILL.md plugin-antigravity/skills/auto/SKILL.md
+git commit -m "feat(auto): Desktop gains a context-wall path; the wrapper is the CLI-only route"
+```
+
+---
+
+### Task B4: Report durable-resume availability in the arc contract
+
+**Files:**
+- Modify: all three `skills/auto/SKILL.md`, Step 0.5 contract block
+
+- [ ] **Step 1: Write the failing acceptance check**
+
+```bash
+/usr/bin/grep -c 'durable resume:' plugin-*/skills/auto/SKILL.md
+```
+
+- [ ] **Step 2: Run it to confirm it fails** — expected `0` per port.
+
+- [ ] **Step 3: Add the contract line**
+
+Add to the Step 0.5 contract block, beside the existing `Usage:` line:
+
+```
+> **Durable resume:** <ARMED via <mechanism> | UNAVAILABLE (patterns not allowlisted — run `/setup`)>
+```
+
+- [ ] **Step 4: Run the check to confirm it passes, and confirm the ABSENT path is specified**
+
+```bash
+/usr/bin/grep -c 'durable resume:' plugin-*/skills/auto/SKILL.md          # expect 1 per port
+/usr/bin/grep -c 'UNAVAILABLE (patterns not allowlisted' plugin-*/skills/auto/SKILL.md   # expect 1 per port
+```
+
+The second grep matters because of the gate's `precondition-placed-after-its-consumer` hit: the reporting must cover the **absent-allowlist** path, not only the present one.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add plugin-*/skills/auto/SKILL.md
+git commit -m "feat(auto): the arc contract reports durable-resume availability, not just that a resume is armed"
+```
+
+---
+
+## Phase C — The `/setup` allowlist knob (10a only)
+
+⚠ **PREMISE STATUS: pending R2 at the time of writing.** Probe 2 validated that an allowlisted
+Bash call clears a scheduled task's gate, but only for a **bare-builtin `:*`** pattern (`ls`).
+Phase C needs a **`git <sub>:*`** pattern, which is a different match shape. R2 probes exactly
+that. **Both branches are specified — do not start Phase C without reading R2's result.**
+
+- **R2 = EXECUTED** → proceed as written below.
+- **R2 = STALLED** → **HALT Phase C.** The premise is narrower than the spec claims and
+  `git merge-base` / `git ls-remote` may not be reachable from a scheduled task at all. Re-probe
+  per pattern shape before proposing any knob, and correct the spec's D10.
+
+### Task C1: Add the knob
+
+**Files:**
+- Modify: `plugin-claude-code/skills/setup/SKILL.md`
+- **Not** the other ports — `/setup` is Code-only for this purpose; confirm with
+  `ls plugin-*/skills/setup/SKILL.md` before assuming.
+
+**Interfaces:**
+- Consumes: Task B4's contract line (the knob is what flips it from UNAVAILABLE to ARMED).
+- Produces: a documented, enumerable pattern set that `/audit-config` can later diff.
+
+- [ ] **Step 1: Confirm R2's result before writing anything**
+
+```bash
+/usr/bin/grep -n 'RESULT=' /private/tmp/claude-501/-Users-mikeprasad-Projects/*/tasks/*.output | tail -3
+```
+
+Expected: a line containing `RESULT=EXECUTED`. If it says `STALLED`, stop — see PREMISE STATUS.
+
+- [ ] **Step 2: Write the failing acceptance check**
+
+```bash
+/usr/bin/grep -c 'arc-resume allowlist' plugin-claude-code/skills/setup/SKILL.md
+```
+
+Expected: `0`.
+
+- [ ] **Step 3: Add the knob**
+
+```
+### Arc-resume allowlist (optional)
+
+An unattended `/auto` resume on a Desktop-class runtime runs as a scheduled task, which stalls
+silently on any Bash call absent from `permissions.allow`. Offer to add this **narrow, read-only**
+set — measured as the exact delta between an arc's working set and what is already allowlisted
+(15 of 21 commands were already covered):
+
+    Bash(head:*)
+    Bash(tail:*)
+    Bash(git merge-base:*)
+    Bash(git ls-remote:*)
+
+⛔ Do NOT offer `Bash(sh:*)` or `Bash(bash:*)`. Bare shell access is an escape hatch that nullifies
+the allowlist (`sh -c '<anything>'`). If a helper must run, scope it:
+`Bash(sh */plugin-claude-code/bin/*.sh:*)`.
+
+⚠ State plainly that an allowlist widens standing permissions for **every** session, not only
+scheduled ones. Show the four lines and require an explicit yes. Never widen silently.
+
+⚠ Enumerate what is added so `/audit-config` can diff it later. An allowlist that is only ever
+appended to is how a 161-entry list happens with nobody having decided the total.
+```
+
+- [ ] **Step 4: Run the check to confirm it passes**
+
+```bash
+/usr/bin/grep -c 'arc-resume allowlist' plugin-claude-code/skills/setup/SKILL.md   # expect >=1
+/usr/bin/grep -c 'Bash(sh:\*)' plugin-claude-code/skills/setup/SKILL.md            # expect 1 (the PROHIBITION)
+```
+
+The second check is deliberately non-zero: the prohibition must be present. Verify by reading the line that it is the *ban*, not an offer — a count alone cannot tell those apart.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add plugin-claude-code/skills/setup/SKILL.md
+git commit -m "feat(setup): offer a narrow arc-resume allowlist, four read-only patterns"
+```
+
+---
+
+## Phase D — Deferred (do not execute without its own gate)
+
+### Task D1: Resolve cross-scope permission precedence — DEFERRED (gate #11)
+
+Project `settings.local.json` **allows** `Bash(git push:*)`; user `settings.json` **asks**. For an
+unattended task the two resolutions are *push silently* and *hang silently*, and D4 forbids the
+first. **Read current Claude Code docs on allow/ask/deny precedence across user vs project scope**
+(Rule 33 — current docs, not memory). Blocks nothing in Phase A or B; blocks any claim that D4 is
+enforced by permissions rather than by prose.
+
+### Task D2: The pre-existing wide entries — OUT OF SCOPE (gate #10b)
+
+`Bash(git push:*)`, `Bash(ssh *)`, `Bash(curl *)` are allowlisted at project scope. Narrowing them
+affects every session and they are presumably load-bearing for staging work. **Mike's stated
+preference: accept as documented exposure.** Not this arc's business; needs its own decision.
+
+---
+
+## Self-Review
+
+**1. Spec coverage.** D1 → Global Constraints + A3 Step 4 guard. D2 → B1. D3 → B2 (shrunk per gate).
+D4 → B3. D5 → B4. D6 → A4 + B4. D7 → A4 (the dispatch-vs-success oracle). D8 → Global Constraints
+(no task adds a word; A2 only corrects a count). D9 → A1. D10 → C1. **All ten decisions map to a
+task.** ACs: AC1→A2, AC2→A3, AC3→B3, AC4→A4, AC5→A1, AC6→B2, AC7→B4, AC8 → ⚠ **no task** —
+AC8 asserts the prose-first hook still matches both scheduling verbs after the edits. **Gap found
+and closed:** added as A5 Step 2's companion below.
+
+- [ ] **A5 Step 2b (added by self-review): confirm the D2 hook still matches both verbs**
+
+```bash
+python3 -c "
+import json; d=json.load(open('plugin-claude-code/.claude-plugin/plugin.json'))
+print(d['hooks']['PreToolUse'][4]['matcher'])"
+```
+
+Expected: `CronCreate|mcp__scheduled-tasks__create_scheduled_task`, unchanged. This plan adds no
+guard and must not disarm the existing one.
+
+**2. Placeholder scan.** No TBD/TODO. Every prose edit carries its actual replacement text; every
+step carries a runnable command with an expected value. Phase C's pending input is a *specified
+branch*, not a placeholder — both outcomes have a defined action.
+
+**3. Type consistency.** No code symbols introduced. Cross-task names checked: `create_scheduled_task`
+(B1/B2/B3/A4), `kt_resolve_account` (B2 only, read-only), `lastRunAt` (A4), `desktop-unknown` (B2),
+`durable resume:` (B4/C1) — all spelled identically across tasks.
