@@ -271,9 +271,27 @@ git commit -m "fix(auto): presence selects the resume mechanism, never whether o
 
 - [ ] **Step 1: Write the failing acceptance check**
 
+⛔ **CORRECTED AT EXECUTION 2026-09-01.** The original check grepped `permission gate` and
+`not allowlisted` — **phrases from a draft of the block, not the wording that shipped.** An
+acceptance check written against text you have not finalised tests your memory of your intention.
+Grep the marker phrases that actually exist:
+
 ```bash
-/usr/bin/grep -ci 'permission gate\|not allowlisted' plugin-*/skills/auto/SKILL.md
+for pat in 'SILENT FAILURE MODE' 'DISPATCH oracle' 'list_scheduled_tasks' 'D11 — a pattern'; do
+  printf '%-24s ' "$pat"; /usr/bin/grep -c "$pat" plugin-*/skills/auto/SKILL.md | tr '\n' ' '; echo
+done
+# Structural check — the whole block, not one phrase:
+for p in plugin-claude-code plugin-antigravity plugin-openai-codex; do
+  printf '%-22s block lines: %s\n' "$p" \
+    "$(sed -n '/SILENT FAILURE MODE/,/^\*\*Selection rule/p' "$p/skills/auto/SKILL.md" | wc -l | tr -d ' ')"
+done
 ```
+
+⚠ **Instrument note, worth carrying:** while diagnosing the failing check I asserted BSD `grep`
+lacked GNU BRE alternation. **That diagnosis was wrong** — the ERE form read 0 as well. And the
+"positive control" I ran could not have told me: a `0` from the BRE form is equally consistent with
+*"BRE alternation is literal"* and *"the phrase is not in the file"*. **A control that cannot
+discriminate between the two live hypotheses is not a control.**
 
 - [ ] **Step 2: Run it to confirm it fails**
 
