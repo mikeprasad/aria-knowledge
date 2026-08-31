@@ -20,6 +20,12 @@ Exact values copied from the spec. Every task's requirements implicitly include 
 - **Per-port reason required.** The gate's `census-does-not-license-its-disposition` hit: codex is a trimmed port missing 2 of 4 defect sites, which is evidence it is deliberately reduced. **Every port edit states why that port is being edited.** Never inherit "3 files" from a census as an instruction.
 - **D1 — arming condition is UNCHANGED.** Arm whenever work is unfinished and the binding budget is usage. **Not gated on presence. Not gated on `continue`.** `SKILL.md:443/445/447` and config knob 6 must survive untouched.
 - **D4 — push is never grantable by any modifier, including `full`.**
+- **D11 — no grant may permit a destructive or force-overwriting operation without user approval or
+  an explicit stated grant.** (Mike, 2026-09-01.) Binds every entry Task C1 offers. ⛔ A pattern
+  whose argument glob permits an exec flag (`--upload-pack`, `--receive-pack`, `--exec`) permits
+  the whole destructive class and therefore **fails D11** — verify each proposed pattern against
+  its own flag surface, not just against what you intend to run with it. This is how
+  `git ls-remote:*` was disqualified.
 - **D2 (aria's) — a scheduled prompt never starts with `/`.** Applies to every scheduling mechanism.
 - **D8 — no new modifier word.** Nothing new to type in any branch.
 - **Routing — `desktop` → Desktop branch · `desktop-unknown` → Desktop branch · `cli` → CLI branch.** `desktop-unknown` means Desktop-with-unresolved-*account*, never unknown-runtime.

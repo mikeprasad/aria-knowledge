@@ -208,6 +208,39 @@ which leaves the capability unused until manually enabled).
 — an allowlist wide enough to be convenient is an allowlist that stops being a decision. It needs
 its own scope pass, derived from what an arc actually calls, not from what it might.
 
+**D11 — no grant may permit a destructive or force-overwriting operation without user approval or
+an explicit stated grant.** (Ruled by Mike, 2026-09-01, verbatim: *"it should not allow destructive
+or force overwrites without user approval or explicit user stated grants."*)
+
+This is a constraint on **every** allowlist entry, present or proposed — not advice, and not
+scoped to this arc's four patterns. It is stricter than D4, which forbids a *modifier* from
+granting push; D11 forbids the *permission layer* from silently granting the destructive class at
+all.
+
+⛔ **Measured 2026-09-01: three already-allowlisted entries VIOLATE D11**, because each permits
+arbitrary command execution and therefore the whole destructive class:
+
+| Entry | Vector | Verified |
+|---|---|---|
+| `Bash(git push:*)` · `Bash(git push *)` | `--receive-pack=<cmd>` | injected marker printed |
+| `Bash(git fetch:*)` | `--upload-pack=<cmd>` | injected marker printed |
+| `Bash(git ls-remote *)` | `--upload-pack=<cmd>` | injected marker printed |
+
+⇒ **D11 makes D4 enforceable rather than aspirational.** Until these are narrowed, D4 is carried by
+the skill's prose alone while the permission layer grants strictly more than push.
+
+**Remedy — NARROW the `allow` patterns; do not rely on adding `deny` rules.** Two reasons, both
+measured rather than preferred:
+1. A `deny` on a mid-command flag (`--upload-pack` / `--receive-pack` / `--exec`) is **unverifiable
+   in-session** — settings arm at session start, so its effect cannot be observed until a fresh
+   session. Shipping a security control you have not seen work is the shape Rule 36 forbids.
+2. Narrowing an `allow` to an argument-bounded or literal form has **already-known semantics** — a
+   literal pattern matches only that literal, so no probe is needed. `Bash(git push origin master)`
+   already exists alongside `Bash(git push:*)`; the glob is what carries the vector.
+
+⚠ **Not applied.** This is the user's own settings file and a change affects every session, not
+only scheduled ones. D11 records the standard; the narrowing is presented for his approval.
+
 ---
 
 ## Defect census (per port, measured 2026-08-31)
