@@ -12,7 +12,7 @@ It does NOT re-define the decide-vs-ask policy. That policy is **Rule 35** (deci
 
 ## Runtime precondition — Bash required
 
-**`/auto` ships in the Claude Code port only, and that is deliberate.** It is not part of ADR-094's bare-slash collision set: no Cowork counterpart of this skill exists, so there is no canonical-owner question to resolve here and nothing to hand off to. What this section checks is a **capability**, not an ownership — do not restore a redirect to a Cowork variant.
+**`/auto` ships in three ports — `plugin-claude-code` (canonical), `plugin-antigravity` and `plugin-openai-codex` — and they have diverged (three distinct md5s, measured 2026-09-01).** It is not part of ADR-094's bare-slash collision set: no Cowork counterpart of this skill exists, so there is no canonical-owner question to resolve here and nothing to hand off to. What this section checks is a **capability**, not an ownership — do not restore a redirect to a Cowork variant.
 
 **Before Step 0:** Check that the `Bash` tool is available. If `Bash` is NOT available (you are in Claude Cowork or another non-Code runtime), surface this and wait for an explicit reply:
 
