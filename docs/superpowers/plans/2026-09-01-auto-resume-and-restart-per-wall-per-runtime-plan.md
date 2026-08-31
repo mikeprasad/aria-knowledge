@@ -590,7 +590,7 @@ updates, so confirm the two patterns Phase C depends on are still allowlisted be
 ```bash
 python3 - <<'PY'
 import json
-need={"git merge-base","head","tail"}   # git ls-remote HELD pending Mike's ruling — see Step 4 HOLD
+need={"git merge-base","head","tail"}   # git ls-remote DROPPED: already allowlisted AND exec-capable (Step 4)
 have=set()
 for p in ["/Users/mikeprasad/.claude/settings.json",
           "/Users/mikeprasad/Projects/.claude/settings.local.json"]:
@@ -634,9 +634,11 @@ set — measured as the exact delta between an arc's working set and what is alr
     Bash(tail:*)
     Bash(git merge-base:*)
 
-⛔ A fourth was proposed and is **HELD pending Mike's explicit yes** — `Bash(git ls-remote:*)`.
-See the HOLD note at Step 4. Do not add it to the offered block until he rules; Step 4's set
-assertion expects exactly the three above and will report DRIFT if a fourth appears.
+⛔ A fourth was proposed and is **DROPPED, resolved 2026-09-01** — `Bash(git ls-remote:*)`. Two
+independent reasons: it is **already allowlisted** as `Bash(git ls-remote *)`, and it is **not
+read-only** (`--upload-pack` executes an arbitrary command — measured). See the resolution note at
+Step 4. Step 4's set assertion expects exactly the three above and will report DRIFT if a fourth
+appears.
 
 ⛔ Do NOT offer `Bash(sh:*)` or `Bash(bash:*)`. Bare shell access is an escape hatch that nullifies
 the allowlist (`sh -c '<anything>'`). If a helper must run, scope it:
@@ -649,14 +651,24 @@ scheduled ones. Show the four lines and require an explicit yes. Never widen sil
 appended to is how a 161-entry list happens with nobody having decided the total.
 ```
 
-⛔ **HOLD — one pattern in Step 3's list is NOT cleared for addition.** `Bash(git ls-remote:*)` is
-described in the spec and in Step 3 as "read-only, trivially safe." Read-only it is, but its
-**argument is a remote URL**, so the pattern permits contacting an *arbitrary* remote from an
-unattended task. That fails this plan's own narrowest-nameable-unit constraint (ADR 2026-015).
-The marginal exposure is arguably nil since `Bash(curl *)` is already allowlisted — but "arguably
-nil" is not a measurement, and this is a **new** grant, not one of the pre-existing entries Mike
-ruled on. **Ship C1 with three patterns and add the fourth only on his explicit yes, or narrowed to
-named remotes.**
+✅ **HOLD RESOLVED 2026-09-01 — there is no fourth pattern to add, and the reason matters more than
+the omission.**
+
+**(1) It is already allowlisted.** `Bash(git ls-remote *)` exists in
+`Projects/.claude/settings.local.json`. An earlier census reported it missing because the matcher
+handled only the `Bash(cmd:*)` colon idiom and not the `Bash(cmd *)` space idiom — see
+`characterised-from-memory-of-an-earlier-read` for the class. **Re-censused with both idioms:
+`head`, `tail`, `git merge-base` are genuinely missing; `git ls-remote` is not.**
+
+**(2) It was never read-only.** ⛔ **Measured 2026-09-01:
+`git ls-remote --upload-pack='<any command>' .` EXECUTES that command locally** (probe printed the
+injected marker). So `Bash(git ls-remote:*)` is **arbitrary command execution** — functionally the
+`Bash(sh:*)` escape hatch this same task bans. The spec's and Step 3's "read-only, trivially safe"
+description was **false** and is retracted here.
+
+⇒ **C1 ships exactly three patterns.** Do not add a `git ls-remote` entry under any spelling.
+
+⚠ The same flag family reaches further than this task — see Task D2, which this finding reframes.
 
 - [ ] **Step 4: Run the check to confirm it passes — assert the SET, never a count**
 
@@ -715,11 +727,35 @@ first. **Read current Claude Code docs on allow/ask/deny precedence across user 
 (Rule 33 — current docs, not memory). Blocks nothing in Phase A or B; blocks any claim that D4 is
 enforced by permissions rather than by prose.
 
-### Task D2: The pre-existing wide entries — OUT OF SCOPE (gate #10b)
+### Task D2: The pre-existing entries — OUT OF SCOPE, but REFRAMED 2026-09-01
 
-`Bash(git push:*)`, `Bash(ssh *)`, `Bash(curl *)` are allowlisted at project scope. Narrowing them
-affects every session and they are presumably load-bearing for staging work. **Mike's stated
-preference: accept as documented exposure.** Not this arc's business; needs its own decision.
+⛔ **"Wide" understates it. Three already-allowlisted git families permit ARBITRARY COMMAND
+EXECUTION, verified by probe 2026-09-01:**
+
+| Already allowlisted | Exec flag | Verified |
+|---|---|---|
+| `Bash(git push:*)` · `Bash(git push *)` | `--receive-pack=<cmd>` | injected marker printed |
+| `Bash(git fetch:*)` | `--upload-pack=<cmd>` | injected marker printed |
+| `Bash(git ls-remote *)` | `--upload-pack=<cmd>` | injected marker printed |
+
+Each is functionally equivalent to `Bash(sh:*)` — the grant Task C1 explicitly bans. `Bash(ssh *)`
+and `Bash(curl *)` remain wide in the ordinary sense.
+
+⚑ **Consequence for this arc's own design:** the spec's **D4** — *"push is never grantable by any
+modifier, including `full`"* — is enforced **only by the skill's prose.** The permission layer
+already grants something strictly worse than push: arbitrary execution, which can then push. That
+does not make D4 wrong; it makes D4 the *sole* control, which is worth knowing before relying on it
+for an unattended run.
+
+⚠ **Candidate remedy, NOT verified — do not implement from this note.** `deny` outranks `allow`, and
+this user's deny list already uses mid-command globs (`Bash(git push --force *)`,
+`Bash(curl * | bash)`), so denials on `--upload-pack` / `--receive-pack` / `--exec` would plausibly
+close the vector while leaving every normal git command working. **Untested:** whether a `deny`
+pattern actually matches a flag mid-command. Verify before proposing it.
+
+**Still out of scope for this arc** — it is Mike's config, narrowing affects every session, and his
+stated preference on the pre-existing entries was to accept documented exposure. The reframing
+changes what is being accepted, so it warrants a fresh look; it does not change the ownership.
 
 ---
 
