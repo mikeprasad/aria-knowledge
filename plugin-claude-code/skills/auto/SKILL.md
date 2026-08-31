@@ -483,7 +483,21 @@ any scheduled prompt.
 arbitrary execution *despite* `ls-remote` itself being read-only. Check a proposed pattern against
 its own flag surface, never against what you intend to run with it.
 
-**Selection rule.** Default to `CronCreate`. Reach past it only when the resume genuinely must survive the session ending — and then **probe what this runtime actually offers** rather than naming a mechanism the user may not have. State which one you chose and why. **Never promise durability the runtime cannot deliver.** The mechanisms are not substitutes: a schedule resumes work at a *time*, `self-restart` recovers from a *context wall*.
+**Selection rule — the WALL picks the timing, PRESENCE picks the mechanism, the RUNTIME picks what is available.** Arming itself is decided by D1's condition; nothing in this table changes *whether* a resume is armed.
+
+| Presence | Runtime | Mechanism | Why |
+|---|---|---|---|
+| `unattended` | Desktop-class | `create_scheduled_task` (`fireAt`) | nobody keeps the app open or the Mac awake |
+| `unattended` | CLI | `launchd` if installed, else `CronCreate` **and state the exposure** | no `scheduled-tasks` verb exists on the CLI |
+| `attended` | either | `CronCreate` | the session is being watched |
+
+**Resolving the runtime — probe the CAPABILITY, never the name.** The only question that decides the row is *is the verb callable here?* Check for `create_scheduled_task`; present ⇒ Desktop-class, the durable mechanism is available. Absent ⇒ take the CLI row, **including when other signals say Desktop.** Availability, not identity, is the authority — which is what makes a misread classification unable to select an absent mechanism.
+
+⚠ **Optional corroboration only.** `kt_resolve_account()` (`bin/config.sh`) returns a runtime in `{cli, desktop, desktop-unknown}`. If you consult it: **`desktop-unknown` means Desktop with an unresolved ACCOUNT — it is a Desktop-class value, not an unknown runtime — so it takes the Desktop row.** Routing it to CLI would deny the durable mechanism to a genuine Desktop session, and it fails *safe-looking*: the run still arms, just session-only, and nothing errors. ⛔ Never modify that function — its first block is kept byte-identical with a statusline mirror.
+
+⛔ **Never default a CLI user to a Desktop mechanism.** That constraint is inherited verbatim from the 2026-07-30 design and is exactly why this is a probe rather than a new default. What changed is a premise that design never examined — *"an unattended `/auto` run keeps its session open by design"* — which Mac sleep, app auto-update, crash and OS restart each falsify.
+
+State which mechanism you chose and why. **Never promise durability the runtime cannot deliver.** The mechanisms are not substitutes: a schedule resumes work at a *time*, `self-restart` recovers from a *context wall*.
 
 **Do not pass `durable: true`** — the tool documents it as having no effect; all jobs are session-only.
 
