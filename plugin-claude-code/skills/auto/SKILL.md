@@ -456,6 +456,33 @@ That distinction is load-bearing and was wrong in v2.43.0. `continue` governs wh
 | **launchd** (the `pm-schedule.sh` pattern) | macOS only; user opts in | Yes — OS-level | Yes — a fresh `claude` invocation | Truly session-independent recurring work on the CLI |
 | **`bin/auto-runloop.sh`** (`self-restart`) | Wrapper must already be running | Wrapper-dependent | Yes — a fresh `claude -p` process | A context wall mid-arc (Step 3¾) |
 
+⛔ **THE SILENT FAILURE MODE — read this before arming a durable resume.** A scheduled task stalls
+on the first Bash call that is **not** in `permissions.allow`: it fires, sets `lastRunAt`, flips
+`enabled: false`, and executes **nothing**. Measured two-sided 2026-08-31 — an unallowlisted command
+(`printf`) stalled with a `tool_use` and **no `tool_result` anywhere in its transcript**; an
+allowlisted one (`ls`) executed normally, cold and unattended. Re-confirmed 2026-09-01 on a
+subcommand-qualified pattern (`git log:*`), so it holds across pattern shapes.
+
+⇒ **`lastRunAt` is a DISPATCH oracle, not a success oracle.** A stalled task reports as having run,
+disables itself, and is never retried. **Verify a resume by an artifact the task itself produces.**
+
+⇒ Satisfy the precondition **once**, via `/setup` (it offers a narrow allowlist). "Run now" also
+captures approvals but needs a human, so it does not serve a cold unattended run. A **recurring**
+task does not help either: approvals inherit forward only where a human *granted* them, so
+recurring relocates the human step rather than removing it.
+
+⚠ `ls ~/.claude/scheduled-tasks/` is **not** a registration oracle — de-registering a task leaves
+its `SKILL.md` on disk by design, so `ls` counts deleted tasks. Use `list_scheduled_tasks`.
+
+⚠ A scheduled task runs with **cwd = the project root**, not a sub-repo. Prefer absolute paths in
+any scheduled prompt.
+
+⛔ **D11 — a pattern whose argument glob permits an exec flag (`--upload-pack`, `--receive-pack`,
+`--exec`) grants the whole destructive class and must NOT be added.** Measured 2026-09-01:
+`git ls-remote --upload-pack='<cmd>'` executes `<cmd>` locally, so `Bash(git ls-remote:*)` is
+arbitrary execution *despite* `ls-remote` itself being read-only. Check a proposed pattern against
+its own flag surface, never against what you intend to run with it.
+
 **Selection rule.** Default to `CronCreate`. Reach past it only when the resume genuinely must survive the session ending — and then **probe what this runtime actually offers** rather than naming a mechanism the user may not have. State which one you chose and why. **Never promise durability the runtime cannot deliver.** The mechanisms are not substitutes: a schedule resumes work at a *time*, `self-restart` recovers from a *context wall*.
 
 **Do not pass `durable: true`** — the tool documents it as having no effect; all jobs are session-only.
