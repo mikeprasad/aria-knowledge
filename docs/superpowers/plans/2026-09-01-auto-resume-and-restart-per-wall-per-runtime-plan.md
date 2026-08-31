@@ -513,7 +513,16 @@ git commit -m "feat(auto): resolve the runtime by capability, with the classifie
 **Files:**
 - Modify: `plugin-claude-code/skills/auto/SKILL.md` Step 3¾ (canonical `:404`)
 - Modify: `plugin-antigravity/skills/auto/SKILL.md` Step 3¾
-- **Skip codex** — measured `grep -c 'only autonomous path to clean context'` = **0**; the trimmed port has no Step 3¾ claim to correct. Editing it would invent a section the port deliberately omits.
+- **Skip codex — and the real reason is better than the one this plan first gave.** ⛔ **CORRECTED AT
+  EXECUTION 2026-09-01:** the draft said codex "has no Step 3¾ claim to correct… editing it would
+  invent a section the port deliberately omits." Measured: codex **does have Step 3¾**
+  (`grep -c 'Context-self-restart across a fresh process'` = 1); only the "only autonomous path"
+  sentence is absent. **Its Step 3¾ is a deliberate DEGRADATION NOTICE** — *"a skill cannot launch
+  a fresh Codex task or reset its own context, so `self-restart` degrades to the normal Step 3
+  path… do not write the Claude restart signal or promise an automatic restart."*
+  ⇒ Adding a Desktop-class branch there would promise a capability the Codex runtime does not have
+  (no wrapper **and** no `scheduled-tasks` verb) — which that port's own text explicitly forbids.
+  **Skip stands; the reason is a live constraint, not an absent section.**
 
 - [ ] **Step 1: Write the failing acceptance check**
 

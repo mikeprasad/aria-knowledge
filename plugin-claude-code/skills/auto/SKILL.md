@@ -402,7 +402,18 @@ Know **which budget binds**, because it decides the right resume tool:
 
 Default OFF. Active **only** when this is a `continue` run **AND** the `self-restart` flag was set. Without both, a context wall behaves exactly as the Step 3 Context bullet describes (extract → `/handoff` → terminal stop) — unchanged.
 
-The problem this solves: an unattended `continue` arc that hits the context wall would otherwise halt until a human restarts it. A cron can't fix this (a cron re-enters the *same* full session). The skill itself **cannot** reset its own context either — `/clear` is a REPL built-in that **neither a skill nor a hook can issue** (both verified). The only autonomous path to clean context is a **fresh `claude` process**, which an external wrapper provides.
+The problem this solves: an unattended `continue` arc that hits the context wall would otherwise halt until a human restarts it. A cron can't fix this (a cron re-enters the *same* full session). The skill itself **cannot** reset its own context either — `/clear` is a REPL built-in that **neither a skill nor a hook can issue** (both verified). On the **CLI** the only autonomous path to clean context is a **fresh `claude` process**, which an external wrapper provides. On a **Desktop-class runtime there is a second path and no wrapper is needed**: a scheduled task starts with no memory of the conversation, so scheduling one a couple of minutes out and stopping cleanly *is* a fresh-context relaunch.
+
+**Desktop-class branch** — take this when `create_scheduled_task` is callable:
+
+1. **AUTO-run `/extract`** (same as the default Context path).
+2. **Run `/handoff`** for a **prose-first** next-session opener. ⛔ Prose-first is mandatory — a leading slash command is parsed as an unknown command and the whole mandate is silently discarded.
+3. **`create_scheduled_task`** with `fireAt` ≈ now + 2 minutes and that opener as the prompt.
+4. **Stop cleanly.** The arc is now a durable on-disk checkpoint.
+
+⚠ This branch inherits Step 6's approval precondition: if the arc's Bash patterns are not in `permissions.allow`, the resumed task **stalls silently** — it fires, sets `lastRunAt`, disables itself and executes nothing. Report availability in the arc contract (Step 0.5); never arm a path that will stall.
+
+⚠ **Unexercised as a whole.** Every link is measured — fresh context per run, `fireAt` executing an allowlisted command cold, `/handoff` writing a prose-first opener — but the full extract → handoff → schedule → stop → resume loop has never been run end-to-end. Treat the first real use as the verification.
 
 So when active, at 90% context — instead of terminally stopping — do this and then **stop cleanly**. The skill never issues `/clear` (it cannot — and even if it could, the wrapper's fresh process is the cleaner reset); you do NOT self-resume; you hand the restart to the wrapper:
 
