@@ -134,7 +134,7 @@ These bind every `/auto` run in every mode. They are not modifiers and cannot be
 
 ## Step 0: Parse mode, posture, and the queue-complete toggle
 
-`/auto` is an **explicit, in-the-moment grant of autonomous latitude** — invoking it *means* "drive this autonomously, now." It overrides the standing `autonomy` config for the duration of the arc and never changes that config. Four modes, three stackable modifiers, and a toggle:
+`/auto` is an **explicit, in-the-moment grant of autonomous latitude** — invoking it *means* "drive this autonomously, now." It overrides the standing `autonomy` config for the duration of the arc and never changes that config. Four modes, four stackable modifier groups (seven tokens), a toggle, and a flag — ten tokens across six orthogonal axes:
 
 | Mode | Trigger | What it does |
 |---|---|---|

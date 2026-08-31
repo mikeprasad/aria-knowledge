@@ -54,12 +54,20 @@ The gate's frame check found two goals riding together: five documentation corre
 
 ### Task A1: Correct the port-scope claim
 
-**Why this port set:** all three carry the false sentence (measured: `grep -c` = 1 each).
+**Why this port set: TWO ports, not three.** ⛔ **CORRECTED AT EXECUTION 2026-09-01 — an earlier
+draft of this task said "all three carry the false sentence (measured: `grep -c` = 1 each)". That
+was measured on ONE port and inferred for the others; the per-port census script never checked this
+defect.** Re-measured: `port only` = claude-code **1**, antigravity **1**, codex **0**. Codex has
+**no Runtime-precondition section at all** — it is the trimmed port and omits it.
+
+⇒ **Do NOT edit codex here.** Adding the sentence would *invent* a section that port deliberately
+omits, which is the exact failure this plan's Global Constraints forbid ("never inherit '3 files'
+from a census as an instruction").
 
 **Files:**
 - Modify: `plugin-claude-code/skills/auto/SKILL.md:15`
 - Modify: `plugin-antigravity/skills/auto/SKILL.md` (same sentence, different line)
-- Modify: `plugin-openai-codex/skills/auto/SKILL.md` (same sentence, different line)
+- **Skip:** `plugin-openai-codex/skills/auto/SKILL.md` — no such claim exists
 
 **Interfaces:**
 - Consumes: nothing.
@@ -113,10 +121,23 @@ git commit -m "fix(auto): the skill ships in three ports, not one"
 
 ### Task A2: Correct the stale modifier count
 
-**Why this port set:** all three (measured: `grep -c 'three stackable modifiers'` = 1 each). The sentence sits at the top of the parse section, which is the first thing a reader of the invocation surface meets.
+**Why this port set: TWO ports, not three.** ⛔ **CORRECTED AT EXECUTION 2026-09-01, and this is the
+most instructive correction in the arc. A STRING census is not a DEFECT census.** The sentence
+`three stackable modifiers` is present in all three ports — but whether it is *false* depends on
+the rest of that file, which the grep never looked at. Measured: claude-code and antigravity have
+**4** modifier bullet groups and say **"Six orthogonal axes"**, so their count is stale. **Codex has
+exactly 3 bullet groups (`full`, `attended`/`unattended`, `tickets`) and says "Three orthogonal
+axes"** — its count is **TRUE and internally consistent**. Editing codex would make it wrong.
+
+**Derived replacement count — not invented.** claude-code/antigravity structure: 4 bullet groups =
+**7** modifier tokens (`full`, `attended`, `unattended`, `tickets`, `workflow`, `fanout=<pct>`,
+`agents=<N>`), plus the separately-named **On-queue-complete toggle** (`continue`, `stop`) and
+**Context-self-restart flag** (`self-restart`) = **10 tokens across 6 axes**.
 
 **Files:**
-- Modify: all three `skills/auto/SKILL.md` (canonical is `:137`)
+- Modify: `plugin-claude-code/skills/auto/SKILL.md:137`
+- Modify: `plugin-antigravity/skills/auto/SKILL.md:135`
+- **Skip:** `plugin-openai-codex/skills/auto/SKILL.md:85` — its count is correct for its own content
 
 - [ ] **Step 1: Write the failing acceptance check**
 
@@ -139,9 +160,25 @@ Four modes, eight stackable modifier tokens across six orthogonal axes, and a to
 - [ ] **Step 4: Run the check to confirm it passes**
 
 ```bash
-/usr/bin/grep -c 'three stackable modifiers' plugin-*/skills/auto/SKILL.md   # expect 0
-/usr/bin/grep -c 'six orthogonal axes' plugin-*/skills/auto/SKILL.md          # expect >=2 (this line + the existing paragraph)
+# expect 0 · 0 · 1 — codex KEEPS its count, which is true for its own 3-group content.
+/usr/bin/grep -c 'three stackable modifiers' plugin-*/skills/auto/SKILL.md
+
+# expect 1 · 1 · 0 — the new sentence lands only where the count was stale.
+/usr/bin/grep -c 'ten tokens across six orthogonal axes' plugin-*/skills/auto/SKILL.md
+
+# Internal-consistency pin: each port's count sentence must agree with its OWN axes sentence.
+# (Case matters — the axes sentence is capitalised. A lowercase grep reads 0 on a healthy file.)
+for p in plugin-claude-code plugin-antigravity plugin-openai-codex; do
+  f="$p/skills/auto/SKILL.md"
+  printf '%-22s groups=%s axes-said=%s\n' "$p" \
+    "$(sed -n '/^\*\*Modifiers\*\*/,/orthogonal axes/p' "$f" | /usr/bin/grep -cE '^- \*\*')" \
+    "$(/usr/bin/grep -oE '(Three|Six) orthogonal axes' "$f" | head -1)"
+done
 ```
+
+Expected: `groups=4 axes-said=Six orthogonal axes` for claude-code and antigravity;
+`groups=3 axes-said=Three orthogonal axes` for codex. **This is the check that would have caught
+the mis-scoping** — it compares each file against itself instead of counting a string across files.
 
 - [ ] **Step 5: Commit**
 
