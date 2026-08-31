@@ -311,6 +311,7 @@ Before the first action, post a short **arc contract** so the autonomy is legibl
 > **Gates that run but don't count as stopping:** /prospect (pre-code), /retrospect (post-build).
 > **Presence:** <attended — non-blocking residuals come to you as they arise | unattended — residuals batched to the handoff, resume armed>. Always stated; never inferred silently.
 > **Usage:** gating on 5h only; 7d ignored · arm at 90% · pause at 95% (D1).
+> **Durable resume:** <ARMED via `<mechanism>` | UNAVAILABLE (patterns not allowlisted — run `/setup`)>. Report availability, not merely that a resume is armed — a resume whose patterns are unallowlisted **stalls silently** (Step 6).
 > **Push / deploy:** <local commits only (*default*) | push granted | push + deploy granted> — never pre-authorized by any modifier, including `full`; granted only by explicit direction (D4).
 > **Tools:** MCP / plugins / skills pre-approved.
 > **Foundational:** always preferred; any carve-out is logged (D3 → D7).
