@@ -515,15 +515,29 @@ git commit -m "feat(auto): the arc contract reports durable-resume availability,
 
 ## Phase C — The `/setup` allowlist knob (10a only)
 
-⚠ **PREMISE STATUS: pending R2 at the time of writing.** Probe 2 validated that an allowlisted
-Bash call clears a scheduled task's gate, but only for a **bare-builtin `:*`** pattern (`ls`).
-Phase C needs a **`git <sub>:*`** pattern, which is a different match shape. R2 probes exactly
-that. **Both branches are specified — do not start Phase C without reading R2's result.**
+✅ **PREMISE STATUS: R2 RAN AND PASSED — 2026-09-01 01:22 JST. Recorded here so no executor needs
+an ephemeral file.** The pending-branch version of this block pointed at
+`/private/tmp/…/tasks/*.output`, which will not exist for a later reader — a check whose subject
+has vanished. Result recorded instead:
 
-- **R2 = EXECUTED** → proceed as written below.
-- **R2 = STALLED** → **HALT Phase C.** The premise is narrower than the spec claims and
-  `git merge-base` / `git ls-remote` may not be reachable from a scheduled task at all. Re-probe
-  per pattern shape before proposing any knob, and correct the spec's D10.
+- **Probe 2** (2026-08-31): bare-builtin pattern `Bash(ls:*)`, command `ls -1 …` → **EXECUTED**
+  (`tool_result` `is_error=False`, real directory listing). Transcript `52c058ac…jsonl`.
+- **R2** (2026-09-01): git-subcommand pattern `Bash(git log:*)`, command `git log --oneline -1` →
+  **EXECUTED** (`tool_result` `is_error=False`, output `70f5870 docs(memory): …`). Transcript
+  `cd55b518…jsonl`, 28 records.
+
+⇒ **Hypothesis A holds across TWO pattern shapes** — a bare-builtin `:*` and a
+subcommand-qualified `git <sub>:*`. That is the shape Phase C's `git merge-base:*` /
+`git ls-remote:*` entries need.
+
+⚠ **The bound, stated rather than rounded up to "validated":** two shapes, one runtime, two
+moments. Untested shapes include a fully-literal pattern (no `:*`) and a quoted-compound pattern.
+Neither is needed by Phase C, so this is a named bound, not a blocker.
+
+⚑ Incidental operational fact from R2: a scheduled task runs with **cwd =
+`/Users/mikeprasad/Projects`** (the bare `git log` resolved against the root repo). So a
+cwd-dependent command works but silently binds to the root repo, not a sub-repo — prefer absolute
+paths in any scheduled prompt.
 
 ### Task C1: Add the knob
 
@@ -536,13 +550,36 @@ that. **Both branches are specified — do not start Phase C without reading R2'
 - Consumes: Task B4's contract line (the knob is what flips it from UNAVAILABLE to ARMED).
 - Produces: a documented, enumerable pattern set that `/audit-config` can later diff.
 
-- [ ] **Step 1: Confirm R2's result before writing anything**
+- [ ] **Step 1: Re-confirm the premise still holds (it held on 2026-09-01)**
+
+The PREMISE STATUS block above records both probes as EXECUTED, so this step is a **staleness
+re-check, not a first measurement.** The permission surface is user-editable and the runtime
+updates, so confirm the two patterns Phase C depends on are still allowlisted before writing:
 
 ```bash
-/usr/bin/grep -n 'RESULT=' /private/tmp/claude-501/-Users-mikeprasad-Projects/*/tasks/*.output | tail -3
+python3 - <<'PY'
+import json
+need={"git merge-base","git ls-remote","head","tail"}
+have=set()
+for p in ["/Users/mikeprasad/.claude/settings.json",
+          "/Users/mikeprasad/Projects/.claude/settings.local.json"]:
+    try: d=json.load(open(p))
+    except FileNotFoundError: continue
+    for a in (d.get("permissions",{}).get("allow") or []):
+        if isinstance(a,str) and a.startswith("Bash("):
+            have.add(a[5:-1].split(":")[0])
+print("already allowlisted:", sorted(need & have))
+print("still to add:      ", sorted(need - have))
+PY
 ```
 
-Expected: a line containing `RESULT=EXECUTED`. If it says `STALLED`, stop — see PREMISE STATUS.
+Expected on a clean run: all four in `still to add` (the knob has not been run yet). If any are
+already present, the knob offers only the remainder — never re-add a duplicate.
+
+⛔ If you need to re-measure the premise itself rather than the allowlist, do NOT reason about it:
+create a one-shot `fireAt` task ~3 min out whose prompt runs a single allowlisted command, then
+read its transcript for a `tool_result`. Presence of `tool_result` is the oracle; `lastRunAt` is
+not (a stalled task sets it anyway).
 
 - [ ] **Step 2: Write the failing acceptance check**
 
