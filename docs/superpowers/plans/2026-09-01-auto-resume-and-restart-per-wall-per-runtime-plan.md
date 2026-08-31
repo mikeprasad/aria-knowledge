@@ -746,8 +746,11 @@ description was **false** and is retracted here.
 f=plugin-claude-code/skills/setup/SKILL.md
 /usr/bin/grep -c 'arc-resume allowlist' "$f"   # expect >=1 — presence only, no semantics claimed
 
-# The `sh` line must be the BAN, not an offer. A count cannot separate those, so match the form:
-/usr/bin/grep -qE 'Do NOT offer .*Bash\(sh:\*\)' "$f" && echo "BAN present" || echo "BAN MISSING — STOP"
+# The `sh` line must be the BAN, not an offer. A count cannot separate those, so match the form.
+# ⛔ CORRECTED AT EXECUTION: this expected 'Do NOT offer'; the shipped wording is 'Never offer'.
+#    THIRD instance in this plan of an acceptance check written against DRAFT wording (A4 was the
+#    first two). Prefer asserting STRUCTURE over a sentence where you can.
+/usr/bin/grep -qE 'Never offer .*Bash\(sh:\*\)' "$f" && echo "BAN present" || echo "BAN MISSING — STOP"
 
 # Assert the offered SET equals exactly what was decided (ADR 2026-015 Component 1):
 python3 - <<'PY'

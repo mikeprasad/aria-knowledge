@@ -643,6 +643,96 @@ If `CLAUDE.md` already contains an `## ARIA Rules` heading, skip silently — ap
 second copy is the append-loop failure that `session_state`'s gitignore clause produced
 before v2.46.0.
 
+## Step 7f2: Arc-Resume Allowlist (optional, default NO)
+
+Runs after the config is written. Offer **once per machine**, never batch-applied, and never
+without showing the exact lines first.
+
+**Why it exists.** An unattended `/auto` resume on a Desktop-class runtime executes as a scheduled
+task, and a scheduled task **stalls on the first Bash call that is not in `permissions.allow`** — it
+fires, sets `lastRunAt`, disables itself, and runs nothing. The failure is silent and produces an
+empty transcript, indistinguishable from never firing. Measured two-sided 2026-08-31/09-01 across
+two pattern shapes. Without this allowlist, `/auto`'s arc contract will honestly report
+`durable resume: UNAVAILABLE`, and the unattended Desktop path simply does not work.
+
+**The narrow set — three read-only patterns, derived as the measured delta** between an arc's real
+working set and what a typical allowlist already covers (15 of 21 commands were already present in
+the reference measurement):
+
+```
+    Bash(head:*)
+    Bash(tail:*)
+    Bash(git merge-base:*)
+```
+
+⛔ **D11 — check every candidate against its OWN flag surface before offering it, never against
+what you intend to run with it.** A pattern whose argument glob admits an exec flag
+(`--upload-pack`, `--receive-pack`, `--exec`) grants the entire destructive class regardless of how
+harmless the base command looks.
+
+- The three above **pass**: `head` and `tail` have no exec surface; `git merge-base`'s whole option
+  set is `--fork-point --independent --is-ancestor --octopus` — no transport, so nothing to abuse.
+- ⛔ **`Bash(git ls-remote:*)` FAILS and is the worked example.** `ls-remote` is read-only, yet
+  `git ls-remote --upload-pack='<cmd>' .` **executes `<cmd>` locally** — verified. Read-only does
+  not imply safe. Do not offer it.
+- ⛔ Never offer `Bash(sh:*)` or `Bash(bash:*)`. Bare shell nullifies the whole allowlist
+  (`sh -c '<anything>'`). If a plugin helper must run, scope it:
+  `Bash(sh */plugin-claude-code/bin/*.sh:*)`.
+
+**Check what is already present first**, and offer only the remainder — never re-add a duplicate.
+⚠ Handle **both** pattern idioms; a matcher that only understands `Bash(cmd:*)` reports an entry
+written as `Bash(cmd *)` as missing:
+
+```bash
+python3 - <<'PY'
+import json
+need={"head","tail","git merge-base"}
+have=set()
+for p in ["~/.claude/settings.json", "./.claude/settings.local.json"]:
+    import os; p=os.path.expanduser(p)
+    try: d=json.load(open(p))
+    except Exception: continue
+    for a in (d.get("permissions",{}).get("allow") or []):
+        if isinstance(a,str) and a.startswith("Bash("):
+            pat=a[5:-1]
+            have.add(pat.split(':')[0].strip() if ':' in pat else pat.rstrip('*').strip())
+print("already allowlisted:", sorted(need & have) or "(none)")
+print("to offer:          ", sorted(need - have))
+PY
+```
+
+**Then offer, and require an explicit yes.** State the cost plainly — this is not a scheduled-task-
+only grant:
+
+> Add three read-only Bash patterns to `permissions.allow` so an unattended `/auto` resume can run
+> without stalling? They are `head`, `tail`, `git merge-base`. ⚠ **An allowlist widens standing
+> permissions for every session, not only scheduled ones.** [y/N]
+
+On `n`, no reply, or anything else: **write nothing**, and do not re-offer in the same run. `/auto`
+will report `durable resume: UNAVAILABLE (patterns not allowlisted)` — which is correct behaviour,
+not a defect.
+
+**After writing, assert the SET — never a count.** Per apex decision `2026-015`, where a gate
+asserts a permitted set it asserts the set, so that a fourth pattern is a visible diff rather than a
+silent append:
+
+```bash
+python3 - <<'PY'
+import json, os
+expected={"Bash(head:*)","Bash(tail:*)","Bash(git merge-base:*)"}
+p=os.path.expanduser("~/.claude/settings.json")
+allow=set(a for a in json.load(open(p)).get("permissions",{}).get("allow",[]) if isinstance(a,str))
+got=allow & {"Bash(head:*)","Bash(tail:*)","Bash(git merge-base:*)","Bash(git ls-remote:*)","Bash(sh:*)","Bash(bash:*)"}
+print("arc-resume set:", sorted(got))
+print("VERDICT:", "SET MATCHES" if got==expected else f"DRIFT — extra={sorted(got-expected)} missing={sorted(expected-got)}")
+PY
+```
+
+⚠ **Known gap, stated rather than glossed:** this assertion runs here, at write time. It is **not
+yet adopted by `/audit-config`**, so nothing re-checks the set later. A check nobody re-runs cannot
+detect drift — an allowlist that is only ever appended to is how a 161-entry list accumulates with
+nobody having decided the total. Wiring it into `/audit-config` is a follow-on.
+
 ## Step 7g: Populate the Knowledge Index
 
 The template ships `index.md` as a skeleton with no tag sections. Run the full `/index`
