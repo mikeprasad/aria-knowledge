@@ -195,10 +195,20 @@ condition per knob 6 — uses the DURABLE mechanism rather than a session-only o
 
 ```bash
 /usr/bin/grep -c 'arms the resume\|arms its own resume' plugin-*/skills/auto/SKILL.md   # expect 0
-/usr/bin/grep -c 'NOT gated on presence' plugin-*/skills/auto/SKILL.md                  # expect UNCHANGED
+
+# D1 survival — assert the SENTENCE verbatim, not its occurrence count.
+# (Gate 2 / ADR 2026-015: a count is satisfied by a rewrite that keeps the phrase
+#  while inverting the claim around it.)
+for p in plugin-claude-code plugin-antigravity plugin-openai-codex; do
+  f="$p/skills/auto/SKILL.md"
+  printf '%-22s %s\n' "$p" "$(/usr/bin/grep -qF 'Arming is NOT gated on presence, and NOT gated on `continue`.' "$f" && echo INTACT || echo 'ALTERED — STOP')"
+done
 ```
 
-The second check is the one that matters: **D1's ungated rule must survive this task untouched.** If it changed, the task overreached.
+The second check is the one that matters: **D1's ungated rule must survive this task untouched.**
+Expected `INTACT` for every port that carries the sentence. **Mutation check:** reword any part of
+that sentence and this must print `ALTERED — STOP`. A count-based version of this guard passes
+under exactly the rewrite it exists to catch.
 
 - [ ] **Step 5: Commit**
 
@@ -288,12 +298,33 @@ Expected: first four all `0`; the last `1`.
 
 - [ ] **Step 2: Confirm Phase A changed no mechanism**
 
+⛔ **Before Task A1's first edit, capture the base — do not use a commit-count-relative range.**
+`HEAD~4` assumes Phase A lands as exactly four commits; a task split, an extra fixup, or a parallel
+session's commit silently moves the window and this assertion becomes vacuous. This repo had 4
+unpushed commits from 3 sessions when the plan was written.
+
 ```bash
-git diff HEAD~4 --stat
-/usr/bin/grep -c 'create_scheduled_task' plugin-*/skills/auto/SKILL.md
+# Run this ONCE, before Task A1:
+git rev-parse HEAD > /tmp/phaseA-base.sha      # or note it in the session log
+# Also capture the pre-Phase-A mechanism baseline, so "unchanged" has something to compare to:
+/usr/bin/grep -c 'create_scheduled_task' plugin-*/skills/auto/SKILL.md > /tmp/phaseA-mech.txt
 ```
 
-Expected: only the three `SKILL.md` files in the diffstat, and the `create_scheduled_task` count **unchanged from before Phase A** — Phase A is truth-only. If it moved, Phase A leaked mechanism work.
+```bash
+# Run this at A5:
+BASE=$(cat /tmp/phaseA-base.sha)
+git diff "$BASE"..HEAD --stat -- plugin-claude-code/skills/auto/SKILL.md \
+  plugin-antigravity/skills/auto/SKILL.md plugin-openai-codex/skills/auto/SKILL.md
+echo "--- files changed OUTSIDE the three ports (expect none):"
+git diff "$BASE"..HEAD --name-only | /usr/bin/grep -v 'skills/auto/SKILL.md' || echo "(none)"
+echo "--- mechanism baseline diff (expect identical):"
+/usr/bin/grep -c 'create_scheduled_task' plugin-*/skills/auto/SKILL.md | diff /tmp/phaseA-mech.txt - && echo "UNCHANGED" || echo "MOVED — Phase A leaked mechanism work"
+```
+
+Expected: only the three `SKILL.md` files changed, nothing outside them, and `UNCHANGED` on the
+mechanism baseline — Phase A is truth-only. **Note the pre-capture is what makes "unchanged"
+checkable at all**; without it the count has nothing to be compared against and the check is a
+printout, not a test.
 
 - [ ] **Step 3: Commit if anything was corrected**
 
@@ -559,7 +590,7 @@ updates, so confirm the two patterns Phase C depends on are still allowlisted be
 ```bash
 python3 - <<'PY'
 import json
-need={"git merge-base","git ls-remote","head","tail"}
+need={"git merge-base","head","tail"}   # git ls-remote HELD pending Mike's ruling — see Step 4 HOLD
 have=set()
 for p in ["/Users/mikeprasad/.claude/settings.json",
           "/Users/mikeprasad/Projects/.claude/settings.local.json"]:
@@ -602,7 +633,10 @@ set — measured as the exact delta between an arc's working set and what is alr
     Bash(head:*)
     Bash(tail:*)
     Bash(git merge-base:*)
-    Bash(git ls-remote:*)
+
+⛔ A fourth was proposed and is **HELD pending Mike's explicit yes** — `Bash(git ls-remote:*)`.
+See the HOLD note at Step 4. Do not add it to the offered block until he rules; Step 4's set
+assertion expects exactly the three above and will report DRIFT if a fourth appears.
 
 ⛔ Do NOT offer `Bash(sh:*)` or `Bash(bash:*)`. Bare shell access is an escape hatch that nullifies
 the allowlist (`sh -c '<anything>'`). If a helper must run, scope it:
@@ -615,20 +649,58 @@ scheduled ones. Show the four lines and require an explicit yes. Never widen sil
 appended to is how a 161-entry list happens with nobody having decided the total.
 ```
 
-- [ ] **Step 4: Run the check to confirm it passes**
+⛔ **HOLD — one pattern in Step 3's list is NOT cleared for addition.** `Bash(git ls-remote:*)` is
+described in the spec and in Step 3 as "read-only, trivially safe." Read-only it is, but its
+**argument is a remote URL**, so the pattern permits contacting an *arbitrary* remote from an
+unattended task. That fails this plan's own narrowest-nameable-unit constraint (ADR 2026-015).
+The marginal exposure is arguably nil since `Bash(curl *)` is already allowlisted — but "arguably
+nil" is not a measurement, and this is a **new** grant, not one of the pre-existing entries Mike
+ruled on. **Ship C1 with three patterns and add the fourth only on his explicit yes, or narrowed to
+named remotes.**
+
+- [ ] **Step 4: Run the check to confirm it passes — assert the SET, never a count**
 
 ```bash
-/usr/bin/grep -c 'arc-resume allowlist' plugin-claude-code/skills/setup/SKILL.md   # expect >=1
-/usr/bin/grep -c 'Bash(sh:\*)' plugin-claude-code/skills/setup/SKILL.md            # expect 1 (the PROHIBITION)
+f=plugin-claude-code/skills/setup/SKILL.md
+/usr/bin/grep -c 'arc-resume allowlist' "$f"   # expect >=1 — presence only, no semantics claimed
+
+# The `sh` line must be the BAN, not an offer. A count cannot separate those, so match the form:
+/usr/bin/grep -qE 'Do NOT offer .*Bash\(sh:\*\)' "$f" && echo "BAN present" || echo "BAN MISSING — STOP"
+
+# Assert the offered SET equals exactly what was decided (ADR 2026-015 Component 1):
+python3 - <<'PY'
+import re
+txt=open("plugin-claude-code/skills/setup/SKILL.md").read()
+m=re.search(r'^### Arc-resume allowlist.*?(?=^### |\Z)', txt, re.M|re.S)
+offered=set(re.findall(r'^\s{4}(Bash\([^)]*\))\s*$', m.group(0), re.M))
+expected={"Bash(head:*)","Bash(tail:*)","Bash(git merge-base:*)"}   # ls-remote HELD, see above
+print("offered :", sorted(offered))
+print("expected:", sorted(expected))
+print("VERDICT :", "SET MATCHES" if offered==expected else f"DRIFT — extra={sorted(offered-expected)} missing={sorted(expected-offered)}")
+PY
 ```
 
-The second check is deliberately non-zero: the prohibition must be present. Verify by reading the line that it is the *ban*, not an offer — a count alone cannot tell those apart.
+Expected: `BAN present` and `SET MATCHES`. **Mutation checks — run both:** add a fifth pattern to
+the block and the set assertion must report `DRIFT`; reword the `Do NOT offer` line and the ban
+check must report `BAN MISSING`. A count-based version of either passes under the exact change it
+exists to catch.
+
+- [ ] **Step 4b: Ship the ratchet, not just the knob**
+
+The set assertion above is the ratchet — **commit it as a runnable check, not as prose in this
+plan**, so a fifth pattern is a visible diff rather than a silent append. Home it wherever
+`/audit-config` will actually invoke it; a check nobody runs is worth nothing.
+
+**Why this is mandatory rather than nice-to-have:** this user's allowlist has grown to **161 Bash
+entries with nobody having decided that total** — an append-only knob is how 162 happens. This is
+`registry-allowlist-discipline`'s counter-discipline verbatim ("add a schema test asserting the two
+surfaces match") reaching its first cross-project instance.
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add plugin-claude-code/skills/setup/SKILL.md
-git commit -m "feat(setup): offer a narrow arc-resume allowlist, four read-only patterns"
+git commit -m "feat(setup): offer a narrow arc-resume allowlist, three read-only patterns + a set ratchet"
 ```
 
 ---
