@@ -196,9 +196,10 @@ one word per axis, no special cases.)*
   | **Context** — the window hits 90% | **`self-restart`** + `bin/auto-runloop.sh` | Relaunches a **fresh process** with a clean window |
 
   A resume schedule cannot rescue a context wall (it re-enters the same full session), and a
-  fresh process does not help when the limit is usage. `unattended` arms the resume for the
-  usage wall; the context wall needs `self-restart` **explicitly**, because it cannot be
-  made to work implicitly. **`self-restart` is inert unless the external
+  fresh process does not help when the limit is usage. `unattended` selects the **durable**
+  resume mechanism for the usage wall — it does **not** decide whether a resume is armed
+  (that is D1's condition, see Step 6); the context wall needs `self-restart` **explicitly**,
+  because it cannot be made to work implicitly. **`self-restart` is inert unless the external
   wrapper is already running** — invoked directly in a normal session it writes the restart
   signal and stops with nothing to consume it, so say so rather than implying the run is
   self-healing.
@@ -281,7 +282,7 @@ Walk these in order, **one at a time** (do not dump all seven at once — the po
 4. **Fan-out / subagents** — inline-only · bounded individual subagents, ~10 cumulative cap (*default*) · raise the cap to N · allow the Workflow swarm (multi-agent orchestration). (Maps to the Step 5 stopgaps.)
 5. **Budget ceiling** — default 25%-of-remaining-window per fan-out burst (*default*) · a different fraction · a hard "stop the arc at X% usage." (Maps to the Step 5 budget-fraction gate + a live abort floor.)
 6. **Resume at the usage wall** — arm (*default when the goal is non-trivial*) · off. If the 5-hour window runs out with the goal unfinished, a resume fires **+5 min after** the reset and picks the work back up (Step 6). **Not gated on #2 or #7** — an unfinished goal warrants a resume whether or not you asked for new work afterwards, and whether or not anyone is watching; presence only decides if it announces itself.
-7. **Presence** — `attended` (*default*: you are reachable, so a non-blocking residual is surfaced immediately rather than batched to the handoff) · `unattended` (nobody is reachable; residuals are carried to the handoff and the run arms its own resume). **Always ask this one** — it is cheap to answer and it changes what happens to every question the arc produces, so a run should never proceed without knowing it. Pre-seeded from the invocation when `attended` or `unattended` was passed.
+7. **Presence** — `attended` (*default*: you are reachable, so a non-blocking residual is surfaced immediately rather than batched to the handoff) · `unattended` (nobody is reachable; residuals are carried to the handoff, and the resume — armed on its own condition per knob 6, never by this knob — uses the **durable** mechanism rather than a session-only one). **Always ask this one** — it is cheap to answer and it changes what happens to every question the arc produces, so a run should never proceed without knowing it. Pre-seeded from the invocation when `attended` or `unattended` was passed.
 
 After the walkthrough, assemble the picks into the run-config and proceed to Step 0.5 — the **arc contract is then a confirmation of what you just chose**, not a fresh set of defaults. **Nothing persists**: these picks configure THIS arc only; the standing `autonomy` posture and any saved defaults are untouched (changing standing defaults is `/setup`'s job — `/auto` never writes config, in any mode).
 
