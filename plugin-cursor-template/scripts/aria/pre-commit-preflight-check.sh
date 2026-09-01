@@ -48,7 +48,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 GATE="${KT_PREFLIGHT_GATE:-warn}"
 [ "$GATE" = "off" ] && exit 0
 
-REPO_DIR=$(printf '%s' "$COMMAND" | sed -n 's/^[[:space:]]*cd[[:space:]]\{1,\}\([^&;|]*\).*/\1/p' \
+REPO_DIR=$(printf '%s' "$COMMAND" | sed -n 's/^[[:space:]]*(\{0,1\}[[:space:]]*cd[[:space:]]\{1,\}\([^&;|]*\).*/\1/p' \
   | head -1 | sed 's/[[:space:]]*$//')
 [ -n "$REPO_DIR" ] && [ ! -d "$REPO_DIR" ] && REPO_DIR=""
 if [ -z "$REPO_DIR" ]; then

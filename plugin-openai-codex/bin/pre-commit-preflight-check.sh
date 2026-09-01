@@ -68,7 +68,7 @@ GATE="${KT_PREFLIGHT_GATE:-warn}"
 # Resolve the repo the commit actually targets. A compound `cd /a && git commit`
 # commits in /a, not in the hook's cwd -- reading the wrong repo's index would make
 # every verdict meaningless rather than merely wrong.
-REPO_DIR=$(printf '%s' "$COMMAND" | sed -n 's/^[[:space:]]*cd[[:space:]]\{1,\}\([^&;|]*\).*/\1/p' \
+REPO_DIR=$(printf '%s' "$COMMAND" | sed -n 's/^[[:space:]]*(\{0,1\}[[:space:]]*cd[[:space:]]\{1,\}\([^&;|]*\).*/\1/p' \
   | head -1 | sed 's/[[:space:]]*$//')
 [ -n "$REPO_DIR" ] && [ ! -d "$REPO_DIR" ] && REPO_DIR=""
 if [ -z "$REPO_DIR" ]; then
