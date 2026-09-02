@@ -124,6 +124,37 @@ Rationale, and why this beats the alternatives:
 staging work, and Mike's standing preference on pre-existing wide entries is documented exposure.
 D11 records the standard; this closes the part that is closable without cost.
 
+⛔ **D-E2a — `Bash(git -c *)` CANNOT SHIP YET. `git -c` and `git -C` differ only in case, and this
+user has SEVEN allowlisted `git -C <path>` entries.** If Claude Code's Bash matcher is
+case-insensitive, that deny blocks all seven — and deny beats allow, so re-adding them would not
+help.
+
+**The docs do not settle it.** They state *"Matching is case-insensitive"* explicitly for
+**PowerShell** rules and for **WebFetch** rules, and say **nothing** for Bash. Inferring
+case-sensitivity from that silence is precisely the shape this arc has been burned by; it is an
+absence, not a measurement. ⇒ **unresolved, and it gates the most important vector.**
+
+⇒ **Ship in two steps.** The three flag denies (`--upload-pack`, `--receive-pack`, `--exec`) have
+no case-differing sibling and are unambiguous — they go first. `git -c` waits on OQ4.
+
+**Two candidate resolutions for `git -c`, both real, neither free:**
+1. **Settle the case question**, then ship `Bash(git -c *)` — cheapest if matching is
+   case-sensitive. Resolution method: add the deny in a scratch settings scope and observe a
+   `git -C` call in a **fresh session** (settings arm at session start), or ask Mike to run one.
+   ⚠ A discriminating variant exists — `Bash(git -c *=*)` requires an `=`, which `git -C <path>
+   <subcommand>` does not contain — but it is only a mitigation, not a resolution, and it fails if
+   a path ever contains `=`.
+2. **Remove `Bash(git *)` and enumerate the subcommands in use** — then `git -c …` matches no allow
+   rule at all and needs no deny. Costs a subcommand census and more entries, and re-opens the
+   friction objection D-E2 rejected. ⚠ The census cannot come from
+   `~/.claude/bash-discipline.log`: that log records **violations only**, so it is a biased sample,
+   not a usage census.
+
+⚠ **Simulation bound:** the deny set was validated against 6 malicious and 17 legitimate commands
+with **zero** unblocked-malicious and **zero** false positives — but via Python `fnmatch`, **not**
+Claude Code's matcher, which is shell-operator-aware and splits compound commands. That is *design*
+validation. Behaviour validation needs the rules in place plus a fresh session (AC2).
+
 **D-E3 — 28 of 161 allow entries are redundant, but only 13 are safely removable.** Censused
 2026-09-03. The built-in read-only set makes an allow rule for those commands a no-op. **But the
 docs carry an exception:** *"commands with write-capable or exec-capable flags, such as `find`,
@@ -197,9 +228,13 @@ three-pattern set is wrong**; only the reason differs.
 - **AC1** — Every clause in the shipped `/auto` and `/setup` prose that asserts D10's premise as
   *validated* is corrected to reflect the probe's actual result. Falsifier: a grep for
   "two shapes" / "validated" in the durable-resume sections returning a claim the probe didn't support.
-- **AC2** — The four deny rules are present in `~/.claude/settings.json`, and a post-change probe
-  confirms at least one vector is closed. ⚠ **Not verifiable in the session that adds them** —
-  settings arm at session start; verification requires a fresh session.
+- **AC2a** — The **three flag denies** (`--upload-pack`, `--receive-pack`, `--exec`) are present in
+  `~/.claude/settings.json`, and a post-change probe confirms at least one vector is closed.
+  ⚠ **Not verifiable in the session that adds them** — settings arm at session start; verification
+  requires a fresh session.
+- **AC2b** — `Bash(git -c *)` ships **only after OQ4 is settled**, and its acceptance includes a
+  positive check that a `git -C <path> status` call still works. Falsifier: that call starts
+  prompting or failing ⇒ the deny is case-insensitive and must be withdrawn, not tuned.
 - **AC3** — `Bash(git *)` still permits a legitimate command (`git worktree list`) after the denies
   land. This is the no-friction assertion, and it must be run: a deny that also blocks daily work
   is the remedy that gets reverted.
@@ -217,6 +252,11 @@ three-pattern set is wrong**; only the reason differs.
 - **OQ1** — the in-flight probe. Blocks C and Phase C's disposition. Resolves within minutes.
 - **OQ2** — does `ssh *` / `curl *` warrant the same treatment? Out of scope by Mike's standing
   preference, but D11 now gives a standard they do not meet. His call, not this spec's.
-- **OQ3** — AC2's verification needs a fresh session. Should the plan stop at "denies added,
+- **OQ3** — AC2a's verification needs a fresh session. Should the plan stop at "denies added,
   verification owed", or should it end with a stamped fresh-session check? Sequencing question for
   the plan.
+- **OQ4 — is Claude Code's Bash rule matching case-sensitive?** Gates the single most important
+  deny (`git -c`, the open-ended vector) against 7 working `git -C` entries. **Docs are silent**;
+  they state case-insensitivity for PowerShell and WebFetch only. Not inferable from that silence.
+  Resolution is a fresh-session observation or Mike's own check — see D-E2a for the two candidate
+  paths. ⚠ Until settled, the flag denies ship and `git -c` does not.
