@@ -35,11 +35,27 @@ from the set, which is exactly why it stalled.)*
 `Bash(git merge-base:*)` — all three are in the built-in set. A grant that widens standing
 permissions for zero benefit is worse than no grant. **See D-C1 for the disposition.**
 
-⏳ **One probe is in flight and decides both.** `npm list --depth=0` — allowlisted as
-`Bash(npm list:*)`, and `npm` is **not** in the built-in set — run in an unattended scheduled task.
-Executes ⇒ allow rules do function there, D10 validated at last. Stalls ⇒ allow rules do **not**
-help a scheduled task, and only built-in read-only commands run unattended. **Both branches are
-specified below; do not execute this spec's plan without the result.**
+✅ **PROBE RAN AND PASSED — 2026-09-03 03:06 JST. D10's premise is validated at last, on an
+instrument that could actually discriminate.** `npm list --depth=0` — allowlisted as
+`Bash(npm list:*)`, and `npm` is **not** in the built-in set — executed in an unattended scheduled
+task: `tool_use: Bash cmd='npm list --depth=0'` → `tool_result is_error=False out='projects@1.0.0
+/Users/mikeprasad/Projects…'`. Transcript `6dadb764…jsonl`, 31 records, exactly one `tool_use`.
+Verified by **content**, not by a bare `tool_result`-presence grep.
+
+⇒ **An `allow` rule DOES gate-clear a non-builtin command in an unattended task.**
+
+⚑ **Three probes were needed to learn one fact, and the first two felt conclusive.** Probe 2 (`ls`)
+and R2 (`git log`) both "passed" and both were uninformative, because they varied
+*allowlisted-vs-not* while the axis that mattered was *built-in-vs-not*. Only the third varied the
+right axis. **This is the arc's clearest instance of `control-cannot-split-the-live-hypotheses`,
+and it cost two probes and a shipped no-op knob.**
+
+**Consequences, all favourable:**
+- **C is UNBLOCKED.** A resumed task can run real work, so the Desktop context-wall branch is sound
+  and Phase B's B3 needs **no retraction**. Proceed with D-C1's rehearsal.
+- **Phase C is RE-SCOPED, not reverted** — its mechanism is sound; only its three patterns are
+  no-ops. See D-C2.
+- The "probe stalls" branch this spec carried is **dead**, and it was the worse one.
 
 ---
 
@@ -206,20 +222,31 @@ demand, forever, and is the foundational answer:
    `lastRunAt` and disables itself while executing nothing.
 4. Record the result with its date, and re-run after any change to `/handoff` or the branch.
 
-⏳ **Blocked on the in-flight probe, and the two branches differ in kind:**
-- **Probe EXECUTES** ⇒ a resumed task can run allowlisted non-builtin commands. The rehearsal is
-  worth building and the branch is sound. Proceed with D-C1.
-- **Probe STALLS** ⇒ a resumed task can run **only built-in read-only commands**. It could not
-  `git commit`, run a test, or do anything an arc needs. **The Desktop context-wall branch would be
-  unworkable as designed, not merely unexercised** — and Phase B's B3 would need retraction, not
-  rehearsal. Escalate to Mike rather than patching.
+✅ **UNBLOCKED — the probe executed, so a resumed task can run allowlisted non-builtin work.** The
+branch is sound and B3 needs no retraction. Proceed with D-C1's rehearsal as written.
 
-**D-C2 — Phase C's disposition depends on the same probe.** If the probe stalls, Phase C's knob is
-a no-op grant and should be **reverted** (`2da33ce`). If it executes, the knob is still offering
-three built-in read-only patterns and should be **re-scoped** to the commands an arc actually needs
-that are *not* built-in — which, measured against this user's config, are already present
-(`Bash(git add:*)`, `Bash(git commit:*)`, project build/test entries). Either way **the shipped
-three-pattern set is wrong**; only the reason differs.
+**D-C2 — Phase C is RE-SCOPED, not reverted, and its new content is derived not invented.** The
+mechanism is validated; only the three offered patterns are wrong, because `head`, `tail` and
+`git merge-base` are all built-in read-only and therefore no-ops.
+
+**What an arc actually needs that is NOT built-in read-only** — censused against this user's 161
+entries:
+
+| Need | Status here | In the re-scoped knob? |
+|---|---|---|
+| `git add`, `git commit` — the arc's write path | already allowlisted (project scope) | **YES** — an arc cannot function without them, and they are absent for a fresh plugin user |
+| build / test runners (`npm`, `swift`, `xcodebuild`, `pytest`…) | already allowlisted, 111 entries | **NO** — irreducibly project-specific; the knob names the category and offers nothing |
+| `python3` | already allowlisted | **NO** — same reason |
+| `head`, `tail`, `git merge-base` | built-in read-only | ⛔ **DROPPED** — offering them widens standing permissions for zero benefit |
+
+⇒ **For this user specifically the knob has nothing to add** — everything an arc needs is already
+present. Its value is for a *fresh* plugin user whose settings lack the write path. The knob must
+say so, and offer nothing where nothing is missing.
+
+⚠ **`git add`/`git commit` are WRITE commands, and that is a materially larger grant than three
+read-only no-ops.** It must be stated plainly at the offer. It is nonetheless the right content:
+it matches `/auto`'s own authority model exactly — **D4 grants local commits and never grants
+push** — so the knob offers precisely the authority the skill already claims, and nothing beyond it.
 
 ---
 
@@ -249,7 +276,9 @@ three-pattern set is wrong**; only the reason differs.
 
 ## Open questions
 
-- **OQ1** — the in-flight probe. Blocks C and Phase C's disposition. Resolves within minutes.
+- ✅ **OQ1 — CLOSED 2026-09-03.** The probe executed (`npm list --depth=0` → `tool_result
+  is_error=False`, content-verified). An allow rule does gate-clear a non-builtin command
+  unattended. C is unblocked; Phase C is re-scoped rather than reverted.
 - **OQ2** — does `ssh *` / `curl *` warrant the same treatment? Out of scope by Mike's standing
   preference, but D11 now gives a standard they do not meet. His call, not this spec's.
 - **OQ3** — AC2a's verification needs a fresh session. Should the plan stop at "denies added,
