@@ -63,7 +63,12 @@ grep -qiF 'ADR-094' "$SK" && ok "I ADR-094 runtime gate" || bad "I ADR-094" "no 
 # the ADR-094 colliding-name template, not from a measurement. Replaced, not deleted: the true
 # fact is that this skill is Code-only and therefore outside the collision set. Directly
 # contradicts nothing else in this suite; FG1 asserts the dead token's absence.
-grep -qiF 'ships in the Claude Code port only' "$SK" \
+# ⛔ Assert the CLAIM, not one phrasing of it. This pinned the literal string
+# 'ships in the Claude Code port only'; the skill was rewritten 2026-09-01 (68ba200) and now
+# states the same fact as 'There is no Cowork counterpart of this skill — it is Code-only'.
+# The guard went red on a correct change, which is what a spelling pin does. The fact itself is
+# verified two-sided: plugin-claude-cowork/skills has no `auto` entry against 24 that do exist.
+grep -qiE 'code-only|Claude Code port only' "$SK" \
   && ok "I declared Code-only (outside the collision set)" || bad "I code-only" "Code-only scope not declared"
 
 # J: routes AWAY to the right sibling when /go is the wrong tool (anti-overtrigger)
