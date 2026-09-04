@@ -103,7 +103,15 @@ kt_user_rules_block() {
       if (tag == "") return
       p = para
       gsub(/\*\*/, "", p)
-      if (length(p) <= window) {
+      if (length(p) == 0) {
+        # (0) NO LEAD — every paragraph in the rule was a metadata marker. Title only, and
+        # note there is NO separator: printing one yields a dangling "** — " with an empty body.
+        # BRANCH (iv) DOES NOT COVER THIS and must not be relied on to. Its guard is
+        # length(p) > ceiling; an empty lead is the SMALLEST possible value, so it routes to
+        # branch (i) instead. Measured 2026-09-05 before this guard existed: an Origin-only
+        # rule rendered exactly that dangling line.
+        printf "%s- **%s — %s**", sep, tag, title
+      } else if (length(p) <= window) {
         # (i) fits — full lead.
         printf "%s- **%s — %s** — %s", sep, tag, title, p
       } else {
@@ -151,10 +159,24 @@ kt_user_rules_block() {
       # Blank line ENDS the lead paragraph. Before the paragraph starts it is just
       # spacing under the heading, so it is skipped rather than treated as an end.
       if (t == "") { if (para != "") collecting = 0; next }
-      # The provenance block records how a rule came to exist, not what it asks of
-      # you. Skipped when it LEADS; when it follows the lead it is a new paragraph,
-      # so it ends collection instead of being joined in.
-      if (t ~ /^\*\*Origin:/) { if (para == "") next; collecting = 0; next }
+      # METADATA PARAGRAPHS are not the lead. A metadata block records how a rule came to
+      # exist or what state it is in, not what it asks of you. Skipped when it LEADS; when it
+      # follows the lead it is a new paragraph, so it ends collection instead of being joined
+      # in. (Widened 2026-09-05 from the single Origin arm to the set below.)
+      #
+      # THIS SET AND THE ONE IN check-rule-lead-bytes.sh MUST STAY IDENTICAL. Before
+      # 2026-09-05 the gate had NO metadata concept at all, so on an Origin-first rule the
+      # generator rendered the lead while the gate measured the Origin block — two
+      # implementations, two different subjects, no error. tests/test-user-rules-digest.sh
+      # asserts they agree; that assertion is the only thing preventing a third divergence.
+      #
+      # Why and How to apply are DELIBERATELY ABSENT and must never be added. Per /audit rules
+      # Step 7.1 a rule is a lead paragraph, then Why with the dated quotes, then How to apply,
+      # then Falsifier, then Origin — so they FOLLOW the lead. They match the general
+      # **Label: shape and are therefore the most tempting additions; skipping them would
+      # silently discard real rule content. A rule that LEADS with one is an authoring error,
+      # which the gate reports as UNKNOWNLABEL rather than guessing.
+      if (t ~ /^\*\*(Origin|Last updated|Status|Superseded):/) { if (para == "") next; collecting = 0; next }
       # D3 (2026-08-28): accumulate the WHOLE paragraph. The old guard was
       # `para == ""`, which captured only the FIRST line and discarded the rest with
       # no ellipsis and no signal — strictly worse than truncation, which at least
