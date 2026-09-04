@@ -2,7 +2,7 @@
 
 All notable changes to ARIA will be documented in this file.
 
-## 2.52.0 — 2026-08-28
+## 2.52.0 — 2026-09-05
 
 **The always-on user-rule digest no longer severs a claim — and the 240-byte window turns out to be a contract, not a setting.** 15 of 25 rules in a real corpus rendered with their operative text cut to an ellipsis. A severed qualifier can invert a rule: a lead reading *never X unless Y*, cut before *unless*, instructs the opposite of the rule.
 
