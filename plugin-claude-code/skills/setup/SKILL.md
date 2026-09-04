@@ -729,9 +729,9 @@ PY
 ```
 
 ⚠ **Known gap, stated rather than glossed:** this assertion runs here, at write time. It is **not
-yet adopted by `/audit-config`**, so nothing re-checks the set later. A check nobody re-runs cannot
+yet adopted by `/audit config`**, so nothing re-checks the set later. A check nobody re-runs cannot
 detect drift — an allowlist that is only ever appended to is how a 161-entry list accumulates with
-nobody having decided the total. Wiring it into `/audit-config` is a follow-on.
+nobody having decided the total. Wiring it into `/audit config` is a follow-on.
 
 ## Step 7g: Populate the Knowledge Index
 
