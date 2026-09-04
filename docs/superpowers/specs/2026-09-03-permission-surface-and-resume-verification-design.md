@@ -39,7 +39,7 @@ permissions for zero benefit is worse than no grant. **See D-C1 for the disposit
 instrument that could actually discriminate.** `npm list --depth=0` — allowlisted as
 `Bash(npm list:*)`, and `npm` is **not** in the built-in set — executed in an unattended scheduled
 task: `tool_use: Bash cmd='npm list --depth=0'` → `tool_result is_error=False out='projects@1.0.0
-/Users/mikeprasad/Projects…'`. Transcript `6dadb764…jsonl`, 31 records, exactly one `tool_use`.
+/Users/you/Projects…'`. Transcript `6dadb764…jsonl`, 31 records, exactly one `tool_use`.
 Verified by **content**, not by a bare `tool_result`-presence grep.
 
 ⇒ **An `allow` rule DOES gate-clear a non-builtin command in an unattended task.**

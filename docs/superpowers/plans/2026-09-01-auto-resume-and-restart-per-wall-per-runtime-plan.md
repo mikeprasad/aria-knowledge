@@ -76,7 +76,7 @@ from a census as an instruction").
 - [ ] **Step 1: Write the failing acceptance check**
 
 ```bash
-cd /Users/mikeprasad/Projects/aria/aria-knowledge
+cd /Users/you/Projects/aria/aria-knowledge
 for p in plugin-claude-code plugin-antigravity plugin-openai-codex; do
   printf '%-22s %s\n' "$p" "$(/usr/bin/grep -c 'ships in the Claude Code port only' "$p/skills/auto/SKILL.md")"
 done
@@ -344,7 +344,7 @@ The gate's `per-task-review-blind-spot-needs-final-holistic-pass` applies: A1–
 - [ ] **Step 1: Confirm no self-contradiction remains**
 
 ```bash
-cd /Users/mikeprasad/Projects/aria/aria-knowledge
+cd /Users/you/Projects/aria/aria-knowledge
 for p in plugin-claude-code plugin-antigravity plugin-openai-codex; do
   f="$p/skills/auto/SKILL.md"
   echo "--- $p"
@@ -636,7 +636,7 @@ moments. Untested shapes include a fully-literal pattern (no `:*`) and a quoted-
 Neither is needed by Phase C, so this is a named bound, not a blocker.
 
 ⚑ Incidental operational fact from R2: a scheduled task runs with **cwd =
-`/Users/mikeprasad/Projects`** (the bare `git log` resolved against the root repo). So a
+`/Users/you/Projects`** (the bare `git log` resolved against the root repo). So a
 cwd-dependent command works but silently binds to the root repo, not a sub-repo — prefer absolute
 paths in any scheduled prompt.
 
@@ -662,8 +662,8 @@ python3 - <<'PY'
 import json
 need={"git merge-base","head","tail"}   # git ls-remote DROPPED: already allowlisted AND exec-capable (Step 4)
 have=set()
-for p in ["/Users/mikeprasad/.claude/settings.json",
-          "/Users/mikeprasad/Projects/.claude/settings.local.json"]:
+for p in ["/Users/you/.claude/settings.json",
+          "/Users/you/Projects/.claude/settings.local.json"]:
     try: d=json.load(open(p))
     except FileNotFoundError: continue
     for a in (d.get("permissions",{}).get("allow") or []):
