@@ -495,5 +495,46 @@ printf '### CS-3 · 2026-08-04T00:00:00Z · handoff · RETIRED-BY-HAND 2026-08-1
   && ok "M10 control: an out-of-set status IS detected" \
   || bad "M10 DEAD INSTRUMENT" "the closed-set check cannot see a violation, so its empty result proved nothing"
 
+# --- N: PORT PARITY for kt_ss_ledger_add (Unit B, T6) ------------------------------------------
+# ⛔ NOTHING ELSE COVERS THIS. This suite sources ONLY the canonical port (LIB, near the top), and
+# tests/repros/port-drift-check.sh compares VERSION strings — measured 24 version references and
+# ZERO content references — so a fix landing in 1 of the 3 carrying ports passes every existing gate.
+# kt_ss_ledger_add is edited in three ports at once; without this arm, two of them can silently rot.
+#
+# ⛔ THE SELF-CHECK IS A CKSUM, NEVER A LINE COUNT, and it strips FULL-LINE comments ONLY. Measured
+# 2026-09-08: a naive `s/#.*$//` CORRUPTS the code — it leaves `if grep -q '^` and `elif grep -q '^`
+# with unterminated quotes, because the function body contains '^## Pending handoffs$' — while the
+# TOTAL LINE COUNT is 33 either way, since it truncates lines rather than deleting them. So a
+# count-based self-check reports the broken extractor healthy. A cksum separates them.
+#
+# ⛔ A MISSING PATH FAILS, it does not skip. A skip-when-absent arm is a gate with no subject.
+# ⚠ The port list is written as LITERAL words, not expanded from a variable: an unquoted variable is
+# NOT word-split under zsh, which would silently collapse the loop to a single bogus path.
+_ss_addsum() {
+  [ -f "$1" ] || { printf 'MISSING'; return 0; }
+  awk '/^kt_ss_ledger_add\(\)/{f=1} f{print} f&&/^}$/{exit}' "$1" \
+    | grep -vE '^[[:space:]]*#' | grep '[^[:space:]]' | cksum | awk '{print $1}'
+}
+_N1=$(_ss_addsum "$REPO_ROOT/plugin-claude-code/bin/lib-session-state.sh")
+_N2=$(_ss_addsum "$REPO_ROOT/plugin-antigravity/bin/lib-session-state.sh")
+_N3=$(_ss_addsum "$REPO_ROOT/plugin-cursor-template/scripts/aria/lib-session-state.sh")
+if [ "$_N1" = MISSING ] || [ "$_N2" = MISSING ] || [ "$_N3" = MISSING ]; then
+  bad "N port parity" "a carrying port's path is MISSING (claude-code=$_N1 antigravity=$_N2 cursor=$_N3) — a skip-when-absent arm is a gate with no subject"
+elif [ "$_N1" = "$_N2" ] && [ "$_N2" = "$_N3" ]; then
+  ok "N kt_ss_ledger_add is byte-identical across all 3 carrying ports (comment-normalised cksum)"
+else
+  bad "N port parity" "kt_ss_ledger_add DIFFERS across ports: claude-code=$_N1 antigravity=$_N2 cursor=$_N3"
+fi
+# The 4th port genuinely does not carry the function — assert that, so its absence from the parity
+# set above is a measured fact rather than an oversight that would hide a real omission.
+# ⚠ NOT `grep -c ... || echo 0`: grep -c PRINTS 0 and EXITS 1 when there are no matches, so the
+# `||` fires on top of the printed 0 and the value becomes "0\n0" — which then fails `-eq` and sent
+# this very arm red on its first run. awk always prints exactly once and exits 0.
+_N4=$(awk '/kt_ss_ledger_add/{c++} END{print c+0}' "$REPO_ROOT/plugin-openai-codex/bin/lib-session-state.sh" 2>/dev/null)
+[ -n "$_N4" ] || _N4=0
+[ "$_N4" -eq 0 ] \
+  && ok "N plugin-openai-codex carries no kt_ss_ledger_add, so it is correctly out of the parity set" \
+  || bad "N codex port" "plugin-openai-codex now carries kt_ss_ledger_add ($_N4 refs) and must join the parity set"
+
 printf "\n%d passed, %d failed\n" "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
