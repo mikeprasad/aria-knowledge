@@ -185,14 +185,37 @@ $_ss_prompt
   _ss_tmp="$_ss_f.$$.tmp"
   # Grandfathering: an existing legacy '## Prior sessions' heading keeps receiving entries
   # so old files are never orphaned; anything new lands under '## Pending handoffs'.
-  if grep -q '^## Pending handoffs$' "$_ss_f" 2>/dev/null; then
-    _ss_head_re='^## Pending handoffs$'
-  elif grep -q '^## Prior sessions$' "$_ss_f" 2>/dev/null; then
-    _ss_head_re='^## Prior sessions$'
-  else
-    _ss_head_re=''
-  fi
-  if [ -n "$_ss_head_re" ]; then
+  # RC-2: resolve the anchor ONCE, tolerantly, to a LINE NUMBER + canonical family name.
+  #
+  # ⛔ THE OLD FORM WAS `grep -q '^## Pending handoffs$'` AND THAT EXACT ANCHOR WAS THE DEFECT.
+  # One trailing space defeats it, detection fails, and the else-branch below appends a SECOND
+  # '## Pending handoffs' section at EOF — below every '## Archived' heading. Reproduced 2026-09-08
+  # on a copy of an 8k-line ledger: the new entry landed at EOF while the real section sat at L141.
+  # That one line explains three separately-catalogued findings: competing ledger sections, a block
+  # "marooned below the archive sections", and much of a 42-entry invisibility.
+  #
+  # Collapsing detection and splice into ONE decision (a line number) removes the class where
+  # `grep -q` says yes and the splice `awk` targets something else.
+  #
+  # ⛔ TOLERANCE IS A CLOSED SET, NOT A LOOSE REGEX — whitespace, bold markers, case, and heading
+  # level. Deliberately NOT arbitrary trailing content: the paired write below canonicalises what
+  # this accepts, so accepting '## Pending handoffs — superseded' would REWRITE it and destroy
+  # information. Never loosen a read further than its paired write can safely canonicalise.
+  #
+  # ⛔ PENDING IS SCANNED FIRST OVER THE WHOLE FILE, THEN PRIOR — preserving the old if/elif
+  # precedence. A single first-match scan would let a '## Prior sessions' high in the file beat a
+  # '## Pending handoffs' lower down. Measured latent (0 of 18 ledgers carry both spellings), but
+  # an unmeasured behaviour change riding inside a fix for a different defect is its own defect.
+  _ss_anchor=$(awk '
+    function norm(s) { gsub(/^[[:space:]]+|[[:space:]]+$/, "", s); gsub(/[*]/, "", s); return tolower(s) }
+    { L[NR] = $0 }
+    END {
+      for (i = 1; i <= NR; i++) { s = norm(L[i]); if (s == "## pending handoffs" || s == "### pending handoffs") { print i "|Pending handoffs"; exit } }
+      for (i = 1; i <= NR; i++) { s = norm(L[i]); if (s == "## prior sessions"   || s == "### prior sessions")   { print i "|Prior sessions";   exit } }
+    }' "$_ss_f" 2>/dev/null)
+  _ss_ln=${_ss_anchor%%|*}
+  _ss_can=${_ss_anchor#*|}
+  if [ -n "$_ss_ln" ]; then
     # Insert the block immediately after the heading line (newest-first). Split the
     # file at the heading via awk (single-zone: head = through the heading + a blank
     # line; tail = the rest), then reassemble with the block via printf — NEVER pass
@@ -200,10 +223,22 @@ $_ss_prompt
     _ss_head="$_ss_f.$$.head"; _ss_tail="$_ss_f.$$.tail"
     # head = lines through the "## Prior sessions" heading + one blank; tail = the rest.
     # The block is injected between head and tail by printf (not awk -v).
-    awk -v hre="$_ss_head_re" 'BEGIN{z=0}
-      z==1 {print > t; next}
-      {print > h}
-      $0 ~ hre && z==0 {print "" > h; z=1}
+    # Splice by LINE NUMBER, and CANONICALISE the heading in the same pass — the PAIRED WRITE.
+    #
+    # ⛔ THE PAIRED WRITE IS LOAD-BEARING, NOT COSMETIC. A tolerant read that leaves a non-canonical
+    # heading in place is strictly worse than the bug it replaces: the read-boundary checker's parent
+    # test is an EXACT comparison, so every entry under '## Pending handoffs ' would flip to
+    # "misparented" and the checker would go RED *because of* this fix. A loosened match whose paired
+    # write stays anchored to the old shape is the shape where every cheap signal reports success and
+    # nothing changes on disk.
+    #
+    # ⛔ CANONICALISE WITHIN THE MATCHED FAMILY, NEVER ACROSS IT. '## Prior sessions' is deliberate
+    # grandfathering with live subjects; converting it to '## Pending handoffs' would orphan them.
+    # `$_ss_can` carries the family, so this cannot cross.
+    awk -v n="$_ss_ln" -v can="## $_ss_can" '
+      FNR <  n { print     > h; next }
+      FNR == n { print can > h; print "" > h; next }
+               { print     > t }
     ' h="$_ss_head" t="$_ss_tail" "$_ss_f" 2>/dev/null
     { cat "$_ss_head" 2>/dev/null; printf '%s' "$_ss_blk"; cat "$_ss_tail" 2>/dev/null; } > "$_ss_tmp" 2>/dev/null && mv "$_ss_tmp" "$_ss_f" 2>/dev/null
     rm -f "$_ss_head" "$_ss_tail" 2>/dev/null
