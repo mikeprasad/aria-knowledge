@@ -183,6 +183,43 @@ $_ss_prompt
 <!-- aria:entry-end -->
 "
   _ss_tmp="$_ss_f.$$.tmp"
+  _ss_blkf="$_ss_f.$$.blk"
+
+  # RC-3: skip ONLY a byte-identical block. There was no idempotency guard at all before this.
+  #
+  # ⛔⛔ THE KEY IS THE BLOCK, NEVER `(sessionId, at)`. That pair is NOT a handoff's identity, and a
+  # guard keyed on it DISCARDS REAL CONTENT from the one function whose contract is that a stored
+  # prompt is kept at FULL fidelity. Measured on a real ledger: the pair
+  # `8d107131 · 2026-09-06T11:06:25Z` was TWO DIFFERENT 54-line bodies in the single commit that
+  # created it, differing in one prompt line; and a second pair's sid is recorded in the file itself
+  # as "a HOOK ARTIFACT, not attribution — post-edit-check.sh stamped session 1cabb22b onto this
+  # entry's front-matter". So the key can hold a value a HOOK wrote rather than the author.
+  # ⇒ A key collision carrying a DIFFERING body is WRITTEN, and reported at the read boundary. Only
+  # an exact re-run is skipped, and a byte-identical skip has nothing to report.
+  #
+  # ⛔ THE EMPTY-BLOCK GUARD MUST BE THE SHELL `[ -s ]` TEST BELOW — an in-awk `bn == 0` branch is
+  # STRUCTURALLY DEAD and must not be added. With an empty first file awk reads no records from it,
+  # so NR == FNR is TRUE for the TARGET's first record and the block array fills FROM THE TARGET:
+  # measured `bn=8079, tn=0`, never `bn=0`. A no-guard control returns the identical exit code,
+  # proving such a branch changes nothing.
+  #
+  # The block reaches awk as a FILE, never via `awk -v` — POSIX awk errors on "newline in string".
+  printf '%s' "$_ss_blk" > "$_ss_blkf" 2>/dev/null
+  if [ -s "$_ss_blkf" ] && awk '
+      NR == FNR { b[++bn] = $0; next }
+                { L[FNR] = $0; tn = FNR }
+      END {
+        for (i = 1; i <= tn - bn + 1; i++) {
+          ok = 1
+          for (j = 1; j <= bn; j++) if (L[i + j - 1] != b[j]) { ok = 0; break }
+          if (ok) exit 0
+        }
+        exit 1
+      }' "$_ss_blkf" "$_ss_f" 2>/dev/null; then
+    rm -f "$_ss_blkf" 2>/dev/null
+    return 0
+  fi
+  rm -f "$_ss_blkf" 2>/dev/null
   # Grandfathering: an existing legacy '## Prior sessions' heading keeps receiving entries
   # so old files are never orphaned; anything new lands under '## Pending handoffs'.
   # RC-2: resolve the anchor ONCE, tolerantly, to a LINE NUMBER + canonical family name.
