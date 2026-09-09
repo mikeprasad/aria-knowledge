@@ -63,9 +63,18 @@ trap 'rm -rf "$STAGING"' EXIT
 
 STAGE_DIR="$STAGING/$CODEX_NAME"
 log "staging: $STAGE_DIR"
+# rsync copies from the WORKING TREE, so gitignoring a leftover does nothing. Measured
+# 2026-09-09: a stray *.bak-preU8fix reached the staging tree of every port and the junk
+# check below passed over it, because that check greps only for this port's own exclusions.
 rsync -a \
     --exclude='.DS_Store' \
     --exclude='__MACOSX' \
+    --exclude='*.bak' \
+    --exclude='*.bak-*' \
+    --exclude='*.bak.*' \
+    --exclude='*.orig' \
+    --exclude='*.rej' \
+    --exclude='*.swp' \
     --exclude='.claude/' \
     --exclude='PORTING.md' \
     --exclude='tests/' \
@@ -85,6 +94,11 @@ log "zipping: $(basename "$ZIP_PATH")"
 # --- verify -----------------------------------------------------------------
 junk=$(unzip -l "$ZIP_PATH" | grep -cE '(__MACOSX|\.DS_Store|\.claude/settings|PORTING\.md)' || true)
 [[ "$junk" -eq 0 ]] || die "verification failed: $junk junk entries in zip"
+
+# Belt-and-braces for the leftover excludes above: fails LOUDLY if one is removed or a new
+# suffix appears, rather than shipping it.
+leftovers=$(unzip -l "$ZIP_PATH" | grep -cE '\.(bak|orig|rej|swp)([-.][^/ ]*)?$' || true)
+[[ "$leftovers" -eq 0 ]] || die "verification failed: $leftovers editor/VCS leftover file(s) in zip"
 
 manifest=$(unzip -l "$ZIP_PATH" | grep -c "$CODEX_NAME/\.codex-plugin/plugin\.json" || true)
 [[ "$manifest" -eq 1 ]] || die "verification failed: codex manifest missing or duplicated ($manifest found)"
