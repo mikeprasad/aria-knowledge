@@ -131,6 +131,20 @@ printf '%s' "$HSEC" | grep -qF "kt_ss_ledger_add" \
 printf '%s' "$HCLAUSE" | grep -qF "$_R22_RETIRED" \
   && bad "H1 retired rationale" "handoff still carries the false in-progress rationale — the same claim, in the other skill" \
   || ok "H1 handoff: retired in-progress rationale absent"
+# ── H3/H4: the prompt ARGUMENT is named precisely, and the false safety claim stays retired ─────
+# ⛔ TWO-SIDED ON PURPOSE. H3 alone (absence) passes for ANY rewording including a deletion of the
+# whole clause; H4 alone (presence) passes while the retired claim sits beside it contradicting it.
+# The retired sentence was TRUE of the shell helpers and FALSE of the heading-scoped readers, and a
+# caller acted on it: one demoted entry in cs/SESSION.md carried three column-0 headings and put 75
+# entries outside the ledger section. Scope, not staleness — so re-reading it could never catch it.
+_FENCE_RETIRED='so a stored prompt may safely contain column-0'
+printf '%s' "$HCLAUSE" | grep -qF "$_FENCE_RETIRED" \
+  && bad "H3 retired safety claim" "handoff still tells the caller a stored prompt may safely carry column-0 \`## \` lines — true for kt_ss_ledger_*, false for every heading-scoped reader" \
+  || ok "H3 handoff: retired unqualified safety claim absent"
+printf '%s' "$HCLAUSE" | grep -qiE 'pass the [^.]*fenced' \
+  && ok "H4 handoff: the prompt argument is named as the FENCED body" \
+  || bad "H4 prompt argument" "the clause no longer names WHICH fragment to pass, so \"the prompt\" resolves toward the section headings again"
+
 printf '%s' "$HCLAUSE" | grep -qF 'has `lastEvent: handoff` and its' \
   && bad "H2 handoff gate" "the handoff gate still keys on \`lastEvent: handoff\`, so an in-progress marker carrying a real prompt is never demoted" \
   || ok "H2 handoff: gate no longer keys on \`lastEvent: handoff\` alone"
