@@ -149,11 +149,21 @@ STAGING=$(mktemp -d -t "aria-release.XXXXXX")
 trap 'rm -rf "$STAGING"' EXIT
 
 log "staging: $STAGING/$PLUGIN_NAME"
+# ⛔ *.bak* / *.orig / *.rej are NOT hypothetical and gitignoring them does NOT help: rsync copies
+# from the WORKING TREE, so git has no say. Measured 2026-09-09 — a stray
+# bin/pre-commit-preflight-check.sh.bak-preU8fix reached the staging tree and the verification below
+# passed with it inside, because that check greps only for __MACOSX/.DS_Store/.claude/settings.
 rsync -a \
     --exclude='.DS_Store' \
     --exclude='__MACOSX' \
     --exclude='.claude/' \
     --exclude='tests/' \
+    --exclude='*.bak' \
+    --exclude='*.bak-*' \
+    --exclude='*.bak.*' \
+    --exclude='*.orig' \
+    --exclude='*.rej' \
+    --exclude='*.swp' \
     "$REPO_ROOT/plugin-claude-code/" \
     "$STAGING/$PLUGIN_NAME/"
 
@@ -172,6 +182,11 @@ log "zipping: $(basename "$ZIP_PATH")"
 # --- verify -----------------------------------------------------------------
 junk=$(unzip -l "$ZIP_PATH" | grep -cE '(__MACOSX|\.DS_Store|\.claude/settings)' || true)
 [[ "$junk" -eq 0 ]] || die "verification failed: $junk junk entries in zip"
+
+# Belt-and-braces for the rsync excludes above. The excludes are the fix; this is the check that
+# fails LOUDLY if one is ever removed or a new leftover suffix appears, rather than shipping it.
+leftovers=$(unzip -l "$ZIP_PATH" | grep -cE '\.(bak|orig|rej|swp)([-.][^/ ]*)?$' || true)
+[[ "$leftovers" -eq 0 ]] || die "verification failed: $leftovers editor/VCS leftover file(s) in zip"
 
 manifest=$(unzip -l "$ZIP_PATH" | grep -c "$PLUGIN_NAME/\.claude-plugin/plugin\.json" || true)
 [[ "$manifest" -eq 1 ]] || die "verification failed: manifest missing or duplicated ($manifest found)"
