@@ -2,6 +2,26 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.52.1 — 2026-09-10
+
+**`kt_ss_ledger_prune` was destroying section headings, and the instruction that produced the damage told callers it was safe.** Both are fixed, and both turned out to be wider than the first reading.
+
+An unterminated *consumed* ledger entry had no boundary except the terminator it was missing, so `drop` stayed set until the next well-formed entry header — taking any `## ` section heading in between, and everything under it. Measured on a fixture: 16 lines to 9. This is the class that deleted two unconsumed handoffs from a real `SESSION.md` on 2026-09-04.
+
+Three simpler fixes were prototyped and all three are falsified. The old unconditional `/^## /` reset leaks (the function docstring already recorded that). An unconditional `if (drop) next` swallows a live handoff — `M9c` exists to fail exactly that form. Closing the pass-1 span at any column-0 heading is fence-blind: a `## ` inside a fenced prompt then marks a terminated entry as unterminated. What ships instead discriminates per entry — pass 1 records which entries actually *have* a terminator, and the recovery branch is scoped to the ones that do not, so a block with a declared end keeps declared boundaries.
+
+**The instruction, and why wording was the right fix.** `/handoff` 3f said: *"Block boundaries are declared by an explicit terminator, so a stored prompt may safely contain column-0 `## ` lines and nested fences."* True of the shell helpers, false of every heading-scoped reader — the SESSION STATE directive and `tools/check-session-ledger.py` both read by heading, and to those a `## ` line ends the ledger section. A caller acted on it: one demoted entry carried all three of `## Where we left off`, `## Next session pickup` and `## Next session prompt`, which is the signature of passing the prior session's whole body rather than its prompt. 75 downstream entries fell outside the ledger.
+
+The structural alternative — have `kt_ss_ledger_add` fence the prompt when it is not already fenced — is **falsified on the measured payload**: the broken body contains an unfenced heading *and* a fenced opener further down, so it already contains a fence and the conditional skips it. A variable-length-fence version would work, but the detector tracks fences with a naive toggle and lives in another repo, so shipping half of it would make the detector newly wrong. The instruction now names the fragment to pass, and says which reader the terminator boundary holds for.
+
+**Ports.** The prune fix reached three ports, and porting it surfaced that `plugin-cursor-template` was *two* fixes behind — it had no `is_entry_header()` at all, so it also missed the 2026-08-27 D4 fix and nothing reported it. The parity arm covered `kt_ss_ledger_add` alone. It is now a function **list**, so a shared function added without joining that list is the only way to re-open the silence. `plugin-openai-codex` carries no prune and is correctly out of the set.
+
+**Release hygiene.** All four release scripts stage with `rsync -a` from the working tree and excluded only their own known junk, so a stray `*.bak` shipped into the zip past a verification that greps for `.DS_Store`. Not hypothetical — every port had one on disk. Gitignoring them does nothing, because rsync does not consult git. Excludes plus a second verification pass are added to all four.
+
+Suite 38 suites / 498 assertions, bare exit 0.
+
+⚠ **Known, not fixed in this release.** `plugin-openai-codex` ships 2 of the 7 `kt_ss_*` functions and has no ledger at all, while its handoff skill instructs calling `kt_ss_ledger_add` and `kt_ss_ledger_prune` — so on that port the demote cannot run and the rewrite that follows destroys a prior pickup. It is consistent with the recorded six-version port lag (all four non-canonical ports read `synced to 2.46.4 → canonical 2.52.0`, `sla=undeclared`) rather than a one-off, and it needs a port arc rather than a patch. `post-edit-check.sh` also still stamps `sessionId` over another session's prompt without demoting first.
+
 ## 2.52.0 — 2026-09-05
 
 **The always-on user-rule digest no longer severs a claim — and the 240-byte window turns out to be a contract, not a setting.** 15 of 25 rules in a real corpus rendered with their operative text cut to an ellipsis. A severed qualifier can invert a rule: a lead reading *never X unless Y*, cut before *unless*, instructs the opposite of the rule.
