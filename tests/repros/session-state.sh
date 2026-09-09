@@ -473,7 +473,7 @@ grep -q 'NOTERM-LIVE-MUST-SURVIVE' "$FD/SESSION.md" \
 # not eat the next live ENTRY, because a well-formed entry header ends the drop. Nothing ended it
 # at a `## ` SECTION heading, so the heading and everything under it were destroyed — measured
 # 2026-09-09 at 16 lines to 9, and this is the class that deleted two unconsumed handoffs from
-# cs/SESSION.md on 2026-09-04. The fix reinstates the `## ` reset ONLY for a block with no
+# proj-a/SESSION.md on 2026-09-04. The fix reinstates the `## ` reset ONLY for a block with no
 # terminator of its own; a terminated block keeps declared boundaries, which is what stops this
 # from being the old unconditional reset that leaked a prompt`s inner `## ` line.
 HD="$TMP/mheading"; mkdir -p "$HD"

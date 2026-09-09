@@ -135,7 +135,7 @@ printf '%s' "$HCLAUSE" | grep -qF "$_R22_RETIRED" \
 # ⛔ TWO-SIDED ON PURPOSE. H3 alone (absence) passes for ANY rewording including a deletion of the
 # whole clause; H4 alone (presence) passes while the retired claim sits beside it contradicting it.
 # The retired sentence was TRUE of the shell helpers and FALSE of the heading-scoped readers, and a
-# caller acted on it: one demoted entry in cs/SESSION.md carried three column-0 headings and put 75
+# caller acted on it: one demoted entry in proj-a/SESSION.md carried three column-0 headings and put 75
 # entries outside the ledger section. Scope, not staleness — so re-reading it could never catch it.
 _FENCE_RETIRED='so a stored prompt may safely contain column-0'
 printf '%s' "$HCLAUSE" | grep -qF "$_FENCE_RETIRED" \
