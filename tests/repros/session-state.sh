@@ -468,6 +468,36 @@ grep -q 'NOTERM-LIVE-MUST-SURVIVE' "$FD/SESSION.md" \
   && ok "M9c unterminated consumed block does not eat the next live entry" \
   || bad "M9c RECOVERY LOST" "an unterminated consumed block swallowed a LIVE handoff — the boundary reset must be discriminated, not removed"
 
+# --- M9d: an unterminated consumed block must not eat the next SECTION HEADING ----------------
+# ⛔ M9c's sibling, and the half that was MISSING. M9c proves an unterminated consumed block does
+# not eat the next live ENTRY, because a well-formed entry header ends the drop. Nothing ended it
+# at a `## ` SECTION heading, so the heading and everything under it were destroyed — measured
+# 2026-09-09 at 16 lines to 9, and this is the class that deleted two unconsumed handoffs from
+# cs/SESSION.md on 2026-09-04. The fix reinstates the `## ` reset ONLY for a block with no
+# terminator of its own; a terminated block keeps declared boundaries, which is what stops this
+# from being the old unconditional reset that leaked a prompt`s inner `## ` line.
+HD="$TMP/mheading"; mkdir -p "$HD"
+cat > "$HD/SESSION.md" <<'FEOF'
+---
+lastEvent: handoff
+---
+
+## Pending handoffs
+
+### HD-OLD · 2026-08-01T00:00:00Z · handoff · consumed 2026-08-02 by x
+- prompt: consumed body with NO terminator after it
+
+## Archived sessions — HEADING-MUST-SURVIVE
+
+### HD-LIVE · 2026-08-03T00:00:00Z · handoff · unconsumed
+- prompt: ARCHIVED-LIVE-MUST-SURVIVE
+<!-- aria:entry-end -->
+FEOF
+kt_ss_ledger_prune "$HD"
+grep -q 'HEADING-MUST-SURVIVE' "$HD/SESSION.md" \
+  && ok "M9d unterminated consumed block does not eat the next section heading" \
+  || bad "M9d HEADING DESTROYED" "an unterminated consumed block swallowed a section heading and everything under it"
+
 # --- M10: D3 — every status the LIBRARY emits is in the closed set ------------------------------
 # Mike's ruling 2026-08-27: closed set at the WRITER. ⛔ NOT implementable as a rejection branch:
 # kt_ss_ledger_add embeds the literal `unconsumed` and has no status parameter, so a validating
