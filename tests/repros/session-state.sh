@@ -540,31 +540,44 @@ printf '### CS-3 · 2026-08-04T00:00:00Z · handoff · RETIRED-BY-HAND 2026-08-1
 # ⛔ A MISSING PATH FAILS, it does not skip. A skip-when-absent arm is a gate with no subject.
 # ⚠ The port list is written as LITERAL words, not expanded from a variable: an unquoted variable is
 # NOT word-split under zsh, which would silently collapse the loop to a single bogus path.
-_ss_addsum() {
+# ⛔ PARITY IS PER FUNCTION, NOT PER FILE. The ports are deliberately comment-divergent (cursor is a
+# lighter variant), so byte-equality of the FILE can never be the test — only comment-normalised
+# equality of each shared FUNCTION can. And it must be asserted for every function that ships in more
+# than one port: kt_ss_ledger_prune drifted for exactly this reason. It missed the 2026-08-27
+# is_entry_header fix in the cursor port and nobody knew, because the parity arm covered only
+# kt_ss_ledger_add. Measured 2026-09-09: cursor was TWO fixes behind. Adding a shared function here
+# without adding it to _SS_PARITY_FNS re-opens that silence.
+_ss_fnsum() {
   [ -f "$1" ] || { printf 'MISSING'; return 0; }
-  awk '/^kt_ss_ledger_add\(\)/{f=1} f{print} f&&/^}$/{exit}' "$1" \
+  awk -v fn="$2" '$0 ~ ("^" fn "\\(\\)"){f=1} f{print} f&&/^}$/{exit}' "$1" \
     | grep -vE '^[[:space:]]*#' | grep '[^[:space:]]' | cksum | awk '{print $1}'
 }
-_N1=$(_ss_addsum "$REPO_ROOT/plugin-claude-code/bin/lib-session-state.sh")
-_N2=$(_ss_addsum "$REPO_ROOT/plugin-antigravity/bin/lib-session-state.sh")
-_N3=$(_ss_addsum "$REPO_ROOT/plugin-cursor-template/scripts/aria/lib-session-state.sh")
-if [ "$_N1" = MISSING ] || [ "$_N2" = MISSING ] || [ "$_N3" = MISSING ]; then
-  bad "N port parity" "a carrying port's path is MISSING (claude-code=$_N1 antigravity=$_N2 cursor=$_N3) — a skip-when-absent arm is a gate with no subject"
-elif [ "$_N1" = "$_N2" ] && [ "$_N2" = "$_N3" ]; then
-  ok "N kt_ss_ledger_add is byte-identical across all 3 carrying ports (comment-normalised cksum)"
-else
-  bad "N port parity" "kt_ss_ledger_add DIFFERS across ports: claude-code=$_N1 antigravity=$_N2 cursor=$_N3"
-fi
-# The 4th port genuinely does not carry the function — assert that, so its absence from the parity
-# set above is a measured fact rather than an oversight that would hide a real omission.
-# ⚠ NOT `grep -c ... || echo 0`: grep -c PRINTS 0 and EXITS 1 when there are no matches, so the
-# `||` fires on top of the printed 0 and the value becomes "0\n0" — which then fails `-eq` and sent
-# this very arm red on its first run. awk always prints exactly once and exits 0.
-_N4=$(awk '/kt_ss_ledger_add/{c++} END{print c+0}' "$REPO_ROOT/plugin-openai-codex/bin/lib-session-state.sh" 2>/dev/null)
-[ -n "$_N4" ] || _N4=0
-[ "$_N4" -eq 0 ] \
-  && ok "N plugin-openai-codex carries no kt_ss_ledger_add, so it is correctly out of the parity set" \
-  || bad "N codex port" "plugin-openai-codex now carries kt_ss_ledger_add ($_N4 refs) and must join the parity set"
+_SS_PARITY_FNS="kt_ss_ledger_add kt_ss_ledger_prune"
+_SS_P1="$REPO_ROOT/plugin-claude-code/bin/lib-session-state.sh"
+_SS_P2="$REPO_ROOT/plugin-antigravity/bin/lib-session-state.sh"
+_SS_P3="$REPO_ROOT/plugin-cursor-template/scripts/aria/lib-session-state.sh"
+_SS_P4="$REPO_ROOT/plugin-openai-codex/bin/lib-session-state.sh"
+
+for _fn in $_SS_PARITY_FNS; do
+  _N1=$(_ss_fnsum "$_SS_P1" "$_fn")
+  _N2=$(_ss_fnsum "$_SS_P2" "$_fn")
+  _N3=$(_ss_fnsum "$_SS_P3" "$_fn")
+  if [ "$_N1" = MISSING ] || [ "$_N2" = MISSING ] || [ "$_N3" = MISSING ]; then
+    bad "N port parity ($_fn)" "a carrying port path is MISSING (cc=$_N1 ag=$_N2 cu=$_N3) — a skip-when-absent arm is a gate with no subject"
+  elif [ "$_N1" = "$_N2" ] && [ "$_N2" = "$_N3" ]; then
+    ok "N $_fn is identical across all 3 carrying ports (comment-normalised cksum)"
+  else
+    bad "N port parity ($_fn)" "$_fn DIFFERS across ports: cc=$_N1 ag=$_N2 cu=$_N3"
+  fi
+  # ⚠ NOT `grep -c ... || echo 0`: grep -c PRINTS 0 and EXITS 1 with no matches, so the `||` fires on
+  # top of the printed 0 and the value becomes "0\n0" — which fails `-eq` and sent this arm red on
+  # its first run. awk always prints exactly once and exits 0.
+  _N4=$(awk -v fn="$_fn" '$0 ~ fn {c++} END{print c+0}' "$_SS_P4" 2>/dev/null)
+  [ -n "$_N4" ] || _N4=0
+  [ "$_N4" -eq 0 ] \
+    && ok "N plugin-openai-codex carries no $_fn, so it is correctly out of the parity set" \
+    || bad "N codex port ($_fn)" "plugin-openai-codex now carries $_fn ($_N4 refs) and must join the parity set"
+done
 
 printf "\n%d passed, %d failed\n" "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

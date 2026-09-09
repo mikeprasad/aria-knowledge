@@ -363,13 +363,35 @@ kt_ss_ledger_prune() {
   awk '
     function is_entry_header(s, n) { n = gsub(/ · /, " · ", s); return (n >= 2) }
 
-    # pass 1: does this file use explicit terminators?
-    NR == FNR { if ($0 == "<!-- aria:entry-end -->") term = 1; next }
+    # pass 1: does this file use explicit terminators, and which entries actually HAVE one?
+    # hasterm[] is keyed on the line number of the entry header, so pass 2 can tell a block with
+    # a declared end from a block without one. The span closes only at a WELL-FORMED entry header,
+    # never at a bare column-0 "## " -- closing at any heading is fence-blind, so a "## " inside a
+    # stored prompt would mark a TERMINATED entry as unterminated and re-arm the recovery branch
+    # below inside the prompt. Measured 2026-09-09 on fixtures: that form LEAKS.
+    NR == FNR {
+      if ($0 ~ /^### / && is_entry_header($0)) cur = FNR
+      else if ($0 == "<!-- aria:entry-end -->") { term = 1; if (cur) hasterm[cur] = 1; cur = 0 }
+      next
+    }
 
     # pass 2 — terminator format: boundaries are an entry header and the terminator only.
     term {
-      if ($0 ~ /^### / && is_entry_header($0)) { drop = ($0 ~ /(^|[^a-z])consumed([^a-z]|$)/) ? 1 : 0; if (drop) next; print; next }
+      if ($0 ~ /^### / && is_entry_header($0)) {
+        drop = ($0 ~ /(^|[^a-z])consumed([^a-z]|$)/) ? 1 : 0
+        opened = FNR
+        if (drop) next
+        print; next
+      }
       if ($0 == "<!-- aria:entry-end -->") { if (drop) { drop = 0; next } print; next }
+      # RECOVERY, and it is SCOPED ON PURPOSE. An unterminated consumed block has no declared
+      # end, so a section heading is the only boundary left; without this, such a block swallows
+      # the next "## " heading and everything under it -- measured, 16 lines to 9 on a fixture,
+      # and this is the class that deleted two unconsumed handoffs on 2026-09-04.
+      # !hasterm[opened] is what keeps this from being the old unconditional reset that LEAKED:
+      # a block that HAS a terminator keeps declared boundaries, so a "## " inside its stored
+      # prompt cannot close it early. Removing that one clause makes the leak fixture leak.
+      if (drop && !hasterm[opened] && $0 ~ /^## / && $0 !~ /^### /) { drop = 0; print; next }
       if (!drop) print
       next
     }

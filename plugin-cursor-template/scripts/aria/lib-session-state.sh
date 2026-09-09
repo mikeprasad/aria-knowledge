@@ -319,20 +319,43 @@ kt_ss_ledger_prune() {
   _ss_f="$1/SESSION.md"
   [ -f "$_ss_f" ] || return 0
   _ss_tmp="$_ss_f.$$.tmp"
+  # Kept functionally identical to plugin-claude-code/bin/lib-session-state.sh -- read that copy for
+  # the full reasoning. Three things here are load-bearing and none may be "simplified":
+  #   1. is_entry_header: a "### " line is an ENTRY HEADER only if it carries >= 2 " . " separators
+  #      (measured 25/25 real headers vs 3/3 prose headings). Everything else at column 0 inside an
+  #      open block is CONTENT and drops with the block.
+  #   2. the word-bounded status test: a naive /consumed/ ALSO matches `unconsumed`, which would make
+  #      prune delete LIVE handoffs.
+  #   3. !hasterm[opened] on the recovery branch: without the scope it is the old unconditional reset,
+  #      which leaks a prompt`s inner "## " line; without the branch at all, an unterminated consumed
+  #      block eats the next section heading and everything under it.
+  # DO NOT collapse to an unconditional `if (drop) next` -- measured to swallow a live handoff.
   awk '
-    # pass 1: does this file use explicit terminators?
-    NR == FNR { if ($0 == "<!-- aria:entry-end -->") term = 1; next }
+    function is_entry_header(s, n) { n = gsub(/ · /, " · ", s); return (n >= 2) }
 
-    # pass 2 — terminator format: boundaries are the header and the terminator only.
+    # pass 1: terminators in use, and which entries actually have one.
+    NR == FNR {
+      if ($0 ~ /^### / && is_entry_header($0)) cur = FNR
+      else if ($0 == "<!-- aria:entry-end -->") { term = 1; if (cur) hasterm[cur] = 1; cur = 0 }
+      next
+    }
+
+    # pass 2 -- terminator format: boundaries are an entry header and the terminator only.
     term {
-      if ($0 ~ /^### /) { drop = ($0 ~ /· consumed /) ? 1 : 0; if (drop) next; print; next }
+      if ($0 ~ /^### / && is_entry_header($0)) {
+        drop = ($0 ~ /(^|[^a-z])consumed([^a-z]|$)/) ? 1 : 0
+        opened = FNR
+        if (drop) next
+        print; next
+      }
       if ($0 == "<!-- aria:entry-end -->") { if (drop) { drop = 0; next } print; next }
+      if (drop && !hasterm[opened] && $0 ~ /^## / && $0 !~ /^### /) { drop = 0; print; next }
       if (!drop) print
       next
     }
 
-    # pass 2 — legacy format: prompts are single-line, so "## " inference is safe.
-    /^### / { drop = ($0 ~ /· consumed /) ? 1 : 0; if (drop) next }
+    # pass 2 -- legacy format: prompts are single-line, so "## " inference is safe here.
+    /^### / { drop = ($0 ~ /(^|[^a-z])consumed([^a-z]|$)/) ? 1 : 0; if (drop) next }
     /^## / && $0 !~ /^### / { drop = 0 }
     { if (!drop) print }
   ' "$_ss_f" "$_ss_f" > "$_ss_tmp" 2>/dev/null && mv "$_ss_tmp" "$_ss_f" 2>/dev/null
