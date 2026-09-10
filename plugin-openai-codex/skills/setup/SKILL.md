@@ -447,9 +447,8 @@ multi-repo: one probe per sub-repo declared in `projects_groups[tag]`).
 
 - **All probed folders empty** → make the offer below.
 - **Any folder populated** → do NOT offer. Emit ONE line stating what exists, e.g.
-  `Shared knowledge: 33 files across 5 locations (cs 1, cs/commonspace-app 6,
-  cs/commonspace-ui-v3 14, ss/seersite-server 7, ss/seersite-frontend 5). Run
-  /audit share anytime.`
+  `Shared knowledge: 33 files across 5 locations (proj-a 1, proj-a/backend 6,
+  proj-a/web 14, proj-b/backend 7, proj-b/web 5). Run /audit share anytime.`
 
 Without the probe this step fires whenever `projects_shared_knowledge` is non-empty, so it
 calls itself a cold-start sweep on workspaces that are years past cold start. Measured
