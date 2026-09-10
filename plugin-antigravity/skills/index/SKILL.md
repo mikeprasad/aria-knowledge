@@ -390,6 +390,19 @@ included, and the excluded 2,126 could contribute nothing. Steps 8c (skills) and
 
 Also check for **reverse link gaps**: if file A's `## Related` links to file B, but file B's `## Related` doesn't link to file A.
 
+⛔ **Do not propose a reverse link when the target is a hub.** A hub is a file whose
+inbound link count exceeds a threshold — **5 is the default and it is tunable**. Hub-and-spoke
+is a legitimate shape for foundational notes, and making a hub link back to all of its
+consumers turns it into a link farm and makes it *worse* to read, not better. Measured
+2026-09-10: 756 reverse-link gaps across 367 distinct targets — diffuse, max 11 per target —
+and the top targets are exactly the foundational notes (`approaches/gate-coverage-shape.md`
+11 inbound, `approaches/vercel-serverless-patterns.md` 10,
+`approaches/instrument-validity-before-evidence.md` 9). Propose reciprocal links only for
+genuinely peer-to-peer pairs.
+
+⚠ Absence of a `## Related` section is the norm, not a finding: 374 of 912 authored files
+have none. Do not surface "file has no Related section" as a gap.
+
 **Present suggestions:**
 
 ```
