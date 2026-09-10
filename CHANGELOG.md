@@ -2,6 +2,24 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.52.4 — 2026-09-10
+
+**Five measured defects in `/index` and `/setup`, and two of them were specified for ports that do not carry the code.**
+
+`/index` Step 8d matched filename stems across project directories to find cross-project promotion candidates. ARIA's own conventions put identically-named files in every project directory, so filename identity is the norm there rather than a signal — the `/setup` spec itself says `projects/{tag}/rules/` "lands `working-rules.md` here". Measured on a 3,030-file corpus the step returned exactly three candidates and all three were false by construction (`retrospect-patterns.md` across 7 projects, `working-rules.md` 6, `prospect-patterns.md` 4); genuine candidates: zero. Six convention names are now excluded from heuristic 1 only — tag overlap and title similarity are untouched, so such a file can still surface when it genuinely shares tags.
+
+Steps 8 and 8b said "all promoted files", so on a log-heavy corpus they computed millions of pairs over files that cannot contribute to the result. Both are now scoped to the authored tiers. The measurement behind it was corrected before shipping: an earlier pass recorded "0 of 2,124 log files carry a `## Related` section" and it is **1 of 2,127**, against 727 of 948 authored. An absolute zero written into a spec is falsifiable, and that one was already false — the note states a dated ratio instead.
+
+Step 8's reverse-link check treated hub asymmetry as a defect. It is not: making a foundational note link back to all eleven of its consumers turns it into a link farm and makes it worse to read. Measured 756 gaps across 367 distinct targets, diffuse, max 11 each, with the top targets exactly the hub notes. Hubs are now exempt above a tunable threshold, default 5, and the spec records that absence of a `## Related` section is the norm — 374 of 912 authored files have none — rather than a finding.
+
+`/setup` Step 7f skipped its rules pointer only when `CLAUDE.md` carried an `## ARIA Rules` heading. Measured on a real workspace: no heading, but the file already pointed at both rules files three times. The literal check passed and the step would have appended the exact duplicate it exists to prevent. The skip now fires on pointer **or** heading.
+
+Step 7d called its `/audit share` offer "the cold-start sweep" while firing whenever `projects_shared_knowledge` was non-empty. It now probes the `_project-knowledge/` folders first and offers only when they are empty; when populated it states what exists in one line. Measured 33 files across 5 populated locations — the offer was noise on every re-run. That figure was also corrected: an earlier count said 32 across 4 and had missed the workspace-repo-level folder.
+
+**Two items were specified for ports whose anchor does not exist, and the gate caught both before anything was written.** The hub fix was specified for all four ports including cowork, reasoned from hub asymmetry being a property of knowledge rather than of logs — sound, but cowork's index skill has zero hits for the reverse-link clause against a canonical control of one, and its Step 8 is a documented lighter variant. The Step 7f fix was specified for three ports; `plugin-openai-codex` has no Step 7f at all. Both absences are recorded rather than patched, because adding either would be new functionality. This is the inverse of the census error 2.52.2 documented — there a `plugin-*/bin/` glob under-reached, here a design argument over-reached; the shared cause is a port scope asserted without counting the anchor.
+
+One further item was assessed and dropped: Step 8b's entity detection returns filenames and language keywords, but its genuine survivors are already covered by language tags, so its ceiling is low even repaired.
+
 ## 2.52.3 — 2026-09-10
 
 **The provenance fix reaches the remaining ports, and gate D learns to read commit messages.**
