@@ -2,6 +2,18 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.52.2 — 2026-09-10
+
+**`kt_ss_mark_inprogress` was destroying handoff provenance, and the guard that would have stopped it was already written — just never tested.** The awk that refreshes `SESSION.md`'s first frontmatter block sets `sle`/`sat`/`sbr`/`shc`/`ssid` on each match and then never reads them, so every matching line in the block was rewritten rather than only the first. A block carrying stacked entries had all of them collapsed onto the current session, silently, on the session's first edit.
+
+Stacked blocks are not hypothetical or hand-made: a `SESSION.md` unioned across a branch merge produces them. Measured on a real repo at `5dc18dd` and `0745626` — `at`, `branch`, `headCommit` and `sessionId` each ×3 — and the shape survived into ordinary non-merge commits afterwards, so the exposure window lasts until the next handoff happens to write a single-valued block. One sampled commit shows `sessionId×2` against `branch×3`, which is a partially-collapsed state: this had already fired at least once before anyone noticed.
+
+Reproduced against a fixture before fixing: 11 of 11 provenance values destroyed. Note the arm that misleads — outside a git repo `branch` and `headCommit` come back empty and hit the `else print` path, so they survive and the damage looks half as bad. The git-repo arm is the real one.
+
+The fix is to test the flags the code already sets. Entry 1 is the current-state slot and is still refreshed; entries 2..N are history and are now preserved verbatim. Verified two-sided: stacked input loses nothing and stamps the current `sessionId` exactly once, and single-entry output is byte-identical to the previous release, so the ordinary path is untouched.
+
+Blast radius was always bounded to the first frontmatter block — `### ` ledger entries below the fence were never affected. Claude Code port only; the other ports carry the same shape and are unfixed.
+
 ## 2.52.1 — 2026-09-10
 
 **`kt_ss_ledger_prune` was destroying section headings, and the instruction that produced the damage told callers it was safe.** Both are fixed, and both turned out to be wider than the first reading.
