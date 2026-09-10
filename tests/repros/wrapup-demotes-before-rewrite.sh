@@ -167,6 +167,22 @@ printf '%s' "$HCLAUSE" | grep -qF 'has `lastEvent: handoff` and its' \
   && bad "H2 handoff gate" "the handoff gate still keys on \`lastEvent: handoff\`, so an in-progress marker carrying a real prompt is never demoted" \
   || ok "H2 handoff: gate no longer keys on \`lastEvent: handoff\` alone"
 
+# ── B3/H8: the demoted entry's ATTRIBUTION is annotated when the sid is a hook artifact ─────────
+# kt_ss_ledger_add takes the PRIOR sessionId as an argument, read from the prior file's front-matter
+# -- which post-edit-check.sh may have stamped with the DEMOTING session's id. So a correctly-demoted
+# entry is misattributed to whoever demoted it unless the caller says so. lib-session-state.sh
+# records the same phenomenon for the ledger key ("a HOOK ARTIFACT, not attribution").
+# ⚑ GREPPING PROSE IS CORRECT HERE AND WRONG AT B1/B2, and the distinction is the point: there the
+# prose is EXPLANATION and the gate is the deliverable, so prose satisfying the arm is a false pass.
+# Here the INSTRUCTION IS the deliverable -- there is nothing else to assert.
+_ATTRIB='HOOK ARTIFACT, not attribution'
+printf '%s' "$WSEC" | grep -qF "$_ATTRIB" \
+  && ok "B3 wrapup: hook-artifact attribution is annotated" \
+  || bad "B3 wrapup attribution" "Step 6.5 never tells the caller to flag a stamped sid, so a demoted entry reads as the demoter's own work"
+printf '%s' "$HCLAUSE" | grep -qF "$_ATTRIB" \
+  && ok "H8 handoff: hook-artifact attribution is annotated" \
+  || bad "H8 handoff attribution" "the handoff clause never tells the caller to flag a stamped sid -- same defect, other skill"
+
 # ── H5/H6/H7: /handoff carries the SAME sessionId fix, at BOTH of its sites ──────────────────────
 # ⛔ TWO SITES IN ONE FILE, GUARDED BY TWO DIFFERENT SLICES. HCLAUSE is the ledger clause; HSEC is the
 # 3f summary line. They are separate assertions on purpose: if one check covered both, "editing 3f
