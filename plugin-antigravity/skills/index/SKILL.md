@@ -489,6 +489,16 @@ Scan files indexed under the project tier (from Step 1's project tier scan) for 
 **Detection heuristics** (compute pairwise across all project-tier files):
 
 1. **Filename similarity:** Files with similar kebab-case names (e.g., `state-management-patterns.md` in `projects/proj-a/patterns/` AND `projects/proj-b/patterns/`). Use case-insensitive equality of stem (filename without `.md`) as the primary match; allow minor variants (`-patterns` vs `-pattern`, plural vs singular).
+
+   ⛔ **Exclude convention-named files from this heuristic** — `retrospect-patterns.md`,
+   `prospect-patterns.md`, `overbuild-patterns.md`, `working-rules.md`, `README.md`,
+   `OVERVIEW.md`. ARIA's own conventions put identically-named files in every project
+   directory, so filename identity is the NORM here, not a signal — the `/setup` spec
+   itself says `projects/{tag}/rules/` "lands `working-rules.md` here". Measured on a
+   3,030-file corpus: heuristic 1 returned exactly 3 candidates and all 3 were false by
+   construction (`retrospect-patterns.md` 7 projects, `working-rules.md` 6,
+   `prospect-patterns.md` 4); genuine candidates found: zero. Heuristics 2 and 3 below
+   are unaffected — a convention-named file can still surface via tag or title overlap.
 2. **Tag overlap:** Files sharing 3+ tags (excluding the project tags themselves, which are auto-derived from path).
 3. **Title/H1 similarity:** Files whose H1 (first `#` heading) shares 3+ significant terms (excluding stop words and project names).
 
