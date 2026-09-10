@@ -173,7 +173,32 @@ Identify tags that are NOT in the Known Tags set but appear on `{freeform_promot
 - `^p-?\d+$` — plan / work-item ids (`p-23`, `p23`)
 - `^phase-?\d+$` — phase stamps (`phase-3`, `phase3`)
 - `^plan-\d+[a-z]?$` — plan ids (`plan-01a`)
+- `^[a-z]{2,6}-\d{1,6}$` — **tracker ticket ids** (`dev-1233`, `mob-137`, `log-24`). An open set, so it
+  needs a shape rule rather than a denylist. ⚠ Over-matches a hyphen-plus-digit concept (`oauth-2`);
+  acceptable because this suppresses a SUGGESTION only and the skipped set is surfaced below.
+- **review-scope keywords — a CLOSED set, not a shape:** `file`, `range`, `plan`, `session`, `todos`,
+  `ticket`, `branch`, `commit`, `pr`, `release`, `deployment`, `preflight`, `auto`, `judgment-ledger`,
+  `prospect`, `retrospect`. These are the literal `scope:`/`type:` values `/prospect`, `/retrospect`,
+  `/preflight` and `/auto` write into their own report frontmatter — per-run metadata, never authored
+  concepts. A denylist is correct here precisely because the set is closed and authored.
+- **provenance rule — a candidate whose files ALL live under `logs/` is per-run metadata.** If a tag has
+  zero hits across `approaches/`, `decisions/`, `guides/`, `references/` and `projects/`, nothing authored
+  ever claimed it. This catches the open-ended populations no denylist can enumerate: retrospect/prospect
+  **pattern slugs** (`guard-scoped-to-the-wrong-unit`, `architectural-claim-without-source-trace` — 44 of
+  them in one measured corpus) and per-arc ledger tags (`judgment-ledger`, `director`).
 - literal denylist: `future-session-plan`, `soft-launch`
+
+⛔ **THREE RULES, DELIBERATELY COMPLEMENTARY — measured 2026-09-10 on a 3,030-file corpus with 314
+candidates at ≥3 files. Do NOT collapse them into one.** Both single-rule designs were tried and
+falsified: **provenance alone misses 6 of the 10 scope keywords** (`file` has 5 authored hits against
+1,193 in `logs/`; so do `plan`, `session`, `commit`, `auto`, `preflight`), and any **ratio threshold that
+catches `plan` also eats `security`**, which is 76% log-sourced and unambiguously a real concept. The
+closed-set denylist catches what provenance cannot, and provenance catches what no denylist can
+enumerate. Removing either re-opens a measured hole.
+
+⚠ **Scoped to ports that scan a reviews tier — `plugin-claude-cowork` is deliberately EXCLUDED and that
+is not an oversight.** Its `/index` declares `logs/` under "Do NOT scan", so it has no review reports and
+none of these three populations can reach its freeform pool. The clause would be inert there.
 
 This **suppresses AUTO-promotion suggestions only — it is not a hard ban.** A user can still hand-add any of these to Known Tags (Step 9 writes whatever is in the set, and a tag in Known Tags never re-enters the freeform pool). Because a pattern could occasionally match a genuine concept (e.g. a future `s3` meaning AWS S3 — note `s3` is not a session stamp in the current corpus, but `^s\d+$` would match it), the skipped set is **surfaced, not silent**. Emit a one-line note so a false-positive can be rescued:
 
