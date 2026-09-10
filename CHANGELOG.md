@@ -2,6 +2,20 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.52.6 — 2026-09-11
+
+**Four always-loaded skills told every session the Rule 22 bypass ledger did not exist, while a live hook was writing it.** They said *"There is no ledger to read any more … retired 2026-08-26 as its only writer."* Measured: nineteen ledger files present in `$TMPDIR` with real content, `bin/pre-bash-write-check.sh` on disk, writing that exact path unconditionally given a session id, and **wired in the plugin's hooks block**. The writer was **replaced**, not retired — the retired guard decided from the command string, the replacement resolves the mutation target and is deliberately record-only. So `/wrapup` and `/handoff` in claude-code and antigravity dropped a real signal and told the reader to judge it by hand instead. The codex port was correct throughout and is unchanged.
+
+The false sentence carried its own removal trigger — *"until a replacement exists"* — and the trigger fired unnoticed for sixteen days. A stated retirement condition with no assertion is a wish, so it now has one: a two-directional check across all six wrapup/handoff skills that the read is instructed and the retired claim stays absent. Either arm alone would be satisfied by deleting the step.
+
+**`kt_ss_mark_inprogress` was unguarded for cross-port drift, and the obvious guard was the wrong unit.** It is absent from the library parity set and has already diverged — identical across claude-code, antigravity and cursor, different on codex. Adding the name to that set would have reddened its fourth arm for a *correct* state, since codex legitimately carries the function, and whole-function byte parity would be red forever because codex differs only in `.gitignore` handling. What is asserted instead is the invariant the demote clauses reason about: the five front-matter keys are matched and the body passes through, across all four carrying ports. If that ever stops holding in a runtime, the corrected clause's stated reason becomes false there while every other check stays green.
+
+**The public-hygiene gate reported an empty commit-message range as checked.** Its range is deliberate and the code says why — once a commit is pushed the remedy is a history rewrite, not something a release gate should force — so the range is unchanged. What was missing is one case of the file's own principle: it already prints "NOT CHECKED" when there is no upstream, under a comment that a silent skip is indistinguishable from a clean result, but said nothing when the range was present and empty. Building after a push leaves it empty, which is exactly what happened on the 2.52.5 release. It now reports the commit count, and this release was built before pushing so the arm covers real commits.
+
+**Mutation found three defects in the two new guards, which is why they are trustworthy now.** One arm grepped a bare key literal that also appears in an insert branch's `print`, so breaking the match branch was invisible to it. Another counted with `grep -c`, which prints 0 and exits 1 on no matches — under `set -e` that aborted the suite, so the arm could not fail, only kill the run, and the neighbouring block's comment documents that exact trap. And the mutation harness itself silently applied nothing on its first pass, producing four "survived" results that were the unmutated tree. All three were fixed and each mutation then reddened its own named arm.
+
+Suites 507 → 509 and 332 → 332, both green.
+
 ## 2.52.5 — 2026-09-11
 
 **The demote gate in `/wrapup` and `/handoff` was a conjunction, and v2.48.2 fixed one of its two conjuncts.** Reported from a live near-miss: an operator read Step 6.5's gate during a `/wrapup`, found it said no-demote, demoted anyway on the body test, and reported the discrepancy. Following the gate literally would have destroyed a 61-line unconsumed pickup with an undone `nextAction`.
