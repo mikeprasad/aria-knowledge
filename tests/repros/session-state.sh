@@ -45,6 +45,10 @@ if grep -q '^lastEvent: in-progress$' "$TMP/c/SESSION.md" 2>/dev/null; then ok "
 grep -q '^sessionId: sess-123$' "$TMP/c/SESSION.md" && ok "C sessionId written" || bad "C sessionId" "missing"
 
 # --- D: refresh preserves body + Next session prompt + currentFocus ---
+# NOTE: this fixture deliberately carries NO `sessionId:` line, so it covers the ABSENT -> INSERTED
+# case. The sibling case — an EXISTING sessionId being OVERWRITTEN while the body survives — is
+# block O. ⛔ Do NOT add a `sessionId:` line here to cover it: that converts D and silently drops the
+# absent-case coverage. Two fixtures, two cases.
 mkdir -p "$TMP/d"
 : > "$TMP/d/CLAUDE.md"
 cat > "$TMP/d/SESSION.md" <<'SESS'
@@ -578,6 +582,54 @@ for _fn in $_SS_PARITY_FNS; do
     && ok "N plugin-openai-codex carries no $_fn, so it is correctly out of the parity set" \
     || bad "N codex port ($_fn)" "plugin-openai-codex now carries $_fn ($_N4 refs) and must join the parity set"
 done
+
+# --- O: mark_inprogress OVERWRITES an existing sessionId while the body survives ----------------
+# ⛔ THIS IS THE CASE-3 SIGNATURE, AND IT WAS ASSERTED NOWHERE before 2026-09-11. Block D covers the
+# neighbouring case (sessionId ABSENT, so the helper INSERTS one) and asserts body preservation there
+# ("D preserved Next session prompt"). Block K has a sessionId but never calls kt_ss_mark_inprogress.
+# So the state that matters most had no coverage: an EXISTING id REPLACED with the marking session's,
+# while ANOTHER session's prompt is carried through untouched.
+#
+# Why it matters beyond this helper: post-edit-check.sh produces exactly this state on the first edit
+# of any session in a project that holds a handoff. It is the reason /wrapup Step 6.5 and /handoff 3f
+# must NOT test sessionId — a front-matter sessionId names whoever last TOUCHED the file, not whoever
+# wrote the body. Design record:
+#   docs/superpowers/specs/2026-09-11-demote-gate-sessionid-conjunct-design.md
+#
+# ⭐ THIS IS A CHARACTERIZATION TEST. It passes BOTH before and after the skill-clause fix, by design:
+# it does not guard the fix, it establishes that the precondition the fix reasons about is produced by
+# ORDINARY OPERATION rather than by an edge case. Expecting it to go red after the fix would be wrong,
+# and predicting that is the tell that a mutation set contains no characterization arm.
+mkdir -p "$TMP/o"
+: > "$TMP/o/CLAUDE.md"
+cat > "$TMP/o/SESSION.md" <<'SESS'
+---
+lastEvent: handoff
+at: 2026-05-02T00:00:00Z
+currentFocus: prior arc, mid-flight
+nextAction: finish the thing
+sessionId: sess-prior
+by: mipr
+---
+
+## Next session prompt
+
+```
+O-SENTINEL-PRIOR-PROMPT
+```
+SESS
+kt_ss_mark_inprogress "$TMP/o" "sess-mine" "mipr"
+
+# O1 — THE CLAIM: an existing sessionId is REPLACED by the marking session's id.
+grep -q '^sessionId: sess-mine$' "$TMP/o/SESSION.md" \
+  && ok "O1 existing sessionId OVERWRITTEN by the marking session" \
+  || bad "O1 sessionId overwrite" "an existing sessionId was NOT replaced — the case-3 state cannot arise, and the demote clauses' stated reason would be wrong"
+
+# O2 — NON-VACUITY CONTROL, not a second claim. Block D owns body preservation; this exists only so O1
+# cannot pass against a file the helper mangled into something holding no pickup at all.
+grep -q 'O-SENTINEL-PRIOR-PROMPT' "$TMP/o/SESSION.md" \
+  && ok "O2 control: the prior prompt survived the overwrite" \
+  || bad "O2 control" "the body was lost, so O1 proves nothing about a file that still holds a pickup"
 
 printf "\n%d passed, %d failed\n" "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
