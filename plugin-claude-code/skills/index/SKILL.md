@@ -392,6 +392,14 @@ Steps 8.x were defined in the spec from v1.0 but never invoked because routine `
 ## Step 8: Cross-Reference Pass
 
 For each pair of promoted files, compute tag overlap:
+**Scan scope — authored tiers only.** Both this step and Step 8b cover `approaches/`,
+`decisions/`, `guides/`, `references/` and `projects/`. They exclude `logs/`. Logs cannot
+participate in cross-referencing: measured 2026-09-10 on a 3,072-file corpus, **1 of 2,127**
+files under `logs/` carries a `## Related` section, against **727 of 948** authored files —
+so the pairwise comparison is ~449K pairs over authored files instead of ~4M with logs
+included, and the excluded 2,126 could contribute nothing. Steps 8c (skills) and 8d
+(projects) are already scoped by their own scan roots.
+
 1. Count shared tags between the two files
 2. If overlap >= 2 tags, check each file's `## Related` section for existing cross-references
 3. If one or both files don't reference the other, record as a suggestion
@@ -430,6 +438,8 @@ If no suggestions, skip this step silently.
 ## Step 8b: Entity Detection
 
 Scan all promoted files for recurring proper nouns — tool names, service names, API names, framework names, and other named entities that appear across multiple knowledge files.
+
+**Scan scope:** authored tiers only — see the scope note under Step 8. `logs/` is excluded.
 
 **How to detect entities:**
 1. Scan headings, bold text, and inline code spans in promoted files for proper nouns and technical names
