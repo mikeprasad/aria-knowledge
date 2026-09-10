@@ -631,5 +631,55 @@ grep -q 'O-SENTINEL-PRIOR-PROMPT' "$TMP/o/SESSION.md" \
   && ok "O2 control: the prior prompt survived the overwrite" \
   || bad "O2 control" "the body was lost, so O1 proves nothing about a file that still holds a pickup"
 
+# --- Q: kt_ss_mark_inprogress BEHAVIOURAL parity across every carrying port ---------------------
+# ⛔ THE PARITY SET (_SS_PARITY_FNS, block N) COVERS kt_ss_ledger_add AND kt_ss_ledger_prune ONLY, so
+# the function whose behaviour the /wrapup and /handoff demote clauses REASON ABOUT was unguarded --
+# and it has already drifted: cksums are identical across claude-code / antigravity / cursor and
+# differ on codex.
+#
+# ⛔ DO NOT "FIX" THIS BY ADDING THE NAME TO _SS_PARITY_FNS. Two measured reasons:
+#   1. Block N's fourth arm asserts codex carries NO such function. True for the ledger pair, FALSE
+#      for mark_inprogress, which codex legitimately carries -- so the name reddens a correct state.
+#   2. Whole-function byte parity is the WRONG UNIT. Codex's copy differs only in its .gitignore
+#      handling, a legitimate per-runtime difference; a cksum gate would be red forever and deleted.
+#
+# ⭐ WHAT IS ASSERTED INSTEAD is the invariant the clauses actually depend on: the front-matter keys
+# are REWRITTEN and the BODY PASSES THROUGH. If that ever stops holding in a port, the corrected
+# clause's stated reason becomes false in that runtime while every other check stays green.
+_Q_LIBS="plugin-claude-code/bin plugin-antigravity/bin plugin-cursor-template/scripts/aria plugin-openai-codex/bin"
+_Q_SEEN=0
+for _qd in $_Q_LIBS; do
+  _qf="$REPO_ROOT/$_qd/lib-session-state.sh"
+  [ -f "$_qf" ] || { bad "Q $_qd" "lib-session-state.sh missing -- a guard with no subject"; continue; }
+  _qbody=$(awk '/^kt_ss_mark_inprogress\(\)/{f=1} f{print} f&&/^}$/{exit}' "$_qf")
+  [ -n "$_qbody" ] || continue
+  _Q_SEEN=$((_Q_SEEN + 1))
+  # (a) all five front-matter keys are MATCHED, not merely mentioned.
+  # ⛔ THE FIRST VERSION OF THIS ARM GREPPED THE BARE LITERAL AND COULD NOT FAIL. Mutation M10
+  # (2026-09-11) broke the `/^headCommit:/` MATCH branch and this arm stayed GREEN, because the
+  # string `headCommit:` also appears in the INSERT branch's `print "headCommit: " hc`. So a guard
+  # that asks "is the key mentioned?" answers yes for a function that no longer matches it.
+  # Asserting the regex-match form is what "handles the key" actually means.
+  # Pattern: guard-described-by-its-regex-not-its-invariant.
+  _qmiss=""
+  for _qk in 'lastEvent' 'at' 'branch' 'headCommit' 'sessionId'; do
+    printf '%s' "$_qbody" | grep -qF "/^$_qk:/" || _qmiss="$_qmiss $_qk"
+  done
+  [ -z "$_qmiss" ] || bad "Q $_qd keys" "kt_ss_mark_inprogress no longer handles:$_qmiss"
+  # (b) the body passthrough survives -- exactly one bare `{ print }`
+  # ⛔ awk, NOT `grep -c`. Under `set -e` a zero-match `grep -c` PRINTS 0 and EXITS 1, and in a
+  # command substitution that aborts the whole suite -- so this arm could not fail, it could only
+  # kill the run, and the summary line vanished with it. Found by mutation M9 (2026-09-11), which
+  # produced NO output at all rather than a red arm. Block N's own comment ~30 lines up documents
+  # this exact trap; awk always prints exactly once and exits 0.
+  _qpt=$(printf '%s' "$_qbody" | awk '/\{ print \}/{c++} END{print c+0}')
+  [ "$_qpt" -eq 1 ] \
+    || bad "Q $_qd passthrough" "expected exactly one bare '{ print }' body passthrough, found $_qpt -- if it is gone, the demote clauses' stated reason is false in this runtime"
+done
+# ⛔ ANTI-VACUITY: without this, a renamed dir or a moved lib yields _Q_SEEN=0 and a clean run.
+[ "$_Q_SEEN" -ge 4 ] \
+  && ok "Q mark_inprogress behavioural parity: $_Q_SEEN ports examined, keys + body-passthrough intact" \
+  || bad "Q coverage" "only $_Q_SEEN port lib(s) carried kt_ss_mark_inprogress (want >= 4) -- too few subjects to mean anything"
+
 printf "\n%d passed, %d failed\n" "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

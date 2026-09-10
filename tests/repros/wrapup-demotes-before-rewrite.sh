@@ -203,6 +203,33 @@ printf '%s' "$WSEC" | grep -qiE 'antigravity|codex' \
   && ok "F  tracked drift named in-file" \
   || bad "F  drift note" "antigravity/codex carry the same gap and nothing in the file says so"
 
+# ── R: the Rule 22 bypass ledger is READ, and the false "no writer" claim stays retired ─────────
+# ⛔ FOUR ALWAYS-LOADED SKILLS TOLD EVERY SESSION THE LEDGER DID NOT EXIST WHILE IT DID. The claim
+# was "there is no ledger to read any more ... retired 2026-08-26 as its only writer". Measured
+# 2026-09-11: bin/pre-bash-write-check.sh is on disk, writes that exact path, is WIRED in the hooks
+# block, and 19 live ledger files were present in $TMPDIR. The writer was REPLACED, not retired.
+#
+# ⭐ The false sentence carried its own removal trigger -- "until a replacement exists" -- and the
+# trigger fired unnoticed. A stated retirement condition with no assertion is a wish (Rule 37); this
+# block is the assertion. Both directions, because either alone is satisfied by a deletion.
+_R_FALSE='There is no ledger to read any more'
+_R_READ='Read `${TMPDIR'
+_R_SEEN=0
+for _rd in plugin-claude-code plugin-antigravity plugin-openai-codex; do
+  for _rs in wrapup handoff; do
+    _rf="$REPO_ROOT/$_rd/skills/$_rs/SKILL.md"
+    [ -f "$_rf" ] || continue
+    _R_SEEN=$((_R_SEEN + 1))
+    grep -qF "$_R_FALSE" "$_rf" \
+      && bad "R $_rd/$_rs" "carries the retired \"no writer\" claim -- the ledger is live and this discards it"
+    grep -qF "$_R_READ" "$_rf" \
+      || bad "R $_rd/$_rs" "no longer instructs reading the bypass ledger, so a Rule 22 bypass through the shell leaves no reported trace"
+  done
+done
+[ "$_R_SEEN" -ge 6 ] \
+  && ok "R bypass-ledger read: $_R_SEEN skills examined, read instructed and false claim absent in all" \
+  || bad "R coverage" "only $_R_SEEN skill(s) examined (want >= 6) -- too few subjects to mean anything"
+
 # ── P: PORT PARITY — the retired demote-gate text is gone from EVERY runtime that carries the demote ──
 # ⛔ THIS REPLACES A PROSE NOTE THAT WAS WRONG THREE TIMES. Step 6.5 carried a hand-maintained census of
 # which port carried what. It was false as shipped (it said antigravity lacked the demote; antigravity

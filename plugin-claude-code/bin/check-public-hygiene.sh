@@ -206,6 +206,16 @@ if [ -n "$TRACKED_OK" ]; then
     if [ -n "$_up" ]; then
         MSG_RANGE="$_up..HEAD"
         MSG_TEXT=$( cd "$ROOT" && git log "$MSG_RANGE" --format='%h %s%n%b' 2>/dev/null ) || MSG_TEXT=""
+        # ⚠ AN EMPTY RANGE IS NOT A CLEAN RESULT — the one case the no-upstream branch above already
+        # gets right. Building AFTER a push leaves <upstream>..HEAD empty, so the scan examines ZERO
+        # commits while the summary still prints the range as though it had been checked. Measured
+        # 2026-09-11 on the v2.52.5 release: the arm passed having read nothing. The RANGE is
+        # deliberate and stays (a pushed commit cannot be genericized, only rewritten) — what was
+        # missing is saying so when it covers nothing.
+        MSG_COUNT=$( cd "$ROOT" && git rev-list --count "$MSG_RANGE" 2>/dev/null ) || MSG_COUNT=0
+        if [ "${MSG_COUNT:-0}" -eq 0 ]; then
+            printf 'gate D: commit-message range %s is EMPTY (0 commits) — messages were NOT checked. Build BEFORE pushing to cover them.\n' "$MSG_RANGE" >&2
+        fi
     else
         printf 'gate D: no upstream for HEAD — commit MESSAGES were NOT checked.\n' >&2
     fi
@@ -325,5 +335,7 @@ printf 'gate D: public hygiene clean (self-test passed; %s terms, %s codes, %s a
     "$(echo "$TERMS" | wc -w | tr -d ' ')" \
     "$(echo "$CODES" | wc -w | tr -d ' ')" \
     "$(echo "$ARTIFACTS" | wc -w | tr -d ' ')" \
-    "$([ -n "$MSG_RANGE" ] && echo "$MSG_RANGE" || echo 'NOT CHECKED (no upstream)')"
+    "$(if [ -z "$MSG_RANGE" ]; then echo 'NOT CHECKED (no upstream)';
+        elif [ "${MSG_COUNT:-0}" -eq 0 ]; then echo "$MSG_RANGE = 0 commits, NOT CHECKED";
+        else echo "$MSG_RANGE ($MSG_COUNT commits)"; fi)"
 exit 0
