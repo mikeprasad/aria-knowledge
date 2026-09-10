@@ -492,6 +492,23 @@ This step does NOT auto-create `_project-knowledge/` folders in any repo. Folder
 
 **Initial sync offer:**
 
+⛔ **Probe first — the sweep is a COLD-START offer and must be gated on cold start.**
+Before prompting, probe the `_project-knowledge/` folders for every tag in
+`projects_shared_knowledge`, using the same scan-location logic as this step's
+existing-folder detection above (single-repo: `<project-root>/_project-knowledge/`;
+multi-repo: one probe per sub-repo declared in `projects_groups[tag]`).
+
+- **All probed folders empty** → make the offer below.
+- **Any folder populated** → do NOT offer. Emit ONE line stating what exists, e.g.
+  `Shared knowledge: 33 files across 5 locations (cs 1, cs/commonspace-app 6,
+  cs/commonspace-ui-v3 14, ss/seersite-server 7, ss/seersite-frontend 5). Run
+  /audit share anytime.`
+
+Without the probe this step fires whenever `projects_shared_knowledge` is non-empty, so it
+calls itself a cold-start sweep on workspaces that are years past cold start. Measured
+2026-09-10: 33 files across 5 populated locations, i.e. the offer was pure noise on every
+re-run.
+
 Prompt the user:
 
 > *"Run `/audit share` now to review your existing personal knowledge for sharing? This is the cold-start sweep — without it, the feature is enabled but nothing is shared yet (every audit-share run is opt-in per item). (Y/n, default y):"*
