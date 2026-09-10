@@ -66,10 +66,28 @@ printf '%s' "$WSEC" | grep -qiE 'ledger_add.*(then|before).*(write|rewrite)' \
   && ok "A1b demote is ordered BEFORE the rewrite" \
   || bad "A1b ordering" "the demote is mentioned but not ordered before the rewrite — presence is not sequence"
 
-# ── B: conditioned on someone ELSE's entry ───────────────────────────────────────────────────────
-printf '%s' "$WSEC" | grep -qiE 'different or absent .?sessionId|different .?sessionId' \
-  && ok "B  demote is conditioned on a different/absent sessionId" \
-  || bad "B  sessionId guard" "unconditional demote would demote the session's OWN entry"
+# ── B: the gate is the BODY, not an identity field ──────────────────────────────────────────────
+# ⛔ THE PREVIOUS VERSION OF THIS CHECK ASSERTED THE DEFECT. It REQUIRED the phrase
+# "different or absent sessionId" and its failure message argued for it ("unconditional demote would
+# demote the session's OWN entry"). That premise is false, and the mechanism is one function away:
+# post-edit-check.sh stamps the CURRENT session's id onto front-matter while kt_ss_mark_inprogress
+# passes the body through (asserted at session-state.sh block O), so "the session's OWN entry" is not
+# a state this gate can observe. `by:` does not rescue it either -- it IS preserved, but it is
+# person-granular and cannot separate two sessions of one author, which is the generator.
+#   => the gate is a CONJUNCTION and v2.48.2 fixed only its lastEvent conjunct. This check asserted
+#      the survivor, so the suite was green over a clause that contradicted itself two sentences
+#      apart: 16 passed / 0 failed. Pattern: one-conjunct-fixed-in-a-multi-conjunct-gate.
+# ⛔ ABSENCE is asserted with an exact string, and the POSITIVE arm is keyed on `whatever its
+# sessionId` -- NOT on the bare word. The corrected clause necessarily EXPLAINS sessionId, so a
+# bare-word arm would be satisfied by the prose rather than by the gate: the exact
+# own-comment-enters-the-text-its-guard-reads trap this file already warns about at C1/H1.
+_B_RETIRED='different or absent'
+printf '%s' "$WSEC" | grep -qF "$_B_RETIRED" \
+  && bad "B1 retired sessionId conjunct" "wrapup's gate still conjoins a sessionId test, so a hook-stamped marker carrying ANOTHER session's prompt is never demoted" \
+  || ok "B1 wrapup: retired sessionId conjunct absent"
+printf '%s' "$WSEC" | grep -qiE 'whatever its .?sessionId' \
+  && ok "B2 wrapup: gate states that sessionId is not tested" \
+  || bad "B2 wrapup sessionId non-test" "the gate no longer STATES that sessionId is untested, so the next reader re-adds the conjunct"
 
 # ── C: the in-progress rule is CONDITIONED, not blanket ──────────────────────────────────────────
 # ⛔ THE PREVIOUS VERSION OF THIS CHECK WAS `grep -qiE 'in-progress'` — the STRING alone — and it could
@@ -148,6 +166,21 @@ printf '%s' "$HCLAUSE" | grep -qiE 'pass the [^.]*fenced' \
 printf '%s' "$HCLAUSE" | grep -qF 'has `lastEvent: handoff` and its' \
   && bad "H2 handoff gate" "the handoff gate still keys on \`lastEvent: handoff\`, so an in-progress marker carrying a real prompt is never demoted" \
   || ok "H2 handoff: gate no longer keys on \`lastEvent: handoff\` alone"
+
+# ── H5/H6/H7: /handoff carries the SAME sessionId fix, at BOTH of its sites ──────────────────────
+# ⛔ TWO SITES IN ONE FILE, GUARDED BY TWO DIFFERENT SLICES. HCLAUSE is the ledger clause; HSEC is the
+# 3f summary line. They are separate assertions on purpose: if one check covered both, "editing 3f
+# alone is a partial fix" would be undetectable -- and the prior round measured exactly that shape
+# (3 of the 4 D1 sites had no assertion at all).
+printf '%s' "$HCLAUSE" | grep -qF "$_B_RETIRED" \
+  && bad "H5 handoff clause conjunct" "the handoff ledger clause still conjoins a sessionId test -- the same defect, in the other skill" \
+  || ok "H5 handoff clause: retired sessionId conjunct absent"
+printf '%s' "$HCLAUSE" | grep -qiE 'whatever its .?sessionId' \
+  && ok "H6 handoff clause: states that sessionId is not tested" \
+  || bad "H6 handoff clause non-test" "the clause no longer STATES that sessionId is untested"
+printf '%s' "$HSEC" | grep -qF "$_B_RETIRED" \
+  && bad "H7 handoff 3f conjunct" "3f's summary line still conjoins a sessionId test, so a reader following the summary re-introduces it" \
+  || ok "H7 handoff 3f: retired sessionId conjunct absent"
 
 # ── F: the runtime-drift note is recorded where a reader will see it ─────────────────────────────
 printf '%s' "$WSEC" | grep -qiE 'antigravity|codex' \
