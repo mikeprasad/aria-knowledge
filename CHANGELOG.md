@@ -20,6 +20,8 @@ Verified four ways in an isolated repo with a real upstream: clean repo exits 0 
 
 ⚠ Still open: only `release.sh` invokes gate D. The port release scripts do not, so a private identifier could still ship in a port artifact.
 
+Also in this release, from a parallel session: `/index` Step 4's ephemeral filter was scoped to stamp shapes rather than to per-run vocabulary (`a54232c`, all three ports).
+
 ## 2.52.2 — 2026-09-10
 
 **`kt_ss_mark_inprogress` was destroying handoff provenance, and the guard that would have stopped it was already written — just never tested.** The awk that refreshes `SESSION.md`'s first frontmatter block sets `sle`/`sat`/`sbr`/`shc`/`ssid` on each match and then never reads them, so every matching line in the block was rewritten rather than only the first. A block carrying stacked entries had all of them collapsed onto the current session, silently, on the session's first edit.
