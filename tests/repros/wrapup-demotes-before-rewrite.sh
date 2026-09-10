@@ -203,5 +203,42 @@ printf '%s' "$WSEC" | grep -qiE 'antigravity|codex' \
   && ok "F  tracked drift named in-file" \
   || bad "F  drift note" "antigravity/codex carry the same gap and nothing in the file says so"
 
+# ── P: PORT PARITY — the retired demote-gate text is gone from EVERY runtime that carries the demote ──
+# ⛔ THIS REPLACES A PROSE NOTE THAT WAS WRONG THREE TIMES. Step 6.5 carried a hand-maintained census of
+# which port carried what. It was false as shipped (it said antigravity lacked the demote; antigravity
+# HAD it, and had the bug), understated after its first correction (three sites, when both spellings
+# summed to five), and would have been wrong a fourth time the moment the ports closed. A prose census
+# over six files does not hold. Pattern: comment-is-not-a-guard.
+#
+# ⭐ SCOPE IS KEYED ON A MEASURABLE PROPERTY, NOT ON SECTION STRUCTURE. A port is in scope iff its
+# SKILL.md carries kt_ss_ledger_add. That matters two ways: the ports' section layouts genuinely differ
+# (all six wrapup/handoff files have distinct cksums), so slicing them by heading the way WSEC/HSEC do
+# would silently yield EMPTY and pass having read nothing; and keying on the demote's presence means a
+# port is covered AUTOMATICALLY the moment it gains one -- which is how codex wrapup entered this set.
+_P_PORTS="plugin-antigravity/skills/wrapup plugin-antigravity/skills/handoff plugin-openai-codex/skills/wrapup plugin-openai-codex/skills/handoff"
+_P_SEEN=0
+for _pd in $_P_PORTS; do
+  _pf="$REPO_ROOT/$_pd/SKILL.md"
+  if [ ! -f "$_pf" ]; then
+    bad "P $_pd" "SKILL.md does not exist -- a guard with no subject is not a guard"
+    continue
+  fi
+  grep -qF 'kt_ss_ledger_add' "$_pf" || continue
+  _P_SEEN=$((_P_SEEN + 1))
+  # All THREE retired spellings. The first two are the sessionId conjunct's two forms -- censusing one
+  # is what produced the "three sites" undercount. The third is D1's FIRST axis, which codex carried
+  # two generations after it was fixed elsewhere.
+  for _pat in 'different or absent' 'sessionId` differs from this' 'lastEvent: handoff` and its'; do
+    grep -qF "$_pat" "$_pf" \
+      && bad "P $_pd" "carries retired demote-gate text \"$_pat\" -- the conjunct reopened in a port"
+  done
+done
+# ⛔ ANTI-VACUITY. Without this the loop passes having examined NOTHING -- a renamed directory, a moved
+# port, or a port that lost its demote all yield _P_SEEN=0 and a clean run. The floor is the four ports
+# carrying the demote as of 2026-09-11; it is a >= so a NEW port joining does not redden it.
+[ "$_P_SEEN" -ge 4 ] \
+  && ok "P port parity: $_P_SEEN carrying ports examined, all three retired spellings absent" \
+  || bad "P port coverage" "only $_P_SEEN port skill(s) carried the demote (want >= 4) -- too few subjects examined for this check to mean anything"
+
 printf "\n%d passed, %d failed\n" "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
