@@ -643,6 +643,14 @@ If `CLAUDE.md` already contains an `## ARIA Rules` heading, skip silently — ap
 second copy is the append-loop failure that `session_state`'s gitignore clause produced
 before v2.46.0.
 
+⛔ **The skip check is the POINTER, not the heading.** Skip when `CLAUDE.md` already
+references `rules/working-rules.md` **or** `rules/user-rules.md` anywhere, **or** carries the
+`## ARIA Rules` heading — any one of the three is enough. A heading-only test is not
+sufficient: measured 2026-09-10 on a real workspace, the root `CLAUDE.md` had **no**
+`## ARIA Rules` heading but already pointed at both rules files (three times, at lines 118,
+212 and 213), so the literal check passed and this step would have appended the exact
+duplicate pointer it exists to prevent. That run skipped 7f by hand to avoid it.
+
 ## Step 7f2: Arc-Resume Allowlist (optional, default NO)
 
 Runs after the config is written. Offer **once per machine**, never batch-applied, and never
