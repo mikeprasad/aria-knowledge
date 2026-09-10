@@ -88,6 +88,13 @@ kt_ss_mark_inprogress() {
     # Existing parseable header: refresh keys in the first frontmatter block,
     # append any missing override keys before the closing fence, preserve body.
     _ss_tmp="$_ss_file.$$.tmp"
+    # ⛔ The sle/sat/sbr/shc/ssid flags are TESTED, not merely set. Without the test, every
+    # matching line in the first frontmatter block was rewritten, not just the first — so a
+    # block carrying STACKED entries (which unioning SESSION.md across a branch merge
+    # produces: measured on a real repo, at/branch/headCommit/sessionId all x3) had every
+    # entry collapsed to the current session on the first edit. 11 of 11 provenance values
+    # destroyed, silently. Entry 1 is the current state and is refreshed; 2..N are history
+    # and are preserved verbatim.
     awk -v now="$_ss_now" -v br="$_ss_branch" -v hc="$_ss_head" -v sid="$_ss_sid" '
       BEGIN { infm = 0 }
       NR == 1 && $0 == "---" { infm = 1; print; next }
@@ -100,11 +107,11 @@ kt_ss_mark_inprogress() {
         infm = 2; print; next
       }
       infm == 1 {
-        if ($0 ~ /^lastEvent:/) { print "lastEvent: in-progress"; sle = 1; next }
-        if ($0 ~ /^at:/)        { if (now != "") { print "at: " now } else print; sat = 1; next }
-        if ($0 ~ /^branch:/)    { if (br != "")  { print "branch: " br } else print; sbr = 1; next }
-        if ($0 ~ /^headCommit:/){ if (hc != "")  { print "headCommit: " hc } else print; shc = 1; next }
-        if ($0 ~ /^sessionId:/) { if (sid != "") { print "sessionId: " sid } else print; ssid = 1; next }
+        if ($0 ~ /^lastEvent:/) { if (!sle) print "lastEvent: in-progress"; else print; sle = 1; next }
+        if ($0 ~ /^at:/)        { if (!sat && now != "") { print "at: " now } else print; sat = 1; next }
+        if ($0 ~ /^branch:/)    { if (!sbr && br != "")  { print "branch: " br } else print; sbr = 1; next }
+        if ($0 ~ /^headCommit:/){ if (!shc && hc != "")  { print "headCommit: " hc } else print; shc = 1; next }
+        if ($0 ~ /^sessionId:/) { if (!ssid && sid != "") { print "sessionId: " sid } else print; ssid = 1; next }
         print; next
       }
       { print }

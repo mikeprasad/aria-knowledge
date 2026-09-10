@@ -2,6 +2,24 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.52.3 — 2026-09-10
+
+**The provenance fix reaches the remaining ports, and gate D learns to read commit messages.**
+
+`plugin-antigravity`, `plugin-openai-codex` and `plugin-cursor-template` carried 2.52.2's defect verbatim — the `sle`/`sat`/`sbr`/`shc`/`ssid` flags set and never tested, so a stacked `SESSION.md` frontmatter block lost every entry but the first. All three now test them. Verified per port against the same fixture, using each port's own library: 7 of 7 history values destroyed before, 0 after, current `sessionId` stamped exactly once, and single-entry output byte-identical to the previous build so the ordinary path is untouched.
+
+Two scoping errors in 2.52.2's note are corrected above. Cowork never had this code; cursor did, and was invisible because its library lives under `scripts/aria/` rather than `bin/`. A census is bounded by the path shape it globs — which is the same lesson that produced the fix itself.
+
+**Gate D now scans unpushed commit messages, not only shipped files.** It cleared 2.52.2's release while that release's own commit body named a private project; the leak surfaced only because someone read `git log` by hand. A message is public the moment the branch is pushed, so the file scan alone was the wrong unit.
+
+The check lives inside `check-public-hygiene.sh` rather than as a second gate in `release.sh`, because a copy of the term list in a second place is a copy that drifts — and the file's own header says so. Its findings feed the verdict derivation, which that header also demands: two earlier classes printed without being counted, and the fatal gate reported leaks while exiting 0.
+
+Scoped to `@{upstream}..HEAD` deliberately. Once a commit is published the remedy is a history rewrite, which is not a decision a release gate should force; the range also means a commit that legitimately discusses this gate stops being reported once pushed. **No upstream means NOT CHECKED, and that is printed** — on stderr and in the clean summary — because a skip that prints nothing cannot be told from a clean result.
+
+Verified four ways in an isolated repo with a real upstream: clean repo exits 0 and names the range; a private name in a commit message with clean tracked files exits 1 and names the finding (tracked-file occurrences measured at 0, so it fired on the message); no upstream states the bound and still exits 0. Unchanged: the exit-2 self-test path, which this change does not touch.
+
+⚠ Still open: only `release.sh` invokes gate D. The port release scripts do not, so a private identifier could still ship in a port artifact.
+
 ## 2.52.2 — 2026-09-10
 
 **`kt_ss_mark_inprogress` was destroying handoff provenance, and the guard that would have stopped it was already written — just never tested.** The awk that refreshes `SESSION.md`'s first frontmatter block sets `sle`/`sat`/`sbr`/`shc`/`ssid` on each match and then never reads them, so every matching line in the block was rewritten rather than only the first. A block carrying stacked entries had all of them collapsed onto the current session, silently, on the session's first edit.
@@ -13,6 +31,8 @@ Reproduced against a fixture before fixing: 11 of 11 provenance values destroyed
 The fix is to test the flags the code already sets. Entry 1 is the current-state slot and is still refreshed; entries 2..N are history and are now preserved verbatim. Verified two-sided: stacked input loses nothing and stamps the current `sessionId` exactly once, and single-entry output is byte-identical to the previous release, so the ordinary path is untouched.
 
 Blast radius was always bounded to the first frontmatter block — `### ` ledger entries below the fence were never affected. Claude Code port only; the other ports carry the same shape and are unfixed.
+
+> **Corrected 2026-09-10 (in 2.52.3):** "the other ports" was wrong in both directions. `plugin-claude-cowork` does **not** carry this code — it has no `lib-session-state.sh` at all (0 occurrences of `kt_ss_mark_inprogress`, against a control of 4 in antigravity). And `plugin-cursor-template` **does** carry it, at `scripts/aria/lib-session-state.sh` — a path a `plugin-*/bin/` census structurally could not see. The real set was antigravity, codex and cursor; all three are fixed in 2.52.3.
 
 ## 2.52.1 — 2026-09-10
 

@@ -186,6 +186,60 @@ else
     printf '         Results may include files that never publish.\n' >&2
 fi
 
+# --- unpushed COMMIT MESSAGES (added 2026-09-10) ------------------------------
+# A leak in a commit MESSAGE is public the moment the branch is pushed, and the
+# file scan above cannot see it: gate D cleared a release whose commit body named a
+# private project, and it surfaced only because someone read `git log` by hand.
+#
+# Scoped to UNPUSHED commits on purpose. The range is self-limiting: once a commit is
+# published the fix is no longer "genericize before publishing" but a history rewrite,
+# which is a different decision and not one a release gate should force. It also means a
+# commit that legitimately DISCUSSES this gate stops being reported once it is pushed —
+# the same self-exclusion problem lesson 3 solves for this file, solved here by the range.
+#
+# ⚠ NO UPSTREAM means NOT CHECKED, and that is stated rather than passed silently: a
+# skip that prints nothing is indistinguishable from a clean result.
+MSG_TEXT=""
+MSG_RANGE=""
+if [ -n "$TRACKED_OK" ]; then
+    _up=$( cd "$ROOT" && git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null ) || _up=""
+    if [ -n "$_up" ]; then
+        MSG_RANGE="$_up..HEAD"
+        MSG_TEXT=$( cd "$ROOT" && git log "$MSG_RANGE" --format='%h %s%n%b' 2>/dev/null ) || MSG_TEXT=""
+    else
+        printf 'gate D: no upstream for HEAD — commit MESSAGES were NOT checked.\n' >&2
+    fi
+fi
+
+# Same regexes as the file scan; only the haystack differs.
+scan_msg() {
+    [ -n "$MSG_TEXT" ] || return 0
+    printf '%s\n' "$MSG_TEXT" | grep -niE "$1" 2>/dev/null || true
+}
+
+msg_hits=""
+_add_msg() {  # $1 = class label, $2 = hits
+    [ -n "$2" ] || return 0
+    msg_hits="$msg_hits
+$(printf '%s\n' "$2" | sed "s|^|[$1] |")"
+}
+for t in $TERMS;     do _add_msg "$t" "$(scan_msg "$t"     | head -5)"; done
+for a in $ARTIFACTS; do _add_msg "$a" "$(scan_msg "$a"     | head -5)"; done
+_add_msg "path-code" "$(scan_msg "$CODE_RE" | head -5)"
+_add_msg "own-repo"  "$(scan_msg "github\.com/$OWNER/[A-Za-z0-9._-]+" | while IFS= read -r l; do
+    printf '%s\n' "$l" | _kt_own_repo_leak | grep -q . && printf '%s\n' "$l"; done | head -5)"
+_add_msg "home-path" "$(scan_msg "(^|[^A-Za-z0-9._$-])/(Users|home)/[A-Za-z0-9._-]+" | while IFS= read -r l; do
+    printf '%s\n' "$l" | _kt_home_leak | grep -q . && printf '%s\n' "$l"; done | head -5)"
+msg_hits=$(printf '%s' "$msg_hits" | sed '/^$/d')
+
+if [ -n "$msg_hits" ]; then
+    printf 'private identifier in an UNPUSHED COMMIT MESSAGE (%s):\n' "$MSG_RANGE"
+    printf '%s\n' "$msg_hits" | while IFS= read -r line; do
+        printf '  %s\n' "$(echo "$line" | cut -c1-160)"
+    done
+    FOUND=$((FOUND + 1))
+fi
+
 for t in $TERMS; do
     hits=$(scan "$t" | head -20)
     [ -z "$hits" ] && continue
@@ -257,6 +311,7 @@ any=$(
       # parallel session is live in this tree.
       printf '%s' "$own_hits"
       printf '%s' "$home_hits"
+      printf '%s' "$msg_hits"
     } | head -1
 )
 
@@ -266,8 +321,9 @@ if [ -n "$any" ]; then
     exit 1
 fi
 
-printf 'gate D: public hygiene clean (self-test passed; %s terms, %s codes, %s artifacts checked)\n' \
+printf 'gate D: public hygiene clean (self-test passed; %s terms, %s codes, %s artifacts checked; commit messages: %s)\n' \
     "$(echo "$TERMS" | wc -w | tr -d ' ')" \
     "$(echo "$CODES" | wc -w | tr -d ' ')" \
-    "$(echo "$ARTIFACTS" | wc -w | tr -d ' ')"
+    "$(echo "$ARTIFACTS" | wc -w | tr -d ' ')" \
+    "$([ -n "$MSG_RANGE" ] && echo "$MSG_RANGE" || echo 'NOT CHECKED (no upstream)')"
 exit 0
