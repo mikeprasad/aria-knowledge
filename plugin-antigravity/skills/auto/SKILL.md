@@ -128,6 +128,26 @@ These bind every `/auto` run in every mode. They are not modifiers and cannot be
       - **Blast radius / reversal:** <files · commit · how to undo>
       - **Type:** judgment | D3-carve-out
       - **Disposition:** pending → accepted | revisit | reverted
+      - **Owner:** <REQUIRED whenever the disposition names OPEN WORK — who does it, and where it
+        is tracked. Omit the field entirely when nothing is owed.>
+
+  ⛔ **A DISPOSITION THAT NAMES OPEN WORK NAMES AN OWNER, OR IT IS A RACE.** A `revisit` plus a
+  *"⚠ OPEN WORK, not yet built"* clause together describe a task with no assignee, sitting in a
+  file every session reads on resume. Measured 2026-09-11: J8 of the CS DEV-1493 T4.5 ledger was
+  dispositioned `revisit` with its remaining work named and unowned, and **two sessions each read
+  it as their own next action** — one fully duplicated arc, two independent implementations of one
+  ruling landing in the same file within hours. Neither session erred and neither could have known;
+  the entry simply did not say whose it was.
+
+  ⇒ Name the owner in the entry, or file the work as a ticket and name the ticket. *"Someone
+  should"* is not an owner, and a ledger is read by more sessions than wrote it.
+
+  ⚑ Worth knowing because it is the cheap half of the fix: that duplication surfaced **only**
+  because one session reported a COUNT *with the instrument that produced it* — "five, resolving
+  the receiver by import binding" — which the other could re-run with a different variable. A prose
+  summary of the same work would have read as agreement and both versions would have shipped. This
+  is U23 (*a count travels with its unit and its instrument*) paying off ACROSS sessions rather
+  than within one.
 
   At arc close the ledger is reported **first**, ahead of the landed-work summary, and the
   user is explicitly prompted to review each entry (accept / revisit / revert); dispositions
