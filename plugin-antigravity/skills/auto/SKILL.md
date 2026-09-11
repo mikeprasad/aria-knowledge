@@ -54,7 +54,18 @@ These bind every `/auto` run in every mode. They are not modifiers and cannot be
   visible, gate only on the 5-hour number. The 7-day number is never a reason to slow,
   shrink, defer, or stop. At **90%** 5h, arm or re-arm the resume schedule (Step 6). At
   **95%** 5h, PAUSE: checkpoint, commit, then wait for the reset if a resume is armed, else
-  `/handoff`. When no statusline is visible (the desktop runtime reports an unreliable
+  `/handoff`. ⛔ **UNLESS the user gave an explicit overnight or unattended grant — that grant
+  SUPERSEDES this pause** (Mike's ruling, 2026-09-11; `user-rules.md` U28). Crossing the 5-hour
+  wall is the POINT of such a request, so arm the resume first and then keep working. Absent a
+  grant, the pause stands as written. ⚑ Without this clause D1 contradicted two standing
+  directives — TASK BUDGET (*a budget figure is never yours to convert into a decision to stop*)
+  and U20 (*never cite usage to shorten a required step*) — and a run under an overnight grant had
+  to adjudicate that in the moment.
+  ⛔ **And compute the resume schedule's fire time from the RESET (`five_hour_resets_at` in the
+  usage snapshot), NEVER from `now` at the moment you arm it.** A 5-hour window SLIDES; a cron
+  carries FIXED wall-clock time. Measured 2026-09-11: a resume armed from the arming moment fired
+  **94 minutes early**.
+  When no statusline is visible (the desktop runtime reports an unreliable
   figure), do not infer a number and do not gate on one — ask.
 - **D2 — A scheduled prompt never starts with `/`.** Applies to every scheduling mechanism.
   A leading `/token` is parsed as an unknown command and the whole mandate is silently
