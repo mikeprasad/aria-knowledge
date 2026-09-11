@@ -30,11 +30,34 @@ assert_eq "schedule: uninstall flips" "false" "$(jq -r '.schedule.enabled' "$SCF
 assert_eq "schedule: time preserved"  "08:30" "$(jq -r '.schedule.time' "$SCF" 2>/dev/null)"
 
 # --- pm-morning-run.sh writes a lastRun block (claude stubbed, hermetic) ---
-MR="$APM_TMP/mrun"; mkdir -p "$MR/home/.claude/logs" "$MR/knowledge/pm-reviews"
+# ⛔ TWO FIXTURE REQUIREMENTS THAT WERE ALWAYS MISSING AND WERE MASKED UNTIL 0b0cc45.
+# `pm-morning-run.sh` does `cd "$HOME/Projects"` and then decides its result by looking for a
+# digest NEWER than its own marker. This fixture created neither the directory nor a digest, so
+# the run has always genuinely FAILED here — it simply reported a fixed "ok", which is the defect
+# 0b0cc45 removed. Asserting "ok" against a fixture that cannot succeed made this block a
+# `characterization-test-becomes-a-defect-pin`: it pinned the lie, so fixing the lie reddened it.
+#
+# ⭐ Both additions are COPIED from the harness that same commit proves, not invented here —
+# `tests/repros/pm-morning-run.sh`, `pm_env` (which does `mkdir -p "$T_HOME/Projects"`) and AC2
+# (whose stub writes a digest by absolute path). That suite's AC3 asserts this fixture's OLD
+# shape yields error/no-digest, so before this fix the two files asserted OPPOSITE outcomes for
+# the same condition.
+#
+# ⚠ Both asserts below are deliberately UNCHANGED. This block's job inside test-aria-assist.sh is
+# the overlay-file integration — does pm-morning-run write a lastRun section into
+# .aria-assist.json at all — which is the SUCCESS path its own heading names. Flipping it to
+# assert error/no-digest instead would duplicate AC3 and silently change what it tests.
+MR="$APM_TMP/mrun"; mkdir -p "$MR/home/.claude/logs" "$MR/knowledge/pm-reviews" "$MR/home/Projects"
 printf -- '---\nknowledge_folder: %s/knowledge\npm_light_writes: false\n---\n' "$MR" > "$MR/cfg.md"
 printf '2 active\n' > "$MR/knowledge/pm-reviews/.last-summary"
 MSTUB="$MR/stub"; mkdir -p "$MSTUB"
-for b in claude osascript; do printf '#!/bin/sh\nexit 0\n' > "$MSTUB/$b"; chmod +x "$MSTUB/$b"; done
+printf '#!/bin/sh\nexit 0\n' > "$MSTUB/osascript"; chmod +x "$MSTUB/osascript"
+cat > "$MSTUB/claude" <<CLAUDE_STUB
+#!/bin/sh
+printf '# digest\n' > "$MR/knowledge/pm-reviews/2099-01-02.md"
+exit 0
+CLAUDE_STUB
+chmod +x "$MSTUB/claude"
 MRF="$MR/knowledge/pm-reviews/.aria-assist.json"
 ( export HOME="$MR/home"; export KT_CONFIG="$MR/cfg.md"; PATH="$MSTUB:$PATH"; sh "$BIN/pm-morning-run.sh" ) >/dev/null 2>&1
 assert_eq "morning: lastRun result"  "ok" "$(jq -r '.lastRun.result' "$MRF" 2>/dev/null)"

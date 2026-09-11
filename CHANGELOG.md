@@ -14,7 +14,13 @@ Both clauses reached **two** ports, and that scope was measured rather than assu
 
 ⭐ The entry also records the cheap half of the fix, because it generalises past ledgers: the duplication surfaced **only** because one session reported a count *with the instrument that produced it* — "five, resolving the receiver by import binding" — which let the other re-run it with a different variable and find that the two counts differed by **unit, not by fact**. A prose summary of the same work would have read as agreement and both versions would have shipped. That is U23 paying off across sessions rather than within one.
 
-No code, no hooks, no behaviour change — three skill documents and one user rule. Suites unchanged and green.
+**And 2.52.6's own `pm-morning-run` fix had left `main` red for two hours, in a suite nobody ran.** `0b0cc45` made the script report its real outcome instead of a fixed `"ok"` — correct, and comprehensively covered by the 217-line repro suite it shipped with. What it could not see is that `plugin-claude-code/tests/test-aria-assist.sh` had a fixture which *never could succeed*: it creates no `$HOME/Projects` for the script's `cd`, and stubs `claude` to exit 0 writing no digest. The old always-`"ok"` masked both. So that block was pinning the defect, and removing the defect reddened it — `characterization-test-becomes-a-defect-pin`.
+
+The two suites then asserted **opposite** outcomes for the same condition: the repro suite's AC3 says that exact fixture yields `error` / `no-digest`, while the older block still asserted `ok`. The fixture is now completed from the harness AC2 and `pm_env` already prove — `mkdir -p $HOME/Projects` and a digest-writing stub — leaving both of its asserts unchanged, because the block's job is the overlay-file integration its own heading names. Both additions mutation-verified: dropping either one reddens the suite.
+
+⚠ Worth recording because the gate worked exactly as designed: the commit ran `tests/run.sh` 32 times and `plugin-claude-code/tests/run.sh` **zero** times, and reported "40 suites green" — a true statement about one of the two suites gate A runs. The check that would have caught it is `release.sh` itself, which that session correctly declined to run because no release had been asked for.
+
+No code, no hooks, no behaviour change — three skill documents, one user rule, one test fixture. Suite 332 passed / 0 failed, the same count as before, since no test was added.
 
 ## 2.52.6 — 2026-09-11
 
