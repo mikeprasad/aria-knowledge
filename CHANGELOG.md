@@ -2,6 +2,20 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.52.7 — 2026-09-11
+
+**`/auto` D1 told a session to pause at 95% while two other standing directives told it not to, and nothing adjudicated.** D1 says *"At 95% 5h, PAUSE"*; the TASK BUDGET directive says a budget figure is never yours to convert into a decision to stop; U20 forbids citing usage to shorten a required step. Under an explicit overnight grant D1 was the odd one out, so a run that had been *asked* to cross the five-hour wall had to decide the conflict in the moment rather than follow a rule. D1 now records that **an explicit overnight or unattended grant supersedes the pause** — crossing the wall is the point of such a request. Absent a grant the pause stands exactly as written.
+
+**And a resume schedule armed from the arming moment fired 94 minutes early.** A five-hour usage window *slides*; a cron carries *fixed wall-clock time*. D1 now says to compute the fire time from the reset (`five_hour_resets_at`), not from `now`. This was measured on the 2026-09-11 CS DEV-1493 arc, not reasoned.
+
+Both clauses reached **two** ports, and that scope was measured rather than assumed: the patch asserted the D1 block occurs exactly once and byte-identically in claude-code and antigravity before writing. **The codex port is deliberately untouched** — its D1 is a genuinely different rule (*"Usage budget is explicit in Codex"*), a port-specific adaptation rather than a copy, so the same text would not be a correction there. The matching user-side rule is `user-rules.md` U28; both surfaces were ruled because a user rule alone leaves D1 reading "pause at 95%" unqualified, and one always-loaded surface asserting two things is a failure this project has already paid for.
+
+**A judgment-ledger disposition that named open work with no owner cost a fully duplicated arc.** J8 of a CS ledger was dispositioned `revisit` with its remaining work described precisely — a complete, actionable task with no assignee, in a file every session reads on resume. **Two sessions each read it as their own next action.** Both built it, into the same file, within hours. Neither erred; the entry did not say whose it was. D7 gains an `Owner:` field, required whenever a disposition names open work and omitted when nothing is owed. All **three** ports carry D7's entry shape byte-identically, so unlike D1 this is one edit applied three times.
+
+⭐ The entry also records the cheap half of the fix, because it generalises past ledgers: the duplication surfaced **only** because one session reported a count *with the instrument that produced it* — "five, resolving the receiver by import binding" — which let the other re-run it with a different variable and find that the two counts differed by **unit, not by fact**. A prose summary of the same work would have read as agreement and both versions would have shipped. That is U23 paying off across sessions rather than within one.
+
+No code, no hooks, no behaviour change — three skill documents and one user rule. Suites unchanged and green.
+
 ## 2.52.6 — 2026-09-11
 
 **Four always-loaded skills told every session the Rule 22 bypass ledger did not exist, while a live hook was writing it.** They said *"There is no ledger to read any more … retired 2026-08-26 as its only writer."* Measured: nineteen ledger files present in `$TMPDIR` with real content, `bin/pre-bash-write-check.sh` on disk, writing that exact path unconditionally given a session id, and **wired in the plugin's hooks block**. The writer was **replaced**, not retired — the retired guard decided from the command string, the replacement resolves the mutation target and is deliberately record-only. So `/wrapup` and `/handoff` in claude-code and antigravity dropped a real signal and told the reader to judge it by hand instead. The codex port was correct throughout and is unchanged.
