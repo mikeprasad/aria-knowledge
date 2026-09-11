@@ -72,7 +72,7 @@ If the user's config (`~/.claude/aria-knowledge.local.md`) has `active_knowledge
 
 6. **Collect files.** Under each matched tag's `### tag` section, gather the `- path — description` lines. Dedupe by path. Cap at top-5 by first-appearance order.
 
-7. **Ledger filter (best-effort).** Run `ls -t /tmp/aria-active-* 2>/dev/null | head -1` via Bash to find the current session's ledger. If found, read it and drop any matched paths already listed there. If no ledger exists, proceed unfiltered.
+7. **Ledger filter (best-effort).** Resolve the ledger at `/tmp/aria-active-<session-id>`, where `<session-id>` is your runtime's session identifier — in Claude Code, `$CLAUDE_CODE_SESSION_ID`. If it exists, read it and drop any matched paths already listed there — they were surfaced by an earlier hook/skill in this session. ⛔ If your runtime exposes no such identifier, or the file is absent, proceed **UNFILTERED** and say so in the surfacing block (`Ledger: none for this session — proceeding unfiltered`). ⛔ Do NOT use `ls -t` over the ledger glob to guess: it returns the most recently modified ledger on the MACHINE, which is another live session's whenever yours is absent or not newest (measured 2026-09-11: 71 ledgers present, 4 concurrent sessions, a foreign one returned). A foreign ledger DROPS files never surfaced to this session, so the filter suppresses exactly the knowledge this step exists to load.
 
 8. **Read matched files.** For each remaining path (up to 5), `Read` the full file into context. **Prefer files under `logs/retrospect/`** if any matched — they're prior retros on overlapping tags, which is the loop-closure case (past retros inform new retros on the same topic). If both a retro and a non-retro file match, prioritize the retro within the top-5 cap.
 
@@ -97,7 +97,7 @@ If the user's config (`~/.claude/aria-knowledge.local.md`) has `active_knowledge
 
     d. **STITCH load** (only if `{project_root}/STITCH.md` exists — multi-repo signal). Same staleness logic with `stitch_staleness_threshold_days` (default 30). Unless refused: `Read {project_root}/STITCH.md` (full file).
 
-    e. **Ledger dedup.** Locate session ledger via `ls -t /tmp/aria-active-* 2>/dev/null | head -1`. Before loading in (c)/(d), grep ledger for each artifact path; if found, silent skip (already surfaced by earlier T-1/T-2/T-3 trigger) and emit `Tracked artifacts: (already loaded earlier this session for {tag})` in the surfacing block. After loading, append loaded paths to the ledger.
+    e. **Ledger dedup.** Locate the session ledger at `/tmp/aria-active-<session-id>` (in Claude Code, `$CLAUDE_CODE_SESSION_ID`) — ⛔ never via `ls -t` over the glob, which returns another live session's ledger (see item 7). Before loading in (c)/(d), grep ledger for each artifact path; if found, silent skip (already surfaced by earlier T-1/T-2/T-3 trigger) and emit `Tracked artifacts: (already loaded earlier this session for {tag})` in the surfacing block. After loading, append loaded paths to the ledger. If no session identifier is available, skip the dedup and load.
 
     f. **Output.** Extend the Step 9 surfacing block with a 4th line:
         ```
