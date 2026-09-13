@@ -329,6 +329,47 @@ kt_ss_ledger_mark_consumed() {
   return 0
 }
 
+# Flip "### <SID> … · unconsumed" to "· consumed <TS> by <BY> (superseded)" for the named session.
+#
+# ⛔ WHY THIS EXISTS — the D3 defect, closed 2026-09-14. Before it, a human who wanted to retire an
+# entry that was never "consumed" by a resuming session had no sanctioned verb, so they hand-typed a
+# status: `superseded`, `complete`, `⛔ RETIRED`. That free text broke BOTH layers at once —
+#   · `kt_ss_ledger_prune` reaps only a word-bounded `consumed`, so the entry was UNPRUNABLE and
+#     accumulated forever (a real ledger reached 7,958 lines partly this way); and
+#   · the reader (`tools/check-session-ledger.py`) classified anything not `consumed` as LIVE, so
+#     deleting one by hand was reported as a DESTROYED HANDOFF. Measured 2026-09-12: 24 correctly
+#     dispositioned entries produced 23 false "structural damage" findings. The cost is not the
+#     noise — it is alarm fatigue on the one detector that catches real handoff loss.
+#
+# ⛔ THE EMITTED TOKEN CONTAINS THE WORD `consumed` ON PURPOSE. Do not "improve" this to emit a
+# bare `superseded`. Two reasons, both measured:
+#   1. `prune` must reap it. Its predicate is /(^|[^a-z])consumed([^a-z]|$)/ — a bare `superseded`
+#      matches NEITHER prune nor mark_consumed, which is exactly the stuck-forever half of D3.
+#      Teaching prune a second word would mean two predicates to keep in sync across the ports.
+#   2. It must NOT re-match mark_consumed's `unconsumed` matcher, and it does not — verified
+#      two-sided: this token → prune YES / mark_consumed NO; plain `unconsumed` → the inverse.
+#
+# ⛔ NO FREE-TEXT REASON IN THE HEADER — the reason belongs in the entry BODY. The header is a
+# machine-parsed ` · `-delimited field, and putting unstructured text there is the defect this
+# function closes; a remedy that emits free text into the same field reproduces it. (Caught by the
+# pre-mortem on this change: the first draft appended `(superseded: <reason>)`.)
+#
+# Shape is mirrored from kt_ss_ledger_mark_consumed above — the same three interlocking properties
+# apply here verbatim, and the comment block there is the canonical explanation of why.
+kt_ss_ledger_mark_superseded() {
+  _ss_f="$1/SESSION.md"; _ss_sid="$2"; _ss_ts="$3"; _ss_by="$4"
+  [ -f "$_ss_f" ] || return 0
+  _ss_tmp="$_ss_f.$$.tmp"
+  awk -v sid="$_ss_sid" -v ts="$_ss_ts" -v by="$_ss_by" '
+    $0 ~ ("^### .*" sid) && /(^|[^a-z])unconsumed([^a-z]|$)/ {
+      sub(/unconsumed/, "consumed " ts " by " by " (superseded)"); print; next
+    }
+    { print }
+  ' "$_ss_f" > "$_ss_tmp" 2>/dev/null && mv "$_ss_tmp" "$_ss_f" 2>/dev/null
+  rm -f "$_ss_tmp" 2>/dev/null
+  return 0
+}
+
 # Remove every ### block whose header carries a "· consumed " token.
 #
 # BOUNDARIES ARE DECLARED, NOT INFERRED. Each block written by kt_ss_ledger_add ends with an
@@ -343,10 +384,34 @@ kt_ss_ledger_mark_consumed() {
 # invariant, so a column-0 "## " inside one is impossible and the old inference is still
 # sound for them. A first pass detects which format the file is in and picks the matching
 # rule, so old and new files both prune correctly.
+# The receipts file. Durable and OUTSIDE every repo on purpose: SESSION.md is git-TRACKED in 8
+# repos, so a sibling receipts file would mean per-repo gitignore churn and an untracked stray in a
+# tracked tree — the shape that gets committed by accident. TMPDIR was also rejected: the gap this
+# closes spans a wrapup (session N) to a SessionStart (session N+1), which TMPDIR need not survive.
+KT_SS_RECEIPTS="${KT_SS_RECEIPTS:-$HOME/.claude/session-ledger-receipts}"
+
 kt_ss_ledger_prune() {
   _ss_f="$1/SESSION.md"
   [ -f "$_ss_f" ] || return 0
   _ss_tmp="$_ss_f.$$.tmp"
+  # ⛔ RECEIPTS — read the census BEFORE, compare AFTER, append only once the mv has succeeded.
+  #
+  # WHY IT IS OUT HERE AND NOT INSIDE THE awk. The awk below is a two-pass filter whose STDOUT IS
+  # THE NEW FILE, guarded by `... > tmp 2>/dev/null && mv tmp file`. A receipt write inside it would
+  # put the receipt path into prune own failure path: a write that fails makes awk exit non-zero,
+  # the && short-circuits, mv never runs, and because stderr is discarded PRUNE SILENTLY STOPS
+  # PRUNING. A fix for a data-loss detector must never be able to disable the thing it monitors.
+  #
+  # WHY BEFORE-MINUS-AFTER AND NOT "headers carrying a terminal token". Those two sets are NOT the
+  # same: the hasterm and "## "-reset branches below mean some marked entries are deliberately not
+  # reaped. A receipt naming an entry that SURVIVED would later suppress a genuine loss report for
+  # it. The difference between the sets is exactly where that bug would live, so the receipt is
+  # derived from what the operation DID, never from what it was likely to do.
+  #
+  # A receipt is ADVISORY: it can only ever SUPPRESS a loss finding for an id it names. It can never
+  # create one. So a missing, truncated or corrupt receipts file degrades to the behaviour we had
+  # before it existed — a false positive — and never to a missed destruction. Do not trade that away.
+  _ss_before="$(grep '^### ' "$_ss_f" 2>/dev/null || true)"
   # A "### " line is an ENTRY HEADER only if it carries >= 2 " · " separators. Everything else at
   # column 0 inside an open block is CONTENT and is dropped with the block.
   #
@@ -411,6 +476,36 @@ kt_ss_ledger_prune() {
     { if (!drop) print }
   ' "$_ss_f" "$_ss_f" > "$_ss_tmp" 2>/dev/null && mv "$_ss_tmp" "$_ss_f" 2>/dev/null
   rm -f "$_ss_tmp" 2>/dev/null
+
+  # ── Receipt epilogue. Everything below is best-effort and swallows its own failures: the prune
+  # has ALREADY happened and committed by this point, so nothing here can undo or prevent it.
+  _ss_abs="$(cd "$1" 2>/dev/null && pwd)/SESSION.md"
+  _ss_after="$(grep '^### ' "$_ss_f" 2>/dev/null || true)"
+  _ss_rdir="$(dirname "$KT_SS_RECEIPTS")"
+  # ⛔ GUARD ON WRITABILITY, do not just add another 2>/dev/null. When a REDIRECTION fails the SHELL
+  # reports it, not the command, so `>> "$path" 2>/dev/null` still prints "no such file or
+  # directory" — measured. prune runs inside hooks, where stray stderr is noise in every session.
+  if [ "$_ss_before" != "$_ss_after" ] && mkdir -p "$_ss_rdir" 2>/dev/null && [ -w "$_ss_rdir" ]; then
+    # Reaped = present before, absent after. comm needs sorted input; the header text is the key.
+    printf '%s\n' "$_ss_before" | sort > "$_ss_tmp.b" 2>/dev/null || true
+    printf '%s\n' "$_ss_after"  | sort > "$_ss_tmp.a" 2>/dev/null || true
+    # Field 1 is "### <sid>", field 2 is the timestamp — emit "<abs>|<sid>|<ts>", the same
+    # sid|ts key shape the reader already builds, so it compares like with like.
+    comm -23 "$_ss_tmp.b" "$_ss_tmp.a" 2>/dev/null \
+      | awk -F' · ' -v p="$_ss_abs" 'NF>=2 { s=$1; sub(/^### +/,"",s); print p "|" s "|" $2 }' \
+      >> "$KT_SS_RECEIPTS" 2>/dev/null || true
+    rm -f "$_ss_tmp.b" "$_ss_tmp.a" 2>/dev/null
+    # Bound growth at the WRITER — the reader is read-only by design and must never truncate this.
+    if [ -f "$KT_SS_RECEIPTS" ]; then
+      _ss_n="$(wc -l < "$KT_SS_RECEIPTS" 2>/dev/null | tr -d ' ')"
+      case "$_ss_n" in ''|*[!0-9]*) _ss_n=0 ;; esac
+      if [ "$_ss_n" -gt 500 ]; then
+        tail -n 500 "$KT_SS_RECEIPTS" > "$KT_SS_RECEIPTS.$$.trim" 2>/dev/null \
+          && mv "$KT_SS_RECEIPTS.$$.trim" "$KT_SS_RECEIPTS" 2>/dev/null
+        rm -f "$KT_SS_RECEIPTS.$$.trim" 2>/dev/null
+      fi
+    fi
+  fi
   return 0
 }
 

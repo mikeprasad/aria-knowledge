@@ -298,9 +298,59 @@ kt_ss_ledger_mark_consumed() {
   _ss_f="$1/SESSION.md"; _ss_sid="$2"; _ss_ts="$3"; _ss_by="$4"
   [ -f "$_ss_f" ] || return 0
   _ss_tmp="$_ss_f.$$.tmp"
+  # ⛔ PORTED FROM plugin-claude-code 2026-09-14. This port had carried the PRE-2026-08-27 form
+  # (an anchored "^### <sid> " plus an end-anchored status test, subbing the anchored PHRASE) and
+  # never received the fix. Three interlocking properties; changing one alone reintroduces the bug:
+  #   1. "^### .*sid", not "^### <sid> " — real headers carry a parenthetical after the sid
+  #      (2 of 25 measured), and the anchored form silently matched NOTHING for those.
+  #   2. WORD-BOUNDED status test, not end-anchored — a trailing title or a bold status must still
+  #      be recognised.
+  #   3. Replace the WORD, not the anchored phrase. With 1 and 2 applied but not 3, those headers
+  #      MATCH and are NEVER REWRITTEN — a silent no-op that reads as success, which is strictly
+  #      worse than the original bug because it looks correct.
+  # ⚠ Safe in this port because its ledger_add writes an identical header shape and its prune is
+  # code-equivalent to the canonical one (both verified before porting). Word-bounding is also what
+  # keeps it safe in the other direction: "unconsumed" does NOT match the consumed predicate.
+  #
+  # ⛔ KEEP THIS COMMENT OUTSIDE THE awk PROGRAM. It lived inside the single quotes for one edit and
+  # broke the file: an apostrophe in prose TERMINATES the quoted awk program, so the shell parsed
+  # the regex as bare tokens. That is why this block sits above the awk call, and why it contains
+  # no apostrophes.
   awk -v sid="$_ss_sid" -v ts="$_ss_ts" -v by="$_ss_by" '
-    $0 ~ ("^### " sid " ") && /· unconsumed$/ {
-      sub(/· unconsumed$/, "· consumed " ts " by " by); print; next
+    $0 ~ ("^### .*" sid) && /(^|[^a-z])unconsumed([^a-z]|$)/ {
+      sub(/unconsumed/, "consumed " ts " by " by); print; next
+    }
+    { print }
+  ' "$_ss_f" > "$_ss_tmp" 2>/dev/null && mv "$_ss_tmp" "$_ss_f" 2>/dev/null
+  rm -f "$_ss_tmp" 2>/dev/null
+  return 0
+}
+
+# Flip "### <SID> … · unconsumed" to "· consumed <TS> by <BY> (superseded)" for the named session.
+# Added 2026-09-14 to close D3 — see the full rationale in plugin-claude-code's copy of this file,
+# which is the canonical explanation. Summary: a human retiring an entry that was never "consumed"
+# had no sanctioned verb, so they hand-typed a status; that free text made the entry unprunable AND
+# made the reader report its eventual removal as a destroyed handoff.
+#
+# ⛔ THE EMITTED TOKEN CONTAINS `consumed` DELIBERATELY — this port's kt_ss_ledger_prune uses the
+# word-bounded /(^|[^a-z])consumed([^a-z]|$)/ predicate (verified in this file before writing this),
+# so the token is reaped here exactly as it is in the other ports. A bare `superseded` would match
+# neither prune nor mark_consumed, which is the stuck-forever half of D3.
+#
+# The matcher below is the corrected word-bounded form, matching mark_consumed above.
+# ⚑ HISTORY, kept because it is the reason both functions carry their comment blocks: when
+# mark_superseded was first added here (2026-09-14), this port's mark_consumed still carried the
+# PRE-2026-08-27 form and the two deliberately differed — writing the new function in the *buggy*
+# neighbour's shape for local consistency would have shipped a known defect. The divergence was
+# reported as a residual and **ported in the same session**, so the two now agree. If you are
+# diffing ports and find them disagreeing again, that is drift, not design.
+kt_ss_ledger_mark_superseded() {
+  _ss_f="$1/SESSION.md"; _ss_sid="$2"; _ss_ts="$3"; _ss_by="$4"
+  [ -f "$_ss_f" ] || return 0
+  _ss_tmp="$_ss_f.$$.tmp"
+  awk -v sid="$_ss_sid" -v ts="$_ss_ts" -v by="$_ss_by" '
+    $0 ~ ("^### .*" sid) && /(^|[^a-z])unconsumed([^a-z]|$)/ {
+      sub(/unconsumed/, "consumed " ts " by " by " (superseded)"); print; next
     }
     { print }
   ' "$_ss_f" > "$_ss_tmp" 2>/dev/null && mv "$_ss_tmp" "$_ss_f" 2>/dev/null
@@ -322,10 +372,21 @@ kt_ss_ledger_mark_consumed() {
 # invariant, so a column-0 "## " inside one is impossible and the old inference is still
 # sound for them. A first pass detects which format the file is in and picks the matching
 # rule, so old and new files both prune correctly.
+# The receipts file. Durable and OUTSIDE every repo on purpose: SESSION.md is git-TRACKED in 8
+# repos, so a sibling receipts file would mean per-repo gitignore churn and an untracked stray in a
+# tracked tree — the shape that gets committed by accident. TMPDIR was also rejected: the gap this
+# closes spans a wrapup (session N) to a SessionStart (session N+1), which TMPDIR need not survive.
+KT_SS_RECEIPTS="${KT_SS_RECEIPTS:-$HOME/.claude/session-ledger-receipts}"
+
 kt_ss_ledger_prune() {
   _ss_f="$1/SESSION.md"
   [ -f "$_ss_f" ] || return 0
   _ss_tmp="$_ss_f.$$.tmp"
+  # Receipt census, read BEFORE the awk. Its pair is the epilogue after the mv; both are documented
+  # in plugin-claude-code/bin/lib-session-state.sh. The receipt is derived from what the operation
+  # DID (before minus after), never from what it was likely to do, and it is written only after the
+  # mv has already committed so it can never prevent a prune.
+  _ss_before="$(grep '^### ' "$_ss_f" 2>/dev/null || true)"
   # Kept functionally identical to plugin-claude-code/bin/lib-session-state.sh -- read that copy for
   # the full reasoning. Three things here are load-bearing and none may be "simplified":
   #   1. is_entry_header: a "### " line is an ENTRY HEADER only if it carries >= 2 " . " separators
@@ -367,6 +428,37 @@ kt_ss_ledger_prune() {
     { if (!drop) print }
   ' "$_ss_f" "$_ss_f" > "$_ss_tmp" 2>/dev/null && mv "$_ss_tmp" "$_ss_f" 2>/dev/null
   rm -f "$_ss_tmp" 2>/dev/null
+
+  # ── Receipt epilogue. Everything below is best-effort and swallows its own failures: the prune
+  # has ALREADY happened and committed by this point, so nothing here can undo or prevent it.
+  _ss_abs="$(cd "$1" 2>/dev/null && pwd)/SESSION.md"
+  _ss_after="$(grep '^### ' "$_ss_f" 2>/dev/null || true)"
+  _ss_rdir="$(dirname "$KT_SS_RECEIPTS")"
+  # ⛔ GUARD ON WRITABILITY, do not just add another 2>/dev/null. When a REDIRECTION fails the SHELL
+  # reports it, not the command, so `>> "$path" 2>/dev/null` still prints "no such file or
+  # directory" — measured. prune runs inside hooks, where stray stderr is noise in every session.
+  if [ "$_ss_before" != "$_ss_after" ] && mkdir -p "$_ss_rdir" 2>/dev/null && [ -w "$_ss_rdir" ]; then
+    # Reaped = present before, absent after. comm needs sorted input; the header text is the key.
+    printf '%s\n' "$_ss_before" | sort > "$_ss_tmp.b" 2>/dev/null || true
+    printf '%s\n' "$_ss_after"  | sort > "$_ss_tmp.a" 2>/dev/null || true
+    # Field 1 is "### <sid>", field 2 is the timestamp — emit "<abs>|<sid>|<ts>", the same
+    # sid|ts key shape the reader already builds, so it compares like with like.
+    comm -23 "$_ss_tmp.b" "$_ss_tmp.a" 2>/dev/null \
+      | awk -F' · ' -v p="$_ss_abs" 'NF>=2 { s=$1; sub(/^### +/,"",s); print p "|" s "|" $2 }' \
+      >> "$KT_SS_RECEIPTS" 2>/dev/null || true
+    rm -f "$_ss_tmp.b" "$_ss_tmp.a" 2>/dev/null
+    # Bound growth at the WRITER — the reader is read-only by design and must never truncate this.
+    if [ -f "$KT_SS_RECEIPTS" ]; then
+      _ss_n="$(wc -l < "$KT_SS_RECEIPTS" 2>/dev/null | tr -d ' ')"
+      case "$_ss_n" in ''|*[!0-9]*) _ss_n=0 ;; esac
+      if [ "$_ss_n" -gt 500 ]; then
+        tail -n 500 "$KT_SS_RECEIPTS" > "$KT_SS_RECEIPTS.$$.trim" 2>/dev/null \
+          && mv "$KT_SS_RECEIPTS.$$.trim" "$KT_SS_RECEIPTS" 2>/dev/null
+        rm -f "$KT_SS_RECEIPTS.$$.trim" 2>/dev/null
+      fi
+    fi
+  fi
+
   return 0
 }
 
