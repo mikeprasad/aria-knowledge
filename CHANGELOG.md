@@ -2,6 +2,24 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.52.8 — 2026-09-14
+
+**The 2.52.7 release ran neither of the two port generators, and every signal said it was fine.** `plugin-antigravity/build.sh` and `plugin-cursor-template/scripts/port-skills-to-mdc.py` are the documented re-sync steps after canonical skill edits. Neither ran. Both port worktrees read clean the whole time — which is the finding, not an aside: **a clean `git status` cannot tell you whether a GENERATED file matches its generator.** It answers "has anyone edited this?", and nobody had. The question worth asking was "does running the generator change anything?", and it did, by 38 files.
+
+**Cursor was 473 lines behind canonical.** It was missing the `/audit` dispatcher's expansion from four sub-audits to six (`rules` and `share`), the `/audit <verb>` canonical-form migration with its compatibility aliases, argument passthrough (`/audit rules promote R1 R3`), and the 2026-09-10 `/index` tag-provenance rules. **Antigravity was missing an entire skill** — `audit-rules/SKILL.md` and `bin/check-rule-lead-bytes.sh` did not exist in that port at all.
+
+⭐ **And the generator caught a defect in 2.52.6 that no test could have.** `0b0cc45` mirrored the `pm-morning-run.sh` claude-resolution fix into antigravity by hand: it updated the candidate-path **code** at line 41 and left the **comment** at line 33 still naming the old path. Nothing tests a comment. `build.sh`'s uniform path substitution fixed both, because it does not distinguish code from prose. That is the argument for running the generator rather than hand-patching a generated port, and it is why this release exists.
+
+**A documentation trap in the same area, fixed here.** `CLAUDE.md` named `aria-audit.mdc`, `aria-context.mdc`, `aria-core.mdc` and `aria-rule-22.mdc` as the `.mdc` files to hand-edit "outside the scripted path". Measured against `port-skills-to-mdc.py`'s own `RULES_DIR` constants, the script **overwrites three of those four**; only `aria-core.mdc` is genuinely hand-authored. Follow the doc, hand-edit `aria-audit.mdc`, then run the re-sync the same doc mandates, and the edit is gone at exit 0 with no diff to notice. The same class from the other direction: there a generated file drifted from its generator, here a doc invited edits to a generated file.
+
+**Two version records had gone stale silently.** `plugin-antigravity/plugin.json` read **2.48.2** against a `version.txt` sidecar reading 2.52.7 — four minor versions apart, because `build.sh` auto-syncs the sidecar and deliberately *preserves* `plugin.json` as hand-authored. Two version sources, one automated and one manual, fails exactly this way; the manual one is now at 2.52.8. `PORT-LEDGER.json` had not moved since v2.46.4 (2026-08-20), which is where the drift checker's "synced to 2.46.4" lag line came from.
+
+⚠ **Two ports deliberately did NOT move, and the reason is the same one that moved the other two.** `plugin-openai-codex` is hand-synced and has genuine content drift across roughly ten skills — bumping its version would assert a parity that does not exist. `plugin-claude-cowork` is on its own `cowork-vX.Y.Z` cadence with 32 files changed since `cowork-v1.7.0`; that is its own release decision, not something to fold into a canonical bump. The ports whose versions moved are exactly the two whose generators were run and whose output was verified.
+
+⚑ Instrument note, because it cost three wrong readings in one session: `check-port-drift.sh`'s per-file `drifted` is **not** a staleness signal for a generated port. Codex strips ADR-094 Runtime Gates, antigravity rewrites paths and frontmatter — so those files differ from canonical by construction and always will. Only running the generator, or the recorded watermark in `PORT-LEDGER.json`, answers staleness.
+
+No behaviour change to canonical: 38 regenerated port files, one documentation correction, three version records. All four suites bare exit 0 — `tests/run.sh` 40 suites, `plugin-claude-code/tests/run.sh` 332 passed, `plugin-openai-codex/tests/run.sh`, and `plugin-antigravity/tests/` 24 bats.
+
 ## 2.52.7 — 2026-09-11
 
 **`/auto` D1 told a session to pause at 95% while two other standing directives told it not to, and nothing adjudicated.** D1 says *"At 95% 5h, PAUSE"*; the TASK BUDGET directive says a budget figure is never yours to convert into a decision to stop; U20 forbids citing usage to shorten a required step. Under an explicit overnight grant D1 was the odd one out, so a run that had been *asked* to cross the five-hour wall had to decide the conflict in the moment rather than follow a rule. D1 now records that **an explicit overnight or unattended grant supersedes the pause** — crossing the wall is the point of such a request. Absent a grant the pause stands exactly as written.

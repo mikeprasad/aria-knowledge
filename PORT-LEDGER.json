@@ -1,8 +1,8 @@
 {
   "claude-code": {
-    "version": "2.46.4",
-    "parity_target": "2.46.4",
-    "last_parity_pass": "2026-08-20",
+    "version": "2.52.8",
+    "parity_target": "2.52.8",
+    "last_parity_pass": "2026-09-14",
     "sla": "undeclared",
     "surfaces": {}
   },
@@ -90,9 +90,9 @@
     }
   },
   "cursor-template": {
-    "version": "2.46.2-cursor.0",
-    "parity_target": "2.46.4",
-    "last_parity_pass": "2026-08-20",
+    "version": "2.52.8-cursor.0",
+    "parity_target": "2.52.8",
+    "last_parity_pass": "2026-09-14",
     "sla": "undeclared",
     "surfaces": {
       "plugin-cursor-template/.cursor/rules/aria-commands.mdc": "d33bdeabbdadfbf4fba63a68be3f79f866779af212eefcb69f88855c2e7225d8",
@@ -100,9 +100,9 @@
     }
   },
   "antigravity": {
-    "version": "2.46.2",
-    "parity_target": "2.46.4",
-    "last_parity_pass": "2026-08-20",
+    "version": "2.52.8",
+    "parity_target": "2.52.8",
+    "last_parity_pass": "2026-09-14",
     "sla": "undeclared",
     "surfaces": {
       "plugin-antigravity/skills/aria-assist/SKILL.md": "ba71fb4692c5d6f313ea32fc63113d9db0ef6cc070658d0dafb93664934867de",
