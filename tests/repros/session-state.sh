@@ -17,6 +17,22 @@ ok()   { printf "PASS  %s\n" "$1"; PASS=$((PASS + 1)); }
 bad()  { printf "FAIL  %s — %s\n" "$1" "$2"; FAIL=$((FAIL + 1)); }
 
 TMP=$(mktemp -d "${TMPDIR:-/tmp}/aria-ss-test.XXXXXX")
+
+# ⛔ KT_SS_RECEIPTS IS REDIRECTED INTO THE SCRATCH DIR. Without it, every kt_ss_ledger_prune call
+# below (11 of them) appends to the user's REAL receipts file at ~/.claude/session-ledger-receipts
+# — the suite mutating production state, which is the hazard this file's whole fixture discipline
+# exists to avoid. Measured 2026-09-14, the day receipts shipped: 20 of the 22 entries in the live
+# file were this suite's temp-dir paths; only 2 were real projects.
+#
+# ⚑ Why it was missed: the sibling checker suite already guards the EQUIVALENT hazard for its
+# watermark cache ("--watermark is REDIRECTED to the scratch dir"), but that guard is scoped to the
+# WATERMARK. Receipts are a second global-state file, so the existing guard could not cover them —
+# guard-scoped-to-the-wrong-unit, where the real unit is "global state this suite writes".
+# ⇒ When a helper gains a NEW side effect on global state, census its CALLERS, not just its author.
+#
+# Harm was bounded (receipts are advisory-only, capped at 500 lines, and keyed by absolute paths
+# that cannot collide with a real ledger) — noise and waste, not corruption. Redirected anyway.
+export KT_SS_RECEIPTS="$TMP/session-ledger-receipts"
 trap 'rm -rf "$TMP"' EXIT
 
 # --- A: find_root walks up to nearest CLAUDE.md ---
