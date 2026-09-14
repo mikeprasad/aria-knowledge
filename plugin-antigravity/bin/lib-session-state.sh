@@ -388,7 +388,7 @@ kt_ss_ledger_mark_superseded() {
 # repos, so a sibling receipts file would mean per-repo gitignore churn and an untracked stray in a
 # tracked tree — the shape that gets committed by accident. TMPDIR was also rejected: the gap this
 # closes spans a wrapup (session N) to a SessionStart (session N+1), which TMPDIR need not survive.
-KT_SS_RECEIPTS="${KT_SS_RECEIPTS:-$HOME/.claude/session-ledger-receipts}"
+KT_SS_RECEIPTS="${KT_SS_RECEIPTS:-$HOME/.gemini/antigravity/session-ledger-receipts}"
 
 kt_ss_ledger_prune() {
   _ss_f="$1/SESSION.md"

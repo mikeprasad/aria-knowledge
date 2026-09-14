@@ -1,8 +1,10 @@
 ---
-description: "Generate a value/ROI report for YOUR knowledge corpus — cost-surface token math plus prospect/retrospect quality distributions, month trends, and an honest confound-aware read of whether ARIA is earning its keep. Opt-in, never routine. Trigger: '/audit usage', 'is ARIA worth it', 'value analysis', 'usage report'. (Code port — ADR-094.)"
+description: "Internal facet of the audit family — invoke via '/audit usage'. Value/ROI report over your own knowledge corpus (cost surface + quality distributions + trends). (Code port — ADR-094.)"
 ---
 
 # /audit usage — Value/ROI Self-Analysis
+
+Canonical invocation: **`/audit usage`**. The direct `/audit-usage` form is retained for compatibility and is not advertised.
 
 Generate a value-analysis report computed against the user's OWN knowledge corpus — the user-facing counterpart to the plugin's published `docs/value-analysis.md` (which is the author's N=1 digest). Deterministic metrics come from `bin/usage-metrics.sh`; the interpretive narrative is written here, gated on sample size.
 
@@ -51,7 +53,7 @@ Print a 3-4 line inline summary (needs-changes rate, clean rate, per-fix-verdict
 
 ## Rules
 
-- **Opt-in only** — never fired by a cadence nudge; only explicit `/audit usage`, `/audit all`, or menu pick.
+- **Opt-in only** — never fired by a cadence nudge; only explicit `/audit usage` or a menu pick.
 - **Honest on small samples** — print every `n`; gate trends on ≥10/month; never fabricate on a zero corpus.
 - **Metrics are the script's job** — do not re-derive counts inline; `bin/usage-metrics.sh` is the single source of truth. The skill only interprets and persists.
 - **The user's corpus, not the author's** — the report reflects THIS user's logs; do not import the published doc's numbers.

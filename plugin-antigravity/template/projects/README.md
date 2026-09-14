@@ -42,7 +42,7 @@ projects/
 Project-specific knowledge graduates to cross-project when evidence accumulates across projects:
 
 1. **Captured in `projects/{project-tag}/patterns/`** — validated within one project, ≥2 sessions of evidence
-2. **Promoted to `/approaches/`** — same pattern observed in a second project with broader applicability (`/audit-knowledge` Step 5e suggests promotion when a pattern appears in ≥`projects_promotion_threshold` projects)
+2. **Promoted to `/approaches/`** — same pattern observed in a second project with broader applicability (`/audit knowledge` Step 5e suggests promotion when a pattern appears in ≥`projects_promotion_threshold` projects)
 3. **Promoted to `/rules/working-rules.md`** — pattern becomes a universal rule
 
 Decisions don't typically promote — they stay in the project where they were made (though a cross-project decision can supersede them, in which case add a note linking the supersession).
@@ -57,7 +57,7 @@ All files under `projects/` are indexed by `/index` and surfaced via `/context`.
 
 ## Provenance for promoted files
 
-When `/audit-knowledge` Step 5e promotes a project-specific file to the cross-project tree (or merges multiple project files into a synthesized cross-project file), the new file gets an `originally_at:` frontmatter field describing the source(s). This survives git history truncation and makes consolidation history greppable.
+When `/audit knowledge` Step 5e promotes a project-specific file to the cross-project tree (or merges multiple project files into a synthesized cross-project file), the new file gets an `originally_at:` frontmatter field describing the source(s). This survives git history truncation and makes consolidation history greppable.
 
 ## Related
 - [../README.md](../README.md) — top-level knowledge structure

@@ -30,7 +30,7 @@ DIGEST_NAME=""
 # D1 — resolve `claude` by probe chain + EXECUTABILITY test.
 # ⛔ Do NOT collapse this to a single hardcoded fallback, and do NOT "simplify" it by prepending
 # to PATH: both re-create the 94-day defect for any install layout the guess misses. The legacy
-# ~/.claude/local/claude stays LAST, for back-compat with installs that do have it.
+# ~/.gemini/antigravity/local/claude stays LAST, for back-compat with installs that do have it.
 # ⚑ Completeness here is NOT safety-critical: with the honest reporting below, a missed location
 # produces a failure notification on day one instead of three months of silence.
 # ⚑ PM_CLAUDE_CANDIDATES exists so the fallback branch is TESTABLE. Unset in production, where it

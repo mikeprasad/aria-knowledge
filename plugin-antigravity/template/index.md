@@ -10,7 +10,7 @@ decide which knowledge files are relevant to the task at hand.
 
 _No tags yet._
 
-Promote knowledge with `/audit-knowledge`, then run `/index` to populate this section.
+Promote knowledge with `/audit knowledge`, then run `/index` to populate this section.
 Active knowledge surfacing stays off until at least one tag section exists here — the
 session-start hook gates on tag content, not on this file existing.
 

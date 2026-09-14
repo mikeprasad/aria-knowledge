@@ -103,7 +103,7 @@ directive applies because it would be useful here.
 
 RULE 22 ORDERING — The Low/High Impact block must appear ABOVE the Edit/Write tool call in the same assistant turn, never below. The PreToolUse hook structurally enforces this: if the [Rule 22] marker is absent from a text block between the previous Edit/Write and this one, the hook returns permissionDecision: deny and blocks the tool call. Retrying without the marker will deny again. Emit the block prospectively, not retroactively — the only valid path is marker-then-edit. Arguments for skipping ('conversation already covered it', 'docs-only edit', 'routine change', 'too trivial') are all invalid — see rules/change-decision-framework.md 'Ordering (required)' and 'Rationalizations that do not apply'.
 
-MEMORY PATHWAY — ARIA is the structured memory pathway for this session. For notes, use /intake (URLs, snippets, bulk imports, and thread capture), /extract (session insights), /audit-knowledge (promotion). Recent Claude models have enhanced file-system memory; route it through ARIA to keep the knowledge tree curated.
+MEMORY PATHWAY — ARIA is the structured memory pathway for this session. For notes, use /intake (URLs, snippets, bulk imports, and thread capture), /extract (session insights), /audit knowledge (promotion). Recent Claude models have enhanced file-system memory; route it through ARIA to keep the knowledge tree curated.
 
 ## Conditional on your environment — check this one yourself
 

@@ -104,7 +104,7 @@ tags: [tag1, tag2]
 
 ### Provenance — `originally_at` (any promoted file)
 
-When `/audit-knowledge` Step 5e promotes a project-specific file to the cross-project tree — whether a decision, approach, pattern, or guide — the new file gains an `originally_at:` YAML frontmatter field documenting the source(s) and move context. This creates a greppable consolidation history that survives git history truncation (shallow clones, squashed merges) and doesn't depend on git's rename-detection heuristics.
+When `/audit knowledge` Step 5e promotes a project-specific file to the cross-project tree — whether a decision, approach, pattern, or guide — the new file gains an `originally_at:` YAML frontmatter field documenting the source(s) and move context. This creates a greppable consolidation history that survives git history truncation (shallow clones, squashed merges) and doesn't depend on git's rename-detection heuristics.
 
 ```yaml
 ---
@@ -170,7 +170,7 @@ Add your own "When to Read" mappings as your knowledge base grows:
 
 The `intake/` backlogs are staging areas and signal generators. Over time, multiple backlog entries may cluster around a theme — repeated insights about the same problem space, or several related decisions that share underlying principles.
 
-During the knowledge audit (`/audit-knowledge`), look for these clusters:
+During the knowledge audit (`/audit knowledge`), look for these clusters:
 
 - **Multiple insights on the same topic** → may warrant a new approach or guide
 - **Multiple decisions with shared rationale** → may warrant an approach documenting the pattern

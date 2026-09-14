@@ -17,80 +17,92 @@ This file ports the `/audit` dispatcher plus `/audit-knowledge`, `/audit-config`
 
 # /audit — Audit Family Dispatcher
 
-A thin umbrella over the four sub-audits. `/audit` does not scan anything itself — it resolves which sub-audit(s) the user means, then delegates to the sub-skill that owns the actual work. Think of it as a menu + router, not another audit implementation.
+A thin umbrella over the six sub-audits. `/audit` does not scan anything itself — it resolves which
+sub-audit(s) the user means, then delegates to the sub-skill that owns the actual work. Think of it
+as a menu + router, not another audit implementation. **The `/audit <verb>` forms are the canonical
+invocations for the whole family** (see "Canonical forms and compatibility" below).
 
-## Step 0: Parse the Verb
+## Step 0: Parse the Verb (+ passthrough arguments)
 
-`/audit` takes at most one trailing verb. Resolve it against the grammar below before doing anything else.
+`/audit` takes a **verb followed by optional arguments**. Resolve the FIRST token against the
+grammar below before doing anything else. **Arguments are legal only AFTER a recognized verb** —
+any remaining tokens after a recognized verb are passed through to the sub-skill unchanged (e.g.
+`/audit style recent`, `/audit rules promote R1 R3`). An unrecognized first token always hits the
+unknown-verb branch, exactly as before — passthrough never weakens the never-silently-guess rule.
 
 | Input | Resolution |
 |---|---|
 | `/audit` (bare, no argument) | Present the **bare-menu** (Step 1) and wait for a pick. |
-| `/audit knowledge` | Delegate directly to `audit-knowledge` (Step 2). |
-| `/audit config` | Delegate directly to `audit-config` (Step 2). |
-| `/audit style` | Delegate directly to `audit-style` (Step 2). Style is **opt-in only** — see the note at the end of this section. |
-| `/audit usage` | Delegate directly to `audit-usage` (Step 2). Usage is **opt-in only** — same note as style. |
-| `/audit all` | Run all four sub-audits in sequence — knowledge → config → style → usage — each to completion, then print a combined one-line tally (Step 3). |
-| anything else (unrecognized verb) | **Unknown-verb branch** — do not guess or silently fall through. List the valid verbs and stop: *"'{verb}' is not a valid /audit sub-command. Valid verbs: knowledge, config, style, usage, all. Run bare `/audit` for a menu."* |
+| `/audit knowledge [args…]` | Delegate to `audit-knowledge` with the args (Step 2). |
+| `/audit config [args…]` | Delegate to `audit-config` with the args (Step 2). |
+| `/audit style [args…]` | Delegate to `audit-style` with the args (Step 2). Style is **opt-in only** — see the note at the end of this section. |
+| `/audit usage [args…]` | Delegate to `audit-usage` with the args (Step 2). Usage is **opt-in only** — same note as style. |
+| `/audit rules [args…]` | Delegate to `audit-rules` with the args (Step 2) — e.g. `/audit rules promote R1 R3`. Rules is **opt-in only** — same note as style. |
+| `/audit share [args…]` | Delegate to `audit-share` with the args (Step 2) — batch-review personal knowledge for promotion to the team-shared tier. Share is **opt-in only** — same note as style, and it additionally requires the shared-knowledge config (`projects_enabled` plus a non-empty `projects_shared_knowledge`). |
+| anything else (unrecognized verb) | **Unknown-verb branch** — do not guess or silently fall through. List the valid verbs and stop: *"'{verb}' is not a valid /audit sub-command. Valid verbs: knowledge, config, style, usage, rules, share. Run bare `/audit` for a menu."* |
 
-**Style is opt-in, never routine.** `/audit style` only runs when explicitly selected — either the user types `/audit style` / `/audit all` directly, or picks "style" off the bare-menu in Step 1. It is never fired automatically by the SessionStart audit-cadence nudge the way `/audit-knowledge` and `/audit-config` can be — session-start cadence checks are a knowledge/config concern, not a style-mining concern, so `/audit style` stays a deliberate, explicit action every time.
+**Style, usage, rules and share are opt-in, never routine.** They run only when explicitly
+selected — the user types the `/audit <verb>` form directly, or picks it off the bare-menu in
+Step 1. None of the four is ever fired automatically by the SessionStart audit-cadence nudge the
+way `/audit knowledge` and `/audit config` can be — session-start cadence checks are a
+knowledge/config concern; style-mining, usage reporting, rule-mining and cross-tier sharing stay
+deliberate, explicit actions every time. Share carries the strongest form of this: it writes into
+a team-shared and possibly public repo, so it is never anything but an explicit, per-item choice.
 
 ## Step 1: Bare `/audit` — Present the Menu
 
-When invoked with no argument, present the four options and wait for the user to pick one before doing anything else:
+When invoked with no argument, present the options and wait for the user to pick one before doing anything else:
 
 > **Which audit?**
 > 1. `knowledge` — scan Claude memory and plans for extractable knowledge (backlog → promotion review)
 > 2. `config` — check AGENTS.md files, plugin manifests, and knowledge docs for drift and staleness
 > 3. `style` — mine session-log history for revealed working-style rules (opt-in — not part of routine cadence)
 > 4. `usage` — value/ROI report for your own corpus (cost + quality + trends; opt-in — not routine cadence)
-> 5. `all` — run all four in sequence, then a combined tally
+> 5. `rules` — mine your distilled corrections for promotable standing rules (opt-in — not routine cadence)
+> 6. `share` — batch-review personal knowledge for promotion to the team-shared tier (opt-in; requires the shared-knowledge config)
 
 Do not default to any one sub-audit and do not run anything before the user picks. A bare `/audit` with no reply is a no-op — exit cleanly, nothing was scanned.
 
 ## Step 2: Delegate to a Resolved Sub-Skill
 
-Once a verb is resolved (from Step 0's direct-invocation column or Step 1's menu pick), delegate to the matching sub-skill via the `Skill` tool, with no additional arguments — the sub-skill runs its own full step sequence (config resolution, cadence/mode determination, findings presentation, user review, promotion) exactly as it would under direct invocation:
+Once a verb is resolved (from Step 0's direct-invocation column or Step 1's menu pick), delegate to the matching sub-skill via the `Skill` tool, **passing through any trailing arguments from the invocation** — the sub-skill runs its own full step sequence (config resolution, cadence/mode determination, findings presentation, user review, promotion) exactly as it would under direct invocation:
 
-- `knowledge` → Use the `Skill` tool to invoke `audit-knowledge`.
-- `config` → Use the `Skill` tool to invoke `audit-config`.
-- `style` → Use the `Skill` tool to invoke `audit-style`.
-- `usage` → Use the `Skill` tool to invoke `audit-usage`.
+- `knowledge` → Use the `Skill` tool to invoke `audit-knowledge` (with any passthrough args).
+- `config` → Use the `Skill` tool to invoke `audit-config` (with any passthrough args).
+- `style` → Use the `Skill` tool to invoke `audit-style` (with any passthrough args).
+- `usage` → Use the `Skill` tool to invoke `audit-usage` (with any passthrough args).
+- `rules` → Use the `Skill` tool to invoke `audit-rules` (with any passthrough args).
+- `share` → Use the `Skill` tool to invoke `audit-share` (with any passthrough args).
 
 `/audit`'s job ends at the handoff — it does not re-implement, intercept, or post-process what the sub-skill does. Whatever the sub-skill reports (findings, promotions, "nothing new to extract") is the final output of that leg.
 
-## Step 3: `/audit all` — Sequence + Tally
+## Canonical forms and compatibility
 
-`/audit all` runs the four sub-audits **in sequence, each to completion**, not in parallel and not short-circuited on an early empty result:
+**The `/audit <verb>` space forms are the canonical, advertised invocations for the whole family.**
+Every doc, help table, and cadence nudge names them — the SessionStart audit-cadence nudge says
+`/audit knowledge` and `/audit config`.
 
-1. Use the `Skill` tool to invoke `audit-knowledge`. Let it run its full flow (including any user-review prompts) to completion.
-2. Use the `Skill` tool to invoke `audit-config`. Let it run its full flow to completion.
-3. Use the `Skill` tool to invoke `audit-style`. Let it run its full flow to completion.
-4. Use the `Skill` tool to invoke `audit-usage`. Let it run its full flow to completion.
-
-After all four finish, print a combined one-line tally summarizing what each leg did, e.g.:
-
-> **Audit all — summary:** knowledge: 3 promoted, 1 rejected · config: 2 drift items flagged, 0 fixed · style: 1 rule candidate staged · usage: report written.
-
-If any leg errors or the user backs out mid-leg (e.g., declines a runtime-mismatch gate), note that leg as incomplete in the tally rather than silently omitting it, and continue to the next leg — one leg's early exit doesn't cancel the other two.
-
-## Back-Compat: Direct Sub-Skill Invocation Still Works
-
-`/audit` is an added convenience layer, not a replacement. `/audit-knowledge` and `/audit-config` remain **directly invocable** exactly as before — nothing about adding `/audit` changes their standalone triggers, and the SessionStart audit-cadence nudge continues to name them directly (`/audit-knowledge`, `/audit-config`) rather than routing through `/audit`. `/audit-style` and `/audit-usage` are likewise directly invocable. Use `/audit knowledge|config|style|usage` when you want the umbrella's menu/tally framing; use the bare `/audit-knowledge` / `/audit-config` / `/audit-style` / `/audit-usage` forms when you want that one audit with no dispatcher layer in between. Both paths land on the same sub-skill — this is a routing convenience, not a new code path.
+**Compatibility aliases (never advertised):** `/audit-knowledge` · `/audit-config` · `/audit-style` · `/audit-usage` · `/audit-rules` — all still resolve.
+The sub-skill files are this dispatcher's delegation targets and keep their names, but the
+hyphenated forms are aliases, not separate behaviour, and are never advertised as the canonical
+form (the same posture as the legacy `linear` spellings elsewhere in the family). Both paths land
+on the same sub-skill.
 
 ## Rules
 
-- **Never silently guess a verb.** An unrecognized argument always hits the unknown-verb branch in Step 0 — list the valid verbs and stop.
-- **Never auto-run style or usage.** `/audit style` and `/audit usage` fire only on explicit selection (direct invocation or menu pick) — never as part of a cadence nudge or as part of resolving a bare `/audit` without a menu pick.
+- **Never silently guess a verb.** An unrecognized first token always hits the unknown-verb branch in Step 0 — list the valid verbs and stop. Passthrough args exist only after a recognized verb.
+- **Never auto-run style, usage, rules, or share.** They fire only on explicit selection (direct invocation or menu pick) — never as part of a cadence nudge or as part of resolving a bare `/audit` without a menu pick.
 - **Never reimplement sub-audit logic here.** This skill's job is parse-and-delegate; all scanning, cadence math, and promotion logic lives in the sub-skill being delegated to.
-- **`/audit all` is sequential, not short-circuited.** Every leg runs to completion regardless of what the prior leg found, and every leg's outcome (including "declined" or "errored") shows up in the final tally.
+- **There is no run-everything verb.** `all` was removed in v2.50.0: six sub-audits is past the point where a blind sequence is a sensible default, and four of the six are opt-in by design — a run-everything would have been firing them against their own stated posture.
 
 ---
 
 ## /audit-knowledge
 
 
-# /audit-knowledge — Knowledge Repository Audit
+# /audit knowledge — Knowledge Repository Audit
+
+Canonical invocation: **`/audit knowledge`**. The direct `/audit-knowledge` form is retained for compatibility and is not advertised.
 
 Scan `~/.claude/` memory and plan files, compare against what's already in the knowledge folder and project-level docs, and surface anything worth extracting.
 
@@ -129,13 +141,13 @@ Record the count — it feeds both the prompt message and Step 8's `Trigger:` au
 
 **Determine how this skill was invoked:**
 
-- **User-requested** (user said `/audit-knowledge`, "audit knowledge", "scan memory", etc.): **Always run the full audit**, regardless of how recently the last audit was. Skip directly to Step 2.
+- **User-requested** (user said `/audit knowledge`, "audit knowledge", "scan memory", etc.): **Always run the full audit**, regardless of how recently the last audit was. Skip directly to Step 2.
 - **Session-start check** (triggered by the SessionStart hook): Check whether either trigger fired.
   - **Entry-count trigger** (primary): if `backlog_count >= audit_trigger_threshold`, prompt per tier:
-    - `count ≥ threshold + 30` → *"Knowledge audit overdue — N entries, plan for multi-pass. Run /audit-knowledge?"*
-    - `count ≥ threshold + 15` → *"Knowledge audit recommended — N entries, near one-pass ceiling. Run /audit-knowledge?"*
-    - `count ≥ threshold` → *"Knowledge audit suggested — N entries ready for review. Run /audit-knowledge?"*
-  - **Elapsed-days trigger** (safety net): if no entry-count tier fired AND `days_since >= audit_cadence_knowledge`, prompt: *"Knowledge audit due — N days since last audit. Run /audit-knowledge?"*
+    - `count ≥ threshold + 30` → *"Knowledge audit overdue — N entries, plan for multi-pass. Run /audit knowledge?"*
+    - `count ≥ threshold + 15` → *"Knowledge audit recommended — N entries, near one-pass ceiling. Run /audit knowledge?"*
+    - `count ≥ threshold` → *"Knowledge audit suggested — N entries ready for review. Run /audit knowledge?"*
+  - **Elapsed-days trigger** (safety net): if no entry-count tier fired AND `days_since >= audit_cadence_knowledge`, prompt: *"Knowledge audit due — N days since last audit. Run /audit knowledge?"*
   - **Neither fired**: report the last audit date + current backlog count + days-since, then stop. *"Last knowledge audit was N day(s) ago (YYYY-MM-DD). Backlog at M entries (threshold T). Next trigger at M=T entries or N=C days."*
 
 ## Step 1b: Check Index Freshness
@@ -1032,7 +1044,9 @@ Safe to call even if Step 7a's `kt_batch_begin` didn't succeed (e.g., jq missing
 ## /audit-config
 
 
-# /audit-config — Configuration & Documentation Health Check
+# /audit config — Configuration & Documentation Health Check
+
+Canonical invocation: **`/audit config`**. The direct `/audit-config` form is retained for compatibility and is not advertised.
 
 Scan all AGENTS.md files, `.claude/settings.local.json` configs, plugin manifests, and knowledge files for drift, broken references, and staleness.
 
@@ -1050,7 +1064,7 @@ Note the "Last Audit" date and calculate days since.
 
 **Determine how this skill was invoked:**
 
-- **User-requested** (user said `/audit-config`, "audit configs", "check setup", etc.): **Always run the full audit**, regardless of how recently the last audit was. Skip directly to Step 2.
+- **User-requested** (user said `/audit config`, "audit configs", "check setup", etc.): **Always run the full audit**, regardless of how recently the last audit was. Skip directly to Step 2.
 - **Session-start check** (triggered by the SessionStart hook): Check if the configured cadence has been exceeded.
   - If **cadence exceeded**: Prompt the user — *"It's been N days since the last config & docs audit. Want me to check for drift?"* If they agree, proceed to Step 2. If not, stop.
   - If **within cadence**: Report the last audit date and stop. *"Last config & docs audit was N day(s) ago (YYYY-MM-DD). Next check due in M days."*
@@ -1272,6 +1286,8 @@ Move the previous "Last Audit" entry to "Previous Audits".
 
 **Cursor port — corpus path:** Session logs live at `~/.cursor/projects/<cwd-encoded>/agent-transcripts/*.jsonl` (cwd with `/` replaced by `-`). This is **not** Claude Code's `~/.claude/projects/<cwd-encoded>/*.jsonl`. The extractor (`scripts/aria/extract-user-prose.py`) was written for Claude Code transcript shape — if Cursor JSONL fails to parse, **fail loud** (do not silently mine zero). Skip files whose names begin with `agent-` the same way.
 
+Canonical invocation: **`/audit style`** (args ride the umbrella: `/audit style recent`). The direct `/audit-style` form is retained for compatibility and is not advertised.
+
 Mine your own past session-log corpus for working-style rules you have already revealed through action — not rules you're asked to invent, rules extracted from what you actually said and did across real sessions. Evidence-gated at every step: a candidate that cannot show its receipts does not ship, no matter how plausible it sounds.
 
 ## Step 0: Config + Corpus Locate
@@ -1367,7 +1383,7 @@ For every candidate that survives Step 3's gate, redact each surviving quote bef
 
 Redaction happens here so the report, the card, and any write all use the redacted quotes. **No file is written in this step** — where the survivors go (staged to `rules-backlog.md`, promoted to `feedback_*.md`, or nothing) is the user's choice at the Step 6 disposition gate, made against the full report + card. The redacted survivors are simply held for Steps 5–6.
 
-**The write surface is fixed regardless of disposition:** staged survivors go to `{knowledge_folder}/intake/rules-backlog.md` (the `### YYYY-MM-DD — {title}` block below the `---` separator, rule statement + inline dated redacted receipts — the shape `/audit-knowledge` already expects). Promotion to `feedback_*.md` (or `rules/user-rules.md`) happens ONLY on the explicit promote-now disposition, and even then follows `/audit-knowledge`'s three-target logic. **The default disposition never writes `feedback_*.md`** — that stays a human-gated decision.
+**The write surface is fixed regardless of disposition:** staged survivors go to `{knowledge_folder}/intake/rules-backlog.md` (the `### YYYY-MM-DD — {title}` block below the `---` separator, rule statement + inline dated redacted receipts — the shape `/audit knowledge` already expects). Promotion to `feedback_*.md` (or `rules/user-rules.md`) happens ONLY on the explicit promote-now disposition, and even then follows `/audit knowledge`'s three-target logic. **The default disposition never writes `feedback_*.md`** — that stays a human-gated decision.
 
 ## Step 5: Report (the report IS the preview — nothing is written yet)
 
@@ -1444,21 +1460,21 @@ Present ONE decision. This is the only write-authorizing prompt (it absorbs the 
 ```
 Disposition for the M passed rules:
   [keep]     Keep as recommended (default) — stage to rules-backlog.md for review
-             at the next /audit-knowledge. Nothing written to feedback_*.md.
+             at the next /audit knowledge. Nothing written to feedback_*.md.
   [promote]  Promote the passed rules to user memory (feedback_*.md / user-rules.md)
-             NOW, via /audit-knowledge's three-target logic.
+             NOW, via /audit knowledge's three-target logic.
   [specify]  Decide per-rule, or something else (tell me).
   [cancel]   Write nothing (the card file already saved; sessions stay eligible next run).
 
 Press Enter / "keep" for the default.
 ```
 
-- **`keep` (default, incl. bare Enter / any non-committal reply):** append the M passed rules to `rules-backlog.md` (Step 4's shape); they flow through `/audit-knowledge`'s existing `rule` disposition on the user's normal cadence. **Nothing is written to `feedback_*.md`.** Advance the audit-log boundary.
-- **`promote`:** the user has explicitly authorized direct promotion — write the passed rules to `feedback_*.md` (or `rules/user-rules.md` for cross-project ARIA-behavior rules, or a project-tier `working-rules.md`) per `/audit-knowledge`'s three-target logic. This is the ONLY path that writes user memory, and only on this explicit choice. Advance the boundary.
+- **`keep` (default, incl. bare Enter / any non-committal reply):** append the M passed rules to `rules-backlog.md` (Step 4's shape); they flow through `/audit knowledge`'s existing `rule` disposition on the user's normal cadence. **Nothing is written to `feedback_*.md`.** Advance the audit-log boundary.
+- **`promote`:** the user has explicitly authorized direct promotion — write the passed rules to `feedback_*.md` (or `rules/user-rules.md` for cross-project ARIA-behavior rules, or a project-tier `working-rules.md`) per `/audit knowledge`'s three-target logic. This is the ONLY path that writes user memory, and only on this explicit choice. Advance the boundary.
 - **`specify`:** surface the passed rules and take per-rule instructions (stage some, promote some, drop some) or any freeform direction. Follow it exactly; never invent a disposition the user didn't give.
 - **`cancel`:** write nothing to backlog or memory; the card file from Step 5b remains. Do NOT advance the audit-log boundary.
 
-**Restate the invariants:** `/audit style` is **opt-in only** (no cadence/SessionStart/threshold trigger — explicit invocation only), and its **default never writes `feedback_*.md`** — direct promotion happens only on the explicit `promote`/`specify` choice; otherwise memory is reached only through the human-gated `/audit-knowledge` review, same as any other rule-backlog entry.
+**Restate the invariants:** `/audit style` is **opt-in only** (no cadence/SessionStart/threshold trigger — explicit invocation only), and its **default never writes `feedback_*.md`** — direct promotion happens only on the explicit `promote`/`specify` choice; otherwise memory is reached only through the human-gated `/audit knowledge` review, same as any other rule-backlog entry.
 
 ---
 
@@ -1466,6 +1482,8 @@ Press Enter / "keep" for the default.
 
 
 # /audit usage — Value/ROI Self-Analysis
+
+Canonical invocation: **`/audit usage`**. The direct `/audit-usage` form is retained for compatibility and is not advertised.
 
 Generate a value-analysis report computed against the user's OWN knowledge corpus — the user-facing counterpart to the plugin's published `docs/value-analysis.md` (which is the author's N=1 digest). Deterministic metrics come from `bin/usage-metrics.sh`; the interpretive narrative is written here, gated on sample size.
 
@@ -1514,7 +1532,7 @@ Print a 3-4 line inline summary (needs-changes rate, clean rate, per-fix-verdict
 
 ## Rules
 
-- **Opt-in only** — never fired by a cadence nudge; only explicit `/audit usage`, `/audit all`, or menu pick.
+- **Opt-in only** — never fired by a cadence nudge; only explicit `/audit usage` or a menu pick.
 - **Honest on small samples** — print every `n`; gate trends on ≥10/month; never fabricate on a zero corpus.
 - **Metrics are the script's job** — do not re-derive counts inline; `bin/usage-metrics.sh` is the single source of truth. The skill only interprets and persists.
 - **The user's corpus, not the author's** — the report reflects THIS user's logs; do not import the published doc's numbers.
