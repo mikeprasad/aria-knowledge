@@ -1,6 +1,10 @@
 # `/handoff resume` + the provenance token — merged design
 
-**Status:** DRAFT, pre-`/prospect`. Authored 2026-09-15.
+**Status:** ✅ **GATED 2026-09-15 — `/prospect` verdict PROCEED-WITH-CHANGES; changes applied below
+in the same edit that records them.** Gate log:
+`knowledge/logs/prospect/2026-09-15-file-handoff-resume-and-provenance-token-merged.md`.
+⭐ The gate's load-bearing change is an **execution-order** one, recorded at §9 OQ3: **D10 ships
+first and alone.** Authored 2026-09-15.
 **Supersedes two specs, by Mike's ruling 2026-09-15 ("Merge into one spec"):**
 - `2026-08-25-handoff-resume-mode-design.md` — GATED 2026-08-25, `PROCEED-WITH-CHANGES`, **never built**.
 - `2026-09-15-handoff-provenance-token-design.md` — GATED 2026-09-15, `PROCEED-WITH-CHANGES`, whose own
@@ -410,7 +414,25 @@ prompts · recovering the true author of a **tokenless** hook-stamped entry (sti
 - **OQ2 — antigravity has no `session-start-check.sh`,** so D5/D7 have no host. **Recommendation:**
   D4 + D6 + D8 everywhere; D5/D7 where a session-start surface exists; state the asymmetry explicitly
   in the parity unit rather than leaving it implicit.
-- **OQ3 — slice boundary.** The prior gate recommended shipping attribution (D4/D6/D8) before
-  consumption (D5/D7). With the merge, the picker (D1–D3) is a third, independently valuable unit.
-  **Recommendation: three units — (a) D4+D6+D8 attribution & detection, (b) D1–D3 the picker, (c)
-  D5+D7 the token fast path.** (c) depends on both. **Mike's call.**
+- **OQ3 — RESOLVED BY THE GATE, and the resolution reordered the arc.** The draft proposed three
+  units ordered by decision number. The gate found **D10 has zero dependencies** — no token, no
+  parser, no new helper, no format change: it reads a front-matter field present in **8 of 8**
+  ledgers, string-compares it, and on the newer-incumbent branch calls `kt_ss_ledger_add`, which
+  already exists. It is also the only decision addressing a failure reported as happening **often,
+  on two skills, today**; every other decision addresses a failure measured at 1.3% of commits or
+  reconstructed from a single incident.
+
+  **Ruled order — five units:**
+
+  | Unit | Steps | Decisions | Gate status |
+  |---|---|---|---|
+  | **0** | S9 | **D10** | ✅ all pre-validated — **ships first, alone** |
+  | **A** | S1 S2 S6 S7 S8 | D4 D6 D8 D9 | ✅ all pre-validated |
+  | **B** | S3 S4 | D1 D2 D3 | ⚠ re-measure the multi-candidate driver first (21 days old) |
+  | **C** | S5 | D5 D7 | ⚠ depends on A **and** B |
+  | **P** | S10 | — | 🚫 one deliberate parity pass; not interleaved (U16) |
+
+  ⚑ **Why this was missed at authoring, recorded because the shape recurs:** D10 arrived mid-arc
+  and was appended after D9, so it inherited the tail position from **authoring order** rather than
+  from dependency or value. Nothing re-sorts a late decision. Candidate pattern:
+  `late-decision-inherits-tail-position`.
