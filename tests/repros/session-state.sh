@@ -697,5 +697,104 @@ done
   && ok "Q mark_inprogress behavioural parity: $_Q_SEEN ports examined, keys + body-passthrough intact" \
   || bad "Q coverage" "only $_Q_SEEN port lib(s) carried kt_ss_mark_inprogress (want >= 4) -- too few subjects to mean anything"
 
+# --- R: the at-ordering guard (D10) -------------------------------------------------------------
+# SESSION.md front-matter is a SINGLE-VALUED, last-writer-wins record written by N concurrent
+# sessions, and before this block lib-session-state.sh contained ZERO comparisons of the incumbent's
+# `at` (censused 2026-09-15). So an older session's /wrapup or /handoff silently regressed a newer
+# session's state. Demote protects the incumbent's PROMPT; nothing protected its STATE.
+#
+# ⛔ THE COMPARISON IS A PLAIN STRING COMPARE ON SECOND-PRECISION Z, AND THE NARROWNESS IS MEASURED,
+# not conservative-by-taste: all 8 tracked ledgers carry a second-precision Z front-matter `at:`.
+# Minute-precision exists ONLY in entry headers (6, all in one project), which this guard never
+# reads -- censusing headers instead of front-matter is how the first draft acquired a requirement
+# for a case that cannot occur on the read path.
+#
+# ⛔ A NON-Z STAMP MUST BE REJECTED, NEVER COMPARED. `2026-09-02T00:20:21+09:00` is LIVE in the
+# corpus; a local-offset stamp compares lexicographically against a Z stamp and silently mis-orders
+# while looking entirely reasonable. Arms R6/R7 are that case in both operand positions.
+#
+# ⛔ EVERY AMBIGUOUS INPUT RETURNS 1 (= "not newer" = caller rewrites exactly as today). A brand-new
+# guard must not be able to BLOCK a write that works today; the damage it then fails to prevent is
+# the damage that already exists, which is strictly the better failure direction.
+#
+# ⚑ Calls sit inside `if`, so a missing function reds these arms instead of aborting the suite under
+# `set -e` (a bare call to an undefined function exits 127 and would kill the run, taking the summary
+# line with it -- the same trap block Q documents for `grep -c`).
+_r_mk() {  # $1 = dir, $2 = at-value ("" => omit the at: line entirely)
+  mkdir -p "$1"
+  if [ -n "$2" ]; then
+    printf -- '---\nlastEvent: handoff\nat: %s\nsessionId: incumbent\n---\n\n## Next session prompt\n\nbody\n' "$2" > "$1/SESSION.md"
+  else
+    printf -- '---\nlastEvent: handoff\nsessionId: incumbent\n---\n\n## Next session prompt\n\nbody\n' > "$1/SESSION.md"
+  fi
+}
+_R_RAN=0
+_r_arm() {  # $1 = label, $2 = dir, $3 = my_at, $4 = expected exit (0 = incumbent newer)
+  _R_RAN=$((_R_RAN + 1))
+  # ⛔ CAPTURE THE TRUE EXIT CODE, AND TREAT 127 AS ITS OWN FAILURE. The first version wrote
+  # `if kt_ss_active_is_newer ...; then _rgot=0; else _rgot=1; fi`, which collapses "not defined"
+  # (127) into "returned 1" -- and SIX of the eight arms expect 1. Measured 2026-09-15 in the red
+  # phase: with the helper entirely absent, R3 R4 R5a R5b R6 R7 all went GREEN. They asserted
+  # nothing and would have gone on asserting nothing forever.
+  # `|| _rgot=$?` keeps this `set -e`-safe while preserving the real status.
+  _rgot=0
+  kt_ss_active_is_newer "$2" "$3" >/dev/null 2>&1 || _rgot=$?
+  if [ "$_rgot" = 127 ]; then
+    bad "$1" "kt_ss_active_is_newer is not defined (exit 127) -- this arm asserts nothing"
+  elif [ "$_rgot" = "$4" ]; then
+    ok "$1"
+  else
+    bad "$1" "expected exit $4, got $_rgot (incumbent=$(kt_ss_read_active_at "$2" 2>/dev/null), mine=$3)"
+  fi
+}
+
+if command -v kt_ss_read_active_at >/dev/null 2>&1 && command -v kt_ss_active_is_newer >/dev/null 2>&1; then
+  ok "R0 both helpers are defined"
+else
+  bad "R0 helpers" "kt_ss_read_active_at and/or kt_ss_active_is_newer are not defined in lib-session-state.sh"
+fi
+
+_RD="$TMP/r-at"
+# R1 -- the reader returns the front-matter value, and ONLY from the front matter.
+_r_mk "$_RD/read" "2026-09-15T10:00:00Z"
+_R_RAN=$((_R_RAN + 1))
+_rv=$(kt_ss_read_active_at "$_RD/read" 2>/dev/null || true)
+[ "$_rv" = "2026-09-15T10:00:00Z" ] && ok "R1 read_active_at returns the front-matter at:" \
+  || bad "R1 read_active_at" "expected 2026-09-15T10:00:00Z, got '$_rv'"
+
+# R2 (AC18a) -- incumbent NEWER => 0 => caller must NOT rewrite. The headline case.
+_r_mk "$_RD/newer" "2026-09-15T12:00:00Z"
+_r_arm "R2 incumbent newer => do not rewrite" "$_RD/newer" "2026-09-15T09:00:00Z" 0
+
+# R3 (AC18b) -- incumbent OLDER => 1 => rewrite as today.
+# ⛔ THE NON-REGRESSION ARM. Without it, a guard that ALWAYS self-demotes passes R2 and silently
+# breaks the normal path -- every session would stop writing its own state.
+_r_mk "$_RD/older" "2026-09-15T08:00:00Z"
+_r_arm "R3 incumbent older => rewrite (non-regression)" "$_RD/older" "2026-09-15T09:00:00Z" 1
+
+# R4 (AC18e) -- EQUAL => 1. Named because `>` vs `>=` is the one-character defect this shape invites,
+# and a fixture built only from distinct stamps cannot catch it.
+_r_mk "$_RD/equal" "2026-09-15T09:00:00Z"
+_r_arm "R4 equal => not newer => rewrite" "$_RD/equal" "2026-09-15T09:00:00Z" 1
+
+# R5 (AC18c) -- at: absent => 1, and a MISSING FILE => 1. Ambiguity resolves to today's behaviour.
+_r_mk "$_RD/noat" ""
+_r_arm "R5a no at: in front matter => rewrite" "$_RD/noat" "2026-09-15T09:00:00Z" 1
+_r_arm "R5b SESSION.md absent => rewrite" "$_RD/does-not-exist" "2026-09-15T09:00:00Z" 1
+
+# R6/R7 (AC18d) -- a non-Z stamp is REJECTED in EITHER operand position. R6's incumbent is
+# lexicographically GREATER than the caller's stamp, so a guard that compared it anyway would return
+# 0 and wrongly self-demote; the arm therefore fails loudly if the rejection is dropped.
+_r_mk "$_RD/offset" "2026-09-15T22:00:00+09:00"
+_r_arm "R6 non-Z incumbent rejected, not compared" "$_RD/offset" "2026-09-15T09:00:00Z" 1
+_r_mk "$_RD/callerz" "2026-09-15T12:00:00Z"
+_r_arm "R7 non-Z caller arg rejected, not compared" "$_RD/callerz" "2026-09-15T09:00:00+09:00" 1
+
+# ⛔ ANTI-VACUITY: without this, an early `return` or a renamed helper yields zero executed arms and
+# a clean run. 8 = R1 + R2 + R3 + R4 + R5a + R5b + R6 + R7.
+[ "$_R_RAN" -eq 8 ] \
+  && ok "R coverage: $_R_RAN at-ordering arms executed" \
+  || bad "R coverage" "only $_R_RAN at-ordering arms executed (want 8) -- too few subjects to mean anything"
+
 printf "\n%d passed, %d failed\n" "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

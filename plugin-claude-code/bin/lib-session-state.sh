@@ -517,3 +517,48 @@ kt_ss_read_active_sid() {
   awk 'NR==1 && $0!="---"{exit} /^---$/ && NR>1{exit} /^sessionId:[[:space:]]*/{sub(/^sessionId:[[:space:]]*/,""); print; exit}' "$_ss_f" 2>/dev/null
   return 0
 }
+
+# Read the ACTIVE front-matter `at:`. Sibling of kt_ss_read_active_sid -- same guard, same
+# front-matter walk, same `return 0`; only the key differs. Deliberately a sibling rather than a
+# parameterised kt_ss_read_front_matter: two call sites do not earn a generalised reader, and the
+# sibling shape is what every caller in this file already reads like.
+kt_ss_read_active_at() {
+  _ss_f="$1/SESSION.md"
+  [ -f "$_ss_f" ] || return 0
+  awk 'NR==1 && $0!="---"{exit} /^---$/ && NR>1{exit} /^at:[[:space:]]*/{sub(/^at:[[:space:]]*/,""); print; exit}' "$_ss_f" 2>/dev/null
+  return 0
+}
+
+# Is the SESSION.md at $1 owned by a session whose state is STRICTLY NEWER than $2?
+#
+#   exit 0  -> incumbent IS newer   => the caller MUST NOT rewrite the front matter.
+#                                      Self-demote instead: kt_ss_ledger_add your own prompt into
+#                                      `## Pending handoffs` and leave the active slot alone.
+#   exit 1  -> anything else        => the caller rewrites exactly as it does today.
+#
+# ⛔ EVERY AMBIGUOUS INPUT RETURNS 1, and the direction is load-bearing. A brand-new guard must not
+# be able to BLOCK a write that works today; the damage it then fails to prevent is the damage that
+# already exists, which is strictly the better failure direction. So: file missing, `at:` absent,
+# either value unparseable, equal stamps -- all 1.
+#
+# ⛔ SECOND-PRECISION Z ONLY, AND THAT NARROWNESS IS MEASURED. All 8 tracked ledgers carry a
+# second-precision Z front-matter `at:` (censused 2026-09-15). Minute-precision exists only in ENTRY
+# HEADERS, which this function never reads -- censusing headers instead of front matter is how the
+# first draft acquired a requirement for a case unreachable on this path. If a minute-precision
+# front matter ever does appear it falls through the shape gate to 1 = today's behaviour.
+#
+# ⛔ A NON-Z STAMP IS REJECTED, NEVER COMPARED. `2026-09-02T00:20:21+09:00` is live in the corpus; a
+# local-offset stamp compares lexicographically against a Z stamp and silently mis-orders while
+# looking entirely reasonable. Rejecting it costs one skipped guard; comparing it inverts the answer.
+#
+# ⛔ THE COMPARISON IS awk, NOT `[ "$a" \> "$b" ]`. POSIX `test` does not define `<`/`>` for strings
+# -- it is a widely-implemented extension, not a guarantee, and this library is plain `sh`. Both
+# operands are non-numeric (they carry `-`, `T`, `:`, `Z`), so awk compares them as strings.
+kt_ss_active_is_newer() {
+  _ss_inc=$(kt_ss_read_active_at "$1" 2>/dev/null)
+  _ss_mine="$2"
+  _ss_isoz='^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z$'
+  printf '%s' "$_ss_inc"  | grep -Eq "$_ss_isoz" || return 1
+  printf '%s' "$_ss_mine" | grep -Eq "$_ss_isoz" || return 1
+  awk -v a="$_ss_inc" -v b="$_ss_mine" 'BEGIN { exit (a > b) ? 0 : 1 }'
+}
