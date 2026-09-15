@@ -1,5 +1,12 @@
 # Design spec — `/handoff resume`
 
+⛔ **SUPERSEDED 2026-09-15 by `2026-09-15-handoff-resume-and-provenance-token-merged-design.md`** — merged with the provenance-token design by Mike's ruling
+("Merge into one spec"). ⭐ **Its D3/AC8 pair carried a latent hole:** D3 admits the ACTIVE prompt as a
+candidate, but AC8's `kt_ss_ledger_mark_consumed` matches `^### .*<sid>` and the active prompt has no
+`### ` header — so selecting the most common candidate silently marked nothing. The merged spec closes
+it (§0, AC10). **Do not execute from this file.** Its measurements and D1/D2/D3 remain valid and are
+carried forward with provenance.
+
 **Status:** GATED 2026-08-25 — `/prospect` verdict **PROCEED-WITH-CHANGES**; all changes applied
 below in the same edit that records them. Gate log:
 `knowledge/logs/prospect/2026-08-25-file-handoff-resume-mode.md`. **Date:** 2026-08-25.

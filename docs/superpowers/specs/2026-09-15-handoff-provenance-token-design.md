@@ -1,5 +1,9 @@
 # The handoff provenance token — design
 
+⛔ **SUPERSEDED 2026-09-15 by `2026-09-15-handoff-resume-and-provenance-token-merged-design.md`** — its own `/prospect` found that D-B overlapped the
+ratified-but-unbuilt `/handoff resume` design; Mike ruled "Merge into one spec". **Do not execute from
+this file.** Its measurements, D-A/D-C and the two-arm fixture are carried forward with provenance.
+
 **Status:** DRAFT, pre-`/prospect`. Authored 2026-09-15.
 **Decision owner:** Mike. **Requested:** "the handoff should have a unique ID or wording so the new
 session knows it's a copy/pasted handoff" + "at session start, the first user input should be checked
