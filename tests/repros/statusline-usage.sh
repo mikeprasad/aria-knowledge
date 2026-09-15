@@ -85,6 +85,100 @@ OUT=$(printf '%s' "$NORST" | HOME="$H" TZ=UTC sh "$METER" | strip_ansi)
 assert_contains "meter: 7d w/o resets_at still renders percentage" "$OUT" "7d 40%"
 assert_absent  "meter: 7d w/o resets_at renders no reset arrow"    "$OUT" "↺"
 
+# ---- 2026-09-16: ACCOUNT-scoped usage survives a render carrying no rate_limits ----
+# Claude Code omits rate_limits until a session's first API response, so a whole-file
+# snapshot rewrite erases the ACCOUNT's 5h/7d for every concurrent session on it — and the
+# usage alert then cannot fire on the first prompt of a fresh session, which is the moment
+# it matters most. Design + rejected alternatives:
+#   docs/superpowers/specs/2026-09-16-statusline-snapshot-preservation-design.md
+# ⛔ PLACEMENT IS LOAD-BEARING: these MUST stay above the inject section's snap(), which
+# rewrites $SNAP wholesale. An assertion below it proves nothing — the suite already
+# executed this defect at the NORST case above and still reported 35 pass / 0 fail.
+# Isolated HOME so the shared-$SNAP cases above cannot mask the result, and so the
+# "no prior snapshot" case is genuine.
+H3="$TMP/home3"; mkdir -p "$H3/.claude"
+P_SNAP="$H3/.claude/aria-statusline-state-default.json"
+P_FULL='{"session_id":"P-old","model":{"display_name":"Opus 5"},"context_window":{"used_percentage":40},"rate_limits":{"five_hour":{"used_percentage":88,"resets_at":1900000000},"seven_day":{"used_percentage":12,"resets_at":1900000002}}}'
+P_NORL='{"session_id":"P-new","model":{"display_name":"Opus 5"},"context_window":{"used_percentage":7}}'
+
+# AC6 — first-ever render, no prior snapshot
+printf '%s' "$P_FULL" | HOME="$H3" sh "$METER" >/dev/null
+if [ -f "$P_SNAP" ]; then PASS=$((PASS+1)); else FAIL=$((FAIL+1)); printf 'FAIL: AC6 first render writes a snapshot\n'; fi
+assert_contains "AC6: first render carries five_hour_pct 88" "$(cat "$P_SNAP" 2>/dev/null)" '"five_hour_pct": 88'
+
+# AC1/AC2 — the account-scoped windows survive; AC4/AC5 — render-scoped fields are THIS render's;
+# AC4b — and the stale value must NOT reach the status line (M3's control).
+OUT=$(printf '%s' "$P_NORL" | HOME="$H3" sh "$METER" | strip_ansi)
+assert_contains "AC1: five_hour_pct survives a no-rate_limits render"  "$(cat "$P_SNAP" 2>/dev/null)" '"five_hour_pct": 88'
+assert_contains "AC1: five_hour_resets_at survives as a PAIR"          "$(cat "$P_SNAP" 2>/dev/null)" '"five_hour_resets_at": 1900000000'
+assert_contains "AC2: seven_day_pct survives"                          "$(cat "$P_SNAP" 2>/dev/null)" '"seven_day_pct": 12'
+assert_contains "AC2: seven_day_resets_at survives as a PAIR"          "$(cat "$P_SNAP" 2>/dev/null)" '"seven_day_resets_at": 1900000002'
+assert_contains "AC4: session_id is the CURRENT render's"              "$(cat "$P_SNAP" 2>/dev/null)" '"session_id": "P-new"'
+assert_contains "AC5: context_pct is the CURRENT render's"             "$(cat "$P_SNAP" 2>/dev/null)" '"context_pct": 7'
+assert_absent  "AC4b: no-rate_limits render shows no 5h segment"       "$OUT" "5h"
+assert_absent  "AC4b: no-rate_limits render shows no 7d segment"       "$OUT" "7d"
+
+# AC2b — the window is preserved as a PAIR, never field-by-field. A payload may carry a
+# percentage with NO resets_at (a real shape — see the NORST case above). Field-wise defaulting
+# would pair this fresh percentage with the PREVIOUS reset, and the consumer's _expired() would
+# then judge a window whose reset belongs to a different reading. Control for mutation M2.
+P_NORST='{"session_id":"P-norst","model":{"display_name":"Opus 5"},"rate_limits":{"five_hour":{"used_percentage":55}}}'
+printf '%s' "$P_NORST" | HOME="$H3" sh "$METER" >/dev/null
+assert_contains "AC2b: percentage is this render's"            "$(cat "$P_SNAP" 2>/dev/null)" '"five_hour_pct": 55'
+v=$(jq -r '.five_hour_resets_at // "ABSENT"' "$P_SNAP" 2>/dev/null)
+if [ "$v" = "ABSENT" ]; then PASS=$((PASS+1)); else FAIL=$((FAIL+1)); printf 'FAIL: AC2b five_hour_resets_at must NOT be preserved beside a fresh pct; got %s\n' "$v"; fi
+
+# AC3 — a render WITH rate_limits still OVERWRITES: preservation must not become preserve-always
+P_NEW='{"session_id":"P-new2","model":{"display_name":"Opus 5"},"rate_limits":{"five_hour":{"used_percentage":12,"resets_at":1900000009}}}'
+printf '%s' "$P_NEW" | HOME="$H3" sh "$METER" >/dev/null
+assert_contains "AC3: a render WITH rate_limits overwrites five_hour_pct" "$(cat "$P_SNAP" 2>/dev/null)" '"five_hour_pct": 12'
+
+# AC5b — post-/compact: no context measurement -> context_pct stays ABSENT (existing contract,
+# tests/repros/statusline-meter.sh:32). A blanket non-empty merge would break this, which is why
+# the fix partitions by scope instead (spec D1b, rejecting ADR 036's mergeNonEmpty wholesale).
+v=$(jq -r '.context_pct // "ABSENT"' "$P_SNAP" 2>/dev/null)
+if [ "$v" = "ABSENT" ]; then PASS=$((PASS+1)); else FAIL=$((FAIL+1)); printf 'FAIL: AC5b context_pct should be ABSENT post-/compact; got %s\n' "$v"; fi
+
+# AC13 — the prior-snapshot read is a read of a file OTHER SESSIONS WRITE, so it must tolerate
+# every state a concurrent writer can leave behind and degrade to write-whole. The meter's prime
+# directive is that a broken status line is worse than a sparse one: it must never abort.
+# NOTE the exit-code capture: the meter is the LAST stage of the pipeline, so $? is ITS status.
+# Piping it through strip_ansi first would make $? sed's, and the check would assert nothing.
+for _case in absent empty truncated nonjson; do
+  H4="$TMP/home4-$_case"; mkdir -p "$H4/.claude"
+  S4="$H4/.claude/aria-statusline-state-default.json"
+  case "$_case" in
+    absent)    rm -f "$S4" ;;
+    empty)     : > "$S4" ;;
+    truncated) printf '%s' '{"five_hour_pct":' > "$S4" ;;
+    nonjson)   printf '%s' 'not json at all'   > "$S4" ;;
+  esac
+  # ⛔ The `if` is load-bearing, not style. This file runs `set -e`, and the meter is the LAST
+  # stage of this pipeline — so a meter that genuinely exits non-zero would KILL THE SUITE here
+  # before the assertion below could report it, leaving AC13 green and structurally unable to
+  # fail for its own stated reason. Found by mutation M5 on 2026-09-16, which produced 14
+  # unrelated failures and none of AC13's. An `if` condition is exempt from `set -e`.
+  if printf '%s' "$P_NORL" | HOME="$H4" sh "$METER" > "$TMP/ac13.out" 2>/dev/null; then E4=0; else E4=$?; fi
+  O4=$(strip_ansi < "$TMP/ac13.out")
+  if [ "$E4" -eq 0 ] && [ -n "$O4" ]; then PASS=$((PASS+1)); else FAIL=$((FAIL+1)); printf 'FAIL: AC13 (%s) meter must render and exit 0; exit=%s out=[%s]\n' "$_case" "$E4" "$O4"; fi
+  assert_contains "AC13 ($_case): degrades to write-whole" "$(cat "$S4" 2>/dev/null)" '"model": "Opus 5"'
+done
+
+# AC14 — every key the meter can emit belongs to exactly ONE scope partition. The expected set is
+# a HAND-WRITTEN literal transcribed from the jq filter in statusline-meter.sh, deliberately NOT
+# derived from the script: a guard whose parameter source IS its mutation target cannot see a
+# field being dropped from that source — the mutation shortens the test instead of failing it
+# (guard-scoped-to-the-wrong-unit, 2026-08-28 cue). Dropping a field from the meter's partition
+# must redden THIS assertion.
+AC14_RENDER='account_email account_uuid context_pct model runtime session_id written_at'
+AC14_ACCOUNT='five_hour_pct five_hour_resets_at seven_day_pct seven_day_resets_at'
+AC14_EXPECT=$(printf '%s %s' "$AC14_RENDER" "$AC14_ACCOUNT" | tr ' ' '\n' | sort | tr '\n' ' ')
+H5="$TMP/home5"; mkdir -p "$H5/.claude"
+printf '%s' '{"oauthAccount":{"accountUuid":"AC14-UUID","emailAddress":"ac14@x.test"}}' > "$H5/.claude.json"
+printf '%s' "$P_FULL" | HOME="$H5" sh "$METER" >/dev/null
+AC14_ACTUAL=$(jq -r 'keys|.[]' "$H5/.claude/aria-statusline-state-AC14-UUID.json" 2>/dev/null | sort | tr '\n' ' ')
+if [ "$AC14_ACTUAL" = "$AC14_EXPECT" ]; then PASS=$((PASS+1)); else FAIL=$((FAIL+1)); printf 'FAIL: AC14 emitted keys != hand-written partition\n  expect: %s\n  actual: %s\n' "$AC14_EXPECT" "$AC14_ACTUAL"; fi
+
 # ---------- usage-threshold-inject.sh ----------
 cfg() { cat > "$1" <<EOF
 ---
@@ -164,6 +258,25 @@ assert_contains "inject: as A (100%) fires its own alert" "$OUT" "5-hour plan us
 # Degrade: no ~/.claude.json → no email segment (default-keyed snapshot path).
 OUT=$(printf '{"model":{"display_name":"Opus 4.8"},"rate_limits":{"five_hour":{"used_percentage":20,"resets_at":1900000000}}}' | HOME="$H" sh "$METER" | strip_ansi)
 assert_absent  "meter: no ~/.claude.json renders no email segment" "$OUT" "@"
+
+# ---- AC8 (2026-09-16) — THE OUTCOME CRITERION, and the only one that fails for the
+# user-visible reason: on the FIRST PROMPT of a fresh session whose ACCOUNT is over threshold,
+# the hook must alert. Pre-fix this was silent — the fresh session's first render carries no
+# rate_limits, which erased the account's 5h before the hook ever read it. Every other AC here
+# is a mechanism check; this one is the behaviour Mike would notice.
+H6="$TMP/home6"; mkdir -p "$H6/.claude"
+cfg "$TMP/ac8.md" 80
+# an established session on this account leaves it at 91%
+printf '%s' '{"session_id":"AC8-established","model":{"display_name":"Opus 5"},"rate_limits":{"five_hour":{"used_percentage":91,"resets_at":1900000000}}}' \
+  | HOME="$H6" sh "$METER" >/dev/null
+# a FRESH session renders first, BEFORE its first API response -> payload carries no rate_limits
+printf '%s' '{"session_id":"'"${SP}"'-ac8","model":{"display_name":"Opus 5"},"context_window":{"used_percentage":5}}' \
+  | HOME="$H6" sh "$METER" >/dev/null
+# ...and that fresh session's first prompt must still see the account's real 5h.
+# KT_CONFIG is mandatory: with no config file the threshold resolves EMPTY and the hook exits
+# silently, which would make this case pass-by-silence in the wrong direction.
+OUT=$(printf '%s' '{"session_id":"'"${SP}"'-ac8"}' | HOME="$H6" KT_CONFIG="$TMP/ac8.md" sh "$INJECT")
+assert_contains "AC8: a fresh session's first prompt alerts on the account's 5h" "$OUT" "5-hour plan usage at 91%"
 
 printf '%d pass, %d fail\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

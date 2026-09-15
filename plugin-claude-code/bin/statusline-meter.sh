@@ -232,10 +232,53 @@ if command -v jq >/dev/null 2>&1; then
   _state="$HOME/.claude/aria-statusline-state-${_key}.json"
   _tmp="$HOME/.claude/.aria-statusline-state.$$.tmp"
   _at=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null)
-  if jq -n --arg model "$model" --arg ctx "$ctx_i" --arg five "$five_i" \
-        --arg five_reset "$five_reset" --arg seven "$week_i" --arg at "$_at" \
+  # Preserve the ACCOUNT-scoped usage windows when THIS payload carries none.
+  # rate_limits is absent until a session's first API response, so a whole-file rewrite
+  # here erased the account's 5h/7d for every concurrent session on it — and the usage
+  # alert then could not fire on the first prompt of a fresh session. ADR 098 rejected
+  # "single file + account-tag guard" because "two active sessions interleaving renders
+  # flap the file, so a session can miss its OWN real alert"; per-account keying closed
+  # the cross-account case and left the same-account case live. This closes it.
+  #
+  # SCOPE PARTITION (asserted by AC14 against a hand-written literal — a guard that
+  # iterated this list could not see a field being dropped FROM it):
+  #   render-scoped, always THIS render: written_at model runtime session_id
+  #                                      account_email account_uuid context_pct
+  #   account-scoped, preserved:         five_hour_pct five_hour_resets_at
+  #                                      seven_day_pct seven_day_resets_at
+  #
+  # ⛔ SNAPSHOT-ONLY variables. Never preserve into five_i/week_i/five_reset/week_reset —
+  # those already rendered the 5h/7d segments above, and a preserved value there would
+  # DISPLAY a stale window on a fresh session ("a wrong status line is worse than a
+  # sparse one"). Guarded by AC4b.
+  # ⛔ Per WINDOW, as a pair — never field-by-field. A payload can carry a percentage with
+  # no resets_at (a real, tested shape), and field-wise defaulting would pair a fresh
+  # percentage with a stale reset, making the consumer's _expired() judge the wrong window.
+  # Fails soft by construction: absent / empty / truncated / non-JSON prior file -> jq exits
+  # non-zero printing nothing -> all four read empty -> today's write-whole behaviour, and the
+  # render never aborts. Measured 2026-09-16 over 7 inputs; a well-formed file with no usage
+  # keys yields three bare tabs (all empty), and an explicit null preserves only the other pair.
+  # `cut` deliberately has no -s: the filter emits exactly three tabs or nothing at all, so the
+  # tab-free branch where cut would return the whole line is UNREACHABLE. Do not "harden" it.
+  # NOT atomic across concurrent sessions, and that is accepted: if a peer writes a fresher
+  # value between this read and this write, usage goes stale by at most one render
+  # (refreshInterval 30s) — strictly better than the pre-fix behaviour, which ERASED it.
+  # Do not add locking.
+  _prev=$(jq -r '[(.five_hour_pct//""),(.five_hour_resets_at//""),(.seven_day_pct//""),(.seven_day_resets_at//"")]|@tsv' "$_state" 2>/dev/null)
+  _snap_five="$five_i"; _snap_five_reset="$five_reset"
+  _snap_week="$week_i"; _snap_week_reset="$week_reset"
+  if [ -z "$_snap_five" ]; then
+    _snap_five=$(printf '%s' "$_prev" | cut -f1)
+    _snap_five_reset=$(printf '%s' "$_prev" | cut -f2)
+  fi
+  if [ -z "$_snap_week" ]; then
+    _snap_week=$(printf '%s' "$_prev" | cut -f3)
+    _snap_week_reset=$(printf '%s' "$_prev" | cut -f4)
+  fi
+  if jq -n --arg model "$model" --arg ctx "$ctx_i" --arg five "$_snap_five" \
+        --arg five_reset "$_snap_five_reset" --arg seven "$_snap_week" --arg at "$_at" \
         --arg acct_email "$acct_email" --arg acct_uuid "$acct_uuid" \
-        --arg seven_reset "$week_reset" --arg runtime "$runtime" --arg sid "$sid" \
+        --arg seven_reset "$_snap_week_reset" --arg runtime "$runtime" --arg sid "$sid" \
         '{written_at:$at, model:$model}
           + (if $runtime != "" then {runtime:$runtime} else {} end)
           + (if $sid != "" then {session_id:$sid} else {} end)
