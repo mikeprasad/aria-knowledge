@@ -16,7 +16,7 @@ below (the parser is a READ HELPER, not prose).** Gate log:
 | Driver | 2026-08-25 | 2026-09-16 | Consequence |
 |---|---|---|---|
 | projects with ≥2 candidates | 5 of 6 | **4 of 8** | still half the corpus — the picker is justified |
-| largest candidate set | ~3 | **41 (`cs`)** | ⛔ a full numbered table is unusable — the design assumed a handful |
+| largest candidate set | ~3 | **41 (`proj-a`)** | ⛔ a full numbered table is unusable — the design assumed a handful |
 | live stale share | 62% | archived out | staleness gating still required, but the live list is now mostly fresh |
 | offered entries lacking a terminator | 37.5% | **2.4% (1 of 42)** | ⛔ **DO NOT DROP THE FALLBACK — see below** |
 
@@ -29,7 +29,7 @@ entries archived on 2026-09-15**. They still exist in their files; they are simp
 reader re-deriving 2.4% could reasonably conclude the fallback is dead weight. It is not. Record the
 cause beside the number or the next measurement lies by being accurate.
 
-⚠ `cs` moved 39 → 41 offered entries within the hour, from a concurrent session. Every count here is
+⚠ `proj-a` moved 39 → 41 offered entries within the hour, from a concurrent session. Every count here is
 a sample, not a constant.
 
 ---
@@ -60,7 +60,7 @@ by raising**.
 Sources, in one list: the active `## Next session prompt` (when non-empty) **plus** every
 `unconsumed` entry under `## Pending handoffs` **or** the legacy `## Prior sessions`.
 ⛔ **Archived sections are excluded** — that is what archiving means, and it is now load-bearing:
-89 entries were archived out of `cs` on 2026-09-15 precisely so they would stop being offered.
+89 entries were archived out of `proj-a` on 2026-09-15 precisely so they would stop being offered.
 
 ### T3 — the parser: `kt_ss_ledger_candidates <root>` — a READ helper, **not prose**
 
@@ -162,4 +162,4 @@ invented and the reader knows there is more.
 
 `archive` as a verb and `kt_ss_ledger_archive` (D1, its own unit) · the token fast path (D5/D7,
 Unit C) · all ports (Unit P) · the two malformed `## Archived — superseded …` headings in
-`cs/SESSION.md`, which the checker already warns about and which are a pre-existing two-word fix.
+`proj-a/SESSION.md`, which the checker already warns about and which are a pre-existing two-word fix.

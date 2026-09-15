@@ -802,7 +802,7 @@ _r_arm "R7 non-Z caller arg rejected, not compared" "$_RD/callerz" "2026-09-15T0
 #      legacy sid `e95b0202 (contract-coherence)` matches BY LUCK -- its parentheses form a group
 #      matching the same literal. A sid carrying `[`, `*` or `.` mis-matches or OVER-matches silently.
 #   2. The match ignores `at` entirely, so one sid under two timestamps marks BOTH. Measured live on
-#      cs/SESSION.md, which carried 374e75de under two different `at` values.
+#      proj-a/SESSION.md, which carried 374e75de under two different `at` values.
 #
 # ⛔ `at` IS OPTIONAL (5th arg), DELIBERATELY. Making it required would change the existing caller's
 # RECALL: post-edit-check.sh resolves the prior session from front matter, and the entry it means to
@@ -875,7 +875,7 @@ _sc=$(awk '/· handoff · consumed/{c++} END{print c+0}' "$_SD/compat/SESSION.md
 #   prompt forms  -- `- prompt:` + block, and `- prompt: <text>` inline on one line
 #   status forms  -- unconsumed / consumed <ts> by <sid> / in-progress (demoted, UNFINISHED)
 #
-# ⛔ ARCHIVED SECTIONS ARE NOT CANDIDATES. 89 entries were archived out of cs/SESSION.md on
+# ⛔ ARCHIVED SECTIONS ARE NOT CANDIDATES. 89 entries were archived out of proj-a/SESSION.md on
 # 2026-09-15 precisely so they would stop being offered; T4 is what stops that being undone.
 _T_RAN=0
 # ⛔ `|| true` IS LOAD-BEARING. Without it, `_tout=$(_t_cand ...)` against an undefined helper
@@ -975,7 +975,7 @@ _tfk=$(_t_cand "$TD/fence" | grep -c '^fake-entry|' || true)
 # reporting it as offerable would undo the archiving. It is LOCATED BUT NOT OFFERED.
 _U_RAN=0
 _u_loc() { kt_ss_ledger_token_locate "$1" "$2" 2>/dev/null || true; }
-_u_tok='aria-handoff: cs/tok-sid@2026-09-10T10:00:00Z'
+_u_tok='aria-handoff: proj-a/tok-sid@2026-09-10T10:00:00Z'
 UD="$TMP/u-token"
 
 # U1 (AC-C1) -- token in the ACTIVE prompt block.
@@ -1005,8 +1005,8 @@ printf '%s' "$_uo" | grep -q '|archived$' \
 
 # U4 (AC-C4) -- an absent token is EMPTY and is not an error.
 _U_RAN=$((_U_RAN + 1))
-_uo=$(_u_loc "$UD/active" 'aria-handoff: cs/nobody@2026-01-01T00:00:00Z')
-_urc=0; kt_ss_ledger_token_locate "$UD/active" 'aria-handoff: cs/nobody@2026-01-01T00:00:00Z' >/dev/null 2>&1 || _urc=$?
+_uo=$(_u_loc "$UD/active" 'aria-handoff: proj-a/nobody@2026-01-01T00:00:00Z')
+_urc=0; kt_ss_ledger_token_locate "$UD/active" 'aria-handoff: proj-a/nobody@2026-01-01T00:00:00Z' >/dev/null 2>&1 || _urc=$?
 { [ -z "$_uo" ] && [ "$_urc" -ne 127 ]; } \
   && ok "U4 absent token yields empty, helper defined, no error" \
   || bad "U4 absent" "expected empty and a defined helper; got '$_uo' exit $_urc"

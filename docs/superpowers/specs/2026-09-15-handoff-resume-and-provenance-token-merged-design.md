@@ -65,7 +65,7 @@ and passes the body through, so **the prompt is re-attributed to whoever picked 
 
 `bc3579b` swapped the active body without rewriting the front-matter. Fourteen minutes later
 `13ad7ba` ran `/handoff` **correctly** — demoting by "reading the prior file's values first", exactly
-as the clause instructs — and stamped the wrong identity on permanently. Repaired at `cs cc2f66c`.
+as the clause instructs — and stamped the wrong identity on permanently. Repaired at `proj-a cc2f66c`.
 Incidence measured across 8 tracked ledgers: **4 substitutions in 315 body-changing commits (1.3%)**;
 28 further stale-identity commits are legitimate same-session corrections.
 
@@ -120,7 +120,7 @@ gives it an identity — see §0.
 One line, **first line inside** the 3e opener fence:
 
 ```
-aria-handoff: cs/5214cae2-71ab-42b8-8d5e-f31cacadec31@2026-09-13T19:15:00Z
+aria-handoff: proj-a/5214cae2-71ab-42b8-8d5e-f31cacadec31@2026-09-13T19:15:00Z
 ```
 
 Shape `aria-handoff: <project>/<sessionId>@<at>`. Visible, plain ASCII, `key: value` — Mike's ruling
@@ -161,7 +161,7 @@ gates. **Rule 38 — close the class, not the instance:**
   live legacy sid `e95b0202 (contract-coherence)` matches **by luck**; a sid containing `[`, `*` or `.`
   would mis-match or over-match silently.
 - **Timestamp-blindness** *(2026-09-15, measured)* — the match is `^### .*<sid>`, ignoring `at`.
-  `cs/SESSION.md` holds `374e75de…` under **two** different `at` values, so a sid-keyed mark closes
+  `proj-a/SESSION.md` holds `374e75de…` under **two** different `at` values, so a sid-keyed mark closes
   both entries.
 
 ⇒ extract the sid as the text before the first ` · `, match it **literally**, and add an `at` conjunct.
@@ -195,7 +195,7 @@ baseline-and-ratchet. ⛔ Read-only, like every sibling check; it must never rep
 > *"a **demoted** entry also vanishes from the `(sid|ts)` key while its content is explicitly
 > preserved, so the guard still reports it as a loss — the third false-positive shape in this class,
 > and the fix shape already exists (the demote path should write a receipt as prune now does).
-> Measured live on `cs/SESSION.md` entry `5214cae2`."*
+> Measured live on `proj-a/SESSION.md` entry `5214cae2`."*
 
 Verified 2026-09-15: `kt_ss_ledger_add` contains **0** receipt writes against `kt_ss_ledger_prune`'s
 14. The fix shape is real and unbuilt.
@@ -429,7 +429,7 @@ Changing `kt_ss_ledger_add`'s format · auto-archiving aged entries (time must n
 parity unit, §5) · any change to `/handoff`'s write modes · retro-fitting tokens onto the 152 existing
 prompts · recovering the true author of a **tokenless** hook-stamped entry (still unrecoverable; the
 2026-09-11 spec's annotation convention stands) · the `## Pending handoffs` terminator gap
-(`cs/SESSION.md` measures 128 entries / 124 terminators) · any repair capability in the checker.
+(`proj-a/SESSION.md` measures 128 entries / 124 terminators) · any repair capability in the checker.
 
 ---
 

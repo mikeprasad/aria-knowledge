@@ -52,19 +52,19 @@ be REJECTED (exit 1), never compared** — a local-offset stamp compares lexicog
 **Shape gate — SECOND-PRECISION `Z` ONLY:** `^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$`.
 
 ✅ **SHRUNK BY THE GATE, and the first draft was over-engineered off the wrong population.** It
-required accepting minute-precision too, citing `2026-09-13T09:40Z` in `cs/SESSION.md`. Two errors:
+required accepting minute-precision too, citing `2026-09-13T09:40Z` in `proj-a/SESSION.md`. Two errors:
 that stamp was an **entry header**, and this guard reads the **front-matter** — different populations
 — and it was an entry **this session had already renamed away**, so the citation was to evidence my
 own earlier edit had removed.
 
 Re-measured on the correct population: **8 of 8 tracked ledgers carry a second-precision `Z`
-front-matter `at:`.** Minute-precision appears only in entry headers (6, all in `cs`), which D10 never
+front-matter `at:`.** Minute-precision appears only in entry headers (6, all in `proj-a`), which D10 never
 reads. So dual-precision handling is untested surface serving no live case — and if a minute-precision
 front-matter ever does appear, it falls through the shape gate to **exit 1 = today's behaviour**,
 which is the safe direction by construction.
 
 ⚑ **The rejection is NOT hypothetical, which is why it stays:** a live local-offset stamp exists in
-the corpus — `2026-09-02T00:20:21+09:00`, measured in a `cs` entry header. That is precisely the shape
+the corpus — `2026-09-02T00:20:21+09:00`, measured in a `proj-a` entry header. That is precisely the shape
 that compares wrong against a `Z` stamp while looking entirely reasonable.
 
 ### T3 — the clause, in `/wrapup` Step 6.5 and `/handoff` Step 3f

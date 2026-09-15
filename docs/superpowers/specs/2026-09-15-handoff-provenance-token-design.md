@@ -76,7 +76,7 @@ preamble.
 
 ### 1.2 The stale-front-matter path — the 2026-09-14 incident
 
-`bc3579b` (a `/handoff snap`) resumed the DEV-1493 P4 T4.2b work and:
+`bc3579b` (a `/handoff snap`) resumed the P4 T4.2b work and:
 
 1. moved that handoff's body from `## Pending handoffs` into the active slot;
 2. **deleted its `### 5214cae2-… · 2026-09-13T19:15:00Z · unconsumed` entry**, its own commit message
@@ -89,7 +89,7 @@ prior file's values first" exactly as `SKILL.md:216` instructs, and stamped 5214
 374e75de's sid, `at`, `focus` and `next`. The file lied to it.
 
 Net: 374e75de's handoff ended with its **metadata on one entry** and its **body on another**; 5214cae2's
-identity was gone. Repaired 2026-09-15 (`cs` `cc2f66c`), every value recovered verbatim from
+identity was gone. Repaired 2026-09-15 (`proj-a` `cc2f66c`), every value recovered verbatim from
 `bc3579b~1`.
 
 ⛔ **The skill's existing guard cannot catch this.** It fires when the value to be passed *equals this
@@ -104,9 +104,9 @@ Across all 8 tracked `SESSION.md` (315 commits that changed an active prompt bod
 - of those, **28 are corrections** — a session editing its *own* opener, where leaving the identity
   alone is **correct**;
 - **4 are substitutions** — different work swapped in, identity stale (**1.3%**): `bc3579b` and
-  `00aa051` (cs), `a6282f0` and `5aa761c` (root). Body similarity 0.07–0.14.
+  `00aa051` (proj-a), `a6282f0` and `5aa761c` (root). Body similarity 0.07–0.14.
 
-Separately, **6 unconsumed entry keys genuinely vanished** across the last 80 `cs/SESSION.md` commits.
+Separately, **6 unconsumed entry keys genuinely vanished** across the last 80 `proj-a/SESSION.md` commits.
 
 ⚠ **Instrument note, because the first cut of both numbers was wrong.** A naive `grep -c '^-### .*unconsumed'`
 counts an `unconsumed → consumed` re-marking as a deletion; it reported 17 vanishes where a set
@@ -158,7 +158,7 @@ attack it first.
 One line, first line **inside** the Step 3e opener fence:
 
 ```
-aria-handoff: cs/5214cae2-71ab-42b8-8d5e-f31cacadec31@2026-09-13T19:15:00Z
+aria-handoff: proj-a/5214cae2-71ab-42b8-8d5e-f31cacadec31@2026-09-13T19:15:00Z
 ```
 
 **Shape:** `aria-handoff: <project>/<sessionId>@<at>` where `<project>` is the `projects_list` slug and
@@ -182,7 +182,7 @@ aria-handoff: cs/5214cae2-71ab-42b8-8d5e-f31cacadec31@2026-09-13T19:15:00Z
 - **Carries the project** — so a paste into the *wrong* project is detectable. This is a real failure
   mode with no current detection.
 
-**Existing openers keep their `cs`-slug first line**; the token is additive, on the line above.
+**Existing openers keep their `proj-a`-slug first line**; the token is additive, on the line above.
 
 ---
 
@@ -198,7 +198,7 @@ If the opening message contains `aria-handoff: <proj>/<sid>@<at>`:
    prompt 14 minutes after it was written.)*
 2. **Found in a `### ` entry** → mark **that entry** consumed.
    ⛔ **Not via `kt_ss_ledger_mark_consumed` as it stands.** Measured: its awk matches `^### .*sid`, a
-   **substring test that ignores the timestamp**, and `cs/SESSION.md` currently holds
+   **substring test that ignores the timestamp**, and `proj-a/SESSION.md` currently holds
    `374e75de…` under **two** different `at` values. Marking by sid would close both. D-B needs a
    key-exact variant, or the existing helper gains an optional `at` conjunct.
    ⚠ **Corrected at `/prospect` (2026-09-15):** an earlier draft called this "a new finding, not
@@ -273,7 +273,7 @@ antigravity asymmetry means D-B has **no host** there and needs its own answer (
 - **Retro-fitting tokens onto the 152 existing stored prompts.** They keep today's behaviour exactly.
 - **Recovering the true author of a *tokenless* hook-stamped entry.** Still unrecoverable; the prior
   spec's §3 annotation convention stands unchanged for those.
-- **The terminator gap.** `cs/SESSION.md` measures 128 entries against 124 `<!-- aria:entry-end -->`
+- **The terminator gap.** `proj-a/SESSION.md` measures 128 entries against 124 `<!-- aria:entry-end -->`
   (gap 4). Pre-existing, separate class, tracked elsewhere.
 - **The `## Archived — superseded …` heading-spelling warnings.** Separate.
 - **Any repair capability in the checker.** It reports; it never writes.
