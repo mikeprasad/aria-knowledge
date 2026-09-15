@@ -796,5 +796,72 @@ _r_arm "R7 non-Z caller arg rejected, not compared" "$_RD/callerz" "2026-09-15T0
   && ok "R coverage: $_R_RAN at-ordering arms executed" \
   || bad "R coverage" "only $_R_RAN at-ordering arms executed (want 8) -- too few subjects to mean anything"
 
+# --- S: kt_ss_ledger_mark_consumed is LITERAL and optionally KEY-EXACT (D6) ----------------------
+# Two independent defects on ONE matcher, found by two different gates a fortnight apart:
+#   1. `$0 ~ ("^### .*" sid)` interpolates the caller's sid into an awk REGEX, unescaped. The live
+#      legacy sid `e95b0202 (contract-coherence)` matches BY LUCK -- its parentheses form a group
+#      matching the same literal. A sid carrying `[`, `*` or `.` mis-matches or OVER-matches silently.
+#   2. The match ignores `at` entirely, so one sid under two timestamps marks BOTH. Measured live on
+#      cs/SESSION.md, which carried 374e75de under two different `at` values.
+#
+# ⛔ `at` IS OPTIONAL (5th arg), DELIBERATELY. Making it required would change the existing caller's
+# RECALL: post-edit-check.sh resolves the prior session from front matter, and the entry it means to
+# consume was demoted with whatever `at` was current THEN -- not necessarily what the front matter
+# reads now. Precision gained, recall lost, in a path no test covers. So the literal-match half is
+# fixed unconditionally (it is unambiguously a bug) and the key-exact half is opt-in for callers that
+# hold the exact key -- which is what the token path in Unit C will have.
+_s_mk() {  # $1 = dir
+  mkdir -p "$1"
+  printf -- '---\nlastEvent: handoff\nsessionId: x\n---\n\n## Pending handoffs\n\n' > "$1/SESSION.md"
+}
+_s_entry() {  # $1 = dir, $2 = sid, $3 = at
+  printf -- '### %s · %s · handoff · unconsumed\n- focus: f\n- prompt:\nbody\n<!-- aria:entry-end -->\n\n' "$2" "$3" >> "$1/SESSION.md"
+}
+_S_RAN=0
+_SD="$TMP/s-consume"
+
+# S1 -- a sid containing regex metacharacters is matched LITERALLY.
+# `x[1]` as a regex matches the string "x1", NOT "x[1]", so the literal header goes unmarked today.
+_S_RAN=$((_S_RAN + 1))
+_s_mk "$_SD/meta"; _s_entry "$_SD/meta" 'x[1]' '2026-09-14T10:00:00Z'
+kt_ss_ledger_mark_consumed "$_SD/meta" 'x[1]' '2026-09-15T00:00:00Z' 'tester' >/dev/null 2>&1 || true
+if grep -q '· handoff · consumed' "$_SD/meta/SESSION.md"; then ok "S1 metacharacter sid matched literally"
+else bad "S1 metacharacter sid" "sid 'x[1]' left its own entry unmarked — the sid is being used as a regex"; fi
+
+# S2 -- and the same escaping prevents OVER-match. `a.c` as a regex matches the UNRELATED entry
+# `abc`; literally it matches neither. This is the dangerous direction: it marks someone else's entry.
+_S_RAN=$((_S_RAN + 1))
+_s_mk "$_SD/over"; _s_entry "$_SD/over" 'abc' '2026-09-14T10:00:00Z'
+kt_ss_ledger_mark_consumed "$_SD/over" 'a.c' '2026-09-15T00:00:00Z' 'tester' >/dev/null 2>&1 || true
+if grep -q '· handoff · consumed' "$_SD/over/SESSION.md"; then bad "S2 regex over-match" "sid 'a.c' consumed the UNRELATED entry 'abc' — a regex match is marking the wrong session's entry"
+else ok "S2 unrelated entry not consumed by a regex-looking sid"; fi
+
+# S3 -- with `at` supplied, ONE sid under TWO timestamps marks exactly the named one.
+_S_RAN=$((_S_RAN + 1))
+_s_mk "$_SD/exact"
+_s_entry "$_SD/exact" 'dup-sid' '2026-09-14T10:00:00Z'
+_s_entry "$_SD/exact" 'dup-sid' '2026-09-14T22:00:00Z'
+kt_ss_ledger_mark_consumed "$_SD/exact" 'dup-sid' '2026-09-15T00:00:00Z' 'tester' '2026-09-14T22:00:00Z' >/dev/null 2>&1 || true
+_sn=$(awk '/· handoff · consumed/{c++} END{print c+0}' "$_SD/exact/SESSION.md")
+_sw=$(awk '/2026-09-14T22:00:00Z · handoff · consumed/{c++} END{print c+0}' "$_SD/exact/SESSION.md")
+{ [ "$_sn" -eq 1 ] && [ "$_sw" -eq 1 ]; } \
+  && ok "S3 at-conjunct marks exactly the named entry" \
+  || bad "S3 at-conjunct" "expected exactly 1 consumed and it to be the 22:00 entry; got consumed=$_sn correct=$_sw"
+
+# S4 -- ⛔ NON-REGRESSION: with `at` OMITTED, behaviour is unchanged — every entry for that sid marks.
+# Without this arm, making `at` mandatory-in-effect would pass S3 and silently break the live caller.
+_S_RAN=$((_S_RAN + 1))
+_s_mk "$_SD/compat"
+_s_entry "$_SD/compat" 'dup-sid' '2026-09-14T10:00:00Z'
+_s_entry "$_SD/compat" 'dup-sid' '2026-09-14T22:00:00Z'
+kt_ss_ledger_mark_consumed "$_SD/compat" 'dup-sid' '2026-09-15T00:00:00Z' 'tester' >/dev/null 2>&1 || true
+_sc=$(awk '/· handoff · consumed/{c++} END{print c+0}' "$_SD/compat/SESSION.md")
+[ "$_sc" -eq 2 ] && ok "S4 at omitted => legacy behaviour, both entries marked (non-regression)" \
+  || bad "S4 legacy behaviour" "expected 2 consumed with at omitted, got $_sc — the existing caller's recall changed"
+
+# ⛔ ANTI-VACUITY.
+[ "$_S_RAN" -eq 4 ] && ok "S coverage: $_S_RAN consume arms executed" \
+  || bad "S coverage" "only $_S_RAN consume arms executed (want 4)"
+
 printf "\n%d passed, %d failed\n" "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

@@ -298,7 +298,7 @@ $_ss_prompt
 
 # Flip "### <SID> … · unconsumed" to "· consumed <TS> by <BY>" for the named session only.
 kt_ss_ledger_mark_consumed() {
-  _ss_f="$1/SESSION.md"; _ss_sid="$2"; _ss_ts="$3"; _ss_by="$4"
+  _ss_f="$1/SESSION.md"; _ss_sid="$2"; _ss_ts="$3"; _ss_by="$4"; _ss_want_at="$5"
   [ -f "$_ss_f" ] || return 0
   _ss_tmp="$_ss_f.$$.tmp"
   # THREE things matter here and they are interlocking; changing one alone reintroduces the bug.
@@ -319,8 +319,30 @@ kt_ss_ledger_mark_consumed() {
   # ⚠ NOT closed, deliberately: a header carrying a TRUNCATED sid while the caller passes the full
   # one is matched by neither form — the full sid is not present in the line at all, so no loosening
   # of this pattern reaches it. Prefix matching could mark the WRONG entry, so it stays out.
-  awk -v sid="$_ss_sid" -v ts="$_ss_ts" -v by="$_ss_by" '
-    $0 ~ ("^### .*" sid) && /(^|[^a-z])unconsumed([^a-z]|$)/ {
+  # ⛔ index(), NOT a regex. The old form was `$0 ~ ("^### .*" sid)`, which interpolated the caller's
+  # sid into an awk REGEX unescaped. Two failure directions, both measured:
+  #   under-match: sid `x[1]` is a character class, so it matches the string "x1" and leaves the
+  #                entry whose sid is literally `x[1]` unmarked;
+  #   OVER-match:  sid `a.c` matches the UNRELATED entry `abc` -- marking another session's handoff
+  #                consumed. That is the dangerous direction and it was reachable today.
+  # The live legacy sid `e95b0202 (contract-coherence)` matched only BY LUCK: its parentheses form a
+  # group matching the same literal.
+  #
+  # ⛔ index() ON FIELD 1, NOT `==`. The loose match is deliberate and documented above -- headers are
+  # hand-written too, and carry backticks or a trailing parenthetical around the sid. Strict equality
+  # would regress every one of those. index() is a LITERAL substring search: it removes the regex
+  # without removing the tolerance.
+  #
+  # ⛔ `at` (5th arg) IS OPTIONAL. Omitted => legacy behaviour, every entry for that sid marks --
+  # guarded by S4, because making it mandatory-in-effect would silently change the recall of
+  # post-edit-check.sh, whose entry was demoted with whatever `at` was current THEN. Supplied => an
+  # exact (sid, at) match, which is what one sid under two timestamps needs.
+  awk -v sid="$_ss_sid" -v ts="$_ss_ts" -v by="$_ss_by" -v want_at="$_ss_want_at" '
+    /^### / {
+      _nf = split(substr($0, 5), _f, " · ")
+      _hsid = _f[1]; _hat = (_nf >= 2 ? _f[2] : "")
+    }
+    /^### / && index(_hsid, sid) > 0 && (want_at == "" || _hat == want_at) && /(^|[^a-z])unconsumed([^a-z]|$)/ {
       sub(/unconsumed/, "consumed " ts " by " by); print; next
     }
     { print }
