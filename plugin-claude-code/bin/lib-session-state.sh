@@ -654,3 +654,67 @@ kt_ss_ledger_candidates() {
   ' "$_ss_f" 2>/dev/null
   return 0
 }
+
+# Locate a PASTED prompt by its provenance token. Emits `<sid>|<at>|<status>|<source>` for the
+# candidate whose stored prompt carries <token>, or nothing. Read-only.
+#
+# ⛔ LOCATE BY THE TOKEN STRING, NEVER BY SID. The token is self-locating because the Step 3e opener
+# is reused verbatim in both the pasteable artifact and the SESSION.md prompt block -- the same bytes
+# exist in both places. Between a /handoff and the paste, another session can DEMOTE the prompt out
+# of the active slot, which is not hypothetical: measured 2026-09-14, a demote 14 minutes later. A
+# sid- or slot-based lookup misses that; the token follows the body wherever it goes.
+#
+# ⛔ THREE OUTCOMES, NOT TWO -- `archived` is a distinct answer from EMPTY, and collapsing them is a
+# data decision, not a formatting one. A token under an archive heading was deliberately taken out of
+# the offer (89 entries were archived for exactly that reason). Reporting it EMPTY invites a caller
+# to treat the prompt as lost and resurrect it; reporting it offerable undoes the archiving. It is
+# LOCATED BUT NOT OFFERED, and the caller decides.
+#
+# ⛔ THE TOKEN TEST RUNS BEFORE THE FENCE SKIP, and that ordering is the whole mechanism. The token
+# lives INSIDE the opener fence, so a fence-skipping walk never sees it -- while headings and entry
+# headers must stay OUTSIDE the fence, or a column-0 marker inside a stored prompt is read as
+# structure. Both requirements are satisfied by rule order alone: token first, then the fence toggle,
+# then the skip, then headings and headers.
+#
+# ⛔ index(), not a regex: the token contains `/` and `@` and is caller-supplied.
+kt_ss_ledger_token_locate() {
+  _ss_f="$1/SESSION.md"
+  [ -f "$_ss_f" ] || return 0
+  awk -v tok="$2" '
+    BEGIN { fm = 0; infence = 0; sec = ""; hsid = ""; hat = ""; hst = "unconsumed" }
+    NR == 1 && $0 == "---" { fm = 1; next }
+    fm == 1 && $0 == "---" { fm = 0; next }
+    fm == 1 {
+      if ($0 ~ /^sessionId:[[:space:]]*/) { s = $0; sub(/^sessionId:[[:space:]]*/, "", s); fsid = s }
+      if ($0 ~ /^at:[[:space:]]*/)        { s = $0; sub(/^at:[[:space:]]*/, "", s);        fat  = s }
+      next
+    }
+    index($0, tok) > 0 {
+      if (sec == "ACTIVE") { print fsid "|" fat "|unconsumed|active"; exit }
+      if (sec == "LEDGER" && hsid != "")   { print hsid "|" hat "|" hst "|pending";  exit }
+      if (sec == "ARCHIVED" && hsid != "") { print hsid "|" hat "|" hst "|archived"; exit }
+      next
+    }
+    /^```/ { if (infence == 1) { infence = 0 } else { infence = 1 } next }
+    infence == 1 { next }
+    /^## / {
+      if ($0 ~ /^## Next session prompt[[:space:]]*$/)   { sec = "ACTIVE" }
+      else if ($0 ~ /^## Pending handoffs[[:space:]]*$/) { sec = "LEDGER" }
+      else if ($0 ~ /^## Prior sessions[[:space:]]*$/)   { sec = "LEDGER" }
+      else if ($0 ~ /^## Archived/)                      { sec = "ARCHIVED" }
+      else { sec = "OTHER" }
+      hsid = ""; hat = ""; hst = "unconsumed"
+      next
+    }
+    /^### / {
+      n = split(substr($0, 5), f, " · ")
+      if (n >= 2) {
+        hsid = f[1]; hat = f[2]
+        gsub(/^[ \t]+/, "", hsid); gsub(/[ \t]+$/, "", hsid)
+        gsub(/^[ \t]+/, "", hat);  gsub(/[ \t]+$/, "", hat)
+        if ($0 ~ /(^|[^a-z])unconsumed([^a-z]|$)/) { hst = "unconsumed" } else { hst = "terminal" }
+      }
+    }
+  ' "$_ss_f" 2>/dev/null
+  return 0
+}

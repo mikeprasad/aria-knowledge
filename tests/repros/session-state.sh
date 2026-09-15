@@ -962,5 +962,68 @@ _tfk=$(_t_cand "$TD/fence" | grep -c '^fake-entry|' || true)
 [ "$_T_RAN" -eq 7 ] && ok "T coverage: $_T_RAN candidate arms executed" \
   || bad "T coverage" "only $_T_RAN candidate arms executed (want 7)"
 
+# --- U: kt_ss_token_locate — find a PASTED prompt by its provenance token ------------------------
+# The token travels INSIDE the opener fence, and the 3e opener is reused verbatim in both the
+# pasteable artifact and the SESSION.md prompt block -- so the same bytes exist in both places and
+# the prompt is SELF-LOCATING. Locate by the token STRING, never by sid: between a /handoff and the
+# paste, another session can demote the prompt, which is not hypothetical (measured 2026-09-14, a
+# demote 14 minutes later).
+#
+# ⛔ THREE OUTCOMES, NOT TWO. `archived` is a distinct answer from EMPTY. A token found under an
+# archive heading was deliberately taken out of the offer -- 89 entries were archived for exactly
+# that reason -- so reporting it as "not found" would invite a caller to resurrect it, while
+# reporting it as offerable would undo the archiving. It is LOCATED BUT NOT OFFERED.
+_U_RAN=0
+_u_loc() { kt_ss_ledger_token_locate "$1" "$2" 2>/dev/null || true; }
+_u_tok='aria-handoff: cs/tok-sid@2026-09-10T10:00:00Z'
+UD="$TMP/u-token"
+
+# U1 (AC-C1) -- token in the ACTIVE prompt block.
+_U_RAN=$((_U_RAN + 1)); mkdir -p "$UD/active"
+printf -- '---\nlastEvent: handoff\nat: 2026-09-10T10:00:00Z\nsessionId: tok-sid\n---\n\n## Next session prompt\n\n```\n%s\ncs\nresume\n```\n' "$_u_tok" > "$UD/active/SESSION.md"
+_uo=$(_u_loc "$UD/active" "$_u_tok")
+printf '%s' "$_uo" | grep -q '^tok-sid|2026-09-10T10:00:00Z|.*|active$' \
+  && ok "U1 token in the active slot is located, tagged active" \
+  || bad "U1 active" "expected tok-sid|...|active, got '$_uo'"
+
+# U2 (AC-C2) -- the SAME token after DEMOTION into Pending. This is the relocation case and the
+# reason lookup is by token rather than by sid.
+_U_RAN=$((_U_RAN + 1)); mkdir -p "$UD/demoted"
+printf -- '---\nlastEvent: handoff\nat: 2026-09-12T09:00:00Z\nsessionId: someone-else\n---\n\n## Pending handoffs\n\n### tok-sid · 2026-09-10T10:00:00Z · handoff · unconsumed\n- focus: f\n- prompt:\n```\n%s\ncs\nresume\n```\n<!-- aria:entry-end -->\n' "$_u_tok" > "$UD/demoted/SESSION.md"
+_uo=$(_u_loc "$UD/demoted" "$_u_tok")
+printf '%s' "$_uo" | grep -q '^tok-sid|2026-09-10T10:00:00Z|.*|pending$' \
+  && ok "U2 token still located after demotion, tagged pending" \
+  || bad "U2 demoted" "expected tok-sid|...|pending, got '$_uo' — lookup is following the sid or the slot, not the token"
+
+# U3 (AC-C3) -- ⛔ ARCHIVED is its own answer. Not empty, not offerable.
+_U_RAN=$((_U_RAN + 1)); mkdir -p "$UD/archived"
+printf -- '---\nlastEvent: handoff\nat: 2026-09-12T09:00:00Z\nsessionId: someone-else\n---\n\n## Archived sessions — 2026-09-01 → 2026-09-10 (stale)\n\n### tok-sid · 2026-09-10T10:00:00Z · handoff · unconsumed\n- focus: f\n- prompt:\n```\n%s\ncs\nresume\n```\n<!-- aria:entry-end -->\n' "$_u_tok" > "$UD/archived/SESSION.md"
+_uo=$(_u_loc "$UD/archived" "$_u_tok")
+printf '%s' "$_uo" | grep -q '|archived$' \
+  && ok "U3 token under an archive heading reports archived, not empty" \
+  || bad "U3 archived" "expected a line ending |archived, got '$_uo' — an empty answer invites resurrecting it; an offerable one undoes the archiving"
+
+# U4 (AC-C4) -- an absent token is EMPTY and is not an error.
+_U_RAN=$((_U_RAN + 1))
+_uo=$(_u_loc "$UD/active" 'aria-handoff: cs/nobody@2026-01-01T00:00:00Z')
+_urc=0; kt_ss_ledger_token_locate "$UD/active" 'aria-handoff: cs/nobody@2026-01-01T00:00:00Z' >/dev/null 2>&1 || _urc=$?
+{ [ -z "$_uo" ] && [ "$_urc" -ne 127 ]; } \
+  && ok "U4 absent token yields empty, helper defined, no error" \
+  || bad "U4 absent" "expected empty and a defined helper; got '$_uo' exit $_urc"
+
+# U5 (AC-C5) -- ⛔ NON-REGRESSION. A tokenless file yields nothing AND kt_ss_ledger_candidates is
+# untouched. 152 stored prompts carry no token and must behave exactly as before.
+_U_RAN=$((_U_RAN + 1)); mkdir -p "$UD/notoken"
+printf -- '---\nlastEvent: handoff\nat: 2026-09-10T10:00:00Z\nsessionId: plain\n---\n\n## Next session prompt\n\n```\ncs\nresume\n```\n' > "$UD/notoken/SESSION.md"
+_uo=$(_u_loc "$UD/notoken" "$_u_tok")
+_uc=$(kt_ss_ledger_candidates "$UD/notoken" 2>/dev/null | awk 'NF{c++} END{print c+0}')
+{ [ -z "$_uo" ] && [ "$_uc" -eq 1 ]; } \
+  && ok "U5 tokenless file: no token hit, candidates unaffected" \
+  || bad "U5 non-regression" "expected no token hit and 1 candidate; got token='$_uo' candidates=$_uc"
+
+# ⛔ ANTI-VACUITY.
+[ "$_U_RAN" -eq 5 ] && ok "U coverage: $_U_RAN token-locate arms executed" \
+  || bad "U coverage" "only $_U_RAN token-locate arms executed (want 5)"
+
 printf "\n%d passed, %d failed\n" "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
