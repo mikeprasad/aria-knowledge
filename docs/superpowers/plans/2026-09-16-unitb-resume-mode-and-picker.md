@@ -97,15 +97,28 @@ two headings · two terminators (explicit marker, or **nothing**) · two prompt 
 The ratified shape is a numbered table of `focus` / `next` / age / freshness, built from stored
 fields with **no synthesis**. At 41 candidates that is unusable.
 
-⇒ **Cap the rendered list.** Show the **5 most recent** candidates, newest first, each with its
-freshness verdict, then one line: `… and N more (M stale) — say "all" to list them`.
+⛔ **SUPERSEDED 2026-09-16 BY RENDERING IT. The cap was the wrong lever.**
 
-⚑ **The cap is the one judgment in this unit and it is declared as such.** 5 is chosen to fit a
-terminal without scrolling, not derived. What is *not* a judgment is that a cap must exist: 41 rows
-of `focus` + `next` cannot be read, and no reading of D1 or D2 argues for rendering them.
-⚠ **Capping is a RENDERING decision only.** Selection still accepts any candidate, and the count of
-what is hidden is always shown — a cap that silently hides candidates is the failure this ledger
-exists to prevent.
+The draft said: show the 5 most recent, each with `focus` + `next`, then a remainder line — and it
+declared the integer 5 as "the one judgment in this unit". Both renders were then run against a live
+ledger of **44** candidates:
+
+| Form | Lines | Visible |
+|---|---|---|
+| 5 rows, `focus` + `next` | 15 | **5 of 44 — hiding 39, all FRESH** |
+| 1 line each, `focus` clipped to ~88, no cap | **44** | **all 44**, scannable by eye |
+
+⭐ **Two things the arithmetic got wrong and the render got right.** (a) I predicted five rows would
+cost ~40 lines; they cost **15** — real wrapping is kinder than a character count. (b) The cap was
+hiding **live** work, not dead work: an archiving pass had already removed the stale entries, so 39
+of the 39 hidden were fresh.
+
+⇒ **Fix the ROW, and the cap stops being needed.** One line per candidate; `next` shown only for the
+SELECTED candidate at confirm time, where it is decision-detail rather than 43 rows of noise. A cap
+survives only as a **safety valve at 40**, never as a display limit.
+
+⚑ Clipping is not synthesis — deterministic truncation with a visible ellipsis, so nothing is
+invented and the reader knows there is more.
 
 ---
 
@@ -134,8 +147,11 @@ exists to prevent.
   `tests/fixtures/session-contract-vendored/handoff-multi-session.SESSION.md`; do not author a new one.
 - **AC6** pending entries with **no** active prompt are still listed (G3).
 - **AC7** combine offered only under D2's predicate; never auto-selected; absence ≠ error.
-- **AC8** `[new]` **the cap shows what it hides** — a fixture with more than 5 candidates renders 5
-  rows **and** a remainder line carrying the true total. *Red if:* the remainder is absent or wrong.
+- **AC8** `[new, revised 2026-09-16]` **the row is one line, and the valve shows what it hides** —
+  a fixture with several candidates renders **one line each** (`focus` clipped, no `next`), and a
+  fixture exceeding **40** renders 40 plus a remainder line carrying the true total and stale count.
+  *Red if:* a list row carries `next`, or the remainder is absent or wrong.
+  ⚠ The cap moved 5 → 40 **on rendered evidence**, not preference: at 5 it hid 39 fresh candidates.
 - **AC9** `[new]` **archived entries are NOT offered** — a fixture with entries under
   `## Archived sessions` yields zero candidates from that section. *Red if:* any appears. This is the
   arm that protects the 2026-09-15 archiving from being silently undone.

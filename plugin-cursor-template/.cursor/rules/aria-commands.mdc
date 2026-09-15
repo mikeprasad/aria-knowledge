@@ -3139,19 +3139,39 @@ nothing pending is the normal state.
 
 **3 — one candidate.** State its `focus` and its age, confirm, then resume it.
 
-**4 — two or more.** Render a numbered list, newest first, each row carrying `focus`, `next`, age and
-a freshness verdict against `session_stale_days` (default 7). ⛔ **Build every field from the STORED
-values — no synthesis.** `kt_ss_ledger_add` stores them at full fidelity precisely so this list needs
-no LLM summarisation, and a summarised row is a row that can be wrong.
+**4 — two or more.** Render a numbered list, newest first — **ONE LINE PER CANDIDATE**:
 
-⛔ **CAP THE RENDER AT 5, and always state what is hidden.** Measured 2026-09-16: one live ledger
-carried **41** candidates. A 41-row table of `focus` + `next` cannot be read, so show the 5 most
-recent and then one line — `… and N more (M stale) — say "all" to list them`.
-⚠ **The cap is a RENDERING limit only.** Selection still accepts any candidate by id, and the hidden
-count is always shown. A cap that silently narrowed the choice would be the same class of defect as a
-picker that never offered the entries at all.
-⚑ 5 is a judgment, not a derivation — it fits a terminal without scrolling. The *existence* of a cap
-is not a judgment.
+```
+ 1. ·  1d  DEV-1089 PHASE 2 is deployed, verified and closed (served f92839b, LOG-142); /preflight…
+ 2. ·  2d  DEV-1130 T4 + T7 SHIPPED, PUSHED and DEPLOYED to staging (backend a217670, frontend ma…
+ 3. S  7d  Currency arc. DEV-1659 SHIPPED + DEPLOYED + VERIFIED LIVE. DEV-1662 specced, gated twi…
+```
+
+`<n>. <freshness: · fresh / S stale> <age> <focus, clipped to ~88 chars with an ellipsis>`.
+
+⛔ **`next:` is NOT in the list.** Show it only for the candidate the operator SELECTS, at confirm
+time. That is where it is decision-detail; in the list it doubles every row's height to carry
+information about 43 candidates you are not picking.
+
+⛔ **Build every field from the STORED values — no synthesis.** `kt_ss_ledger_add` stores them at
+full fidelity precisely so this list needs no LLM summarisation, and a summarised row is a row that
+can be wrong. ⚑ **Clipping is not synthesis** — it is deterministic truncation with a visible
+ellipsis, so the reader knows there is more and nothing was invented.
+
+⭐ **THE ROW IS THE LEVER, NOT A CAP — measured 2026-09-16, by rendering both against a live ledger
+of 44 candidates.** The first draft of this clause rendered `focus` AND `next` per row and capped at
+5. Rendered: 5 rows cost 15 lines and hid **39 candidates, all of them FRESH** — the cap was hiding
+live work, not dead work, because an archiving pass had already removed the dead. The same 44
+candidates as one-line rows cost **44 lines**: one scroll, every ticket id readable, choosable by eye.
+
+⚠ **A cap survives only as a SAFETY VALVE, not a display limit.** Above **40** candidates, render the
+40 most recent and then one line: `… and N more (M stale) — say "all" to list them`. ⛔ It is a
+RENDERING limit only: selection still accepts any candidate by id, and the hidden count is always
+shown. A cap that silently narrowed the choice would be the same defect as never offering the
+entries at all.
+
+⚑ Do not "improve" this by reintroducing a small cap. The arithmetic that produced 5 predicted five
+rows would cost ~40 lines; rendering them cost 15. **Render it before changing the number.**
 
 **5 — staleness gates the pick, it does not evict.** Every row shows its verdict. If the chosen row
 is stale, confirm before proceeding, offering `[resume / keep]`. ⛔ `archive` is **not** offered here:
