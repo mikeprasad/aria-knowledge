@@ -200,11 +200,35 @@ baseline-and-ratchet. ⛔ Read-only, like every sibling check; it must never rep
 Verified 2026-09-15: `kt_ss_ledger_add` contains **0** receipt writes against `kt_ss_ledger_prune`'s
 14. The fix shape is real and unbuilt.
 
-⇒ **`kt_ss_ledger_add` — and any path that relocates an entry's content while removing its key —
-appends to `~/.claude/session-ledger-receipts`,** exactly as prune does: computed from what the
-operation **did** (before-minus-after), appended only after the write commits, and **outside** the
-awk whose stdout is the new file — a receipt write inside it puts the receipt path in the
-operation's own failure path.
+⛔⛔ **KILLED AS SPECIFIED, 2026-09-15, on measurement — and implementing it literally would have
+been ACTIVELY HARMFUL. Do not restore it.**
+
+The recorded fix shape was *"the demote path should write a receipt as prune now does."* Measured
+against a fixture: **`kt_ss_ledger_add` is purely additive** — entry keys went 1 → 2, the
+pre-existing key survived untouched, and no receipt was written (correctly, because nothing was
+removed).
+
+⇒ A receipt emitted from `kt_ss_ledger_add` would name a key that **SURVIVED**. `kt_ss_ledger_prune`'s
+own contract comment states the consequence in terms this spec cannot improve on:
+
+> *"A receipt naming an entry that SURVIVED would later suppress a genuine loss report for it. The
+> difference between the sets is exactly where that bug would live."*
+
+So the literal fix does not merely fail to help — it **blinds the detector to a future real
+destruction** of that entry. That is the inverse of the defect it was meant to close.
+
+**Where the obligation actually belongs.** A receipt is owed by whatever operation **removes a key
+while preserving the content**. Today no helper does that: the 2026-09-14 incident was a hand-edit
+(`bc3579b`), and the promote half of the cycle has no helper at all — which is precisely the gap
+**D5 step 3** fills. ⇒ **the receipt moves to the active-slot promote path in Unit C**, computed the
+way prune computes its own: before-minus-after, appended only after the write commits, and
+**outside** the awk whose stdout is the new file.
+
+⭐ **And D4 substantially dissolves the symptom without any receipt.** The key vanished because the
+promote removed it and the later demote re-created it under a *different* identity read from stale
+front-matter. With the token, the demote restores the **original** sid + `at`, so the key reappears
+rather than being replaced. A receipt would only ever have been needed for the window between the
+two — which is Unit C's concern, not `kt_ss_ledger_add`'s.
 
 ⚠ **This is a different problem from D8 and neither substitutes for the other.** D9 removes a **false
 positive** (a legitimate relocation reported as destruction — the FAIL that opened this arc). D8
@@ -355,10 +379,15 @@ Each must be able to go **red for the right reason**; a mutation is owed per AC.
   behave byte-identically to today.
 - **AC16** `[08-25]` Gate B headroom measured after the description edit, not asserted (427 B at
   2026-08-25 authoring — **re-measure, do not quote**).
-- **AC17** `[D9]` **Relocation is not reported as destruction.** Drive the sequence that opened this
-  arc against a fixture — an entry demoted/promoted such that its `(sid|ts)` key disappears while its
-  content survives — then run `check-session-ledger.py`. It reports **no loss**, and a receipt naming
-  that key exists. *Red if:* the loss fires, or the receipt is absent.
+- **AC17** `[was D9 → now UNIT C, D5 step 3]` **Relocation is not reported as destruction.**
+  ⛔ **Retargeted 2026-09-15 with D9.** It cannot be satisfied by `kt_ss_ledger_add`, which is purely
+  additive (measured) and therefore has no removed key to receipt. It belongs to the **promote** path
+  — the operation that actually removes a key while preserving content — which Unit C builds.
+  Drive a promote against a fixture so the `(sid|ts)` key disappears while the content survives, then
+  run `check-session-ledger.py`: it reports **no loss**, and a receipt naming that key exists.
+  *Red if:* the loss fires, or the receipt is absent.
+  ⛔ **A receipt must NEVER name a surviving entry** — assert the receipted key is genuinely absent
+  from the file afterwards, or this AC certifies the exact bug D9 would have shipped.
   ⛔ **Paired negative control, non-optional:** the same run against a fixture where the content is
   genuinely **gone** must still report the loss. Without it, AC17 passes for a receipt writer that
   suppresses everything — which is strictly worse than the false positive it replaces.
