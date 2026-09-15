@@ -863,5 +863,104 @@ _sc=$(awk '/· handoff · consumed/{c++} END{print c+0}' "$_SD/compat/SESSION.md
 [ "$_S_RAN" -eq 4 ] && ok "S coverage: $_S_RAN consume arms executed" \
   || bad "S coverage" "only $_S_RAN consume arms executed (want 4)"
 
+# --- T: kt_ss_ledger_candidates — one read helper for the whole four-axis parse ------------------
+# ⛔ THIS IS A HELPER, NOT PROSE, AND THE REASON IS AC5. The acceptance criterion demands a fixture
+# yielding 2 candidates plus a mutation that reddens -- and a shell suite cannot exercise a parser
+# that exists only as an instruction inside a SKILL.md. Putting the parse here also means resume,
+# the picker and the token lookup share ONE implementation instead of re-deriving it three times.
+#
+# The four axes it must absorb, each of which silently DROPS candidates when missed:
+#   headings      -- `## Pending handoffs` (current) and `## Prior sessions` (legacy, still live)
+#   terminators   -- the explicit marker, or NOTHING; fall back to "next ### or next ##"
+#   prompt forms  -- `- prompt:` + block, and `- prompt: <text>` inline on one line
+#   status forms  -- unconsumed / consumed <ts> by <sid> / in-progress (demoted, UNFINISHED)
+#
+# ⛔ ARCHIVED SECTIONS ARE NOT CANDIDATES. 89 entries were archived out of cs/SESSION.md on
+# 2026-09-15 precisely so they would stop being offered; T4 is what stops that being undone.
+_T_RAN=0
+# ⛔ `|| true` IS LOAD-BEARING. Without it, `_tout=$(_t_cand ...)` against an undefined helper
+# returns 127, and under `set -e` a failing command substitution ABORTS THE WHOLE SUITE -- the run
+# dies mid-block and the "N passed, M failed" summary never prints, so the red phase reads as a
+# hang rather than a failure. Block Q documents this exact trap for `grep -c`; it applies to any
+# command substitution whose subject may not exist yet, which in a red phase is all of them.
+_t_cand() { kt_ss_ledger_candidates "$1" 2>/dev/null || true; }
+
+MSF="$REPO_ROOT/tests/fixtures/session-contract-vendored/handoff-multi-session.SESSION.md"
+TD="$TMP/t-cand"; mkdir -p "$TD/fx"; cp "$MSF" "$TD/fx/SESSION.md"
+
+# T1 (AC5) -- the fixture holds a LEGACY entry (## Prior sessions, no terminator, inline prompt) and
+# a CURRENT one (## Pending handoffs, terminator, block prompt), plus an active prompt. All three
+# are candidates under D3.
+_T_RAN=$((_T_RAN + 1))
+_tout=$(_t_cand "$TD/fx"); _tn=$(printf '%s\n' "$_tout" | awk 'NF{c++} END{print c+0}')
+if [ "$_tn" -eq 3 ]; then ok "T1 legacy + current + active all parsed (3 candidates)"
+else bad "T1 candidate parse" "expected 3 candidates, got $_tn — a parser that finds fewer looks exactly like a file with fewer. got: $(printf '%s' "$_tout" | tr '\n' ';')"; fi
+
+# T2 (AC5 mutation target) -- the LEGACY entry specifically must survive. Named separately so a
+# mutation removing the `## Prior sessions` arm reddens with the dropped entry NAMED.
+_T_RAN=$((_T_RAN + 1))
+printf '%s\n' "$_tout" | grep -q '^sess-old|' \
+  && ok "T2 legacy entry (no terminator) present by name" \
+  || bad "T2 legacy entry" "sess-old dropped — the legacy heading/terminator fallback is gone"
+
+# T3 (D3) -- the ACTIVE prompt is a candidate, sourced from the front matter.
+_T_RAN=$((_T_RAN + 1))
+printf '%s\n' "$_tout" | grep -q '^sess-active|.*|active$' \
+  && ok "T3 active prompt is a candidate, tagged active" \
+  || bad "T3 active candidate" "the active prompt is missing or mis-tagged — G3's converse"
+
+# T4 (AC9) -- ⛔ entries under an ARCHIVED heading are NOT candidates.
+_T_RAN=$((_T_RAN + 1))
+mkdir -p "$TD/arch"
+printf -- '---\nlastEvent: handoff\nsessionId: x\n---\n\n## Archived sessions — 2026-08-01 → 2026-08-02 (stale)\n\n### arch-1 · 2026-08-01T10:00:00Z · handoff · unconsumed\n- focus: archived\n<!-- aria:entry-end -->\n' > "$TD/arch/SESSION.md"
+# ⛔ DIFFERENTIAL, not a bare zero. "Archived yields 0" is satisfied by a MISSING HELPER, which is
+# exactly how it passed vacuously in the red phase. The same entry under `## Pending handoffs` must
+# yield 1, so the HEADING is what moves the result and the arm cannot be green on absence.
+mkdir -p "$TD/archctl"
+sed 's|^## Archived sessions.*|## Pending handoffs|' "$TD/arch/SESSION.md" > "$TD/archctl/SESSION.md"
+_ta=$(_t_cand "$TD/arch"    | awk 'NF{c++} END{print c+0}')
+_tc=$(_t_cand "$TD/archctl" | awk 'NF{c++} END{print c+0}')
+{ [ "$_ta" -eq 0 ] && [ "$_tc" -eq 1 ]; } \
+  && ok "T4 archived not offered, same entry under Pending IS (0 vs 1)" \
+  || bad "T4 archived offered" "expected archived=0 and the Pending control=1; got archived=$_ta control=$_tc — a bare zero here is also what a MISSING helper produces"
+
+# T5 (AC6) -- pending entries with NO active prompt are still listed. This is G3, the gap where a
+# pending entry currently surfaces nothing at all.
+_T_RAN=$((_T_RAN + 1))
+mkdir -p "$TD/noactive"
+printf -- '---\nlastEvent: wrapup\nsessionId: y\n---\n\n## Pending handoffs\n\n### only-pending · 2026-09-01T10:00:00Z · handoff · unconsumed\n- focus: f\n<!-- aria:entry-end -->\n' > "$TD/noactive/SESSION.md"
+_tp=$(_t_cand "$TD/noactive" | awk 'NF{c++} END{print c+0}')
+[ "$_tp" -eq 1 ] && ok "T5 pending listed with no active sibling (G3)" \
+  || bad "T5 G3" "expected 1 candidate, got $_tp"
+
+# T6 (AC2) -- zero candidates is a CLEAN empty result, never an error.
+_T_RAN=$((_T_RAN + 1))
+mkdir -p "$TD/empty"; printf -- '---\nlastEvent: wrapup\nsessionId: z\n---\n\n## Where we left off\n\nnothing\n' > "$TD/empty/SESSION.md"
+_te=$(_t_cand "$TD/empty" | awk 'NF{c++} END{print c+0}'); _terc=0
+kt_ss_ledger_candidates "$TD/empty" >/dev/null 2>&1 || _terc=$?
+{ [ "$_te" -eq 0 ] && [ "$_terc" -ne 127 ]; } && ok "T6 zero candidates, clean exit" \
+  || bad "T6 empty" "expected 0 candidates and a defined helper; got $_te candidates, exit $_terc"
+
+# T7 -- ⛔ FENCE-AWARENESS, which the implementation names as its mechanism and which NOTHING
+# tested until this arm. A stored prompt routinely contains column-0 `### ` and `## ` lines --
+# full-fidelity demotion is why -- and a parse that reads them as structure invents a candidate and
+# loses the section. Here the fenced prompt carries BOTH; the correct answer is 1, not 2.
+_T_RAN=$((_T_RAN + 1))
+mkdir -p "$TD/fence"
+{ printf -- '---\nlastEvent: handoff\nsessionId: f\n---\n\n## Pending handoffs\n\n'
+  printf -- '### real-one · 2026-09-01T10:00:00Z · handoff · unconsumed\n- focus: f\n- prompt:\n'
+  printf -- '```\n### fake-entry · 2026-01-01T00:00:00Z · handoff · unconsumed\n## Pending handoffs\nstill the stored prompt\n```\n'
+  printf -- '<!-- aria:entry-end -->\n'
+} > "$TD/fence/SESSION.md"
+_tf=$(_t_cand "$TD/fence" | awk 'NF{c++} END{print c+0}')
+_tfk=$(_t_cand "$TD/fence" | grep -c '^fake-entry|' || true)
+{ [ "$_tf" -eq 1 ] && [ "$_tfk" -eq 0 ]; } \
+  && ok "T7 column-0 markers inside a stored prompt are not structure" \
+  || bad "T7 fence-awareness" "expected 1 candidate and 0 fakes; got $_tf candidates, $_tfk fake — a `### ` inside a fenced prompt is being read as an entry"
+
+# ⛔ ANTI-VACUITY.
+[ "$_T_RAN" -eq 7 ] && ok "T coverage: $_T_RAN candidate arms executed" \
+  || bad "T coverage" "only $_T_RAN candidate arms executed (want 7)"
+
 printf "\n%d passed, %d failed\n" "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

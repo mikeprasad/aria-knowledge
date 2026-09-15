@@ -584,3 +584,73 @@ kt_ss_active_is_newer() {
   printf '%s' "$_ss_mine" | grep -Eq "$_ss_isoz" || return 1
   awk -v a="$_ss_inc" -v b="$_ss_mine" 'BEGIN { exit (a > b) ? 0 : 1 }'
 }
+
+# Emit every RESUMABLE candidate in a SESSION.md, one per line: `<sid>|<at>|<status>|<source>`
+# where source is `active` (the `## Next session prompt` block) or `pending` (an unconsumed entry
+# under `## Pending handoffs` or the legacy `## Prior sessions`). Read-only; never writes.
+#
+# ⛔ ONE HELPER, THREE CONSUMERS. resume, the picker and the token lookup all need this parse. Left
+# as prose in a SKILL.md it would be re-derived three times -- three call sites, one defect -- and
+# no shell suite could exercise it, which is what made the legacy-parity acceptance criterion
+# unimplementable as written.
+#
+# THE FOUR AXES, each of which silently DROPS candidates when missed:
+#   1. two headings  -- `## Pending handoffs` and the legacy `## Prior sessions`, both still live.
+#   2. two terminators -- the explicit marker, or NOTHING. Nothing here depends on the terminator:
+#      an entry is recognised by its own `### ` header, so a missing terminator cannot hide it.
+#   3. two prompt serializations -- irrelevant to enumeration, which reads headers only. Deliberate:
+#      the picker renders `focus`/`next`, and reading those is the caller's job, not this parse's.
+#   4. status forms -- only a word-bounded `unconsumed` is a candidate. `unconsumed` CONTAINS
+#      `consumed`, so the bounding is what keeps a live entry from reading as terminal.
+#
+# ⛔ ARCHIVED SECTIONS ARE NOT CANDIDATES, and this is load-bearing rather than tidy: 89 entries
+# were archived out of one ledger on 2026-09-15 specifically so they would stop being offered. Only
+# the two LEDGER headings qualify; everything else -- archives included -- is skipped.
+#
+# ⛔ FENCE-AWARE, AND THE RULE ORDER IS THE MECHANISM. The fence toggle is tested BEFORE the heading
+# rule, so a column-0 `## ` or `### ` inside a STORED PROMPT cannot move the current section or be
+# counted as an entry. Stored prompts routinely contain both -- that is why full-fidelity demotion
+# exists -- and a parse without this reads one entry's prompt as a new section.
+#
+# ⛔ NO TERNARIES. BSD awk rejects `print (c > 0) ? x : y`, and this library is plain `sh` on BSD
+# userland. if/else throughout, deliberately.
+kt_ss_ledger_candidates() {
+  _ss_f="$1/SESSION.md"
+  [ -f "$_ss_f" ] || return 0
+  awk '
+    BEGIN { fm = 0; infence = 0; sec = ""; actseen = 0; fsid = ""; fat = "" }
+    NR == 1 && $0 == "---" { fm = 1; next }
+    fm == 1 && $0 == "---" { fm = 0; next }
+    fm == 1 {
+      if ($0 ~ /^sessionId:[[:space:]]*/) { s = $0; sub(/^sessionId:[[:space:]]*/, "", s); fsid = s }
+      if ($0 ~ /^at:[[:space:]]*/)        { s = $0; sub(/^at:[[:space:]]*/, "", s);        fat  = s }
+      next
+    }
+    /^```/ { if (infence == 1) { infence = 0 } else { infence = 1 } next }
+    infence == 1 {
+      if (sec == "ACTIVE" && $0 ~ /[^[:space:]]/) { actseen = 1 }
+      next
+    }
+    /^## / {
+      if ($0 ~ /^## Next session prompt[[:space:]]*$/) { sec = "ACTIVE" }
+      else if ($0 ~ /^## Pending handoffs[[:space:]]*$/) { sec = "LEDGER" }
+      else if ($0 ~ /^## Prior sessions[[:space:]]*$/)   { sec = "LEDGER" }
+      else { sec = "OTHER" }
+      next
+    }
+    sec == "ACTIVE" && $0 ~ /[^[:space:]]/ { actseen = 1; next }
+    sec == "LEDGER" && /^### / {
+      if ($0 ~ /(^|[^a-z])unconsumed([^a-z]|$)/) {
+        n = split(substr($0, 5), f, " · ")
+        if (n >= 2) {
+          sid = f[1]; at = f[2]
+          gsub(/^[ \t]+/, "", sid); gsub(/[ \t]+$/, "", sid)
+          gsub(/^[ \t]+/, "", at);  gsub(/[ \t]+$/, "", at)
+          print sid "|" at "|unconsumed|pending"
+        }
+      }
+    }
+    END { if (actseen == 1 && fsid != "") { print fsid "|" fat "|unconsumed|active" } }
+  ' "$_ss_f" 2>/dev/null
+  return 0
+}

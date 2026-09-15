@@ -29,3 +29,15 @@ ACTIVE-OPENER resume the active session
 - focus: old focus
 - next: old next
 - prompt: OLD-OPENER should never leak into the active prompt block
+
+## Pending handoffs
+
+### sess-current · 2026-06-21T10:00:00Z · handoff · unconsumed
+- focus: current focus
+- next: current next
+- prompt:
+```
+CURRENT-OPENER resume the current session
+```
+<!-- aria:entry-end -->
+
