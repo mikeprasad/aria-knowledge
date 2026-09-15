@@ -1,6 +1,6 @@
 ---
-description: "Generate a passoff package so the next reader can pick up cleanly — for future-you in a new session (typically when context is high and you need to restart) or for a coworker (via brief mode). Default + `auto` modes emit a paste-ready next-session opener as the headline artifact, alongside PROGRESS / CLAUDE / memory updates, commit, and /extract; `brief` mode emits an 80-150 word coworker-facing prose brief instead (Slack/email-ready, no file writes); `snap` mode runs like auto but archives the transcript via /snapshot for later extraction instead of running /extract now — use when context is high. Use when handing off — not when finishing for the day with nothing pending (closing out a finished session with no passoff is a different skill). Triggers: '/handoff', '/handoff auto', '/handoff brief', '/handoff snap', 'hand it off', 'handoff and extract', 'context is full, restart this', 'pass off to next session', 'brief a coworker on this', 'wrap and prompt'. (Code port — ADR-094.)"
-argument-hint: "[auto|brief|snap]"
+description: "Generate a passoff package so the next reader can pick up cleanly — for future-you in a new session (typically when context is high and you need to restart) or for a coworker (via brief mode). Default + `auto` modes emit a paste-ready next-session opener as the headline artifact, alongside PROGRESS / CLAUDE / memory updates, commit, and /extract; `brief` mode emits an 80-150 word coworker-facing prose brief instead (Slack/email-ready, no file writes); `snap` mode runs like auto but archives the transcript via /snapshot for later extraction instead of running /extract now — use when context is high; `resume` mode does the opposite direction — it lists the stored next-session prompts and, when more than one is live, presents them with freshness so you can pick. Use when handing off — not when finishing for the day with nothing pending (closing out a finished session with no passoff is a different skill). Triggers: '/handoff', '/handoff auto', '/handoff brief', '/handoff snap', 'hand it off', 'handoff and extract', 'context is full, restart this', 'pass off to next session', 'brief a coworker on this', 'wrap and prompt', '/handoff resume', 'resume the handoff', 'which handoffs are pending'. (Code port — ADR-094.)"
+argument-hint: "[auto|brief|snap|resume]"
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
@@ -47,9 +47,63 @@ Parse the argument:
 - Arg matches `auto` (case-insensitive) → `mode = auto`
 - Arg matches `brief` (case-insensitive) → `mode = brief`
 - Arg matches `snap` (case-insensitive) → `mode = snap`
-- Any other arg → stop: "Unknown argument '{arg}'. Use '/handoff', '/handoff auto', '/handoff brief', or '/handoff snap'."
+- Arg matches `resume` (case-insensitive) → `mode = resume`
+- Any other arg → stop: "Unknown argument '{arg}'. Use '/handoff', '/handoff auto', '/handoff brief', '/handoff snap', or '/handoff resume'."
 
 Use `{knowledge_folder}` as the base path for all file operations.
+
+## Step 0r: `resume` mode — pick up a stored prompt (runs INSTEAD of Steps 1-8)
+
+⛔ **If `mode = resume`, run this section and STOP.** It is a READ flow: it writes nothing except the
+consumed mark on the entry you actually pick. None of the handoff write steps run.
+
+**1 — build the candidate set.** Source `bin/lib-session-state.sh` and call
+`kt_ss_ledger_candidates "{project_root}"`. It emits `<sid>|<at>|<status>|<source>`, one per line,
+covering the active `## Next session prompt` **and** every unconsumed entry under
+`## Pending handoffs` or the legacy `## Prior sessions` — **one candidate set**, which is what makes
+a pending entry visible when there is no active prompt beside it. ⛔ Do NOT re-implement this parse
+inline: it absorbs four format axes (two headings, a terminator that may be absent, two prompt
+serializations, several status forms) and a hand-rolled version silently drops candidates. ⛔
+Archived sections are deliberately excluded.
+
+**2 — zero candidates.** Say so plainly and stop. ⚠ This is **not** an error — a clean project with
+nothing pending is the normal state.
+
+**3 — one candidate.** State its `focus` and its age, confirm, then resume it.
+
+**4 — two or more.** Render a numbered list, newest first, each row carrying `focus`, `next`, age and
+a freshness verdict against `session_stale_days` (default 7). ⛔ **Build every field from the STORED
+values — no synthesis.** `kt_ss_ledger_add` stores them at full fidelity precisely so this list needs
+no LLM summarisation, and a summarised row is a row that can be wrong.
+
+⛔ **CAP THE RENDER AT 5, and always state what is hidden.** Measured 2026-09-16: one live ledger
+carried **41** candidates. A 41-row table of `focus` + `next` cannot be read, so show the 5 most
+recent and then one line — `… and N more (M stale) — say "all" to list them`.
+⚠ **The cap is a RENDERING limit only.** Selection still accepts any candidate by id, and the hidden
+count is always shown. A cap that silently narrowed the choice would be the same class of defect as a
+picker that never offered the entries at all.
+⚑ 5 is a judgment, not a derivation — it fits a terminal without scrolling. The *existence* of a cap
+is not a judgment.
+
+**5 — staleness gates the pick, it does not evict.** Every row shows its verdict. If the chosen row
+is stale, confirm before proceeding, offering `[resume / keep]`. ⛔ `archive` is **not** offered here:
+no `kt_ss_ledger_archive` exists, and inventing one would be new write machinery in a read flow.
+⛔ **Time never evicts.** An aged entry is surfaced with its age and left alone unless a human says
+otherwise.
+
+**6 — combining.** Offer a combine **only** when two candidates share a project root **and** their
+`next:` fields name disjoint work. Present it as one extra numbered option, **never** auto-selected;
+its absence is not an error. ⚠ The real corpus argues for restraint: a hand-written prompt already in
+the wild asks the reader to *"pick one … the stronger candidate"*, with two pending `next:` fields
+that overlap heavily. Recommending a combine there would be wrong.
+
+**7 — on selection.** Execute the chosen prompt, then mark exactly that entry consumed:
+`kt_ss_ledger_mark_consumed "{project_root}" "<sid>" "<now>" "<your sid>" "<at>"`.
+⭐ **Pass the fifth argument.** Without it the match is by sid alone, and a sid can appear under two
+different timestamps — one live ledger carries exactly that today, so a sid-only mark would close
+both entries. You hold the exact `at` here because the candidate line gave it to you.
+⚠ If the chosen candidate's source is `active` rather than `pending` it has no `### ` entry to mark;
+say so rather than reporting a consume that did not happen.
 
 ## Step 1: Identify Project Context
 
