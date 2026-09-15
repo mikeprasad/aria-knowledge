@@ -183,6 +183,34 @@ front-matter `sessionId`/`at`. Deterministic — both operands are explicit — 
 28 corrections, because a correcting session's own token matches its own front-matter. Severity WARN,
 baseline-and-ratchet. ⛔ Read-only, like every sibling check; it must never repair.
 
+### D9 — the demote/promote path writes a receipt *(prior art — diagnosed 2026-09-14, unbuilt)*
+
+⛔ **Not novel to this spec, and the source is an always-loaded file.** `aria-knowledge/CLAUDE.md`'s
+2026-09-15 footer already records it, **naming this arc's exact entry**:
+
+> *"a **demoted** entry also vanishes from the `(sid|ts)` key while its content is explicitly
+> preserved, so the guard still reports it as a loss — the third false-positive shape in this class,
+> and the fix shape already exists (the demote path should write a receipt as prune now does).
+> Measured live on `cs/SESSION.md` entry `5214cae2`."*
+
+Verified 2026-09-15: `kt_ss_ledger_add` contains **0** receipt writes against `kt_ss_ledger_prune`'s
+14. The fix shape is real and unbuilt.
+
+⇒ **`kt_ss_ledger_add` — and any path that relocates an entry's content while removing its key —
+appends to `~/.claude/session-ledger-receipts`,** exactly as prune does: computed from what the
+operation **did** (before-minus-after), appended only after the write commits, and **outside** the
+awk whose stdout is the new file — a receipt write inside it puts the receipt path in the
+operation's own failure path.
+
+⚠ **This is a different problem from D8 and neither substitutes for the other.** D9 removes a **false
+positive** (a legitimate relocation reported as destruction — the FAIL that opened this arc). D8
+catches a **real defect** (a body whose identity disagrees with its front-matter). Shipping only D9
+would silence the alarm while leaving the mis-attribution it was pointing at.
+
+⚑ **Method note worth carrying:** this was missed by a U10 "has it been done" census that searched
+`docs/`, `intake/` and `logs/prospect/` — but live status lives in the **always-loaded CLAUDE.md
+footers**, which no pass searched. A prior-art census must include them.
+
 ---
 
 ## 4. The parser — and what the token sidesteps *(carried from 2026-08-25 §5)*
@@ -274,6 +302,15 @@ Each must be able to go **red for the right reason**; a mutation is owed per AC.
   behave byte-identically to today.
 - **AC16** `[08-25]` Gate B headroom measured after the description edit, not asserted (427 B at
   2026-08-25 authoring — **re-measure, do not quote**).
+- **AC17** `[D9]` **Relocation is not reported as destruction.** Drive the sequence that opened this
+  arc against a fixture — an entry demoted/promoted such that its `(sid|ts)` key disappears while its
+  content survives — then run `check-session-ledger.py`. It reports **no loss**, and a receipt naming
+  that key exists. *Red if:* the loss fires, or the receipt is absent.
+  ⛔ **Paired negative control, non-optional:** the same run against a fixture where the content is
+  genuinely **gone** must still report the loss. Without it, AC17 passes for a receipt writer that
+  suppresses everything — which is strictly worse than the false positive it replaces.
+  ⚠ Test isolation: export `KT_SS_RECEIPTS` into the scratch dir. The sibling suite was measured
+  writing the **user's real receipts file** on all 11 of its prune calls.
 
 ---
 
