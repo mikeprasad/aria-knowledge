@@ -298,7 +298,7 @@ $_ss_prompt
 
 # Flip "### <SID> … · unconsumed" to "· consumed <TS> by <BY>" for the named session only.
 kt_ss_ledger_mark_consumed() {
-  _ss_f="$1/SESSION.md"; _ss_sid="$2"; _ss_ts="$3"; _ss_by="$4"
+  _ss_f="$1/SESSION.md"; _ss_sid="$2"; _ss_ts="$3"; _ss_by="$4"; _ss_want_at="$5"
   [ -f "$_ss_f" ] || return 0
   _ss_tmp="$_ss_f.$$.tmp"
   # THREE things matter here and they are interlocking; changing one alone reintroduces the bug.
@@ -319,8 +319,30 @@ kt_ss_ledger_mark_consumed() {
   # ⚠ NOT closed, deliberately: a header carrying a TRUNCATED sid while the caller passes the full
   # one is matched by neither form — the full sid is not present in the line at all, so no loosening
   # of this pattern reaches it. Prefix matching could mark the WRONG entry, so it stays out.
-  awk -v sid="$_ss_sid" -v ts="$_ss_ts" -v by="$_ss_by" '
-    $0 ~ ("^### .*" sid) && /(^|[^a-z])unconsumed([^a-z]|$)/ {
+  # ⛔ index(), NOT a regex. The old form was `$0 ~ ("^### .*" sid)`, which interpolated the caller's
+  # sid into an awk REGEX unescaped. Two failure directions, both measured:
+  #   under-match: sid `x[1]` is a character class, so it matches the string "x1" and leaves the
+  #                entry whose sid is literally `x[1]` unmarked;
+  #   OVER-match:  sid `a.c` matches the UNRELATED entry `abc` -- marking another session's handoff
+  #                consumed. That is the dangerous direction and it was reachable today.
+  # The live legacy sid `e95b0202 (contract-coherence)` matched only BY LUCK: its parentheses form a
+  # group matching the same literal.
+  #
+  # ⛔ index() ON FIELD 1, NOT `==`. The loose match is deliberate and documented above -- headers are
+  # hand-written too, and carry backticks or a trailing parenthetical around the sid. Strict equality
+  # would regress every one of those. index() is a LITERAL substring search: it removes the regex
+  # without removing the tolerance.
+  #
+  # ⛔ `at` (5th arg) IS OPTIONAL. Omitted => legacy behaviour, every entry for that sid marks --
+  # guarded by S4, because making it mandatory-in-effect would silently change the recall of
+  # post-edit-check.sh, whose entry was demoted with whatever `at` was current THEN. Supplied => an
+  # exact (sid, at) match, which is what one sid under two timestamps needs.
+  awk -v sid="$_ss_sid" -v ts="$_ss_ts" -v by="$_ss_by" -v want_at="$_ss_want_at" '
+    /^### / {
+      _nf = split(substr($0, 5), _f, " · ")
+      _hsid = _f[1]; _hat = (_nf >= 2 ? _f[2] : "")
+    }
+    /^### / && index(_hsid, sid) > 0 && (want_at == "" || _hat == want_at) && /(^|[^a-z])unconsumed([^a-z]|$)/ {
       sub(/unconsumed/, "consumed " ts " by " by); print; next
     }
     { print }
@@ -515,5 +537,184 @@ kt_ss_read_active_sid() {
   _ss_f="$1/SESSION.md"
   [ -f "$_ss_f" ] || return 0
   awk 'NR==1 && $0!="---"{exit} /^---$/ && NR>1{exit} /^sessionId:[[:space:]]*/{sub(/^sessionId:[[:space:]]*/,""); print; exit}' "$_ss_f" 2>/dev/null
+  return 0
+}
+
+# Read the ACTIVE front-matter `at:`. Sibling of kt_ss_read_active_sid -- same guard, same
+# front-matter walk, same `return 0`; only the key differs. Deliberately a sibling rather than a
+# parameterised kt_ss_read_front_matter: two call sites do not earn a generalised reader, and the
+# sibling shape is what every caller in this file already reads like.
+kt_ss_read_active_at() {
+  _ss_f="$1/SESSION.md"
+  [ -f "$_ss_f" ] || return 0
+  awk 'NR==1 && $0!="---"{exit} /^---$/ && NR>1{exit} /^at:[[:space:]]*/{sub(/^at:[[:space:]]*/,""); print; exit}' "$_ss_f" 2>/dev/null
+  return 0
+}
+
+# Is the SESSION.md at $1 owned by a session whose state is STRICTLY NEWER than $2?
+#
+#   exit 0  -> incumbent IS newer   => the caller MUST NOT rewrite the front matter.
+#                                      Self-demote instead: kt_ss_ledger_add your own prompt into
+#                                      `## Pending handoffs` and leave the active slot alone.
+#   exit 1  -> anything else        => the caller rewrites exactly as it does today.
+#
+# ⛔ EVERY AMBIGUOUS INPUT RETURNS 1, and the direction is load-bearing. A brand-new guard must not
+# be able to BLOCK a write that works today; the damage it then fails to prevent is the damage that
+# already exists, which is strictly the better failure direction. So: file missing, `at:` absent,
+# either value unparseable, equal stamps -- all 1.
+#
+# ⛔ SECOND-PRECISION Z ONLY, AND THAT NARROWNESS IS MEASURED. All 8 tracked ledgers carry a
+# second-precision Z front-matter `at:` (censused 2026-09-15). Minute-precision exists only in ENTRY
+# HEADERS, which this function never reads -- censusing headers instead of front matter is how the
+# first draft acquired a requirement for a case unreachable on this path. If a minute-precision
+# front matter ever does appear it falls through the shape gate to 1 = today's behaviour.
+#
+# ⛔ A NON-Z STAMP IS REJECTED, NEVER COMPARED. `2026-09-02T00:20:21+09:00` is live in the corpus; a
+# local-offset stamp compares lexicographically against a Z stamp and silently mis-orders while
+# looking entirely reasonable. Rejecting it costs one skipped guard; comparing it inverts the answer.
+#
+# ⛔ THE COMPARISON IS awk, NOT `[ "$a" \> "$b" ]`. POSIX `test` does not define `<`/`>` for strings
+# -- it is a widely-implemented extension, not a guarantee, and this library is plain `sh`. Both
+# operands are non-numeric (they carry `-`, `T`, `:`, `Z`), so awk compares them as strings.
+kt_ss_active_is_newer() {
+  _ss_inc=$(kt_ss_read_active_at "$1" 2>/dev/null)
+  _ss_mine="$2"
+  _ss_isoz='^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z$'
+  printf '%s' "$_ss_inc"  | grep -Eq "$_ss_isoz" || return 1
+  printf '%s' "$_ss_mine" | grep -Eq "$_ss_isoz" || return 1
+  awk -v a="$_ss_inc" -v b="$_ss_mine" 'BEGIN { exit (a > b) ? 0 : 1 }'
+}
+
+# Emit every RESUMABLE candidate in a SESSION.md, one per line: `<sid>|<at>|<status>|<source>`
+# where source is `active` (the `## Next session prompt` block) or `pending` (an unconsumed entry
+# under `## Pending handoffs` or the legacy `## Prior sessions`). Read-only; never writes.
+#
+# ⛔ ONE HELPER, THREE CONSUMERS. resume, the picker and the token lookup all need this parse. Left
+# as prose in a SKILL.md it would be re-derived three times -- three call sites, one defect -- and
+# no shell suite could exercise it, which is what made the legacy-parity acceptance criterion
+# unimplementable as written.
+#
+# THE FOUR AXES, each of which silently DROPS candidates when missed:
+#   1. two headings  -- `## Pending handoffs` and the legacy `## Prior sessions`, both still live.
+#   2. two terminators -- the explicit marker, or NOTHING. Nothing here depends on the terminator:
+#      an entry is recognised by its own `### ` header, so a missing terminator cannot hide it.
+#   3. two prompt serializations -- irrelevant to enumeration, which reads headers only. Deliberate:
+#      the picker renders `focus`/`next`, and reading those is the caller's job, not this parse's.
+#   4. status forms -- only a word-bounded `unconsumed` is a candidate. `unconsumed` CONTAINS
+#      `consumed`, so the bounding is what keeps a live entry from reading as terminal.
+#
+# ⛔ ARCHIVED SECTIONS ARE NOT CANDIDATES, and this is load-bearing rather than tidy: 89 entries
+# were archived out of one ledger on 2026-09-15 specifically so they would stop being offered. Only
+# the two LEDGER headings qualify; everything else -- archives included -- is skipped.
+#
+# ⛔ FENCE-AWARE, AND THE RULE ORDER IS THE MECHANISM. The fence toggle is tested BEFORE the heading
+# rule, so a column-0 `## ` or `### ` inside a STORED PROMPT cannot move the current section or be
+# counted as an entry. Stored prompts routinely contain both -- that is why full-fidelity demotion
+# exists -- and a parse without this reads one entry's prompt as a new section.
+#
+# ⛔ NO TERNARIES. BSD awk rejects `print (c > 0) ? x : y`, and this library is plain `sh` on BSD
+# userland. if/else throughout, deliberately.
+kt_ss_ledger_candidates() {
+  _ss_f="$1/SESSION.md"
+  [ -f "$_ss_f" ] || return 0
+  awk '
+    BEGIN { fm = 0; infence = 0; sec = ""; actseen = 0; fsid = ""; fat = "" }
+    NR == 1 && $0 == "---" { fm = 1; next }
+    fm == 1 && $0 == "---" { fm = 0; next }
+    fm == 1 {
+      if ($0 ~ /^sessionId:[[:space:]]*/) { s = $0; sub(/^sessionId:[[:space:]]*/, "", s); fsid = s }
+      if ($0 ~ /^at:[[:space:]]*/)        { s = $0; sub(/^at:[[:space:]]*/, "", s);        fat  = s }
+      next
+    }
+    /^```/ { if (infence == 1) { infence = 0 } else { infence = 1 } next }
+    infence == 1 {
+      if (sec == "ACTIVE" && $0 ~ /[^[:space:]]/) { actseen = 1 }
+      next
+    }
+    /^## / {
+      if ($0 ~ /^## Next session prompt[[:space:]]*$/) { sec = "ACTIVE" }
+      else if ($0 ~ /^## Pending handoffs[[:space:]]*$/) { sec = "LEDGER" }
+      else if ($0 ~ /^## Prior sessions[[:space:]]*$/)   { sec = "LEDGER" }
+      else { sec = "OTHER" }
+      next
+    }
+    sec == "ACTIVE" && $0 ~ /[^[:space:]]/ { actseen = 1; next }
+    sec == "LEDGER" && /^### / {
+      if ($0 ~ /(^|[^a-z])unconsumed([^a-z]|$)/) {
+        n = split(substr($0, 5), f, " · ")
+        if (n >= 2) {
+          sid = f[1]; at = f[2]
+          gsub(/^[ \t]+/, "", sid); gsub(/[ \t]+$/, "", sid)
+          gsub(/^[ \t]+/, "", at);  gsub(/[ \t]+$/, "", at)
+          print sid "|" at "|unconsumed|pending"
+        }
+      }
+    }
+    END { if (actseen == 1 && fsid != "") { print fsid "|" fat "|unconsumed|active" } }
+  ' "$_ss_f" 2>/dev/null
+  return 0
+}
+
+# Locate a PASTED prompt by its provenance token. Emits `<sid>|<at>|<status>|<source>` for the
+# candidate whose stored prompt carries <token>, or nothing. Read-only.
+#
+# ⛔ LOCATE BY THE TOKEN STRING, NEVER BY SID. The token is self-locating because the Step 3e opener
+# is reused verbatim in both the pasteable artifact and the SESSION.md prompt block -- the same bytes
+# exist in both places. Between a /handoff and the paste, another session can DEMOTE the prompt out
+# of the active slot, which is not hypothetical: measured 2026-09-14, a demote 14 minutes later. A
+# sid- or slot-based lookup misses that; the token follows the body wherever it goes.
+#
+# ⛔ THREE OUTCOMES, NOT TWO -- `archived` is a distinct answer from EMPTY, and collapsing them is a
+# data decision, not a formatting one. A token under an archive heading was deliberately taken out of
+# the offer (89 entries were archived for exactly that reason). Reporting it EMPTY invites a caller
+# to treat the prompt as lost and resurrect it; reporting it offerable undoes the archiving. It is
+# LOCATED BUT NOT OFFERED, and the caller decides.
+#
+# ⛔ THE TOKEN TEST RUNS BEFORE THE FENCE SKIP, and that ordering is the whole mechanism. The token
+# lives INSIDE the opener fence, so a fence-skipping walk never sees it -- while headings and entry
+# headers must stay OUTSIDE the fence, or a column-0 marker inside a stored prompt is read as
+# structure. Both requirements are satisfied by rule order alone: token first, then the fence toggle,
+# then the skip, then headings and headers.
+#
+# ⛔ index(), not a regex: the token contains `/` and `@` and is caller-supplied.
+kt_ss_ledger_token_locate() {
+  _ss_f="$1/SESSION.md"
+  [ -f "$_ss_f" ] || return 0
+  awk -v tok="$2" '
+    BEGIN { fm = 0; infence = 0; sec = ""; hsid = ""; hat = ""; hst = "unconsumed" }
+    NR == 1 && $0 == "---" { fm = 1; next }
+    fm == 1 && $0 == "---" { fm = 0; next }
+    fm == 1 {
+      if ($0 ~ /^sessionId:[[:space:]]*/) { s = $0; sub(/^sessionId:[[:space:]]*/, "", s); fsid = s }
+      if ($0 ~ /^at:[[:space:]]*/)        { s = $0; sub(/^at:[[:space:]]*/, "", s);        fat  = s }
+      next
+    }
+    index($0, tok) > 0 {
+      if (sec == "ACTIVE") { print fsid "|" fat "|unconsumed|active"; exit }
+      if (sec == "LEDGER" && hsid != "")   { print hsid "|" hat "|" hst "|pending";  exit }
+      if (sec == "ARCHIVED" && hsid != "") { print hsid "|" hat "|" hst "|archived"; exit }
+      next
+    }
+    /^```/ { if (infence == 1) { infence = 0 } else { infence = 1 } next }
+    infence == 1 { next }
+    /^## / {
+      if ($0 ~ /^## Next session prompt[[:space:]]*$/)   { sec = "ACTIVE" }
+      else if ($0 ~ /^## Pending handoffs[[:space:]]*$/) { sec = "LEDGER" }
+      else if ($0 ~ /^## Prior sessions[[:space:]]*$/)   { sec = "LEDGER" }
+      else if ($0 ~ /^## Archived/)                      { sec = "ARCHIVED" }
+      else { sec = "OTHER" }
+      hsid = ""; hat = ""; hst = "unconsumed"
+      next
+    }
+    /^### / {
+      n = split(substr($0, 5), f, " · ")
+      if (n >= 2) {
+        hsid = f[1]; hat = f[2]
+        gsub(/^[ \t]+/, "", hsid); gsub(/[ \t]+$/, "", hsid)
+        gsub(/^[ \t]+/, "", hat);  gsub(/[ \t]+$/, "", hat)
+        if ($0 ~ /(^|[^a-z])unconsumed([^a-z]|$)/) { hst = "unconsumed" } else { hst = "terminal" }
+      }
+    }
+  ' "$_ss_f" 2>/dev/null
   return 0
 }
