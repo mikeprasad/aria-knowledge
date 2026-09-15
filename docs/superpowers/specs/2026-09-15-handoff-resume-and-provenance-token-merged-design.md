@@ -211,6 +211,52 @@ would silence the alarm while leaving the mis-attribution it was pointing at.
 `docs/`, `intake/` and `logs/prospect/` — but live status lives in the **always-loaded CLAUDE.md
 footers**, which no pass searched. A prior-art census must include them.
 
+### D10 — `at`-ordering guard: an older session SELF-DEMOTES instead of skipping or clobbering
+
+⛔ **Reported by Mike 2026-09-15 as "a common issue on both `/wrapup` and `/handoff`."** A session
+reaching Step 6.5 finds the active slot owned by a *newer, still-live* session and faces what looks
+like a two-way choice: **clobber** newer state with its own older state, or **skip** the write and
+lose its own record entirely. Sessions have been choosing skip, correctly but lossily.
+
+⭐ **There is a third move and nobody wrote it down: self-demote.** Write your own prompt into
+`## Pending handoffs` and leave the newer active slot untouched. Neither side loses anything.
+
+**The mechanism, measured — and the field reported reason for skipping is WRONG in a way that
+matters.** A live report read *"a `/wrapup` adds no pending entry, so writing mine would only replace
+newer state."* `/wrapup` Step 6.5 **does** demote someone else's pickup — its "adds NO pending entry"
+clause is scoped to the **wrapped session's own** state, since a clean close has no next-session
+prompt to retain. So the incumbent's **prompt** survives.
+
+⇒ **The damage is not to the prompt; it is to the FRONT-MATTER.** Step 6.5's step 3 is a *full
+rewrite*, which replaces `lastEvent`, `at`, `currentFocus` and `nextAction` wholesale. Demote is
+**prompt-shaped protection against state-shaped damage** — which is exactly what the skill's own
+warning already says: *"unconsumed handoffs survive at full fidelity … is TRUE of entries inside
+`## Pending handoffs` and **FALSE of a handoff sitting in the active** slot."*
+
+⛔ **Nothing orders the writers.** Measured 2026-09-15: `bin/lib-session-state.sh` contains **0**
+comparisons of the incumbent's `at`. The front-matter is a single-valued, last-writer-wins record of
+"where this project stands", written by N concurrent sessions with no ordering check at all.
+
+**The rule:** before the full rewrite, compare the incumbent's front-matter `at` with your own.
+
+- incumbent **older or absent** → rewrite as today (demote its prompt first, unchanged).
+- incumbent **newer** → ⛔ **do not regress it.** Write your prompt as a `## Pending handoffs` entry,
+  leave the active front-matter alone, and **say so in the closing report** — naming the owning
+  session and both timestamps.
+
+✅ Viable: measured **8 of 8** tracked ledgers carry a front-matter `at:` in ISO-8601 `Z`, which
+compares correctly as a plain string — no date parsing, no locale dependence.
+
+⚠ **Stated bound, because `at` is not what it looks like.** `kt_ss_mark_inprogress` rewrites the
+front-matter on a session's first edit, so `at` tracks **last touch**, not last meaningful state — a
+session that merely edited one file outranks a session holding a real handoff. That failure is
+**benign under this rule and only under this rule**: the handoff still lands in Pending rather than
+being dropped. It would NOT be benign under a "newest wins, older skips" rule, which is why
+self-demote is the resolution rather than a refusal.
+
+⚠ Applies to **both** skills. `/handoff` has the same shape: its demote protects the incumbent's
+prompt and its rewrite still regresses the incumbent's state.
+
 ---
 
 ## 4. The parser — and what the token sidesteps *(carried from 2026-08-25 §5)*
@@ -247,13 +293,16 @@ remove the parser requirement; it removes the parser from the paste path.
 | 5 | `bin/session-start-check.sh` | token branch + D7's precedence rule in the SESSION STATE directive | D5/D7 |
 | 6 | `bin/lib-session-state.sh` | key-exact + literal-match consume; active-slot marking | D6 |
 | 7 | `tools/check-session-ledger.py` + baseline | the structural check | D8 |
+| 8 | `bin/lib-session-state.sh` | receipt on demote/relocate; `at`-comparison helper | D9/D10 |
+| 9 | `skills/wrapup/SKILL.md` + `skills/handoff/SKILL.md` Step 6.5 / 3f | the `at`-ordering guard and self-demote branch | D10 |
 
 ⚠ **One file only for #5** — see §2's correction. Do **not** carry 2026-08-25's two-file scope.
 
 **Ports** (censused 2026-09-15, `dist/` excluded): `lib-session-state.sh` **4** (antigravity,
 claude-code, cursor-template, openai-codex) · `post-edit-check.sh` **4** · `skills/handoff/SKILL.md`
-**4** + `tests/` · `session-start-check.sh` **3** — ⚠ **antigravity has none**, so D5/D7 have no host
-there.
+**4** + `tests/` · **`skills/wrapup/SKILL.md` 4** (antigravity, claude-code, claude-cowork,
+openai-codex — measured, identical set to handoff; cursor compiles both into `.mdc` instead) ·
+`session-start-check.sh` **3** — ⚠ **antigravity has none**, so D5/D7 have no host there.
 
 **Parity ruling** (inherited from 2026-08-25 §8 and the 2026-09-11 spec's OQ1): **claude-code this
 round**, then one deliberate parity unit. A partial parity pass is worse than a tracked gap (U16).
@@ -311,6 +360,16 @@ Each must be able to go **red for the right reason**; a mutation is owed per AC.
   suppresses everything — which is strictly worse than the false positive it replaces.
   ⚠ Test isolation: export `KT_SS_RECEIPTS` into the scratch dir. The sibling suite was measured
   writing the **user's real receipts file** on all 11 of its prune calls.
+- **AC18** `[D10]` **An older session cannot regress a newer session's state.** Three arms, all
+  required, driven against fixtures for **both** `/wrapup` and `/handoff`:
+  (a) incumbent `at` **newer** → the active front-matter is **byte-unchanged**, and the writing
+  session's prompt appears as a new `## Pending handoffs` entry;
+  (b) incumbent `at` **older** → the rewrite proceeds exactly as today (**the non-regression arm** —
+  without it, a guard that always self-demotes passes (a) and breaks the normal path);
+  (c) incumbent `at` **absent** → treated as older; rewrite proceeds, no crash.
+  *Red if:* (a) mutates the front-matter, (b) fails to rewrite, or (c) raises.
+  ⚠ The comparison is a plain string compare on ISO-8601 `Z`; a fixture using a local-offset stamp
+  must be rejected loudly rather than silently mis-ordered.
 
 ---
 
