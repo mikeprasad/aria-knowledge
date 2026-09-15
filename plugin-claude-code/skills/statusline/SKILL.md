@@ -9,7 +9,7 @@ allowed-tools: Read, Write, Edit, Bash, Glob
 Wire up (or remove) a persistent status line at the bottom of the Claude Code CLI showing:
 
 ```
-Fable 5 H │ ███░░░░░░░ 31% ctx │ 5h 24% ↺01:00 │ 7d 88%
+Fable 5 H │ ███░░░░░░░ 31% ctx │ 5h 24% ↺1pm │ 7d 88% ↺Tue 1pm
 ```
 
 - **model + effort** — the model name, with a compact reasoning-effort suffix when the model supports `/effort`: `L` low · `M` medium · `H` high · `XH` xhigh · `MX` max (e.g. `Fable 5 H`). Reflects live mid-session `/effort` changes; no suffix renders when the current model has no effort parameter.
@@ -21,7 +21,7 @@ The 5h/7d segments render only on Pro/Max subscription sessions and only after t
 
 The meter's last segment is the **account email** (read from `~/.claude.json`), placed last so a width-truncated line only ever clips the email, not the usage — and so you can tell which account a terminal belongs to when running more than one.
 
-Installing the meter also lets the **session's Claude** know these numbers: on each render the meter writes a snapshot, **keyed by account**, to `~/.claude/aria-statusline-state-<accountUuid>.json`, which Claude reads on demand (e.g. before `/handoff` or compaction — see the SessionStart TASK BUDGET guardrail). Per-account keying means a second logged-in account never clobbers the first's usage (which previously caused the alert to fire on the wrong account). A `UserPromptSubmit` hook additionally injects a warning when context/5h/7d crosses `usage_alert_threshold` (default 80%, configurable in `/setup`; set `off` to disable). All of this is dormant until the meter is installed.
+Installing the meter also lets the **session's Claude** know these numbers: on each render the meter writes a snapshot, **keyed by account**, to `~/.claude/aria-statusline-state-<accountUuid>.json`, which Claude reads on demand (e.g. before `/handoff` or compaction — see the SessionStart TASK BUDGET guardrail). Per-account keying means a second logged-in account never clobbers the first's usage (which previously caused the alert to fire on the wrong account). A `UserPromptSubmit` hook additionally injects a warning when context/5h/7d crosses `usage_alert_threshold` (80% once aria-knowledge is configured, adjustable in `/setup`; set `off` to disable). All of this is dormant until the meter is installed — and the *injection* specifically is also dormant until `/setup` has written a config file, because `config.sh` resolves all of its defaults only when one exists. On-demand reading of the snapshot works either way.
 
 ## Why a command and not automatic
 

@@ -3,7 +3,8 @@
 #
 # Injects a short usage warning into the model's context when context-window,
 # 5-hour, or 7-day usage crosses the configured alert threshold
-# (usage_alert_threshold, default 80). The numbers come from the snapshot the
+# (usage_alert_threshold, default 80 ONCE ARIA-KNOWLEDGE IS CONFIGURED — see below).
+# The numbers come from the snapshot the
 # status-line meter persists per account to ~/.gemini/antigravity/aria-statusline-state-<accountUuid>.json
 # (the account is resolved from ~/.gemini/antigravity.json so we never read another account's usage).
 #
@@ -14,6 +15,12 @@
 # Silent no-op (exit 0, no output) when ANY of:
 #   - the meter isn't installed / hasn't rendered yet (no state file)
 #   - jq is unavailable
+#   - THERE IS NO ARIA-KNOWLEDGE CONFIG FILE. config.sh resolves every one of its 29
+#     self-defaulting values INSIDE `if [ -f "$KT_CONFIG" ]`, so with no config the
+#     threshold is EMPTY, not 80, and this hook exits at the `case ''` guard below.
+#     That is the file's uniform posture (29 of 29 defaults sit inside that block, zero
+#     outside), NOT an oversight — do not hoist this one default out and make it the
+#     sole exception. Measured 2026-09-16: bare HOME -> ``, real HOME -> `80`.
 #   - usage_alert_threshold is `off` or out of 1..100
 #   - no metric has entered a HIGHER alert band than already warned this session
 #
