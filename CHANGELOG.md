@@ -22,6 +22,12 @@ All notable changes to ARIA will be documented in this file.
 
 Gate B measured rather than assumed: **449 bytes of headroom**, and an earlier probe of the same budget read **−2,761** because it counted stripped characters in Python where the gate counts bytes of the raw `description:` lines. That probe would have killed the resume mode on a false reading.
 
+**Also in this release, and it had gone undocumented: the status-line snapshot was erasing the account's 5-hour and 7-day usage on every fresh session's first render.** Claude Code omits `rate_limits` from the status-line payload until a session's first API response, and the snapshot was rewritten *whole* on every render — so a new session's first render blanked the usage figures for the entire account, and the threshold hook then read a snapshot with no usage and stayed silent. **The first prompt of a fresh session, which is exactly when a 5-hour warning matters most, was the one moment the warning was structurally guaranteed not to fire.**
+
+ADR 098 had already named this failure mode when it rejected a single-file-plus-account-guard design — *"two active sessions interleaving renders flap the file, so a session can miss its OWN real alert."* Per-account keying closed the cross-account half and left same-account interleave live; this closes it. Observed live rather than reasoned: one account's snapshot changed twice in eight seconds carrying two different session ids, neither of them the observing session's.
+
+The fix partitions the snapshot by **scope** instead of merging it — render-scoped fields are always rewritten, account-scoped usage fields are preserved. ⛔ A blanket non-empty merge was rejected on a traced reason, not a stylistic one: it would preserve `context_pct` across a `/compact`, and the threshold hook deliberately treats an absent `context_pct` as *unknown* rather than as the old high value, so the tidier fix would reintroduce a defect the current design prevents on purpose. Two shipped `/statusline` doc claims were also false — the threshold default and the example line — and are corrected.
+
 Suites: `tests/repros/session-state.sh` 63 → 92 passing, plus a new 11-arm suite asserting the emitted SessionStart directive itself rather than the internal finding key it does not print. Every new assertion mutation-verified, and three vacuous arms were caught and rewritten — six arms went green with the helper entirely absent, because a `127` collapsed into a falsy result.
 
 ## 2.52.8 — 2026-09-14
