@@ -142,72 +142,6 @@ if [ -f "$KT_CONFIG" ]; then
   KT_EXTERNAL_FETCH_GATE=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^external_fetch_gate:' | sed 's/^external_fetch_gate: *//')
   KT_EXTERNAL_FETCH_MAX_HITS=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^external_fetch_max_hits:' | sed 's/^external_fetch_max_hits: *//')
 
-  # Defaults if not set
-  KT_EXTERNAL_FETCH_GATE=${KT_EXTERNAL_FETCH_GATE:-off}
-  KT_EXTERNAL_FETCH_MAX_HITS=${KT_EXTERNAL_FETCH_MAX_HITS:-8}
-  KT_CADENCE_KNOWLEDGE=${KT_CADENCE_KNOWLEDGE:-7}
-  KT_CADENCE_CONFIG=${KT_CADENCE_CONFIG:-14}
-  KT_EXPLANATORY=${KT_EXPLANATORY:-false}
-  KT_FREEFORM_THRESHOLD=${KT_FREEFORM_THRESHOLD:-3}
-  KT_STALENESS_MONTHS=${KT_STALENESS_MONTHS:-6}
-  KT_CADENCE_UPDATE=${KT_CADENCE_UPDATE:-30}
-  KT_AUTO_CAPTURE=${KT_AUTO_CAPTURE:-true}
-  KT_ACTIVE_SURFACING=${KT_ACTIVE_SURFACING:-true}
-  KT_PROJECTS_ENABLED=${KT_PROJECTS_ENABLED:-false}
-  KT_PROJECTS_PROMOTION_THRESHOLD=${KT_PROJECTS_PROMOTION_THRESHOLD:-2}
-  KT_AUTO_LOAD_PROJECT_CONTEXT=${KT_AUTO_LOAD_PROJECT_CONTEXT:-false}
-  KT_SESSION_START_PROJECT_PICKER=${KT_SESSION_START_PROJECT_PICKER:-false}
-  KT_IDEAS_STALENESS_DAYS=${KT_IDEAS_STALENESS_DAYS:-21}
-  KT_AUDIT_TRIGGER_THRESHOLD=${KT_AUDIT_TRIGGER_THRESHOLD:-20}
-  KT_CODEMAP_STALENESS_DAYS=${KT_CODEMAP_STALENESS_DAYS:-14}
-  KT_STITCH_STALENESS_DAYS=${KT_STITCH_STALENESS_DAYS:-30}
-  KT_SUBAGENT_CAPTURE=${KT_SUBAGENT_CAPTURE:-true}
-  KT_SUBAGENT_CAPTURE_TYPES=${KT_SUBAGENT_CAPTURE_TYPES:-general-purpose,Plan,feature-dev:code-architect,feature-dev:code-explorer,feature-dev:code-reviewer}
-  KT_SUBAGENT_SELFREPORT_TYPES=${KT_SUBAGENT_SELFREPORT_TYPES:-Explore}
-  KT_SESSION_STATE=${KT_SESSION_STATE:-false}
-  KT_SESSION_STATE_TRACKED=${KT_SESSION_STATE_TRACKED:-false}
-  KT_AUTO_PROSPECT=${KT_AUTO_PROSPECT:-off}
-  KT_AUTONOMY=${KT_AUTONOMY:-default}
-  KT_AUTO_RETROSPECT=${KT_AUTO_RETROSPECT:-off}
-  KT_RETROSPECT_MIN_COMMITS=${KT_RETROSPECT_MIN_COMMITS:-3}
-  KT_RETROSPECT_BRANCHES=${KT_RETROSPECT_BRANCHES:-main,master,production}
-  # Strip spaces so comma-list membership tests are exact
-  KT_RETROSPECT_BRANCHES=$(printf '%s' "$KT_RETROSPECT_BRANCHES" | tr -d ' ')
-  KT_USAGE_ALERT_THRESHOLD=${KT_USAGE_ALERT_THRESHOLD:-80}
-  # usage_alert_threshold: percent (1..100) at which the usage-threshold-inject
-  # UserPromptSubmit hook surfaces a context/5h/7d warning into the agent's
-  # context. `off` disables injection (on-demand reading still works). Any other
-  # non-numeric or out-of-range value resets to the 80 default.
-  case "$KT_USAGE_ALERT_THRESHOLD" in
-    off) ;;
-    ''|*[!0-9]*) KT_USAGE_ALERT_THRESHOLD=80 ;;
-    *) if [ "$KT_USAGE_ALERT_THRESHOLD" -lt 1 ] || [ "$KT_USAGE_ALERT_THRESHOLD" -gt 100 ]; then KT_USAGE_ALERT_THRESHOLD=80; fi ;;
-  esac
-  # Strip spaces so comma-list membership tests (case ",$LIST," in *",$type,"*) are exact
-  KT_SUBAGENT_CAPTURE_TYPES=$(printf '%s' "$KT_SUBAGENT_CAPTURE_TYPES" | tr -d ' ')
-  KT_SUBAGENT_SELFREPORT_TYPES=$(printf '%s' "$KT_SUBAGENT_SELFREPORT_TYPES" | tr -d ' ')
-  # Preflight commit gate. Default WARN: the paths where a missed check actually costs
-  # something vary per user and per codebase, so escalation to deny is opt-in and the
-  # user names the paths. Unrecognized values fall back to warn rather than to off —
-  # a typo must not silently disable a gate.
-  case "$KT_PREFLIGHT_GATE" in
-    off|warn|deny) : ;;
-    *) KT_PREFLIGHT_GATE="warn" ;;
-  esac
-  # KT_PREFLIGHT_DENY_PATHS intentionally has no default — empty means no escalation.
-  # It is INDEPENDENT of the gate, not a sub-setting of it: these paths deny from any
-  # baseline, the same way critical_paths escalates Rule 22 regardless of surroundings.
-  # So `gate: warn` + named paths = warn everywhere, deny on those paths — the common
-  # configuration, and one that was unreachable while the list lived inside gate=deny.
-  # KT_PREFLIGHT_DENY_REPOS likewise has no default — empty means no escalation. Same
-  # independence, different axis: deny_paths structurally CANNOT express "always gate
-  # this repo", because staged paths are repo-relative and never carry the repo name.
-  # Comma-separated substrings, matched against the resolved absolute git toplevel.
-  # KT_CRITICAL_PATHS intentionally has no default — empty means no critical paths
-  # KT_PLANNING_PATHS intentionally has no default — empty means no user planning paths
-  #   (the hooks still apply their built-in planning globs, e.g. docs/specs, .claude/skills/*/templates)
-  # KT_PROJECTS_LIST and KT_PROJECTS_REMOTES intentionally have no defaults — empty means "no projects configured"
-
   # Validate knowledge_folder is non-empty
   if [ -z "$KT_KNOWLEDGE_FOLDER" ]; then
     KT_CONFIGURED=false
@@ -222,70 +156,180 @@ if [ -f "$KT_CONFIG" ]; then
     KT_CONFIG_ERROR="knowledge_folder must not contain '..' (got: $KT_KNOWLEDGE_FOLDER)."
   fi
 
-  # Validate cadence values are numeric, reset to defaults if not
-  case "$KT_CADENCE_KNOWLEDGE" in
-    ''|*[!0-9]*) KT_CADENCE_KNOWLEDGE=7 ;;
-  esac
-  case "$KT_CADENCE_CONFIG" in
-    ''|*[!0-9]*) KT_CADENCE_CONFIG=14 ;;
-  esac
-  case "$KT_FREEFORM_THRESHOLD" in
-    ''|*[!0-9]*) KT_FREEFORM_THRESHOLD=3 ;;
-  esac
-  case "$KT_STALENESS_MONTHS" in
-    ''|*[!0-9]*) KT_STALENESS_MONTHS=6 ;;
-  esac
-  case "$KT_CADENCE_UPDATE" in
-    ''|*[!0-9]*) KT_CADENCE_UPDATE=30 ;;
-  esac
-  case "$KT_AUTO_CAPTURE" in
-    true|false) ;; # valid
-    *) KT_AUTO_CAPTURE=true ;;
-  esac
-  case "$KT_SUBAGENT_CAPTURE" in
-    true|false) ;; # valid
-    *) KT_SUBAGENT_CAPTURE=true ;;
-  esac
-  case "$KT_ACTIVE_SURFACING" in
-    true|false) ;; # valid
-    *) KT_ACTIVE_SURFACING=true ;;
-  esac
-  case "$KT_SESSION_STATE" in
-    true|false) ;; # valid
-    *) KT_SESSION_STATE=false ;;
-  esac
-  case "$KT_SESSION_STATE_TRACKED" in
-    true|false) ;; # valid
-    *) KT_SESSION_STATE_TRACKED=false ;;
-  esac
-  case "$KT_PROJECTS_ENABLED" in
-    true|false) ;; # valid
-    *) KT_PROJECTS_ENABLED=false ;;
-  esac
-  case "$KT_PROJECTS_PROMOTION_THRESHOLD" in
-    ''|*[!0-9]*) KT_PROJECTS_PROMOTION_THRESHOLD=2 ;;
-  esac
-  case "$KT_AUTO_LOAD_PROJECT_CONTEXT" in
-    true|false) ;; # valid
-    *) KT_AUTO_LOAD_PROJECT_CONTEXT=false ;;
-  esac
-  case "$KT_SESSION_START_PROJECT_PICKER" in
-    true|false) ;; # valid
-    *) KT_SESSION_START_PROJECT_PICKER=false ;;
-  esac
-  case "$KT_IDEAS_STALENESS_DAYS" in
-    ''|*[!0-9]*) KT_IDEAS_STALENESS_DAYS=21 ;;
-  esac
-  case "$KT_AUDIT_TRIGGER_THRESHOLD" in
-    ''|*[!0-9]*) KT_AUDIT_TRIGGER_THRESHOLD=20 ;;
-  esac
-  case "$KT_CODEMAP_STALENESS_DAYS" in
-    ''|*[!0-9]*) KT_CODEMAP_STALENESS_DAYS=14 ;;
-  esac
-  case "$KT_STITCH_STALENESS_DAYS" in
-    ''|*[!0-9]*) KT_STITCH_STALENESS_DAYS=30 ;;
-  esac
 fi
+
+# ─── Knob resolution — deliberately OUTSIDE the config-exists block ───────────
+# Two different questions used to share one `if [ -f "$KT_CONFIG" ]`:
+#   1. "is this knob set to X?"  — answerable always; these are pure constants.
+#   2. "is aria-knowledge configured?" — a real precondition, because
+#      KT_KNOWLEDGE_FOLDER is parsed-only (no default) and is correctly empty
+#      without a config file.
+# Conflating them meant that with NO config file every knob resolved to the empty
+# string rather than its documented default — so usage-threshold-inject.sh exited at
+# its `case ''` guard and the budget alert was SILENTLY inert for anyone who ran
+# /statusline but never /setup. Nothing errored; the status line still rendered.
+#
+# Question 2 is carried by KT_CONFIGURED (set false at the top, true on a parsed
+# file, forced back to false by the knowledge_folder validators above). 14 hooks
+# already gate on it, so features that genuinely need a knowledge folder stay
+# dormant exactly as before.
+#
+# ⛔ SAFE TO RUN UNCONDITIONALLY, and this is why — every line below is IDEMPOTENT
+# on an already-valid value:  `X=${X:-Y}` is a no-op when X is set; a
+# `case "$X" in ''|*[!0-9]*) X=N ;; esac` is a no-op when X is already numeric; a
+# `tr -d ' '` is a no-op when X holds no spaces. So for ANY input where a config
+# file was parsed, running these after `fi` yields byte-identical variable state.
+# Verified three-arm (configured / bare / malformed) against the pre-change file
+# frozen from HEAD; the configured and malformed dumps are identical.
+#
+# ⛔ Do NOT move these back inside, and do NOT hoist a single default out on its own
+# — the defaults and their VALIDATORS must travel together, or an unconfigured
+# install gets resolved-but-unvalidated knobs, a third state that exists nowhere.
+# Measured 2026-09-17: the only reachable behaviour change unconfigured is
+# usage-threshold-inject.sh:52 — the intended one. All 7 knobs with an
+# emptiness-sensitive consumer sit behind KT_CONFIGURED or a feature flag
+# defaulting off. Design: docs/superpowers/specs/2026-09-17-config-defaults-and-port-idempotence-spec.md
+
+# Defaults if not set — see the block comment above for why these run unconditionally
+KT_EXTERNAL_FETCH_GATE=${KT_EXTERNAL_FETCH_GATE:-off}
+KT_EXTERNAL_FETCH_MAX_HITS=${KT_EXTERNAL_FETCH_MAX_HITS:-8}
+KT_CADENCE_KNOWLEDGE=${KT_CADENCE_KNOWLEDGE:-7}
+KT_CADENCE_CONFIG=${KT_CADENCE_CONFIG:-14}
+KT_EXPLANATORY=${KT_EXPLANATORY:-false}
+KT_FREEFORM_THRESHOLD=${KT_FREEFORM_THRESHOLD:-3}
+KT_STALENESS_MONTHS=${KT_STALENESS_MONTHS:-6}
+KT_CADENCE_UPDATE=${KT_CADENCE_UPDATE:-30}
+KT_AUTO_CAPTURE=${KT_AUTO_CAPTURE:-true}
+KT_ACTIVE_SURFACING=${KT_ACTIVE_SURFACING:-true}
+KT_PROJECTS_ENABLED=${KT_PROJECTS_ENABLED:-false}
+KT_PROJECTS_PROMOTION_THRESHOLD=${KT_PROJECTS_PROMOTION_THRESHOLD:-2}
+KT_AUTO_LOAD_PROJECT_CONTEXT=${KT_AUTO_LOAD_PROJECT_CONTEXT:-false}
+KT_SESSION_START_PROJECT_PICKER=${KT_SESSION_START_PROJECT_PICKER:-false}
+KT_IDEAS_STALENESS_DAYS=${KT_IDEAS_STALENESS_DAYS:-21}
+KT_AUDIT_TRIGGER_THRESHOLD=${KT_AUDIT_TRIGGER_THRESHOLD:-20}
+KT_CODEMAP_STALENESS_DAYS=${KT_CODEMAP_STALENESS_DAYS:-14}
+KT_STITCH_STALENESS_DAYS=${KT_STITCH_STALENESS_DAYS:-30}
+KT_SUBAGENT_CAPTURE=${KT_SUBAGENT_CAPTURE:-true}
+KT_SUBAGENT_CAPTURE_TYPES=${KT_SUBAGENT_CAPTURE_TYPES:-general-purpose,Plan,feature-dev:code-architect,feature-dev:code-explorer,feature-dev:code-reviewer}
+KT_SUBAGENT_SELFREPORT_TYPES=${KT_SUBAGENT_SELFREPORT_TYPES:-Explore}
+KT_SESSION_STATE=${KT_SESSION_STATE:-false}
+KT_SESSION_STATE_TRACKED=${KT_SESSION_STATE_TRACKED:-false}
+KT_AUTO_PROSPECT=${KT_AUTO_PROSPECT:-off}
+KT_AUTONOMY=${KT_AUTONOMY:-default}
+KT_AUTO_RETROSPECT=${KT_AUTO_RETROSPECT:-off}
+KT_RETROSPECT_MIN_COMMITS=${KT_RETROSPECT_MIN_COMMITS:-3}
+KT_RETROSPECT_BRANCHES=${KT_RETROSPECT_BRANCHES:-main,master,production}
+# Strip spaces so comma-list membership tests are exact
+KT_RETROSPECT_BRANCHES=$(printf '%s' "$KT_RETROSPECT_BRANCHES" | tr -d ' ')
+KT_USAGE_ALERT_THRESHOLD=${KT_USAGE_ALERT_THRESHOLD:-80}
+# usage_alert_threshold: percent (1..100) at which the usage-threshold-inject
+# UserPromptSubmit hook surfaces a context/5h/7d warning into the agent's
+# context. `off` disables injection (on-demand reading still works). Any other
+# non-numeric or out-of-range value resets to the 80 default.
+case "$KT_USAGE_ALERT_THRESHOLD" in
+  off) ;;
+  ''|*[!0-9]*) KT_USAGE_ALERT_THRESHOLD=80 ;;
+  *) if [ "$KT_USAGE_ALERT_THRESHOLD" -lt 1 ] || [ "$KT_USAGE_ALERT_THRESHOLD" -gt 100 ]; then KT_USAGE_ALERT_THRESHOLD=80; fi ;;
+esac
+# Strip spaces so comma-list membership tests (case ",$LIST," in *",$type,"*) are exact
+KT_SUBAGENT_CAPTURE_TYPES=$(printf '%s' "$KT_SUBAGENT_CAPTURE_TYPES" | tr -d ' ')
+KT_SUBAGENT_SELFREPORT_TYPES=$(printf '%s' "$KT_SUBAGENT_SELFREPORT_TYPES" | tr -d ' ')
+# Preflight commit gate. Default WARN: the paths where a missed check actually costs
+# something vary per user and per codebase, so escalation to deny is opt-in and the
+# user names the paths. Unrecognized values fall back to warn rather than to off —
+# a typo must not silently disable a gate.
+# ⛔ This default MUST be stated explicitly here, not left to the `*)` branch below.
+# Its default used to live ONLY in that fallback, so with no config file the variable
+# was never set AND never read — harmless while this block sat inside
+# `if [ -f "$KT_CONFIG" ]`. Now that the block runs unconditionally, the `case` READS
+# it, and a consumer sourcing this file under `set -u` with no config dies with
+# "KT_PREFLIGHT_GATE: unbound variable" (measured: tests/repros/statusline-resolve.sh).
+# ⇒ The hazard class for anything moved out of that block is "every variable the
+# validators READ", which is a SUPERSET of "every variable the defaults WRITE".
+# Order-aware census 2026-09-17: 23 variables read here, this was the only hazard.
+KT_PREFLIGHT_GATE=${KT_PREFLIGHT_GATE:-warn}
+case "$KT_PREFLIGHT_GATE" in
+  off|warn|deny) : ;;
+  *) KT_PREFLIGHT_GATE="warn" ;;
+esac
+# KT_PREFLIGHT_DENY_PATHS intentionally has no default — empty means no escalation.
+# It is INDEPENDENT of the gate, not a sub-setting of it: these paths deny from any
+# baseline, the same way critical_paths escalates Rule 22 regardless of surroundings.
+# So `gate: warn` + named paths = warn everywhere, deny on those paths — the common
+# configuration, and one that was unreachable while the list lived inside gate=deny.
+# KT_PREFLIGHT_DENY_REPOS likewise has no default — empty means no escalation. Same
+# independence, different axis: deny_paths structurally CANNOT express "always gate
+# this repo", because staged paths are repo-relative and never carry the repo name.
+# Comma-separated substrings, matched against the resolved absolute git toplevel.
+# KT_CRITICAL_PATHS intentionally has no default — empty means no critical paths
+# KT_PLANNING_PATHS intentionally has no default — empty means no user planning paths
+#   (the hooks still apply their built-in planning globs, e.g. docs/specs, .claude/skills/*/templates)
+# KT_PROJECTS_LIST and KT_PROJECTS_REMOTES intentionally have no defaults — empty means "no projects configured"
+
+# Validate cadence values are numeric, reset to defaults if not
+
+case "$KT_CADENCE_KNOWLEDGE" in
+  ''|*[!0-9]*) KT_CADENCE_KNOWLEDGE=7 ;;
+esac
+case "$KT_CADENCE_CONFIG" in
+  ''|*[!0-9]*) KT_CADENCE_CONFIG=14 ;;
+esac
+case "$KT_FREEFORM_THRESHOLD" in
+  ''|*[!0-9]*) KT_FREEFORM_THRESHOLD=3 ;;
+esac
+case "$KT_STALENESS_MONTHS" in
+  ''|*[!0-9]*) KT_STALENESS_MONTHS=6 ;;
+esac
+case "$KT_CADENCE_UPDATE" in
+  ''|*[!0-9]*) KT_CADENCE_UPDATE=30 ;;
+esac
+case "$KT_AUTO_CAPTURE" in
+  true|false) ;; # valid
+  *) KT_AUTO_CAPTURE=true ;;
+esac
+case "$KT_SUBAGENT_CAPTURE" in
+  true|false) ;; # valid
+  *) KT_SUBAGENT_CAPTURE=true ;;
+esac
+case "$KT_ACTIVE_SURFACING" in
+  true|false) ;; # valid
+  *) KT_ACTIVE_SURFACING=true ;;
+esac
+case "$KT_SESSION_STATE" in
+  true|false) ;; # valid
+  *) KT_SESSION_STATE=false ;;
+esac
+case "$KT_SESSION_STATE_TRACKED" in
+  true|false) ;; # valid
+  *) KT_SESSION_STATE_TRACKED=false ;;
+esac
+case "$KT_PROJECTS_ENABLED" in
+  true|false) ;; # valid
+  *) KT_PROJECTS_ENABLED=false ;;
+esac
+case "$KT_PROJECTS_PROMOTION_THRESHOLD" in
+  ''|*[!0-9]*) KT_PROJECTS_PROMOTION_THRESHOLD=2 ;;
+esac
+case "$KT_AUTO_LOAD_PROJECT_CONTEXT" in
+  true|false) ;; # valid
+  *) KT_AUTO_LOAD_PROJECT_CONTEXT=false ;;
+esac
+case "$KT_SESSION_START_PROJECT_PICKER" in
+  true|false) ;; # valid
+  *) KT_SESSION_START_PROJECT_PICKER=false ;;
+esac
+case "$KT_IDEAS_STALENESS_DAYS" in
+  ''|*[!0-9]*) KT_IDEAS_STALENESS_DAYS=21 ;;
+esac
+case "$KT_AUDIT_TRIGGER_THRESHOLD" in
+  ''|*[!0-9]*) KT_AUDIT_TRIGGER_THRESHOLD=20 ;;
+esac
+case "$KT_CODEMAP_STALENESS_DAYS" in
+  ''|*[!0-9]*) KT_CODEMAP_STALENESS_DAYS=14 ;;
+esac
+case "$KT_STITCH_STALENESS_DAYS" in
+  ''|*[!0-9]*) KT_STITCH_STALENESS_DAYS=30 ;;
+esac
 
 # kt_project_for_path PATH
 # Returns the project tag for a given path, or empty if not in any configured project.
