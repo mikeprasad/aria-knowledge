@@ -20,3 +20,4 @@ SESSION.md
 __pycache__/
 *.pyc
 .pytest_cache/
+PM-REVIEW.md
