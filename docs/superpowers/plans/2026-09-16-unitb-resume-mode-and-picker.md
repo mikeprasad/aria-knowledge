@@ -4,7 +4,7 @@
 **Gate:** `knowledge/logs/prospect/2026-09-15-file-handoff-resume-and-provenance-token-merged.md` — S3 `✅`,
 S4 `⚠ theory-driven`, ruled **SPLIT into unit B, re-measure its driver first**.
 **Scope:** `plugin-claude-code` only. Ports are Unit P.
-**Predecessors shipped:** Unit 0 (`f358628`), Unit A (`78c6a01`, D4, `bcd3ab5`).
+**Predecessors shipped:** Unit 0 (`f97542d`), Unit A (`7f1d9e6`, D4, `bcd3ab5`).
 **Status:** ✅ **GATED 2026-09-16 — `/prospect` PROCEED-WITH-CHANGES; the change is applied at T3
 below (the parser is a READ HELPER, not prose).** Gate log:
 `knowledge/logs/prospect/2026-09-16-file-unitb-resume-mode-and-picker.md`.

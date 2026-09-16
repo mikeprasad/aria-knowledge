@@ -1,8 +1,8 @@
 # Unit P — port parity for the handoff-resume + provenance-token arc
 
 **Spec:** `docs/superpowers/specs/2026-09-15-handoff-resume-and-provenance-token-merged-design.md` (GATED).
-**Predecessors shipped (all `plugin-claude-code`):** Unit 0 `f358628` · Unit A `78c6a01` `bcd3ab5` ·
-Unit B `7497b3f` · Unit C `c57a8c0`.
+**Predecessors shipped (all `plugin-claude-code`):** Unit 0 `f97542d` · Unit A `7f1d9e6` `bcd3ab5` ·
+Unit B `126d015` · Unit C `6c0c5f8`.
 **Ruling inherited:** one deliberate parity unit, **not interleaved** (U16 — a partial parity pass is
 worse than a tracked gap).
 **Status:** ✅ **GATED 2026-09-16 — `/prospect` PROCEED-WITH-CHANGES; applied at AC-P5.** Gate log:

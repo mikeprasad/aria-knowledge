@@ -3,7 +3,7 @@
 **Spec:** `docs/superpowers/specs/2026-09-15-handoff-resume-and-provenance-token-merged-design.md` (GATED).
 **Gate:** `knowledge/logs/prospect/2026-09-15-file-handoff-resume-and-provenance-token-merged.md` — S5 ruled
 **SPLIT into unit C, last; the only step depending on both A and B.**
-**Predecessors shipped:** Unit 0 `f358628` · Unit A `78c6a01` `bcd3ab5` + D4 · Unit B `7497b3f` + the picker.
+**Predecessors shipped:** Unit 0 `f97542d` · Unit A `7f1d9e6` `bcd3ab5` + D4 · Unit B `126d015` + the picker.
 **Scope:** `plugin-claude-code` only. Ports are Unit P.
 **Status:** ✅ **GATED 2026-09-16 — `/prospect` PROCEED-WITH-CHANGES; the change is applied at AC-C6
 (assert the EMITTED directive, not the file source).** Gate log:

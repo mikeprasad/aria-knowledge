@@ -38,13 +38,13 @@ ARIA=$(git rev-parse --show-toplevel)   # run from anywhere inside the aria-know
 Expect **`35 pass, 0 fail`**, bare exit **0**.
 
 ```sh
-(cd "$ARIA" && git log 4424835..HEAD --oneline -- \
+(cd "$ARIA" && git log 2a41329..HEAD --oneline -- \
   plugin-claude-code/bin/statusline-meter.sh plugin-antigravity/bin/statusline-meter.sh \
   plugin-claude-code/bin/usage-threshold-inject.sh \
   plugin-claude-code/skills/statusline/SKILL.md plugin-antigravity/skills/statusline/SKILL.md)
 ```
 Expect **empty**. Anything here means a peer moved a target file → re-read before editing.
-⭐ **F5 (gate 2): the bound is the pre-arc HEAD `4424835`, NOT `--since=<today>`.** A date bound
+⭐ **F5 (gate 2): the bound is the pre-arc HEAD `2a41329`, NOT `--since=<today>`.** A date bound
 self-matches the moment C1 lands, so re-running the trip-wire mid-arc would flag my own commits as
 peer movement. A commit bound cannot drift.
 
