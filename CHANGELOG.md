@@ -2,6 +2,20 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.53.1 — 2026-09-16
+
+**The public-hygiene gate was blind to the form the identifier actually takes.** Its code pattern excluded a slash immediately before the identifier, so it fired on the identifier preceded by a space and stayed silent on the same identifier preceded by a slash — that is, inside a path like a home-relative `Projects/<code>/CODEMAP.md`, which is the single most likely shape for a private directory name. **Both shipped self-test arms passed the whole time and neither could see it:** one asserts the space-prefixed form fires, the other asserts an innocent word ending in the same two letters stays silent. There was no arm for a path. The exclusion is in the gate's founding commit rather than a repair for any measured false positive, so nothing was being preserved by keeping it.
+
+⭐ **Found by verifying the published v2.53.0 artifact rather than by any gate.** An ad-hoc grep with a narrower exclusion caught five occurrences the sanctioned gate had passed over. Three are the gate's own self-test specimen and header documentation, correctly self-excluded — a gate that detects a pattern must contain that pattern to prove it can fire. **Two were real**, in the `/context` skill's example output, and they shipped in 2.52.8 and earlier as well.
+
+Widening the boundary class adds **22 findings across 10 files and zero false positives**, every one classified by reading the line rather than counted. ⚑ Two of those lines were already *half*-genericized — one naming three project codes in a row with only the first genericized, another a home path whose directory segment was left intact while the repo name beside it was replaced — which is direct evidence that an earlier cleanup pass ran and missed exactly what the gate could not see. A partial clean is what a blind spot looks like from the outside.
+
+Mutation-verified two-sided: reinstating one path-form occurrence turns the gate red at exit 1; restoring from a byte backup returns it to 0; and **the old pattern stays silent on that same mutation**, which is what makes the widening the load-bearing change rather than an incidental edit. A third self-test arm now pins the path form so it cannot go blind again.
+
+⚠ Also in this release: **the v2.53.0 tag was lightweight** where every prior release tag is annotated. It pointed at the correct commit, so nothing was broken, but it dereferenced to nothing — a provenance inconsistency. It has been rewritten as an annotated tag at the same commit.
+
+No behaviour change beyond the gate: 22 genericized occurrences, one widened character class, one new self-test arm. Suites all bare exit 0 — repros 41 suites, plugin-claude-code 332 passed, the codex port suite, and antigravity's 24 bats.
+
 ## 2.53.0 — 2026-09-16
 
 **A handoff was reported destroyed by `kt_ss_ledger_prune`, four days after the prune fix was verified installed. Prune is innocent, and the report was wrong on three of its four claims.** Line count did not grow (8476 before, 8476 after). The entry was not destroyed — it was promoted, and its work shipped. What actually happened is worse than the reported version, because it is silent and it recurs: **the active prompt's only attribution channel is the front-matter, and `kt_ss_mark_inprogress` rewrites that front-matter on a session's first edit while passing the prompt body straight through.** So one session's close-out deleted another session's Pending entry believing it was its own earlier duplicate, and left stale front-matter behind; a later commit then correctly read those stale values and stamped the wrong identity onto the prompt permanently. Two entries ended up holding each other's metadata — one carrying another session's header, focus and next against its own body, the other filed under a session id and timestamp that had never existed. Both were restored from the pre-damage commit, headers 128 before and 128 after, bodies byte-identical.
