@@ -74,7 +74,7 @@ tokens.
 
 Root cause: `bitbucket` is **not among the 362 known tags**, so no tag match can
 ever reach the file that helps — even though that file
-(`projects/cs/references/staging-postgres-mcp-and-bitbucket-auth.md`) is
+(`projects/proj-a/references/staging-postgres-mcp-and-bitbucket-auth.md`) is
 referenced **36 times** in `index.md`.
 
 This is the recorded failure class *guard scoped to the wrong unit*: the tag

@@ -130,7 +130,7 @@ fi
 
 **Matching is substring, on the absolute path, case-sensitive.** Consequences, accepted knowingly:
 
-- `proj-a-app` matches `/Users/…/cs/proj-a-app` ✓
+- `proj-a-app` matches `/Users/…/proj-a/proj-a-app` ✓
 - `proj-a` covers both of that project's repos in one token ✓
 - a sibling like `proj-a-app-fork` would **also** match ✗
 

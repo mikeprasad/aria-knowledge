@@ -141,15 +141,15 @@ Append to `tests/test-external-fetch-gate.sh`:
 # --- fixture corpus ---------------------------------------------------------
 # kf/ = a fake knowledge folder. One file mentions atlassian.com + bitbucket.org.
 # 12 files mention ambient.example so the cap can be exercised.
-mkdir -p "$EF_TMP/kf/projects/cs/references" "$EF_TMP/kf/archive"
+mkdir -p "$EF_TMP/kf/projects/proj-a/references" "$EF_TMP/kf/archive"
 printf 'auth notes: use x-bitbucket-api-token-auth against bitbucket.org; REST is atlassian.com\n' \
-  > "$EF_TMP/kf/projects/cs/references/staging-bitbucket-auth.md"
+  > "$EF_TMP/kf/projects/proj-a/references/staging-bitbucket-auth.md"
 printf 'archived: atlassian.com everywhere\n' > "$EF_TMP/kf/archive/old.md"   # must be EXCLUDED
 # D2 (plan prospect) — a THIRD covered surface. The breaker needs 3 denials on
 # 3 DISTINCT registrable domains; with only atlassian.com + bitbucket.org the
 # counter can never reach its threshold. See AC12.
 printf 'render deploy notes: render.com dashboard + service ids\n' \
-  > "$EF_TMP/kf/projects/cs/references/render-deploy.md"
+  > "$EF_TMP/kf/projects/proj-a/references/render-deploy.md"
 i=1; while [ "$i" -le 12 ]; do
   printf 'mentions ambient.example\n' > "$EF_TMP/kf/note-$i.md"; i=$((i+1))
 done

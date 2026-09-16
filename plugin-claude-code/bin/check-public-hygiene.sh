@@ -115,11 +115,17 @@ code_pat=""
 for c in $CODES; do
     if [ -z "$code_pat" ]; then code_pat="$c"; else code_pat="$code_pat|$c"; fi
 done
-CODE_RE="(^|[^A-Za-z0-9._/-])($code_pat)/"
+CODE_RE="(^|[^A-Za-z0-9.-])($code_pat)/"
 
 st_fail=0
 printf 'see cs/PROGRESS.md\n' | grep -Eq "$CODE_RE" || st_fail=1          # must FIRE
 printf 'see docs/architecture.md\n' | grep -Eq "$CODE_RE" && st_fail=1    # must STAY SILENT
+# The PATH form. A slash used to sit in the boundary class, so `~/Projects/cs/CODEMAP.md`
+# — the single most likely shape for a private directory name — was invisible while the
+# space-prefixed form above fired. Both shipped arms passed the whole time; neither could
+# see it. Measured: removing `/` from the class adds 22 findings on this repo and zero
+# false positives, and `docs/` stays silent because the alphanumeric anchor still holds.
+printf 'see ~/Projects/cs/CODEMAP.md\n' | grep -Eq "$CODE_RE" || st_fail=1  # must FIRE
 printf 'commonspace-app\n' | grep -qi "commonspace" || st_fail=1          # must FIRE
 printf 'a normal sentence\n' | grep -qiE "$(echo "$TERMS" | tr ' ' '|')" && st_fail=1
 

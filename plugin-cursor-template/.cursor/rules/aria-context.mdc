@@ -238,9 +238,9 @@ Per-project artifact resolution:
 Example render:
 ```
 ## Tracked artifacts (3)
-8. ~/Projects/cs/CODEMAP.md — 8 days ago — fresh [project: cs]
-9. ~/Projects/cs/STITCH.md — 34 days ago [STALE — run /stitch verify cs] [project: cs]
-10. ~/Projects/ss/CODEMAP.md — (not found — run /codemap create) [project: ss]
+8. ~/Projects/proj-a/CODEMAP.md — 8 days ago — fresh [project: proj-a]
+9. ~/Projects/proj-a/STITCH.md — 34 days ago [STALE — run /stitch verify proj-a] [project: proj-a]
+10. ~/Projects/proj-b/CODEMAP.md — (not found — run /codemap create) [project: proj-b]
 ```
 
 **Pending Ideas surfacing:** if the query includes a configured project tag AND `{knowledge_folder}/intake/ideas/` exists, glob `intake/ideas/*.md`, read YAML frontmatter from each, and collect files whose `project:` field matches (or includes) the query's project tag. Present matches as a compact informational section after the file list, before the "Load which files?" prompt.
