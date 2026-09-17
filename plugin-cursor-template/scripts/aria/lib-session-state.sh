@@ -264,6 +264,13 @@ $_ss_prompt
     # line; tail = the rest), then reassemble with the block via printf — NEVER pass
     # the multi-line block through awk -v (POSIX awk errors on "newline in string").
     _ss_head="$_ss_f.$$.head"; _ss_tail="$_ss_f.$$.tail"
+    # ⛔ CREATE BOTH FILES UNCONDITIONALLY. The splice awk below opens `t` only when it
+    # reaches a line AFTER the anchor, so when the heading is the LAST line of the file
+    # the tail file is never created -- `cat "$_ss_tail"` then exits non-zero, the `&&`
+    # short-circuits, `mv` never runs, and the entry is SILENTLY DISCARDED while the
+    # function still returns 0. Measured two-sided 2026-09-17: heading-last added 0
+    # entries, heading-with-anything-after added 1.
+    : > "$_ss_head" 2>/dev/null; : > "$_ss_tail" 2>/dev/null
     # Splice by LINE NUMBER, and CANONICALISE the heading in the same pass — the PAIRED WRITE.
     #
     # ⛔ THE PAIRED WRITE IS LOAD-BEARING, NOT COSMETIC. A tolerant read that leaves a non-canonical

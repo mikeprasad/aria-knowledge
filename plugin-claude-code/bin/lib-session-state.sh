@@ -265,6 +265,16 @@ $_ss_prompt
     # line; tail = the rest), then reassemble with the block via printf — NEVER pass
     # the multi-line block through awk -v (POSIX awk errors on "newline in string").
     _ss_head="$_ss_f.$$.head"; _ss_tail="$_ss_f.$$.tail"
+    # ⛔ CREATE BOTH FILES UNCONDITIONALLY. The splice awk below opens `t` only when it
+    # reaches a line AFTER the anchor, so when the heading is the LAST line of the file
+    # the tail file is never created -- `cat "$_ss_tail"` then exits non-zero, the `&&`
+    # short-circuits, `mv` never runs, and the entry is SILENTLY DISCARDED while the
+    # function still returns 0. Measured two-sided 2026-09-17: heading-last added 0
+    # entries, heading-with-anything-after added 1. Latent at the time (0 of the live
+    # ledgers ended on the heading), but load-bearing for kt_ss_ledger_consume_active,
+    # which CLEARS the active prompt after calling this -- on that path a silent discard
+    # destroys the handoff outright.
+    : > "$_ss_head" 2>/dev/null; : > "$_ss_tail" 2>/dev/null
     # head = lines through the "## Prior sessions" heading + one blank; tail = the rest.
     # The block is injected between head and tail by printf (not awk -v).
     # Splice by LINE NUMBER, and CANONICALISE the heading in the same pass — the PAIRED WRITE.
@@ -379,11 +389,31 @@ kt_ss_ledger_mark_consumed() {
 # Shape is mirrored from kt_ss_ledger_mark_consumed above — the same three interlocking properties
 # apply here verbatim, and the comment block there is the canonical explanation of why.
 kt_ss_ledger_mark_superseded() {
-  _ss_f="$1/SESSION.md"; _ss_sid="$2"; _ss_ts="$3"; _ss_by="$4"
+  _ss_f="$1/SESSION.md"; _ss_sid="$2"; _ss_ts="$3"; _ss_by="$4"; _ss_want_at="$5"
   [ -f "$_ss_f" ] || return 0
   _ss_tmp="$_ss_f.$$.tmp"
-  awk -v sid="$_ss_sid" -v ts="$_ss_ts" -v by="$_ss_by" '
-    $0 ~ ("^### .*" sid) && /(^|[^a-z])unconsumed([^a-z]|$)/ {
+  # ⛔ CORRECTED 2026-09-17 — THE COMMENT BLOCK ABOVE CLAIMED THIS MIRRORED
+  # kt_ss_ledger_mark_consumed "verbatim" AND IT DID NOT. It still carried the retired
+  # form `$0 ~ ("^### .*" sid)`, i.e. the caller's sid interpolated into an awk REGEX and
+  # matched against the WHOLE LINE. Two live consequences, the first reproduced two-sided
+  # on a fixture: asked to retire sid `a.c` it ALSO retired the unrelated entry `abc`
+  # (metacharacter over-match), while mark_consumed on the identical fixture touched only
+  # `a.c`; and because it matched the whole line rather than field 1, a sid occurring in
+  # an entry's TITLE or timestamp matched too. Retiring another session's live handoff is
+  # the dangerous direction. ⚑ The false parity claim is what made this survive — an
+  # assertion that two things agree is exactly what stops the next reader checking.
+  #
+  # ⛔ `at` (5th arg) IS OPTIONAL, same contract as mark_consumed. Omitted => legacy
+  # behaviour, every unconsumed entry for that sid is marked. Supplied => an exact
+  # (sid, at) match. It is REQUIRED whenever one sid carries two timestamps: measured
+  # 2026-09-17 on a real ledger, 12 sids appeared more than once and 8 of those mixed a
+  # retirable entry with a LIVE one, so a sid-only call would have retired live handoffs.
+  awk -v sid="$_ss_sid" -v ts="$_ss_ts" -v by="$_ss_by" -v want_at="$_ss_want_at" '
+    /^### / {
+      _nf = split(substr($0, 5), _f, " · ")
+      _hsid = _f[1]; _hat = (_nf >= 2 ? _f[2] : "")
+    }
+    /^### / && index(_hsid, sid) > 0 && (want_at == "" || _hat == want_at) && /(^|[^a-z])unconsumed([^a-z]|$)/ {
       sub(/unconsumed/, "consumed " ts " by " by " (superseded)"); print; next
     }
     { print }
@@ -716,5 +746,135 @@ kt_ss_ledger_token_locate() {
       }
     }
   ' "$_ss_f" 2>/dev/null
+  return 0
+}
+
+# Read the `aria-handoff:` provenance token from inside the ACTIVE prompt block.
+# Prints `<sid>|<at>`, or nothing when the active prompt carries no token (every prompt
+# written before 2026-09-15).
+#
+# ⛔ WHY THIS EXISTS. kt_ss_read_active_sid reads the FRONT MATTER only, and the front
+# matter is exactly the value that is wrong when the two disagree: kt_ss_mark_inprogress
+# stamps the CURRENT session's id over the header while passing the body through, so a
+# prompt routinely sits under a later session's identity. The token travels in the body,
+# which no rewrite path touches. Measured 2026-09-17 on a real ledger: token said
+# 10cf229b@11:00:01Z, front matter said 4c3e190c@11:06:37Z.
+kt_ss_read_active_token() {
+  _ss_f="$1/SESSION.md"
+  [ -f "$_ss_f" ] || return 0
+  awk '
+    /^## / { sec = ($0 ~ /^## Next session prompt[[:space:]]*$/) ? "ACTIVE" : "OTHER"; next }
+    sec == "ACTIVE" && /^aria-handoff:[[:space:]]*/ {
+      line = $0
+      sub(/^aria-handoff:[[:space:]]*/, "", line)
+      slash = index(line, "/");  if (slash == 0) next
+      rest  = substr(line, slash + 1)
+      at_i  = index(rest, "@");  if (at_i == 0) next
+      sid = substr(rest, 1, at_i - 1); at = substr(rest, at_i + 1)
+      gsub(/^[ \t]+/, "", sid); gsub(/[ \t]+$/, "", sid)
+      gsub(/^[ \t]+/, "", at);  gsub(/[ \t]+$/, "", at)
+      if (sid == "" || at == "") next
+      print sid "|" at
+      exit
+    }
+  ' "$_ss_f" 2>/dev/null
+  return 0
+}
+
+# Consume the ACTIVE prompt: demote it into `## Pending handoffs`, mark that entry
+# consumed, and clear the active slot. Called by a RESUMING session once it has found an
+# `aria-handoff:` token in the opener.
+#
+# ⛔ WHY A COMPOSED FUNCTION AND NOT A FIX TO mark_consumed. kt_ss_ledger_mark_consumed
+# rewrites only `^### ` headers. The active prompt has no `### ` header at all, so calling
+# it on a live prompt matches zero lines, rewrites nothing and returns 0 — measured
+# 2026-09-17 with a positive control on a `###` entry in the same run. Corpus: one real
+# ledger held 142 entries, 0 consumed. Consumption had never once been recorded, and
+# because kt_ss_ledger_prune reaps only a word-bounded `consumed`, nothing was ever
+# prunable. Teaching mark_consumed to rewrite the active block would require inventing a
+# status field in a heading that has none — the free-text-in-a-machine-field defect that
+# kt_ss_ledger_mark_superseded's own comment block records closing (D3). Don't.
+#
+# ⛔ THE ACTIVE SLOT MUST BE CLEARED, and this is not a style choice.
+# kt_ss_ledger_token_locate's ACTIVE branch prints the LITERAL string "unconsumed":
+#   if (sec == "ACTIVE") { print fsid "|" fat "|unconsumed|active"; exit }
+# The active slot is structurally incapable of reporting a consumed prompt, so a prompt
+# left there is re-offered forever no matter what is written elsewhere.
+#
+# ⛔ NOT WIRED TO ANY EDIT-TIME HOOK — Mike's ruling 2026-09-17, "no new post or pre edit
+# hook checks; the only hooks for this should be on session start". bin/post-edit-check.sh
+# is deliberately NOT a caller. Wiring it there would demote-and-consume a handoff on ANY
+# session's first edit in the project, including a session that never read the prompt.
+kt_ss_ledger_consume_active() {
+  _ss_root="$1"; _ss_by="$2"; _ss_now="$3"
+  _ss_f="$_ss_root/SESSION.md"
+  [ -f "$_ss_f" ] || return 0
+
+  # Boundary: from the heading to the next column-0 "## " that is NOT inside a fence.
+  # Fence parity is tracked exactly as kt_ss_ledger_token_locate does -- mirrored on
+  # purpose, so the two readers can never disagree about where the active block ends.
+  _ss_body=$(awk '
+    BEGIN { sec = ""; infence = 0; buf = ""; done = 0 }
+    /^```/      { if (sec == "ACTIVE") buf = buf $0 "\n"; infence = 1 - infence; next }
+    infence == 1 { if (sec == "ACTIVE") buf = buf $0 "\n"; next }
+    /^## /      { if (sec == "ACTIVE") { printf "%s", buf; done = 1; exit }
+                  sec = ($0 ~ /^## Next session prompt[[:space:]]*$/) ? "ACTIVE" : "OTHER"; next }
+    sec == "ACTIVE" { buf = buf $0 "\n" }
+    # ⛔ `done` is load-bearing: in awk, `exit` RUNS THE END BLOCK. Without the flag the
+    # buffer is printed twice whenever the active section is followed by another "## "
+    # heading -- which is the normal case. Measured 2026-09-17: the body came back
+    # duplicated verbatim.
+    END { if (sec == "ACTIVE" && !done) printf "%s", buf }
+  ' "$_ss_f" 2>/dev/null)
+
+  # Trim surrounding blank lines, then bail on the three empty states. A no-op here must
+  # be byte-for-byte: an absent heading, an empty block, and a fresh in-progress marker
+  # are all legitimate and must not be demoted.
+  _ss_trim=$(printf '%s' "$_ss_body" | sed -e '/./,$!d' | sed -e ':a' -e '/^[[:space:]]*$/{$d;N;ba' -e '}')
+  case "$(printf '%s' "$_ss_trim" | tr -d '[:space:]')" in
+    ''|'(sessioninprogress)'|'```(sessioninprogress)```') return 0 ;;
+  esac
+
+  # Identity: THE TOKEN WINS. Front matter is the fallback for pre-token prompts only.
+  _ss_tok=$(kt_ss_read_active_token "$_ss_root")
+  if [ -n "$_ss_tok" ]; then
+    _ss_sid=${_ss_tok%%|*}; _ss_at=${_ss_tok#*|}
+  else
+    _ss_sid=$(kt_ss_read_active_sid "$_ss_root"); _ss_at=$(kt_ss_read_active_at "$_ss_root")
+  fi
+  [ -n "$_ss_sid" ] || return 0
+
+  _ss_focus=$(awk 'NR==1 && $0!="---"{exit} /^---$/ && NR>1{exit} /^currentFocus:[[:space:]]*/{sub(/^currentFocus:[[:space:]]*/,""); print; exit}' "$_ss_f" 2>/dev/null)
+  _ss_next=$(awk 'NR==1 && $0!="---"{exit} /^---$/ && NR>1{exit} /^nextAction:[[:space:]]*/{sub(/^nextAction:[[:space:]]*/,""); print; exit}' "$_ss_f" 2>/dev/null)
+
+  kt_ss_ledger_add "$_ss_root" "$_ss_sid" "$_ss_at" "$_ss_focus" "$_ss_next" "$_ss_trim"
+
+  # ⛔ VERIFY THE DEMOTE LANDED BEFORE CLEARING ANYTHING. kt_ss_ledger_add returns 0
+  # whether or not it wrote -- every failure path in it ends `return 0` by design, so its
+  # exit code carries NO information about whether the entry is on disk. Clearing the
+  # active slot on the strength of that return is how a handoff gets destroyed: measured
+  # 2026-09-17, an add silently discarded by the heading-last defect left the fixture with
+  # the prompt gone from both places. Bind the irreversible step to the load-bearing
+  # result -- the entry actually being present -- never to the proxy.
+  if ! awk -v sid="$_ss_sid" '/^### / && index($0, sid) > 0 { found = 1 }
+                              END { exit(found ? 0 : 1) }' "$_ss_f" 2>/dev/null; then
+    return 0
+  fi
+
+  kt_ss_ledger_mark_consumed "$_ss_root" "$_ss_sid" "$_ss_now" "$_ss_by" "$_ss_at"
+
+  # Clear the active slot, leaving the heading present and empty.
+  _ss_tmp="$_ss_f.$$.tmp"
+  awk '
+    BEGIN { sec = ""; infence = 0 }
+    /^```/       { if (sec != "ACTIVE") print; infence = 1 - infence; next }
+    infence == 1 { if (sec != "ACTIVE") print; next }
+    /^## /       { if (sec == "ACTIVE") print ""
+                   sec = ($0 ~ /^## Next session prompt[[:space:]]*$/) ? "ACTIVE" : "OTHER"
+                   print; next }
+    sec == "ACTIVE" { next }
+    { print }
+  ' "$_ss_f" > "$_ss_tmp" 2>/dev/null && mv "$_ss_tmp" "$_ss_f" 2>/dev/null
+  rm -f "$_ss_tmp" 2>/dev/null
   return 0
 }
