@@ -17,7 +17,8 @@ Measured this session on an isolated replica:
 | `mark_consumed` on that active prompt | header flips | **rc=0, file byte-identical** |
 | positive control: same call on a `###` entry | header flips | flipped |
 
-Corpus corroboration: `cs/SESSION.md` holds **142 entries, 0 consumed, 142 unconsumed**.
+Corpus corroboration: one real ledger (`proj-a/SESSION.md`) holds **142 entries, 0 consumed,
+142 unconsumed**.
 Consumption has never once been recorded. `kt_ss_ledger_prune` reaps only a word-bounded
 `consumed`, so nothing has ever been prunable — which is why the file reached 636,898 chars and
 why 53 stale handoffs are still offered as live.
@@ -60,7 +61,7 @@ front-matter fence), which is exactly the value that is wrong when the two disag
    `kt_ss_ledger_token_locate` already implements this walk — mirror it, do not reinvent it.
 2. Empty, absent, or body is just `(session in progress)` → return 0. Silent, safe no-op.
 3. Resolve identity: **the token wins over the front matter**, per the handoff SKILL ruling
-   (2026-09-15). Load-bearing — on `cs/SESSION.md` today the token says `10cf229b@11:00:01Z` while
+   (2026-09-15). Load-bearing — on one real ledger today the token says `10cf229b@11:00:01Z` while
    the front matter says `4c3e190c@11:06:37Z`, because a later session's first edit stamped its own
    identity over the header. Reading the front matter attributes the handoff to the wrong session
    permanently. Fall back to the front matter only when no token is present (pre-token prompts).
