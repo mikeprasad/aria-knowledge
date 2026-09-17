@@ -93,16 +93,23 @@ if [ "$KT_SESSION_STATE" = "true" ] && [ -n "$FILE_PATH" ] && [ "$(basename "$FI
     fi
     SS_LEDGER="/tmp/aria-session-inprogress-${SS_KEY}"
     if ! { [ -f "$SS_LEDGER" ] && grep -qxF "$SS_ROOT" "$SS_LEDGER" 2>/dev/null; }; then
-      # Consume a prior handoff before flipping to in-progress (latch-clear on resume).
-      # Inside the once-per-(session,project) guard, so this fires once per resumed root.
-      _pe_prev_sid=$(kt_ss_read_active_sid "$SS_ROOT" 2>/dev/null)
-      if [ -n "$_pe_prev_sid" ] && [ "$_pe_prev_sid" != "$SS_SID" ]; then
-        _pe_prev_event=$(awk -F': ' '/^lastEvent:/{print $2; exit}' "$SS_ROOT/SESSION.md" 2>/dev/null)
-        if [ "$_pe_prev_event" = "handoff" ]; then
-          _pe_now=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null)
-          kt_ss_ledger_mark_consumed "$SS_ROOT" "$_pe_prev_sid" "$_pe_now" "$SS_SID" 2>/dev/null || true
-        fi
-      fi
+      # ⛔ THE EDIT-TIME AUTO-CONSUME WAS REMOVED 2026-09-17 (Mike's ruling: "no new post
+      # or pre edit hook checks; the only hooks for this should be on session start").
+      # DO NOT REINSTATE IT, in any narrowed form. It called
+      # kt_ss_ledger_mark_consumed(root, front-matter sid, now, this sid) whenever a
+      # DIFFERENT session made its first edit in a project whose lastEvent was `handoff`
+      # -- i.e. it inferred "someone resumed this prompt" from "someone edited a file
+      # here", which is not the same event. Three measured problems:
+      #   1. It could not reach the ACTIVE prompt at all (mark_consumed rewrites only
+      #      `### ` headers), so on the common case it was a silent no-op returning 0 --
+      #      one real ledger held 142 entries, 0 ever marked consumed.
+      #   2. Where it COULD fire (a Pending entry sharing the front-matter sid -- 1 of 62
+      #      live ledgers at removal time) it retired a handoff nobody had read.
+      #   3. It passed no `at`, so one sid carrying two timestamps retired both.
+      # Consumption now happens ONLY on the session-start path, driven by an
+      # `aria-handoff:` token actually present in the pasted opener -- evidence that a
+      # human resumed the prompt -- via kt_ss_ledger_consume_active. See
+      # bin/session-start-check.sh and rules/aria-rules.md (SESSION STATE).
       SS_AUTHOR=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" 2>/dev/null | grep '^author_tag:' | sed 's/^author_tag: *//')
       kt_ss_mark_inprogress "$SS_ROOT" "$SS_SID" "$SS_AUTHOR" 2>/dev/null || true
       printf '%s\n' "$SS_ROOT" >> "$SS_LEDGER" 2>/dev/null || true

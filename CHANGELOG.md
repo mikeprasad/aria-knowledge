@@ -2,6 +2,22 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.53.2 — 2026-09-17
+
+**Handoff consumption had never once been recorded, and nothing anywhere said so.** `kt_ss_ledger_mark_consumed` rewrites only `### ` headers, and the active prompt under `## Next session prompt` has none — so calling it on a live prompt matched nothing, changed nothing, and returned 0. Measured on a real ledger: **142 entries, 0 consumed, 142 unconsumed**. Because `kt_ss_ledger_prune` reaps only a word-bounded `consumed`, nothing in that file had ever been prunable; it had reached 636,898 characters with 53 stale handoffs still being offered as live. The documented resume path told every session to call exactly the function that could not work.
+
+**`kt_ss_ledger_consume_active` (new)** demotes the active prompt into `## Pending handoffs`, marks that entry consumed, and clears the active slot. Clearing is required rather than cosmetic: `kt_ss_ledger_token_locate`'s ACTIVE branch prints the literal string `unconsumed`, so a prompt left in the active slot is re-offered forever no matter what is written elsewhere. **`kt_ss_read_active_token` (new)** reads the `aria-handoff:` provenance token from inside the prompt fence — the token wins over the front matter, which `kt_ss_mark_inprogress` overwrites with a later session's identity while passing the body through.
+
+⛔ **Two pre-existing defects surfaced by testing, both silent, both returning 0.** `kt_ss_ledger_add` discarded the entry whenever the section heading was the file's last line: the splice awk opens its tail file only on reaching a line *after* the anchor, so `cat` exits non-zero, the `&&` short-circuits, and `mv` never runs. Two-sided — heading-last added 0 entries, heading-with-anything-after added 1. Latent (no live ledger was in that state) but load-bearing here, because `consume_active` clears the active slot after calling it; on that path a silent discard destroys the handoff outright. Fixed in all three carrying ports, which the suite's parity contract requires.
+
+`kt_ss_ledger_mark_superseded` still used the retired unescaped-regex matcher **despite a comment claiming it mirrored `mark_consumed` verbatim**. Asked to retire sid `a.c` it also retired the unrelated entry `abc`, and it matched the whole line rather than field 1, so a sid appearing in an entry's title matched too. It now mirrors `mark_consumed` exactly, including the optional fifth `at` argument — required because 12 sids on one real ledger carry two timestamps and 8 of those mix a retirable entry with a live one, so a sid-only call retires live handoffs. ⚑ The false parity claim is what let this survive: an assertion that two things agree is precisely what stops the next reader from checking.
+
+`consume_active` verifies the demote actually landed before clearing anything, because `ledger_add` returns 0 whether or not it wrote. With `ledger_add` neutered the prompt stays put; without that guard the first fixture lost it outright.
+
+⛔ **The edit-time auto-consume in `post-edit-check.sh` is REMOVED.** It inferred "someone resumed this prompt" from "someone edited a file here", fired on 1 of 62 live ledgers, could not reach the active prompt at all, and passed no `at`. Consumption now happens **only** on the session-start path, gated on a provenance token actually present in the pasted opener. The always-on digest and the SessionStart hook had also drifted into describing two different resume procedures — the digest carried the pre-token one — and now agree.
+
+No new hooks; one existing SessionStart directive changed. Suites bare exit 0: session-state 92, plugin-claude-code 332. Every acceptance criterion was mutation-verified red for the right reason before being cited.
+
 ## 2.53.1 — 2026-09-16
 
 **The public-hygiene gate was blind to the form the identifier actually takes.** Its code pattern excluded a slash immediately before the identifier, so it fired on the identifier preceded by a space and stayed silent on the same identifier preceded by a slash — that is, inside a path like a home-relative `Projects/<code>/CODEMAP.md`, which is the single most likely shape for a private directory name. **Both shipped self-test arms passed the whole time and neither could see it:** one asserts the space-prefixed form fires, the other asserts an innocent word ending in the same two letters stays silent. There was no arm for a path. The exclusion is in the gate's founding commit rather than a repair for any measured false positive, so nothing was being preserved by keeping it.
