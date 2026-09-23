@@ -160,6 +160,17 @@ Every compliance block is marked with a `[Rule 22]` prefix on its header line �
 
 As of v2.10.5, the PreToolUse hook enforces ordering structurally. It parses the current assistant turn's transcript for the `[Rule 22...]` marker in text blocks preceding the Edit/Write tool_use. If the marker is present, the hook allows silently. If absent, the hook returns `permissionDecision: "deny"` with a recovery message naming the expected format, and Claude must retry — this time emitting the block first. The retroactive output path is **unreachable by design** — there is no code path in which Rule 22 compliance is satisfied after the edit lands. The discipline is mechanism-enforced, not Claude-side.
 
+**Second channel (v2.53.3).** Claude Code 2.1.280 stopped persisting most assistant text blocks — they are saved as a *paraphrased* thinking block with no `[Rule 22]` token, even when the text block held nothing but the marker — so a correct, visible marker was denied. The hook therefore also accepts the marker **at the start of a line** inside a string input of a non-edit tool in the same window; tool inputs are persisted verbatim. The recommended carrier is a Bash heredoc, which is also visible to the user in the tool output:
+
+```
+cat <<'R22'
+[Rule 22] Low Impact — <change> (<why low>)
+Change — ... / Solutions — ... / Execute — ...
+R22
+```
+
+Line-start anchoring means a command that merely *mentions* the marker (`grep '[Rule 22]' notes.md`) does not count, and content-carrying tools (Edit, Write, NotebookEdit, MultiEdit) are excluded so file content can never authorise an edit. The window is unchanged: a carrier before the previous Edit/Write does not carry over. The hook also re-reads the transcript for up to 1.5 s (`ARIA_R22_FLUSH_WAIT_MS`) when its own tool call has not been flushed yet, instead of failing open on the first miss.
+
 ### WRONG (retroactive — the assessment rationalizes the write after it happened)
 
 ```

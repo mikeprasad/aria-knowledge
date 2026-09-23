@@ -2,6 +2,28 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.53.3 — 2026-09-23
+
+**The Rule 22 pre-edit gate denied correct, visible markers on Claude Code 2.1.280 — and separately fail-opened on most edits on every version.** Two defects in the same detector, both measured on local transcripts before any code changed.
+
+**Claude Code 2.1.280 stopped persisting most assistant text blocks.** Same days, same model: 2.1.278 responses carry a text block ~85% of the time and "thinking but no text" 0%; 2.1.280 drops to 24–31% text and ~50% thinking-only. Reproduced live three times — a `[Rule 22]` marker emitted as visible prose directly above an edit was saved as an empty thinking block plus a *paraphrase* of the prose with no marker token, and in one case the text block held nothing but the marker. The hook was reading the file correctly; the marker was not in it. ⚑ A first diagnosis read the same transcript the hook reads and concluded "the denials are genuine misses" — a check that shares its subject's input shares its blind spot. Only a live probe could separate "not emitted" from "emitted but not recorded".
+
+**The marker is now also accepted at the start of a line in a string input of a non-edit tool in the same window.** Tool inputs are persisted verbatim. Recommended carrier, visible to the user in the tool output:
+
+```
+cat <<'R22'
+[Rule 22] Low Impact — <change> (<why low>)
+R22
+```
+
+Line-start anchoring keeps a mere mention (`grep '[Rule 22]' notes.md`) from authorising; content-carrying tools (Edit, Write, NotebookEdit, MultiEdit) are excluded so file content can never authorise an edit; the window is unchanged. Text-block markers still work. Accepting the marker in thinking was rejected on evidence — the persisted paraphrase dropped the token in all three live repros.
+
+**The hook usually ran before its own tool call was on disk, and fail-opened.** Over 40 sessions: **1,640** `could not verify` fail-opens against 70 denials, on 2.1.278 and 2.1.280 alike. Replaying the real hook against the final transcripts for 30 sampled cases: 30/30 resolve, and **15/30 would have been denied** — about half the bypassed edits carried no marker. Timing: hooks that missed their line had started ~10 ms (p50) after the tool call was created; hooks that found it started later, and single-call hooks found it as early as 3 ms, so the write is not held until the hook exits. The hook now re-reads the transcript for up to 1.5 s (`ARIA_R22_FLUSH_WAIT_MS`, 50 ms interval) before failing open; the timeout stays loud. Registered hook timeout is 5 s against a ~0.35 s typical run. Evaluating the transcript tail "as if" the call were appended was rejected: in the same race the preceding lines can be unflushed too, which manufactures false denials — the reported symptom.
+
+New repro `tests/repros/r22-tool-input-marker-and-flush.sh` (12 controls), built on `tests/fixtures/transcript-cc21280-real-base.jsonl` — **real 2.1.280 transcript lines**, values sanitized and every account/org/session UUID remapped, keys, nesting and line splits untouched, because hand-authored fixtures would test the hook against a belief about the format. Against the previous hook the suite fails **exactly** G1, G1b, H1, H1b and H3 (5 of 12); every control is mutation-verified by the control named for it (anchor removed → G3; exclusion emptied → G2b; window break removed → G4; poll disabled → H1/H1b/H3; env override ignored → H3; channel disabled → G1/G1b/H1), restored byte-identical each time. ⚑ Three controls were rewritten during verification, all self-caught: G2 could not fail (the target edit's own input is structurally never scanned), so G2b now guards the exclusion; an absolute timing ceiling flaked at load average ~60, so H3 is a differential (1200 ms cap vs 400 ms cap) that cancels interpreter startup; and H2's `>= cap` lower bound was measured **passing on the pre-poll hook** (startup alone took 359 ms), so H2 now asserts only the loud fail-open and H3 alone proves the wait.
+
+Contract text updated in all four places that state it — deny message, `rules/aria-rules.md`, the SessionStart message, `template/rules/change-decision-framework.md` — with one wording. `plugin-antigravity` regenerated (its `bin/pre-edit-check.sh` is a copy of canonical). Codex and Cursor are not affected (different transcripts; Cursor has no transcript proof at all).
+
 ## 2.53.2 — 2026-09-17
 
 **Handoff consumption had never once been recorded, and nothing anywhere said so.** `kt_ss_ledger_mark_consumed` rewrites only `### ` headers, and the active prompt under `## Next session prompt` has none — so calling it on a live prompt matched nothing, changed nothing, and returned 0. Measured on a real ledger: **142 entries, 0 consumed, 142 unconsumed**. Because `kt_ss_ledger_prune` reaps only a word-bounded `consumed`, nothing in that file had ever been prunable; it had reached 636,898 characters with 53 stale handoffs still being offered as live. The documented resume path told every session to call exactly the function that could not work.

@@ -214,31 +214,70 @@ try:
 
     else:
         # Claude Code branch: find step by tool_use_id
-        target_content_idx = None
-        for i, line in enumerate(lines):
-            try:
-                evt = json.loads(line)
-            except Exception:
-                continue
-            if evt.get("type") != "assistant":
-                continue
-            content = evt.get("message", {}).get("content", [])
-            if not isinstance(content, list):
-                continue
-            for j, b in enumerate(content):
-                if isinstance(b, dict) and b.get("type") == "tool_use" and b.get("id") == tool_use_id:
-                    target_line_idx = i
-                    target_content_idx = j
-                    break
-            if target_line_idx is not None:
-                break
+        def find_target(lines):
+            for i, line in enumerate(lines):
+                try:
+                    evt = json.loads(line)
+                except Exception:
+                    continue
+                if evt.get("type") != "assistant":
+                    continue
+                content = evt.get("message", {}).get("content", [])
+                if not isinstance(content, list):
+                    continue
+                for j, b in enumerate(content):
+                    if isinstance(b, dict) and b.get("type") == "tool_use" and b.get("id") == tool_use_id:
+                        return i, j
+            return None, None
+
+        # v2.53.3: the hook usually starts ~10 ms after its own tool_use is
+        # created, before the harness has flushed that line (measured: 1,640
+        # fail-opens vs 70 denials over 40 sessions; the line lands within tens
+        # of ms, during the hook's run). Re-read for a bounded wait instead of
+        # fail-opening on the first miss. Timeout stays loud (below).
+        import time
+        try:
+            wait_ms = int(os.environ.get("ARIA_R22_FLUSH_WAIT_MS", "1500"))
+        except ValueError:
+            wait_ms = 1500
+        deadline = time.time() + max(wait_ms, 0) / 1000.0
+        target_line_idx, target_content_idx = find_target(lines)
+        while target_line_idx is None and time.time() < deadline:
+            time.sleep(0.05)
+            with open(path) as f:
+                lines = f.readlines()
+            target_line_idx, target_content_idx = find_target(lines)
 
         if target_line_idx is None:
             print("unknown")
             sys.exit(0)
 
+        # v2.53.3: Claude Code 2.1.280 persists most assistant text blocks as a
+        # paraphrased thinking block with no marker token — even a text block
+        # holding only the marker. tool_use inputs are persisted verbatim, so a
+        # marker at the START OF A LINE in a string input of a tool that does not
+        # carry file content (e.g. a Bash heredoc `cat <<'R22'`) also counts.
+        # Line-start anchoring keeps a mere mention (`grep '[Rule 22]' f`) from
+        # authorising; content-carrying tools are excluded so an edit cannot
+        # authorise itself or a later edit through its own file content.
+        CONTENT_TOOLS = ("Edit", "Write", "NotebookEdit", "MultiEdit")
+        def input_strings(v):
+            if isinstance(v, str):
+                yield v
+            elif isinstance(v, dict):
+                for x in v.values():
+                    yield from input_strings(x)
+            elif isinstance(v, list):
+                for x in v:
+                    yield from input_strings(x)
+        def carrier_texts(b):
+            if b.get("name") in CONTENT_TOOLS:
+                return []
+            return list(input_strings(b.get("input", {})))
+
         found_prior_edit_in_target_msg = False
         text_blocks = []
+        tool_texts = []
 
         target_evt = json.loads(lines[target_line_idx])
         target_content = target_evt["message"]["content"]
@@ -246,7 +285,10 @@ try:
             if isinstance(b, dict):
                 if b.get("type") == "tool_use" and b.get("name") in ("Edit", "Write"):
                     text_blocks = []
+                    tool_texts = []
                     found_prior_edit_in_target_msg = True
+                elif b.get("type") == "tool_use":
+                    tool_texts.extend(carrier_texts(b))
                 elif b.get("type") == "text":
                     text_blocks.append(b.get("text", ""))
 
@@ -269,17 +311,28 @@ try:
                 if not isinstance(content, list):
                     continue
                 msg_text_blocks = []
+                msg_tool_texts = []
                 cap_reached = False
                 for b in content:
                     if isinstance(b, dict):
                         if b.get("type") == "tool_use" and b.get("name") in ("Edit", "Write"):
                             msg_text_blocks = []
+                            msg_tool_texts = []
                             cap_reached = True
+                        elif b.get("type") == "tool_use":
+                            msg_tool_texts.extend(carrier_texts(b))
                         elif b.get("type") == "text":
                             msg_text_blocks.append(b.get("text", ""))
                 text_blocks = msg_text_blocks + text_blocks
+                tool_texts = msg_tool_texts + tool_texts
                 if cap_reached:
                     break
+
+        LINE_MARKER = re.compile(r"(?m)^[ \t]*\[Rule 22(\s\xb7\s[^\]]+)?\]")
+        for txt in tool_texts:
+            if LINE_MARKER.search(txt):
+                print("yes")
+                sys.exit(0)
 
     for txt in text_blocks:
         if MARKER.search(txt):
@@ -356,7 +409,7 @@ esac
 SIGNAL_NOTE=""
 [ -n "$SIGNALS" ] && SIGNAL_NOTE=" Structural signals detected (${SIGNALS}) — full assessment required regardless of batch declaration."
 
-REASON="Rule 22 compliance block missing. Emit the [Rule 22] marker as a text output (not thinking) ABOVE this Edit/Write tool call in the same assistant turn, between the previous Edit/Write (if any) and this one. Then retry the same tool call.${SIGNAL_NOTE} Format: ${FMT}. See rules/change-decision-framework.md 'Ordering (required)'."
+REASON="Rule 22 compliance block missing. Emit the [Rule 22] marker ABOVE this Edit/Write tool call in the same assistant turn, between the previous Edit/Write (if any) and this one — as a text output (not thinking), OR at the start of a line in a non-edit tool's input. On Claude Code 2.1.280+ visible text is often not persisted, so prefer a Bash heredoc: cat <<'R22' / [Rule 22] ... / R22. Then retry the same tool call.${SIGNAL_NOTE} Format: ${FMT}. See rules/change-decision-framework.md 'Ordering (required)'."
 REASON_ESCAPED=$(kt_json_escape "$REASON")
 
 printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"%s"}}\n' "$REASON_ESCAPED"
