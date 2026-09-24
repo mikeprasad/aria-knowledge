@@ -211,7 +211,11 @@ try:
     tool_use_id = os.environ.get("TOOL_USE_ID", "")
     step_index_str = os.environ.get("STEP_INDEX", "")
     step_index = int(step_index_str) if step_index_str else None
-    MARKER = re.compile(r"\[Rule 22(\s\xb7\s[^\]]+)?\]")
+    # v2.54.2: "· Scope" is the POST-edit line (framework:247) — answering the previous
+    # edit's scope check must not satisfy this edit's gate. The lookahead rejects every
+    # form measured in use (Scope, scope, SCOPE, "Scope check", "Scope-check"); a
+    # different word such as "Scoped change" still counts.
+    MARKER = re.compile(r"\[Rule 22(\s\xb7(?!\s*(?i:scope)\b)\s[^\]]+)?\]")
     with open(path) as f:
         lines = f.readlines()
 
@@ -394,7 +398,7 @@ try:
                 if cap_reached:
                     break
 
-        LINE_MARKER = re.compile(r"(?m)^[ \t]*\[Rule 22(\s\xb7\s[^\]]+)?\]")
+        LINE_MARKER = re.compile(r"(?m)^[ \t]*\[Rule 22(\s\xb7(?!\s*(?i:scope)\b)\s[^\]]+)?\]")  # v2.54.2: not a Scope line, see MARKER
         for txt in tool_texts:
             if LINE_MARKER.search(txt):
                 print("yes")
@@ -475,7 +479,7 @@ esac
 SIGNAL_NOTE=""
 [ -n "$SIGNALS" ] && SIGNAL_NOTE=" Structural signals detected (${SIGNALS}) — full assessment required regardless of batch declaration."
 
-REASON="Rule 22 compliance block missing. Emit the [Rule 22] marker ABOVE this Edit/Write tool call in the same assistant turn, between the previous Edit/Write (if any) and this one — as a text output (not thinking), OR at the start of a line in a non-edit tool's input. On Claude Code 2.1.280+ visible text is often not persisted, so prefer a Bash heredoc, which is recorded the moment it runs: cat <<'R22' / [Rule 22] ... / R22 (one heredoc per edit). Then retry the same tool call.${SIGNAL_NOTE} Format: ${FMT}. See rules/change-decision-framework.md 'Ordering (required)'."
+REASON="Rule 22 compliance block missing. Emit the [Rule 22] marker ABOVE this Edit/Write tool call in the same assistant turn, between the previous Edit/Write (if any) and this one — as a text output (not thinking), OR at the start of a line in a non-edit tool's input. On Claude Code 2.1.280+ visible text is often not persisted, so prefer a Bash heredoc, which is recorded the moment it runs: cat <<'R22' / [Rule 22] ... / R22 (one heredoc per edit). A [Rule 22 · Scope] line is the post-edit check and does not count as the next edit marker. Then retry the same tool call.${SIGNAL_NOTE} Format: ${FMT}. See rules/change-decision-framework.md 'Ordering (required)'."
 REASON_ESCAPED=$(kt_json_escape "$REASON")
 
 printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"%s"}}\n' "$REASON_ESCAPED"

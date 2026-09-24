@@ -111,7 +111,7 @@ import json, os, re, sys
 try:
     path = os.environ["TRANSCRIPT"]
     tool_use_id = os.environ["TOOL_USE_ID"]
-    MARKER = re.compile(r"\[Rule 22(\s\xb7\s[^\]]+)?\]")
+    MARKER = re.compile(r"\[Rule 22(\s\xb7(?!\s*(?i:scope)\b)\s[^\]]+)?\]")  # v2.54.2: not a Scope line
     with open(path) as f:
         lines = f.readlines()
 

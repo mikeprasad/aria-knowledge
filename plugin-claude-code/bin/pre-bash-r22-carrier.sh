@@ -46,7 +46,7 @@ try:
 
     # Same anchored form pre-edit-check.sh accepts in tool inputs: a mention
     # mid-line (e.g. grep for the marker) is not a carrier.
-    MARK = re.compile(r"(?m)^[ \t]*\[Rule 22(\s\xb7\s[^\]]+)?\]")
+    MARK = re.compile(r"(?m)^[ \t]*\[Rule 22(\s\xb7(?!\s*(?i:scope)\b)\s[^\]]+)?\]")  # v2.54.2: a Scope line is post-edit, not a carrier
     if not any(MARK.search(s) for s in strings(d.get("tool_input") or {})):
         sys.exit(0)
 

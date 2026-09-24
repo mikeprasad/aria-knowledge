@@ -186,7 +186,9 @@ def transcript_assistant_text(path: Path, turn_id: str) -> str:
 
 
 def has_rule22_marker(text: str) -> bool:
-    return bool(re.search(r"\[Rule 22(?:\s*[·.-]\s*[^\]]+)?\]", text))
+    # aria-knowledge v2.54.2: a "[Rule 22 · Scope]" line is the POST-edit check this
+    # hook prompts for after every edit; it must not satisfy the next edit's gate.
+    return bool(re.search(r"\[Rule 22(?:\s*[·.-](?!\s*(?i:scope)\b)\s*[^\]]+)?\]", text))
 
 
 def hook_event(name: str, additional_context: str) -> dict[str, Any]:

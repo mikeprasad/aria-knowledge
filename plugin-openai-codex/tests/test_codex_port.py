@@ -545,6 +545,21 @@ def test_session_start_surfaces_autonomy_and_project_picker() -> None:
         assert "DECISION ROUTING (balanced)" in message
 
 
+def test_scope_line_is_not_a_pre_edit_marker() -> None:
+    # v2.54.2: the POST-edit scope line ("[Rule 22 · Scope] PASS …") must not satisfy
+    # the PRE-edit gate. Codex prompts for exactly that line after every edit, so an
+    # agent answering each prompt used to pass the next edit's gate unassessed.
+    hook = load_hook_module()
+    for text in ("[Rule 22 · Scope] PASS - x", "[Rule 22 · scope] OK - planning doc",
+                 "[Rule 22 · SCOPE] FAIL - x", "[Rule 22 · Scope check] PASS",
+                 "[Rule 22 - Scope] PASS", "[Rule 22 ·  Scope] PASS", "[Rule 22·Scope] x"):
+        assert not hook.has_rule22_marker(text), f"post-edit form accepted: {text!r}"
+    for text in ("[Rule 22] Low Impact - x", "[Rule 22 · Planning] a.md",
+                 "[Rule 22 · Batch 1/2] a.md", "[Rule 22 · Implementation] a.sh",
+                 "[Rule 22 · Scoped change] a.sh"):
+        assert hook.has_rule22_marker(text), f"pre-edit form rejected: {text!r}"
+
+
 def test_subagent_start_self_report_and_stop_capture() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)

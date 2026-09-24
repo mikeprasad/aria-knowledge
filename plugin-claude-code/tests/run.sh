@@ -4,6 +4,11 @@ DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$DIR/helpers.sh"
 TMP="$(mktemp -d)"; export APM_TMP="$TMP"
 trap 'rm -rf "$TMP"' EXIT
+# v2.54.2: isolate TMPDIR for every test. Tests write hook state under
+# ${TMPDIR:-/tmp}, and test-external-fetch-gate.sh's ef_reset removes aria-extfetch-*
+# there — against the REAL TMPDIR that deleted every live session's fetch cooldowns and
+# breaker counters on each run. Guarded by tests/repros/plugin-suite-leaves-real-tmpdir-alone.sh.
+export TMPDIR="$TMP/tmpdir"; mkdir -p "$TMPDIR"
 for t in "$DIR"/test-*.sh; do
   printf '== %s\n' "$(basename "$t")"
   # Syntax-check BEFORE sourcing. A test file that fails to PARSE used to abort
