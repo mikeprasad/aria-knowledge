@@ -120,6 +120,12 @@ if [ "$v" = "deny" ] && [ -f "$(state S3).agent-AGX" ]; then ok "C8-subagent-car
 record S13 P1 - "$CARRIER"
 v=$(verdict "$(edit_in S13 P1 AGY "$W/plain.jsonl")")
 if [ "$v" = "deny" ] && [ -f "$(state S13)" ]; then ok "C8b-parent-carrier-not-subagents"; else bad "C8b-parent-carrier-not-subagents" "got $v, parent state $( [ -f "$(state S13)" ] && echo kept || echo gone)"; fi
+# C12 — the recorder sanitises the agent key in Python, the reader in shell. A
+# hostile id (slash, dots) is the only input on which the two copies could disagree;
+# if they do, the carrier file is written under one name and looked for under another.
+record S14 P1 "a/b..c" "$CARRIER"
+v=$(verdict "$(edit_in S14 P1 "a/b..c" "$W/plain.jsonl")")
+if [ "$v" = "allow" ] && [ ! -e "$(state S14).agent-ab..c" ]; then ok "C12-hostile-agent-id-recorder-reader-parity"; else bad "C12-hostile-agent-id-recorder-reader-parity" "got $v; files: $(ls "$TMPDIR" | grep S14 | tr '\n' ' ')"; fi
 record S4 P1 - "$CARRIER"
 v=$(verdict "$(edit_in S5 P1 - "$W/plain.jsonl")")
 if [ "$v" = "deny" ] && [ -f "$(state S4)" ]; then ok "C9-session-isolation"; else bad "C9-session-isolation" "got $v"; fi

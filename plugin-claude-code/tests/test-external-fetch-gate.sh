@@ -235,6 +235,22 @@ assert_eq "AC12 allowed fetch cleared the counter" "1" \
 r1=$(ef_fetch "https://render.com/c" s24)
 assert_eq "AC12 enforcement restored after reset" "1" "$(ef_has '"permissionDecision":"deny"' "$r1")"
 
+# [AC12b] the breaker is keyed per AGENT (v2.54.1): a subagent shares its parent's
+# session_id, so three subagent denials must not trip the PARENT's breaker. Cooldowns
+# stay session-level by design, so they are cleared before the parent's call — only
+# the breaker can then explain an allow.
+ef_fetch_agent() { printf '{"url":"%s","session_id":"%s","agent_id":"%s"}' "$1" "$2" "$3" \
+  | KT_CONFIG="$EF_CFG" ARIA_EF_MEMDIR="$EF_TMP/nomem" sh "$HOOK" 2>/dev/null || :; }
+ef_reset
+ef_fetch_agent "https://support.atlassian.com/a" sagent1 sub9 >/dev/null
+ef_fetch_agent "https://bitbucket.org/b"         sagent1 sub9 >/dev/null
+ef_fetch_agent "https://render.com/c"            sagent1 sub9 >/dev/null
+assert_eq "AC12b agent counter is the agent's own file" "3" \
+  "$(cat "${TMPDIR:-/tmp}/aria-extfetch-denies-sagent1.agent-sub9" 2>/dev/null || echo MISSING)"
+rm -f "${TMPDIR:-/tmp}"/aria-extfetch-sagent1-* 2>/dev/null || :
+p1=$(ef_fetch "https://support.atlassian.com/d" sagent1)
+assert_eq "AC12b parent in same session still denied" "1" "$(ef_has '"permissionDecision":"deny"' "$p1")"
+
 # [AC13] C3 — over-budget yields a silent pass
 ef_reset
 out=$(printf '{"url":"%s","session_id":"%s"}' "https://support.atlassian.com/x" s25 \

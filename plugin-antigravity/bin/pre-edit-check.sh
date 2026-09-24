@@ -65,28 +65,40 @@ SESSION_ID=$(echo "$INPUT" | grep -o '"session_id":"[^"]*"' | head -1 | sed 's/"
 SESSION_KEY="$SESSION_ID"
 [ -z "$SESSION_KEY" ] && [ -n "$TRANSCRIPT" ] && SESSION_KEY=$(basename "$TRANSCRIPT" .jsonl 2>/dev/null)
 SESSION_KEY=$(printf '%s' "$SESSION_KEY" | tr -cd 'A-Za-z0-9._-')
+# v2.54.1: keyed per AGENT as well. A subagent's hooks carry the parent's session_id,
+# so a session-only key let three denials inside a subagent open the PARENT's breaker.
+# The suffix is empty on the main thread, so its key is unchanged.
+. "$SCRIPT_DIR/lib-state-key.sh"
+AGENT_SUFFIX=$(kt_agent_suffix "$INPUT")
 BREAKER_STATE=""
-[ -n "$SESSION_KEY" ] && BREAKER_STATE="${TMPDIR:-/tmp}/aria-r22-denies-${SESSION_KEY}"
+[ -n "$SESSION_KEY" ] && BREAKER_STATE="${TMPDIR:-/tmp}/aria-r22-denies-${SESSION_KEY}${AGENT_SUFFIX}"
+
+# v2.54.1: inside a subagent, read the subagent's OWN transcript. The harness passes
+# the PARENT's transcript_path, which never contains a subagent's calls; those are in
+# <dir>/<session>/subagents/agent-<agent_id>.jsonl, written per response (measured
+# 0.11-0.13 s after each call). Without this every subagent edit lacking a recorded
+# carrier waited the full cap and failed open. If the file is not there — including
+# when a future harness passes the subagent path directly — keep transcript_path.
+# The agent id is sanitised (no "/"), so it cannot address a path outside subagents/.
+if [ -z "$STEP_INDEX" ] && [ -n "$AGENT_SUFFIX" ] && [ -n "$TRANSCRIPT" ]; then
+  _SUB="$(dirname "$TRANSCRIPT")/$(basename "$TRANSCRIPT" .jsonl)/subagents/agent-${AGENT_SUFFIX#.agent-}.jsonl"
+  [ -f "$_SUB" ] && TRANSCRIPT="$_SUB"
+fi
 
 # Carrier side channel (v2.54.0): pre-bash-r22-carrier.sh records a Bash call whose
 # input has a line-start [Rule 22] marker the moment it runs. Same key as the
-# recorder: session + agent (agent_id is present only inside a subagent). prompt_id
-# and agent_id are read with json, not grep — agent_id's position in the object is
-# undocumented, and this edit's own content could contain either literal.
+# recorder: session + agent (AGENT_SUFFIX above). prompt_id is read with json, not
+# grep — this edit's own content could contain the literal.
 # Claude Code branch only; the antigravity step_index branch never records carriers.
 PROMPT_ID=""
 CARRIER_STATE=""
 if [ -z "$STEP_INDEX" ] && [ -n "$SESSION_KEY" ]; then
-  _IDS=$(printf '%s' "$INPUT" | python3 -c 'import json, sys
+  PROMPT_ID=$(printf '%s' "$INPUT" | python3 -c 'import json, sys
 try:
-    d = json.load(sys.stdin)
-    print((d.get("prompt_id") or "") + "\t" + (d.get("agent_id") or ""))
+    print(json.load(sys.stdin).get("prompt_id") or "")
 except Exception:
-    print("\t")' 2>/dev/null)
-  PROMPT_ID=$(printf '%s' "$_IDS" | cut -f1)
-  AGENT_KEY=$(printf '%s' "$_IDS" | cut -f2 | tr -cd 'A-Za-z0-9._-')
-  CARRIER_STATE="${TMPDIR:-/tmp}/aria-r22-carrier-${SESSION_KEY}"
-  [ -n "$AGENT_KEY" ] && CARRIER_STATE="${CARRIER_STATE}.agent-${AGENT_KEY}"
+    print("")' 2>/dev/null)
+  CARRIER_STATE="${TMPDIR:-/tmp}/aria-r22-carrier-${SESSION_KEY}${AGENT_SUFFIX}"
 fi
 
 # Planning paths where abbreviated assessment is permitted

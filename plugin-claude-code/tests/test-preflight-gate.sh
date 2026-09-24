@@ -121,6 +121,17 @@ assert_eq "breaker: denial 3 still denies" "1" "$(pf_has '"deny"' "$d3")"
 assert_eq "breaker: denial 4 degrades to allow" "0" "$(pf_has '"deny"' "$d4")"
 assert_eq "breaker: degraded state says so loudly" "1" "$(pf_has 'DEGRADED' "$d4")"
 
+# [10b] the breaker is keyed per AGENT (v2.54.1). A subagent shares its parent's
+# session_id, so a session-keyed counter let a subagent's three denials switch off
+# the PARENT's commit gate. The agent degrades; the parent, same session, still denies.
+pf_fresh pfagent1; rm -f "${TMPDIR:-/tmp}/aria-preflight-denies-pfagent1.agent-sub9"
+pf_agent() { printf '{"session_id":"%s","agent_id":"%s","tool_input":{"command":"%s"}}' "$2" "$3" "$4" | KT_CONFIG="$1" sh "$HOOK" 2>/dev/null; }
+for n in 1 2 3; do pf_agent "$CFG_DENY" pfagent1 sub9 "cd $PF_CODE && git commit -m x" >/dev/null; done
+a4=$(pf_agent "$CFG_DENY" pfagent1 sub9 "cd $PF_CODE && git commit -m x")
+p1=$(pf_run "$CFG_DENY" pfagent1 "cd $PF_CODE && git commit -m x")
+assert_eq "breaker per agent: agent's 4th degrades" "1" "$(pf_has 'DEGRADED' "$a4")"
+assert_eq "breaker per agent: parent in same session still denied" "1" "$(pf_has '"deny"' "$p1")"
+
 # [11] fail-open — every input the hook cannot read must behave as approval
 pf_fresh pf12
 out=$(printf '{"tool_input":{"command":"cd %s && git commit -m x"}}' "$PF_CODE" | KT_CONFIG="$CFG_DENY" sh "$HOOK" 2>/dev/null)

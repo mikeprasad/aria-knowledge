@@ -2,6 +2,18 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.54.1 — 2026-09-24
+
+**Inside a subagent, the Rule 22 gate now reads the subagent's own transcript — 2.54.0 made every such edit without a carrier stall 40 s and then fail open.** Measured live after installing 2.54.0: a `doc-updater` Write with a visible-text marker took **41,171 ms** and was allowed unverified. A subagent's hooks receive the **parent** session's `transcript_path`, and that file never contains a subagent's calls — they are only in `<dir>/<session_id>/subagents/agent-<agent_id>.jsonl`, which is written per response (0.11–0.13 s after each call, measured). So these edits had always failed open; 2.54.0's longer wait turned a 1.5 s stall into a 40 s one. `pre-edit-check.sh` now reads that file when it exists and keeps `transcript_path` when it does not, so a harness that ever passes the subagent path directly still works.
+
+**All three denial breakers are now keyed per agent** — Rule 22, the preflight commit gate and the external-fetch gate. A subagent carries its parent's `session_id`, so three denials inside a subagent could switch off the **parent's** enforcement. A new `bin/lib-state-key.sh` (`kt_agent_suffix`) appends `.agent-<id>` to each key; the suffix is empty on the main thread, so every main-thread key is unchanged, and the lib returns without starting python when the input has no `agent_id`. The agent id is sanitised to `A-Za-z0-9._-`, so it cannot address a path. The preflight "ran this session" marker and the fetch cooldowns stay session-level on purpose: those are facts a subagent should inherit.
+
+New repro `tests/repros/r22-subagent-transcript.sh` on a scrubbed real subagent transcript (5 controls), plus a per-agent breaker case in the preflight and external-fetch suites and a hostile-`agent_id` parity case (C12) in the carrier suite — the recorder sanitises in Python and the reader in shell, and C12 fails if the two ever disagree. Against the previous code the repro fails exactly the three declared controls; all seven named mutations are caught. ⚑ One control was vacuous as first written: the traversal test built its directory beside the wrong file, so removing sanitisation left it green. A mutation found it, not a re-read.
+
+Ports: `plugin-antigravity` picks up the lib and all three hook changes by regeneration (it has no `agent_id`, so its keys are unchanged). The hand-maintained preflight and external-fetch copies in `plugin-openai-codex` and `plugin-cursor-template` are **not** changed. Cowork has no hooks.
+
+⚠ Known and not changed here: the preflight breaker has no reset on a compliant commit (it only increments), which predates this release.
+
 ## 2.54.0 — 2026-09-24
 
 **The Rule 22 carrier is now recorded the moment it runs, so the gate no longer depends on when Claude Code writes the transcript.** 2.53.3's retrospect found early calls of a multi-call response still failing open; measuring why showed the transcript is written **all at once when the model finishes streaming the response** — a controlled 5-call batch created at +0.00…+2.93 s reached disk together at +3.06 s — while each tool call's hook runs during streaming. Over 2,031 edits in 40 sessions, **20%** are not the last call of their response; for those the remaining stream is p50 3.1 s · p90 9.1 s · max 30.9 s, so **~16% of all edits** were still unverified on 2.53.3.

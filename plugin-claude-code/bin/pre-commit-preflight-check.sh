@@ -185,7 +185,12 @@ if [ -n "$MATCHED" ]; then
   # Circuit breaker, same contract as pre-edit-check.sh: three consecutive denials
   # with no compliant commit between them degrade to allow-with-loud-warning. A gate
   # that can deadlock a session gets turned off permanently, which protects nothing.
-  BREAKER="${TMPDIR:-/tmp}/aria-preflight-denies-$SESSION_ID"
+  # Keyed per agent (v2.54.1): a subagent carries the parent's session_id, so a
+  # session-only key let its denials switch off the PARENT's commit gate. The
+  # session MARKER above stays session-level on purpose — a preflight that ran in
+  # this session counts for its subagents too.
+  [ -f "$SCRIPT_DIR/lib-state-key.sh" ] && . "$SCRIPT_DIR/lib-state-key.sh"
+  BREAKER="${TMPDIR:-/tmp}/aria-preflight-denies-$SESSION_ID$(kt_agent_suffix "$INPUT" 2>/dev/null)"
   COUNT=$(cat "$BREAKER" 2>/dev/null || echo 0)
   COUNT=$((COUNT + 1))
   printf '%s' "$COUNT" > "$BREAKER" 2>/dev/null || true
