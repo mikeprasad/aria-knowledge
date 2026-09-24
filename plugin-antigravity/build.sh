@@ -232,6 +232,14 @@ for f in "$SRC/bin"/*.sh; do
       echo "  [skip] $name (PreToolUse:Bash; unregistered here, and its .py resolver is not copied)"
       continue
       ;;
+    pre-bash-r22-carrier.sh)
+      # Added 2026-09-24 (v2.54.0), same class as pre-bash-write-check.sh above: a Claude Code
+      # PreToolUse:Bash hook this port does not register. It records the Rule 22 heredoc carrier for
+      # pre-edit-check.sh's Claude Code branch; this port's pre-edit path keys on step_index and never
+      # reads the record, so copying it would ship a dead file. Wire both halves or neither.
+      echo "  [skip] $name (PreToolUse:Bash carrier recorder; unregistered here, consumer is CC-branch only)"
+      continue
+      ;;
   esac
   cp "$f" "$DST/bin/$name"
   chmod +x "$DST/bin/$name"

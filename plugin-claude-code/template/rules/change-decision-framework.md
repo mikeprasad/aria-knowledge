@@ -171,6 +171,8 @@ R22
 
 Line-start anchoring means a command that merely *mentions* the marker (`grep '[Rule 22]' notes.md`) does not count, and content-carrying tools (Edit, Write, NotebookEdit, MultiEdit) are excluded so file content can never authorise an edit. The window is unchanged: a carrier before the previous Edit/Write does not carry over. The hook also re-reads the transcript for up to 1.5 s (`ARIA_R22_FLUSH_WAIT_MS`) when its own tool call has not been flushed yet, instead of failing open on the first miss.
 
+**Recorded carrier (v2.54.0).** Claude Code writes a response to the transcript all at once, when the model finishes streaming it, while each tool call's hook runs during streaming — so an edit early in a response could not see the marker above it until the rest of the response was generated. The heredoc carrier is now **recorded the moment the Bash call runs** (a `PreToolUse` hook on Bash) and the next Edit/Write in the same session, agent and user turn consumes that record: **one carrier authorises one edit**, exactly as before, with no transcript read and no wait. Visible text and other tool inputs still count through the transcript, which now waits up to 40 s for the response to be written — this is the path agents without Bash (e.g. `doc-updater`) use.
+
 ### WRONG (retroactive — the assessment rationalizes the write after it happened)
 
 ```

@@ -11,6 +11,9 @@ HOOK="$REPO_ROOT/plugin-claude-code/bin/pre-edit-check.sh"
 FIXTURES="$REPO_ROOT/tests/fixtures"
 fail() { echo "FAIL: $1"; exit 1; }
 export TMPDIR=$(mktemp -d); trap 'rm -rf "$TMPDIR"' EXIT
+# v2.54.0 raised the default transcript wait to 40 s; this suite tests the breaker,
+# not the wait (measured 4.0 s -> 42.4 s without an override).
+export ARIA_R22_FLUSH_WAIT_MS=${ARIA_R22_FLUSH_WAIT_MS:-300}
 
 invoke() {  # session_key fixture tool_use_id
   printf '{"file_path":"/tmp/test.txt","session_id":"%s","transcript_path":"%s","tool_use_id":"%s"}' \

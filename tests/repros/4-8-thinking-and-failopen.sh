@@ -25,6 +25,11 @@ FIXTURES="$REPO_ROOT/tests/fixtures"
 # scratch dir so repeated suite runs never accumulate denials across runs.
 export TMPDIR=$(mktemp -d)
 trap 'rm -rf "$TMPDIR"' EXIT
+# v2.54.0 raised the hook's default transcript wait to 40 s. Case E (id absent)
+# exercises the loud fail-open AFTER that wait, not its length — measured 3.4 s ->
+# 40.9 s for this suite without an override. The wait itself is covered by
+# r22-carrier-side-channel.sh (W1, R3) and r22-tool-input-marker-and-flush.sh (H3).
+export ARIA_R22_FLUSH_WAIT_MS=${ARIA_R22_FLUSH_WAIT_MS:-300}
 
 PASS=0
 FAIL=0

@@ -22,6 +22,14 @@
 # into self-healing fail-open: a single compliant edit deletes the counter and
 # restores blocking enforcement. Model-agnostic — no per-model parser patch.
 #
+# v2.54.0: carrier side channel. A Bash call whose input has a line-start [Rule 22]
+# marker is recorded by pre-bash-r22-carrier.sh when it runs; the next Edit/Write
+# in the same session + agent + prompt_id consumes that record and is allowed
+# without reading the transcript. Everything else (visible-text markers, other
+# tool inputs) still goes through the transcript, which now waits up to 40 s for
+# the response to be written. See docs/superpowers/specs/2026-09-24-r22-carrier-
+# side-channel-spec.md.
+#
 # Decision hierarchy (path classification — unchanged from v2.10.x):
 #   1. Planning path (and not protected)              -> abbreviated variant expected
 #   2. Protected path                                  -> full variant expected
@@ -59,6 +67,27 @@ SESSION_KEY="$SESSION_ID"
 SESSION_KEY=$(printf '%s' "$SESSION_KEY" | tr -cd 'A-Za-z0-9._-')
 BREAKER_STATE=""
 [ -n "$SESSION_KEY" ] && BREAKER_STATE="${TMPDIR:-/tmp}/aria-r22-denies-${SESSION_KEY}"
+
+# Carrier side channel (v2.54.0): pre-bash-r22-carrier.sh records a Bash call whose
+# input has a line-start [Rule 22] marker the moment it runs. Same key as the
+# recorder: session + agent (agent_id is present only inside a subagent). prompt_id
+# and agent_id are read with json, not grep — agent_id's position in the object is
+# undocumented, and this edit's own content could contain either literal.
+# Claude Code branch only; the antigravity step_index branch never records carriers.
+PROMPT_ID=""
+CARRIER_STATE=""
+if [ -z "$STEP_INDEX" ] && [ -n "$SESSION_KEY" ]; then
+  _IDS=$(printf '%s' "$INPUT" | python3 -c 'import json, sys
+try:
+    d = json.load(sys.stdin)
+    print((d.get("prompt_id") or "") + "\t" + (d.get("agent_id") or ""))
+except Exception:
+    print("\t")' 2>/dev/null)
+  PROMPT_ID=$(printf '%s' "$_IDS" | cut -f1)
+  AGENT_KEY=$(printf '%s' "$_IDS" | cut -f2 | tr -cd 'A-Za-z0-9._-')
+  CARRIER_STATE="${TMPDIR:-/tmp}/aria-r22-carrier-${SESSION_KEY}"
+  [ -n "$AGENT_KEY" ] && CARRIER_STATE="${CARRIER_STATE}.agent-${AGENT_KEY}"
+fi
 
 # Planning paths where abbreviated assessment is permitted
 IS_PLANNING=false
@@ -144,7 +173,25 @@ fi
 # This matches the framework doc's "same assistant turn" semantic, which
 # under 4.7's split-message harness spans multiple assistant messages.
 COMPLIANT="unknown"
-if [ -n "$TRANSCRIPT" ] && [ -n "$TOOL_USE_ID" ] && [ -f "$TRANSCRIPT" ]; then
+
+# Carrier side channel first (v2.54.0). The record is deleted on EVERY edit check,
+# whatever the outcome: ADR 062 counts edits, and the transcript window likewise
+# resets at any Edit/Write tool_use. It authorises only when both prompt_ids are
+# present and equal (same user turn); a missing prompt_id falls through to the
+# transcript (fail closed for the side channel, AC7).
+if [ -n "$CARRIER_STATE" ] && [ -f "$CARRIER_STATE" ]; then
+  REC_PROMPT=$(python3 -c 'import json, sys
+try:
+    print(json.load(open(sys.argv[1])).get("prompt_id") or "")
+except Exception:
+    print("")' "$CARRIER_STATE" 2>/dev/null)
+  rm -f "$CARRIER_STATE" 2>/dev/null
+  if [ -n "$PROMPT_ID" ] && [ "$REC_PROMPT" = "$PROMPT_ID" ]; then
+    COMPLIANT="yes"
+  fi
+fi
+
+if [ "$COMPLIANT" != "yes" ] && [ -n "$TRANSCRIPT" ] && [ -n "$TOOL_USE_ID" ] && [ -f "$TRANSCRIPT" ]; then
   COMPLIANT=$(TRANSCRIPT="$TRANSCRIPT" TOOL_USE_ID="$TOOL_USE_ID" STEP_INDEX="$STEP_INDEX" python3 - <<'PY' 2>/dev/null
 import json, os, re, sys
 try:
@@ -235,11 +282,18 @@ try:
         # fail-opens vs 70 denials over 40 sessions; the line lands within tens
         # of ms, during the hook's run). Re-read for a bounded wait instead of
         # fail-opening on the first miss. Timeout stays loud (below).
+        # v2.54.0: 1.5 s -> 40 s. Claude Code writes the whole response when the
+        # model finishes streaming it, so an edit early in a response waits for
+        # the rest of the response (measured p50 3.1 s, max 30.9 s). A carrier
+        # recorded at its own PreToolUse never reaches this wait. Keep the cap
+        # UNDER the 45 s hook timeout in plugin.json: a PreToolUse hook cancelled
+        # at its timeout "doesn't block the tool call" and its output is
+        # discarded — a SILENT fail-open. The cap guarantees the loud one first.
         import time
         try:
-            wait_ms = int(os.environ.get("ARIA_R22_FLUSH_WAIT_MS", "1500"))
+            wait_ms = int(os.environ.get("ARIA_R22_FLUSH_WAIT_MS", "40000"))
         except ValueError:
-            wait_ms = 1500
+            wait_ms = 40000
         deadline = time.time() + max(wait_ms, 0) / 1000.0
         target_line_idx, target_content_idx = find_target(lines)
         while target_line_idx is None and time.time() < deadline:
@@ -409,7 +463,7 @@ esac
 SIGNAL_NOTE=""
 [ -n "$SIGNALS" ] && SIGNAL_NOTE=" Structural signals detected (${SIGNALS}) — full assessment required regardless of batch declaration."
 
-REASON="Rule 22 compliance block missing. Emit the [Rule 22] marker ABOVE this Edit/Write tool call in the same assistant turn, between the previous Edit/Write (if any) and this one — as a text output (not thinking), OR at the start of a line in a non-edit tool's input. On Claude Code 2.1.280+ visible text is often not persisted, so prefer a Bash heredoc: cat <<'R22' / [Rule 22] ... / R22. Then retry the same tool call.${SIGNAL_NOTE} Format: ${FMT}. See rules/change-decision-framework.md 'Ordering (required)'."
+REASON="Rule 22 compliance block missing. Emit the [Rule 22] marker ABOVE this Edit/Write tool call in the same assistant turn, between the previous Edit/Write (if any) and this one — as a text output (not thinking), OR at the start of a line in a non-edit tool's input. On Claude Code 2.1.280+ visible text is often not persisted, so prefer a Bash heredoc, which is recorded the moment it runs: cat <<'R22' / [Rule 22] ... / R22 (one heredoc per edit). Then retry the same tool call.${SIGNAL_NOTE} Format: ${FMT}. See rules/change-decision-framework.md 'Ordering (required)'."
 REASON_ESCAPED=$(kt_json_escape "$REASON")
 
 printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"%s"}}\n' "$REASON_ESCAPED"

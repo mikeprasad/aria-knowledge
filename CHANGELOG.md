@@ -2,6 +2,18 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.54.0 — 2026-09-24
+
+**The Rule 22 carrier is now recorded the moment it runs, so the gate no longer depends on when Claude Code writes the transcript.** 2.53.3's retrospect found early calls of a multi-call response still failing open; measuring why showed the transcript is written **all at once when the model finishes streaming the response** — a controlled 5-call batch created at +0.00…+2.93 s reached disk together at +3.06 s — while each tool call's hook runs during streaming. Over 2,031 edits in 40 sessions, **20%** are not the last call of their response; for those the remaining stream is p50 3.1 s · p90 9.1 s · max 30.9 s, so **~16% of all edits** were still unverified on 2.53.3.
+
+**New `bin/pre-bash-r22-carrier.sh`** (a 4th `PreToolUse` `Bash` hook): when a Bash call's input has a line-start `[Rule 22…]` marker — the `cat <<'R22'` heredoc — it records `{prompt_id, tool_use_id}` to a per-session, per-agent state file. `pre-edit-check.sh` consumes that record before touching the transcript: **one carrier authorises exactly one edit** (ADR 062), only within the same session, agent (`agent_id`, present inside subagents) and user turn (`prompt_id`, per code.claude.com/docs/en/hooks). A missing `prompt_id` fails closed to the transcript path. The recorder never blocks or prints, and non-carrier Bash calls exit on a shell fast path without starting python.
+
+**Visible-text markers still count**, through the transcript, which now waits up to **40 s** for the response to be written (was 1.5 s); the `pre-edit-check.sh` hook timeout rises from 5 s to **45 s**. The cap stays under the timeout on purpose: the docs say a PreToolUse hook cancelled at its timeout "doesn't block the tool call" and its output is discarded — a silent fail-open — so the hook must always reach its own loud one first. This path matters because agents without Bash (`doc-updater`, `plugin-dev:agent-creator`) have no carrier; in subagent transcripts on 2.1.280 only 5% of responses lose their text, so the fallback works for them. A carrier-only rule was considered and rejected for exactly this reason.
+
+New repro `tests/repros/r22-carrier-side-channel.sh` (16 controls: recorder, consumer, isolation both directions, fail-closed, fallback wait, registration). Against the previous code it fails exactly the 11 expected controls; all ten named mutations (prompt equality, consumption, agent key both sides, anchoring, fast path, default wait, timeout, consumer guard, registration) are caught, restored byte-identical. ⚑ Three test-harness defects were caught on the way, each by a prediction that failed: `set -e` aborting the suite at a missing recorder, POSIX-mode errexit leaking into `$(...)`, and stdin fixtures built with `": "` separators that the hook's compact-JSON greps never match — the live harness sends compact JSON. Two existing suites gained a short wait override after measurement (3.4 s → 40.9 s and 4.0 s → 42.4 s without one); the others were unchanged and left alone.
+
+`plugin-antigravity/build.sh` skips the recorder (unregistered there; its pre-edit path keys on `step_index`), beside the `pre-bash-write-check.sh` precedent. Codex, Cursor and Cowork unchanged. ⚠ **Requires `/reload-plugins` (or a restart) after install** — this release adds a hook registration, unlike 2.53.3's script-only change.
+
 ## 2.53.3 — 2026-09-23
 
 **The Rule 22 pre-edit gate denied correct, visible markers on Claude Code 2.1.280 — and separately fail-opened on most edits on every version.** Two defects in the same detector, both measured on local transcripts before any code changed.
