@@ -309,6 +309,10 @@ printf -- '---\nknowledge_folder: %s\n---\n' "$KF" > "$CFG"
 # hook. Asserting the digest removes the ordering variable entirely.
 assert_eq "digest carries TASK BUDGET" "yes" "$(digest_has 'TASK BUDGET —')"
 assert_eq "digest carries INSIGHT CAPTURE" "yes" "$(digest_has 'INSIGHT CAPTURE —')"
+# The heading contract (2026-09-29): without it sessions invent `## ` group headers and `####`
+# children, both invisible to a `### ` count. See bin/count-backlog-entries.sh.
+assert_eq "INSIGHT CAPTURE states the ### entry-heading contract" "yes" \
+  "$(digest_has '### YYYY-MM-DD — <project> — <title>')"
 assert_eq "digest carries MEMORY PATHWAY" "yes" "$(digest_has 'MEMORY PATHWAY —')"
 
 # Latent defects that only became visible once the channel was actually read.

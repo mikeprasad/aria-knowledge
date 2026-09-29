@@ -42,7 +42,7 @@ Record counts per category and total.
 
 ## Step 2: Count backlog items
 
-For each backlog file, count the number of `### ` (h3) entries below the `---` separator:
+For each backlog file, count its **live** entries below the `---` separator by the rule in `/audit knowledge` Step 1 — `### ` entries, plus `## ` headings with content under them, plus unmarked `#### YYYY-MM-DD` headings dated on or after the last audit pass (a `### `-only count under-reports):
 
 - `<knowledge_folder>/intake/insights-backlog.md`
 - `<knowledge_folder>/intake/decisions-backlog.md`

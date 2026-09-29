@@ -126,18 +126,23 @@ Read `{knowledge_folder}/logs/knowledge-audit-log.md`.
 
 Note the "Last Audit" date and calculate days since.
 
-**Compute the current trigger state** by counting `^### ` entries across the four action-eligible backlogs (insights, decisions, extraction, rules — exclude `intake/ideas/`, which routes out via the Accept submenu rather than promoting directly). Count only entries **below the first `---` separator** per file, matching the convention used by `/stats` and `/backlog`:
+**Compute the current trigger state** with the shared counter — the same one the SessionStart hook uses, so the prompt and the audit's scope can never disagree. It covers the four action-eligible backlogs (insights, decisions, extraction, rules — `intake/ideas/` is excluded, it routes out via the Accept submenu), below the first `---` separator per file:
 
 ```bash
-for f in {knowledge_folder}/intake/insights-backlog.md \
-         {knowledge_folder}/intake/decisions-backlog.md \
-         {knowledge_folder}/intake/extraction-backlog.md \
-         {knowledge_folder}/intake/rules-backlog.md; do
-  [ -f "$f" ] && awk '/^---$/{sep++; next} sep>=1 && /^### /{c++} END{print c+0}' "$f"
-done | awk '{s+=$1} END{print s+0}'
+bash scripts/aria/count-backlog-entries.sh {knowledge_folder}          # per-file + TOTAL line
+bash scripts/aria/count-backlog-entries.sh {knowledge_folder} --list   # every non-### live block
 ```
 
-Record the count — it feeds both the prompt message and Step 8's `Trigger:` audit-log subfield.
+The TOTAL line reads `canonical=N h2=N h4suspect=N live=N cutoff=YYYY-MM-DD`:
+
+- **canonical** — `### ` entries: the old counter's number, kept as the **control**. If it reads 0 on a backlog you can see has entries, the counter is broken — stop and say so.
+- **h2** — a `## ` heading with content under it: an entry written as a group header.
+- **h4suspect** — a `#### YYYY-MM-DD` heading dated on or after the last pass whose heading carries **no disposition marker**. It is either an entry born at the wrong level or a past pass's unmarked demotion — nothing on disk separates the two, which is why the Step 7 clearing contract requires the marker.
+- **live** = canonical + h2 + h4suspect — **this is the backlog count and the audit's scope.**
+
+Every `--list` line is a real entry and is reviewed with its backlog in Steps 2–2c3 like any `### ` entry. Also report them together in Step 6 as a **Mis-levelled entries (N)** finding — a non-zero N means some writer is not using the `### YYYY-MM-DD — <project> — <title>` contract. ⚠ Known bound: an *undated* `####` born at the wrong level cannot be windowed and stays invisible.
+
+Record both numbers — `live` feeds the prompt message and Step 8's `Trigger:` count; `canonical` is recorded beside it so a later pass can see the gap.
 
 **Determine how this skill was invoked:**
 
@@ -915,6 +920,16 @@ Then execute approved promotions below:
 - **Stale codemaps** → if the user wants to refresh a stale codemap, do NOT run it inline. Instead tell them: *"Run `/codemap update` in the {project} directory in a separate session or after this audit completes. Codemap updates scan many files and are best run as a focused task."* This avoids blowing the context window mid-audit.
 - Rejected items → clear from their respective backlogs
 
+### Clearing contract — what "clear from backlog" means
+
+Every "clear" above means exactly this, for every disposition:
+
+1. **Demote the entry's heading to `#### ` in place.** The body stays (Rule 6 — the backlog is its own archive).
+2. **Append a disposition marker to that heading:** `[<DISPOSITION> YYYY-MM-DD (<Nth> pass) → <destination>]`, where DISPOSITION is one of `PROMOTED`, `HOMED`, `DISPOSITIONED`, `CLEARED`, `REJECTED` (omit `→ <destination>` when there is none). A deferred entry stays at `### ` with no marker.
+3. **A `## ` entry** from Step 1's `--list` is re-levelled to `#### ` with a marker the same way; **an h4-suspect** keeps its level and gains a marker.
+
+⛔ **Never demote without the marker, and put it in the HEADING, not the body.** An unmarked recent `####` is indistinguishable from an entry written at the wrong level, so the counter must keep reporting it as a suspect; and the counter reads the marker from the heading only, because bodies legitimately contain bracketed tokens (`[DRAFT …]`, `[IDEA]`) that would otherwise hide a live entry.
+
 ### Cross-References on Promotion
 
 When writing any new knowledge file during promotion, add a `## Related` section at the bottom linking to existing knowledge files that share concepts, context, or dependencies. To find related files:
@@ -987,7 +1002,7 @@ Use the **structured format** below — it keeps audit logs scannable over many 
 ```markdown
 ## Last Audit
 - **Date:** YYYY-MM-DD (Nth pass — short label: "routine check", "v2.8.0 continuation", "post-restructure", etc.)
-- **Trigger:** count=N threshold=T days=D cadence=C — (which fired: count-tier|days|user-invoked)
+- **Trigger:** count=N (canonical=C) threshold=T days=D cadence=C — (which fired: count-tier|days|user-invoked)
 - **Counts:** X insights, Y decisions, Z extractions, R rules reviewed
 - **Ideas disposition:** W reviewed — accepted: A1 tracker / A2 roadmap / A3 todo / A4 adr / A5 backlog / A6 bundle / A7 rule (sum = A); B rejected; C deferred; D reclassified (omit field entirely if no ideas were in the audit; omit any zero-valued sub-counts)
 - **New files:** N total — [breakdown: K approaches, L ADRs (split by tier), M patterns, etc.]
@@ -1003,7 +1018,7 @@ Use the **structured format** below — it keeps audit logs scannable over many 
 ```markdown
 ## Last Audit
 - **Date:** YYYY-MM-DD (Nth pass — "no new items" or short label)
-- **Trigger:** count=N threshold=T days=D cadence=C — (which fired: count-tier|days|user-invoked)
+- **Trigger:** count=N (canonical=C) threshold=T days=D cadence=C — (which fired: count-tier|days|user-invoked)
 - **Result:** No new items — [X memory files all Category A, Y plan files Category B, backlogs empty OR K entries all cleared as already-captured/stale]
 - **Ideas disposition:** [optional — omit if no ideas were in the audit, else: W reviewed — accepted: A1 tracker / A2 roadmap / A3 todo / A4 adr / A5 backlog / A6 bundle / A7 rule (sum = A); B rejected; C deferred; D reclassified — omit any zero-valued sub-counts]
 - **Notes:** [optional — anything worth flagging even though nothing was promoted, e.g. "clusters forming around theme X but below threshold"]

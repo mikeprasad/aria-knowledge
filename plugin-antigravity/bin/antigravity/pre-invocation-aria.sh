@@ -89,17 +89,20 @@ if [ "$INVOCATION_NUM" = "0" ]; then
       else
         # Knowledge audit cadence
         BACKLOG_COUNT=0
-        for _kt_bl in "$KT_KNOWLEDGE_FOLDER/intake/insights-backlog.md" \
-                      "$KT_KNOWLEDGE_FOLDER/intake/decisions-backlog.md" \
-                      "$KT_KNOWLEDGE_FOLDER/intake/extraction-backlog.md"; do
-          if [ -f "$_kt_bl" ]; then
-            _kt_n=$(awk '/^---$/{sep++; next} sep>=1 && /^### /{c++} END{print c+0}' "$_kt_bl" 2>/dev/null)
-            case "$_kt_n" in
-              ''|*[!0-9]*) _kt_n=0 ;;
-            esac
-            BACKLOG_COUNT=$((BACKLOG_COUNT + _kt_n))
-          fi
-        done
+        KA_OFFLEVEL_NOTE=""
+        # Shared counter (bin/count-backlog-entries.sh): all four backlogs, every live heading shape.
+        # Any failure reads as 0, as the inline ^### loop this replaces did.
+        _kt_cb=$(sh "$CLAUDE_PLUGIN_ROOT/bin/count-backlog-entries.sh" "$KT_KNOWLEDGE_FOLDER" 2>/dev/null | grep '^TOTAL:')
+        case "$_kt_cb" in
+          TOTAL:*)
+            _kt_live=$(printf '%s' "$_kt_cb" | sed -n 's/.* live=\([0-9][0-9]*\).*/\1/p')
+            _kt_canon=$(printf '%s' "$_kt_cb" | sed -n 's/.*canonical=\([0-9][0-9]*\).*/\1/p')
+            case "$_kt_live" in ''|*[!0-9]*) _kt_live=0 ;; esac
+            case "$_kt_canon" in ''|*[!0-9]*) _kt_canon=$_kt_live ;; esac
+            BACKLOG_COUNT=$_kt_live
+            [ "$_kt_live" -gt "$_kt_canon" ] && KA_OFFLEVEL_NOTE=" ($((_kt_live - _kt_canon)) not at ### level)"
+            ;;
+        esac
 
         KA_TIER_RECOMMENDED=$((KT_AUDIT_TRIGGER_THRESHOLD + 15))
         KA_TIER_OVERDUE=$((KT_AUDIT_TRIGGER_THRESHOLD + 30))
@@ -124,11 +127,11 @@ if [ "$INVOCATION_NUM" = "0" ]; then
 
         KA_COUNT_MSG=""
         if [ "$BACKLOG_COUNT" -ge "$KA_TIER_OVERDUE" ]; then
-          KA_COUNT_MSG="Knowledge audit overdue — ${BACKLOG_COUNT} entries, plan for multi-pass. "
+          KA_COUNT_MSG="Knowledge audit overdue — ${BACKLOG_COUNT} entries${KA_OFFLEVEL_NOTE}, plan for multi-pass. "
         elif [ "$BACKLOG_COUNT" -ge "$KA_TIER_RECOMMENDED" ]; then
-          KA_COUNT_MSG="Knowledge audit recommended — ${BACKLOG_COUNT} entries, near one-pass ceiling. "
+          KA_COUNT_MSG="Knowledge audit recommended — ${BACKLOG_COUNT} entries${KA_OFFLEVEL_NOTE}, near one-pass ceiling. "
         elif [ "$BACKLOG_COUNT" -ge "$KT_AUDIT_TRIGGER_THRESHOLD" ]; then
-          KA_COUNT_MSG="Knowledge audit suggested — ${BACKLOG_COUNT} entries ready for review. "
+          KA_COUNT_MSG="Knowledge audit suggested — ${BACKLOG_COUNT} entries${KA_OFFLEVEL_NOTE} ready for review. "
         fi
 
         KA_DAYS_FIRED=false
@@ -270,7 +273,7 @@ if [ "$INVOCATION_NUM" = "0" ]; then
 
     # Insight batch capture
     if [ "${KT_AUTO_CAPTURE:-}" != "false" ]; then
-      MESSAGES="${MESSAGES}INSIGHT CAPTURE — After completing discrete tasks, batch-append any uncaptured ★ Insight blocks to ${KT_KNOWLEDGE_FOLDER}/intake/insights-backlog.md. Do not capture mid-task — only at task completion boundaries. "
+      MESSAGES="${MESSAGES}INSIGHT CAPTURE — After completing discrete tasks, batch-append any uncaptured ★ Insight blocks to ${KT_KNOWLEDGE_FOLDER}/intake/insights-backlog.md, each as one '### YYYY-MM-DD — <project> — <title>' heading with its body under it — never under a '## ' group header and never at '####', the level that means already processed. Do not capture mid-task — only at task completion boundaries. "
     fi
 
     # Memory pathway

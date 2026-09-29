@@ -40,7 +40,7 @@ Set backlog paths (absolute paths from knowledge_folder):
 
 ## Step 2: Overview mode
 
-Read all four backlog files. For each, count the number of `### YYYY-MM-DD` entries after the `---` separator and find the most recent date. **If any backlog file is missing**, show *"missing — run `/aria-setup` to repair"* instead of a count for that file.
+Read all four backlog files. For each, count its **live** entries after the `---` separator by the rule in `/audit knowledge` Step 1 (a `### `-only count under-reports) and find the most recent date. **If any backlog file is missing**, show *"missing — run `/aria-setup` to repair"* instead of a count for that file.
 
 Output:
 

@@ -119,7 +119,7 @@ TASK BUDGET — You do not see usage directly (only the user's UI shows it). If 
 
 ### When `auto_capture` is not `false`
 
-INSIGHT CAPTURE — After completing discrete tasks, batch-append any uncaptured ★ Insight blocks to {knowledge_folder}/intake/insights-backlog.md. Do not capture mid-task — only at task completion boundaries.
+INSIGHT CAPTURE — After completing discrete tasks, batch-append any uncaptured ★ Insight blocks to {knowledge_folder}/intake/insights-backlog.md, each as one `### YYYY-MM-DD — <project> — <title>` heading with its body under it — never under a `## ` group header and never at `####`, the level that means already processed. Do not capture mid-task — only at task completion boundaries.
 
 ### When `active_surfacing` is `true` AND `{knowledge_folder}/index.md` exists and holds at least one `### ` tag header
 

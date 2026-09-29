@@ -999,7 +999,7 @@ Set backlog paths:
 
 ## Step 2: Overview Mode
 
-Read all four backlog files. For each, count the number of `### YYYY-MM-DD` entries after the `---` separator and find the most recent date. **If any backlog file is missing**, show "missing — run /setup to repair" instead of a count for that file.
+Read all four backlog files. For each, take its `live` count from `bash scripts/aria/count-backlog-entries.sh {knowledge_folder}` (fallback: count `### YYYY-MM-DD` entries after the `---` separator, noting it may under-report) and find the most recent date. **If any backlog file is missing**, show "missing — run /setup to repair" instead of a count for that file.
 
 Output:
 ```
@@ -1105,7 +1105,7 @@ Record counts per category and total.
 
 ## Step 2: Count Backlog Items
 
-For each backlog file, count the number of `### ` (h3) entries below the `---` separator:
+For each backlog file, take its `live` count from `bash scripts/aria/count-backlog-entries.sh {knowledge_folder}` — the same counter `/audit knowledge` and the SessionStart trigger use, which also sees entries written at `## ` or mis-levelled at `####`. If the script is unavailable, fall back to counting `### ` (h3) entries below the `---` separator and say the figure may under-report:
 
 - `{knowledge_folder}/intake/insights-backlog.md`
 - `{knowledge_folder}/intake/decisions-backlog.md`
