@@ -2,6 +2,25 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.55.0 — 2026-09-30
+
+**The backlog count now sees every live entry, not just `### ` headings.** Every count in the plugin was `awk '… /^### /{c++}'`. On a real knowledge folder it read 117 against a true 181: standalone `## ` entries and mis-levelled `####` entries were invisible. Because that count is also the audit's scope, invisible entries were never audited.
+
+**New `bin/count-backlog-entries.sh`**, one counter for the SessionStart trigger and `/audit knowledge`, so the two can no longer disagree. It reports three kinds of live entry: `canonical` (`### `, the old number, kept as a control), `h2` (a `## ` heading with content under it), and `h4suspect` (a dated `####` on or after the last audit whose heading carries no disposition marker). `live` is their sum. `--list` names each non-`### ` entry by file and line.
+
+- **The date only narrows the window; the marker classifies.** A pass stamped in one timezone demoted entries dated the next day in another, so a date-only rule would have miscounted processed entries as live.
+- **The marker is read from the heading only.** In a real corpus, every bracketed token found only in a body was content (`[DRAFT …]`, `[IDEA]`), never a disposition.
+
+**The SessionStart prompt** now counts `rules-backlog.md` (the audit skill did, the hook did not), and names mis-levelled entries: *"… 32 entries (21 not at ### level) ready for review."* Expect it to fire sooner until your next audit pass marks old demotions.
+
+**`/audit knowledge` Step 7 gains an explicit clearing contract.** "Clear from backlog" was never defined, and passes improvised it. Clearing now means: demote the heading to `#### ` in place **and** append `[<DISPOSITION> YYYY-MM-DD (<Nth> pass) → <destination>]` to the heading. Without the marker, a processed entry is indistinguishable from one written at the wrong level.
+
+**The INSIGHT CAPTURE directive states the heading format** — `### YYYY-MM-DD — <project> — <title>`, never a `## ` group header or a `####`. It named no level before, so sessions invented their own. `/stats` and `/backlog` now describe their counts via the counter.
+
+Tests: 16 new assertions, including the first coverage of the SessionStart count and prompt; each counter guard was mutation-checked against its own assertion. Antigravity is rebuilt at 2.55.0. **Codex, Cursor and Cowork carry the change in source but their artifacts are not rebuilt this release** — their ports have unrelated, unverified drift, and a version bump would claim a parity they don't have.
+
+⚠ Known and not fixed here: the SessionStart hook prints its JSON with `echo`, which under macOS `sh` halves backslashes, so the payload fails to parse. This predates 2.55.0.
+
 ## 2.54.2 — 2026-09-25
 
 **The post-edit `[Rule 22 · Scope]` line no longer satisfies the next edit's pre-edit gate.** Found by 2.54.1's live check: a `doc-updater` Write with no assessment was allowed because the line above it was the subagent's answer to the previous edit's scope check. Every matcher accepted `[Rule 22 · <anything>]`, while the framework names `· Scope` as the post-edit line and ADR 036 requires an assessment before every edit — so an agent answering each scope check never had to assess. Live where visible text is saved (subagents); mostly latent on the Claude Code 2.1.280 main thread.
