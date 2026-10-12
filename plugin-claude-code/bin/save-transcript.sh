@@ -33,10 +33,10 @@ GUESSED=""
 
 # A top-level <project>/<id>.jsonl is a session transcript. Deeper .jsonl files
 # (<sid>/subagents/agent-*.jsonl, plugin logs) are not, so stay at depth 2.
+# Session ids are UUIDs, so one match is expected; no mtime sort, which keeps
+# this path free of the BSD-only stat flags below.
 find_by_id() {
-  find "$PROJECTS_DIR" -mindepth 2 -maxdepth 2 -type f -name "$1.jsonl" 2>/dev/null \
-    | while IFS= read -r f; do stat -f "%Fm %N" "$f" 2>/dev/null; done \
-    | sort -rn | head -1 | cut -d' ' -f2-
+  find "$PROJECTS_DIR" -mindepth 2 -maxdepth 2 -type f -name "$1.jsonl" 2>/dev/null | head -1
 }
 
 for CANDIDATE in "${CLAUDE_CODE_SESSION_ID:-}" "${1:-}"; do
