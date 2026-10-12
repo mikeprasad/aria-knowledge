@@ -2,6 +2,16 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## Unreleased
+
+**`/snapshot` now captures your session, not whichever session wrote last.** The helper copied the most recently modified `*.jsonl` under `~/.claude/projects`. With several Claude Code sessions open, that was often another session's transcript, and it still printed "saved" with exit 0. It now looks the transcript up by session id: `$CLAUDE_CODE_SESSION_ID`, then the `${CLAUDE_SESSION_ID}` the skill passes as an argument.
+
+- **An id with no matching transcript is an error.** The helper exits 1 and writes nothing rather than guessing.
+- **Non-transcript files can no longer be captured.** The old search also matched deeper `.jsonl` files, such as subagent transcripts and plugin logs (`vercel-plugin/skill-injections.jsonl`), and would save one as `<date>_skill-in.md`. Only top-level `<project>/<id>.jsonl` files are considered now.
+- **No id at all** (older Claude Code): the helper keeps the newest-transcript fallback and prints a `⚠ GUESSED` line naming the session it took.
+
+Tests: new `tests/repros/snapshot-session-id.sh` (6 arms). It fails on the old helper, which captured the plugin log. Claude Code port only. Antigravity reads a hook-written path cache and Cowork has no shell. ⚠ Codex's `save-transcript.sh` still carries the old newest-file locator, pointed at `~/.claude/projects`; it is not fixed here.
+
 ## 2.55.0 — 2026-09-30
 
 **The backlog count now sees every live entry, not just `### ` headings.** Every count in the plugin was `awk '… /^### /{c++}'`. On a real knowledge folder it read 117 against a true 181: standalone `## ` entries and mis-levelled `####` entries were invisible. Because that count is also the audit's scope, invisible entries were never audited.
