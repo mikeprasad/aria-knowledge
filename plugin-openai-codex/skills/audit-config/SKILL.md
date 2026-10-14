@@ -5,7 +5,9 @@ argument-hint: ""
 allowed-tools: Read, Glob, Grep, Write, Edit, Agent
 ---
 
-# /audit-config — Configuration & Documentation Health Check
+# /audit config — Configuration & Documentation Health Check
+
+Canonical invocation: **`/audit config`**. The direct `/audit-config` form is retained for compatibility and is not advertised.
 
 Scan all CLAUDE.md files, `.claude/settings.local.json` configs, plugin manifests, and knowledge files for drift, broken references, and staleness.
 
@@ -23,7 +25,7 @@ Note the "Last Audit" date and calculate days since.
 
 **Determine how this skill was invoked:**
 
-- **User-requested** (user said `/audit-config`, "audit configs", "check setup", etc.): **Always run the full audit**, regardless of how recently the last audit was. Skip directly to Step 2.
+- **User-requested** (user said `/audit config`, "audit configs", "check setup", etc.): **Always run the full audit**, regardless of how recently the last audit was. Skip directly to Step 2.
 - **Session-start check** (triggered by the SessionStart hook): Check if the configured cadence has been exceeded.
   - If **cadence exceeded**: Prompt the user — *"It's been N days since the last config & docs audit. Want me to check for drift?"* If they agree, proceed to Step 2. If not, stop.
   - If **within cadence**: Report the last audit date and stop. *"Last config & docs audit was N day(s) ago (YYYY-MM-DD). Next check due in M days."*

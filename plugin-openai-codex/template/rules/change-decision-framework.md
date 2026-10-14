@@ -160,6 +160,19 @@ Every compliance block is marked with a `[Rule 22]` prefix on its header line �
 
 As of v2.10.5, the PreToolUse hook enforces ordering structurally. It parses the current assistant turn's transcript for the `[Rule 22...]` marker in text blocks preceding the Edit/Write tool_use. If the marker is present, the hook allows silently. If absent, the hook returns `permissionDecision: "deny"` with a recovery message naming the expected format, and Claude must retry — this time emitting the block first. The retroactive output path is **unreachable by design** — there is no code path in which Rule 22 compliance is satisfied after the edit lands. The discipline is mechanism-enforced, not Claude-side.
 
+**Second channel (v2.53.3).** Claude Code 2.1.280 stopped persisting most assistant text blocks — they are saved as a *paraphrased* thinking block with no `[Rule 22]` token, even when the text block held nothing but the marker — so a correct, visible marker was denied. The hook therefore also accepts the marker **at the start of a line** inside a string input of a non-edit tool in the same window; tool inputs are persisted verbatim. The recommended carrier is a Bash heredoc, which is also visible to the user in the tool output:
+
+```
+cat <<'R22'
+[Rule 22] Low Impact — <change> (<why low>)
+Change — ... / Solutions — ... / Execute — ...
+R22
+```
+
+Line-start anchoring means a command that merely *mentions* the marker (`grep '[Rule 22]' notes.md`) does not count, and content-carrying tools (Edit, Write, NotebookEdit, MultiEdit) are excluded so file content can never authorise an edit. The window is unchanged: a carrier before the previous Edit/Write does not carry over. The hook also re-reads the transcript for up to 1.5 s (`ARIA_R22_FLUSH_WAIT_MS`) when its own tool call has not been flushed yet, instead of failing open on the first miss.
+
+**Recorded carrier (v2.54.0).** Claude Code writes a response to the transcript all at once, when the model finishes streaming it, while each tool call's hook runs during streaming — so an edit early in a response could not see the marker above it until the rest of the response was generated. The heredoc carrier is now **recorded the moment the Bash call runs** (a `PreToolUse` hook on Bash) and the next Edit/Write in the same session, agent and user turn consumes that record: **one carrier authorises one edit**, exactly as before, with no transcript read and no wait. Visible text and other tool inputs still count through the transcript, which now waits up to 40 s for the response to be written — this is the path agents without Bash (e.g. `doc-updater`) use.
+
 ### WRONG (retroactive — the assessment rationalizes the write after it happened)
 
 ```
@@ -231,7 +244,7 @@ The hooks require Claude to output specific formats. This ensures every step is 
 
 > The examples below are from a real CSS framework project. Replace file names and scenarios with your own — the format and reasoning structure are what matter.
 
-> **Marker convention (v2.10.5+):** every compliance block starts with `[Rule 22]` or `[Rule 22 · <variant>]` on its header line. Variants: `[Rule 22] Low Impact —`, `[Rule 22] High Impact —`, `[Rule 22 · Planning] <file>`, `[Rule 22 · Batch N/M] <file>`. Post-edit scope lines use `[Rule 22 · Scope] PASS/CONDITIONAL/FAIL — ...`. The PreToolUse hook detects this marker via regex; omitting it causes `permissionDecision: "deny"` on the Edit/Write and forces a retry with the block emitted first. The marker is additive — the rest of the format (Change / Solutions / Execute, etc.) is unchanged. Templates and examples below show the marker inline.
+> **Marker convention (v2.10.5+):** every compliance block starts with `[Rule 22]` or `[Rule 22 · <variant>]` on its header line. Variants: `[Rule 22] Low Impact —`, `[Rule 22] High Impact —`, `[Rule 22 · Planning] <file>`, `[Rule 22 · Batch N/M] <file>`. Post-edit scope lines use `[Rule 22 · Scope] PASS/CONDITIONAL/FAIL — ...`. **A Scope line is the post-edit check only — it does not satisfy the pre-edit gate for the next edit** (v2.54.2; every `· Scope` form is excluded, e.g. `Scope check`, while a different word such as `· Scoped change` still counts). The PreToolUse hook detects this marker via regex; omitting it causes `permissionDecision: "deny"` on the Edit/Write and forces a retry with the block emitted first. The marker is additive — the rest of the format (Change / Solutions / Execute, etc.) is unchanged. Templates and examples below show the marker inline.
 
 ---
 

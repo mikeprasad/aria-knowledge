@@ -7,6 +7,8 @@ allowed-tools: Read, Glob, Grep, Bash, Write
 
 # /audit usage — Value/ROI Self-Analysis
 
+Canonical invocation: **`/audit usage`**. The direct `/audit-usage` form is retained for compatibility and is not advertised.
+
 Generate a value-analysis report computed against the user's OWN knowledge corpus — the user-facing counterpart to the plugin's published `docs/value-analysis.md` (which is the author's N=1 digest). Deterministic metrics come from `bin/usage-metrics.sh`; the interpretive narrative is written here, gated on sample size.
 
 ## Step 0: Resolve Config
@@ -54,7 +56,7 @@ Print a 3-4 line inline summary (needs-changes rate, clean rate, per-fix-verdict
 
 ## Rules
 
-- **Opt-in only** — never fired by a cadence nudge; only explicit `/audit usage`, `/audit all`, or menu pick.
+- **Opt-in only** — never fired by a cadence nudge; only explicit `/audit usage` or a menu pick.
 - **Honest on small samples** — print every `n`; gate trends on ≥10/month; never fabricate on a zero corpus.
 - **Metrics are the script's job** — do not re-derive counts inline; `bin/usage-metrics.sh` is the single source of truth. The skill only interprets and persists.
 - **The user's corpus, not the author's** — the report reflects THIS user's logs; do not import the published doc's numbers.

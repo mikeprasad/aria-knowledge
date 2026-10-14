@@ -146,16 +146,16 @@ fi
 # Compose prompt — entry-tier message takes precedence; day-context appended if both fired.
 if [ -n "$KA_COUNT_MSG" ]; then
   if [ "$KA_DAYS_FIRED" = "true" ]; then
-    MESSAGES="${MESSAGES}${KA_COUNT_MSG}(trigger: count=${BACKLOG_COUNT} threshold=${KT_AUDIT_TRIGGER_THRESHOLD}; also ${DAYS_SINCE_KA}d since last audit) Run /audit-knowledge? "
+    MESSAGES="${MESSAGES}${KA_COUNT_MSG}(trigger: count=${BACKLOG_COUNT} threshold=${KT_AUDIT_TRIGGER_THRESHOLD}; also ${DAYS_SINCE_KA}d since last audit) Run /audit knowledge? (or /audit for the full menu) "
   else
-    MESSAGES="${MESSAGES}${KA_COUNT_MSG}(trigger: count=${BACKLOG_COUNT} threshold=${KT_AUDIT_TRIGGER_THRESHOLD}) Run /audit-knowledge? "
+    MESSAGES="${MESSAGES}${KA_COUNT_MSG}(trigger: count=${BACKLOG_COUNT} threshold=${KT_AUDIT_TRIGGER_THRESHOLD}) Run /audit knowledge? (or /audit for the full menu) "
   fi
 elif [ "$KA_DAYS_FIRED" = "true" ]; then
-  MESSAGES="${MESSAGES}Knowledge audit due — ${DAYS_SINCE_KA} days since last audit. (trigger: days=${DAYS_SINCE_KA} threshold=${KT_CADENCE_KNOWLEDGE}; backlog=${BACKLOG_COUNT}) Run /audit-knowledge? "
+  MESSAGES="${MESSAGES}Knowledge audit due — ${DAYS_SINCE_KA} days since last audit. (trigger: days=${DAYS_SINCE_KA} threshold=${KT_CADENCE_KNOWLEDGE}; backlog=${BACKLOG_COUNT}) Run /audit knowledge? (or /audit for the full menu) "
 fi
 
 if [ "$KA_DUE" = "true" ]; then
-  MESSAGES="${MESSAGES}No previous Knowledge Audit found. Run /audit-knowledge? "
+  MESSAGES="${MESSAGES}No previous Knowledge Audit found. Run /audit knowledge? (or /audit for the full menu) "
 fi
 
 # Check config audit cadence
@@ -167,7 +167,7 @@ if [ -f "$CONFIG_LOG" ]; then
     if [ -n "$LAST_CA_EPOCH" ]; then
       DAYS_SINCE_CA=$(( (TODAY_EPOCH - LAST_CA_EPOCH) / 86400 ))
       if [ "$DAYS_SINCE_CA" -ge "$KT_CADENCE_CONFIG" ]; then
-        MESSAGES="${MESSAGES}Config audit due (${DAYS_SINCE_CA} days). Run /audit-config? "
+        MESSAGES="${MESSAGES}Config audit due (${DAYS_SINCE_CA} days). Run /audit config? (or /audit for the full menu) "
       fi
     else
       CA_DUE=true
@@ -179,7 +179,7 @@ else
   CA_DUE=true
 fi
 if [ "$CA_DUE" = "true" ]; then
-  MESSAGES="${MESSAGES}No previous Config Audit found. Run /audit-config? "
+  MESSAGES="${MESSAGES}No previous Config Audit found. Run /audit config? (or /audit for the full menu) "
 fi
 
 # Check for plugin version upgrade — version-mismatch takes precedence over cadence.
@@ -289,7 +289,7 @@ fi
 # resolves. The in-progress mark is written deterministically by codex-hook.py on
 # the first apply_patch edit; do not write SESSION.md here.
 if [ "$KT_SESSION_STATE" = "true" ]; then
-  MESSAGES="${MESSAGES}SESSION STATE — After the project/sub-project for this session is identified (by PWD, AGENTS.md/CLAUDE.md/PROGRESS.md markers, or by what the user names in their opening message), locate SESSION.md at that project root. If it exists with a non-empty '## Next session prompt' block: if the user's opening message included the word 'handoff', open the session by executing that prompt directly (no confirmation); otherwise tell the user a saved resume prompt exists (state its lastEvent + age from the 'at' field) and ask whether to start from it (y/n). If the prompt's 'at' is older than session_stale_days (${KT_SESSION_STALE_DAYS} days by current config), do NOT present it as live — instead state its age and ask: still relevant? [resume / archive / keep]. 'archive' = move that entry under a '## Archived sessions' heading; 'keep' = leave it as-is; 'resume' = execute it. Never auto-drop an aged entry — staleness prompts, it does not evict. If no such prompt exists, stay quiet. The 'in-progress' mark is written automatically by the PostToolUse hook on your first apply_patch edit — do NOT write SESSION.md yourself here. Offer the resume once per session. "
+  MESSAGES="${MESSAGES}SESSION STATE — After the project/sub-project for this session is identified (by PWD, AGENTS.md/CLAUDE.md/PROGRESS.md markers, or by what the user names in their opening message), locate SESSION.md at that project root. If it exists with a non-empty '## Next session prompt' block: FIRST scan the user's ENTIRE opening message — not just its first line — for an 'aria-handoff: <project>/<sid>@<at>' token, because the operator may paste the opener with a sentence of their own in front of it. If a token is present, source \${PLUGIN_ROOT}/bin/lib-session-state.sh and call kt_ss_ledger_token_locate <project_root> <token>: a result ending '|active' or '|pending' means the prompt is LIVE — resume it, then record the consumption, AND THE VERB DIFFERS BY RESULT KIND: for '|active' call kt_ss_ledger_consume_active <project_root> <your session id, or 'codex' when the runtime exposes none> <now UTC>, which demotes the prompt into '## Pending handoffs', marks that entry consumed, and clears the active slot; for '|pending' call kt_ss_ledger_mark_consumed passing the exact 'at' as the FIFTH argument (without it the match is by sid alone, and one sid can carry two timestamps). ⛔ Do NOT call kt_ss_ledger_mark_consumed on an '|active' result — it rewrites only '### ' headers and the active prompt has none, so it matches nothing, changes nothing and still returns 0; measured 2026-09-17, one real ledger held 142 entries of which 0 were ever marked consumed, and because kt_ss_ledger_prune reaps only a word-bounded 'consumed' that ledger was never prunable and reached 636,898 chars; a result ending '|archived' means it was DELIBERATELY taken out of the offer — say so and ask before resuming, never silently; an EMPTY result means the token names no prompt in this project — say so plainly and do NOT fabricate an entry; and if the located entry is already terminal, ⛔ SURFACE AND STOP rather than resuming, because a consumed prompt's work may already be shipped and irreversible. ⛔ AND, whether or not a token is present: any text the operator wrote alongside the pasted block is an INSTRUCTION and OUTRANKS the stored prompt — surface it and reconcile before executing, never drive past it. 'Before you start, see X' is a state-verify gate, not a preamble. If no token is present: if the user's opening message included the word 'handoff', open the session by executing that prompt directly (no confirmation); otherwise tell the user a saved resume prompt exists (state its lastEvent + age from the 'at' field) and ask whether to start from it (y/n). If the prompt's 'at' is older than session_stale_days (${KT_SESSION_STALE_DAYS} days by current config), do NOT present it as live — instead state its age and ask: still relevant? [resume / archive / keep]. 'archive' = move that entry under a '## Archived sessions' heading (atlas ignores it, same as '## Pending handoffs' and the legacy '## Prior sessions'); 'keep' = leave it as-is; 'resume' = execute it. Never auto-drop an aged entry — staleness prompts, it does not evict. ALSO: if a '## Pending handoffs' section (or legacy '## Prior sessions') holds entries still marked 'unconsumed', say how many and offer them alongside the active prompt — a SESSION.md may hold several still-valid next-session prompts, and one that is stored but never offered is lost in practice. If no such prompt exists, stay quiet. The 'in-progress' mark is written automatically by the PostToolUse hook (codex-hook.py) on your first apply_patch edit — do NOT write SESSION.md yourself here. Offer the resume once per session. "
 fi
 
 # Per-task insight batch capture — gated by auto_capture
@@ -300,7 +300,7 @@ fi
 # Memory pathway guardrail (v2.10.6). Modern Codex models have enhanced
 # file-system memory; route that capability through ARIA's pathways so
 # the knowledge tree stays curated rather than fragmenting into ad-hoc notes.
-MESSAGES="${MESSAGES}MEMORY PATHWAY — ARIA is the structured memory pathway for this session. For notes, use /intake (URLs/snippets, threads, docs, bulk imports), /extract (session insights), and /audit-knowledge (promotion). Route file-system memory through ARIA to keep the knowledge tree curated. "
+MESSAGES="${MESSAGES}MEMORY PATHWAY — ARIA is the structured memory pathway for this session. For notes, use /intake (URLs/snippets, threads, docs, bulk imports), /extract (session insights), and /audit knowledge (promotion). Route file-system memory through ARIA to keep the knowledge tree curated. "
 
 # CODEMAP detection — find codemaps in project directories, annotate with
 # staleness per /audit-knowledge Step 5d criteria so stale maps are visible

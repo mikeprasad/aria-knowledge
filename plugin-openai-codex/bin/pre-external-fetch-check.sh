@@ -33,7 +33,11 @@ EF_START=$(date +%s)
 
 SESSION_ID=$(printf '%s' "$INPUT" | grep -o '"session_id":"[^"]*"' | head -1 | sed 's/.*"session_id":"//;s/"$//')
 [ -z "$SESSION_ID" ] && SESSION_ID="$$"
-EF_DENY_FILE="${TMPDIR:-/tmp}/aria-extfetch-denies-${SESSION_ID}"
+# Keyed per agent (v2.54.1): a subagent carries the parent's session_id, so a
+# session-only counter let three subagent denials trip the PARENT's breaker. The
+# per-surface cooldown below stays session-level on purpose ("already asked").
+. "$SCRIPT_DIR/lib-state-key.sh"
+EF_DENY_FILE="${TMPDIR:-/tmp}/aria-extfetch-denies-${SESSION_ID}$(kt_agent_suffix "$INPUT")"
 
 # Every path that lets a fetch through clears the breaker counter, so three
 # consecutive denials means three with nothing allowed in between.

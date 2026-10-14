@@ -861,13 +861,12 @@ def pre_tool_use(data: dict[str, Any]) -> None:
         shell_payload = dict(data)
         shell_payload["command"] = cmd
         messages: list[str] = []
-        # pre-bash-write-check.sh RETIRED 2026-08-26 — it decided from the command
-        # STRING rather than the resolved mutation TARGET, which made it wrong in
-        # both directions: silent on backup-then-mutate (because the command merely
-        # MENTIONS a temp path), and firing on any command that just QUOTES an idiom
-        # like `sed -i`. Ruled out rather than tuned; canonical archived it under
-        # bin/.archived/. The two remaining scripts are correct for the opposite
-        # reason — one resolves its target, the other uses an anchored pattern.
+        # The STRING-matching pre-bash-write-check.sh was retired 2026-08-26 (silent on
+        # backup-then-mutate, firing on a quoted `sed -i`). It was REPLACED, not removed:
+        # canonical v2.48.1 decides from the RESOLVED mutation target via
+        # pre-bash-write-resolve.py. Ported 2026-10-14 — it is run below with its own
+        # payload, and it is the only writer of ${TMPDIR}/aria-r22-bypass-<session_id>,
+        # the ledger /handoff and /wrapup read.
         for script in ("bash-cd-check.sh", "pre-commit-preflight-check.sh"):
             returncode, stdout, stderr = run_legacy_capture(script, compact_json(shell_payload), cwd_from(data))
             parsed = parse_hook_stdout(stdout)
@@ -885,12 +884,26 @@ def pre_tool_use(data: dict[str, Any]) -> None:
                 sys.stderr.write(stderr)
                 return
 
+        # Record + warn on in-place writes to existing non-temp files. Warn-only by design.
+        write_payload = {
+            "session_id": session_key(data),
+            "cwd": str(cwd_from(data)),
+            "tool_input": {"command": cmd},
+        }
+        _rc, write_out, _err = run_legacy_capture(
+            "pre-bash-write-check.sh", compact_json(write_payload), cwd_from(data)
+        )
+        write_parsed = parse_hook_stdout(write_out)
+        write_context = output_additional_context(write_parsed) if write_parsed else ""
+        if write_context:
+            messages.append(write_context)
+
         reminder = maybe_codemap_reminder(data, cmd)
         if reminder is not None:
             context = output_additional_context(reminder)
             if context:
                 messages.append(context)
-        if writeish_exec_command(cmd) and not has_rule22_marker(last_text):
+        if not write_context and writeish_exec_command(cmd) and not has_rule22_marker(last_text):
             messages.append(
                 "ARIA: this shell command looks like it may write files. Prefer apply_patch for file edits, or output Rule 22 before any intentional write."
             )

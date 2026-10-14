@@ -280,12 +280,12 @@ def test_pre_tool_use_ignores_stale_transcript_markers_from_previous_turns() -> 
 
 
 def test_pre_tool_use_shell_surfaces_preflight_warning() -> None:
-    """Renamed 2026-08-26: this also asserted the pre-bash-write-check warning
-    (`"sed -i" in context`). That hook is retired — it decided from the command
-    STRING rather than the resolved mutation TARGET, so it was silent on
-    backup-then-mutate and fired on any command merely QUOTING an idiom. The
-    negative assertion below pins the removal, so a re-wire fails loudly instead of
-    quietly restoring a method that was ruled out."""
+    """Renamed 2026-08-26 when the STRING-matching pre-bash-write-check was retired.
+    Its resolved-target REPLACEMENT is wired as of 2026-10-14 (see
+    test_pre_tool_use_shell_records_in_place_write_to_bypass_ledger). This fixture's
+    target lives under a temp directory, which the resolver exempts BY DESIGN, so
+    "in place" must still be absent here — that is now a check of the temp exemption,
+    not of the hook being unwired."""
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         subprocess.run(["git", "init"], cwd=root, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
@@ -316,6 +316,46 @@ def test_pre_tool_use_shell_surfaces_preflight_warning() -> None:
         # proves it is no longer wired. The command above still CONTAINS `sed -i`,
         # so asserting on that substring would test the fixture, not the hook.
         assert "in place" not in context
+
+
+def test_pre_tool_use_shell_records_in_place_write_to_bypass_ledger() -> None:
+    """The canonical resolved-target recorder (pre-bash-write-check.sh) is the only
+    writer of the ledger /handoff and /wrapup read. The hook ANALYSES the command and
+    never runs it, so a real tracked port file is a safe subject — and it must be
+    outside temp, because the resolver exempts temp paths."""
+    target = PORT_ROOT / "bin" / "config.sh"
+    before = target.read_bytes()
+    with tempfile.TemporaryDirectory() as tmp:
+        ledger_dir = Path(tmp)
+        sid = "session-bypass-ledger"
+
+        def call(command: str, expect_json: bool) -> str:
+            out = run_hook(
+                "pre-tool-use",
+                {
+                    "hook_event_name": "PreToolUse",
+                    "session_id": sid,
+                    "turn_id": "turn-bypass",
+                    "cwd": str(PORT_ROOT),
+                    "tool_name": "Bash",
+                    "tool_input": {"command": command},
+                    "last_assistant_message": "No marker here.",
+                },
+                env={"TMPDIR": str(ledger_dir)},
+                expect_json=expect_json,
+            )
+            hso = out.get("hookSpecificOutput", {}) if isinstance(out, dict) else {}
+            return hso.get("additionalContext", "") if isinstance(hso, dict) else ""
+
+        ledger = ledger_dir / f"aria-r22-bypass-{sid}"
+        context = call("sed -i '' 's/a/b/' bin/config.sh", True)
+        assert "in place" in context and "bin/config.sh" in context
+        assert ledger.read_text(encoding="utf-8").strip() == "bin/config.sh"
+
+        context = call("ls -la bin", False)
+        assert "in place" not in context
+        assert ledger.read_text(encoding="utf-8").strip() == "bin/config.sh"  # nothing appended
+    assert target.read_bytes() == before  # analysed, never executed
 
 
 def test_pre_tool_use_scheduler_denies_leading_slash_prompt() -> None:

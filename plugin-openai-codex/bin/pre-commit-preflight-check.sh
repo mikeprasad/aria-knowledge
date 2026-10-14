@@ -29,7 +29,9 @@ INPUT=$(cat)
 
 # printf '%s', NOT echo -- `echo` in sh interprets backslash escapes, so JSON's \n
 # becomes a real newline, the value splits across lines, and a single-line grep
-# silently matches nothing. Same reasoning as pre-bash-write-check.sh.
+# silently matches nothing. Same reasoning as bash-cd-check.sh.
+# (This previously cited pre-bash-write-check.sh, retired 2026-08-26 for deciding
+# from the command string rather than the resolved target — see bin/.archived/.)
 COMMAND=$(printf '%s' "$INPUT" | grep -o '"command":"[^"]*"' | head -1 | sed 's/"command":"//;s/"$//')
 [ -z "$COMMAND" ] && exit 0
 
@@ -176,7 +178,12 @@ if [ -n "$MATCHED" ]; then
   # Circuit breaker, same contract as pre-edit-check.sh: three consecutive denials
   # with no compliant commit between them degrade to allow-with-loud-warning. A gate
   # that can deadlock a session gets turned off permanently, which protects nothing.
-  BREAKER="${TMPDIR:-/tmp}/aria-preflight-denies-$SESSION_ID"
+  # Keyed per agent (v2.54.1): a subagent carries the parent's session_id, so a
+  # session-only key let its denials switch off the PARENT's commit gate. The
+  # session MARKER above stays session-level on purpose — a preflight that ran in
+  # this session counts for its subagents too.
+  [ -f "$SCRIPT_DIR/lib-state-key.sh" ] && . "$SCRIPT_DIR/lib-state-key.sh"
+  BREAKER="${TMPDIR:-/tmp}/aria-preflight-denies-$SESSION_ID$(kt_agent_suffix "$INPUT" 2>/dev/null)"
   COUNT=$(cat "$BREAKER" 2>/dev/null || echo 0)
   COUNT=$((COUNT + 1))
   printf '%s' "$COUNT" > "$BREAKER" 2>/dev/null || true

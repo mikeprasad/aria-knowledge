@@ -51,8 +51,8 @@ Hook-parsed fields run on every session start, every edit, every compaction — 
 | `ideas_staleness_threshold_days` | integer | 7 | audit-knowledge skill |
 | `auto_capture` | `true` \| `false` | true | pre-compact-check.sh, extract skill |
 | `active_knowledge_surfacing` | `true` \| `false` | true | session-start-check.sh, bash-cd-check.sh, post-compact-check.sh, codex-hook.py UserPromptSubmit, /prospect, /retrospect, /audit-config, /stats, /handoff, /wrapup (v2.16.1+ also gates CODEMAP+STITCH tracked-artifact loading) |
-| `critical_paths` | comma-separated patterns | empty | pre-edit-check.sh, codex-hook.py apply_patch |
-| `planning_paths` | comma-separated patterns | empty | pre-edit-check.sh, post-edit-check.sh, codex-hook.py apply_patch |
+| `critical_paths` | comma-separated patterns | empty | codex-hook.py apply_patch |
+| `planning_paths` | comma-separated patterns | empty | codex-hook.py apply_patch |
 | `preflight_gate` | `off` \| `warn` \| `deny` | warn | pre-commit-preflight-check.sh via codex-hook.py PreToolUse:shell |
 | `preflight_deny_paths` | space-separated globs | empty | pre-commit-preflight-check.sh via codex-hook.py PreToolUse:shell |
 | `preflight_deny_repos` | comma-separated path substrings | empty | pre-commit-preflight-check.sh via codex-hook.py PreToolUse:shell |

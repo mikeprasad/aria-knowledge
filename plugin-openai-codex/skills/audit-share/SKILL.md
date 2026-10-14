@@ -5,7 +5,9 @@ argument-hint: ""
 allowed-tools: Read, Glob, Grep, Write, Edit, Bash
 ---
 
-# /audit-share — Batch-Review Personal Knowledge for Team Sharing
+# /audit share — Batch-Review Personal Knowledge for Team Sharing
+
+Canonical invocation: **`/audit share`**. The direct `/audit-share` form is retained for compatibility and is not advertised.
 
 Walk personal knowledge files and IDEAS-BACKLOG.md entries; recommend a target `_project-knowledge/` destination per item; present a batch summary; let the user approve, modify, or skip.
 
@@ -183,12 +185,12 @@ This folder holds team-shared project knowledge promoted from individual develop
 **Tooling (optional):**
 - These files are plain markdown — readable and editable without any tool.
 - The ARIA Claude Code plugin (https://github.com/mikeprasad/aria-knowledge) provides:
-  - `/audit-share` to promote personal knowledge here
+  - `/audit share` to promote personal knowledge here
   - `/index` + `/context` to discover and load these files into Claude sessions
 - Non-ARIA teammates can read and write directly; no tool dependency.
 
 **Contributing:**
-- Edit personal knowledge in your own knowledge store, then promote via `/audit-share` (or copy manually).
+- Edit personal knowledge in your own knowledge store, then promote via `/audit share` (or copy manually).
 - Direct edits to files in this folder are fine; commit through normal PR review.
 ```
 
@@ -290,7 +292,7 @@ Migration logic:
 Output a summary of what happened:
 
 ```
-## /audit-share complete
+## /audit share complete
 
 - N candidates reviewed
 - A shared:
@@ -324,5 +326,5 @@ If the user cancelled in Step 4, report: *"audit-share cancelled — no actions 
 - **No auto-commit** — `git add` only; the user reviews staged changes and commits through their normal flow.
 - **Sanitization is a warn-prompt, not an auto-block** — the user makes the call. Auto-scanning for secrets/URLs is out of scope for v1 (deferred to v2.x).
 - **Frontmatter is the source of truth for "already shared"** — files with `shared:` array entries matching the proposed target are skipped silently.
-- **Personal copies are independent records from team copies** — they can drift; re-running `/audit-share` after editing personal will offer to share again (incrementing the array, not overwriting).
+- **Personal copies are independent records from team copies** — they can drift; re-running `/audit share` after editing personal will offer to share again (incrementing the array, not overwriting).
 - **Cross items are federated, not centralized** — a cross item promoted from one user lands in one repo's `cross/`; another user might promote a similar item to a different repo's `cross/`. Aggregation/dedup is a read-side concern handled by `/index` + `/context`, not write-side here.

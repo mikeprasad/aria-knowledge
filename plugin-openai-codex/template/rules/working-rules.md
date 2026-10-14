@@ -243,7 +243,17 @@ Always review learnings and proposed rules with the user for validation before s
 
 **Why this gate exists:** saved rules become load-bearing on all future sessions. ARIA enforces them via `/rules` lookups, Rule 22 hooks, and CLAUDE.md context-loading. A wrong rule, once saved, propagates its error across every subsequent session — poisoning future actions until someone detects and revokes it. This review step is the check against that propagation.
 
-**Composes with Rule 19**, which captures candidates; this rule gates which captured candidates become persistent.
+**Scope — every surface that loads itself into a future session.** Not only `working-rules.md` and `user-rules.md`, but auto-memory files and the indexes that import them, project `CLAUDE.md` files, and path-scoped rules. The test is not where the text lives; it is whether it will steer a session nobody is watching.
+
+**Exemption — recording a ruling is not proposing a rule.** When the user has stated the guidance, writing it down is transcription: quote their own words, attribute it, save it. A paraphrase is not a quote — if you are rendering what they meant rather than what they said, you are deriving. Re-asking approval for a decision they already made spends the decision budget Rule 35 exists to protect. This gate is for rules *you* derived — a generalization from measurement, a meta-rule, a class conclusion drawn from a single instance.
+
+**The test is one step: can you quote the user saying it?** Yes — record it with the quote. No — it is yours; surface it per Rule 35 and save only on approval. A ruling from an earlier session still counts, but carry its date with the quote — that date is what lets a later reader apply the staleness clause below. A derived rule saved silently is indistinguishable, to every later session, from one the user actually ruled, and that is exactly the propagation this gate exists to stop.
+
+**The gate has an exit as well as an entry.** A saved rule is a claim, and claims expire. State the condition under which it stops being true — what would falsify it, or what change in the system retires it — at save time, while the reason for believing it is still known. This applies on touch: a rule you are already editing that carries no falsifier gains one then. Do not sweep the rules that have none — the cost belongs where someone already has the rule in hand. A rule with no stated falsifier cannot be audited later; it can only be argued about.
+
+**A stale rule is a defect, not an age.** Do not retire a rule for being old or trust one for being recent — re-verify it against the system it describes. A rule whose subject has moved is wrong *now* and is steering sessions wrongly *now*. Correct it at source and stamp the correction: a superseded rule left standing beside its replacement reads exactly like a current one.
+
+**Composes with Rule 19**, which captures candidates while this rule gates which candidates become persistent; with **Rule 37**, which makes things meant to die name their removal trigger, where this rule makes things meant to last name their falsifier; and with **Rule 6** — retire a rule by correcting and marking it, never by silent deletion.
 
 ### 24. Process steps define "done," not task outputs
 

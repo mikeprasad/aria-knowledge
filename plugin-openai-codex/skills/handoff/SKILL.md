@@ -19,7 +19,7 @@ For "I'm done, close it out cleanly" with no passoff intent, use `/wrapup` inste
 - **Default (`/handoff`)** — Generate ALL drafts (session summary, PROGRESS entry, CLAUDE.md edits, memory updates, commit message, next-session prompt) into one scroll, ask once for combined-go, then apply atomically. Per-item edits allowed.
 - **`auto` (`/handoff auto`)** — Implicit-yes on all gates. Run silently. Apply all drafts without confirmation. Emit final report only. Use when the session is short and unambiguous.
 - **`brief` (`/handoff brief`)** — Generate a coworker-facing prose brief (80-150 words, copy/paste-ready). Skips PROGRESS/CLAUDE/memory/commit/extract entirely. Emits the brief as the only artifact.
-- **`snap` (`/handoff snap`)** — Like `auto` (silent, apply all drafts, emit the next-session opener), but archives the raw transcript via `/snapshot` for later extraction **instead of** running `/extract` now. Use when context is high: you still get the full handoff package + opener + commit, but defer the expensive, compaction-risky knowledge synthesis to a later session (or the next `/audit-knowledge` digest pass, which reads the snapshot automatically).
+- **`snap` (`/handoff snap`)** — Like `auto` (silent, apply all drafts, emit the next-session opener), but archives the raw transcript via `/snapshot` for later extraction **instead of** running `/extract` now. Use when context is high: you still get the full handoff package + opener + commit, but defer the expensive, compaction-risky knowledge synthesis to a later session (or the next `/audit knowledge` digest pass, which reads the snapshot automatically).
 
 **The next-session opener is the headline artifact** in default + auto + snap modes — always produced, even when no other surface changed. That is what distinguishes `/handoff` from `/wrapup`. Brief mode is a different shape — handoff to a person, not to a session.
 
@@ -34,9 +34,83 @@ Parse the argument:
 - Arg matches `auto` (case-insensitive) → `mode = auto`
 - Arg matches `brief` (case-insensitive) → `mode = brief`
 - Arg matches `snap` (case-insensitive) → `mode = snap`
-- Any other arg → stop: "Unknown argument '{arg}'. Use '/handoff', '/handoff auto', '/handoff brief', or '/handoff snap'."
+- Arg matches `resume` (case-insensitive) → `mode = resume`
+- Any other arg → stop: "Unknown argument '{arg}'. Use '/handoff', '/handoff auto', '/handoff brief', '/handoff snap', or '/handoff resume'."
 
 Use `{knowledge_folder}` as the base path for all file operations.
+
+## Step 0r: `resume` mode — pick up a stored prompt (runs INSTEAD of Steps 1-8)
+
+⛔ **If `mode = resume`, run this section and STOP.** It is a READ flow: it writes nothing except the
+consumed mark on the entry you actually pick. None of the handoff write steps run.
+
+**1 — build the candidate set.** Source `bin/lib-session-state.sh` and call
+`kt_ss_ledger_candidates "{project_root}"`. It emits `<sid>|<at>|<status>|<source>`, one per line,
+covering the active `## Next session prompt` **and** every unconsumed entry under
+`## Pending handoffs` or the legacy `## Prior sessions` — **one candidate set**, which is what makes
+a pending entry visible when there is no active prompt beside it. ⛔ Do NOT re-implement this parse
+inline: it absorbs four format axes (two headings, a terminator that may be absent, two prompt
+serializations, several status forms) and a hand-rolled version silently drops candidates. ⛔
+Archived sections are deliberately excluded.
+
+**2 — zero candidates.** Say so plainly and stop. ⚠ This is **not** an error — a clean project with
+nothing pending is the normal state.
+
+**3 — one candidate.** State its `focus` and its age, confirm, then resume it.
+
+**4 — two or more.** Render a numbered list, newest first — **ONE LINE PER CANDIDATE**:
+
+```
+ 1. ·  1d  DEV-1089 PHASE 2 is deployed, verified and closed (served f92839b, LOG-142); /preflight…
+ 2. ·  2d  DEV-1130 T4 + T7 SHIPPED, PUSHED and DEPLOYED to staging (backend a217670, frontend ma…
+ 3. S  7d  Currency arc. DEV-1659 SHIPPED + DEPLOYED + VERIFIED LIVE. DEV-1662 specced, gated twi…
+```
+
+`<n>. <freshness: · fresh / S stale> <age> <focus, clipped to ~88 chars with an ellipsis>`.
+
+⛔ **`next:` is NOT in the list.** Show it only for the candidate the operator SELECTS, at confirm
+time. That is where it is decision-detail; in the list it doubles every row's height to carry
+information about 43 candidates you are not picking.
+
+⛔ **Build every field from the STORED values — no synthesis.** `kt_ss_ledger_add` stores them at
+full fidelity precisely so this list needs no LLM summarisation, and a summarised row is a row that
+can be wrong. ⚑ **Clipping is not synthesis** — it is deterministic truncation with a visible
+ellipsis, so the reader knows there is more and nothing was invented.
+
+⭐ **THE ROW IS THE LEVER, NOT A CAP — measured 2026-09-16, by rendering both against a live ledger
+of 44 candidates.** The first draft of this clause rendered `focus` AND `next` per row and capped at
+5. Rendered: 5 rows cost 15 lines and hid **39 candidates, all of them FRESH** — the cap was hiding
+live work, not dead work, because an archiving pass had already removed the dead. The same 44
+candidates as one-line rows cost **44 lines**: one scroll, every ticket id readable, choosable by eye.
+
+⚠ **A cap survives only as a SAFETY VALVE, not a display limit.** Above **40** candidates, render the
+40 most recent and then one line: `… and N more (M stale) — say "all" to list them`. ⛔ It is a
+RENDERING limit only: selection still accepts any candidate by id, and the hidden count is always
+shown. A cap that silently narrowed the choice would be the same defect as never offering the
+entries at all.
+
+⚑ Do not "improve" this by reintroducing a small cap. The arithmetic that produced 5 predicted five
+rows would cost ~40 lines; rendering them cost 15. **Render it before changing the number.**
+
+**5 — staleness gates the pick, it does not evict.** Every row shows its verdict. If the chosen row
+is stale, confirm before proceeding, offering `[resume / keep]`. ⛔ `archive` is **not** offered here:
+no `kt_ss_ledger_archive` exists, and inventing one would be new write machinery in a read flow.
+⛔ **Time never evicts.** An aged entry is surfaced with its age and left alone unless a human says
+otherwise.
+
+**6 — combining.** Offer a combine **only** when two candidates share a project root **and** their
+`next:` fields name disjoint work. Present it as one extra numbered option, **never** auto-selected;
+its absence is not an error. ⚠ The real corpus argues for restraint: a hand-written prompt already in
+the wild asks the reader to *"pick one … the stronger candidate"*, with two pending `next:` fields
+that overlap heavily. Recommending a combine there would be wrong.
+
+**7 — on selection.** Execute the chosen prompt, then mark exactly that entry consumed:
+`kt_ss_ledger_mark_consumed "{project_root}" "<sid>" "<now>" "<your sid>" "<at>"`.
+⭐ **Pass the fifth argument.** Without it the match is by sid alone, and a sid can appear under two
+different timestamps — one live ledger carries exactly that today, so a sid-only mark would close
+both entries. You hold the exact `at` here because the candidate line gave it to you.
+⚠ If the chosen candidate's source is `active` rather than `pending` it has no `### ` entry to mark;
+say so rather than reporting a consume that did not happen.
 
 ## Step 1: Identify Project Context
 
@@ -142,7 +216,14 @@ For each git repository with uncommitted changes: draft a conventional-commit me
 ### 3e: Next-session opener (the always-on artifact)
 Build a fenced block intended for paste into the next session. Format:
 
+⛔ **The FIRST line inside the fence is the provenance token** — `aria-handoff: {project}/{sessionId}@{at}`, carrying the same `sessionId` and `at` this handoff writes to the front matter. It is data, never an instruction, and it is VISIBLE by design (ruling 2026-09-15): the one person able to notice it is wrong is the one pasting it.
+
+⭐ **Why inside the fence, and first.** The 3e opener is authored once and reused verbatim in BOTH the pasteable artifact and the `SESSION.md` prompt block, so a token here lands in both — which is what makes it **self-locating**: a receiving session finds the prompt by searching for the token itself, not by parsing headings or trusting a header. FIRST, so a head-truncated paste still carries it; INSIDE the fence for the same reason the `Read on resume:` line must be — anything after the closing fence is silently dropped on paste.
+
+⚠ **It is the only durable attribution channel.** `post-edit-check.sh` rewrites the front-matter `sessionId` on the next session's first edit while `kt_ss_mark_inprogress` passes the BODY through untouched. So the front matter records who TOUCHED the file last; the token records who WROTE the prompt. Those are different facts and they routinely disagree.
+
 ```
+aria-handoff: {project}/{sessionId}@{at}
 {project-marker}
 Resume {project-name} from {YYYY-MM-DD} handoff.
 
@@ -199,17 +280,34 @@ The 3e opener is authored once and reused here — single source, no divergence 
 
 **NEVER SKIP THIS STEP TO AVOID CLOBBERING SOMEONE ELSE'S STATE.** A SESSION.md may legitimately hold several still-valid next-session prompts, and the ledger below exists precisely so you never have to choose between overwriting a handoff and abandoning yours. Skipping is the *worst* outcome: your opener is lost entirely, which is the one thing this design is built to prevent. If a prior handoff is present, demote it and write yours — both survive.
 
-**Multi-session ledger (several valid prompts can coexist — nothing is ever lost):** if the existing SESSION.md carries a **non-empty prompt block** — **whatever its `lastEvent`, and whatever its `sessionId`** — DEMOTE it before overwriting the active slot. ⛔⛔ **The gate does NOT test `sessionId`, deliberately: it names whoever last TOUCHED the file, not whoever wrote the body.** `post-edit-check.sh` stamps the current session's id onto the front-matter while `kt_ss_mark_inprogress` passes the body through, so your own id over another session's prompt is the ROUTINE state; and `by:`, which IS preserved, is person-granular and cannot separate two sessions of one author. A prompt you wrote yourself and a prompt a hook re-badged as yours are indistinguishable here, so **both are demoted** — a pending entry you did not want is one deletion, an erased prompt is git archaeology. Full reasoning and the measured falsifier: `docs/superpowers/specs/2026-09-11-demote-gate-sessionid-conjunct-design.md` §2.2. Source `bin/lib-session-state.sh` and, reading the prior file's values first, call:
-- `kt_ss_ledger_add "{project_root}" "<prior sessionId>" "<prior at>" "<prior currentFocus>" "<prior nextAction>" "<prior next-session-prompt>"` — moves the prior active entry into `## Pending handoffs` (newest-first). **Pass the prompt at FULL fidelity — do not collapse it to one line.** An unconsumed prompt is still-valid work; collapsing it degrades a mandate nobody has used yet. ⛔ **Pass the FENCED prompt block** — the ```-delimited body sitting under `## Next session prompt`, *without* that heading — and never the prior session's whole body. ⚠ **The terminator declares the boundary for the SHELL HELPERS ONLY.** `kt_ss_ledger_*` boundary on `<!-- aria:entry-end -->`, so an unfenced column-0 `## ` inside a stored prompt is harmless to them — but the SESSION STATE directive and any ledger checker are **heading-scoped**, and to those readers such a line ENDS the ledger section and orphans every entry after it. Measured on `proj-a/SESSION.md` 2026-09-09: one demoted entry carried all three of `## Where we left off`, `## Next session pickup` and `## Next session prompt` — the signature of a caller who passed the whole body — and **75 downstream entries fell outside the ledger**. A fenced body is safe for both readers; nested fences inside it are preserved as-is.
+⛔ **FIRST — the ordering check. An OLDER session must never regress a NEWER one's state.** Before demoting anything and before the rewrite, read your own `at` and call `kt_ss_active_is_newer "{project_root}" "<your at>"` (from `bin/lib-session-state.sh`):
+
+- **exit 1** — incumbent older, equal, absent or unparseable → proceed exactly as described below, unchanged.
+- **exit 0** — the incumbent is **strictly newer** → ⛔ **do not demote it and do not rewrite the front matter.** Call `kt_ss_ledger_add` with **your own** sid / at / focus / next / prompt so your work lands in `## Pending handoffs`, leave the active slot untouched, and **say so in the closing report** — naming the owning session and both timestamps.
+
+⚑ **This is NOT the demote described below, and the difference is the whole point.** That demote preserves the incumbent's **prompt**; the full rewrite still replaces its `lastEvent`, `at`, `currentFocus` and `nextAction` wholesale. Prompt-shaped protection against state-shaped damage. Measured 2026-09-15: `lib-session-state.sh` carried **zero** comparisons of the incumbent's `at`, so nothing ordered concurrent writers at all.
+
+⚠ **The fork this closes is a FALSE binary.** Facing a newer incumbent, sessions have been choosing between clobbering it and skipping their own write entirely — and reporting the skip as the careful choice. Self-demote loses neither side. ⛔ So "the incumbent is newer" is never a reason to write **nothing**.
+
+⚠ Bound, stated rather than hidden: `kt_ss_mark_inprogress` rewrites the front matter on a session's first edit, so `at` tracks last **touch**, not last meaningful state. A session that edited one file outranks one holding a real handoff. That is benign **under self-demote specifically** — the handoff still lands in Pending rather than being dropped.
+
+**Multi-session ledger (several valid prompts can coexist — nothing is ever lost):** if the existing SESSION.md carries a **non-empty prompt block** — **whatever its `lastEvent`, and whatever its `sessionId`** — DEMOTE it before overwriting the active slot. ⛔⛔ **The gate does NOT test `sessionId`, deliberately: it names whoever last TOUCHED the file, not whoever wrote the body.** `post-edit-check.sh` stamps the current session's id onto the front-matter while `kt_ss_mark_inprogress` passes the body through, so your own id over another session's prompt is the routine state; and `by:`, which IS preserved, is person-granular and cannot separate two sessions of one author. Full reasoning and the measured falsifier: `/wrapup` Step 6.5 item 1 and `docs/superpowers/specs/2026-09-11-demote-gate-sessionid-conjunct-design.md` §2.2. Source `bin/lib-session-state.sh` and, reading the prior file's values first, call:
+
+⛔ **WHERE TO READ THOSE VALUES: THE TOKEN WINS OVER THE FRONT MATTER.** If the prompt block you are about to demote carries an `aria-handoff: <project>/<sid>@<at>` line, pass **the token's** sid and `at` to `kt_ss_ledger_add` — not the front matter's, even when the two disagree. **Especially** when they disagree: that disagreement is the signal, not noise.
+
+⚑ **Measured, 2026-09-14.** A session replaced the active prompt body without rewriting the front matter. Fourteen minutes later another session ran `/handoff` **correctly**, read the prior file's values exactly as this clause instructs, and stamped one session's handoff with a different session's identity — permanently. The file lied to it, and nothing in the file could have told it so. The token is what makes that detectable: it travels in the body, which no rewrite path touches.
+
+⚠ A prompt with **no** token (every prompt written before this change) behaves exactly as before — front matter is the only source, and the existing hook-artifact annotation below still applies to it.
+- `kt_ss_ledger_add "{project_root}" "<prior sessionId>" "<prior at>" "<prior currentFocus>" "<prior nextAction>" "<prior next-session-prompt>"` — moves the prior active entry into `## Pending handoffs` (newest-first). **Pass the prompt at FULL fidelity — do not collapse it to one line.** ⚠ **`<prior sessionId>` may be a HOOK ARTIFACT — annotate it when it is.** If the value you are about to pass equals **this** session's id while the prompt block is not one you wrote, the front-matter was stamped by `post-edit-check.sh` and the true author is **not recoverable from the file**. Prefix `<prior currentFocus>` with `⚠ sid is a post-edit-check.sh HOOK ARTIFACT, not attribution —` so the entry does not read as yours. ⛔ **It goes in `focus`, never in the sid** — the sid is what `kt_ss_ledger_mark_consumed` (`^### .*<sid>`) and `is_entry_header` key on, and a ledger checker captures everything before the first `·` as the id. (A human reached for this exact shape unprompted, twice, before it was specified.) An unconsumed prompt is still-valid work; collapsing it degrades a mandate nobody has used yet. ⛔ **Pass the FENCED prompt block** — the ```-delimited body sitting under `## Next session prompt`, *without* that heading — and never the prior session's whole body. ⚠ **The terminator declares the boundary for the SHELL HELPERS ONLY.** `kt_ss_ledger_*` boundary on `<!-- aria:entry-end -->`, so an unfenced column-0 `## ` inside a stored prompt is harmless to them — but the SESSION STATE directive and any ledger checker are **heading-scoped**, and to those readers such a line ENDS the ledger section and orphans every entry after it. Measured on `proj-a/SESSION.md` 2026-09-09: one demoted entry carried all three of `## Where we left off`, `## Next session pickup` and `## Next session prompt` — the signature of a caller who passed the whole body — and **75 downstream entries fell outside the ledger**. A fenced body is safe for both readers; nested fences inside it are preserved as-is.
 - `kt_ss_ledger_prune "{project_root}"` — drops any entry a resume already marked `consumed`. **Unconsumed entries always survive**, at full fidelity.
 
-**Never demote a `lastEvent: in-progress` marker.** That is a live session's own breadcrumb, not a handoff — it carries no prompt, so a ledger entry for it would be empty. Overwrite it and move on.
+**Skip the demote only for a FRESH `in-progress` marker whose body is just `(session in progress)`** — that is the one state in which the stored entry would be empty. ⛔ **A `lastEvent: in-progress` marker that carries a real prompt MUST be demoted.** `kt_ss_mark_inprogress` rewrites only the front-matter keys and passes the body through with a bare `{ print }`, so such a marker routinely still holds the previous session's entire `## Next session prompt` — and `post-edit-check.sh` creates that state automatically whenever a second session edits in a project holding a handoff. The rationale this replaces asserted the opposite and its effect was to overwrite live pickups; do not restore it, and do not restate it in order to explain it — a test asserts its exact wording is absent from this section.
 
 THEN write the new active header + `## Next session prompt` (the full rewrite below). `## Pending handoffs` is managed by these helpers — the rewrite replaces only the front-matter + active body, never the pending section. (Files written before this rename carry `## Prior sessions`; the helpers keep using it for those, so nothing is orphaned.)
 
 **Before writing, check what this session left behind (two cheap reads, both report-only):**
 
-1. **Recorded Rule 22 bypasses.** Read `${TMPDIR:-/tmp}/aria-r22-bypass-<session_id>` if it exists — each line is an in-place file mutation made through the shell, which routed around the Edit/Write gate and so landed with no scope assessment recorded. The PreToolUse hook only *warns* (denying would block legitimate work), so a warning that was ignored leaves no other trace. Report the count and the idioms in the closing summary — not as a failure, as a fact the next reader should have. If the file is absent, say nothing.
+1. **Rule 22 bypasses through the shell.** Read `${TMPDIR:-/tmp}/aria-r22-bypass-<session_id>` if it exists — each line is a file mutation made through Bash, which routed around the Edit/Write gate and so landed with no scope assessment recorded. Report the count and the idioms in the close-out, and if you modified a tracked file through Bash this session say whether it carried a `[Rule 22]` assessment. ⚠ **The writer, `bin/pre-bash-write-check.sh`, is RECORD-ONLY by design** — it warns and never denies, so an ignored warning leaves no other trace and this ledger is the only record. ⛔ **Do not restore the claim that this ledger has no writer.** A prior version of this step said *"there is no ledger to read any more … retired as its only writer"* and it was **FALSE**: the writer was **replaced**, not retired — the retired guard decided from the command STRING, the replacement resolves the mutation TARGET and is wired. That sentence also carried its own removal trigger, *"until a replacement exists"*, and the trigger fired unnoticed: measured 2026-09-11, **19 live ledger files** were present while four skills asserted there were none.
 2. **Pending handoffs.** If `## Pending handoffs` (or a legacy `## Prior sessions`) holds entries still marked `unconsumed`, state how many and name their sessions in the closing summary. A prompt that is stored but never surfaced is lost in practice — this is the second of three checkpoints (the others are `/wrapup` and resume).
 
 **Tracked or ignored — read `session_state_tracked` (default `false`):**
@@ -257,13 +355,13 @@ Apply approved drafts in order. For `auto` and `snap` modes, this runs immediate
    - Stage the listed files (specific paths, never `git add -A`)
    - Commit with the drafted message
    - **Never push.** This applies in both modes regardless of how the repo is hosted.
-5. **3f:** If a prior unconsumed entry carrying a **non-empty prompt block** exists (whatever its `lastEvent`, and whatever its `sessionId`), run `kt_ss_ledger_add` (**full-fidelity prompt — never collapsed**) + `kt_ss_ledger_prune` FIRST (demote + prune), THEN write `{project_root}/SESSION.md` (handoff state — full rewrite of front-matter + active body + `## Next session prompt`, create if absent; `## Pending handoffs` is managed by the helpers, not the rewrite). Never demote a `lastEvent: in-progress` marker, and **never skip 3f to avoid clobbering** — demote instead, so both survive. Skip only if `session_state` is off or the user `skip`-ped 3f.
+5. **3f:** If a prior unconsumed entry carrying a **non-empty prompt block** exists (whatever its `lastEvent`, and whatever its `sessionId`), run `kt_ss_ledger_add` (**full-fidelity prompt — never collapsed**) + `kt_ss_ledger_prune` FIRST (demote + prune), THEN write `{project_root}/SESSION.md` (handoff state — full rewrite of front-matter + active body + `## Next session prompt`, create if absent; `## Pending handoffs` is managed by the helpers, not the rewrite). Skip the demote only for a fresh `in-progress` marker whose body is just `(session in progress)` — one carrying a real prompt MUST be demoted — and **never skip 3f to avoid clobbering** — demote instead, so both survive. Skip only if `session_state` is off or the user `skip`-ped 3f.
 
 If any step fails (e.g., commit hook rejects), surface the failure inline and stop — do not silently continue.
 
 ## Step 6: Capture Session Knowledge
 
-**If `mode = snap`:** Do NOT run `/extract`. Instead invoke the `/snapshot` skill to archive the raw transcript to `intake/pre-compact-captures/` for later extraction. This is snap mode's defining difference: capture is deferred, not synthesized now. Like auto's "extract always runs" invariant, the snapshot ALWAYS runs — there is no skip path. The snapshot is the deferred-extraction handoff: a later `/extract`, or the next `/audit-knowledge` digest pass (which reads `intake/pre-compact-captures/` automatically), synthesizes knowledge from it when context isn't a constraint. Capture `/snapshot`'s output (the snapshot path) for inclusion in Step 8. Use snap when context is high and running `/extract` now would risk compaction mid-synthesis. (`/snapshot` requires Bash, which the Step-0 runtime gate already guaranteed.)
+**If `mode = snap`:** Do NOT run `/extract`. Instead invoke the `/snapshot` skill to archive the raw transcript to `intake/pre-compact-captures/` for later extraction. This is snap mode's defining difference: capture is deferred, not synthesized now. Like auto's "extract always runs" invariant, the snapshot ALWAYS runs — there is no skip path. The snapshot is the deferred-extraction handoff: a later `/extract`, or the next `/audit knowledge` digest pass (which reads `intake/pre-compact-captures/` automatically), synthesizes knowledge from it when context isn't a constraint. Capture `/snapshot`'s output (the snapshot path) for inclusion in Step 8. Use snap when context is high and running `/extract` now would risk compaction mid-synthesis. (`/snapshot` requires Bash, which the Step-0 runtime gate already guaranteed.)
 
 **Otherwise (default + `auto` modes):** ALWAYS invoke `/extract` programmatically. This applies to default mode (after the user has approved the combined-go review in Step 4) AND `auto` mode unconditionally. No judgment-skip allowed — even if the session feels short, conversational, or seems to have nothing new to extract, run `/extract` anyway. The handoff skill must not pre-judge whether extraction is worthwhile; `/extract` has its own dedup logic (per its Rules section: "Never ask for confirmation — scan and dump") that correctly handles the "nothing to add" case by reporting `No uncaptured knowledge found`. Auto mode's "implicit-yes on all gates" rule converts to **"extract always runs"** here — there is no skip path. Capture `/extract`'s summary report for inclusion in Step 8.
 
@@ -330,5 +428,5 @@ The `Read on resume:` line MUST sit INSIDE the opener fence (the last line of th
 - **Skip gracefully** — if a file doesn't exist (no PROGRESS.md, no CLAUDE.md, no memory), skip that step and note it. Don't create files that aren't already part of the project's conventions.
 - **Don't invent work** — the session synthesis must reflect what actually happened in the conversation. If the session is short or unclear, say so in the synthesis (default + auto) or in the brief's "What happened" line (brief) rather than padding.
 - **Delegate extraction** — /handoff calls /extract for capture in default + auto modes; it does not duplicate /extract's dedup or routing logic. Brief mode skips /extract entirely. Snap mode calls /snapshot instead of /extract (see below).
-- **`snap` defers, never drops, capture.** In snap mode Step 6 runs `/snapshot` instead of `/extract` — the snapshot ALWAYS runs (no skip path, same as auto's "extract always runs" invariant). The raw transcript is preserved so a later /extract or /audit-knowledge digest can synthesize it; snap never means "skip knowledge capture," only "capture cheaply now, synthesize later." snap is otherwise byte-for-byte auto behavior: silent, implicit-yes, emit the next-session opener, local commit only, never push. snap is NOT brief — it produces the full next-session package, not a coworker prose block, and unlike brief it DOES update PROGRESS/CLAUDE/memory and commit.
+- **`snap` defers, never drops, capture.** In snap mode Step 6 runs `/snapshot` instead of `/extract` — the snapshot ALWAYS runs (no skip path, same as auto's "extract always runs" invariant). The raw transcript is preserved so a later /extract or /audit knowledge digest can synthesize it; snap never means "skip knowledge capture," only "capture cheaply now, synthesize later." snap is otherwise byte-for-byte auto behavior: silent, implicit-yes, emit the next-session opener, local commit only, never push. snap is NOT brief — it produces the full next-session package, not a coworker prose block, and unlike brief it DOES update PROGRESS/CLAUDE/memory and commit.
 - **One handoff per session** — if the user runs /handoff again in the same session, check what was already done in the prior run and skip completed work. Don't duplicate PROGRESS entries or commits. Multiple `/handoff brief` runs are fine (each produces a fresh brief reflecting current state).

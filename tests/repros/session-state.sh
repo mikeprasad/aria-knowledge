@@ -582,21 +582,19 @@ for _fn in $_SS_PARITY_FNS; do
   _N1=$(_ss_fnsum "$_SS_P1" "$_fn")
   _N2=$(_ss_fnsum "$_SS_P2" "$_fn")
   _N3=$(_ss_fnsum "$_SS_P3" "$_fn")
-  if [ "$_N1" = MISSING ] || [ "$_N2" = MISSING ] || [ "$_N3" = MISSING ]; then
-    bad "N port parity ($_fn)" "a carrying port path is MISSING (cc=$_N1 ag=$_N2 cu=$_N3) — a skip-when-absent arm is a gate with no subject"
-  elif [ "$_N1" = "$_N2" ] && [ "$_N2" = "$_N3" ]; then
-    ok "N $_fn is identical across all 3 carrying ports (comment-normalised cksum)"
+  _N4=$(_ss_fnsum "$_SS_P4" "$_fn")
+  if [ "$_N1" = MISSING ] || [ "$_N2" = MISSING ] || [ "$_N3" = MISSING ] || [ "$_N4" = MISSING ]; then
+    bad "N port parity ($_fn)" "a carrying port path is MISSING (cc=$_N1 ag=$_N2 cu=$_N3 cx=$_N4) — a skip-when-absent arm is a gate with no subject"
+  elif [ "$_N1" = "$_N2" ] && [ "$_N2" = "$_N3" ] && [ "$_N3" = "$_N4" ]; then
+    ok "N $_fn is identical across all 4 carrying ports (comment-normalised cksum)"
   else
-    bad "N port parity ($_fn)" "$_fn DIFFERS across ports: cc=$_N1 ag=$_N2 cu=$_N3"
+    bad "N port parity ($_fn)" "$_fn DIFFERS across ports: cc=$_N1 ag=$_N2 cu=$_N3 cx=$_N4"
   fi
-  # ⚠ NOT `grep -c ... || echo 0`: grep -c PRINTS 0 and EXITS 1 with no matches, so the `||` fires on
-  # top of the printed 0 and the value becomes "0\n0" — which fails `-eq` and sent this arm red on
-  # its first run. awk always prints exactly once and exits 0.
-  _N4=$(awk -v fn="$_fn" '$0 ~ fn {c++} END{print c+0}' "$_SS_P4" 2>/dev/null)
-  [ -n "$_N4" ] || _N4=0
-  [ "$_N4" -eq 0 ] \
-    && ok "N plugin-openai-codex carries no $_fn, so it is correctly out of the parity set" \
-    || bad "N codex port ($_fn)" "plugin-openai-codex now carries $_fn ($_N4 refs) and must join the parity set"
+  # (2026-10-14) Codex JOINED the parity set: until then its handoff/wrapup skills called
+  # kt_ss_ledger_add/_prune while its lib defined neither, so the call died with
+  # `command not found`. The arm that asserted codex carries NO such function was a
+  # tripwire for exactly this transition — it went red on the day the functions landed,
+  # and is replaced by the 4-port equality above rather than deleted.
 done
 
 # --- O: mark_inprogress OVERWRITES an existing sessionId while the body survives ----------------

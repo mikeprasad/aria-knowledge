@@ -26,9 +26,9 @@ bash ${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/bin/save-transcript.sh
 
 The script:
 1. Reads `~/.claude/aria-knowledge.local.md` via `config.sh` — stops with a setup message if unconfigured.
-2. Locates the current session's transcript by picking the most recently modified `*.jsonl` under `~/.claude/projects` (fractional-second mtime, to disambiguate concurrent Claude Code windows).
+2. Locates **this** session's transcript by session id: `$CLAUDE_CODE_SESSION_ID` (set by Claude Code in Bash tool shells), then the id passed as the argument above, matched to `~/.claude/projects/<project>/<id>.jsonl`. If an id is known but no transcript matches, it exits 1 and writes nothing — it never falls back to another session's file. Only when no id is available at all (older Claude Code) does it take the most recently written top-level transcript, and then it prints a `⚠ GUESSED` line.
 3. Copies it to `{knowledge_folder}/intake/pre-compact-captures/{YYYY-MM-DD}_{session-id-8-chars}.md`.
-4. Prints the snapshot path, the source transcript path, and pointers to the two review paths — `/extract` for in-context synthesis now, or `/audit-knowledge` which will review the snapshot at the next audit cycle via digest mode.
+4. Prints the snapshot path, the source transcript path, and pointers to the two review paths — `/extract` for in-context synthesis now, or `/audit knowledge` which will review the snapshot at the next audit cycle via digest mode.
 
 ## Step 2: Relay The Output
 
@@ -47,4 +47,6 @@ If the script exits non-zero, relay the stderr message. Common causes:
 
 ## Concurrent Sessions
 
-If you have multiple Claude Code windows open on the same machine, the script picks the most-recently-written transcript. In practice this is the window you invoked `/snapshot` in, because the tool call itself just wrote to that file. The source path is shown in the output so you can verify the right session was captured. If it picked the wrong one, the fix is to run `/snapshot` again from the intended window after a small new interaction (to make that session's transcript the newest).
+Concurrent Claude Code sessions are safe: the script copies the transcript whose filename is this session's id, not the most recently written one. (Before this, it picked the newest `*.jsonl`, which with several sessions live was often another session's — and it still reported success.)
+
+If the output contains `⚠ GUESSED`, no session id reached the script and it fell back to the newest transcript. Compare the `Source:` id with your own session; if they differ, relay that to the user and do not delete the captured file — it is a valid snapshot of another session that may have no other record. To capture the right one, copy `~/.claude/projects/<project>/<your-session-id>.jsonl` to `intake/pre-compact-captures/<YYYY-MM-DD>_<first-8-chars>.md`.

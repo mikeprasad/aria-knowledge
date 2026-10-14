@@ -38,7 +38,7 @@ unless the user explicitly overrides `KT_CONFIG` or `ARIA_KNOWLEDGE_CONFIG`.
 
 - Skills should keep shared knowledge schemas compatible while using Codex-native
   metadata, config, and hook wording.
-- This port tracks Claude Code ARIA `2.46.2` with Codex release label `2.46.2-codex.0` for shared knowledge templates, review skills, audit/preflight/prospect/retrospect workflows, Rule 35/Rule 36/Rule 37 content, and Codex-supported hook behavior.
+- This port tracks Claude Code ARIA `2.55.1` with Codex release label `2.55.1-codex.0` for shared knowledge templates, review skills, audit/preflight/prospect/retrospect workflows, Rule 35/Rule 36/Rule 37 content, and Codex-supported hook behavior.
 - Rule 22 maps Codex file edits to `apply_patch`; Codex also supports `Edit|Write`
   matcher aliases for the same canonical tool.
 - `UserPromptSubmit` is the Codex-native active-knowledge intent hook. It scans
@@ -77,6 +77,38 @@ unless the user explicitly overrides `KT_CONFIG` or `ARIA_KNOWLEDGE_CONFIG`.
   edit to the shell copy silently changes nothing. **Check `codex-hook.py` for an
   existing function before adding any `bin/` script here.** Canonical retains the
   `.sh` files, which remain the reference implementation.
+
+## v2.55.1 update (2026-10-14) — Current Claude parity pass
+
+Skills were brought from canonical v2.46.4 to v2.55.1 by a **3-way merge per skill** (base =
+canonical v2.46.4, ours = this port, theirs = canonical HEAD), with base and theirs first
+rewritten into Codex form (Codex frontmatter, ADR-094 gate stripped) so that only real content
+conflicts remained (16, each resolved by hand). Codex adaptations below survived the merge.
+
+- **New skill `/audit rules`** (`skills/audit-rules/`). The merged `/audit` dispatcher routes
+  `rules` to it. Ships `bin/check-rule-lead-bytes.sh` for its lead byte-check. Step 6 differs from
+  canonical: Codex has no instruction-file digest, so the step verifies the rule's `### U<n>`
+  header, which `session-start-check.sh` injects each session.
+- **`bin/lib-session-state.sh` now carries the full ledger** (`kt_ss_ledger_add/_prune/_candidates/
+  _mark_consumed/_mark_superseded/_token_locate/_consume_active`, `kt_ss_active_is_newer`,
+  `kt_ss_read_active_*`). Before this, `/handoff` and `/wrapup` called `kt_ss_ledger_add` and
+  `_prune` while the lib defined neither. Codex is now the fourth port in the per-function parity
+  arm of `tests/repros/session-state.sh` (block N). The `AGENTS.md` root marker is kept.
+- **SessionStart** carries canonical's token-resume SESSION STATE procedure
+  (`aria-handoff: <project>/<sid>@<at>` → `kt_ss_ledger_token_locate` → `consume_active` /
+  `mark_consumed`) and the `/audit <verb>` nudges.
+- **Removed, never wired:** `bin/pre-edit-check.sh` and `bin/post-edit-check.sh`. No commit ever
+  referenced them from `hooks.json` or the adapter; `codex-hook.py` implements both inline. Same
+  class as the three `post-*-check.sh` removed 2026-08-19 — do not re-copy them on a parity sync.
+- **Added dependency:** `bin/lib-state-key.sh` (sourced by the merged `pre-external-fetch-check.sh`;
+  without it that hook emitted nothing — caught by the port suite).
+- **Adapted, not ported:** `/auto`'s "Runtime precondition — Bash required" section (routes to
+  Cowork gates; Codex always has a shell) is removed; the `/handoff` and `/wrapup` "Rule 22 bypasses
+  through the shell" step is a self-report, because Codex has no writer for that ledger and an
+  absent file must never read as "0 bypasses".
+- ⚠ **Open, pre-existing:** `/snapshot` → `bin/save-transcript.sh` searches Claude Code's
+  `~/.claude/projects`, not Codex's own session store. It now prints a `GUESSED` warning instead of
+  silently capturing, but a Codex transcript locator still needs writing against current Codex docs.
 
 ## v2.46.2 update (2026-08-19) — Current Claude parity pass
 

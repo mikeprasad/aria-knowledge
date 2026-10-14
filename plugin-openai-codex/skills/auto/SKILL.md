@@ -43,8 +43,12 @@ These bind every `/auto` run in every mode. They are not modifiers and cannot be
 - **D3 — Foundational is always the answer**, unless the foundational fix would itself
   derail the arc. Never take the patching branch to protect schedule (Rules 18 and 38).
   Every firing of that carve-out is a D7 ledger entry.
-- **D4 — Local commits only; push is never grantable.** No modifier — including `full` —
-  pre-authorizes a push. Push stays a legitimate stop in every mode.
+- **D4 — Local commits only; push is never grantable by a standard modifier.** No modifier —
+  including `full` — pre-authorizes a push. **Push must be explicitly directed, else it is not
+  allowed. The same applies to deploy.** An explicit direction is the user naming it: in the
+  invocation, as the answer to the `config` walkthrough's push/deploy policy, or in a standing
+  instruction. Absent one, both stay legitimate stops in every mode. A modifier is not a
+  direction — that is the whole distinction this rule draws.
 - **D5 — Report the live model name at every checkpoint**, so a silent model swap is visible.
 - **D6 — A non-blocking stop never idles the run.** Note it, keep working, surface it at
   handoff.
@@ -57,6 +61,30 @@ These bind every `/auto` run in every mode. They are not modifiers and cannot be
 
   Write to `<knowledge_folder>/logs/auto/<YYYY-MM-DD>-<slug>-judgments.md`, resolving
   `knowledge_folder` from `~/.claude/aria-knowledge.local.md`. Create `logs/auto/` lazily.
+
+  **Frontmatter is required.** Begin the file with exactly this block, then the entries:
+
+      ---
+      type: auto-judgment-ledger
+      date: <YYYY-MM-DD>
+      arc: "<one line naming the arc this ledger belongs to>"
+      status: <all-dispositioned | has-pending>
+      tags: [auto, judgment-ledger, <project-tag(s)>, <topic tags>]
+      ---
+
+  `status` is what makes the ledger queryable — it is the field that answers *"which arcs still
+  have judgments waiting on me?"* across every ledger at once, which is currently answerable only
+  by reading prose. Set `has-pending` while any entry is unresolved; set `all-dispositioned` only
+  when every entry has been accepted, revisited or reverted.
+
+  **`tags:` are required — a ledger IS a knowledge artifact** (Mike's ruling, 2026-08-18), so it
+  belongs in the tag index alongside `/prospect` and `/retrospect` logs. Shape is **family →
+  artifact-kind → project → topics**, matching those siblings: lead with `auto` (the emitting
+  skill, as a `/prospect` log leads with `prospect`), then `judgment-ledger`, then the project
+  tag(s), then any topic tags. ⚠ Do **not** derive this convention from a single ledger — measured
+  across the corpus 2026-08-20, `auto` leads 13 of 16 tagged ledgers while `judgment-ledger` and the
+  older `judgments` split 8/7, so one file is not evidence of a house style.
+
   Entry shape:
 
       ### J<N> — <the decision, one line>
@@ -102,7 +130,7 @@ These bind every `/auto` run in every mode. They are not modifiers and cannot be
 
 ## Step 0: Parse mode, posture, and the queue-complete toggle
 
-`/auto` is an **explicit, in-the-moment grant of autonomous latitude** — invoking it *means* "drive this autonomously, now." It overrides the standing `autonomy` config for the duration of the arc and never changes that config. Four modes, three stackable modifiers, and a toggle:
+`/auto` is an **explicit, in-the-moment grant of autonomous latitude** — invoking it *means* "drive this autonomously, now." It overrides the standing `autonomy` config for the duration of the arc and never changes that config. Four modes, four stackable modifier groups (seven tokens), a toggle, and a flag — ten tokens across six orthogonal axes:
 
 | Mode | Trigger | What it does |
 |---|---|---|
@@ -113,7 +141,7 @@ These bind every `/auto` run in every mode. They are not modifiers and cannot be
 
 **Modifiers** (stackable, any position, case-insensitive):
 
-- **`full`** — maximum authority on every axis **except push**: tools/MCP/plugins
+- **`full`** — maximum authority on every axis **except push and deploy**: tools/MCP/plugins
   pre-approved · Workflow fan-out ON (default is hard-OFF) · cumulative subagent cap
   10 → 30 · fan-out budget-fraction gate 25% → 40% · self-decide every
   objectively-validatable fork. (**Arming a resume is NOT an authority grant** — it belongs
@@ -177,15 +205,25 @@ one word per axis, no special cases.)*
   Monday · ClickUp · Notion-as-tracker · GitHub Issues. Probing is prose-only; there is no
   helper API (ADR-015). If `ticketing_plugins` is set in `~/.claude/aria-knowledge.local.md`
   (comma-separated `tag:plugin-command` pairs, read directly from the file the way
-  `/audit-knowledge` reads it), it wins — that is the user's explicit declaration.
+  `/audit knowledge` reads it), it wins — that is the user's explicit declaration.
   **Never verify that a mapped command is actually installed:** enumerating installed
   plugins couples this skill to runtime internals that can change, and a loud failure at
   invocation beats a silently-absent hint. Detect ticket IDs with the vendor-neutral `\b([A-Z]{2,}-\d+)\b`. With
   no tracker connected and no mapping, say so once and fall back to the Step 4
   work-selection order — `tickets` never hard-fails an arc.
+- **`workflow` · `fanout=<pct>` · `agents=<N>`** — the **fan-out** axis: raise or open the three
+  Step 5 stopgaps for this run, one token each. `workflow` opts into the Workflow tool
+  (multi-agent orchestration, hard-OFF by default and never firing unbidden); `fanout=<pct>`
+  replaces the ~25%-of-remaining-window per-burst spend gate; `agents=<N>` replaces the ~10
+  cumulative per-arc subagent cap. All three are **invocation-scoped** — there is no standing
+  config key, and a persistent default would belong in `/setup`, not here. `full` raises the
+  same three stopgaps as a set; these name one each, so they compose with `full` and also work
+  without it.
 
-**Three orthogonal axes — set each independently.** `full` sets *how much latitude*;
-`continue`/`stop` set *how long*; `attended`/`unattended` set *whether a human is reachable*.
+**Six orthogonal axes — set each independently.** `full` sets *how much latitude*;
+`continue`/`stop` set *how long*; `attended`/`unattended` set *whether a human is reachable*;
+`tickets` sets *where work comes from*; `self-restart` sets *how a context wall is handled*;
+the fan-out trio sets *how wide delegation may go*.
 Keeping them separate is what makes every combination expressible:
 
 - `/auto full` — max authority, scoped: stops when the queue clears
@@ -207,11 +245,15 @@ process. On a context wall, run `/handoff` and stop cleanly.
 
 **`preflight` is a RETIRED mode keyword and must never fall through to a goal.** It used to alias `config`. If the first arg is `preflight`, do **not** start an arc with the goal "preflight" — recognise it, run nothing, and route: the pre-completion checklist is the standalone **`/preflight`** skill; the per-run settings picker is **`/auto config`**. Falling through here would be the worst outcome available — under `full`, a retired word silently becomes a work order.
 
-**Modifiers are recognised only at the ENDS — never mid-prose.** Scan the contiguous run of modifier tokens at the start (after any mode keyword) and the contiguous run at the end; **once goal prose begins, every remaining token is goal.** This matters because the modifier names are ordinary English words: an anywhere-in-args scan turns `/auto fix the **render loop** bug` into an unattended self-restarting run, and "do a full review" or "close the tickets" the same way. Worked cases:
+**Modifiers are recognised only at the ENDS — never mid-prose.** Scan the contiguous run of modifier tokens at the start (after any mode keyword) and the contiguous run at the end; **once goal prose begins, every remaining token is goal.** This matters because the modifier names are ordinary English words: an anywhere-in-args scan turns `/auto fix the **render loop** bug` into an unattended self-restarting run, and "do a **full** review" the same way. Worked cases:
 
 - `/auto full unattended tickets clear the payments queue` → mode `arc`, modifiers `{full, unattended, tickets}`, goal "clear the payments queue"
 - `/auto fix the render loop bug` → mode `arc`, **no modifiers**, goal "fix the render loop bug"
 - `/auto ship the CSV exporter continue self-restart` → goal "ship the CSV exporter", toggle `continue`, flag `self-restart`
+- `/auto full workflow audit the payments surface` → modifiers `{full, workflow}`, goal "audit the payments surface"
+- `/auto ship the exporter fanout=40% agents=20` → goal "ship the exporter", `fanout=40%`, `agents=20`. **A `=`-bearing token cannot collide with goal prose**, so the fan-out knobs need no rule of their own — they ride the same ENDS scan as every other modifier. Deliberately NOT recognised anywhere-in-args: a general `<word>=<value>` scan would eat a legitimate goal like "fix the assertion that checks count=20", which is the mis-parse this whole paragraph exists to prevent.
+
+⚠ **The ENDS rule protects mid-prose only — a bare modifier at the very END of a goal IS consumed.** `/auto rewrite the deploy workflow` parses as goal "rewrite the deploy" + modifier `{workflow}`, and `/auto close the open tickets` as goal "close the open" + modifier `{tickets}`; `continue` and `stop` carry the same exposure. This is a known, accepted cost of a bare-word vocabulary, not a defect to fix by widening the scan (an anywhere scan is strictly worse — see the `render loop` case above). **Put the modifiers first when the goal could end in one of these words.** An earlier draft of this paragraph cited "close the tickets" as a case the ENDS rule handles; it does not, and that example has been corrected.
 
 A trailing `continue`/`stop` sets the on-queue-complete toggle; a trailing `self-restart` sets the context-restart flag (honored only alongside `continue`).
 
@@ -231,7 +273,7 @@ Walk these in order, **one at a time** (do not dump all seven at once — the po
 
 1. **Goal / source** — this prompt's goal · continue from `SESSION.md`/latest handoff · a plan path · a ticket ID from your connected tracker. (If a goal was passed as `/auto config <goal>`, pre-seed it and confirm.)
 2. **On-queue-complete** — `stop` (scoped: checkpoint + /handoff when the queue's clear — *default*) · `continue` (keep finding new work; for unattended/overnight).
-3. **Push policy** — commit local, no push (*default*) · commit + push per host convention. (Push remains an ungranted-approval stop regardless — this only sets the intent.)
+3. **Push / deploy policy** — commit local, no push (*default*) · commit + push per host convention · commit + push + deploy. **Answering this IS an explicit direction under D4** — a step granted here is authorized for this run and is no longer an approval stop. Anything not granted still stops. (Per-run only; never persists. Offer the deploy option only where the project has a deploy path.)
 4. **Fan-out / subagents** — inline-only · bounded individual subagents, ~10 cumulative cap (*default*) · raise the cap to N · allow the Workflow swarm (multi-agent orchestration). (Maps to the Step 5 stopgaps.)
 5. **Budget ceiling** — default 25%-of-remaining-window per fan-out burst (*default*) · a different fraction · a hard "stop the arc at X% usage." (Maps to the Step 5 budget-fraction gate + a live abort floor.)
 6. **Resume at the usage wall** — arm (*default when the goal is non-trivial*) · off. If the 5-hour window runs out with the goal unfinished, a resume fires **+5 min after** the reset and picks the work back up (Step 6). **Not gated on #2 or #7** — an unfinished goal warrants a resume whether or not you asked for new work afterwards, and whether or not anyone is watching; presence only decides if it announces itself.
@@ -263,7 +305,7 @@ Before the first action, post a short **arc contract** so the autonomy is legibl
 > **Presence:** <attended — non-blocking residuals come to you as they arise | unattended — residuals batched to the handoff, resume armed>. Always stated; never inferred silently.
 > **Usage:** gating on 5h only; 7d ignored · arm at 90% · pause at 95% (D1).
 > **Durable resume:** <ARMED via `<mechanism>` | UNAVAILABLE (patterns not allowlisted — run `/setup`)>. Report availability, not merely that a resume is armed — a resume whose patterns are unallowlisted **stalls silently** (Step 6).
-> **Push:** local commits only — never pre-authorized by any modifier, including `full` (D4).
+> **Push / deploy:** <local commits only (*default*) | push granted | push + deploy granted> — never pre-authorized by any modifier, including `full`; granted only by explicit direction (D4).
 > **Tools:** MCP / plugins / skills pre-approved.
 > **Foundational:** always preferred; any carve-out is logged (D3 → D7).
 > **Judgment ledger:** `<resolved path>` — reported first at close, for your review (D7).
@@ -335,7 +377,7 @@ A recorded **FAIL** verdict satisfies the gate too, and recording one then proce
 
 **Legitimate stops — the ONLY reasons to ask** (everything else has a pre-answered default above):
 - **Product / UX taste with no objective answer** (e.g. "should threads nest or flatten?") — design direction is the user's.
-- **An action needing approval not already granted** — an irreversible or outward-facing op not covered by policy (a **push** beyond the contract's push policy, a **prod deploy**, external comms, a **destructive op** / deleting non-recoverable data, a **shared-DB migration**), a **scope change** beyond the stated goal, or **credentials / prod-data access**. BUT only HALT if it *blocks* the current task — if it's non-blocking, NOTE it and CONTINUE other work; never idle the whole run on a side-question. (Surface all noted items at `/handoff`.)
+- **An action needing approval not already granted** — an irreversible or outward-facing op not covered by policy (a **push** or **deploy** beyond the contract's push/deploy policy, external comms, a **destructive op** / deleting non-recoverable data, a **shared-DB migration**), a **scope change** beyond the stated goal, or **credentials / prod-data access**. BUT only HALT if it *blocks* the current task — if it's non-blocking, NOTE it and CONTINUE other work; never idle the whole run on a side-question. (Surface all noted items at `/handoff`.)
 - **A true no-visibility fact only the user has** (a constraint not in any repo/doc; a teammate conversation).
 - **A genuine fork where both branches are plausible AND the wrong one is costly AND empirical investigation can't decide it.**
 
@@ -465,12 +507,12 @@ Write memories / `/prospect`+`/retrospect` logs / contract docs **at the moment 
 
 ## Step 8: Close the arc
 
-Leave a **verified-clean checkpoint** (tests green, tree clean, pushed if policy allows). Report what landed, the `[DECISION]` trail, and every noted-but-not-blocking item you surfaced. Then `/handoff (auto)` with a next-session opener that itself says "VERIFY STATE FIRST — this prompt may be stale." Offer `/wrapup` instead if the work is fully done and nothing carries forward. Don't auto-run a push/deploy inside the close — that's the ungranted-approval case unless the contract's push policy already granted it.
+Leave a **verified-clean checkpoint** (tests green, tree clean, pushed if policy allows). Report what landed, the `[DECISION]` trail, and every noted-but-not-blocking item you surfaced. Then `/handoff (auto)` with a next-session opener that itself says "VERIFY STATE FIRST — this prompt may be stale." Offer `/wrapup` instead if the work is fully done and nothing carries forward. Don't auto-run a push or deploy inside the close unless the contract's push/deploy policy explicitly granted that step (D4) — ungranted, it is the ungranted-approval case and stops.
 
 ## Notes
 
 - **`/auto` applies policy, it doesn't redefine it.** The decide-vs-ask *logic* is Rule 35; this skill adds *operational* discipline (never-stop list, budget-binding, work-selection, subagent gate, resume-cron). If you want to change *when to ask*, edit Rule 35 — keep the single source of truth.
-- **Two rule sources, both loaded, neither restated.** `/auto` operates under two distinct rule files and owns *neither*: **Rule 35** in the plugin-managed `working-rules.md` is the decide-vs-ask *routing* policy (edit it to change *when to ask*); **`user-rules.md`** is the user's own *substantive* standing rules, loaded in Step 0.4 and applied as binding constraints for the arc (edit them via `/rules`-adjacent flows / `/audit-knowledge` promotion, never here). `/auto` reads and applies both; it restates neither. To see the rules' content, use `/rules`.
+- **Two rule sources, both loaded, neither restated.** `/auto` operates under two distinct rule files and owns *neither*: **Rule 35** in the plugin-managed `working-rules.md` is the decide-vs-ask *routing* policy (edit it to change *when to ask*); **`user-rules.md`** is the user's own *substantive* standing rules, loaded in Step 0.4 and applied as binding constraints for the arc (edit them via `/rules`-adjacent flows / `/audit knowledge` promotion, never here). `/auto` reads and applies both; it restates neither. To see the rules' content, use `/rules`.
 - **`/auto` never writes config.** It runs autonomously for the arc on the strength of the invocation; the standing `autonomy` posture changes only via `/setup` (one writer, no drift).
 - **Tool approval companion.** For unattended runs, use Codex's normal approval/trust mechanisms for
   plugin hooks and shell commands. This Codex port does not write runtime permission settings.

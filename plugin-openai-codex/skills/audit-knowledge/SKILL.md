@@ -5,7 +5,9 @@ argument-hint: "[detailed]"
 allowed-tools: Read, Glob, Grep, Write, Edit, Bash
 ---
 
-# /audit-knowledge — Knowledge Repository Audit
+# /audit knowledge — Knowledge Repository Audit
+
+Canonical invocation: **`/audit knowledge`**. The direct `/audit-knowledge` form is retained for compatibility and is not advertised.
 
 Scan `~/.claude/` memory and plan files, compare against what's already in the knowledge folder and project-level docs, and surface anything worth extracting.
 
@@ -49,13 +51,13 @@ Record both numbers — `live` feeds the prompt message and Step 8's `Trigger:` 
 
 **Determine how this skill was invoked:**
 
-- **User-requested** (user said `/audit-knowledge`, "audit knowledge", "scan memory", etc.): **Always run the full audit**, regardless of how recently the last audit was. Skip directly to Step 2.
+- **User-requested** (user said `/audit knowledge`, "audit knowledge", "scan memory", etc.): **Always run the full audit**, regardless of how recently the last audit was. Skip directly to Step 2.
 - **Session-start check** (triggered by the SessionStart hook): Check whether either trigger fired.
   - **Entry-count trigger** (primary): if `backlog_count >= audit_trigger_threshold`, prompt per tier:
-    - `count ≥ threshold + 30` → *"Knowledge audit overdue — N entries, plan for multi-pass. Run /audit-knowledge?"*
-    - `count ≥ threshold + 15` → *"Knowledge audit recommended — N entries, near one-pass ceiling. Run /audit-knowledge?"*
-    - `count ≥ threshold` → *"Knowledge audit suggested — N entries ready for review. Run /audit-knowledge?"*
-  - **Elapsed-days trigger** (safety net): if no entry-count tier fired AND `days_since >= audit_cadence_knowledge`, prompt: *"Knowledge audit due — N days since last audit. Run /audit-knowledge?"*
+    - `count ≥ threshold + 30` → *"Knowledge audit overdue — N entries, plan for multi-pass. Run /audit knowledge?"*
+    - `count ≥ threshold + 15` → *"Knowledge audit recommended — N entries, near one-pass ceiling. Run /audit knowledge?"*
+    - `count ≥ threshold` → *"Knowledge audit suggested — N entries ready for review. Run /audit knowledge?"*
+  - **Elapsed-days trigger** (safety net): if no entry-count tier fired AND `days_since >= audit_cadence_knowledge`, prompt: *"Knowledge audit due — N days since last audit. Run /audit knowledge?"*
   - **Neither fired**: report the last audit date + current backlog count + days-since, then stop. *"Last knowledge audit was N day(s) ago (YYYY-MM-DD). Backlog at M entries (threshold T). Next trigger at M=T entries or N=C days."*
 
 ## Step 1b: Check Index Freshness
@@ -935,6 +937,16 @@ Run the full `/index` logic:
 ```
 
 Apply approved changes, then write the final `index.md`.
+
+**After writing, count tag sections** (`grep -c '^### ' index.md`). If **zero**, note:
+
+> "Index rebuilt with no tag sections. Active knowledge surfacing stays off until at least
+> one promoted file carries a tag — the SessionStart hook gates on tag content, not on the
+> index file existing."
+
+This matters because a tagless index used to be merely unhelpful; since the gate was
+tightened it silently keeps a whole capability switched off, and a rebuild that reports
+success is exactly where that would go unnoticed.
 
 If this is the first audit (no index exists yet), note: "Building knowledge index for the first time."
 
