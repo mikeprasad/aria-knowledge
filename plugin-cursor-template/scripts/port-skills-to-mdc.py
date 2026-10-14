@@ -52,8 +52,30 @@ AUDIT_SKILLS = [
     "audit-config",
     "audit-style",
     "audit-usage",
+    "audit-rules",
 ]
 CONTEXT_SKILLS = ["context", "rules"]
+
+# Canonical step 6 regenerates Claude Code's instruction-file digest via
+# session-start-rules.sh, which Cursor does not ship. Cursor's sessionStart hook
+# re-reads user-rules.md every session and injects each rule's header instead.
+AUDIT_RULES_CURSOR_STEP6 = """6. **Confirm the rule reaches the next session.** Cursor has no instruction-file digest: the
+   `sessionStart` hook (`scripts/aria/session-start-check.sh`) re-reads
+   `{knowledge_folder}/rules/user-rules.md` every session and injects each rule's `### U<n>` HEADER
+   as an always-loaded index, with the full body read on demand. Verify the new rule's header line
+   exists and is self-describing: `grep -n '^### U' {knowledge_folder}/rules/user-rules.md`. ⚠ The
+   240-byte lead check in item 2 still applies — the knowledge folder can be shared with Claude Code,
+   which builds a digest from each rule's lead paragraph."""
+
+# Canonical change-decision-framework.md documents how CLAUDE CODE's hook finds the
+# marker (transcript persistence, Bash-heredoc carrier, PreToolUse carrier record).
+# Cursor's Rule 22 is an advisory edit-intent marker, so those paragraphs are false here.
+RULE22_CLAUDE_ONLY_PARAGRAPHS = re.compile(
+    r"\n\*\*(?:Second channel|Recorded carrier) \(v[0-9.]+\)\.\*\*.*?(?=\n\*\*|\n### |\n## )",
+    re.DOTALL,
+)
+# Text that must never reach a compiled Cursor rule (verify_markers).
+CLAUDE_ONLY_LEAKS = ("/aria-cowork:", "cat <<'R22'", "Claude Code 2.1.2", "aria-r22-carrier")
 
 SNAPSHOT_CURSOR_BODY = """# /snapshot — Task-Boundary Capture (Cursor-native)
 
@@ -195,7 +217,11 @@ def strip_frontmatter(text: str) -> str:
 
 def strip_runtime_gate(text: str) -> str:
     pattern = re.compile(
-        r"\n## Runtime Gate \(per ADR-094\).*?(?=\n## |\n# /|\n---\n\n## |\n### Step )",
+        # ADR-094 gates AND the Bash-capability preconditions (`## Runtime precondition — …`,
+        # `## Runtime Gate — Bash capability precondition`): Cursor always has a shell, so a
+        # section that only fires without one can only mislead — and /auto's routes to
+        # /aria-cowork:* gates, which do not exist in a Cursor session.
+        r"\n## Runtime (?:Gate|precondition)\b.*?(?=\n## |\n# /|\n---\n\n## |\n### Step )",
         re.DOTALL,
     )
     return pattern.sub("\n", text)
@@ -345,6 +371,26 @@ def skill_body(name: str) -> str:
             body,
             count=1,
         )
+    if name == "audit-rules":
+        body, n = re.subn(
+            r"6\. \*\*Regenerate the always-on digest\*\*.*?(?=\n7\. )",
+            AUDIT_RULES_CURSOR_STEP6,
+            body,
+            count=1,
+            flags=re.DOTALL,
+        )
+        if n != 1:
+            raise SystemExit("audit-rules: canonical step 6 not found — re-check the Cursor adaptation")
+        for old, new in (
+            (
+                "`MEMORY.md` and the `feedback_*.md` topic files.",
+                "`MEMORY.md` and the `feedback_*.md` topic files.\n   Cursor keeps no such store; it exists only when Claude Code also works on this knowledge folder.\n   If it is absent, skip it and say so in the Step 5 scan-health section.",
+            ),
+            ("from the project's CLAUDE.md lineage", "from the project's AGENTS.md / CLAUDE.md lineage"),
+        ):
+            if body.count(old) != 1:
+                raise SystemExit(f"audit-rules: anchor not found once: {old[:50]}")
+            body = body.replace(old, new)
     if name == "audit-style":
         body = re.sub(
             r"(^# /audit style[^\n]*\n\n)",
@@ -424,6 +470,7 @@ def build_rule22_mdc() -> str:
         count=1,
         flags=re.DOTALL,
     )
+    body = RULE22_CLAUDE_ONLY_PARAGRAPHS.sub("", body)
     body = re.sub(
         r"## Hook Implementation.*?## Reference-Based Builds",
         CURSOR_HOOK_IMPL + "\n\n---\n\n## Reference-Based Builds",
@@ -468,7 +515,12 @@ def verify_markers() -> None:
         ("audit style", "## /audit-style" in audit),
         ("audit usage", "## /audit-usage" in audit or "# /audit usage" in audit),
         ("audit-style cursor corpus", "agent-transcripts" in audit),
+        ("audit rules", "# /audit rules" in audit),
     ]
+    for mdc in (COMMANDS_MDC, AUDIT_MDC, CONTEXT_MDC, RULE22_MDC):
+        text = mdc.read_text(encoding="utf-8")
+        for leak in CLAUDE_ONLY_LEAKS:
+            checks.append((f"no Claude-only text {leak!r} in {mdc.name}", leak not in text))
     setup_version = 'scripts/aria/VERSION' in cmds and 'cat "scripts/aria/VERSION"' in cmds
     checks.append(("setup VERSION read", setup_version))
     failed = [name for name, ok in checks if not ok]

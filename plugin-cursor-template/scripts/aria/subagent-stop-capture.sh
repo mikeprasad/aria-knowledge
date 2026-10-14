@@ -1,7 +1,7 @@
 #!/bin/sh
 # subagent-stop-capture.sh — SubagentStop hook for aria-knowledge
 # Archives a heavyweight subagent's transcript before it is lost. Capture only —
-# synthesis happens later via /extract or /audit-knowledge, because a subagent
+# synthesis happens later via /extract or /audit knowledge, because a subagent
 # cannot reliably self-extract (it is already done when this hook fires).
 # SubagentStop supports no additionalContext, so this is a pure filesystem side
 # effect; a bare exit 0 is the correct no-op in every skip case.
@@ -37,7 +37,7 @@ CAPTURES_DIR="$KT_KNOWLEDGE_FOLDER/intake/subagent-captures"
 mkdir -p "$CAPTURES_DIR" 2>/dev/null
 
 # Copy transcript if it exists and is readable. Sticky retention: this body is
-# preserved until /extract or /audit-knowledge processes it (no ledger-clear here).
+# preserved until /extract or /audit knowledge processes it (no ledger-clear here).
 if [ -n "$TRANSCRIPT_PATH" ] && [ -f "$TRANSCRIPT_PATH" ] && [ -r "$TRANSCRIPT_PATH" ]; then
   TODAY=$(date +%Y-%m-%d)
   SESSION_SHORT=$(echo "$SESSION_ID" | cut -c1-8)

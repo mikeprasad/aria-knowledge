@@ -50,10 +50,13 @@ GATE="${KT_PREFLIGHT_GATE:-warn}"
 
 REPO_DIR=$(printf '%s' "$COMMAND" | sed -n 's/^[[:space:]]*(\{0,1\}[[:space:]]*cd[[:space:]]\{1,\}\([^&;|]*\).*/\1/p' \
   | head -1 | sed 's/[[:space:]]*$//')
+CD_NAMED="$REPO_DIR"
 [ -n "$REPO_DIR" ] && [ ! -d "$REPO_DIR" ] && REPO_DIR=""
 if [ -z "$REPO_DIR" ]; then
   REPO_DIR=$(printf '%s' "$COMMAND" | sed -n 's/.*git[[:space:]]\{1,\}-C[[:space:]]\{1,\}\([^ ]*\).*/\1/p' | head -1)
 fi
+# A `cd` that named a directory which does not exist: never fall back to checking `.`.
+[ -z "$REPO_DIR" ] && [ -n "$CD_NAMED" ] && exit 0
 [ -z "$REPO_DIR" ] && REPO_DIR="."
 [ ! -d "$REPO_DIR" ] && exit 0
 

@@ -142,24 +142,31 @@ kt_ss_mark_inprogress() {
   fi
 
   # Ensure SESSION.md is gitignored — but ONLY where that is actually wanted, and only
-  # once. Four conditions, each closing a different hole (v2.46.2):
+  # once. Four conditions, each closing a different hole:
   #
-  #   1. `session_state_tracked` — the user's standing ruling. Some repos TRACK
-  #      SESSION.md (it carries the decision trail); others deliberately do not.
-  #      v2.46.0 wired this knob into wrapup and handoff only; this library was a
-  #      THIRD code path that never read it. Read via `${VAR:-}` rather than the
-  #      bare form the hooks use: those always source config.sh first, whereas this
-  #      is a *library* and must stay safe when sourced without it.
+  #   1. `session_state_tracked` — the user's standing ruling. Workspace repos TRACK
+  #      SESSION.md (it carries the decision trail); some sub-repos deliberately do not.
+  #      v2.46.0 wired this knob into wrapup/SKILL.md and handoff/SKILL.md only; this
+  #      library was a THIRD code path that never read it, so the ruling had no effect
+  #      here. Read via `${VAR:-}` rather than the bare form the hooks use: those are
+  #      entry points that always source config.sh first, whereas this is a *library* and
+  #      must stay safe when sourced without it (see validation arm 4).
   #   2. is this even a git repo
   #   3. is SESSION.md TRACKED — if so, never touch .gitignore. An ignore rule is a
   #      NO-OP on an already-tracked path, so appending one achieves nothing except
   #      growing the file.
   #   4. is the line ALREADY present — idempotence.
   #
-  # ⛔ `git check-ignore` CANNOT be the test, and was the bug. It consults the INDEX,
-  # so for a TRACKED file it exits 1 ("not ignored") — which made the old negated
-  # guard ALWAYS true, even when SESSION.md was already listed in .gitignore. The
-  # append had no upper bound. The right test is `git ls-files --error-unmatch`.
+  # ⛔ `git check-ignore` CANNOT be the test, and was the bug. It consults the INDEX, so
+  # for a TRACKED file it exits 1 ("not ignored") — which made the old negated guard
+  # ALWAYS true. Measured 2026-08-17: it exits 1 for a tracked SESSION.md *even when
+  # SESSION.md is already listed in .gitignore*, so the guard could never be satisfied
+  # and this block appended one line per session forever. One observed project's
+  # .gitignore reached 4 duplicate lines by 2026-08-14, was cleaned with an explicit
+  # DO-NOT-ADD comment, and had accumulated 2 more directly beneath that warning
+  # two days later.
+  # The plugin's own docs already prescribed the right test (`git ls-files
+  # --error-unmatch`) at wrapup/SKILL.md:202, handoff/SKILL.md:241, setup/SKILL.md:202.
   # Keep this comment: without it the next reader reintroduces check-ignore.
   if [ "${KT_SESSION_STATE_TRACKED:-}" != "true" ] \
      && git -C "$_ss_root" rev-parse --git-dir >/dev/null 2>&1 \
@@ -170,14 +177,13 @@ kt_ss_mark_inprogress() {
   return 0
 }
 
-# --- Multi-session ledger (## Pending handoffs, legacy ## Prior sessions) ------
+# --- Multi-session ledger (## Prior sessions) ---------------------------------
 # The active session lives in the front-matter + "## Next session prompt" (atlas's
-# single view). Demoted/pending sessions live under a "## Pending handoffs" heading
-# (legacy files keep "## Prior sessions"), which the atlas parser ignores (it stops
-# at the first "## " after the prompt). All three helpers write via temp-file + mv
-# and swallow errors (return 0).
+# single view). Demoted/prior sessions live under a "## Prior sessions" heading,
+# which the atlas parser ignores (it stops at the first "## " after the prompt).
+# All three helpers write via temp-file + mv and swallow errors (return 0).
 
-# Prepend a ### block under "## Pending handoffs" (created if absent). Newest-first.
+# Prepend a ### block under "## Prior sessions" (created if absent). Newest-first.
 kt_ss_ledger_add() {
   _ss_f="$1/SESSION.md"; _ss_sid="$2"; _ss_at="$3"; _ss_focus="$4"; _ss_next="$5"; _ss_prompt="$6"
   [ -f "$_ss_f" ] || return 0
@@ -269,8 +275,13 @@ $_ss_prompt
     # the tail file is never created -- `cat "$_ss_tail"` then exits non-zero, the `&&`
     # short-circuits, `mv` never runs, and the entry is SILENTLY DISCARDED while the
     # function still returns 0. Measured two-sided 2026-09-17: heading-last added 0
-    # entries, heading-with-anything-after added 1.
+    # entries, heading-with-anything-after added 1. Latent at the time (0 of the live
+    # ledgers ended on the heading), but load-bearing for kt_ss_ledger_consume_active,
+    # which CLEARS the active prompt after calling this -- on that path a silent discard
+    # destroys the handoff outright.
     : > "$_ss_head" 2>/dev/null; : > "$_ss_tail" 2>/dev/null
+    # head = lines through the "## Prior sessions" heading + one blank; tail = the rest.
+    # The block is injected between head and tail by printf (not awk -v).
     # Splice by LINE NUMBER, and CANONICALISE the heading in the same pass — the PAIRED WRITE.
     #
     # ⛔ THE PAIRED WRITE IS LOAD-BEARING, NOT COSMETIC. A tolerant read that leaves a non-canonical
@@ -305,24 +316,24 @@ kt_ss_ledger_mark_consumed() {
   _ss_f="$1/SESSION.md"; _ss_sid="$2"; _ss_ts="$3"; _ss_by="$4"; _ss_want_at="$5"
   [ -f "$_ss_f" ] || return 0
   _ss_tmp="$_ss_f.$$.tmp"
-  # ⛔ PORTED FROM plugin-claude-code 2026-09-14. This port had carried the PRE-2026-08-27 form
-  # (an anchored "^### <sid> " plus an end-anchored status test, subbing the anchored PHRASE) and
-  # never received the fix. Three interlocking properties; changing one alone reintroduces the bug:
-  #   1. "^### .*sid", not "^### <sid> " — real headers carry a parenthetical after the sid
-  #      (2 of 25 measured), and the anchored form silently matched NOTHING for those.
-  #   2. WORD-BOUNDED status test, not end-anchored — a trailing title or a bold status must still
-  #      be recognised.
-  #   3. Replace the WORD, not the anchored phrase. With 1 and 2 applied but not 3, those headers
-  #      MATCH and are NEVER REWRITTEN — a silent no-op that reads as success, which is strictly
-  #      worse than the original bug because it looks correct.
-  # ⚠ Safe in this port because its ledger_add writes an identical header shape and its prune is
-  # code-equivalent to the canonical one (both verified before porting). Word-bounding is also what
-  # keeps it safe in the other direction: "unconsumed" does NOT match the consumed predicate.
+  # THREE things matter here and they are interlocking; changing one alone reintroduces the bug.
   #
-  # ⛔ KEEP THIS COMMENT OUTSIDE THE awk PROGRAM. It lived inside the single quotes for one edit and
-  # broke the file: an apostrophe in prose TERMINATES the quoted awk program, so the shell parsed
-  # the regex as bare tokens. That is why this block sits above the awk call, and why it contains
-  # no apostrophes.
+  # 1. The header match is `^### .*<sid>`, not `^### <sid> `. Entries are hand-written as well as
+  #    generated — measured 2026-08-27, 2 of 25 real headers on one machine carry a parenthetical
+  #    after the sid — and the anchored form silently matched nothing for a backticked sid.
+  # 2. The status test is WORD-BOUNDED, not end-of-line anchored, so a trailing ` · title` or a bold
+  #    `**unconsumed**` is still recognised.
+  # 3. ⛔ THE WRITE REPLACES THE WORD, NOT THE ANCHORED PHRASE. This is the edit that is easy to omit
+  #    and it is the one that matters: measured with 1 and 2 applied but not 3, bold and
+  #    trailing-title headers MATCHED and were NEVER REWRITTEN — so instrumentation and review both
+  #    read "handled" while the file was unchanged. That is the same silent no-op as the original
+  #    bug, moved one layer in, and it is strictly worse because it now looks correct.
+  #
+  # ⚠ Word-bounding is what keeps this safe in the other direction: `unconsumed` does NOT match
+  # /(^|[^a-z])consumed([^a-z]|$)/ because the `c` is preceded by `n`. prune depends on that.
+  # ⚠ NOT closed, deliberately: a header carrying a TRUNCATED sid while the caller passes the full
+  # one is matched by neither form — the full sid is not present in the line at all, so no loosening
+  # of this pattern reaches it. Prefix matching could mark the WRONG entry, so it stays out.
   # ⛔ index(), NOT a regex. The old form was `$0 ~ ("^### .*" sid)`, which interpolated the caller's
   # sid into an awk REGEX unescaped. Two failure directions, both measured:
   #   under-match: sid `x[1]` is a character class, so it matches the string "x1" and leaves the
@@ -356,29 +367,58 @@ kt_ss_ledger_mark_consumed() {
 }
 
 # Flip "### <SID> … · unconsumed" to "· consumed <TS> by <BY> (superseded)" for the named session.
-# Added 2026-09-14 to close D3 — see the full rationale in plugin-claude-code's copy of this file,
-# which is the canonical explanation. Summary: a human retiring an entry that was never "consumed"
-# had no sanctioned verb, so they hand-typed a status; that free text made the entry unprunable AND
-# made the reader report its eventual removal as a destroyed handoff.
 #
-# ⛔ THE EMITTED TOKEN CONTAINS `consumed` DELIBERATELY — this port's kt_ss_ledger_prune uses the
-# word-bounded /(^|[^a-z])consumed([^a-z]|$)/ predicate (verified in this file before writing this),
-# so the token is reaped here exactly as it is in the other ports. A bare `superseded` would match
-# neither prune nor mark_consumed, which is the stuck-forever half of D3.
+# ⛔ WHY THIS EXISTS — the D3 defect, closed 2026-09-14. Before it, a human who wanted to retire an
+# entry that was never "consumed" by a resuming session had no sanctioned verb, so they hand-typed a
+# status: `superseded`, `complete`, `⛔ RETIRED`. That free text broke BOTH layers at once —
+#   · `kt_ss_ledger_prune` reaps only a word-bounded `consumed`, so the entry was UNPRUNABLE and
+#     accumulated forever (a real ledger reached 7,958 lines partly this way); and
+#   · the reader (`tools/check-session-ledger.py`) classified anything not `consumed` as LIVE, so
+#     deleting one by hand was reported as a DESTROYED HANDOFF. Measured 2026-09-12: 24 correctly
+#     dispositioned entries produced 23 false "structural damage" findings. The cost is not the
+#     noise — it is alarm fatigue on the one detector that catches real handoff loss.
 #
-# The matcher below is the corrected word-bounded form, matching mark_consumed above.
-# ⚑ HISTORY, kept because it is the reason both functions carry their comment blocks: when
-# mark_superseded was first added here (2026-09-14), this port's mark_consumed still carried the
-# PRE-2026-08-27 form and the two deliberately differed — writing the new function in the *buggy*
-# neighbour's shape for local consistency would have shipped a known defect. The divergence was
-# reported as a residual and **ported in the same session**, so the two now agree. If you are
-# diffing ports and find them disagreeing again, that is drift, not design.
+# ⛔ THE EMITTED TOKEN CONTAINS THE WORD `consumed` ON PURPOSE. Do not "improve" this to emit a
+# bare `superseded`. Two reasons, both measured:
+#   1. `prune` must reap it. Its predicate is /(^|[^a-z])consumed([^a-z]|$)/ — a bare `superseded`
+#      matches NEITHER prune nor mark_consumed, which is exactly the stuck-forever half of D3.
+#      Teaching prune a second word would mean two predicates to keep in sync across the ports.
+#   2. It must NOT re-match mark_consumed's `unconsumed` matcher, and it does not — verified
+#      two-sided: this token → prune YES / mark_consumed NO; plain `unconsumed` → the inverse.
+#
+# ⛔ NO FREE-TEXT REASON IN THE HEADER — the reason belongs in the entry BODY. The header is a
+# machine-parsed ` · `-delimited field, and putting unstructured text there is the defect this
+# function closes; a remedy that emits free text into the same field reproduces it. (Caught by the
+# pre-mortem on this change: the first draft appended `(superseded: <reason>)`.)
+#
+# Shape is mirrored from kt_ss_ledger_mark_consumed above — the same three interlocking properties
+# apply here verbatim, and the comment block there is the canonical explanation of why.
 kt_ss_ledger_mark_superseded() {
-  _ss_f="$1/SESSION.md"; _ss_sid="$2"; _ss_ts="$3"; _ss_by="$4"
+  _ss_f="$1/SESSION.md"; _ss_sid="$2"; _ss_ts="$3"; _ss_by="$4"; _ss_want_at="$5"
   [ -f "$_ss_f" ] || return 0
   _ss_tmp="$_ss_f.$$.tmp"
-  awk -v sid="$_ss_sid" -v ts="$_ss_ts" -v by="$_ss_by" '
-    $0 ~ ("^### .*" sid) && /(^|[^a-z])unconsumed([^a-z]|$)/ {
+  # ⛔ CORRECTED 2026-09-17 — THE COMMENT BLOCK ABOVE CLAIMED THIS MIRRORED
+  # kt_ss_ledger_mark_consumed "verbatim" AND IT DID NOT. It still carried the retired
+  # form `$0 ~ ("^### .*" sid)`, i.e. the caller's sid interpolated into an awk REGEX and
+  # matched against the WHOLE LINE. Two live consequences, the first reproduced two-sided
+  # on a fixture: asked to retire sid `a.c` it ALSO retired the unrelated entry `abc`
+  # (metacharacter over-match), while mark_consumed on the identical fixture touched only
+  # `a.c`; and because it matched the whole line rather than field 1, a sid occurring in
+  # an entry's TITLE or timestamp matched too. Retiring another session's live handoff is
+  # the dangerous direction. ⚑ The false parity claim is what made this survive — an
+  # assertion that two things agree is exactly what stops the next reader checking.
+  #
+  # ⛔ `at` (5th arg) IS OPTIONAL, same contract as mark_consumed. Omitted => legacy
+  # behaviour, every unconsumed entry for that sid is marked. Supplied => an exact
+  # (sid, at) match. It is REQUIRED whenever one sid carries two timestamps: measured
+  # 2026-09-17 on a real ledger, 12 sids appeared more than once and 8 of those mixed a
+  # retirable entry with a LIVE one, so a sid-only call would have retired live handoffs.
+  awk -v sid="$_ss_sid" -v ts="$_ss_ts" -v by="$_ss_by" -v want_at="$_ss_want_at" '
+    /^### / {
+      _nf = split(substr($0, 5), _f, " · ")
+      _hsid = _f[1]; _hat = (_nf >= 2 ? _f[2] : "")
+    }
+    /^### / && index(_hsid, sid) > 0 && (want_at == "" || _hat == want_at) && /(^|[^a-z])unconsumed([^a-z]|$)/ {
       sub(/unconsumed/, "consumed " ts " by " by " (superseded)"); print; next
     }
     { print }
@@ -394,8 +434,8 @@ kt_ss_ledger_mark_superseded() {
 # That is load-bearing: a stored prompt is kept at FULL fidelity (a still-valid handoff must
 # not be degraded), and real openers contain column-0 "## " lines. The previous version reset
 # `drop` on /^## /, so a consumed block containing such a line lost its boundary and leaked
-# its tail into the file. Fence-tracking cannot substitute here, because an opener may itself
-# contain nested ``` fences.
+# its tail into the file — reproduced, not theorised. Fence-tracking cannot substitute here,
+# because an opener may itself contain nested ``` fences.
 #
 # Legacy files (written before terminators existed) carry single-line prompts by the old
 # invariant, so a column-0 "## " inside one is impossible and the old inference is still
@@ -411,33 +451,60 @@ kt_ss_ledger_prune() {
   _ss_f="$1/SESSION.md"
   [ -f "$_ss_f" ] || return 0
   _ss_tmp="$_ss_f.$$.tmp"
-  # Receipt census, read BEFORE the awk. Its pair is the epilogue after the mv; both are documented
-  # in plugin-claude-code/bin/lib-session-state.sh. The receipt is derived from what the operation
-  # DID (before minus after), never from what it was likely to do, and it is written only after the
-  # mv has already committed so it can never prevent a prune.
+  # ⛔ RECEIPTS — read the census BEFORE, compare AFTER, append only once the mv has succeeded.
+  #
+  # WHY IT IS OUT HERE AND NOT INSIDE THE awk. The awk below is a two-pass filter whose STDOUT IS
+  # THE NEW FILE, guarded by `... > tmp 2>/dev/null && mv tmp file`. A receipt write inside it would
+  # put the receipt path into prune own failure path: a write that fails makes awk exit non-zero,
+  # the && short-circuits, mv never runs, and because stderr is discarded PRUNE SILENTLY STOPS
+  # PRUNING. A fix for a data-loss detector must never be able to disable the thing it monitors.
+  #
+  # WHY BEFORE-MINUS-AFTER AND NOT "headers carrying a terminal token". Those two sets are NOT the
+  # same: the hasterm and "## "-reset branches below mean some marked entries are deliberately not
+  # reaped. A receipt naming an entry that SURVIVED would later suppress a genuine loss report for
+  # it. The difference between the sets is exactly where that bug would live, so the receipt is
+  # derived from what the operation DID, never from what it was likely to do.
+  #
+  # A receipt is ADVISORY: it can only ever SUPPRESS a loss finding for an id it names. It can never
+  # create one. So a missing, truncated or corrupt receipts file degrades to the behaviour we had
+  # before it existed — a false positive — and never to a missed destruction. Do not trade that away.
   _ss_before="$(grep '^### ' "$_ss_f" 2>/dev/null || true)"
-  # Kept functionally identical to plugin-claude-code/bin/lib-session-state.sh -- read that copy for
-  # the full reasoning. Three things here are load-bearing and none may be "simplified":
-  #   1. is_entry_header: a "### " line is an ENTRY HEADER only if it carries >= 2 " . " separators
-  #      (measured 25/25 real headers vs 3/3 prose headings). Everything else at column 0 inside an
-  #      open block is CONTENT and drops with the block.
-  #   2. the word-bounded status test: a naive /consumed/ ALSO matches `unconsumed`, which would make
-  #      prune delete LIVE handoffs.
-  #   3. !hasterm[opened] on the recovery branch: without the scope it is the old unconditional reset,
-  #      which leaks a prompt`s inner "## " line; without the branch at all, an unterminated consumed
-  #      block eats the next section heading and everything under it.
-  # DO NOT collapse to an unconditional `if (drop) next` -- measured to swallow a live handoff.
+  # A "### " line is an ENTRY HEADER only if it carries >= 2 " · " separators. Everything else at
+  # column 0 inside an open block is CONTENT and is dropped with the block.
+  #
+  # ⛔⛔ DO NOT "SIMPLIFY" THIS TO AN UNCONDITIONAL `if (drop) next`. Measured 2026-08-27 on fixtures:
+  # the unconditional form closes the inner-"### " leak AND swallows a LIVE handoff whenever a
+  # consumed block lacks a terminator, because this reset is the only recovery path in that case —
+  # one fixture was reduced to its bare "## Pending handoffs" heading. It trades a bounded 2-line leak
+  # for unbounded deletion, which is the same class of harm as demoting over a live pickup.
+  # ⚠ And it PASSES a leak-only fixture, so tests/repros/session-state.sh carries M9c specifically to
+  # fail it. If M9c is ever deleted, this comment is the only thing left standing between the two.
+  #
+  # ⛔ The threshold is MEASURED, not chosen: across all 28 column-0 "### " lines in all 80 SESSION.md
+  # on one machine, 25/25 real entry headers carry >= 3 separators and 3/3 prose headings carry 0.
+  # A token-shape test was tried first and FAILED on 2 of 25 (a parenthetical after the sid).
+  # ⚑ Failure direction is safe: a prose heading with >= 2 separators degrades to the old bounded
+  # leak, never to deletion.
+  #
+  # The status test is word-bounded for the same reason as mark_consumed's, and this is where that
+  # matters most: a naive /consumed/ ALSO matches `unconsumed`, which would make prune delete live
+  # handoffs. `unconsumed` fails /(^|[^a-z])consumed([^a-z]|$)/ because the `c` is preceded by `n`.
   awk '
     function is_entry_header(s, n) { n = gsub(/ · /, " · ", s); return (n >= 2) }
 
-    # pass 1: terminators in use, and which entries actually have one.
+    # pass 1: does this file use explicit terminators, and which entries actually HAVE one?
+    # hasterm[] is keyed on the line number of the entry header, so pass 2 can tell a block with
+    # a declared end from a block without one. The span closes only at a WELL-FORMED entry header,
+    # never at a bare column-0 "## " -- closing at any heading is fence-blind, so a "## " inside a
+    # stored prompt would mark a TERMINATED entry as unterminated and re-arm the recovery branch
+    # below inside the prompt. Measured 2026-09-09 on fixtures: that form LEAKS.
     NR == FNR {
       if ($0 ~ /^### / && is_entry_header($0)) cur = FNR
       else if ($0 == "<!-- aria:entry-end -->") { term = 1; if (cur) hasterm[cur] = 1; cur = 0 }
       next
     }
 
-    # pass 2 -- terminator format: boundaries are an entry header and the terminator only.
+    # pass 2 — terminator format: boundaries are an entry header and the terminator only.
     term {
       if ($0 ~ /^### / && is_entry_header($0)) {
         drop = ($0 ~ /(^|[^a-z])consumed([^a-z]|$)/) ? 1 : 0
@@ -446,12 +513,21 @@ kt_ss_ledger_prune() {
         print; next
       }
       if ($0 == "<!-- aria:entry-end -->") { if (drop) { drop = 0; next } print; next }
+      # RECOVERY, and it is SCOPED ON PURPOSE. An unterminated consumed block has no declared
+      # end, so a section heading is the only boundary left; without this, such a block swallows
+      # the next "## " heading and everything under it -- measured, 16 lines to 9 on a fixture,
+      # and this is the class that deleted two unconsumed handoffs on 2026-09-04.
+      # !hasterm[opened] is what keeps this from being the old unconditional reset that LEAKED:
+      # a block that HAS a terminator keeps declared boundaries, so a "## " inside its stored
+      # prompt cannot close it early. Removing that one clause makes the leak fixture leak.
       if (drop && !hasterm[opened] && $0 ~ /^## / && $0 !~ /^### /) { drop = 0; print; next }
       if (!drop) print
       next
     }
 
-    # pass 2 -- legacy format: prompts are single-line, so "## " inference is safe here.
+    # pass 2 — legacy format: prompts are single-line, so "## " inference is safe. The header
+    # inference stays as-is here (the only boundary mechanism this format has); only the status test
+    # gains the word boundary, so a legacy bold `**consumed**` entry prunes too.
     /^### / { drop = ($0 ~ /(^|[^a-z])consumed([^a-z]|$)/) ? 1 : 0; if (drop) next }
     /^## / && $0 !~ /^### / { drop = 0 }
     { if (!drop) print }
@@ -487,7 +563,6 @@ kt_ss_ledger_prune() {
       fi
     fi
   fi
-
   return 0
 }
 
@@ -499,6 +574,7 @@ kt_ss_read_active_sid() {
   awk 'NR==1 && $0!="---"{exit} /^---$/ && NR>1{exit} /^sessionId:[[:space:]]*/{sub(/^sessionId:[[:space:]]*/,""); print; exit}' "$_ss_f" 2>/dev/null
   return 0
 }
+
 # Read the ACTIVE front-matter `at:`. Sibling of kt_ss_read_active_sid -- same guard, same
 # front-matter walk, same `return 0`; only the key differs. Deliberately a sibling rather than a
 # parameterised kt_ss_read_front_matter: two call sites do not earn a generalised reader, and the
@@ -678,3 +754,132 @@ kt_ss_ledger_token_locate() {
   return 0
 }
 
+# Read the `aria-handoff:` provenance token from inside the ACTIVE prompt block.
+# Prints `<sid>|<at>`, or nothing when the active prompt carries no token (every prompt
+# written before 2026-09-15).
+#
+# ⛔ WHY THIS EXISTS. kt_ss_read_active_sid reads the FRONT MATTER only, and the front
+# matter is exactly the value that is wrong when the two disagree: kt_ss_mark_inprogress
+# stamps the CURRENT session's id over the header while passing the body through, so a
+# prompt routinely sits under a later session's identity. The token travels in the body,
+# which no rewrite path touches. Measured 2026-09-17 on a real ledger: token said
+# 10cf229b@11:00:01Z, front matter said 4c3e190c@11:06:37Z.
+kt_ss_read_active_token() {
+  _ss_f="$1/SESSION.md"
+  [ -f "$_ss_f" ] || return 0
+  awk '
+    /^## / { sec = ($0 ~ /^## Next session prompt[[:space:]]*$/) ? "ACTIVE" : "OTHER"; next }
+    sec == "ACTIVE" && /^aria-handoff:[[:space:]]*/ {
+      line = $0
+      sub(/^aria-handoff:[[:space:]]*/, "", line)
+      slash = index(line, "/");  if (slash == 0) next
+      rest  = substr(line, slash + 1)
+      at_i  = index(rest, "@");  if (at_i == 0) next
+      sid = substr(rest, 1, at_i - 1); at = substr(rest, at_i + 1)
+      gsub(/^[ \t]+/, "", sid); gsub(/[ \t]+$/, "", sid)
+      gsub(/^[ \t]+/, "", at);  gsub(/[ \t]+$/, "", at)
+      if (sid == "" || at == "") next
+      print sid "|" at
+      exit
+    }
+  ' "$_ss_f" 2>/dev/null
+  return 0
+}
+
+# Consume the ACTIVE prompt: demote it into `## Pending handoffs`, mark that entry
+# consumed, and clear the active slot. Called by a RESUMING session once it has found an
+# `aria-handoff:` token in the opener.
+#
+# ⛔ WHY A COMPOSED FUNCTION AND NOT A FIX TO mark_consumed. kt_ss_ledger_mark_consumed
+# rewrites only `^### ` headers. The active prompt has no `### ` header at all, so calling
+# it on a live prompt matches zero lines, rewrites nothing and returns 0 — measured
+# 2026-09-17 with a positive control on a `###` entry in the same run. Corpus: one real
+# ledger held 142 entries, 0 consumed. Consumption had never once been recorded, and
+# because kt_ss_ledger_prune reaps only a word-bounded `consumed`, nothing was ever
+# prunable. Teaching mark_consumed to rewrite the active block would require inventing a
+# status field in a heading that has none — the free-text-in-a-machine-field defect that
+# kt_ss_ledger_mark_superseded's own comment block records closing (D3). Don't.
+#
+# ⛔ THE ACTIVE SLOT MUST BE CLEARED, and this is not a style choice.
+# kt_ss_ledger_token_locate's ACTIVE branch prints the LITERAL string "unconsumed":
+#   if (sec == "ACTIVE") { print fsid "|" fat "|unconsumed|active"; exit }
+# The active slot is structurally incapable of reporting a consumed prompt, so a prompt
+# left there is re-offered forever no matter what is written elsewhere.
+#
+# ⛔ NOT WIRED TO ANY EDIT-TIME HOOK — Mike's ruling 2026-09-17, "no new post or pre edit
+# hook checks; the only hooks for this should be on session start". bin/post-edit-check.sh
+# is deliberately NOT a caller. Wiring it there would demote-and-consume a handoff on ANY
+# session's first edit in the project, including a session that never read the prompt.
+kt_ss_ledger_consume_active() {
+  _ss_root="$1"; _ss_by="$2"; _ss_now="$3"
+  _ss_f="$_ss_root/SESSION.md"
+  [ -f "$_ss_f" ] || return 0
+
+  # Boundary: from the heading to the next column-0 "## " that is NOT inside a fence.
+  # Fence parity is tracked exactly as kt_ss_ledger_token_locate does -- mirrored on
+  # purpose, so the two readers can never disagree about where the active block ends.
+  _ss_body=$(awk '
+    BEGIN { sec = ""; infence = 0; buf = ""; done = 0 }
+    /^```/      { if (sec == "ACTIVE") buf = buf $0 "\n"; infence = 1 - infence; next }
+    infence == 1 { if (sec == "ACTIVE") buf = buf $0 "\n"; next }
+    /^## /      { if (sec == "ACTIVE") { printf "%s", buf; done = 1; exit }
+                  sec = ($0 ~ /^## Next session prompt[[:space:]]*$/) ? "ACTIVE" : "OTHER"; next }
+    sec == "ACTIVE" { buf = buf $0 "\n" }
+    # ⛔ `done` is load-bearing: in awk, `exit` RUNS THE END BLOCK. Without the flag the
+    # buffer is printed twice whenever the active section is followed by another "## "
+    # heading -- which is the normal case. Measured 2026-09-17: the body came back
+    # duplicated verbatim.
+    END { if (sec == "ACTIVE" && !done) printf "%s", buf }
+  ' "$_ss_f" 2>/dev/null)
+
+  # Trim surrounding blank lines, then bail on the three empty states. A no-op here must
+  # be byte-for-byte: an absent heading, an empty block, and a fresh in-progress marker
+  # are all legitimate and must not be demoted.
+  _ss_trim=$(printf '%s' "$_ss_body" | sed -e '/./,$!d' | sed -e ':a' -e '/^[[:space:]]*$/{$d;N;ba' -e '}')
+  case "$(printf '%s' "$_ss_trim" | tr -d '[:space:]')" in
+    ''|'(sessioninprogress)'|'```(sessioninprogress)```') return 0 ;;
+  esac
+
+  # Identity: THE TOKEN WINS. Front matter is the fallback for pre-token prompts only.
+  _ss_tok=$(kt_ss_read_active_token "$_ss_root")
+  if [ -n "$_ss_tok" ]; then
+    _ss_sid=${_ss_tok%%|*}; _ss_at=${_ss_tok#*|}
+  else
+    _ss_sid=$(kt_ss_read_active_sid "$_ss_root"); _ss_at=$(kt_ss_read_active_at "$_ss_root")
+  fi
+  [ -n "$_ss_sid" ] || return 0
+
+  _ss_focus=$(awk 'NR==1 && $0!="---"{exit} /^---$/ && NR>1{exit} /^currentFocus:[[:space:]]*/{sub(/^currentFocus:[[:space:]]*/,""); print; exit}' "$_ss_f" 2>/dev/null)
+  _ss_next=$(awk 'NR==1 && $0!="---"{exit} /^---$/ && NR>1{exit} /^nextAction:[[:space:]]*/{sub(/^nextAction:[[:space:]]*/,""); print; exit}' "$_ss_f" 2>/dev/null)
+
+  kt_ss_ledger_add "$_ss_root" "$_ss_sid" "$_ss_at" "$_ss_focus" "$_ss_next" "$_ss_trim"
+
+  # ⛔ VERIFY THE DEMOTE LANDED BEFORE CLEARING ANYTHING. kt_ss_ledger_add returns 0
+  # whether or not it wrote -- every failure path in it ends `return 0` by design, so its
+  # exit code carries NO information about whether the entry is on disk. Clearing the
+  # active slot on the strength of that return is how a handoff gets destroyed: measured
+  # 2026-09-17, an add silently discarded by the heading-last defect left the fixture with
+  # the prompt gone from both places. Bind the irreversible step to the load-bearing
+  # result -- the entry actually being present -- never to the proxy.
+  if ! awk -v sid="$_ss_sid" '/^### / && index($0, sid) > 0 { found = 1 }
+                              END { exit(found ? 0 : 1) }' "$_ss_f" 2>/dev/null; then
+    return 0
+  fi
+
+  kt_ss_ledger_mark_consumed "$_ss_root" "$_ss_sid" "$_ss_now" "$_ss_by" "$_ss_at"
+
+  # Clear the active slot, leaving the heading present and empty.
+  _ss_tmp="$_ss_f.$$.tmp"
+  awk '
+    BEGIN { sec = ""; infence = 0 }
+    /^```/       { if (sec != "ACTIVE") print; infence = 1 - infence; next }
+    infence == 1 { if (sec != "ACTIVE") print; next }
+    /^## /       { if (sec == "ACTIVE") print ""
+                   sec = ($0 ~ /^## Next session prompt[[:space:]]*$/) ? "ACTIVE" : "OTHER"
+                   print; next }
+    sec == "ACTIVE" { next }
+    { print }
+  ' "$_ss_f" > "$_ss_tmp" 2>/dev/null && mv "$_ss_tmp" "$_ss_f" 2>/dev/null
+  rm -f "$_ss_tmp" 2>/dev/null
+  return 0
+}

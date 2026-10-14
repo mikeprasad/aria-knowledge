@@ -36,8 +36,9 @@ Cursor-specific files live here:
 
 ## Current Parity Notes
 
-- **Canonical parity target:** `plugin-claude-code/` @ **v2.46.2** (2026-08-16).
-- **Cursor port version:** `scripts/aria/VERSION` → `2.46.2-cursor.0`.
+- **Canonical parity target:** `plugin-claude-code/` @ **v2.55.1** (2026-10-14).
+- **Cursor port version:** `scripts/aria/VERSION` → `2.55.1-cursor.0`.
+- **New in 2.55.1-cursor.0:** `/audit rules` compiled into `aria-audit.mdc` (the dispatcher already routed to it) with a Cursor step 6 and `scripts/aria/check-rule-lead-bytes.sh`; Bash-capability preconditions stripped like ADR-094 gates (Cursor has a shell); Claude-Code hook-mechanics paragraphs stripped from `aria-rule-22.mdc`, with `verify_markers` now failing generation if any such text, or a `/aria-cowork:` route, reaches a compiled rule; `lib-session-state.sh` gains `kt_ss_ledger_consume_active` + `kt_ss_read_active_token` and the 2.53.2 `mark_superseded` literal-match fix; sessionStart carries the token-resume SESSION STATE procedure; `pre-bash-write-check.sh` warns on the resolved write target via `pre-bash-write-resolve.py` (verbatim canonical) instead of exempting any command that mentions `/tmp`; edit-time handoff auto-consume removed from `post-edit-check.sh`; `knowledge/` re-mirrored (Rule 23 scope + falsifier text, `index.md`).
 - **ADR-094 Runtime Gates:** intentionally **omitted** in Cursor — aria-cowork is not loaded in typical Cursor sessions; namespace note lives in `aria-commands.mdc` preamble only.
 - Knowledge folder schema is **fully compatible** with upstream (Rules 36–38 + Behavioral Foundation included).
 - `intake/pre-compact-captures/` removed by design; `intake/task-boundary-captures/` substitutes via the `stop` hook.
@@ -80,11 +81,11 @@ Cursor-specific files live here:
 
 ### A. Knowledge contract sync
 
-**Last synced:** `plugin-claude-code/template/` @ v2.46.2. Re-audit template rule files before each release. Cursor keeps `knowledge/approaches/foundational-review-chain.md` and `intake/task-boundary-captures/` (canonical has `intake/pre-compact-captures/`).
+**Last synced:** `plugin-claude-code/template/` @ v2.55.1. Re-audit template rule files before each release. Cursor keeps `knowledge/approaches/foundational-review-chain.md` and `intake/task-boundary-captures/` (canonical has `intake/pre-compact-captures/`).
 
 ### B. Skill → `.mdc` compilation (Cursor-only)
 
-**Last synced:** `plugin-claude-code/skills/` @ **v2.46.2** → `.cursor/rules/*.mdc`. Adds `/auto`, `/roadmap`, `/preflight`, `/audit` + style/usage; `/interview` guided default and wrapup/handoff `session_state_tracked` ride in with canonical bodies.
+**Last synced:** `plugin-claude-code/skills/` @ **v2.55.1** → `.cursor/rules/*.mdc`. Adds `/auto`, `/roadmap`, `/preflight`, `/audit` + style/usage; `/interview` guided default and wrapup/handoff `session_state_tracked` ride in with canonical bodies.
 
 **Compiled commands** in `aria-commands.mdc` (core + MCP + `/help` + `/audit-share`; aliases documented in preamble / `aria-audit.mdc`). Audit family lives in `aria-audit.mdc`.
 
