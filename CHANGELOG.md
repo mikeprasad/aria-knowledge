@@ -2,7 +2,7 @@
 
 All notable changes to ARIA will be documented in this file.
 
-## Unreleased
+## 2.55.1 — 2026-10-14
 
 **`/snapshot` now captures your session, not whichever session wrote last.** The helper copied the most recently modified `*.jsonl` under `~/.claude/projects`. With several Claude Code sessions open, that was often another session's transcript, and it still printed "saved" with exit 0. It now looks the transcript up by session id: `$CLAUDE_CODE_SESSION_ID`, then the `${CLAUDE_SESSION_ID}` the skill passes as an argument.
 
@@ -10,7 +10,16 @@ All notable changes to ARIA will be documented in this file.
 - **Non-transcript files can no longer be captured.** The old search also matched deeper `.jsonl` files, such as subagent transcripts and plugin logs (`vercel-plugin/skill-injections.jsonl`), and would save one as `<date>_skill-in.md`. Only top-level `<project>/<id>.jsonl` files are considered now.
 - **No id at all** (older Claude Code): the helper keeps the newest-transcript fallback and prints a `⚠ GUESSED` line naming the session it took.
 
-Tests: new `tests/repros/snapshot-session-id.sh` (6 arms). It fails on the old helper, which captured the plugin log. Claude Code port only. Antigravity reads a hook-written path cache and Cowork has no shell. ⚠ Codex's `save-transcript.sh` still carries the old newest-file locator, pointed at `~/.claude/projects`; it is not fixed here.
+Tests: new `tests/repros/snapshot-session-id.sh` (6 arms). It fails on the old helper, which captured the plugin log. Claude Code port only. Antigravity reads a hook-written path cache and Cowork has no shell. ⚠ Codex's `save-transcript.sh` now carries the same id-first locator and `GUESSED` warning, but it still searches Claude Code's `~/.claude/projects`, not Codex's own session store. That is a pre-existing Codex defect and is not fixed here.
+
+**Every port is back at parity with this release.** Cowork and Codex had last synced at 2.46.4 and Cursor partly at 2.53.1. Each port's skills were brought forward by a 3-way merge per file (base = the canonical version the port last synced, ours = the port, theirs = canonical now), so port-specific adaptations survived. Merged changes that a runtime cannot run were adapted or marked as not run, never left as instructions.
+
+- **Codex `2.55.1-codex.0`.** Gains `/audit rules`, which its `/audit` dispatcher already routed to. `lib-session-state.sh` gains the full SESSION.md ledger. Codex's `/handoff` and `/wrapup` already called `kt_ss_ledger_add` and `kt_ss_ledger_prune`, which its lib did not define, so those steps failed with `command not found`. SessionStart resumes a handoff by its `aria-handoff:` token. Two never-wired copies of `pre-edit-check.sh` and `post-edit-check.sh` are removed (`codex-hook.py` implements both).
+- **Cursor `2.55.1-cursor.0`.** `/audit rules` is compiled into `aria-audit.mdc`. The generator strips Bash-capability preconditions as it already stripped ADR-094 gates, and drops Claude Code hook mechanics from the Rule 22 rule. Generation now fails if such text or a `/aria-cowork:` route reaches a compiled rule. The session lib gains token resume and the 2.53.2 `mark_superseded` fix. The shell-write warning now judges the resolved write target, not whether the command mentions `/tmp`, and edit-time handoff consumption is removed. `knowledge/` is re-mirrored.
+- **Antigravity `2.55.1`.** Regenerated from canonical with no content change; it was already at parity.
+- **Cowork `1.8.0`.** See `plugin-claude-cowork/CHANGELOG.md`.
+
+Tests: `tests/repros/session-state.sh` block N now asserts per-function parity of the ledger across all four ports, including Codex. Previously it asserted that Codex carried none, as a tripwire for this change. It was mutation-checked: a one-line change to Codex's `kt_ss_ledger_add` turns it red, naming `cx`. Codex port suite 25/25.
 
 ## 2.55.0 — 2026-09-30
 
