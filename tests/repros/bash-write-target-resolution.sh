@@ -32,7 +32,11 @@ HOOK="$REPO_ROOT/plugin-claude-code/bin/pre-bash-write-check.sh"
 # Isolate the per-session bypass ledger so repeated runs never accumulate, and so AC9 counts only
 # this run's appends.
 export TMPDIR=$(mktemp -d)
-WORK=$(mktemp -d)
+# ⛔ WORK must sit OUTSIDE every temp root. It used to be `mktemp -d` — /var/folders on macOS,
+# /tmp on Linux — and the must-WARN arms below passed only because the resolver failed to exempt
+# macOS's resolved /private/var/folders (fixed 2026-10-14; AC4b is that fix's guard). A
+# repo-local directory is the one location the temp rule can never cover.
+WORK=$(mktemp -d "$REPO_ROOT/tests/.bwchk-work.XXXXXX")
 TMPFIX="/tmp/aria-bwchk-fixture-$$.py"
 trap 'rm -rf "$TMPDIR" "$WORK" "$TMPFIX"' EXIT
 
@@ -41,6 +45,8 @@ printf 'a\n' > "$WORK/f"
 printf 'a\n' > "$WORK/mod.py"
 printf 'a\n' > "$WORK/notes.md"
 printf 'a\n' > "$TMPFIX"
+SYSTMPFIX=$(mktemp "$TMPDIR/aria-bwchk-sys.XXXXXX")
+printf 'a\n' > "$SYSTMPFIX"
 
 PASS=0
 FAIL=0
@@ -91,6 +97,8 @@ run_case "AC3  git commit -m quoting sed -i is SILENT" \
 # this silent is the temp rule.
 run_case "AC4  sed -i on an existing /tmp path is SILENT (temp rule, not non-existence)" \
   "sed -i '' s/a/b/ $TMPFIX" silent
+run_case "AC4b sed -i on an existing \$TMPDIR path is SILENT (macOS /var -> /private/var resolved)" \
+  "sed -i '' s/a/b/ $SYSTMPFIX" silent
 
 # --- AC5: creation is OUT of scope. Measured across 25,508 calls: `cat > newfile` is
 # overwhelmingly a throwaway probe. Widening here turns the hook into noise.

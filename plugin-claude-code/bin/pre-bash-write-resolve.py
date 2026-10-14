@@ -52,7 +52,12 @@ SOURCE_EXT = (".py", ".ts", ".tsx", ".js", ".jsx", ".sh", ".swift", ".kt", ".jav
 
 #: Transient by construction. ⛔ Matched against the RESOLVED TARGET, never the command string —
 #: that inversion is the entire false-negative fix.
-TEMP_PREFIXES = ("/tmp/", "/private/tmp/", "/var/tmp/", "/var/folders/")
+#: Compared against realpath(), so each macOS symlinked root needs its RESOLVED form too:
+#: /tmp -> /private/tmp and /var -> /private/var. Without the /private/var entries the
+#: per-user $TMPDIR (/var/folders/...) never matched, and every scratch edit there was
+#: warned on and ledgered as a Rule 22 bypass (fixed 2026-10-14).
+TEMP_PREFIXES = ("/tmp/", "/private/tmp/", "/var/tmp/", "/private/var/tmp/",
+                 "/var/folders/", "/private/var/folders/")
 
 
 def _statements(body):
