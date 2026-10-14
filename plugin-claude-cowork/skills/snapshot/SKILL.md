@@ -65,7 +65,7 @@ Compute the snapshot filename: `<knowledge_folder>/intake/pre-compact-captures/{
 
 Probe at invocation time for a Cowork MCP tool that exposes the current session's transcript. Common candidate names: `mcp__session_info__read_transcript`, `mcp__session_info__get_current`, or similar.
 
-- **If a current-session transcript MCP is found:** invoke it; capture the returned transcript verbatim. Record the source as Path 1 (MCP). Skip to Step 3.
+- **If a current-session transcript MCP is found:** invoke it, then **confirm the returned transcript is THIS session** before accepting it — its session id matches the one you hold, or (with no id to compare) its final turns are the turns you can see in this conversation. If it matches, capture it verbatim, record the source as Path 1 (MCP) and skip to Step 3. If it is another session's transcript, or you cannot tell, discard it and fall through to Path 2. Never write another session's record under this session's snapshot and report success (canonical aria-knowledge `/snapshot` fixed exactly that failure: it copied the newest transcript, which with several sessions live was often another session's, and still reported success).
 - **If the MCP returns "Session not found" or similar for current session** (per the 2026-04-30 probe finding): fall through to Path 2.
 - **If no such MCP is available:** fall through to Path 2.
 

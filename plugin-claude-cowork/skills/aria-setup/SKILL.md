@@ -230,7 +230,7 @@ In **update mode**, preserve user-added markdown body content below the frontmat
 
 After Step 5 writes aria-config.md, verify that every known field is present. This catches gaps where Step 4c's Advanced Options bundle silently skipped a field — e.g., the agent forgot to prompt for a newly-added field, or the user's response wasn't captured correctly. Defense-in-depth per item #11e — `/aria-cowork:audit-config` also runs this check at audit cadence (Step 3b of that skill, ships in Stage D of v0.3.0).
 
-**Source of known fields:** Read `${CLAUDE_PLUGIN_ROOT}/../CONFIG.md` (cowork's repo-root CONFIG.md, the schema-documentation file shipped with the plugin). Parse the field tables to extract:
+**Source of known fields:** Read `${CLAUDE_PLUGIN_ROOT}/CONFIG.md` (the schema-documentation file bundled at the plugin root). Parse the field tables to extract:
 
 - All field names under "**Consumed by cowork**" table (cowork actively reads these)
 - All field names under "**Parse-tolerated by cowork**" table (cowork ignores but accepts)

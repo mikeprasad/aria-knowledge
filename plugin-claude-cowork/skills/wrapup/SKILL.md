@@ -187,6 +187,16 @@ If the user has no git repo context for this session (e.g., the session was pure
 
 **Important:** Cowork never pushes either. The user pushes from their terminal after committing. Push is always an explicit user action.
 
+## Step 6.5: Write SESSION.md (wrapup state) — SKIPPED in cowork
+
+(SKIPPED in cowork per ADR-005 — the SESSION.md producer is not ported; the CHANGELOG records this.) aria-knowledge's `/wrapup` Step 6.5 rewrites `{project_root}/SESSION.md` as a wrapup-state snapshot and protects the multi-session ledger while doing it: an `at`-ordering guard so an older session never overwrites a newer one's state, a full-fidelity demote of any other session's pending prompt into `## Pending handoffs` before the rewrite, and a prune of entries already marked consumed. Cowork produces none of it, for three runtime reasons:
+
+- **No session id.** The ledger keys every entry on a session id; Cowork has none to write.
+- **No clock.** The ordering guard compares UTC `at` timestamps and Cowork has no shell to read one. A guessed `at` could let an older session outrank a newer one and overwrite its state — the exact damage the guard exists to prevent — so a degraded port would be worse than none.
+- **No `session_state` key** in `aria-config.md`; in Code the step is gated on it.
+
+So this variant never reads, writes, demotes or prunes `SESSION.md` — it cannot destroy another session's pickup, and it also does not surface one. The canonical pre-close reads go with it: the shell-bypass ledger has no writer in Cowork, and the pending-handoff count needs the ledger. Canonical text: `plugin-claude-code/skills/wrapup/SKILL.md` Step 6.5.
+
 ## Step 7: Verify wrapup readiness
 
 Run through a checklist and report status:

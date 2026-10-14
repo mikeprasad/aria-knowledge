@@ -42,7 +42,7 @@ Record counts per category and total.
 
 ## Step 2: Count backlog items
 
-For each backlog file, count its **live** entries below the `---` separator by the rule in `/audit knowledge` Step 1 — `### ` entries, plus `## ` headings with content under them, plus unmarked `#### YYYY-MM-DD` headings dated on or after the last audit pass (a `### `-only count under-reports):
+For each backlog file, count its **live** entries below the `---` separator by the rule in `/aria-cowork:audit-knowledge` Step 1 — `### ` entries, plus `## ` headings with content under them, plus `#### YYYY-MM-DD` headings dated on or after the last audit pass whose **heading** carries no disposition marker (a `### `-only count under-reports). This is the same rule aria-knowledge's shared counter script applies in Code; Cowork has no shell, so apply it by reading the files. A missing backlog file is reported as `missing`, never counted as 0:
 
 - `<knowledge_folder>/intake/insights-backlog.md`
 - `<knowledge_folder>/intake/decisions-backlog.md`

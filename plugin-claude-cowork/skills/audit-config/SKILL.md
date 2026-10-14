@@ -165,7 +165,7 @@ After 3a's pattern-based drift checks, run a structural check for config-schema 
 
 **Algorithm:**
 
-1. Enumerate known user-facing field names by reading `${CLAUDE_PLUGIN_ROOT}/../CONFIG.md` (cowork's repo-root CONFIG.md). Parse the field tables:
+1. Enumerate known user-facing field names by reading `${CLAUDE_PLUGIN_ROOT}/CONFIG.md` (the CONFIG.md bundled at the plugin root). Parse the field tables:
 
    - **"Consumed by cowork"** table — fields cowork actively reads. Missing entries from this table surface as **Should Fix** (cowork's runtime relies on them).
    - **"Parse-tolerated by cowork"** table — fields cowork accepts but ignores. Missing entries from this table are NOT surfaced as findings (intentionally absent in cowork-only setups).

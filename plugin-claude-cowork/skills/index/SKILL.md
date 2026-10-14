@@ -172,7 +172,9 @@ scan returned 240 entries of which only 78 had a review question to answer.**
 `Last updated:` when both appear. Measured: **7** files carry only `date:`; a `Last updated`-only
 reader calls them undated, which reads as a data-quality gap rather than a detector gap.
 
-Identify remaining files whose resolved date is older than `staleness_threshold_months` months ago.
+Identify remaining files whose resolved date is older than `staleness_threshold_months` months ago (the config value wins over the default of 6).
+
+Carry four counts forward to Step 8's `## Stale Files` section and Step 9's report, not one: **review-able**, **exempt (decisions)**, **no-date-field**, and **excluded as structural**. A single total is the shape that produced the buried queue.
 
 ```
 ## Stale Files
@@ -255,7 +257,36 @@ api, architecture [aliases: arch], database, ...
 
 ## Stale Files
 
-[Files older than staleness_threshold_months — surfaced from Step 6]
+_Recomputed YYYY-MM-DD. **R** promoted files need review (of **N** scanned) — threshold: **M** months._
+
+⚠ **E of these are decision records and are EXEMPT** — an ADR does not go stale, it gets **superseded**.
+Ratified as ADR 117. They are listed separately and are **NOT** a review queue.
+
+### Review-able tiers (R files)
+
+- relative/path/to/file.md — Last updated: YYYY-MM-DD
+- relative/path/to/other.md — date: YYYY-MM-DD (`date:` idiom, resolved)
+
+### Decision records — NOT a review queue (E files, exempt per ADR 117)
+
+_Listed for completeness only. Obsolescence here is expressed by supersession; do not review by date._
+
+- relative/path/to/decisions/NNN-something.md — Last updated: YYYY-MM-DD
+
+### Needs a date field — not stale (D files)
+
+_Has frontmatter but carries neither `Last updated:` nor `date:`. A different action from "needs review"._
+
+- relative/path/to/file.md
+
+(Surfaced from Step 6. Sort each list by date ascending, then path. **X files with no frontmatter at all
+were excluded as structural** — READMEs, probe fixtures, verbatim source dumps; state the count, do not
+list them and do not report them as a gap. Omit any subsection with zero entries; omit the whole section
+only if all four are zero.)
+
+> ⚠ **The header line must name the population.** "216 files are stale" and "78 need review of 942
+> scanned, 162 exempt" are different claims and only the second is actionable. Never emit a single
+> undifferentiated total.
 ```
 
 ## Step 9: Report
@@ -267,7 +298,7 @@ api, architecture [aliases: arch], database, ...
 - Known tags: M (added: K via promotion)
 - Freeform tags: F (suggested for promotion: P)
 - Untagged files: U
-- Stale files: S
+- Stale files: R need review of N scanned (threshold: T months) — plus E exempt decision records, D needing a date field, X excluded as structural
 - Tag normalizations applied: T
 
 Index written to <knowledge_folder>/index.md.

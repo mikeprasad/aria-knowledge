@@ -52,13 +52,20 @@ Read `{knowledge_folder}/logs/knowledge-audit-log.md`.
 
 Note the "Last Audit" date and calculate days since.
 
-**Compute the current trigger state.** Count each backlog's live entries **by reading the file** (Cowork has no shell, so the plugin's counter script cannot run here — apply its rule by hand). Scope: the four action-eligible backlogs (insights, decisions, extraction, rules — `intake/ideas/` is excluded, it routes out via the Accept submenu), lines **below the first `---` separator**, ignoring anything inside `<!-- … -->`. A block starts at any `## `, `### ` or `#### ` heading. Count three kinds:
+**Compute the current trigger state.** Count each backlog's live entries **by reading the file** — Cowork has no shell, so aria-knowledge's shared counter script (`bin/count-backlog-entries.sh`) cannot run here; apply its rule by hand so this count matches the one the Code port uses for its prompt and scope. Scope: the four action-eligible backlogs `intake/{insights,decisions,extraction,rules}-backlog.md` (`intake/ideas/` is excluded, it routes out via the Accept submenu). A missing backlog file is reported as `<name>: missing`, never silently counted as 0.
 
-- **canonical** — `### ` entries. This is the old count, kept as the control.
-- **h2** — a `## ` heading with content under it (an entry written as a group header). A `## ` followed directly by another heading is a group header, not an entry.
-- **h4suspect** — a `#### YYYY-MM-DD` heading dated on or after the last pass's `Date:` whose heading carries **no** disposition marker (`[` + capitals, e.g. `[PROMOTED 2026-…`, `[SUPERSEDED by …]`). Read the marker from the heading only — bodies legitimately contain bracketed tokens.
+**Cutoff** — the last pass's date: the first `- **Date:**` line of `logs/knowledge-audit-log.md`, first token only (`YYYY-MM-DD`). If the log is absent or that token is not a date, there is no cutoff (`cutoff=none`) and the h4suspect arm is off.
 
-**live** = canonical + h2 + h4suspect is the backlog count and the audit's scope. Review every h2 and h4suspect block with its backlog like any `### ` entry, and report them together in Step 6 as a **Mis-levelled entries (N)** finding — a non-zero N means some writer is not using the `### YYYY-MM-DD — <project> — <title>` contract.
+**Per file**, consider only lines **below the first line that is exactly `---`**, and skip anything inside `<!-- … -->` (a line beginning `<!--` is skipped; if it does not also contain `-->`, skip until a line that does). A block starts at any `## `, `### ` or `#### ` heading and runs to the next one. Count three kinds:
+
+- **canonical** — `### ` blocks. This is the old count, kept as the **control**: if it reads 0 on a backlog you can see has entries, your reading is wrong — stop and say so.
+- **h2** — a `## ` block whose body holds a non-blank line (an entry written as a group header). A `## ` with an empty body — followed directly by another heading — is a group header, not an entry.
+- **h4suspect** — a `#### YYYY-MM-DD` block dated **on or after the cutoff** whose **heading** carries **no** disposition marker. A marker is `[` + three or more capitals (hyphens allowed) followed by a space, colon, `]` or em dash — e.g. `[PROMOTED 2026-…`, `[ALREADY-PROMOTED — …`, `[SUPERSEDED by …]`. It is either an entry born at the wrong level or a past pass's unmarked demotion — nothing on disk separates the two, which is why the Step 7 clearing contract requires the marker. Read the marker from the heading only — bodies legitimately contain bracketed tokens (`[DRAFT …]`, `[IDEA]`). The date only bounds the window; it cannot classify.
+- **live** = canonical + h2 + h4suspect — **this is the backlog count and the audit's scope.**
+
+Report the same shape the Code counter prints: one line per backlog (`<name>: canonical=N h2=N h4suspect=N live=N`), a `TOTAL: canonical=N h2=N h4suspect=N live=N cutoff=YYYY-MM-DD|none` line, and a **mis-levelled list** with one line per non-`###` live block (`<file>:<line>: h2-entry|h4-suspect: <heading>`).
+
+Every mis-levelled-list line is a real entry and is reviewed with its backlog in Steps 2–2c3 like any `### ` entry. Also report them together in Step 6 as a **Mis-levelled entries (N)** finding — a non-zero N means some writer is not using the `### YYYY-MM-DD — <project> — <title>` contract. ⚠ Known bounds: an *undated* `####` born at the wrong level cannot be windowed and stays invisible; a heading carrying a content token shaped like a marker (`[WIP] …`) reads as dispositioned.
 
 Record both numbers — `live` feeds the prompt message and Step 8's `Trigger:` count; `canonical` is recorded beside it so a later pass can see the gap.
 
@@ -384,7 +391,7 @@ Check for:
 - **Missing connections** — files that discuss the same concepts, patterns, or components but don't reference each other (e.g., an approach that implements a rule but doesn't cite it, or two decisions about the same system with no cross-link)
 - **Stale entity references** — if `index.md` has an `## Entities` section, check that listed files still exist and still mention the entity. Flag any entries pointing to archived, renamed, or deleted files.
 - **Missing entities** — scan promoted files for named tools, services, or frameworks that appear in 2+ files but are not listed in the entity index. These should be picked up by the next `/index` run, but flagging them during audit ensures awareness.
-- **Skill-knowledge drift** — if `index.md` has a `## Skill Connections` section, check each connection for staleness. For each row in the table: (1) Get the skill file's modification date via `stat` or `ls -l` on `${CLAUDE_PLUGIN_ROOT}/skills/{skill_name}/SKILL.md`. (2) Get the knowledge file's `Last updated` date from its YAML frontmatter. (3) If the skill file is newer than the knowledge file, flag as potential drift — the skill may have evolved past what the knowledge doc describes. Also scan the knowledge file content for terms that may be stale relative to the skill (e.g., old names, deprecated patterns). If no `## Skill Connections` section exists in the index, skip this check silently — it means `/index` hasn't been run with Step 8c yet.
+- **Skill-knowledge drift** — **(SKIPPED in cowork per ADR-005 — needs a file-modification date (`stat`/`ls -l`) on the installed plugin's skill files; Cowork has no shell and the plugin directory is outside the attached folder.)** Report it as *"Skill-knowledge drift: not checked in cowork"*, never as clean. aria-knowledge's check, preserved for reference: if `index.md` has a `## Skill Connections` section, check each connection for staleness. For each row in the table: (1) Get the skill file's modification date via `stat` or `ls -l` on `${CLAUDE_PLUGIN_ROOT}/skills/{skill_name}/SKILL.md`. (2) Get the knowledge file's `Last updated` date from its YAML frontmatter. (3) If the skill file is newer than the knowledge file, flag as potential drift — the skill may have evolved past what the knowledge doc describes. Also scan the knowledge file content for terms that may be stale relative to the skill (e.g., old names, deprecated patterns). If no `## Skill Connections` section exists in the index, skip this check silently — it means `/index` hasn't been run with Step 8c yet.
 
 **Scope:** Only check files in `{knowledge_folder}/rules/`, `{knowledge_folder}/approaches/`, `{knowledge_folder}/decisions/`, `{knowledge_folder}/guides/`, and `{knowledge_folder}/references/`. Do not lint backlogs, logs, or templates.
 
@@ -395,6 +402,8 @@ Note all findings for presentation in Step 6 under the new "Integrity Issues" se
 ## Step 5b3: Check Cross-Skill Shared-Block Drift
 
 Some skills inline shared logic (e.g., the group-loader block shared between `/distill` and `/stitch`). Drift between inlined copies is a latent bug — users would see different behavior in each skill.
+
+**(SKIPPED in cowork per ADR-005 — the installed plugin's skill files are outside the attached folder, and the shared-block skills (`/distill`, `/stitch`) are not in cowork.)** Report it as *"Shared-block drift: not checked in cowork"*, never as clean. aria-knowledge's procedure, preserved for reference:
 
 1. Grep all files under `${CLAUDE_PLUGIN_ROOT}/skills/**/SKILL.md` for `<!-- shared-block: NAME -->` markers.
 2. For each unique block `NAME`, collect the content between `<!-- shared-block: NAME -->` and `<!-- /shared-block: NAME -->` in every skill that contains it.
@@ -854,9 +863,9 @@ Every "clear" above means exactly this, for every disposition:
 
 1. **Demote the entry's heading to `#### ` in place.** The body stays (Rule 6 — the backlog is its own archive).
 2. **Append a disposition marker to that heading:** `[<DISPOSITION> YYYY-MM-DD (<Nth> pass) → <destination>]`, where DISPOSITION is one of `PROMOTED`, `HOMED`, `DISPOSITIONED`, `CLEARED`, `REJECTED` (omit `→ <destination>` when there is none). A deferred entry stays at `### ` with no marker.
-3. **A `## ` entry** from Step 1's `--list` is re-levelled to `#### ` with a marker the same way; **an h4-suspect** keeps its level and gains a marker.
+3. **A `## ` entry** from Step 1's mis-levelled list is re-levelled to `#### ` with a marker the same way; **an h4-suspect** keeps its level and gains a marker.
 
-⛔ **Never demote without the marker, and put it in the HEADING, not the body.** An unmarked recent `####` is indistinguishable from an entry written at the wrong level, so the counter must keep reporting it as a suspect; and the count reads the marker from the heading only, because bodies legitimately contain bracketed tokens (`[DRAFT …]`, `[IDEA]`) that would otherwise hide a live entry.
+⛔ **Never demote without the marker, and put it in the HEADING, not the body.** An unmarked recent `####` is indistinguishable from an entry written at the wrong level, so the count must keep reporting it as a suspect; and the count reads the marker from the heading only, because bodies legitimately contain bracketed tokens (`[DRAFT …]`, `[IDEA]`) that would otherwise hide a live entry.
 
 ### Cross-References on Promotion
 
@@ -906,6 +915,17 @@ Run the full `/index` logic:
 ```
 
 Apply approved changes, then write the final `index.md`.
+
+**After writing, count tag sections** — use the Grep tool in count mode for lines matching `^### ` in `{knowledge_folder}/index.md`. If **zero**, note:
+
+> "Index rebuilt with no tag sections. Tag-based lookup (`/aria-cowork:context`) has nothing
+> to match until at least one promoted file carries a tag — and if this folder is also used
+> from Claude Code, aria-knowledge's active knowledge surfacing stays off too (its SessionStart
+> hook gates on tag content, not on the index file existing)."
+
+This matters because a tagless index used to be merely unhelpful; since the Code port's gate
+was tightened it silently keeps a whole capability switched off, and a rebuild that reports
+success is exactly where that would go unnoticed.
 
 If this is the first audit (no index exists yet), note: "Building knowledge index for the first time."
 

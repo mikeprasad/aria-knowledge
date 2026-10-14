@@ -4,6 +4,26 @@ All notable changes to aria-cowork are documented here. Format follows [Keep a C
 
 Cross-plugin parity callouts (per ADR-006) note when changes coordinate with aria-knowledge releases.
 
+## [1.8.0] — 2026-10-14
+
+**Canonical parity pass to aria-knowledge v2.55.1.** Coordinated with aria-knowledge v2.55.1. Each skill was 3-way merged from canonical (v2.46.4 → v2.55.1), then every merged change was read for whether it can run in Cowork. Same 24 skills; no descriptions changed.
+
+### Changed
+
+- **`/aria-cowork:audit-knowledge` counts every live backlog entry, not just `### ` headings.** It applies the canonical counter's rule by reading the files (Cowork has no shell): `### ` entries, `## ` headings with content under them, and dated `####` headings after the last audit pass whose heading has no disposition marker. It reports the same `canonical / h2 / h4suspect / live` lines and a mis-levelled list. A missing backlog reads `missing`, never 0. Step 7 states the clearing contract: demote to `####` **and** put a disposition marker in the heading.
+- **`/aria-cowork:stats` and `/aria-cowork:backlog`** describe their counts by the same rule and point at it.
+- **`/aria-cowork:index`** writes canonical's `## Stale Files` layout: review-able files, exempt decisions and files missing a date field as separate lists, with the excluded count. The header names its population.
+- **`/aria-cowork:prospect` and `/aria-cowork:retrospect`** split "no movement" into *capability* (could not settle it) and *structural* (needs something to happen in the world), and log `model`, `effort` and both counts.
+- **`/aria-cowork:snapshot`** checks that a transcript from the MCP path belongs to this session before saving it, and otherwise falls through to the next path. This is canonical's "never capture another session and report success" fix, adapted.
+- **`/aria-cowork:handoff` and `/aria-cowork:wrapup`** state plainly that the SESSION.md producer and its ledger guards are not in Cowork, and why: no session id, no clock for the ordering guard, no `session_state` key. The handoff opener is the only copy of a Cowork handoff, and it carries no provenance token. `/aria-cowork:handoff resume` explains this and stops.
+- **Rules templates** (`working-rules.md`, `change-decision-framework.md`) synced: Rule 23's scope, quotation exemption, falsifier and staleness clauses.
+
+### Fixed
+
+- **`/aria-cowork:audit-config` Step 3b and `/aria-cowork:aria-setup`** read `${CLAUDE_PLUGIN_ROOT}/../CONFIG.md`, which points outside the plugin. The `.plugin` bundles `CONFIG.md` at its root, so the field-source read failed. Both now read `${CLAUDE_PLUGIN_ROOT}/CONFIG.md`.
+- **`/aria-cowork:interview`** read `~/.claude/aria-knowledge.local.md` and pointed at `/setup`. It now reads `aria-config.md` from the knowledge folder and points at `/aria-setup`.
+- Two `/audit-knowledge` drift checks that need a shell (skill-knowledge drift, shared-block drift) are marked as not run in Cowork and are reported as *not checked*, never as clean.
+
 ## [1.7.0] — 2026-08-19
 
 **Full canonical parity pass: `/intake` consolidation, `/interview` guided cadence, the rules gaps, and the check that was supposed to catch all of it.** Coordinated with aria-knowledge v2.46.3.

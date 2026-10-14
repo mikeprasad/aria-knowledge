@@ -53,6 +53,7 @@ Parse the argument:
 - Arg matches `auto` (case-insensitive) → `mode = auto`
 - Arg matches `brief` (case-insensitive) → `mode = brief`
 - Arg matches `snap` (case-insensitive) → `mode = snap`
+- Arg matches `resume` (case-insensitive) → stop: "`resume` is not available in the cowork variant — it lists stored prompts from the SESSION.md ledger, which cowork does not write (see Step 3f). Paste the saved next-session opener into a new session instead, or run `/handoff resume` from Claude Code."
 - Any other arg → stop: "Unknown argument '{arg}'. Use '/handoff', '/handoff auto', '/handoff brief', or '/handoff snap'."
 
 Use `{knowledge_folder}` as the base path for all file operations.
@@ -181,6 +182,16 @@ First action:
 ```
 
 The opener is always produced, even when the session was short or no other artifacts changed — it's the headline deliverable.
+
+### 3f: SESSION.md (handoff state) — SKIPPED in cowork
+
+(SKIPPED in cowork per ADR-005 — the SESSION.md producer is not ported; the CHANGELOG records this.) aria-knowledge's `/handoff` Step 3f writes `{project_root}/SESSION.md` and maintains its multi-session ledger under `## Pending handoffs`: an `at`-ordering guard so an older session never overwrites a newer one's state, a full-fidelity demote of any prior prompt into the ledger before the rewrite, a prune of entries already marked consumed, and a provenance token (`aria-handoff: <project>/<sid>@<at>`) as the opener's first line. Cowork produces none of it, for three runtime reasons:
+
+- **No session id.** The ledger keys every entry on a session id; Cowork has none to write.
+- **No clock.** The ordering guard compares UTC `at` timestamps and Cowork has no shell to read one. A guessed `at` could let an older session outrank a newer one and overwrite its state — the exact damage the guard exists to prevent — so a degraded port would be worse than none.
+- **No `session_state` key** in `aria-config.md`; in Code the step is gated on it.
+
+So this variant never reads, writes, demotes or prunes `SESSION.md`, and its opener carries no provenance token (a token naming no stored prompt would make a Code session report that it names no prompt in the project). The canonical pre-write reads go with it: the shell-bypass ledger has no writer in Cowork, and the pending-handoff count needs the ledger. The 3e opener printed in Step 8 is the only copy of the handoff — tell the user it is not stored in `SESSION.md`. Canonical text: `plugin-claude-code/skills/handoff/SKILL.md` Step 3f.
 
 ## Step 4: Single Combined-Go Review (default mode only)
 

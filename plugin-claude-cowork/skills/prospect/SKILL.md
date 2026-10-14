@@ -86,7 +86,7 @@ If the user's config (`<knowledge_folder>/aria-config.md`) has `active_knowledge
 
 6. **Collect files.** Under each matched tag's `### tag` section, gather the `- path — description` lines. Dedupe by path. Cap at top-5 by first-appearance order.
 
-7. **Ledger filter (best-effort, cowork-fallback to in-memory).** aria-knowledge resolves the ledger at `/tmp/aria-active-<session-id>`, where `<session-id>` is the runtime's session identifier (in Claude Code, `$CLAUDE_CODE_SESSION_ID`) — written by aria-knowledge's hooks (T-1/T-2/T-3/PostCompact) to track files already surfaced this session. Cowork has no hook layer that pre-populates this ledger AND Cowork's sandbox may restrict `/tmp/` writes. Try the same resolution opportunistically; if the file exists and reads cleanly, drop already-listed paths. ⛔ Never use `ls -t` over the ledger glob to guess — it returns the most recently modified ledger on the MACHINE, i.e. another live session's whenever yours is absent, and a foreign ledger DROPS files never surfaced to this session. If no session identifier is available OR the Bash command fails OR no ledger exists, fall back to **in-skill in-memory dedup**: maintain a list of files already loaded earlier in THIS skill's invocation (i.e., across the 10 substeps of Step 0.5), and skip re-reading any path that appears twice. The fallback is per-invocation, not per-session — cross-skill dedup is best-effort only in cowork.
+7. **Ledger filter (best-effort, cowork-fallback to in-memory).** aria-knowledge resolves the ledger at `/tmp/aria-active-<session-id>`, where `<session-id>` is the runtime's session identifier (in Claude Code, `$CLAUDE_CODE_SESSION_ID`) — written by aria-knowledge's hooks (T-1/T-2/T-3/PostCompact) to track files already surfaced this session. Cowork has no hook layer that pre-populates this ledger AND Cowork's sandbox may restrict `/tmp/` access. Try the same resolution opportunistically with `Read`; if the file exists and reads cleanly, drop already-listed paths. ⛔ Never guess by picking the newest file matching the ledger glob — that is the most recently modified ledger on the MACHINE, i.e. another live session's whenever yours is absent or not newest, and a foreign ledger DROPS files never surfaced to this session. If no session identifier is available OR the `Read` fails OR no ledger exists, fall back to **in-skill in-memory dedup**: maintain a list of files already loaded earlier in THIS skill's invocation (i.e., across the 10 substeps of Step 0.5), and skip re-reading any path that appears twice — and say so in the surfacing block (`Ledger: none for this session — in-memory dedup only`), so an unfiltered load never reads as a filtered one. The fallback is per-invocation, not per-session — cross-skill dedup is best-effort only in cowork.
 
 8. **Read matched files.** For each remaining path (up to 5), `Read` the full file into context.
 
@@ -101,7 +101,7 @@ If the user's config (`<knowledge_folder>/aria-config.md`) has `active_knowledge
 
 10. **Carry-forward.** These loaded files become input to Step 2 (Load Pattern Libraries — past prospects/retros tagged with the same topic may already catalog the relevant patterns) and Step 3.5 (Evidence-Sourcing Pass — they may already validate or falsify assumptions in the plan, converting ⚠/❓ to ✅/❌ before the verdict round).
 
-11. **Tracked artifacts surfacing — SKIPPED in cowork per #18f + ADR-005.** aria-knowledge surfaces CODEMAP directory + STITCH file for the plan's project as Step 11 (CODEMAP staleness-checked against `codemap_staleness_threshold_days`; STITCH against `stitch_staleness_threshold_days`; ledger-deduped via `/tmp/aria-active-*`). Cowork excludes `/codemap` + `/stitch` skills per ADR-005, so this step is dropped entirely. The Step 9 surfacing block does NOT add the "Tracked artifacts: ..." 4th line in cowork. Plan-quality verdict in cowork doesn't depend on codebase-structure validation — if a plan needs CODEMAP-grounded analysis, run aria-knowledge's `/prospect` from Claude Code.
+11. **Tracked artifacts surfacing — SKIPPED in cowork per #18f + ADR-005.** aria-knowledge surfaces CODEMAP directory + STITCH file for the plan's project as Step 11 (CODEMAP staleness-checked against `codemap_staleness_threshold_days`; STITCH against `stitch_staleness_threshold_days`; ledger-deduped via the per-session `/tmp/aria-active-<session-id>`, never a newest-file glob guess). Cowork excludes `/codemap` + `/stitch` skills per ADR-005, so this step is dropped entirely. The Step 9 surfacing block does NOT add the "Tracked artifacts: ..." 4th line in cowork. Plan-quality verdict in cowork doesn't depend on codebase-structure validation — if a plan needs CODEMAP-grounded analysis, run aria-knowledge's `/prospect` from Claude Code.
 
 ## Step 1: Print the Anchor Block
 
@@ -191,9 +191,20 @@ Step #N — sourcing result:
   Question:           <repeat decisive question>
   Tool used:          <Read | Grep | WebFetch <url> | Bash <command> | mcp__<server>__<tool>>
   Finding:            <one-paragraph factual summary, with file:line citations or URL anchors>
-  Verdict:            UPGRADED-TO-✅ | UPGRADED-TO-❌ | NO-MOVEMENT (still ⚠/❓/🚫) | INCONCLUSIVE
-  New Risk?:          <new tag, or unchanged if NO-MOVEMENT>
+  Verdict:            UPGRADED-TO-✅ | UPGRADED-TO-❌ | NO-MOVEMENT-CAPABILITY | NO-MOVEMENT-STRUCTURAL | INCONCLUSIVE
+  New Risk?:          <new tag, or unchanged if either NO-MOVEMENT>
 ```
+
+⛔ **A no-movement verdict MUST pick one of the two, and the distinction is not cosmetic.** The two respond to a better model in **opposite** directions, so pooling them makes the aggregate uninterpretable — a rising resolution rate can then be a shift in premise mix rather than any gain in capability.
+
+| Verdict | Means | Test |
+|---|---|---|
+| `NO-MOVEMENT-CAPABILITY` | You attempted it and could not settle it — ran out of search paths, time-boxed out, sources disagreed, the trace got too deep | **A more capable or less time-constrained pass could plausibly settle this from the same inputs.** |
+| `NO-MOVEMENT-STRUCTURAL` | The answer does not exist in reachable inputs — needs code *executed*, a package *installed*, live/production data, a device, or a named human's decision | **No amount of reasoning settles it. Something must happen in the world first.** |
+
+⚠ **Do not infer the category from the residual's `Attempt status` label after the fact.** Measured 2026-08-22 on 5 such entries: **3 were mislabelled** — carrying `ATTEMPTED-FAILED` while describing an on-device recording, an `npm pack`, and an SSH read of a live box. Classify at the moment you stop, when you still know why you stopped.
+
+⚑ There is a third case worth naming when you hit it: **the premise's subject does not exist** (you searched correctly and the thing it asks about is absent at this commit). That is `NO-MOVEMENT-STRUCTURAL` with a note — not a capability failure, and a positive control on the search is required before claiming it.
 
 Constraints:
 - **Rule 33 — verify against current docs**: When sourcing third-party API/SDK behavior, read the official current docs (via WebFetch or `context7` MCP if loaded), not memory or analogy.
@@ -253,7 +264,8 @@ Evidence-Sourcing Pass complete.
   Auto-sourced (❌ falsify):   <N>
   User-resolved (✅ upgrade):  <N>
   User-resolved (❌ falsify):  <N>
-  No movement (still ⚠/❓/🚫): <N>
+  No movement — capability:   <N>   (attempted, unsettled; a better pass may resolve)
+  No movement — structural:   <N>   (🚫 needs execution / install / live data / a human)
   Skipped by user:            <N>
   Skipped by --no-source:     <N>
   Tool calls used:            ~<N>
@@ -361,7 +373,8 @@ Evidence-Sourcing Pass:
   Auto-sourced (❌ falsify):          <N>
   User-resolved (✅ upgrade):         <N>
   User-resolved (❌ falsify):         <N>
-  No movement:                       <N>
+  No movement — capability:          <N>
+  No movement — structural:          <N>
   Skipped by user:                   <N>
   Skipped by --no-source:            <N>
 ```
@@ -516,11 +529,15 @@ After Step 4 produces the report, write outputs to the configured destinations:
   goal: <one-line stated goal from §4.1 Anchor>
   tickets: [<LINEAR-123>, <LINEAR-456>]   # empty list if none
   steps_count: <N>
+  model: <model executing this gate, e.g. claude-opus-5 — or `unrecorded` if unknown>
+  effort: <reasoning-effort level, e.g. xhigh | high | medium — or `unrecorded` if unknown>
   sourcing_pass:
     candidates: <N>
     upgraded_validated: <N>
     upgraded_falsified: <N>
-    no_movement: <N>
+    no_movement: <N>                  # pooled total; MUST equal the two fields below
+    no_movement_capability: <N>       # attempted, could not settle — a better model may resolve it
+    no_movement_structural: <N>       # 🚫 needs execution / install / live data / a named human
   patterns_hit: [<pattern-name-1>, <pattern-name-2>]   # from §4.4; empty list if none
   overall_verdict: <PROCEED | PROCEED-WITH-CHANGES | HOLD | KILL>   # from §4.8
   related: [<paths to overlapping prior runs — see below>]

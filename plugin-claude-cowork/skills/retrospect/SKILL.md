@@ -105,7 +105,7 @@ If the user's config (`<knowledge_folder>/aria-config.md`) has `active_knowledge
 
 6. **Collect files.** Under each matched tag's `### tag` section, gather the `- path — description` lines. Dedupe by path. Cap at top-5 by first-appearance order.
 
-7. **Ledger filter (best-effort, cowork-fallback to in-memory per #19e).** Resolve the ledger at `/tmp/aria-active-<session-id>`, where `<session-id>` is your runtime's session identifier (in Claude Code, `$CLAUDE_CODE_SESSION_ID`). If it exists and is readable, drop already-listed paths. ⛔ Never use `ls -t` over the ledger glob to guess — it returns the most recently modified ledger on the MACHINE, i.e. another live session's whenever yours is absent, and a foreign ledger DROPS files never surfaced to this session. If no session identifier is available OR the Bash command fails OR no ledger exists OR Cowork's sandbox restricts `/tmp/` writes, fall back to **in-skill in-memory dedup**: maintain a list of files already loaded earlier in THIS skill's invocation (across Step 0.5's 10 substeps) and skip re-reads. Per-invocation scope, not per-session — cross-skill dedup is best-effort in cowork (no hook layer pre-populates the ledger).
+7. **Ledger filter (best-effort, cowork-fallback to in-memory per #19e).** Resolve the ledger at `/tmp/aria-active-<session-id>`, where `<session-id>` is your runtime's session identifier (in Claude Code, `$CLAUDE_CODE_SESSION_ID`). If it exists and is readable with `Read`, drop already-listed paths. ⛔ Never guess by picking the newest file matching the ledger glob — that is the most recently modified ledger on the MACHINE, i.e. another live session's whenever yours is absent or not newest, and a foreign ledger DROPS files never surfaced to this session. If no session identifier is available OR the `Read` fails OR no ledger exists OR Cowork's sandbox restricts `/tmp/` access, fall back to **in-skill in-memory dedup**: maintain a list of files already loaded earlier in THIS skill's invocation (across Step 0.5's 10 substeps) and skip re-reads — and say so in the surfacing block (`Ledger: none for this session — in-memory dedup only`), so an unfiltered load never reads as a filtered one. Per-invocation scope, not per-session — cross-skill dedup is best-effort in cowork (no hook layer pre-populates the ledger).
 
 8. **Read matched files.** For each remaining path (up to 5), `Read` the full file into context. **Prefer files under `logs/retrospect/`** if any matched — they're prior retros on overlapping tags, which is the loop-closure case (past retros inform new retros on the same topic). If both a retro and a non-retro file match, prioritize the retro within the top-5 cap.
 
@@ -120,7 +120,7 @@ If the user's config (`<knowledge_folder>/aria-config.md`) has `active_knowledge
 
 10. **Carry-forward.** These loaded files become input to Step 2 (Load Pattern Libraries — past retros may already have catalogued the relevant failure-mode patterns) and Step 3.5 (Evidence-Sourcing Pass — they may already provide validation or falsification for fixes in this range).
 
-11. **Tracked artifacts surfacing — SKIPPED in cowork per #19f + ADR-005.** aria-knowledge surfaces CODEMAP directory + STITCH file for the analyzed range's project as Step 11 (detects project tag from `git diff --name-only`; CODEMAP staleness-checked against `codemap_staleness_threshold_days`; STITCH against `stitch_staleness_threshold_days`; ledger-deduped via `/tmp/aria-active-*`). Cowork excludes `/codemap` + `/stitch` skills per ADR-005 AND cowork can't run `git diff` directly — so this step is dropped entirely. The Step 9 surfacing block does NOT add the "Tracked artifacts: ..." 4th line in cowork. Retrospective verdict in cowork doesn't depend on codebase-structure validation — if a retro needs CODEMAP-grounded analysis, run aria-knowledge's `/retrospect` from Claude Code.
+11. **Tracked artifacts surfacing — SKIPPED in cowork per #19f + ADR-005.** aria-knowledge surfaces CODEMAP directory + STITCH file for the analyzed range's project as Step 11 (detects project tag from `git diff --name-only`; CODEMAP staleness-checked against `codemap_staleness_threshold_days`; STITCH against `stitch_staleness_threshold_days`; ledger-deduped via the per-session `/tmp/aria-active-<session-id>`, never a newest-file glob guess). Cowork excludes `/codemap` + `/stitch` skills per ADR-005 AND cowork can't run `git diff` directly — so this step is dropped entirely. The Step 9 surfacing block does NOT add the "Tracked artifacts: ..." 4th line in cowork. Retrospective verdict in cowork doesn't depend on codebase-structure validation — if a retro needs CODEMAP-grounded analysis, run aria-knowledge's `/retrospect` from Claude Code.
 
 ## Step 1: Print the Anchor Block
 
@@ -190,7 +190,7 @@ Fix #N — bundle-marker result:
   Question:           Did fix #N's code reach the deployed bundle?
   Tool used:          <Bash curl <url> | WebFetch <url> | gh run view <id> | mcp__vercel__get_logs | ASK <surfaced-to-user>>
   Finding:            <one-paragraph factual summary, with URL anchor or grep hit>
-  Verdict:            UPGRADED-TO-✅ verified | UPGRADED-TO-❌ NOT-IN-BUNDLE | NO-MOVEMENT (still 🤷) | INCONCLUSIVE
+  Verdict:            UPGRADED-TO-✅ verified | UPGRADED-TO-❌ NOT-IN-BUNDLE | NO-MOVEMENT-CAPABILITY | NO-MOVEMENT-STRUCTURAL | INCONCLUSIVE
   New Bundle-verified?: <updated tag>
 ```
 
@@ -254,7 +254,17 @@ Fix #N — outcome result:
   Tool used:          <listed>
   Finding:            <factual summary with citations>
   User pick (if any): <option N | "skip" | "other: <text>">
-  Verdict:            UPGRADED-TO-✅ Validated | UPGRADED-TO-⚠ partial | UPGRADED-TO-❌ Invalidated | NO-MOVEMENT | INCONCLUSIVE
+  Verdict:            UPGRADED-TO-✅ Validated | UPGRADED-TO-⚠ partial | UPGRADED-TO-❌ Invalidated | NO-MOVEMENT-CAPABILITY | NO-MOVEMENT-STRUCTURAL | INCONCLUSIVE
+```
+
+⛔ **A no-movement verdict MUST pick one of the two — in both sub-passes (3.5.1 bundle-marker and 3.5.2 outcome).** They respond to a better pass in **opposite** directions, so a pooled tally cannot be interpreted later: a falling unresolved rate becomes indistinguishable from a shift in what kind of claims the range happened to contain.
+
+- **`NO-MOVEMENT-CAPABILITY`** — you attempted it and could not settle it from reachable inputs: ran out of search paths, time-boxed out, sources disagreed, the trace got too deep. **A more capable or less constrained pass could plausibly settle it from the same inputs.**
+- **`NO-MOVEMENT-STRUCTURAL`** — the answer is not in reachable inputs at all: needs a **live deploy or served-artifact read**, a running system, production data, a device, or a named human's confirmation. **No amount of reasoning settles it.** This is the common case for a bundle marker whose only oracle is the deployed bundle.
+
+⚠ Classify **at the moment you stop**, while you still know why you stopped — not afterwards from the residual's `Attempt status` label. Measured 2026-08-22 across 5 such entries, **3 were mislabelled**: they carried `ATTEMPTED-FAILED` while describing an on-device recording, a package fetch, and an SSH read of a live box.
+
+```
   New Validated?:     <updated tag with sub-tag where applicable>
 ```
 
@@ -573,18 +583,24 @@ After Step 4 produces the report, write outputs to the configured destinations:
   goal: <one-line stated goal from §4.1 Anchor>
   tickets: [<LINEAR-123>, <LINEAR-456>]   # empty list if none
   fixes_count: <N>
+  model: <model executing this gate, e.g. claude-opus-5 — or `unrecorded` if unknown>
+  effort: <reasoning-effort level, e.g. xhigh | high | medium — or `unrecorded` if unknown>
   sourcing_pass:
     bundle_marker:
       candidates: <N>
       upgraded_verified: <N>
       upgraded_not_in_bundle: <N>
-      no_movement: <N>
+      no_movement: <N>                # pooled total; MUST equal the two below
+      no_movement_capability: <N>     # attempted, could not settle — a better pass may resolve
+      no_movement_structural: <N>     # needs a live deploy read / running system / a human
     outcome:
       candidates: <N>
       upgraded_validated: <N>
       upgraded_partial: <N>
       upgraded_invalidated: <N>
-      no_movement: <N>
+      no_movement: <N>                # pooled total; MUST equal the two below
+      no_movement_capability: <N>
+      no_movement_structural: <N>
   patterns_hit: [<pattern-name-1>, <pattern-name-2>]   # from §4.4; empty list if none
   overall_outcome: <closed | partial | unresolved | mixed>   # derived from §4.5 tally + §4.8 overall recommendation
   related: [<paths to overlapping prior runs — see below>]

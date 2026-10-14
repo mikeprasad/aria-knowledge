@@ -25,7 +25,7 @@ If `Bash` is NOT available (normal Cowork runtime), proceed to Step 0.
 
 ## Step 0: Resolve Config
 
-Read `~/.claude/aria-knowledge.local.md` with the `Read` tool and extract `knowledge_folder`. If the file is not reachable in this runtime (Cowork's attached-folder sandbox may not expose `~/.claude/`), do NOT stop — ask the user: "I can't reach your aria-knowledge config from here. Paste your knowledge-folder path (e.g. `~/Projects/knowledge`) and I'll use it for this session." Use the pasted path. If the user has never run `/setup`, point them there first.
+The default knowledge folder is `~/Projects/knowledge/` (expand `~` to your home directory's absolute path). Read `<knowledge_folder>/aria-config.md` with the `Read` tool and extract `knowledge_folder`. If the file is not reachable in this runtime (the attached folder may not cover that path), do NOT stop — ask the user: "I can't reach your aria-cowork config from here. Paste your knowledge-folder path (e.g. `~/Projects/knowledge`) and I'll use it for this session." Use the pasted path. If the user has never run `/aria-setup`, point them there first.
 
 ## Step 1: Resolve Mode, Topic, Grounding
 
