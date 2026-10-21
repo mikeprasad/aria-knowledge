@@ -1,6 +1,6 @@
 ---
 name: wrapup
-description: 'Close out cleanly when work is done — no passoff. Updates PROGRESS/CLAUDE/memory, emits a commit message, runs "/aria-cowork:extract". Not for passoff (use "/aria-cowork:handoff"). Triggers — "/aria-cowork:wrapup" [auto|snap], "wrap up", "I am done", "close out", "end session". (Cowork variant — namespaced-only.)'
+description: 'Close out cleanly when work is done — no passoff. Updates PROGRESS/CLAUDE/memory, emits a commit message, runs "/aria-cowork:extract". Not for passoff (use "/aria-cowork:handoff"). Triggers — "/aria-cowork:wrapup" (auto|snap), "wrap up", "I am done", "close out", "end session". (Cowork variant — namespaced-only.)'
 argument-hint: '[auto|snap]'
 ---
 

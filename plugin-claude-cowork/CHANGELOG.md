@@ -4,6 +4,17 @@ All notable changes to aria-cowork are documented here. Format follows [Keep a C
 
 Cross-plugin parity callouts (per ADR-006) note when changes coordinate with aria-knowledge releases.
 
+## [1.8.1] — 2026-10-20
+
+**Passes claude.ai's upload validation.** Coordinated with aria-knowledge v2.56.2. claude.ai refuses a plugin whose skill descriptions contain tag-shaped text, and Anthropic's published validator rejects any `<` or `>` in a description.
+
+### Fixed
+
+- `intake`: description placeholders `<src>` / `<id|url>` are now `{src}` / `{id|url}`.
+- `handoff`, `wrapup`: `[auto|brief|snap]` / `[auto|snap]` are now in parentheses. Precautionary: a reported claude.ai bug silently drops a skill whose description contains square brackets, with no error.
+
+Descriptions only; skill bodies are unchanged. aria-knowledge's `tests/repros/claude-ai-upload-limits.sh` now checks this port's descriptions and plugin description on every run.
+
 ## [1.8.0] — 2026-10-14
 
 **Canonical parity pass to aria-knowledge v2.55.1.** Coordinated with aria-knowledge v2.55.1. Each skill was 3-way merged from canonical (v2.46.4 → v2.55.1), then every merged change was read for whether it can run in Cowork. Same 24 skills; no descriptions changed.

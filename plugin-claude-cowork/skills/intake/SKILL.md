@@ -1,6 +1,6 @@
 ---
 name: intake
-description: 'Capture knowledge into the intake tree, dispatching by input shape — a bare URL or text snippet clips whole; "extract <src>" decomposes it into the backlogs; "doc <src>" captures one doc via a 5-section template; "thread <id|url>" pulls a Slack/Teams/Gmail conversation via MCP; files/dirs/globs bulk-scan. Triggers — "/aria-cowork:intake", "clip this", "save this link", "save this snippet", "capture this URL", "archive this conversation", "import knowledge from", "scan this for knowledge", "onboard this". (Cowork variant — namespaced-only.)'
+description: 'Capture knowledge into the intake tree, dispatching by input shape — a bare URL or text snippet clips whole; "extract {src}" decomposes it into the backlogs; "doc {src}" captures one doc via a 5-section template; "thread {id|url}" pulls a Slack/Teams/Gmail conversation via MCP; files/dirs/globs bulk-scan. Triggers — "/aria-cowork:intake", "clip this", "save this link", "save this snippet", "capture this URL", "archive this conversation", "import knowledge from", "scan this for knowledge", "onboard this". (Cowork variant — namespaced-only.)'
 argument-hint: '[extract <src>] | [doc <url-or-title>] | [thread <id-or-url>] | <url|text|path|directory|glob> [path2]'
 ---
 
