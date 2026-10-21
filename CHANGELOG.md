@@ -2,6 +2,21 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.56.2 — 2026-10-20
+
+**The plugin now passes claude.ai's upload validation.** With the top-level `bin/` gone (2.56.0), claude.ai checked the rest and refused the plugin with 27 errors. None of them show in Claude Code, which installs the plugin as is.
+
+- **Plugin description** is 452 characters; claude.ai allows at most 500 (it was 1,400).
+- **No tag-shaped text in skill descriptions.** Thirteen skills used `<path>`-style placeholders, which claude.ai rejects as XML tags. Placeholders are now written `{path}`. Anthropic's published skill validator rejects any `<` or `>`, so `/audit rules` and `/audit style` now say "at least 2" instead of `>=2`.
+- **Square brackets removed from descriptions as a precaution.** A reported claude.ai bug drops a skill whose description contains `[name]`, silently. Option lists such as `[auto|snap]` are now in parentheses.
+- **`/auto` and `/handoff` descriptions are under 1,024 characters**, the skill limit (they were 1,183 and 1,229). Their trigger phrases are kept.
+
+Only the description lines changed; skill bodies and argument hints are untouched. The other 12 errors were the same skills flagged a second time for declaring `allowed-tools` while failing validation; they clear with the fixes above.
+
+Tests: new `tests/repros/claude-ai-upload-limits.sh` checks the two ports claude.ai installs (Claude Code and Cowork): plugin description at most 500 characters, every skill description at most 1,024 characters and bytes with no `<`, `>`, `[` or `]`, a declared skill name matching its folder, and no top-level `bin/`. Each check has a planted control that must fire. Run against the commit claude.ai rejected, it reports all 27 errors.
+
+**Cowork 1.8.1** carries the same fixes for its three affected skills; see `plugin-claude-cowork/CHANGELOG.md`. Antigravity is regenerated at 2.56.2; Codex and Cursor are not rebuilt (they are not installed through claude.ai).
+
 ## 2.56.1 — 2026-10-20
 
 **After `/compact`, the model is reminded again that the working rules still apply.** The PreCompact and PostCompact hooks printed their messages as `hookSpecificOutput`, and Claude Code's hook schema has no variant for either event, so every compaction ended with `Hook JSON output validation failed` and the messages were dropped. The docs also say both events discard `systemMessage`, so no output from them reaches the model or you. Two messages were being lost: the prompt to `/extract` the pre-compaction snapshot, and the reminder to re-read the working rules.
