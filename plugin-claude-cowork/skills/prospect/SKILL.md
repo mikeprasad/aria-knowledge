@@ -530,7 +530,7 @@ After Step 4 produces the report, write outputs to the configured destinations:
   tickets: [<LINEAR-123>, <LINEAR-456>]   # empty list if none
   steps_count: <N>
   model: <model executing this gate, e.g. claude-opus-5 — or `unrecorded` if unknown>
-  effort: <reasoning-effort level, e.g. xhigh | high | medium — or `unrecorded` if unknown>
+  effort: unrecorded   # always — Cowork has no Bash; the effort level is not readable here
   sourcing_pass:
     candidates: <N>
     upgraded_validated: <N>
@@ -544,6 +544,8 @@ After Step 4 produces the report, write outputs to the configured destinations:
   tags: [prospect, <scope>, <project-tag-if-detected>, <pattern-tag-if-applicable>]
   ---
   ```
+
+  **`effort:` is always `unrecorded` here.** Cowork has no Bash; the effort level is not readable here, and you cannot see your own effort setting (self-reported values disagreed with the harness record on 24% of 140 matched logs). Write `unrecorded`, never a guess.
 
   **`related` auto-detection (Q1.2=1, ticket-based):** Before writing, glob `<knowledge_folder>/logs/prospect/*.md` AND `<knowledge_folder>/logs/retrospect/*.md` for files whose frontmatter `tickets:` array shares at least one ticket ID with the current report's tickets. Record their paths (relative to `<knowledge_folder>/`) in the `related:` array. If no tickets in the current report, leave `related:` empty. Only the most recent 10 are kept if many overlap (cap on bloat).
 

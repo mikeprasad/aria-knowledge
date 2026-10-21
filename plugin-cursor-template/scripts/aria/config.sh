@@ -6,6 +6,8 @@ KT_ROOT="${KT_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
 KT_CONFIG="${KT_CONFIG:-$KT_ROOT/.cursor/aria-knowledge.local.md}"
 KT_CONFIGURED=false
 KT_CONFIG_ERROR=""
+# The curated knowledge dirs — a constant, not a user setting (never read from the config file).
+KT_CONTENT_DIRS="approaches references projects rules guides decisions"
 
 # Escape a string for safe embedding in JSON values.
 # Handles backslashes, double quotes, tabs, and strips newlines.

@@ -143,17 +143,29 @@ EF_KEY=$(printf '%s' "$EF_KEY" | tr -cs 'a-zA-Z0-9._-' '-')
 # -l (stop at first match per file), never -o (measured ~3x slower).
 EF_MEMDIR="${ARIA_EF_MEMDIR:-$HOME/.gemini/antigravity/transcripts}"
 
+# Scope: the curated content dirs only (KT_CONTENT_DIRS, config.sh) plus the memory
+# dirs. NOT the whole knowledge folder: intake/ holds ~2 GB of transcript captures,
+# which both blew the hook timeout (8-32 s measured) and got cited as "references".
+# C3 budget is checked after EACH directory. This runs in a command substitution, so
+# an 'exit' here only ends the subshell; it prints a sentinel instead, which the
+# parent treats as "over budget -> allow".
+EF_OVER="__EF_OVER_BUDGET__"
 EF_HITS=$(
   {
-    /usr/bin/grep -rlE --include='*.md' --exclude-dir=archive \
-      "$EF_PATTERN" "$KT_KNOWLEDGE_FOLDER" 2>/dev/null
+    for d in $KT_CONTENT_DIRS; do
+      [ -d "$KT_KNOWLEDGE_FOLDER/$d" ] || continue
+      /usr/bin/grep -rlE --include='*.md' --exclude-dir=archive "$EF_PATTERN" "$KT_KNOWLEDGE_FOLDER/$d" 2>/dev/null
+      [ $(( $(date +%s) - EF_START )) -ge "$EF_BUDGET_S" ] && { echo "$EF_OVER"; exit 0; }
+    done
     for d in "$EF_MEMDIR"/*/memory; do
       [ -d "$d" ] || continue
       /usr/bin/grep -rlE "$EF_PATTERN" "$d" 2>/dev/null
+      [ $(( $(date +%s) - EF_START )) -ge "$EF_BUDGET_S" ] && { echo "$EF_OVER"; exit 0; }
     done
   } | LC_ALL=C sort -u
 )
 
+case "$EF_HITS" in *"$EF_OVER"*) ef_allow ;; esac
 [ -n "$EF_HITS" ] || ef_allow
 
 EF_COUNT=$(printf '%s\n' "$EF_HITS" | grep -c . 2>/dev/null || echo 0)
@@ -162,11 +174,6 @@ EF_COUNT=$(printf '%s\n' "$EF_HITS" | grep -c . 2>/dev/null || echo 0)
 # surfacing 76 files trains the reader to dismiss the hook — worse than silence.
 case "$KT_EXTERNAL_FETCH_MAX_HITS" in ''|*[!0-9]*) KT_EXTERNAL_FETCH_MAX_HITS=8 ;; esac
 [ "$EF_COUNT" -gt "$KT_EXTERNAL_FETCH_MAX_HITS" ] && ef_allow
-
-# C3 budget check — placed after the lookup, which is the only expensive work.
-# Over budget we ALLOW: a slow gate must never become a blocking gate.
-EF_ELAPSED=$(( $(date +%s) - EF_START ))
-[ "$EF_ELAPSED" -ge "$EF_BUDGET_S" ] && exit 0
 
 # --- one-shot gate ----------------------------------------------------------
 COOLDOWN_FILE="${TMPDIR:-/tmp}/aria-extfetch-${SESSION_ID}-${EF_KEY}"
