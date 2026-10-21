@@ -92,18 +92,95 @@ if [ -d "$rdir" ]; then
   done
 fi
 
-# --- Canonical pattern count (cross-cutting library) ---
-pat="$KF/rules/retrospect-patterns.md"
-if [ -f "$pat" ]; then
-  pc=$(grep -cE '^## [a-z0-9]+(-[a-z0-9]+)+$' "$pat" 2>/dev/null || echo 0)
-else
-  pc=0
-fi
-echo "PATTERN_COUNT $pc"
+# --- Pattern libraries: every rules/*-patterns.md (headings `## kebab` / `### kebab`, optionally backticked) ---
+pat_total=0; pat_lines=""
+for pf in "$KF"/rules/*-patterns.md; do
+  [ -f "$pf" ] || continue
+  n=$(grep -cE '^###? `?[a-z0-9]+(-[a-z0-9]+)+`?$' "$pf" 2>/dev/null)
+  n=${n:-0}
+  pat_total=$((pat_total+n))
+  pat_lines="${pat_lines}PATTERN_LIB $(basename "$pf") $n
+"
+done
+echo "PATTERN_COUNT $pat_total"
+printf '%s' "$pat_lines"
+
+# --- Gate yield + model/effort: one awk over every prospect/retrospect log, frontmatter only ---
+# Filenames arrive on stdin and the program getlines each file, stopping at the closing
+# '---' (so bodies with look-alike lines are never read and there is no ARG_MAX ceiling).
+# Counted populations: PROSPECT_YIELD/_MONTH = logs with an overall_verdict AND a
+# sourcing_pass key (older logs predate the block; counting them would dilute yield).
+# RETRO_BUNDLE/CLAIMS = every retrospect log carrying a sourcing_pass. GATE_MODEL/EFFORT
+# = every log in both dirs; a missing field is "absent".
+{ [ -d "$pdir" ] && find "$pdir" -name '*.md' -type f; [ -d "$rdir" ] && find "$rdir" -name '*.md' -type f; } 2>/dev/null |
+awk -v rdir="$rdir/" '
+function trim(x) { sub(/^[ \t]+/, "", x); sub(/[ \t\r]+$/, "", x); return x }
+function val(x) { sub(/^[^:]*:/, "", x); sub(/[ \t]+#.*$/, "", x); return trim(x) }
+function acc(blk, k, v) {
+  v = v + 0
+  if (blk == "bundle_marker") {
+    if (k == "candidates") bc += v; else if (k == "upgraded_verified") bv += v; else if (k == "upgraded_not_in_bundle") bn += v
+  } else if (blk == "outcome") {
+    if (k == "candidates") oc += v; else if (k == "upgraded_validated") ov += v; else if (k == "upgraded_partial") op += v; else if (k == "upgraded_invalidated") oi += v
+  } else {
+    if (k == "candidates") c += v; else if (k == "upgraded_validated") va += v; else if (k == "upgraded_falsified") fa += v
+    else if (k == "no_movement") nm += v; else if (k == "no_movement_capability") nc += v; else if (k == "no_movement_structural") ns += v
+  }
+}
+function inline(body,   n, parts, i, kv) {
+  sub(/^[^{]*\{/, "", body); sub(/\}.*$/, "", body)
+  n = split(body, parts, ",")
+  for (i = 1; i <= n; i++) { split(parts[i], kv, ":"); acc("", trim(kv[1]), trim(kv[2])) }
+}
+{
+  f = $0; ym = f; sub(/^.*\//, "", ym); ym = substr(ym, 1, 7)
+  isr = (index(f, rdir) == 1)
+  c = va = fa = nm = nc = ns = 0; bc = bv = bn = oc = ov = op = oi = 0
+  model = ""; effort = ""; verdict = ""; hassp = 0; insp = 0; blk = ""; first = 1; started = 0
+  while ((getline line < f) > 0) {
+    sub(/\r$/, "", line)
+    if (first) { first = 0; if (line != "---") break; started = 1; continue }
+    if (line == "---") break
+    if (line ~ /^[A-Za-z_]+:/) {
+      insp = 0; blk = ""
+      if (line ~ /^sourcing_pass:/) { hassp = 1; insp = 1; if (line ~ /\{/) { inline(line); insp = 0 } }
+      else if (line ~ /^model:/) model = val(line)
+      else if (line ~ /^effort:/) effort = val(line)
+      else if (line ~ /^overall_verdict:/) verdict = val(line)
+      continue
+    }
+    if (insp && match(line, /^ +[a-z_]+:/)) {
+      ind = RLENGTH - length(trim(substr(line, 1, RLENGTH)))
+      key = trim(substr(line, 1, RLENGTH)); sub(/:$/, "", key)
+      v = val(line)
+      if (ind <= 2) { blk = ""; if (v == "") { blk = key; continue } }
+      acc(blk, key, v)
+    }
+  }
+  close(f)
+  if (!started) { model = ""; effort = ""; verdict = ""; hassp = 0 }
+  sub(/\[1m\]/, "", model); model = trim(model); gsub(/[ \t]+/, "_", model); if (model == "") model = "absent"
+  effort = trim(effort); if (effort == "") effort = "absent"
+  gm[model]++; ge[effort]++
+  if (isr) {
+    if (hassp) { rbc += bc; rbv += bv; rbn += bn; roc += oc; rov += ov; rop += op; roi += oi }
+  } else if (verdict != "" && hassp) {
+    runs++; tc += c; tv += va; tf += fa; tn += nm; tnc += nc; tns += ns
+    if (ym ~ /^[0-9][0-9][0-9][0-9]-[0-9][0-9]$/) { mr[ym]++; mc[ym] += c; mf[ym] += fa; mn[ym] += nm }
+  }
+}
+END {
+  print "PROSPECT_YIELD " runs+0, tc+0, tv+0, tf+0, tn+0, tnc+0, tns+0
+  for (m in mr) print "PROSPECT_YIELD_MONTH " m, mr[m], mc[m], mf[m], mn[m]
+  print "RETRO_BUNDLE " rbc+0, rbv+0, rbn+0
+  print "RETRO_CLAIMS " roc+0, rov+0, rop+0, roi+0
+  for (m in gm) print "GATE_MODEL " m, gm[m]
+  for (e in ge) print "GATE_EFFORT " e, ge[e]
+}' | LC_ALL=C sort
 
 # --- Corpus: per-content-dir .md counts (exclude README.md) ---
 corpus_total=0
-for d in approaches references rules guides decisions projects; do
+for d in $KT_CONTENT_DIRS; do
   if [ -d "$KF/$d" ]; then
     n=$(find "$KF/$d" -name '*.md' ! -name 'README.md' 2>/dev/null | wc -l | tr -d ' ')
   else
@@ -127,11 +204,32 @@ fi
 echo "SKILL_DISCOVERY_BYTES $sd_bytes"
 echo "SKILL_COUNT $sk_count"
 
-# --- Audit-pass count (knowledge-audit-log entries) ---
-alog="$KF/logs/knowledge-audit-log.md"
-if [ -f "$alog" ]; then
-  ap=$(grep -cE '^## ' "$alog" 2>/dev/null || echo 0)
+# --- Fixed cost: always-on bytes every session pays (skill descriptions + rules digests) ---
+rd_file="$DIR/../rules/aria-rules.md"
+ur_file="${HOME:-}/.claude/rules/aria-user-rules.md"
+if [ -f "$rd_file" ]; then
+  rd_bytes=$(wc -c < "$rd_file" | tr -d ' ')
+  echo "RULES_DIGEST_BYTES $rd_bytes"
 else
-  ap=0
+  rd_bytes=0
+  echo "RULES_DIGEST_BYTES unmeasured"
+fi
+if [ -f "$ur_file" ]; then ur_bytes=$(wc -c < "$ur_file" | tr -d ' '); else ur_bytes=0; fi
+echo "USER_RULES_DIGEST_BYTES $ur_bytes"
+if [ -f "$rd_file" ]; then
+  echo "FIXED_COST_BYTES $((sd_bytes+rd_bytes+ur_bytes))"
+else
+  echo "FIXED_COST_BYTES $((sd_bytes+rd_bytes+ur_bytes)) partial"
+fi
+
+# --- Audit passes: highest "Nth pass" ordinal; fallback to the dated-entry count ---
+alog="$KF/logs/knowledge-audit-log.md"
+ap=0; ad=0
+if [ -f "$alog" ]; then
+  ad=$(grep -cE '^- \*\*Date:\*\*' "$alog" 2>/dev/null)
+  ad=${ad:-0}
+  ap=$(awk '{ s = $0; while (match(s, /[0-9]+(st|nd|rd|th) pass/)) { n = substr(s, RSTART, RLENGTH) + 0; if (n > mx) mx = n; s = substr(s, RSTART + RLENGTH) } } END { print mx + 0 }' "$alog")
+  [ "$ap" -gt 0 ] 2>/dev/null || ap=$ad
 fi
 echo "AUDIT_PASSES $ap"
+echo "AUDIT_DATED_ENTRIES $ad"

@@ -53,4 +53,76 @@ assert_eq "empty corpus total"   "0" "$(get3 CORPUS_TOTAL)"
 OUT4="$( KT_KNOWLEDGE_FOLDER="$UM_TMP/does-not-exist" KT_CONFIG="$UM_TMP/absent.md" sh "$BIN/usage-metrics.sh" )"
 assert_eq "missing kf error line" "1" "$(printf '%s\n' "$OUT4" | grep -c '^USAGE_METRICS_ERROR')"
 
+# --- Task 3 (fetch-scope-effort plan, B): errors caught, real fixed cost, every pattern library ---
+# HOME is isolated: the harness isolates TMPDIR, not HOME, and the script reads ~/.claude/rules.
+UM_HOME="$UM_TMP/home"; mkdir -p "$UM_HOME/.claude/rules"
+B="$UM_TMP/kfb"
+mkdir -p "$B/logs/prospect" "$B/logs/retrospect" "$B/rules"
+um() { HOME="$UM_HOME" KT_KNOWLEDGE_FOLDER="$B" KT_CONFIG="$UM_TMP/absent.md" sh "${1:-$BIN}/usage-metrics.sh"; }
+getb() { printf '%s\n' "$OUTB" | grep "^$1 " | head -1 | sed "s/^$1 //"; }
+
+# AC-B4. Prospect block form: cand 5 val 3 fals 1 nm 1 cap 0 struct 1 (May).
+printf -- '---\ntype: prospect\nmodel: claude-opus-5-5[1m]\neffort: high\nsourcing_pass:\n  candidates: 5   # five\n  upgraded_validated: 3\n  upgraded_falsified: 1\n  no_movement: 1\n  no_movement_capability: 0\n  no_movement_structural: 1\noverall_verdict: PROCEED\n---\nbody\nsourcing_pass:\n  candidates: 99\n' > "$B/logs/prospect/2026-05-01-block.md"
+# Inline form: cand 3 val 2 nm 1 (Jun); no model field.
+printf -- '---\ntype: prospect\neffort: xhigh\nsourcing_pass: { candidates: 3, upgraded_validated: 2, no_movement: 1 }\noverall_verdict: HOLD\n---\n' > "$B/logs/prospect/2026-06-01-inline.md"
+# Verdict-less log carrying a sourcing block: excluded from yield.
+printf -- '---\ntype: prospect\nsourcing_pass:\n  candidates: 50\n---\n' > "$B/logs/prospect/2026-06-02-noverdict.md"
+# Retrospect nested: bundle cand 4 / verified 3 / not 1 ; outcome cand 2 / valid 1 / partial 1 / invalid 0.
+printf -- '---\ntype: retrospect\nmodel: claude-opus-5 (1M context)\neffort: high\nsourcing_pass:\n  bundle_marker:\n    candidates: 4\n    upgraded_verified: 3\n    upgraded_not_in_bundle: 1\n    no_movement: 0\n  outcome:\n    candidates: 2\n    upgraded_validated: 1\n    upgraded_partial: 1\n    upgraded_invalidated: 0\n    no_movement: 0\noverall_outcome: closed\n---\n' > "$B/logs/retrospect/2026-06-01-nested.md"
+
+# AC-B2: 3 + 2 + 1 headings (one ###, one backticked); noise lines must not count.
+printf '## alpha-one\n## beta-two\n### gamma-three\n# top-level-no\n## Not Kebab\n' > "$B/rules/retrospect-patterns.md"
+printf '## delta-four\n## `epsilon-five`\n' > "$B/rules/prospect-patterns.md"
+printf '### zeta-six\n' > "$B/rules/overbuild-patterns.md"
+# AC-B3: ordinals 12th and 9th, three ## headings, two Date lines.
+printf '# Log\n## Pass A\n## Pass B\n## Pass C\n**9th pass — x**\n- **Date:** 2026-01-01\n**12th pass — y**\n- **Date:** 2026-02-01\n' > "$B/logs/knowledge-audit-log.md"
+
+OUTB="$(um)"
+assert_eq "B4 prospect yield (runs cand val fals nm cap struct)" "2 8 5 1 2 0 1" "$(getb PROSPECT_YIELD)"
+assert_eq "B4 prospect yield May" "2026-05 1 5 1 1" "$(printf '%s\n' "$OUTB" | grep '^PROSPECT_YIELD_MONTH 2026-05 ' | sed 's/^PROSPECT_YIELD_MONTH //')"
+assert_eq "B4 prospect yield Jun" "2026-06 1 3 0 1" "$(printf '%s\n' "$OUTB" | grep '^PROSPECT_YIELD_MONTH 2026-06 ' | sed 's/^PROSPECT_YIELD_MONTH //')"
+assert_eq "B4 retro bundle" "4 3 1" "$(getb RETRO_BUNDLE)"
+assert_eq "B4 retro claims" "2 1 1 0" "$(getb RETRO_CLAIMS)"
+assert_eq "gate model [1m] stripped" "1" "$(printf '%s\n' "$OUTB" | grep -c '^GATE_MODEL claude-opus-5-5 1$' | tr -d ' ')"
+assert_eq "gate model internal space joined" "1" "$(printf '%s\n' "$OUTB" | grep -c '^GATE_MODEL claude-opus-5_(1M_context) 1$' | tr -d ' ')"
+assert_eq "gate model absent" "1" "$(printf '%s\n' "$OUTB" | grep -c '^GATE_MODEL absent 2$' | tr -d ' ')"
+assert_eq "gate effort high" "2" "$(printf '%s\n' "$OUTB" | grep '^GATE_EFFORT high ' | sed 's/^GATE_EFFORT high //')"
+assert_eq "gate effort xhigh" "1" "$(printf '%s\n' "$OUTB" | grep '^GATE_EFFORT xhigh ' | sed 's/^GATE_EFFORT xhigh //')"
+assert_eq "gate effort absent" "1" "$(printf '%s\n' "$OUTB" | grep '^GATE_EFFORT absent ' | sed 's/^GATE_EFFORT absent //')"
+assert_eq "B2 pattern count 3+2+1" "6" "$(getb PATTERN_COUNT)"
+assert_eq "B2 pattern lib retro" "3" "$(printf '%s\n' "$OUTB" | grep '^PATTERN_LIB retrospect-patterns.md ' | sed 's/^PATTERN_LIB retrospect-patterns.md //')"
+assert_eq "B3 audit passes max ordinal" "12" "$(getb AUDIT_PASSES)"
+assert_eq "B3 audit dated entries" "2" "$(getb AUDIT_DATED_ENTRIES)"
+printf '# Log\n- **Date:** 2026-01-01\n- **Date:** 2026-02-01\n' > "$B/logs/knowledge-audit-log.md"
+OUTB="$(um)"
+assert_eq "B3 audit passes fallback to Date count" "2" "$(getb AUDIT_PASSES)"
+
+# User-rules digest bytes (HOME-isolated): none -> 0, then a 250-byte file -> 250.
+assert_eq "user rules digest absent" "0" "$(getb USER_RULES_DIGEST_BYTES)"
+head -c 250 /dev/zero | tr '\0' 'u' > "$UM_HOME/.claude/rules/aria-user-rules.md"
+OUTB="$(um)"
+assert_eq "user rules digest 250" "250" "$(getb USER_RULES_DIGEST_BYTES)"
+rm -f "$UM_HOME/.claude/rules/aria-user-rules.md"
+
+# AC-B1: a copy of the plugin with a 1,000-byte rules digest beside the script.
+PL="$UM_TMP/plug"; mkdir -p "$PL/scripts" "$PL/rules" "$PL/skills/s1"
+cp "$BIN/usage-metrics.sh" "$BIN/config.sh" "$PL/scripts/"
+printf -- '---\nname: s1\ndescription: hello world\n---\n' > "$PL/skills/s1/SKILL.md"
+head -c 1000 /dev/zero | tr '\0' 'r' > "$PL/rules/aria-rules.md"
+OUTB="$(um "$PL/scripts")"
+sk="$(getb SKILL_DISCOVERY_BYTES)"
+assert_eq "B1 rules digest bytes" "1000" "$(getb RULES_DIGEST_BYTES)"
+assert_eq "B1 fixed cost = skills + digest" "$((sk+1000))" "$(getb FIXED_COST_BYTES)"
+rm -f "$PL/rules/aria-rules.md"
+OUTB="$(um "$PL/scripts")"
+assert_eq "B1 rules digest unmeasured" "unmeasured" "$(getb RULES_DIGEST_BYTES)"
+assert_eq "B1 fixed cost partial" "$sk partial" "$(getb FIXED_COST_BYTES)"
+
+# AC-C5 single-definition guard: the content-dir list lives only in config.sh.
+for g in usage-metrics.sh pre-external-fetch-check.sh; do
+  [ -f "$BIN/$g" ] && ex=1 || ex=0
+  assert_eq "C5 $g exists" "1" "$ex"
+  assert_eq "C5 $g has no literal dir list" "0" "$(grep -c 'approaches references' "$BIN/$g" 2>/dev/null | tr -d ' ' || :)"
+done
+
 rm -rf "$UM_TMP"
