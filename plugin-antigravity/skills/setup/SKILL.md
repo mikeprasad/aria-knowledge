@@ -586,7 +586,7 @@ this step is gated rather than ported.
 **Install them now:**
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/bin/session-start-rules.sh" >/dev/null 2>&1
+sh "${CLAUDE_PLUGIN_ROOT}/bin/session-start-rules.sh" </dev/null >/dev/null 2>&1
 ls -l ~/.gemini/antigravity/rules/aria-rules.md ~/.gemini/antigravity/rules/aria-user-rules.md 2>/dev/null
 ```
 

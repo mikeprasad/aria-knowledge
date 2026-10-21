@@ -142,7 +142,7 @@ For each approved candidate, in order:
 5. **Disposition consumed backlog entries**: demote the heading `###`→`####` with a disposition
    note; bodies preserved.
 6. **Regenerate the always-on digest** by invoking `bash
-   ${CLAUDE_PLUGIN_ROOT}/scripts/session-start-rules.sh` with empty stdin — never by hand-editing
+   ${CLAUDE_PLUGIN_ROOT}/scripts/session-start-rules.sh </dev/null` (empty stdin — the hook reads stdin and would block on an open one) — never by hand-editing
    `~/.claude/rules/aria-user-rules.md` (its header forbids it; the generator's newer-than guard
    makes the rerun cheap). Then verify: the emitted rule count includes the new rules, and **none
    of the NEW rules' digest lines carry a truncation ellipsis** (scope the check to the new rules —

@@ -588,7 +588,7 @@ this step is gated rather than ported.
 **Install them now:**
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/session-start-rules.sh" >/dev/null 2>&1
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/session-start-rules.sh" </dev/null >/dev/null 2>&1
 ls -l ~/.claude/rules/aria-rules.md ~/.claude/rules/aria-user-rules.md 2>/dev/null
 ```
 
