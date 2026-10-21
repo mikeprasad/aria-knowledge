@@ -2,6 +2,22 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.56.0 — 2026-10-20
+
+**The plugin installs on claude.ai and in Cowork again.** Both refuse any plugin with a top-level `bin/` directory, whether it arrives by organization sync or by direct upload, and reject it with `Plugin contains a top-level bin/ directory`. Claude Code puts a plugin's `bin/` on the Bash tool's PATH, and those executables are not shown on the admin approval screen. The plugin's scripts now live in `scripts/`, the location the Claude Code plugin docs recommend.
+
+Nothing in the plugin relied on PATH. Every hook and skill already called its script by full path (`${CLAUDE_PLUGIN_ROOT}/…`), and scripts load each other relative to their own location, so behaviour is unchanged: the same 43 scripts and the same 20 hook commands, at a new path.
+
+**If you reference the old path yourself, update it after upgrading:**
+
+- **Morning review (`/aria-assist`, macOS launchd).** The job file names the script's installed path, which now ends in `scripts/pm-morning-run.sh`. Re-run `sh ${CLAUDE_PLUGIN_ROOT}/scripts/pm-schedule.sh` once from the new install (`/setup` offers it), or the job keeps pointing at a file that no longer exists.
+- **Permission rules** that name `plugin-claude-code/bin/…` (for example the `/auto` self-restart wrapper allowlist) need `scripts/` instead.
+- **Status line:** no action. `/statusline` copies the meter to `~/.claude/`, so its path does not move.
+
+**Other ports.** Antigravity keeps its own `bin/`, because claude.ai's rule does not apply there. Its `build.sh` now reads canonical `scripts/` and translates the name back, and the regenerated port is byte-identical apart from its version (Antigravity `2.56.0`). Cursor's `port-skills-to-mdc.py` follows the new canonical path; every path it translates produces identical output. **Codex, Cursor and Cowork are not rebuilt this release**: their content is unchanged, so their previously published downloads stay current.
+
+Verified: the built zip contains no `bin/` entries (the 2.55.1 zip had 46) and every script a hook calls is present. `tests/run.sh` 48/48 and the plugin suite 353/353.
+
 ## 2.55.1 — 2026-10-14
 
 **`/snapshot` now captures your session, not whichever session wrote last.** The helper copied the most recently modified `*.jsonl` under `~/.claude/projects`. With several Claude Code sessions open, that was often another session's transcript, and it still printed "saved" with exit 0. It now looks the transcript up by session id: `$CLAUDE_CODE_SESSION_ID`, then the `${CLAUDE_SESSION_ID}` the skill passes as an argument.

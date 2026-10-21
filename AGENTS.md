@@ -25,7 +25,7 @@ aria/
 ├── plugin-claude-code/            ← The Claude Code installable plugin
 │   ├── .claude-plugin/
 │   │   └── plugin.json
-│   ├── bin/           ← Hook scripts (bash)
+│   ├── scripts/           ← Hook scripts (bash)
 │   ├── skills/        ← Skill definitions (SKILL.md files)
 │   └── template/      ← Knowledge folder templates
 ├── plugin-openai-codex/      ← Codex port (independent installable unit)
