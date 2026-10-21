@@ -2,6 +2,25 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.56.1 — 2026-10-20
+
+**After `/compact`, the model is reminded again that the working rules still apply.** The PreCompact and PostCompact hooks printed their messages as `hookSpecificOutput`, and Claude Code's hook schema has no variant for either event, so every compaction ended with `Hook JSON output validation failed` and the messages were dropped. The docs also say both events discard `systemMessage`, so no output from them reaches the model or you. Two messages were being lost: the prompt to `/extract` the pre-compaction snapshot, and the reminder to re-read the working rules.
+
+**They now come from SessionStart with source `compact`**, which runs after every compaction and whose `additionalContext` does reach the model. `session-start-rules.sh` adds, in this order:
+
+- **The rules pointer first**: the working rules and your own rules are at `~/.claude/rules/`; Read them if they are no longer in context. It leads because the hook channel delivers only about the first 2,000 characters.
+- **The knowledge files surfaced earlier this session**, when active surfacing is on.
+- **This session's pre-compaction snapshot** and a prompt to offer `/extract` on it. It is matched by session id; the old message counted every snapshot in the folder, from any session.
+
+Other session starts are unchanged.
+
+- `pre-compact-check.sh` still saves the snapshot and now prints nothing.
+- The PostCompact hook is unregistered; its script is kept in `scripts/.archived/` with a note saying where each part went.
+
+Tests: the old check asserted only that the output was valid JSON, which held while the harness rejected every emission. New assertions drive the SessionStart `compact` path (event name, pointer first, ledger, this session's snapshot, startup unaffected). A new guard checks every registered hook: each event name it emits must match its registration and be one the hook schema accepts (pinned to Claude Code 2.1.305). Each was mutation-checked: restoring the PreCompact output, moving the pointer, or sending the block on every start turns the matching assertion red. Callers of `session-start-rules.sh` in the test suites now pass stdin explicitly; the hook reads stdin, and a caller with a never-closing stdin would otherwise block.
+
+Claude Code port only. Antigravity, Cursor and Cowork have no compaction hooks. ⚠ Codex routes its own PreCompact and PostCompact through `codex-hook.py` on the Codex runtime, whose output schema is not verified here.
+
 ## 2.56.0 — 2026-10-20
 
 **First published release since 2.55.0.** 2.55.1 was never tagged or released, so its changes (below: the `/snapshot` session-id fix and every port brought to parity) reach users with this release.

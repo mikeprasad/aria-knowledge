@@ -1,7 +1,7 @@
 {
   "claude-code": {
-    "version": "2.56.0",
-    "parity_target": "2.56.0",
+    "version": "2.56.1",
+    "parity_target": "2.56.1",
     "last_parity_pass": "2026-10-20",
     "sla": "undeclared",
     "surfaces": {}
@@ -101,8 +101,8 @@
     }
   },
   "antigravity": {
-    "version": "2.56.0",
-    "parity_target": "2.56.0",
+    "version": "2.56.1",
+    "parity_target": "2.56.1",
     "last_parity_pass": "2026-10-20",
     "sla": "undeclared",
     "surfaces": {
@@ -110,7 +110,7 @@
       "plugin-antigravity/skills/ask/SKILL.md": "ed6ed94e5f63e87d96b8addc0b5850e6ffcc1ce36e5ea259e911816de14e136f",
       "plugin-antigravity/skills/audit-config/SKILL.md": "3d00b33bba0dd181963bb48b2cd368ad0e2ea887ee7685c8157f87cde1ec1d21",
       "plugin-antigravity/skills/audit-knowledge/SKILL.md": "9064e9599d9d5e31b21dadf807ae8b479f5080030a7b10e2abc4706bbd49d5d8",
-      "plugin-antigravity/skills/audit-rules/SKILL.md": "6b4a813bf7b49c058a4593b7fc98f0aae031c5668cf25c537c917e053da4290e",
+      "plugin-antigravity/skills/audit-rules/SKILL.md": "63fddbed0ace3de7f16c35d50e3e6c1d86619f37edaeedcac48d39bd1bc159a4",
       "plugin-antigravity/skills/audit-share/SKILL.md": "d57d98d54eceef7b361adf0074d6712670b470574dcd0ddbf897360b0b67d962",
       "plugin-antigravity/skills/audit-style/SKILL.md": "6ce913734c994563eeea68666bbf5ec9d2c86806798f5b54d69df894af38eb52",
       "plugin-antigravity/skills/audit-usage/SKILL.md": "1c9bf82c991411d49f1650ad4a8b076665b96236c2f38ab38d6c5d1ceb770859",
@@ -136,7 +136,7 @@
       "plugin-antigravity/skills/retrospect/SKILL.md": "33a23592724580756d29ad7ec04d990ddc44d514bee3ce9dd8fafb2d597510b4",
       "plugin-antigravity/skills/roadmap/SKILL.md": "7a39fa4108797c6761922cfc342247e4729311dcb5bfbb19d903adc4f36d8d4a",
       "plugin-antigravity/skills/rules/SKILL.md": "d45fd10ca433f7f90473d33df54c7a36bc5be5c2209c2c44c373f143454a4d7d",
-      "plugin-antigravity/skills/setup/SKILL.md": "290e175ef13b3f1955f5978dbd671e027bd7118bff46ba3aeea19315e6cb20d9",
+      "plugin-antigravity/skills/setup/SKILL.md": "f48eecf746f6d773efe4f665509ebb53ded48b09a85ab626a4e40abf5214c89e",
       "plugin-antigravity/skills/snapshot/SKILL.md": "feb6dca9333368d7f024f3f8964ad62d2437430746132ef0d046ad3294d582b0",
       "plugin-antigravity/skills/stats/SKILL.md": "a2dc9f267696f4522098637d1bb8ecc80843780c0fbf1f02941a219a33525ec7",
       "plugin-antigravity/skills/statusline/SKILL.md": "219e64654dc79e5a9f9dd09d6eb45794c298cb919e5715a89235a9060cf82b07",
