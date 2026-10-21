@@ -44,14 +44,14 @@ assert_eq "cfg absent keys -> off|8 (ships default-off)" "off|8" "$out"
 #   - a THIRD covered surface (render.com), required by AC12: the breaker needs
 #     3 denials on 3 DISTINCT registrable domains to reach its threshold.
 # ---------------------------------------------------------------------------
-mkdir -p "$EF_TMP/kf/projects/proj-a/references" "$EF_TMP/kf/archive"
+mkdir -p "$EF_TMP/kf/references" "$EF_TMP/kf/projects/proj-a/references" "$EF_TMP/kf/archive"
 printf 'auth notes: use x-bitbucket-api-token-auth against bitbucket.org; REST is atlassian.com\n' \
   > "$EF_TMP/kf/projects/proj-a/references/staging-bitbucket-auth.md"
 printf 'archived: atlassian.com everywhere\n' > "$EF_TMP/kf/archive/old.md"
 printf 'render deploy notes: render.com dashboard + service ids\n' \
   > "$EF_TMP/kf/projects/proj-a/references/render-deploy.md"
 i=1; while [ "$i" -le 12 ]; do
-  printf 'mentions ambient.example\n' > "$EF_TMP/kf/note-$i.md"; i=$((i+1))
+  printf 'mentions ambient.example\n' > "$EF_TMP/kf/references/note-$i.md"; i=$((i+1))
 done
 # Stopword TRAPS. AC5/AC5b assert that stopword stems never reach the grep, and
 # without a corpus file those stems could match, the assertions pass whether or
