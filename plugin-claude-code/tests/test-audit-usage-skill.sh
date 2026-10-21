@@ -1,10 +1,11 @@
 # shellcheck shell=sh
 # test-audit-usage-skill.sh — the /audit usage skill body leads with errors caught,
 # consumes the new metric keys, and no longer reads the verdict rate as plan quality.
+# The description line's limits are guarded by tests/repros/claude-ai-upload-limits.sh.
 AU_DIR="$(cd "$(dirname "$0")" && pwd)"
 AU_PLUGIN="$(cd "$AU_DIR/.." && pwd)"
 AU_SKILL="$AU_PLUGIN/skills/audit-usage/SKILL.md"
-AU_REPO="$(cd "$AU_PLUGIN/.." && pwd)"
+AU_CODEX="$AU_PLUGIN/../plugin-openai-codex/skills/audit-usage/SKILL.md"
 
 au_has() { grep -qF -- "$1" "$AU_SKILL" && echo yes || echo no; }
 
@@ -17,6 +18,22 @@ assert_eq "audit-usage skill drops the verdict-trend permission" no "$(au_has 'N
 assert_eq "audit-usage skill keeps the 10-logs-per-month gate" yes "$(au_has '≥10')"
 
 AU_NOW="$(sed -n '/^description:/p' "$AU_SKILL")"
-AU_BASE="$(cd "$AU_REPO" && git show origin/main:plugin-claude-code/skills/audit-usage/SKILL.md 2>/dev/null | sed -n '/^description:/p')"
 assert_eq "audit-usage description line is non-empty" yes "$([ -n "$AU_NOW" ] && echo yes || echo no)"
-assert_eq "audit-usage description line is byte-identical to origin/main" "$AU_BASE" "$AU_NOW"
+
+# Final-review fixes, asserted on the canonical skill AND the hand-synced codex copy.
+for au_f in "$AU_SKILL" "$AU_CODEX"; do
+  au_p="$(basename "$(dirname "$(dirname "$(dirname "$au_f")")")")"
+  au_in() { grep -qF -- "$1" "$au_f" && echo yes || echo no; }
+  # M1: the settled share is unconditional; the addressable share only when the split exists.
+  assert_eq "audit-usage[$au_p] settled share always reported" yes "$(au_in 'the **settled share** `(cand−nm)/cand` always')"
+  assert_eq "audit-usage[$au_p] addressable share gated on nm_cap + nm_struct" yes "$(au_in 'Only when `nm_cap + nm_struct` > 0')"
+  assert_eq "audit-usage[$au_p] addressable share carries the mixed-population caveat" yes "$(au_in 'the population is mixed')"
+  assert_eq "audit-usage[$au_p] old split condition removed" no "$(au_in 'when the split is non-zero')"
+  # T4-b: yield runs is its own population.
+  assert_eq "audit-usage[$au_p] runs can be fewer than PROSPECT_TOTAL" yes "$(au_in 'can be fewer than `PROSPECT_TOTAL`')"
+  # M2: no division by zero.
+  assert_eq "audit-usage[$au_p] runs = 0 says so instead of a rate" yes "$(au_in 'no logs carry an Evidence-Sourcing Pass yet')"
+  # M3: the corrected audit keys reach the user.
+  assert_eq "audit-usage[$au_p] surfaces AUDIT_PASSES" yes "$(au_in 'AUDIT_PASSES')"
+  assert_eq "audit-usage[$au_p] surfaces AUDIT_DATED_ENTRIES" yes "$(au_in 'AUDIT_DATED_ENTRIES')"
+done
