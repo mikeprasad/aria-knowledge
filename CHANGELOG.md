@@ -2,6 +2,37 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.57.0 — 2026-10-21
+
+**`/audit usage` now reports what the gates caught, the external-fetch gate searches only your curated notes, and `/prospect` and `/retrospect` take the reasoning-effort level from the runtime instead of guessing it.** All three were found by re-measuring the plugin's own value analysis.
+
+**`/audit usage` reports what the gates caught, and the real fixed cost.**
+
+- **New figures:** errors caught (premises falsified before execution, per run; fixes found missing from the shipped bundle; outcome claims invalidated), the settled share and, where logs record the split, the addressable settled share.
+- **Fixed cost now includes the always-on working-rules digest** (`~/.claude/rules/aria-rules.md`, loaded every session since 2.48.0) as well as the skill descriptions. It used to count the descriptions only, about half the real figure. The user-rules digest is shown separately, as opt-in.
+- **The verdict mix is no longer presented as plan quality.** It tracks how much the gate finds. Trends are reported only for falsifications per run and premises per run, and only for months with at least 10 runs.
+- **Both forms of `sourcing_pass` frontmatter are read**, block and inline `{ … }`. A parser that read only the block form dropped the 37 logs written in the inline form in the author's own knowledge folder.
+- **Two counts are corrected under the same key names.** `PATTERN_COUNT` counts every `rules/*-patterns.md` library, not only the retrospect one. `AUDIT_PASSES` reads the numbered pass ordinal; it used to count `## ` headings, which do not match the log's format.
+- **New keys:** `RULES_DIGEST_BYTES`, `USER_RULES_DIGEST_BYTES`, `FIXED_COST_BYTES`, `PROSPECT_YIELD`, `PROSPECT_YIELD_MONTH`, `RETRO_BUNDLE`, `RETRO_CLAIMS`, `GATE_MODEL`, `GATE_EFFORT`, `PATTERN_LIB`, `AUDIT_DATED_ENTRIES`.
+- **On Codex and Cursor** no bundled rules digest sits beside the script, so `RULES_DIGEST_BYTES` reads `unmeasured` and `FIXED_COST_BYTES` is marked `partial`: a lower bound, labelled as one. Cursor's skill-description bytes read 0 for the same reason.
+
+**The external-fetch gate searches curated knowledge only.** The gate is opt-in (`external_fetch_gate: on`) and ships off.
+
+- It now searches `approaches`, `references`, `projects`, `rules`, `guides` and `decisions` (one list, `KT_CONTENT_DIRS` in `config.sh`) plus the memory directories. It no longer searches retained transcript captures, gate logs or root-level files.
+- **Why:** on a 2.1 GB knowledge folder holding 1.5 GB of transcript captures, the old whole-folder scan took 7.5 to 32 seconds against the hook's 5-second timeout. The hook was cancelled and never pointed at a local note. It now takes about 0.5 seconds. The time budget is checked after each directory, so a single very large curated directory can still run long.
+- ⚠ **If you turned the gate on, its decisions change in both directions:**
+  - **It now denies, with a pointer to your note, fetches it used to allow:** fetches that previously timed out, and hosts that counted as "ambient" (over the 8-hit cap) only because transcripts mentioned them. One host went from 58 hits to 2.
+  - **It now allows fetches it used to deny:** a host mentioned only in `intake/`, `logs/`, root-level files, `distill/`, `stitch/`, or a top-level directory you created yourself.
+
+**Gates record the reasoning-effort level from the runtime, never a guess.**
+
+- `/prospect` and `/retrospect` fill the log's `effort:` line from `$CLAUDE_EFFORT`, which Claude Code sets in Bash subprocesses (a subagent reads its own level). Where it is unset they record `unrecorded`. The model used to guess; on 140 logs that could be checked, 24% of the guesses disagreed with the harness.
+- **New tool `scripts/backfill-gate-effort.py`** (Claude Code only) repairs existing logs from the transcript record of the Write that created each one. It is a dry run by default: `--apply` writes, and `--correct-self-reported` also replaces a value that disagrees with the transcript. It changes only the `effort:` line, re-checks each file at write time, writes atomically, never writes when the match is ambiguous, and is safe to re-run. Its `SUMMARY` line counts filled, corrected, ambiguous, unmatched, errors and skipped.
+
+**No release zip can ship Python bytecode.** Every release script excludes `__pycache__` and `*.pyc` when staging and fails the build if one appears. The 2.56.2 zip contained one harmless `.pyc`; a test run could otherwise have shipped one carrying an absolute local path.
+
+**Other ports.** Codex (`2.57.0-codex.0`) and Cursor (`2.57.0-cursor.0`) carry all three fixes. The Cursor rules regeneration also brings earlier generator changes (`bin/` → `scripts/` path wording) that had not been regenerated since 2.55.1. Antigravity is regenerated at 2.57.0. Cowork carries the new effort-line wording in source only (it records `unrecorded`, because Cowork cannot read the effort level); there is no Cowork release in this cut, and Cowork stays at 1.8.1.
+
 ## 2.56.2 — 2026-10-20
 
 **The plugin now passes claude.ai's upload validation.** With the top-level `bin/` gone (2.56.0), claude.ai checked the rest and refused the plugin with 27 errors. None of them show in Claude Code, which installs the plugin as is.

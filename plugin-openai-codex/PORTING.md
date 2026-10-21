@@ -38,7 +38,7 @@ unless the user explicitly overrides `KT_CONFIG` or `ARIA_KNOWLEDGE_CONFIG`.
 
 - Skills should keep shared knowledge schemas compatible while using Codex-native
   metadata, config, and hook wording.
-- This port tracks Claude Code ARIA `2.55.1` with Codex release label `2.55.1-codex.0` for shared knowledge templates, review skills, audit/preflight/prospect/retrospect workflows, Rule 35/Rule 36/Rule 37 content, and Codex-supported hook behavior.
+- This port tracks Claude Code ARIA `2.55.1` (release label `2.57.0-codex.0`, which also carries the canonical 2.57.0 `/audit usage`, curated-dir fetch-gate and effort-line changes) for shared knowledge templates, review skills, audit/preflight/prospect/retrospect workflows, Rule 35/Rule 36/Rule 37 content, and Codex-supported hook behavior.
 - Rule 22 maps Codex file edits to `apply_patch`; Codex also supports `Edit|Write`
   matcher aliases for the same canonical tool.
 - `UserPromptSubmit` is the Codex-native active-knowledge intent hook. It scans
