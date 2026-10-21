@@ -193,6 +193,8 @@ rsync -a \
     --exclude='release.sh' \
     --exclude='CODEMAP.md' \
     --exclude='IDEAS-BACKLOG.md' \
+    --exclude='__pycache__/' \
+    --exclude='*.pyc' \
     "$REPO_ROOT/" \
     "$STAGING/$PLUGIN_NAME/" 2>/dev/null || \
 {
@@ -202,6 +204,7 @@ rsync -a \
     (cd "$REPO_ROOT" && tar --exclude='.DS_Store' --exclude='__MACOSX' --exclude='.claude' \
         --exclude='.git' --exclude='*.plugin' --exclude='probe' --exclude='release.sh' \
         --exclude='CODEMAP.md' --exclude='IDEAS-BACKLOG.md' \
+        --exclude='__pycache__' --exclude='*.pyc' \
         -cf - .) | (cd "$STAGING/$PLUGIN_NAME" && tar -xf -)
 }
 
@@ -222,6 +225,14 @@ log "zipping: $(basename "$ZIP_PATH")"
 # --- verify -----------------------------------------------------------------
 junk=$(unzip -l "$ZIP_PATH" | grep -cE '(__MACOSX|\.DS_Store|\.claude/settings|\.git/)' || true)
 [[ "$junk" -eq 0 ]] || die "verification failed: $junk junk entries in zip"
+
+# >>> bytecode-check — tests/repros/release-zip-excludes-bytecode.sh runs this block in isolation.
+# Python bytecode never ships: a .pyc embeds the builder's absolute path and is a stale copy of the
+# .py beside it (2.56.2 shipped skills/audit-style/__pycache__/). The copy step excludes it; this
+# fails the build LOUDLY if one gets through anyway.
+bytecode=$(unzip -l "$ZIP_PATH" | grep -cE '__pycache__|\.py[co]$' || true)
+[[ "$bytecode" -eq 0 ]] || die "verification failed: $bytecode Python bytecode entries in zip (__pycache__/ or *.pyc)"
+# <<< bytecode-check
 
 manifest=$(unzip -l "$ZIP_PATH" | grep -c "$PLUGIN_NAME/\.claude-plugin/plugin\.json" || true)
 [[ "$manifest" -eq 1 ]] || die "verification failed: manifest missing or duplicated ($manifest found)"

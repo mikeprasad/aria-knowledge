@@ -58,6 +58,8 @@ rsync -a \
     --exclude='*.orig' \
     --exclude='*.rej' \
     --exclude='*.swp' \
+    --exclude='__pycache__/' \
+    --exclude='*.pyc' \
     --exclude='audit/' \
     --exclude='PORTING.md' \
     "$REPO_ROOT/plugin-cursor-template/" \
@@ -73,6 +75,14 @@ log "zipping: $(basename "$ZIP_PATH")"
 # --- verify -----------------------------------------------------------------
 junk=$(unzip -l "$ZIP_PATH" | grep -cE '(__MACOSX|\.DS_Store|audit/|PORTING\.md)' || true)
 [[ "$junk" -eq 0 ]] || die "verification failed: $junk junk entries in zip"
+
+# >>> bytecode-check — tests/repros/release-zip-excludes-bytecode.sh runs this block in isolation.
+# Python bytecode never ships: a .pyc embeds the builder's absolute path and is a stale copy of the
+# .py beside it (2.56.2 shipped skills/audit-style/__pycache__/). The copy step excludes it; this
+# fails the build LOUDLY if one gets through anyway.
+bytecode=$(unzip -l "$ZIP_PATH" | grep -cE '__pycache__|\.py[co]$' || true)
+[[ "$bytecode" -eq 0 ]] || die "verification failed: $bytecode Python bytecode entries in zip (__pycache__/ or *.pyc)"
+# <<< bytecode-check
 
 # Belt-and-braces for the leftover excludes above: fails LOUDLY if one is removed or a new
 # suffix appears, rather than shipping it.
