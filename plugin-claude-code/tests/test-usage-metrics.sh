@@ -128,11 +128,18 @@ OUTB="$(um "$PL/scripts")"
 assert_eq "B1 rules digest unmeasured" "unmeasured" "$(getb RULES_DIGEST_BYTES)"
 assert_eq "B1 fixed cost partial" "$sk partial" "$(getb FIXED_COST_BYTES)"
 
-# AC-C5 single-definition guard: the content-dir list lives only in config.sh.
-for g in usage-metrics.sh pre-external-fetch-check.sh; do
-  [ -f "$BIN/$g" ] && ex=1 || ex=0
-  assert_eq "C5 $g exists" "1" "$ex"
-  assert_eq "C5 $g has no literal dir list" "0" "$(grep -c 'approaches references' "$BIN/$g" 2>/dev/null | tr -d ' ' || :)"
+# AC-C5 single-definition guard: the content-dir list lives only in config.sh — in the
+# canonical scripts/ AND in every port copy (codex bin/, cursor scripts/aria/, antigravity bin/).
+# Positive arm: each copy reads KT_CONTENT_DIRS, so a copy that drops the scan cannot pass.
+C5_REPO="$(cd "$BIN/../.." && pwd)"
+for c5_dir in "$BIN" "$C5_REPO/plugin-openai-codex/bin" "$C5_REPO/plugin-cursor-template/scripts/aria" "$C5_REPO/plugin-antigravity/bin"; do
+  c5_p="${c5_dir#"$C5_REPO"/}"
+  for g in usage-metrics.sh pre-external-fetch-check.sh; do
+    [ -f "$c5_dir/$g" ] && ex=1 || ex=0
+    assert_eq "C5 $c5_p/$g exists" "1" "$ex"
+    assert_eq "C5 $c5_p/$g has no literal dir list" "0" "$(grep -c 'approaches references' "$c5_dir/$g" 2>/dev/null | tr -d ' ' || :)"
+    assert_eq "C5 $c5_p/$g reads KT_CONTENT_DIRS" "yes" "$(grep -q 'KT_CONTENT_DIRS' "$c5_dir/$g" 2>/dev/null && echo yes || echo no)"
+  done
 done
 
 rm -rf "$UM_TMP"

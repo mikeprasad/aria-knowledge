@@ -52,7 +52,7 @@ QUERY=$(printf '%s' "$INPUT" | grep -o '"query":"[^"]*"' | head -1 | sed 's/.*"q
 
 # Ordinary English words that are also domain stems in a real corpus. Matching
 # these against prose is pure noise (measured: `index` fires on "postgres index
-# bloat"). Inline rather than a data file: bin/ holds only .sh, template/ is the
+# bloat"). Inline rather than a data file: bin/ holds executables, not data, template/ is the
 # user-copied knowledge skeleton, and there is no data/ convention to invent for
 # ~60 words.
 # UNUSED since 2.45.1 — the query branch below no longer matches prose words, so

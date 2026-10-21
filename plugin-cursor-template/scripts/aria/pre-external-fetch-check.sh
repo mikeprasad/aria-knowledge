@@ -10,7 +10,8 @@
 # Cursor-native notes:
 #   - Payload uses camelCase sessionId; snake_case is a fallback.
 #   - URL/query may appear as url, query, or search_term (Cursor WebSearch).
-#   - Corpus: knowledge folder + ~/.claude/projects/*/memory (if present) +
+#   - Corpus: the curated knowledge dirs (KT_CONTENT_DIRS, defined once in config.sh;
+#     never intake/ or logs/) + ~/.claude/projects/*/memory (if present) +
 #     ~/.cursor/projects/*/memory (if present). Agent transcripts are NOT
 #     scanned — they are too large and are not the "recorded reference" unit.
 #   - Gate ships OFF (external_fetch_gate: off).
@@ -57,7 +58,7 @@ QUERY=$(printf '%s' "$INPUT" | grep -o '"query":"[^"]*"' | head -1 | sed 's/.*"q
 
 # Ordinary English words that are also domain stems in a real corpus. Matching
 # these against prose is pure noise (measured: `index` fires on "postgres index
-# bloat"). Inline rather than a data file: bin/ holds only .sh, template/ is the
+# bloat"). Inline rather than a data file: scripts/aria/ holds executables, not data, knowledge/ is the
 # user-copied knowledge skeleton, and there is no data/ convention to invent for
 # ~60 words.
 # UNUSED since 2.45.1 — the query branch below no longer matches prose words, so
