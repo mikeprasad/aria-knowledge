@@ -12,7 +12,7 @@ ground truth for that log's effort.
 Output lines: FILL <path> <value> | CORRECT <path> <old> -> <new>
               AMBIGUOUS <path> <v1,v2> | UNMATCHED <path>
               SKIPPED <path> changed-since-scan | ERROR <path> <reason>
-              SUMMARY fill=N correct=N ambiguous=N unmatched=N errors=N
+              SUMMARY fill=N correct=N ambiguous=N unmatched=N errors=N skipped=N
 Dry-run unless --apply. CORRECT lines are always printed (they preview what
 --correct-self-reported does) but are counted and applied only with that flag.
 A log with no `effort:` line in its first frontmatter block is left alone.
@@ -163,7 +163,7 @@ def write_atomic(rp, data):
 
 def execute(plan, apply=False, correct=False, today=None):
     today = today or datetime.date.today().strftime("%Y-%m-%d")
-    n = {"fill": 0, "correct": 0, "ambiguous": 0, "unmatched": 0, "errors": 0}
+    n = {"fill": 0, "correct": 0, "ambiguous": 0, "unmatched": 0, "errors": 0, "skipped": 0}
     for e in plan:
         op, p = e["op"], e["path"]
         if op == "AMBIGUOUS":
@@ -190,6 +190,7 @@ def execute(plan, apply=False, correct=False, today=None):
                 want = "fill" if op == "FILL" else "self"
                 if not c or c[3] != e["old"] or c[4] != want:
                     print("SKIPPED %s changed-since-scan" % p)
+                    n["skipped"] += 1
                     continue
                 start, end, eol = c[0], c[1], c[2]
                 write_atomic(e["rp"], data[:start] + line.encode("utf-8") + eol + data[end:])
@@ -198,8 +199,8 @@ def execute(plan, apply=False, correct=False, today=None):
                 n["errors"] += 1
                 continue
         n["fill" if op == "FILL" else "correct"] += 1
-    print("SUMMARY fill=%d correct=%d ambiguous=%d unmatched=%d errors=%d" % (
-        n["fill"], n["correct"], n["ambiguous"], n["unmatched"], n["errors"]))
+    print("SUMMARY fill=%d correct=%d ambiguous=%d unmatched=%d errors=%d skipped=%d" % (
+        n["fill"], n["correct"], n["ambiguous"], n["unmatched"], n["errors"], n["skipped"]))
 
 
 def main():
