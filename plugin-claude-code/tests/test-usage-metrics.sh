@@ -67,7 +67,9 @@ printf -- '---\ntype: prospect\nmodel: claude-opus-5-5[1m]\neffort: high\nsourci
 printf -- '---\ntype: prospect\neffort: xhigh\nsourcing_pass: { candidates: 3, upgraded_validated: 2, no_movement: 1 }\noverall_verdict: HOLD\n---\n' > "$B/logs/prospect/2026-06-01-inline.md"
 # Verdict-less log carrying a sourcing block: excluded from yield.
 printf -- '---\ntype: prospect\nsourcing_pass:\n  candidates: 50\n---\n' > "$B/logs/prospect/2026-06-02-noverdict.md"
-# Retrospect nested: bundle cand 4 / verified 3 / not 1 ; outcome cand 2 / valid 1 / partial 1 / invalid 0.
+# F2/F3: a prospect log with a spaced model and spaced effort (no verdict, so not in yield).
+printf -- '---\ntype: prospect\nmodel: claude-opus-5 (1M context)\neffort: very high\n---\n' > "$B/logs/prospect/2026-06-03-spaced.md"
+# Retrospect nested (model/effort here must NOT feed GATE_*): bundle cand 4 / verified 3 / not 1 ; outcome cand 2 / valid 1 / partial 1 / invalid 0.
 printf -- '---\ntype: retrospect\nmodel: claude-opus-5 (1M context)\neffort: high\nsourcing_pass:\n  bundle_marker:\n    candidates: 4\n    upgraded_verified: 3\n    upgraded_not_in_bundle: 1\n    no_movement: 0\n  outcome:\n    candidates: 2\n    upgraded_validated: 1\n    upgraded_partial: 1\n    upgraded_invalidated: 0\n    no_movement: 0\noverall_outcome: closed\n---\n' > "$B/logs/retrospect/2026-06-01-nested.md"
 
 # AC-B2: 3 + 2 + 1 headings (one ###, one backticked); noise lines must not count.
@@ -86,7 +88,9 @@ assert_eq "B4 retro claims" "2 1 1 0" "$(getb RETRO_CLAIMS)"
 assert_eq "gate model [1m] stripped" "1" "$(printf '%s\n' "$OUTB" | grep -c '^GATE_MODEL claude-opus-5-5 1$' | tr -d ' ')"
 assert_eq "gate model internal space joined" "1" "$(printf '%s\n' "$OUTB" | grep -c '^GATE_MODEL claude-opus-5_(1M_context) 1$' | tr -d ' ')"
 assert_eq "gate model absent" "1" "$(printf '%s\n' "$OUTB" | grep -c '^GATE_MODEL absent 2$' | tr -d ' ')"
-assert_eq "gate effort high" "2" "$(printf '%s\n' "$OUTB" | grep '^GATE_EFFORT high ' | sed 's/^GATE_EFFORT high //')"
+assert_eq "gate effort high (prospect only; retro high excluded)" "1" "$(printf '%s\n' "$OUTB" | grep '^GATE_EFFORT high ' | sed 's/^GATE_EFFORT high //')"
+assert_eq "F3 gate effort internal space joined" "1" "$(printf '%s\n' "$OUTB" | grep -c '^GATE_EFFORT very_high 1$' | tr -d ' ')"
+assert_eq "F2 gate model total is prospect-only" "4" "$(printf '%s\n' "$OUTB" | grep '^GATE_MODEL ' | awk '{t+=$3} END{print t}')"
 assert_eq "gate effort xhigh" "1" "$(printf '%s\n' "$OUTB" | grep '^GATE_EFFORT xhigh ' | sed 's/^GATE_EFFORT xhigh //')"
 assert_eq "gate effort absent" "1" "$(printf '%s\n' "$OUTB" | grep '^GATE_EFFORT absent ' | sed 's/^GATE_EFFORT absent //')"
 assert_eq "B2 pattern count 3+2+1" "6" "$(getb PATTERN_COUNT)"
@@ -113,6 +117,12 @@ OUTB="$(um "$PL/scripts")"
 sk="$(getb SKILL_DISCOVERY_BYTES)"
 assert_eq "B1 rules digest bytes" "1000" "$(getb RULES_DIGEST_BYTES)"
 assert_eq "B1 fixed cost = skills + digest" "$((sk+1000))" "$(getb FIXED_COST_BYTES)"
+# F1: a user digest is opt-in and must NOT change the default fixed cost.
+head -c 250 /dev/zero | tr '\0' 'u' > "$UM_HOME/.claude/rules/aria-user-rules.md"
+OUTB="$(um "$PL/scripts")"
+assert_eq "F1 fixed cost unchanged by user digest" "$((sk+1000))" "$(getb FIXED_COST_BYTES)"
+assert_eq "F1 user digest still its own key" "250" "$(getb USER_RULES_DIGEST_BYTES)"
+rm -f "$UM_HOME/.claude/rules/aria-user-rules.md"
 rm -f "$PL/rules/aria-rules.md"
 OUTB="$(um "$PL/scripts")"
 assert_eq "B1 rules digest unmeasured" "unmeasured" "$(getb RULES_DIGEST_BYTES)"

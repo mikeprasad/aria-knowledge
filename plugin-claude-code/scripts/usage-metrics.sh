@@ -111,7 +111,7 @@ printf '%s' "$pat_lines"
 # Counted populations: PROSPECT_YIELD/_MONTH = logs with an overall_verdict AND a
 # sourcing_pass key (older logs predate the block; counting them would dilute yield).
 # RETRO_BUNDLE/CLAIMS = every retrospect log carrying a sourcing_pass. GATE_MODEL/EFFORT
-# = every log in both dirs; a missing field is "absent".
+# = every PROSPECT log (retrospect excluded); a missing field is "absent".
 { [ -d "$pdir" ] && find "$pdir" -name '*.md' -type f; [ -d "$rdir" ] && find "$rdir" -name '*.md' -type f; } 2>/dev/null |
 awk -v rdir="$rdir/" '
 function trim(x) { sub(/^[ \t]+/, "", x); sub(/[ \t\r]+$/, "", x); return x }
@@ -160,8 +160,8 @@ function inline(body,   n, parts, i, kv) {
   close(f)
   if (!started) { model = ""; effort = ""; verdict = ""; hassp = 0 }
   sub(/\[1m\]/, "", model); model = trim(model); gsub(/[ \t]+/, "_", model); if (model == "") model = "absent"
-  effort = trim(effort); if (effort == "") effort = "absent"
-  gm[model]++; ge[effort]++
+  effort = trim(effort); gsub(/[ \t]+/, "_", effort); if (effort == "") effort = "absent"
+  if (!isr) { gm[model]++; ge[effort]++ }
   if (isr) {
     if (hassp) { rbc += bc; rbv += bv; rbn += bn; roc += oc; rov += ov; rop += op; roi += oi }
   } else if (verdict != "" && hassp) {
@@ -204,7 +204,7 @@ fi
 echo "SKILL_DISCOVERY_BYTES $sd_bytes"
 echo "SKILL_COUNT $sk_count"
 
-# --- Fixed cost: always-on bytes every session pays (skill descriptions + rules digests) ---
+# --- Fixed cost: always-on bytes every session pays (skill descriptions + bundled rules digest; the opt-in user digest is its own key) ---
 rd_file="$DIR/../rules/aria-rules.md"
 ur_file="${HOME:-}/.claude/rules/aria-user-rules.md"
 if [ -f "$rd_file" ]; then
@@ -217,9 +217,9 @@ fi
 if [ -f "$ur_file" ]; then ur_bytes=$(wc -c < "$ur_file" | tr -d ' '); else ur_bytes=0; fi
 echo "USER_RULES_DIGEST_BYTES $ur_bytes"
 if [ -f "$rd_file" ]; then
-  echo "FIXED_COST_BYTES $((sd_bytes+rd_bytes+ur_bytes))"
+  echo "FIXED_COST_BYTES $((sd_bytes+rd_bytes))"
 else
-  echo "FIXED_COST_BYTES $((sd_bytes+rd_bytes+ur_bytes)) partial"
+  echo "FIXED_COST_BYTES $((sd_bytes+rd_bytes)) partial"
 fi
 
 # --- Audit passes: highest "Nth pass" ordinal; fallback to the dated-entry count ---
