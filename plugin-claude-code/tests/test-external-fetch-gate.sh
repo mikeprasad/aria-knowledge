@@ -263,3 +263,42 @@ ef_reset
 out=$(printf '{"url":"%s","session_id":"%s"}' "https://support.atlassian.com/x" s25b \
   | KT_CONFIG="$EF_CFG" ARIA_EF_MEMDIR="$EF_TMP/nomem" ARIA_EF_BUDGET_S=60 sh "$HOOK" 2>/dev/null || :)
 assert_eq "AC13 control: same call denies under a normal budget" "1" "$(ef_has '"permissionDecision":"deny"' "$out")"
+
+# ---------------------------------------------------------------------------
+# [C] scope the scan to curated dirs; budget checked per directory
+# Fixtures live under their own knowledge folder so the shared kf corpus above
+# cannot leak in. Every case uses a unique session_id (cooldown is per session).
+# ---------------------------------------------------------------------------
+EF_CK="$EF_TMP/ck"; rm -rf "$EF_CK"; mkdir -p "$EF_CK/empty-mem"
+EF_CFG_C="$EF_TMP/config-c.md"
+printf '%s\n' '---' "knowledge_folder: $EF_CK/kf" \
+  'external_fetch_gate: on' 'external_fetch_max_hits: 8' '---' > "$EF_CFG_C"
+ef_run_c() { # url session [extra env assignment]
+  printf '{"url":"%s","session_id":"%s"}' "$1" "$2" \
+    | env KT_CONFIG="$EF_CFG_C" ARIA_EF_MEMDIR="$EF_CK/empty-mem" ${3:-} sh "$HOOK" 2>/dev/null || :
+}
+
+# [AC-C1] a host named only in transcript captures / logs is NOT a reference
+mkdir -p "$EF_CK/kf/intake/pre-compact-captures" "$EF_CK/kf/logs/prospect"
+printf 'transcript mentions captureonly.example\n' > "$EF_CK/kf/intake/pre-compact-captures/x.md"
+printf 'log mentions captureonly.example\n' > "$EF_CK/kf/logs/prospect/y.md"
+out=$(ef_run_c "https://captureonly.example/docs" c1)
+assert_eq "AC-C1 capture/log-only host -> no deny" "0" "$(ef_has deny "$out")"
+
+# [AC-C2] positive control: the same host in a curated dir still denies and is cited
+mkdir -p "$EF_CK/kf/references"
+printf 'curated note on curated.example\n' > "$EF_CK/kf/references/note.md"
+out=$(ef_run_c "https://curated.example/docs" c2)
+assert_eq "AC-C2 curated hit -> deny" "1" "$(ef_has deny "$out")"
+assert_eq "AC-C2 curated hit cited" "1" "$(ef_has references/note.md "$out")"
+
+# [AC-C3] non-regression only (passes on the old hook too): over budget -> allow
+out=$(ef_run_c "https://curated.example/docs" c3 ARIA_EF_BUDGET_S=0)
+assert_eq "AC-C3 zero budget -> no deny" "0" "$(ef_has deny "$out")"
+
+# [cap] a host in 9 curated files is ambient -> allow
+i=1; while [ "$i" -le 9 ]; do
+  printf 'mentions ambientc.example\n' > "$EF_CK/kf/references/amb-$i.md"; i=$((i+1))
+done
+out=$(ef_run_c "https://ambientc.example/x" c4)
+assert_eq "cap: 9 curated hits -> no deny" "0" "$(ef_has deny "$out")"
