@@ -57,11 +57,13 @@ done
 # without a corpus file those stems could match, the assertions pass whether or
 # not the filter exists — measured: removing `index` from the stopword list left
 # AC5 green. These files give a leaked stopword something to hit, so the guards
-# can fail for the right reason.
+# can fail for the right reason. They MUST live under a curated dir
+# (kf/references/): the hook scans only KT_CONTENT_DIRS, so a trap at the kf root
+# is never read and its control passes vacuously.
 printf 'trap: index.example must only match if the stopword filter LEAKED\n' \
-  > "$EF_TMP/kf/trap-index.md"
+  > "$EF_TMP/kf/references/trap-index.md"
 printf 'trap: brand.example universe.example — line-boundary stopword leak trap\n' \
-  > "$EF_TMP/kf/trap-boundary.md"
+  > "$EF_TMP/kf/references/trap-boundary.md"
 # PROSE-WORD trap. The v2.45.0 query branch built `(word)\.[a-z]` — the URL
 # branch's domain shape — so a common English word in a FILENAME reference was
 # enough to deny. This file gives that pattern something to hit, so the AC6
@@ -69,7 +71,7 @@ printf 'trap: brand.example universe.example — line-boundary stopword leak tra
 # Without it the assertion is green whether or not the fix exists (measured
 # 2026-08-14: the real corpus matched `guidelines.m` 7x and nothing else).
 printf 'trap: see guidelines.md and screening.md — prose-word-as-domain leak trap\n' \
-  > "$EF_TMP/kf/trap-prose-filename.md"
+  > "$EF_TMP/kf/references/trap-prose-filename.md"
 
 EF_CFG="$EF_TMP/config-live.md"
 printf '%s\n' '---' "knowledge_folder: $EF_TMP/kf" \
