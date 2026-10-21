@@ -1,5 +1,5 @@
 ---
-description: "Executed pre-completion checklist — third sibling of /prospect (before execution) and /retrospect (after shipping). Six checks, three outcomes each (PASS/FAIL/INVALID); an unrun check blocks the verdict. Catches failures that emit no error: a check whose FORM bounds what it finds, and a decision correct in isolation but wrong in context. Use BEFORE claiming done/fixed/shipped/verified/'none found', before a PR, or before posting a result on a ticket. Triggers: '/preflight', '/preflight ticket <id>', '/preflight file <path>'."
+description: "Executed pre-completion checklist — third sibling of /prospect (before execution) and /retrospect (after shipping). Six checks, three outcomes each (PASS/FAIL/INVALID); an unrun check blocks the verdict. Catches failures that emit no error: a check whose FORM bounds what it finds, and a decision correct in isolation but wrong in context. Use BEFORE claiming done/fixed/shipped/verified/'none found', before a PR, or before posting a result on a ticket. Triggers: '/preflight', '/preflight ticket {id}', '/preflight file {path}'."
 argument-hint: "[<scope>] [<scope-arg>] [--claim \"<sentence>\"] [--quick]"
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash, WebFetch, WebSearch
 ---

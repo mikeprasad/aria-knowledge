@@ -1,5 +1,5 @@
 ---
-description: "Render a per-project feature roadmap — a Band×Status grid (Shipped/Current/Next/Later × done/in-progress/blocked/buildable) synthesized from CLAUDE.md + PROGRESS.md, persisted to a committed ROADMAP.md with staleness-aware refresh. Modes: '/roadmap' (nearest project), '/roadmap <name>' (a projects_list tag), '/roadmap refresh [<name>]' (force re-synthesis). Use when user says '/roadmap', 'show the roadmap', 'what's the roadmap for <project>', 'what's buildable next', 'what's blocked', 'feature status across versions'. Renders + offers refresh when stale; never auto-commits. (Code port — ADR-094.)"
+description: "Render a per-project feature roadmap — a Band×Status grid (Shipped/Current/Next/Later × done/in-progress/blocked/buildable) synthesized from CLAUDE.md + PROGRESS.md, persisted to a committed ROADMAP.md with staleness-aware refresh. Modes: '/roadmap' (nearest project), '/roadmap {name}' (a projects_list tag), '/roadmap refresh ({name})' (force re-synthesis). Use when user says '/roadmap', 'show the roadmap', 'what's the roadmap for {project}', 'what's buildable next', 'what's blocked', 'feature status across versions'. Renders + offers refresh when stale; never auto-commits. (Code port — ADR-094.)"
 ---
 
 # /roadmap — Per-Project Feature Roadmap Grid

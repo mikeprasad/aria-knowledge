@@ -1,5 +1,5 @@
 ---
-description: "Mine your distilled knowledge corpus — memory feedback rows, rules backlogs, always-on indexes — for recurring corrections that deserve promotion to numbered standing rules. Clusters by theme, verifies every quote at its source file, ranks by cross-session recurrence (>=2 distinct sessions), and writes a rule ONLY on explicit approval. Opt-in. Trigger: '/audit rules', 'mine my corrections', 'promote my rules', 'audit my rules'."
+description: "Mine your distilled knowledge corpus — memory feedback rows, rules backlogs, always-on indexes — for recurring corrections that deserve promotion to numbered standing rules. Clusters by theme, verifies every quote at its source file, ranks by cross-session recurrence (at least 2 distinct sessions), and writes a rule ONLY on explicit approval. Opt-in. Trigger: '/audit rules', 'mine my corrections', 'promote my rules', 'audit my rules'."
 ---
 
 # /audit rules — User-Rule Mining Sub-Audit

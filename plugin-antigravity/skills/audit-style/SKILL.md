@@ -1,5 +1,5 @@
 ---
-description: "Internal facet of the audit family — invoke via '/audit style'. Mines session-log history for revealed working-style rules; receipt-gated (>=2 distinct sessions of dated verbatim quotes)."
+description: "Internal facet of the audit family — invoke via '/audit style'. Mines session-log history for revealed working-style rules; receipt-gated (at least 2 distinct sessions of dated verbatim quotes)."
 ---
 
 # /audit style — Working-Style Sub-Audit

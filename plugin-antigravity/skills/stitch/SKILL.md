@@ -1,5 +1,5 @@
 ---
-description: "Build or verify cross-repo STITCH.md linking backend + frontends in a product group. Modes: create, verify, diff, section. Uses CODEMAPs as drift source by default. Trigger: '/stitch create <group>', '/stitch diff <group>'."
+description: "Build or verify cross-repo STITCH.md linking backend + frontends in a product group. Modes: create, verify, diff, section. Uses CODEMAPs as drift source by default. Trigger: '/stitch create {group}', '/stitch diff {group}'."
 ---
 
 # /stitch — Cross-repo stitch layer
