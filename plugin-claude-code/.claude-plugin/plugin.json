@@ -163,17 +163,6 @@
         ]
       }
     ],
-    "PostCompact": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/post-compact-check.sh",
-            "timeout": 10
-          }
-        ]
-      }
-    ],
     "TaskCreated": [
       {
         "hooks": [

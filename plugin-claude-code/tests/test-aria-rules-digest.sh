@@ -75,7 +75,7 @@ OUT="$APM_TMP/ssr-out.json"
 # run.sh uses `set -eu` and SOURCES each test, so a bare failing invocation
 # aborts the entire suite with no summary — which reads as "no output" rather
 # than as a red test. An if-condition suspends set -e for the command.
-if HOME="$APM_HOME" KT_CONFIG="$CFG" sh "$HOOK" > "$OUT" 2>/dev/null; then rc=0; else rc=$?; fi
+if HOME="$APM_HOME" KT_CONFIG="$CFG" sh "$HOOK" </dev/null > "$OUT" 2>/dev/null; then rc=0; else rc=$?; fi
 
 assert_eq "hook exits 0" "0" "$rc"
 assert_eq "emits additionalContext" "yes" \
@@ -112,7 +112,7 @@ U2OUT="$APM_TMP/u2.json"
 run_hook_with() { # $1 = extra config lines
   printf -- '---\nknowledge_folder: %s\n%s\n---\n' "$KF" "$1" > "$CFG"
   : > "$U2OUT"
-  if HOME="$APM_HOME" KT_CONFIG="$CFG" sh "$HOOK" > "$U2OUT" 2>/dev/null; then :; else :; fi
+  if HOME="$APM_HOME" KT_CONFIG="$CFG" sh "$HOOK" </dev/null > "$U2OUT" 2>/dev/null; then :; else :; fi
 }
 u2_has() { jq -r '.hookSpecificOutput.additionalContext' "$U2OUT" 2>/dev/null | grep -q "$1" && echo yes || echo no; }
 
@@ -191,45 +191,104 @@ assert_eq "new hook does not duplicate CODEMAP staleness logic" "no" \
 # ---------------------------------------------------------------------------
 # Compaction — an always-on rule stops being always-on when context is wiped
 # ---------------------------------------------------------------------------
-printf -- '---\nknowledge_folder: %s\n---\n' "$KF" > "$CFG"
-PCOUT="$APM_TMP/pc.json"
-: > "$PCOUT"
+# ⛔ RE-POINTED 2026-10-20. This block used to drive post-compact-check.sh and assert
+# `jq -e .` on its output. That checked SYNTAX, and the harness rejects on SCHEMA:
+# Claude Code's hookSpecificOutput union has no PreCompact or PostCompact variant
+# (read from the 2.1.305 binary), and the docs say both events discard systemMessage.
+# So every emission from either hook was rejected or dropped, and this block stayed
+# green the whole time. The only channel that reaches the model after compaction is
+# SessionStart with source "compact" — measured delivering mid-session (transcript
+# de2876f6, 2026-10-08). The post-compact context now rides there, and these
+# assertions drive that path.
+CMP_SID="aria-test-compact-$$"
+CMP_SID8=$(printf '%s' "$CMP_SID" | cut -c1-8)
+CMP_KF="$APM_TMP/cmp-kf"; mkdir -p "$CMP_KF/rules" "$CMP_KF/intake/pre-compact-captures"
+CMP_CFG="$APM_TMP/cmp-cfg.md"
+printf -- '---\nknowledge_folder: %s\nactive_knowledge_surfacing: true\n---\n' "$CMP_KF" > "$CMP_CFG"
+CMP_SNAP="$CMP_KF/intake/pre-compact-captures/2026-01-01_${CMP_SID8}.md"
+printf 'transcript\n' > "$CMP_SNAP"
+CMP_LEDGER="/tmp/aria-active-${CMP_SID}"
+printf '%s\n' "$CMP_KF/approaches/example-approach.md" > "$CMP_LEDGER"
 # Fixture HOME with the digest installed, because the pointer is emitted only when
-# there is something to point AT. This hook only reads, so an uncontrolled HOME does
-# not pollute — but it would make the assertion depend on whether the developer
-# happens to have the file, which is the same environment dependency by a different
-# route.
-PCHOME="$APM_TMP/pc-home"; mkdir -p "$PCHOME/.claude/rules"
-cp "$DIGEST" "$PCHOME/.claude/rules/aria-rules.md"
-if printf '{"session_id":"test-sess"}' | HOME="$PCHOME" KT_CONFIG="$CFG" sh "$APM_ROOT/scripts/post-compact-check.sh" > "$PCOUT" 2>/dev/null; then :; else :; fi
+# there is something to point AT.
+CMP_HOME="$APM_TMP/cmp-home"; mkdir -p "$CMP_HOME/.claude/rules"
+cp "$DIGEST" "$CMP_HOME/.claude/rules/aria-rules.md"
+cmp_run() { # $1 = source, $2 = HOME, $3 = output file
+  if printf '{"session_id":"%s","source":"%s"}' "$CMP_SID" "$1" \
+    | HOME="$2" KT_CONFIG="$CMP_CFG" sh "$HOOK" > "$3" 2>/dev/null; then :; else :; fi
+}
+cmp_run compact "$CMP_HOME" "$APM_TMP/cmp-compact.json"
+CMP_MSG=$(jq -r '.hookSpecificOutput.additionalContext' "$APM_TMP/cmp-compact.json" 2>/dev/null)
 
-assert_eq "post-compact emits valid JSON" "yes" \
-  "$(jq -e . "$PCOUT" >/dev/null 2>&1 && echo yes || echo no)"
+assert_eq "[CMP1] compact: output is a SessionStart hookSpecificOutput" "SessionStart" \
+  "$(jq -r '.hookSpecificOutput.hookEventName' "$APM_TMP/cmp-compact.json" 2>/dev/null)"
+# FIRST, not merely present: the hook channel delivers about the first 2,000
+# characters, so the damage-preventing pointer must lead.
+assert_eq "[CMP2] compact: the rules pointer is the first line" "yes" \
+  "$(printf '%s\n' "$CMP_MSG" | head -1 | grep -q '^ARIA WORKING RULES — still in force after compaction' && echo yes || echo no)"
+assert_eq "[CMP3] compact: points at the installed rules file and the user-rule digest" "yes" \
+  "$(printf '%s' "$CMP_MSG" | grep -qF '.claude/rules/aria-rules.md' && printf '%s' "$CMP_MSG" | grep -qF 'aria-user-rules.md' && echo yes || echo no)"
+assert_eq "[CMP4] compact: does NOT re-send the digest body" "no" \
+  "$(printf '%s' "$CMP_MSG" | grep -q 'Rule 13' && echo yes || echo no)"
+assert_eq "[CMP5] compact: re-surfaces the active-surfacing ledger" "yes" \
+  "$(printf '%s' "$CMP_MSG" | grep -qF 'example-approach.md' && echo yes || echo no)"
+assert_eq "[CMP6] compact: names THIS session's pre-compaction snapshot" "yes" \
+  "$(printf '%s' "$CMP_MSG" | grep -qF "$CMP_SNAP" && echo yes || echo no)"
+assert_eq "[CMP7] compact: the config line is still emitted" "yes" \
+  "$(printf '%s' "$CMP_MSG" | grep -q '^ARIA CONFIG' && echo yes || echo no)"
 
-# ⛔ RE-POINTED 2026-08-26. These asserted post-compact RE-SENT the whole digest.
-# It no longer does, deliberately: this channel is a hook additionalContext and is
-# capped exactly like SessionStart, so emitting ~20 KB delivered roughly the first
-# 2,000 characters and truncated the rules mid-sentence — and it got worse when the
-# digest absorbed the standing directives. It now emits a POINTER at the installed
-# files, which is correct whether or not the instruction-file set survives
-# compaction: a harmless reminder if it does, the only recovery if it does not.
-PC_MSG=$(jq -r '.hookSpecificOutput.additionalContext' "$PCOUT" 2>/dev/null)
-assert_eq "post-compact points at the installed rules file" "yes" \
-  "$(printf '%s' "$PC_MSG" | grep -qF '.claude/rules/aria-rules.md' && echo yes || echo no)"
-assert_eq "post-compact points at the user-rule digest too" "yes" \
-  "$(printf '%s' "$PC_MSG" | grep -qF 'aria-user-rules.md' && echo yes || echo no)"
-assert_eq "post-compact does NOT re-send the digest body" "no" \
-  "$(printf '%s' "$PC_MSG" | grep -q 'Rule 13' && echo yes || echo no)"
-# A pointer that has grown into a dump again is the regression this bounds. The old
-# payload was ~20,000 characters; anything in that range means the body came back.
-assert_eq "post-compact stays a pointer, not a dump" "yes" \
-  "$([ "$(printf '%s' "$PC_MSG" | wc -c)" -lt 1200 ] && echo yes || echo no)"
-# And the guarded arm: no installed file, no pointer — pointing at a path that does
-# not exist would send the reader to a missing file.
-PCEMPTY="$APM_TMP/pc-empty"; mkdir -p "$PCEMPTY/.claude"
-if printf '{"session_id":"test-sess"}' | HOME="$PCEMPTY" KT_CONFIG="$CFG" sh "$APM_ROOT/scripts/post-compact-check.sh" > "$APM_TMP/pc2.json" 2>/dev/null; then :; else :; fi
-assert_eq "post-compact emits no rules pointer when the file is absent" "no" \
-  "$(jq -r '.hookSpecificOutput.additionalContext' "$APM_TMP/pc2.json" 2>/dev/null | grep -q 'ARIA WORKING RULES' && echo yes || echo no)"
+# Negative arms. A compact block on every start would re-send post-compaction
+# instructions into fresh sessions; a pointer with no installed file sends the reader
+# to a missing path.
+cmp_run startup "$CMP_HOME" "$APM_TMP/cmp-startup.json"
+CMP_START=$(jq -r '.hookSpecificOutput.additionalContext' "$APM_TMP/cmp-startup.json" 2>/dev/null)
+assert_eq "[CMP8] startup: positive control — the hook emitted" "yes" \
+  "$(printf '%s' "$CMP_START" | grep -q '^ARIA CONFIG' && echo yes || echo no)"
+assert_eq "[CMP9] startup: carries no post-compaction block" "no" \
+  "$(printf '%s' "$CMP_START" | grep -qE 'after compaction|pre-compaction|example-approach' && echo yes || echo no)"
+# The hook WRITES the digest before building the pointer, so an empty HOME does not
+# produce a missing file. The real no-file case is a HOME where that write fails:
+# here ~/.claude is a regular file, so ~/.claude/rules cannot be created.
+CMP_RO="$APM_TMP/cmp-ro"; mkdir -p "$CMP_RO"; : > "$CMP_RO/.claude"
+cmp_run compact "$CMP_RO" "$APM_TMP/cmp-ro.json"
+assert_eq "[CMP10a] unwritable HOME: the digest really is absent (firing control)" "no" \
+  "$([ -f "$CMP_RO/.claude/rules/aria-rules.md" ] && echo yes || echo no)"
+assert_eq "[CMP10b] compact, no installed digest: no rules pointer" "no" \
+  "$(jq -r '.hookSpecificOutput.additionalContext' "$APM_TMP/cmp-ro.json" 2>/dev/null | grep -q 'still in force after compaction' && echo yes || echo no)"
+rm -f "$CMP_LEDGER"
+
+# pre-compact-check.sh: the snapshot is its whole job. Anything it prints is rejected
+# (hookSpecificOutput) or discarded (systemMessage), so it must print nothing — and
+# must still write the snapshot, or the silence is a dead hook.
+PRE_SID="aria-test-precompact-$$"
+PRE_TX="$APM_TMP/pre-transcript.jsonl"; printf '{"type":"user"}\n' > "$PRE_TX"
+PRE_OUT="$APM_TMP/pre-out.txt"
+if printf '{"session_id":"%s","transcript_path":"%s"}' "$PRE_SID" "$PRE_TX" \
+  | HOME="$CMP_HOME" KT_CONFIG="$CMP_CFG" sh "$APM_ROOT/scripts/pre-compact-check.sh" > "$PRE_OUT" 2>/dev/null; then :; else :; fi
+assert_eq "[PRE1] pre-compact prints nothing" "0" "$(wc -c < "$PRE_OUT" | tr -d ' ')"
+assert_eq "[PRE2] pre-compact still writes the snapshot" "yes" \
+  "$(ls "$CMP_KF/intake/pre-compact-captures/"*"_$(printf '%s' "$PRE_SID" | cut -c1-8).md" >/dev/null 2>&1 && echo yes || echo no)"
+
+# Class guard. Every hookEventName literal a registered script emits must equal the
+# event it is registered under AND be an event the harness's hookSpecificOutput union
+# accepts. ⚠ The accepted set is PINNED to Claude Code 2.1.305 (read from its
+# binary); a harness that adds variants needs this list updated, and a live /compact
+# remains the outcome test — a static list cannot see the live schema.
+HSO_ACCEPTED=" PreToolUse UserPromptSubmit UserPromptExpansion SessionStart Setup PreModelSwitch PostModelSwitch PostToolUse PostToolUseFailure PostToolBatch Notification Stop SubagentStart SubagentStop PermissionRequest PermissionDenied Elicitation ElicitationResult CwdChanged FileChanged MessageDisplay WorktreeCreate "
+HSO_BAD=""; HSO_SEEN=0
+for pair in $(jq -r '.hooks | to_entries[] | .key as $e | .value[].hooks[].command | "\($e)=\(.)"' "$APM_ROOT/.claude-plugin/plugin.json" 2>/dev/null | sed 's#=.*/scripts/#=#; s#\.sh.*#.sh#' | tr ' ' '_'); do
+  ev=${pair%%=*}; sc=${pair#*=}
+  for emitted in $(grep -oE 'hookEventName[\\"]*:[\\"]*[A-Za-z]+' "$APM_ROOT/scripts/$sc" 2>/dev/null | sed -E 's/.*[^A-Za-z]([A-Za-z]+)$/\1/'); do
+    HSO_SEEN=$((HSO_SEEN + 1))
+    [ "$emitted" = "$ev" ] || HSO_BAD="$HSO_BAD $sc:emits-$emitted-registered-$ev"
+    case "$HSO_ACCEPTED" in *" $emitted "*) ;; *) HSO_BAD="$HSO_BAD $sc:$emitted-not-accepted" ;; esac
+  done
+done
+# Positive control: an empty plugin.json parse or a broken grep would leave the guard
+# with nothing to check and a vacuous pass.
+assert_eq "[HSO0] class guard examined the registered emissions" "yes" \
+  "$([ "$HSO_SEEN" -ge 10 ] && echo yes || echo no)"
+assert_eq "[HSO1] every registered hook emits only an accepted, matching hookEventName" "" "$HSO_BAD"
 
 # The multiline escape must live in ONE place. Duplicating it into a second
 # hook is the drift hazard refused for the CODEMAP block; it belongs in
@@ -470,7 +529,7 @@ ARMKF="$APM_TMP/arm-kf"; mkdir -p "$ARMKF/rules"
 printf '### U1. an arm-fixture rule\n\nThe body of the arm-fixture rule.\n' > "$ARMKF/rules/user-rules.md"
 ARMCFG="$APM_TMP/arm-cfg.md"
 printf -- '---\nknowledge_folder: %s\nautonomy: autonomous\nsession_state: true\n---\n' "$ARMKF" > "$ARMCFG"
-arm_run() { HOME="$ARMH" KT_CONFIG="$ARMCFG" sh "$HOOK" 2>/dev/null \
+arm_run() { HOME="$ARMH" KT_CONFIG="$ARMCFG" sh "$HOOK" 2>/dev/null </dev/null \
   | jq -r '.hookSpecificOutput.additionalContext' 2>/dev/null; }
 
 ARM1=$(arm_run)   # file absent at snapshot -> transitional
@@ -626,7 +685,7 @@ printf -- '---\nknowledge_folder: %s\nautonomy: autonomous\nsession_state: true\
   "$KFW" > "$CFGW"
 OUTW="$APM_TMP/ssr-worst.json"
 : > "$OUTW"
-if HOME="$HOMEW" KT_CONFIG="$CFGW" sh "$HOOK" > "$OUTW" 2>/dev/null; then :; else :; fi
+if HOME="$HOMEW" KT_CONFIG="$CFGW" sh "$HOOK" </dev/null > "$OUTW" 2>/dev/null; then :; else :; fi
 PW=$(jq -r '.hookSpecificOutput.additionalContext' "$OUTW" 2>/dev/null || echo '')
 
 # Prove the fixture is actually maximal. Without this the size assertion below

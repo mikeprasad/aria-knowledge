@@ -1,4 +1,14 @@
 #!/bin/sh
+# ARCHIVED 2026-10-20 (aria-knowledge 2.56.1) — NOT REGISTERED, NOT RUN.
+# PostCompact has no hookSpecificOutput variant in the Claude Code hook schema (2.1.305)
+# and discards systemMessage, so every emission below was rejected as invalid and never
+# reached the model. Its three blocks moved to scripts/session-start-rules.sh, which emits
+# them on SessionStart with source "compact" — the only post-compaction channel that
+# reaches the model:
+#   block 1 (snapshot notice)  -> 'ARIA CAPTURE' line, now this session's snapshot only
+#   block 2 (ledger re-surface) -> 'ARIA ACTIVE' line, unchanged text
+#   block 3 (rules pointer)     -> 'ARIA WORKING RULES' line, unchanged text, now FIRST
+# Kept for its history (Rule 6). Do not re-register it.
 # post-compact-check.sh — PostCompact hook for aria-knowledge
 # (a) Notifies user that pre-compaction snapshots exist for review.
 # (b) Re-surfaces the active-mode session ledger so Claude can reload

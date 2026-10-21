@@ -38,9 +38,10 @@ if [ -n "$TRANSCRIPT_PATH" ] && [ -f "$TRANSCRIPT_PATH" ] && [ -r "$TRANSCRIPT_P
   SNAPSHOT_FILE="$CAPTURES_DIR/${TODAY}_${SESSION_SHORT}.md"
 
   cp "$TRANSCRIPT_PATH" "$SNAPSHOT_FILE" 2>/dev/null
-
-  if [ -f "$SNAPSHOT_FILE" ]; then
-    MSG=$(kt_json_escape "ARIA pre-compaction: transcript snapshot saved to $SNAPSHOT_FILE. Uncaptured knowledge from the prior conversation may exist — consider running /extract to capture insights before continuing.")
-    echo '{"hookSpecificOutput":{"hookEventName":"PreCompact","additionalContext":"'"$MSG"'"}}'
-  fi
 fi
+
+# ⛔ Print NOTHING. PreCompact has no hookSpecificOutput variant in the harness schema
+# (an emission is rejected as invalid) and the docs say it discards systemMessage, so no
+# output from this hook reaches the model or the user. The "/extract this snapshot"
+# prompt is emitted after compaction by session-start-rules.sh (source=compact), which
+# finds this file by session id.

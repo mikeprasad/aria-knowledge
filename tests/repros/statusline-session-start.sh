@@ -38,7 +38,7 @@ printf '%s' "$out" | grep -q "aria-statusline-state-cli-uuid-1.json" || fail "US
 # assertion follows it there and is checked on the DECODED payload: the property
 # is "the agent is taught the rule", and only the decoded value proves that.
 RULES_HOOK="$HERE/../../plugin-claude-code/scripts/session-start-rules.sh"
-rules_out=$(sh "$RULES_HOOK" 2>/dev/null)
+rules_out=$(sh "$RULES_HOOK" </dev/null 2>/dev/null)
 printf '%s' "$rules_out" | grep -q "additionalContext" \
   || fail "session-start-rules.sh did not emit additionalContext: $rules_out"
 printf '%s' "$rules_out" | jq -r '.hookSpecificOutput.additionalContext' 2>/dev/null \

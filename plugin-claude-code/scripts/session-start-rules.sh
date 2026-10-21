@@ -39,6 +39,15 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 [ "$KT_CONFIGURED" = "false" ] && exit 0
 [ ! -d "$KT_KNOWLEDGE_FOLDER" ] && exit 0
 
+# Hook input. `source` is startup | resume | clear | compact | fork; only "compact"
+# changes the output. ⛔ Read stdin only when it is NOT a terminal: the harness always
+# pipes JSON, but several tests and repros run this script with no stdin redirect, and
+# a bare `cat` there would block the suite on a terminal.
+INPUT=""
+[ -t 0 ] || INPUT=$(cat)
+SESSION_ID=$(printf '%s' "$INPUT" | grep -o '"session_id":"[^"]*"' | head -1 | sed 's/"session_id":"//;s/"//')
+HOOK_SOURCE=$(printf '%s' "$INPUT" | grep -o '"source":"[^"]*"' | head -1 | sed 's/"source":"//;s/"//')
+
 BUNDLED_DIGEST="$SCRIPT_DIR/../rules/aria-rules.md"
 RULES_DIR="$HOME/.claude/rules"
 INSTALLED_DIGEST="$RULES_DIR/aria-rules.md"
@@ -151,6 +160,44 @@ $(cat "$BUNDLED_DIGEST")
   MESSAGES="${MESSAGES}
 ${CONFIG_LINE}
 "
+fi
+
+# --- after compaction --------------------------------------------------------
+# SessionStart with source "compact" is the ONLY hook channel that reaches the model
+# after compaction. PreCompact and PostCompact have no hookSpecificOutput variant in
+# the harness schema and both discard systemMessage, so everything they printed was
+# rejected or dropped (2.1.305; error recorded 2026-10-08). The post-compaction
+# context therefore lives here. It goes FIRST because the hook channel delivers about
+# the first 2,000 characters, and the rules pointer is the part whose loss does damage.
+COMPACT_BLOCK=""
+if [ "$HOOK_SOURCE" = "compact" ]; then
+  # Rules pointer — a pointer, never the digest body (see post-compact history in
+  # scripts/.archived/post-compact-check.sh: re-sending ~20 KB got truncated mid-rule).
+  if [ -f "$INSTALLED_DIGEST" ]; then
+    COMPACT_BLOCK="ARIA WORKING RULES — still in force after compaction. The 38 working rules and every standing directive are at ${INSTALLED_DIGEST}, and the user's own standing rules at ${HOME}/.claude/rules/aria-user-rules.md. If either is no longer in your context, Read it before your next tool call rather than proceeding from memory of it.
+"
+  fi
+  # Active-surfacing ledger: knowledge files surfaced earlier this session.
+  if [ "$KT_ACTIVE_SURFACING" = "true" ] && [ -n "$SESSION_ID" ]; then
+    LEDGER="/tmp/aria-active-${SESSION_ID}"
+    if [ -s "$LEDGER" ]; then
+      LEDGER_COUNT=$(wc -l < "$LEDGER" | tr -d ' ')
+      LEDGER_LIST=$(head -5 "$LEDGER" | sed 's/^/  - /' | tr '\n' ';' | sed 's/;$//;s/;/ /g')
+      COMPACT_BLOCK="${COMPACT_BLOCK}ARIA ACTIVE — Compaction wiped context. ${LEDGER_COUNT} knowledge file(s) were previously surfaced this session: ${LEDGER_LIST}. Re-Read the relevant ones (prefer recently-active topic; skip if no longer applicable) and summarize what reloaded in 1-2 sentences before continuing. Ledger preserved at ${LEDGER}.
+"
+    fi
+  fi
+  # This session's pre-compaction snapshot, written by pre-compact-check.sh. Matched
+  # by session id, so another session's snapshot is never offered as this one's.
+  if [ "$KT_AUTO_CAPTURE" != "false" ] && [ -n "$SESSION_ID" ]; then
+    SID8=$(printf '%s' "$SESSION_ID" | cut -c1-8)
+    SNAP=$(ls -t "$KT_KNOWLEDGE_FOLDER/intake/pre-compact-captures/"*"_${SID8}.md" 2>/dev/null | head -1)
+    if [ -n "$SNAP" ]; then
+      COMPACT_BLOCK="${COMPACT_BLOCK}ARIA CAPTURE — this session's transcript was saved before compaction to ${SNAP}. Uncaptured knowledge from the prior conversation may exist; offer the user /extract on it before continuing.
+"
+    fi
+  fi
+  MESSAGES="${COMPACT_BLOCK}${MESSAGES}"
 fi
 
 if [ -n "$MESSAGES" ]; then
