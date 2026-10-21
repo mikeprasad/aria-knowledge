@@ -3,7 +3,7 @@
 # Drives session-start-check.sh via KT_CONFIG stub + captured stdout (picker-gating.sh technique).
 set -e
 DIR="$(cd "$(dirname "$0")/../.." && pwd)"
-HOOK="$DIR/plugin-claude-code/bin/session-start-check.sh"
+HOOK="$DIR/plugin-claude-code/scripts/session-start-check.sh"
 WR="$DIR/plugin-claude-code/template/rules/working-rules.md"
 PASS=0; FAIL=0
 ok()  { printf "PASS  %s\n" "$1"; PASS=$((PASS + 1)); }

@@ -73,7 +73,7 @@ These bind every `/auto` run in every mode. They are not modifiers and cannot be
   A leading `/token` is parsed as an unknown command and the whole mandate is silently
   discarded. Lead with prose; name a skill mid-sentence if you must reference one. The
   prompt must instruct the next scheduled run to start prose-first too. Enforced by
-  `bin/pre-cron-check.sh`, not by this paragraph — the prose form of this rule shipped once
+  `scripts/pre-cron-check.sh`, not by this paragraph — the prose form of this rule shipped once
   and was violated twice afterward.
 - **D3 — Foundational is always the answer**, unless the foundational fix would itself
   derail the arc. Never take the patching branch to protect schedule (Rules 18 and 38).
@@ -226,7 +226,7 @@ one word per axis, no special cases.)*
   | Wall | Mechanism | Effect |
   |---|---|---|
   | **Usage** — the 5h window is exhausted | the **resume schedule** (Step 6) | Re-fires *this* session after the reset, local work intact |
-  | **Context** — the window hits 90% | **`self-restart`** + `bin/auto-runloop.sh` | Relaunches a **fresh process** with a clean window |
+  | **Context** — the window hits 90% | **`self-restart`** + `scripts/auto-runloop.sh` | Relaunches a **fresh process** with a clean window |
 
   A resume schedule cannot rescue a context wall (it re-enters the same full session), and a
   fresh process does not help when the limit is usage. `unattended` selects the **durable**
@@ -277,7 +277,7 @@ Keeping them separate is what makes every combination expressible:
 - **`stop`** (default) — checkpoint + `/handoff` when the queue is clear; do NOT pick up new work. The right choice for a scoped "just do X" run. Default to this if unset — don't over-reach the remit.
 - **`continue`** — keep finding the next valuable work autonomously (see Step 4); for unattended / overnight runs. Don't stop at the arc boundary.
 
-**Context-self-restart flag** (a trailing `self-restart` keyword, default **off**): only meaningful with `continue`. When set, a context-window wall does NOT terminally stop the arc — instead the skill writes a restart-signal file that the external `bin/auto-runloop.sh` wrapper watches, so the arc resumes in a FRESH process (clean context). See Step 3¾. Requires the wrapper to be running and a permission allowlist (the wrapper spawns `claude -p --dangerously-skip-permissions`, which the auto-mode classifier blocks unless allowlisted). Without the flag, a context wall behaves exactly as today (terminal stop + `/handoff`).
+**Context-self-restart flag** (a trailing `self-restart` keyword, default **off**): only meaningful with `continue`. When set, a context-window wall does NOT terminally stop the arc — instead the skill writes a restart-signal file that the external `scripts/auto-runloop.sh` wrapper watches, so the arc resumes in a FRESH process (clean context). See Step 3¾. Requires the wrapper to be running and a permission allowlist (the wrapper spawns `claude -p --dangerously-skip-permissions`, which the auto-mode classifier blocks unless allowlisted). Without the flag, a context wall behaves exactly as today (terminal stop + `/handoff`).
 
 **Parsing.** If the first arg case-insensitively matches `arc`, `execute`, `plan`, or `config`, that's the mode; otherwise the mode is `arc`.
 
@@ -454,7 +454,7 @@ So when active, at 90% context — instead of terminally stopping — do this an
 3. **Write the restart-signal file** `<cwd>/.claude/auto-restart-requested` containing **one line: the absolute path to that opener**. Presence of the file = "restart requested"; its content = the opener the wrapper relaunches with. (Mark the write site `[SELFRESTART-PRE]` so a later `/retrospect` can confirm it fired.)
 4. **Stop cleanly.** The arc is now a durable on-disk checkpoint; the in-process work is done.
 
-`bin/auto-runloop.sh` (shipped with the plugin) is the external piece: it launched this run, watches for the signal file on exit, consumes it (so a crash can't loop forever), and relaunches a **fresh** `claude -p` headless process with the opener. **The wrapper must already be running** for this to do anything — if `/auto` was invoked directly in an interactive REPL (no wrapper), `self-restart` still writes the signal and stops, but nothing restarts it; note that in the handoff. **Permission caveat:** the wrapper spawns `claude -p --dangerously-skip-permissions`, which the auto-mode classifier blocks unless the user has added a Bash permission allowlist rule for it — surface this when recommending an unattended run.
+`scripts/auto-runloop.sh` (shipped with the plugin) is the external piece: it launched this run, watches for the signal file on exit, consumes it (so a crash can't loop forever), and relaunches a **fresh** `claude -p` headless process with the opener. **The wrapper must already be running** for this to do anything — if `/auto` was invoked directly in an interactive REPL (no wrapper), `self-restart` still writes the signal and stops, but nothing restarts it; note that in the handoff. **Permission caveat:** the wrapper spawns `claude -p --dangerously-skip-permissions`, which the auto-mode classifier blocks unless the user has added a Bash permission allowlist rule for it — surface this when recommending an unattended run.
 
 ## Step 4: Work selection (and the On-queue-complete toggle)
 
@@ -497,7 +497,7 @@ That distinction is load-bearing and was wrong in v2.43.0. `continue` governs wh
 | **`CronCreate`** — the default | **Always, every runtime** | No — **session-only**, in-memory; recurring auto-expires at 7 days; fires only while the REPL is idle | No — re-enters this session | Usage-bound resume with the session left open. The normal unattended run. |
 | **A persisted scheduled task** | **Desktop runtime only** — probe, never assume | Yes — runs at next app launch if missed | Yes | A resume that must survive the session ending, where the runtime offers it |
 | **launchd** (the `pm-schedule.sh` pattern) | macOS only; user opts in | Yes — OS-level | Yes — a fresh `claude` invocation | Truly session-independent recurring work on the CLI |
-| **`bin/auto-runloop.sh`** (`self-restart`) | Wrapper must already be running | Wrapper-dependent | Yes — a fresh `claude -p` process | A context wall mid-arc (Step 3¾) |
+| **`scripts/auto-runloop.sh`** (`self-restart`) | Wrapper must already be running | Wrapper-dependent | Yes — a fresh `claude -p` process | A context wall mid-arc (Step 3¾) |
 
 ⛔ **THE SILENT FAILURE MODE — read this before arming a durable resume.** A scheduled task stalls
 on the first Bash call that is **not** in `permissions.allow`: it fires, sets `lastRunAt`, flips
@@ -536,7 +536,7 @@ its own flag surface, never against what you intend to run with it.
 
 **Resolving the runtime — probe the CAPABILITY, never the name.** The only question that decides the row is *is the verb callable here?* Check for `create_scheduled_task`; present ⇒ Desktop-class, the durable mechanism is available. Absent ⇒ take the CLI row, **including when other signals say Desktop.** Availability, not identity, is the authority — which is what makes a misread classification unable to select an absent mechanism.
 
-⚠ **Optional corroboration only.** `kt_resolve_account()` (`bin/config.sh`) returns a runtime in `{cli, desktop, desktop-unknown}`. If you consult it: **`desktop-unknown` means Desktop with an unresolved ACCOUNT — it is a Desktop-class value, not an unknown runtime — so it takes the Desktop row.** Routing it to CLI would deny the durable mechanism to a genuine Desktop session, and it fails *safe-looking*: the run still arms, just session-only, and nothing errors. ⛔ Never modify that function — its first block is kept byte-identical with a statusline mirror.
+⚠ **Optional corroboration only.** `kt_resolve_account()` (`scripts/config.sh`) returns a runtime in `{cli, desktop, desktop-unknown}`. If you consult it: **`desktop-unknown` means Desktop with an unresolved ACCOUNT — it is a Desktop-class value, not an unknown runtime — so it takes the Desktop row.** Routing it to CLI would deny the durable mechanism to a genuine Desktop session, and it fails *safe-looking*: the run still arms, just session-only, and nothing errors. ⛔ Never modify that function — its first block is kept byte-identical with a statusline mirror.
 
 ⛔ **Never default a CLI user to a Desktop mechanism.** That constraint is inherited verbatim from the 2026-07-30 design and is exactly why this is a probe rather than a new default. What changed is a premise that design never examined — *"an unattended `/auto` run keeps its session open by design"* — which Mac sleep, app auto-update, crash and OS restart each falsify.
 
@@ -560,13 +560,13 @@ Leave a **verified-clean checkpoint** (tests green, tree clean, pushed if policy
 - **Two rule sources, both loaded, neither restated.** `/auto` operates under two distinct rule files and owns *neither*: **Rule 35** in the plugin-managed `working-rules.md` is the decide-vs-ask *routing* policy (edit it to change *when to ask*); **`user-rules.md`** is the user's own *substantive* standing rules, loaded in Step 0.4 and applied as binding constraints for the arc (edit them via `/rules`-adjacent flows / `/audit knowledge` promotion, never here). `/auto` reads and applies both; it restates neither. To see the rules' content, use `/rules`.
 - **`/auto` never writes config.** It runs autonomously for the arc on the strength of the invocation; the standing `autonomy` posture changes only via `/setup` (one writer, no drift).
 - **Tool allowlist companion.** For unattended runs, a pre-authorized `permissions.allow` list in the user's `.claude/settings.local.json` makes "tools are preset" real: the skill tells the model not to ask, the settings tell the harness not to gate. Keep them in sync — when a new tool causes a mid-run stop, add it there.
-- **Self-restart wrapper — permission setup (example, follow only when you actually run one).** The `self-restart` flag needs `bin/auto-runloop.sh`, which spawns `claude -p --dangerously-skip-permissions`. That tripwires TWO independent gates, and you must clear BOTH:
+- **Self-restart wrapper — permission setup (example, follow only when you actually run one).** The `self-restart` flag needs `scripts/auto-runloop.sh`, which spawns `claude -p --dangerously-skip-permissions`. That tripwires TWO independent gates, and you must clear BOTH:
   1. **The permissions system** — allowlist the wrapper in `.claude/settings.local.json`. Match how you invoke it (`sh <path>` vs `<path>` directly):
      ```json
      {
        "permissions": {
          "allow": [
-           "Bash(sh */plugin-claude-code/bin/auto-runloop.sh:*)"
+           "Bash(sh */plugin-claude-code/scripts/auto-runloop.sh:*)"
          ]
        }
      }

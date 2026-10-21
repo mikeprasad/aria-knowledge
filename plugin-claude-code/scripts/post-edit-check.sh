@@ -109,7 +109,7 @@ if [ "$KT_SESSION_STATE" = "true" ] && [ -n "$FILE_PATH" ] && [ "$(basename "$FI
       # Consumption now happens ONLY on the session-start path, driven by an
       # `aria-handoff:` token actually present in the pasted opener -- evidence that a
       # human resumed the prompt -- via kt_ss_ledger_consume_active. See
-      # bin/session-start-check.sh and rules/aria-rules.md (SESSION STATE).
+      # scripts/session-start-check.sh and rules/aria-rules.md (SESSION STATE).
       SS_AUTHOR=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" 2>/dev/null | grep '^author_tag:' | sed 's/^author_tag: *//')
       kt_ss_mark_inprogress "$SS_ROOT" "$SS_SID" "$SS_AUTHOR" 2>/dev/null || true
       printf '%s\n' "$SS_ROOT" >> "$SS_LEDGER" 2>/dev/null || true

@@ -1,5 +1,5 @@
 #!/bin/sh
-# auto-runloop.sh — exercises bin/auto-runloop.sh, the external wrapper that relaunches a
+# auto-runloop.sh — exercises scripts/auto-runloop.sh, the external wrapper that relaunches a
 # FRESH `claude` process each time /auto writes a context-restart signal file (Piece B of the
 # /auto context-window self-restart mechanism; design: knowledge/logs/prospect/2026-06-27-file-auto-context-self-restart.md).
 #
@@ -13,12 +13,12 @@
 set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"     # tests/repros → repo root
-LOOP="$REPO_ROOT/plugin-claude-code/bin/auto-runloop.sh"
+LOOP="$REPO_ROOT/plugin-claude-code/scripts/auto-runloop.sh"
 PASS=0; FAIL=0
 ok()  { printf "PASS  %s\n" "$1"; PASS=$((PASS + 1)); }
 bad() { printf "FAIL  %s — %s\n" "$1" "$2"; FAIL=$((FAIL + 1)); }
 
-[ -f "$LOOP" ] && ok "A auto-runloop.sh exists" || bad "A exists" "no bin/auto-runloop.sh"
+[ -f "$LOOP" ] && ok "A auto-runloop.sh exists" || bad "A exists" "no scripts/auto-runloop.sh"
 [ -x "$LOOP" ] && ok "A auto-runloop.sh is executable" || bad "A exec" "not chmod +x"
 
 # --- Contract greps (documented behavior in the script header/usage) ---

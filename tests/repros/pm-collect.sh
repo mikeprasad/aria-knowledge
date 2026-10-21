@@ -2,7 +2,7 @@
 # pm-collect.sh — pm-collect.sh scans the projects_list roster into facts.json with correct tiers.
 set -u
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-BIN="$(cd "$SCRIPT_DIR/../../plugin-claude-code/bin" && pwd)"
+BIN="$(cd "$SCRIPT_DIR/../../plugin-claude-code/scripts" && pwd)"
 . "$SCRIPT_DIR/../pm-helpers.sh"
 . "$BIN/pm-lib.sh"
 PM_TMP="$(mktemp -d)"; trap 'rm -rf "$PM_TMP"' EXIT

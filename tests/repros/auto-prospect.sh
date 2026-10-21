@@ -2,7 +2,7 @@
 # tests/repros/auto-prospect.sh — assertions for post-plan-prospect-check.sh
 set -e
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-HOOK="$ROOT/plugin-claude-code/bin/post-plan-prospect-check.sh"
+HOOK="$ROOT/plugin-claude-code/scripts/post-plan-prospect-check.sh"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 PASS=0; FAIL=0

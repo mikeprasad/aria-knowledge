@@ -3,7 +3,7 @@
 # resolver, and teaches the agent the staleness/scope rule. Runtime pinned to CLI.
 set -u
 HERE=$(cd "$(dirname "$0")" && pwd)
-SCRIPT="$HERE/../../plugin-claude-code/bin/session-start-check.sh"
+SCRIPT="$HERE/../../plugin-claude-code/scripts/session-start-check.sh"
 fail() { echo "FAIL: $1"; exit 1; }
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
 export HOME="$TMP"; mkdir -p "$HOME/.claude"
@@ -37,7 +37,7 @@ printf '%s' "$out" | grep -q "aria-statusline-state-cli-uuid-1.json" || fail "US
 # session-start-rules.sh on hookSpecificOutput.additionalContext, so the
 # assertion follows it there and is checked on the DECODED payload: the property
 # is "the agent is taught the rule", and only the decoded value proves that.
-RULES_HOOK="$HERE/../../plugin-claude-code/bin/session-start-rules.sh"
+RULES_HOOK="$HERE/../../plugin-claude-code/scripts/session-start-rules.sh"
 rules_out=$(sh "$RULES_HOOK" 2>/dev/null)
 printf '%s' "$rules_out" | grep -q "additionalContext" \
   || fail "session-start-rules.sh did not emit additionalContext: $rules_out"

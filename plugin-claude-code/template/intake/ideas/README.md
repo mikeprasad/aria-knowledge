@@ -90,7 +90,7 @@ If your knowledge folder was created under ARIA v2.10.x or earlier, you'll have 
 Run the migration script against your knowledge folder:
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/bin/migrate-ideas-backlog.sh /path/to/your/knowledge
+bash ${CLAUDE_PLUGIN_ROOT}/scripts/migrate-ideas-backlog.sh /path/to/your/knowledge
 ```
 
 Or on next `/setup`: if a legacy `intake/ideas-backlog.md` is detected alongside this `intake/ideas/` directory, `/setup` will prompt you to run the migration automatically.

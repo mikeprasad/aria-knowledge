@@ -1,5 +1,5 @@
 # shellcheck shell=sh
-# test-user-rules-digest.sh — bin/lib-user-rules.sh: four honest renderings + D3.
+# test-user-rules-digest.sh — scripts/lib-user-rules.sh: four honest renderings + D3.
 # T3 of docs/superpowers/plans/2026-08-28-user-rules-digest-honest-rendering-plan.md.
 #
 # NOTE: sourced by run.sh under `set -eu` into a SHARED shell with shared APM_PASS /
@@ -7,7 +7,7 @@
 # any intended-nonzero exit uses `RC=0; cmd || RC=$?` (never `cmd; RC=$?`, which aborts
 # the whole suite).
 
-UD_BIN="$(cd "$(dirname "$0")/../bin" && pwd)"
+UD_BIN="$(cd "$(dirname "$0")/../scripts" && pwd)"
 UD_LIB="$UD_BIN/lib-user-rules.sh"
 UD_TMP="${TMPDIR:-/tmp}/aria-ud-$$"
 mkdir -p "$UD_TMP"

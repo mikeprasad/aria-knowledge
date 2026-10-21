@@ -27,7 +27,7 @@
 set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-HOOK="$REPO_ROOT/plugin-claude-code/bin/pre-bash-write-check.sh"
+HOOK="$REPO_ROOT/plugin-claude-code/scripts/pre-bash-write-check.sh"
 
 # Isolate the per-session bypass ledger so repeated runs never accumulate, and so AC9 counts only
 # this run's appends.

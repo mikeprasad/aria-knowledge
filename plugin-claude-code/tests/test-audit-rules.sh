@@ -1,11 +1,11 @@
 # shellcheck shell=sh
 # test-audit-rules.sh — /audit rules sub-audit (W1) + audit verb migration (W2)
 # T5a of docs/superpowers/plans/2026-08-27-audit-rules-and-verb-migration-plan.md.
-# Shell-assertable half only: bin/check-rule-lead-bytes.sh behavior + text invariants.
+# Shell-assertable half only: scripts/check-rule-lead-bytes.sh behavior + text invariants.
 # The judgment ACs (AC1/AC2/AC3/AC6) are dogfood acceptance (plan T5b), NOT suite greens.
 # NOTE: sourced under run.sh's `set -eu` — every intended-nonzero exit is captured
 # with the `RC=0; cmd || RC=$?` idiom, never `cmd; RC=$?`, which would abort the suite.
-BIN="$(cd "$(dirname "$0")/../bin" && pwd)"
+BIN="$(cd "$(dirname "$0")/../scripts" && pwd)"
 SKILLS="$(cd "$(dirname "$0")/../skills" && pwd)"
 PCC="$(cd "$(dirname "$0")/.." && pwd)"
 AR_TMP="${TMPDIR:-/tmp}/aria-ar-$$"
@@ -144,7 +144,7 @@ assert_eq "[AR13] session-start-check.sh never names audit-rules" "0" "$AR13C"
 # e.g. skills/audit-style/...) are NOT command forms and are excluded by the
 # leading-context class. skills/.archived/ is historical record and excluded.
 MC2_HITS=$(grep -rnE '(^|[^A-Za-z0-9_./-])/audit-(knowledge|config|style|usage|rules|share)' \
-  "$PCC/skills" "$PCC/bin" "$PCC/template" "$PCC/rules" \
+  "$PCC/skills" "$PCC/scripts" "$PCC/template" "$PCC/rules" \
   "$PCC/CONFIG.md" "$PCC/QUICKSTART.md" "$PCC/README.md" 2>/dev/null \
   | grep -v '/.archived/' | grep -v '__pycache__' | grep -viE 'compat' | wc -l | tr -d ' ')
 assert_eq "[AR14] MC2 ratchet: zero unadvertised hyphen command forms" "0" "$MC2_HITS"

@@ -2,7 +2,7 @@
 # pm-notify.sh — desktop + best-effort iMessage, driven by pm_* config keys; --dry-run emits the osascript.
 set -u
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-BIN="$(cd "$SCRIPT_DIR/../../plugin-claude-code/bin" && pwd)"
+BIN="$(cd "$SCRIPT_DIR/../../plugin-claude-code/scripts" && pwd)"
 . "$SCRIPT_DIR/../pm-helpers.sh"
 PM_TMP="$(mktemp -d)"; trap 'rm -rf "$PM_TMP"' EXIT
 

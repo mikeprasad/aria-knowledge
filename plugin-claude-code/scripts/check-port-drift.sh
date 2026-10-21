@@ -63,7 +63,7 @@ CANONICAL_MANIFEST="plugin-claude-code/.claude-plugin/plugin.json"
 
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 # Repo root: prefer git; fall back to two levels up (script lives at
-# <root>/plugin-claude-code/bin/). Validate by the ledger's presence.
+# <root>/plugin-claude-code/scripts/). Validate by the ledger's presence.
 REPO_ROOT=$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || true)
 if [ -z "${REPO_ROOT:-}" ] || [ ! -f "$REPO_ROOT/$LEDGER_BASENAME" ]; then
   _cand=$(cd "$SCRIPT_DIR/../.." 2>/dev/null && pwd || true)

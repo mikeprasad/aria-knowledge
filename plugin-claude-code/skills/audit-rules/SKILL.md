@@ -131,7 +131,7 @@ For each approved candidate, in order:
 1. **Write the rule** into `rules/user-rules.md` (next `U<n>`, or apply the named amendment): a
    lead paragraph carrying the operative claim, Why with the dated quotes, How to apply,
    **Falsifier**, Origin with the approval stamp (who approved, when) and the source rows.
-2. **Byte-check the lead:** run `bash ${CLAUDE_PLUGIN_ROOT}/bin/check-rule-lead-bytes.sh
+2. **Byte-check the lead:** run `bash ${CLAUDE_PLUGIN_ROOT}/scripts/check-rule-lead-bytes.sh
    {knowledge_folder}/rules/user-rules.md`. The always-on digest builder truncates each rule's
    first paragraph at **240 BYTES** (multi-byte punctuation counts ×2–3) — a failing lead is
    reworded before proceeding, never shipped to truncate.
@@ -142,7 +142,7 @@ For each approved candidate, in order:
 5. **Disposition consumed backlog entries**: demote the heading `###`→`####` with a disposition
    note; bodies preserved.
 6. **Regenerate the always-on digest** by invoking `bash
-   ${CLAUDE_PLUGIN_ROOT}/bin/session-start-rules.sh` with empty stdin — never by hand-editing
+   ${CLAUDE_PLUGIN_ROOT}/scripts/session-start-rules.sh` with empty stdin — never by hand-editing
    `~/.claude/rules/aria-user-rules.md` (its header forbids it; the generator's newer-than guard
    makes the rerun cheap). Then verify: the emitted rule count includes the new rules, and **none
    of the NEW rules' digest lines carry a truncation ellipsis** (scope the check to the new rules —

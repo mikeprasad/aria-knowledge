@@ -26,7 +26,7 @@ kt_json_escape() {
 # escapes is implementation-defined; under sh it converts the \n sequences this
 # function produces back into REAL newlines, emitting invalid JSON.
 #
-# SIX hooks in bin/ currently emit with echo — bash-cd, post-edit, pre-compact,
+# SIX hooks in scripts/ currently emit with echo — bash-cd, post-edit, pre-compact,
 # pre-explore-codemap, session-start, task-context. They are safe only because
 # they use kt_json_escape, whose output contains no backslash sequences. Any of
 # them adopting THIS function must switch to printf in the same change.

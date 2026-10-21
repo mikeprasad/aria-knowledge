@@ -1,6 +1,6 @@
 # shellcheck shell=sh
 # test-aria-assist.sh — .aria-assist.json overlay: helper + script integration
-BIN="$(cd "$(dirname "$0")/../bin" && pwd)"
+BIN="$(cd "$(dirname "$0")/../scripts" && pwd)"
 
 # --- apm_write_assist_status: create + deep-merge sections, preserve siblings/fields ---
 AS_KF="$APM_TMP/as/knowledge"

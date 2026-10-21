@@ -17,7 +17,7 @@
 set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-BW="$REPO_ROOT/plugin-claude-code/bin/pre-bash-write-check.sh"
+BW="$REPO_ROOT/plugin-claude-code/scripts/pre-bash-write-check.sh"
 MANIFEST="$REPO_ROOT/plugin-claude-code/.claude-plugin/plugin.json"
 PASS=0; FAIL=0
 ok()  { printf "PASS  %s\n" "$1"; PASS=$((PASS + 1)); }
@@ -40,7 +40,7 @@ bad() { printf "FAIL  %s — %s\n" "$1" "$2"; FAIL=$((FAIL + 1)); }
 #
 # What changed is that the restoration is NOT a re-wire of the ruled-out method.
 # The measured SCOPE is unchanged (in-place mutation only, 0.674% of 25,508 calls);
-# only the METHOD is replaced — targets are RESOLVED via bin/pre-bash-write-resolve.py
+# only the METHOD is replaced — targets are RESOLVED via scripts/pre-bash-write-resolve.py
 # (heredoc bodies stripped, shlex operator-aware tokenizing, per-statement extraction,
 # temp exemption applied to the RESOLVED PATH), which closes BOTH directions above
 # with one mechanism. It is also WARN-ONLY and can never deny.
@@ -54,10 +54,10 @@ bad() { printf "FAIL  %s — %s\n" "$1" "$2"; FAIL=$((FAIL + 1)); }
 # AC2 ARE the two historical defects stated as executable controls.
 [ -f "$BW" ] && ok "C1 restored: the corrected hook ships in bin/" \
              || bad "C1 restored" "pre-bash-write-check.sh is missing from bin/"
-[ -f "$REPO_ROOT/plugin-claude-code/bin/.archived/pre-bash-write-check.sh" ] \
+[ -f "$REPO_ROOT/plugin-claude-code/scripts/.archived/pre-bash-write-check.sh" ] \
   && ok "C1 archived per Rule 6 with its mechanism recorded" \
-  || bad "C1 archive" "the retired hook is not in bin/.archived/"
-grep -q 'SUPERSEDED 2026-08-27' "$REPO_ROOT/plugin-claude-code/bin/.archived/pre-bash-write-check.sh" \
+  || bad "C1 archive" "the retired hook is not in scripts/.archived/"
+grep -q 'SUPERSEDED 2026-08-27' "$REPO_ROOT/plugin-claude-code/scripts/.archived/pre-bash-write-check.sh" \
   && ok "C1 the archive forward-points at its successor" \
   || bad "C1 archive pointer" "the archive asserts retirement with no pointer to the live hook"
 grep -q 'pre-bash-write-check\.sh' "$MANIFEST" \
@@ -75,7 +75,7 @@ grep -q 'pre-bash-write-resolve\.py' "$BW" \
 # it reports success without ever having been able to report failure (Rule 36).
 # Syntactic detection only, warn-only, scoped to test-shaped paths.
 # ---------------------------------------------------------------------------
-TA="$REPO_ROOT/plugin-claude-code/bin/post-edit-tautology-check.sh"
+TA="$REPO_ROOT/plugin-claude-code/scripts/post-edit-tautology-check.sh"
 run_ta() { printf '{"tool_name":"Write","tool_input":{"file_path":"%s","content":"%s"}}' "$1" "$2" | sh "$TA" 2>/dev/null || true; }
 
 [ -x "$TA" ] && ok "I tautology hook exists" || bad "I exists" "missing or not +x"
@@ -131,7 +131,7 @@ OUT8=$(run_ta "/x/tests/repros/thing.sh" "[ \$got = \$want ] && ok A || bad A x\
 
 # --- S: the bypass LEDGER is GONE with its only writer.
 # The retired hook was the sole producer of ${TMPDIR}/aria-r22-bypass-<session_id>
-# — measured: grep for that name across bin/ returns only bin/.archived/. So the
+# — measured: grep for that name across bin/ returns only scripts/.archived/. So the
 # ledger can no longer be populated, and the two closing skills that REPORTED it
 # had their instruction removed rather than left describing an empty file. This
 # assertion is what keeps those two facts in step.

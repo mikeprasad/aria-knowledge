@@ -4,7 +4,7 @@
 # config.sh — the two must not drift).
 set -u
 HERE=$(cd "$(dirname "$0")" && pwd)
-BIN="$HERE/../../plugin-claude-code/bin"
+BIN="$HERE/../../plugin-claude-code/scripts"
 fail() { echo "FAIL: $1"; exit 1; }
 extract() { awk '/^# >>> kt_resolve_account/{f=1} f{print} /^# <<< kt_resolve_account/{f=0}' "$1"; }
 a=$(extract "$BIN/config.sh")

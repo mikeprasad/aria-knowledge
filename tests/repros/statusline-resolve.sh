@@ -2,7 +2,7 @@
 # Repro: kt_resolve_account resolves account key + runtime across runtimes.
 set -u
 HERE=$(cd "$(dirname "$0")" && pwd)
-CONFIG_SH="$HERE/../../plugin-claude-code/bin/config.sh"
+CONFIG_SH="$HERE/../../plugin-claude-code/scripts/config.sh"
 fail() { echo "FAIL: $1"; exit 1; }
 
 # Sandbox HOME so we never touch the real ~/.claude.json or Desktop dir.

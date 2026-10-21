@@ -1,11 +1,11 @@
 #!/bin/sh
-# Repro: bin/check-port-drift.sh detects surface drift, re-baselines on --update,
+# Repro: scripts/check-port-drift.sh detects surface drift, re-baselines on --update,
 # tolerates SLA=undeclared drift, and catches the antigravity version-pair trap.
 # Hermetic — drives the checker against a tmp fixture via the PORT_LEDGER /
 # PORT_LEDGER_ROOT env seam, never the real repo.
 set -u
 HERE=$(cd "$(dirname "$0")" && pwd)
-SCRIPT="$HERE/../../plugin-claude-code/bin/check-port-drift.sh"
+SCRIPT="$HERE/../../plugin-claude-code/scripts/check-port-drift.sh"
 fail() { echo "FAIL: $1"; exit 1; }
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
 

@@ -28,7 +28,7 @@
 #   writes the opener prose-first; this wrapper passes that opener through verbatim. [SELFRESTART-PRE]
 #
 # USAGE
-#   bin/auto-runloop.sh "ship the CSV exporter"        # initial goal for the first run
+#   scripts/auto-runloop.sh "ship the CSV exporter"        # initial goal for the first run
 #   AUTO_RESTART_SIGNAL=/path/.auto-restart-requested  # override the signal-file path (default below)
 #   AUTO_MAX_TURNS=40                                   # optional --max-turns per headless run
 #   AUTO_MAX_RESTARTS=50                                # safety cap on relaunches (default 50)

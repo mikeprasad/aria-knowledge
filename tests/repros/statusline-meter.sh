@@ -5,7 +5,7 @@
 # Runtime pinned to CLI; real PATH kept so jq is reachable.
 set -u
 HERE=$(cd "$(dirname "$0")" && pwd)
-METER="$HERE/../../plugin-claude-code/bin/statusline-meter.sh"
+METER="$HERE/../../plugin-claude-code/scripts/statusline-meter.sh"
 fail() { echo "FAIL: $1"; exit 1; }
 command -v jq >/dev/null 2>&1 || { echo "SKIP statusline-meter (no jq)"; exit 0; }
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT

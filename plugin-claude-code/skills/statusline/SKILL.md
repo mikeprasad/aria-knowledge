@@ -48,7 +48,7 @@ Parse the argument (default `on` when none given):
 ### Step 1 — Locate the meter script and check dependencies
 
 ```bash
-SRC="${CLAUDE_PLUGIN_ROOT}/bin/statusline-meter.sh"
+SRC="${CLAUDE_PLUGIN_ROOT}/scripts/statusline-meter.sh"
 DEST="$HOME/.claude/aria-statusline-meter.sh"
 SETTINGS="$HOME/.claude/settings.json"
 [ -f "$SRC" ] && echo "source ok: $SRC" || echo "MISSING SRC"
@@ -64,7 +64,7 @@ echo "HOME=$HOME"
 
 ```bash
 mkdir -p "$HOME/.claude"
-cp "${CLAUDE_PLUGIN_ROOT}/bin/statusline-meter.sh" "$HOME/.claude/aria-statusline-meter.sh"
+cp "${CLAUDE_PLUGIN_ROOT}/scripts/statusline-meter.sh" "$HOME/.claude/aria-statusline-meter.sh"
 chmod +x "$HOME/.claude/aria-statusline-meter.sh"
 echo "copied to $HOME/.claude/aria-statusline-meter.sh"
 ```

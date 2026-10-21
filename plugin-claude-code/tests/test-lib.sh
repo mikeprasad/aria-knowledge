@@ -1,4 +1,4 @@
-. "$(cd "$(dirname "$0")/../bin" && pwd)/pm-lib.sh"
+. "$(cd "$(dirname "$0")/../scripts" && pwd)/pm-lib.sh"
 
 # apm_now_epoch honors the override
 assert_eq "now honors override" "1000000" "$(ARIA_PM_NOW_EPOCH=1000000 apm_now_epoch)"

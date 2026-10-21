@@ -104,10 +104,10 @@ ok "skill-discovery surface: ${budget_total} bytes (budget ${ARIA_SKILL_BUDGET})
 # automatically — while ports you have deliberately left behind stay advisory instead of
 # blocking every canonical release on work you chose to defer.
 log "gate C: port drift (report-only until an SLA is declared)"
-if [[ -x "$REPO_ROOT/plugin-claude-code/bin/check-port-drift.sh" ]]; then
-    sh "$REPO_ROOT/plugin-claude-code/bin/check-port-drift.sh" || true   # advisory by design — see above
+if [[ -x "$REPO_ROOT/plugin-claude-code/scripts/check-port-drift.sh" ]]; then
+    sh "$REPO_ROOT/plugin-claude-code/scripts/check-port-drift.sh" || true   # advisory by design — see above
 else
-    warn "gate C skipped: plugin-claude-code/bin/check-port-drift.sh not found"
+    warn "gate C skipped: plugin-claude-code/scripts/check-port-drift.sh not found"
 fi
 
 # Gate D — public hygiene. FATAL, unlike Gate C, and deliberately so: this repo is
@@ -122,20 +122,20 @@ fi
 # must not be treated as one — a dead instrument reads exactly like a clean tree,
 # which is the failure this gate exists to prevent in the first place.
 log "gate D: public hygiene (private identifiers in shipped content)"
-if [[ -x "$REPO_ROOT/plugin-claude-code/bin/check-public-hygiene.sh" ]]; then
+if [[ -x "$REPO_ROOT/plugin-claude-code/scripts/check-public-hygiene.sh" ]]; then
     # `|| gate_d=$?` is load-bearing: this script runs under `set -e`, so a bare
     # invocation would abort on a non-zero exit BEFORE the code could be captured,
     # making every message below unreachable and collapsing exit 2 (broken matcher)
     # into exit 1 (findings) — the one distinction this gate depends on.
     gate_d=0
-    sh "$REPO_ROOT/plugin-claude-code/bin/check-public-hygiene.sh" "$REPO_ROOT" || gate_d=$?
+    sh "$REPO_ROOT/plugin-claude-code/scripts/check-public-hygiene.sh" "$REPO_ROOT" || gate_d=$?
     case "$gate_d" in
         0) ;;
         2) die "gate D self-test FAILED — the hygiene matcher is broken. Not a clean result; fix it before releasing." ;;
         *) die "gate D failed: private identifiers found above. Genericize them (this repo uses proj-a / proj-b / proj-c) before releasing." ;;
     esac
 else
-    die "gate D missing: plugin-claude-code/bin/check-public-hygiene.sh not found or not executable"
+    die "gate D missing: plugin-claude-code/scripts/check-public-hygiene.sh not found or not executable"
 fi
 
 # --- marketplace.json carries no version (current marketplace schema) -------
@@ -151,7 +151,7 @@ trap 'rm -rf "$STAGING"' EXIT
 log "staging: $STAGING/$PLUGIN_NAME"
 # ⛔ *.bak* / *.orig / *.rej are NOT hypothetical and gitignoring them does NOT help: rsync copies
 # from the WORKING TREE, so git has no say. Measured 2026-09-09 — a stray
-# bin/pre-commit-preflight-check.sh.bak-preU8fix reached the staging tree and the verification below
+# scripts/pre-commit-preflight-check.sh.bak-preU8fix reached the staging tree and the verification below
 # passed with it inside, because that check greps only for __MACOSX/.DS_Store/.claude/settings.
 rsync -a \
     --exclude='.DS_Store' \

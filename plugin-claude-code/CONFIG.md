@@ -28,7 +28,7 @@ ARIA fields split into two classes by who reads them. The split is structural, n
 
 | Tier | Reader | Constraint | Field shapes allowed |
 |---|---|---|---|
-| **Hook-parsed** | `bin/*.sh` scripts (pure grep+sed, no jq) | Must round-trip through column-1 grep + simple sed | Single-line scalar or comma-separated `tag:value` flat string |
+| **Hook-parsed** | `scripts/*.sh` scripts (pure grep+sed, no jq) | Must round-trip through column-1 grep + simple sed | Single-line scalar or comma-separated `tag:value` flat string |
 | **Skill-only** | Skills (Claude parses YAML natively in skill context) | Free YAML — multi-line nested blocks are fine | Any valid YAML structure |
 
 Hook-parsed fields run on every session start, every edit, every compaction — they need to be cheap and bash-safe. Skill-only fields are read inside specific skills, so they can use the structures that fit the data.
@@ -153,7 +153,7 @@ Before saving manual edits to `~/.claude/aria-knowledge.local.md`:
 
 The CLI status-line meter (context-window bar + rolling 5-hour / 7-day plan-usage %) is **not** configured in this file. The main status line is read only from `~/.claude/settings.json`, so `/statusline` wires it there directly:
 
-- Copies `bin/statusline-meter.sh` to `~/.claude/aria-statusline-meter.sh` (a stable path that survives plugin updates), then
+- Copies `scripts/statusline-meter.sh` to `~/.claude/aria-statusline-meter.sh` (a stable path that survives plugin updates), then
 - Merges a `statusLine` block into `~/.claude/settings.json` pointing at the absolute copy (existing settings preserved; a backup is written to `settings.json.aria-bak`).
 
 It's an opt-in command, not automatic — a plugin manifest cannot register a main `statusLine`. Claude Code only (the status line is a Code feature). The 5h/7d segments render only on Pro/Max sessions, after the first response. Re-run `/statusline` after a plugin update to refresh the meter script; remove with `/statusline off`.

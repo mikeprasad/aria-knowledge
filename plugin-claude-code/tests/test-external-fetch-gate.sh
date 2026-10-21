@@ -6,7 +6,7 @@
 # the guard suppresses nothing we rely on.
 DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$DIR/.." && pwd)"
-HOOK="$ROOT/bin/pre-external-fetch-check.sh"
+HOOK="$ROOT/scripts/pre-external-fetch-check.sh"
 
 EF_TMP="${APM_TMP:-/tmp}/ef-gate"; rm -rf "$EF_TMP"; mkdir -p "$EF_TMP"
 
@@ -20,7 +20,7 @@ EF_CFG_ON="$EF_TMP/config-on.md"
 printf '%s\n' '---' "knowledge_folder: $EF_TMP/kf" \
   'external_fetch_gate: on' 'external_fetch_max_hits: 8' '---' > "$EF_CFG_ON"
 
-out=$(KT_CONFIG="$EF_CFG_ON" sh -c ". $ROOT/bin/config.sh; printf '%s|%s' \
+out=$(KT_CONFIG="$EF_CFG_ON" sh -c ". $ROOT/scripts/config.sh; printf '%s|%s' \
   \"\$KT_EXTERNAL_FETCH_GATE\" \"\$KT_EXTERNAL_FETCH_MAX_HITS\"" 2>/dev/null || :)
 assert_eq "cfg parses gate + max_hits" "on|8" "$out"
 
@@ -32,7 +32,7 @@ assert_eq "cfg parses gate + max_hits" "on|8" "$out"
 EF_CFG_BARE="$EF_TMP/config-bare.md"
 printf '%s\n' '---' "knowledge_folder: $EF_TMP/kf" '---' > "$EF_CFG_BARE"
 
-out=$(KT_CONFIG="$EF_CFG_BARE" sh -c ". $ROOT/bin/config.sh; printf '%s|%s' \
+out=$(KT_CONFIG="$EF_CFG_BARE" sh -c ". $ROOT/scripts/config.sh; printf '%s|%s' \
   \"\$KT_EXTERNAL_FETCH_GATE\" \"\$KT_EXTERNAL_FETCH_MAX_HITS\"" 2>/dev/null || :)
 assert_eq "cfg absent keys -> off|8 (ships default-off)" "off|8" "$out"
 

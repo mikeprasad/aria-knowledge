@@ -2,7 +2,7 @@
 # tests/repros/picker-menu.sh — kt_project_menu rendering (picker feature, spec 2026-06-06)
 set -e
 DIR="$(cd "$(dirname "$0")/../.." && pwd)"   # repo root
-. "$DIR/plugin-claude-code/bin/config.sh"
+. "$DIR/plugin-claude-code/scripts/config.sh"
 
 fail=0
 KT_PROJECTS_LIST='alpha:alpha,beta:beta,gamma:gamma'

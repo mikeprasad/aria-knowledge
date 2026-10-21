@@ -8,7 +8,7 @@
 # a FOREIGN transcript the newest file on purpose; any recency-based pick fails it.
 set -u
 HERE=$(cd "$(dirname "$0")" && pwd)
-SCRIPT="$HERE/../../plugin-claude-code/bin/save-transcript.sh"
+SCRIPT="$HERE/../../plugin-claude-code/scripts/save-transcript.sh"
 fail() { echo "FAIL: $1"; exit 1; }
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
 

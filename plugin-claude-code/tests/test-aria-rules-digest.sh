@@ -48,7 +48,7 @@ CFG="$APM_TMP/aria-cfg.md"
 KF="$APM_TMP/kf"; mkdir -p "$KF/rules"
 printf -- '---\nknowledge_folder: %s\n---\n' "$KF" > "$CFG"
 
-HOOK="$APM_ROOT/bin/session-start-rules.sh"
+HOOK="$APM_ROOT/scripts/session-start-rules.sh"
 
 # ⛔ EVERY hook invocation in this file MUST set HOME. The hook writes the
 # user-scope rules files under $HOME/.claude/rules/, so a test that inherits the
@@ -184,9 +184,9 @@ assert_eq "config line reports session_state=true" "yes" "$(u2_has 'session_stat
 #
 # Both stay in session-start-check.sh until the single-emitter collapse (spec §8).
 assert_eq "new hook stays out of the ledger" "no" \
-  "$(grep -q 'kt_artifact_record_ledger' "$APM_ROOT/bin/session-start-rules.sh" 2>/dev/null && echo yes || echo no)"
+  "$(grep -q 'kt_artifact_record_ledger' "$APM_ROOT/scripts/session-start-rules.sh" 2>/dev/null && echo yes || echo no)"
 assert_eq "new hook does not duplicate CODEMAP staleness logic" "no" \
-  "$(grep -q 'CODEMAP Found' "$APM_ROOT/bin/session-start-rules.sh" 2>/dev/null && echo yes || echo no)"
+  "$(grep -q 'CODEMAP Found' "$APM_ROOT/scripts/session-start-rules.sh" 2>/dev/null && echo yes || echo no)"
 
 # ---------------------------------------------------------------------------
 # Compaction — an always-on rule stops being always-on when context is wiped
@@ -201,7 +201,7 @@ PCOUT="$APM_TMP/pc.json"
 # route.
 PCHOME="$APM_TMP/pc-home"; mkdir -p "$PCHOME/.claude/rules"
 cp "$DIGEST" "$PCHOME/.claude/rules/aria-rules.md"
-if printf '{"session_id":"test-sess"}' | HOME="$PCHOME" KT_CONFIG="$CFG" sh "$APM_ROOT/bin/post-compact-check.sh" > "$PCOUT" 2>/dev/null; then :; else :; fi
+if printf '{"session_id":"test-sess"}' | HOME="$PCHOME" KT_CONFIG="$CFG" sh "$APM_ROOT/scripts/post-compact-check.sh" > "$PCOUT" 2>/dev/null; then :; else :; fi
 
 assert_eq "post-compact emits valid JSON" "yes" \
   "$(jq -e . "$PCOUT" >/dev/null 2>&1 && echo yes || echo no)"
@@ -227,7 +227,7 @@ assert_eq "post-compact stays a pointer, not a dump" "yes" \
 # And the guarded arm: no installed file, no pointer — pointing at a path that does
 # not exist would send the reader to a missing file.
 PCEMPTY="$APM_TMP/pc-empty"; mkdir -p "$PCEMPTY/.claude"
-if printf '{"session_id":"test-sess"}' | HOME="$PCEMPTY" KT_CONFIG="$CFG" sh "$APM_ROOT/bin/post-compact-check.sh" > "$APM_TMP/pc2.json" 2>/dev/null; then :; else :; fi
+if printf '{"session_id":"test-sess"}' | HOME="$PCEMPTY" KT_CONFIG="$CFG" sh "$APM_ROOT/scripts/post-compact-check.sh" > "$APM_TMP/pc2.json" 2>/dev/null; then :; else :; fi
 assert_eq "post-compact emits no rules pointer when the file is absent" "no" \
   "$(jq -r '.hookSpecificOutput.additionalContext' "$APM_TMP/pc2.json" 2>/dev/null | grep -q 'ARIA WORKING RULES' && echo yes || echo no)"
 
@@ -235,13 +235,13 @@ assert_eq "post-compact emits no rules pointer when the file is absent" "no" \
 # hook is the drift hazard refused for the CODEMAP block; it belongs in
 # config.sh as a new shared helper, leaving kt_json_escape untouched.
 assert_eq "multiline escape is defined exactly once" "1" \
-  "$(grep -rl '^kt_json_escape_multiline()' "$APM_ROOT/bin" 2>/dev/null | wc -l | tr -d ' ')"
+  "$(grep -rl '^kt_json_escape_multiline()' "$APM_ROOT/scripts" 2>/dev/null | wc -l | tr -d ' ')"
 assert_eq "multiline escape lives in config.sh (shared, not per-hook)" "yes" \
-  "$(grep -q '^kt_json_escape_multiline()' "$APM_ROOT/bin/config.sh" 2>/dev/null && echo yes || echo no)"
+  "$(grep -q '^kt_json_escape_multiline()' "$APM_ROOT/scripts/config.sh" 2>/dev/null && echo yes || echo no)"
 # The existing helper must NOT be changed — four other hooks depend on its
 # newline-stripping behaviour. This asserts the tr stage is still present.
 assert_eq "shared kt_json_escape still strips newlines (unchanged)" "yes" \
-  "$(sed -n '/^kt_json_escape()/,/^}/p' "$APM_ROOT/bin/config.sh" | grep -qF "tr '" && echo yes || echo no)"
+  "$(sed -n '/^kt_json_escape()/,/^}/p' "$APM_ROOT/scripts/config.sh" | grep -qF "tr '" && echo yes || echo no)"
 
 # ---------------------------------------------------------------------------
 # /setup — the rules pointer offer (structural; runtime behaviour is a skill
@@ -310,7 +310,7 @@ printf -- '---\nknowledge_folder: %s\n---\n' "$KF" > "$CFG"
 assert_eq "digest carries TASK BUDGET" "yes" "$(digest_has 'TASK BUDGET —')"
 assert_eq "digest carries INSIGHT CAPTURE" "yes" "$(digest_has 'INSIGHT CAPTURE —')"
 # The heading contract (2026-09-29): without it sessions invent `## ` group headers and `####`
-# children, both invisible to a `### ` count. See bin/count-backlog-entries.sh.
+# children, both invisible to a `### ` count. See scripts/count-backlog-entries.sh.
 assert_eq "INSIGHT CAPTURE states the ### entry-heading contract" "yes" \
   "$(digest_has '### YYYY-MM-DD — <project> — <title>')"
 assert_eq "digest carries MEMORY PATHWAY" "yes" "$(digest_has 'MEMORY PATHWAY —')"
@@ -345,7 +345,7 @@ assert_eq "long variant says the decision is the user's" "yes" \
 # The defective text must not survive in the old hook either — leaving it there
 # keeps a corrected behaviour one channel-flip away from returning.
 assert_eq "old hook no longer carries the harmful directive" "no" \
-  "$(grep -q 'judging whether to keep going' "$APM_ROOT/bin/session-start-check.sh" && echo yes || echo no)"
+  "$(grep -q 'judging whether to keep going' "$APM_ROOT/scripts/session-start-check.sh" && echo yes || echo no)"
 
 # auto_capture=false must suppress INSIGHT CAPTURE (both directions).
 run_hook_with "auto_capture: false"
@@ -379,7 +379,7 @@ done
 # the contract each tier must satisfy. Mutation-checked (changing the join
 # separator killed the original oracle).
 
-UR_LIB="$APM_ROOT/bin/lib-user-rules.sh"
+UR_LIB="$APM_ROOT/scripts/lib-user-rules.sh"
 assert_eq "lib-user-rules.sh exists" "yes" "$([ -f "$UR_LIB" ] && echo yes || echo no)"
 
 # Driver: sets KT_KNOWLEDGE_FOLDER, sources the lib, prints the block verbatim.

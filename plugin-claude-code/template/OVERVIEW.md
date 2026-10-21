@@ -251,7 +251,7 @@ Two consumers:
 **(b) Claude executing a user plan.** When Claude is about to perform a declared multi-file task (e.g., user shares `docs/plans/feature-x.md` listing 10 files to create + modify), Claude can write the manifest itself before starting:
 
 ```bash
-. ${CLAUDE_PLUGIN_ROOT}/bin/config.sh
+. ${CLAUDE_PLUGIN_ROOT}/scripts/config.sh
 kt_batch_begin "manual-plan-execution" "Implement feature X per docs/plans/feature-x.md" '[
   {"file_path_pattern": "src/feature-x/**/*.ts", "operation_type": "create", "impact": "low", "justification": "New module files per plan Section 2 — mechanical scaffolding"},
   {"file_path_pattern": "src/routing/routes.ts", "operation_type": "update", "impact": "high", "justification": "Add new route handler — routing signal, full assessment required"},

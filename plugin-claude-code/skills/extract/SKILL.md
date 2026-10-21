@@ -43,7 +43,7 @@ Determine the current working directory and check if it matches a configured pro
 4. If no path-based match is found AND `projects_remotes` is configured AND git is available, fall back to git-remote matching: run `git config --get remote.origin.url` from the CWD; for each `tag:url-pattern` pair in `projects_remotes`, check if the remote URL contains the pattern; if so, set `current_project` to that tag.
 5. If still no match, leave `current_project` unset — subsequent steps will skip auto-tagging.
 
-This logic mirrors the `kt_project_for_path` shell helper in `bin/config.sh`. Skills can either invoke that helper via Bash or replicate the matching logic in markdown-driven flow as above.
+This logic mirrors the `kt_project_for_path` shell helper in `scripts/config.sh`. Skills can either invoke that helper via Bash or replicate the matching logic in markdown-driven flow as above.
 
 Examples:
 - CWD = `~/Projects/myproject/sub-module/file.md`, `projects_list: myproject:myproject,other:other` → `current_project = myproject` (substring match on `myproject`)
@@ -112,7 +112,7 @@ Scan `{knowledge_folder}/intake/subagent-captures/` for **all** pending `.md` ca
 For each capture, digest it for cheap review:
 
 ```
-bash ${CLAUDE_PLUGIN_ROOT}/bin/digest-transcript.sh "{capture_path}" "/tmp/aria-digest-{filename}"
+bash ${CLAUDE_PLUGIN_ROOT}/scripts/digest-transcript.sh "{capture_path}" "/tmp/aria-digest-{filename}"
 ```
 
 Fold any findings from the digest into the SAME six buckets from Step 2 (insights, decisions, feedback, project context, references, ideas). They then flow through Step 3 (dedup) and Step 4 (append) with the conversation's own findings.
@@ -225,7 +225,7 @@ Ideas do NOT promote to knowledge files directly — during audit review the use
 - For ideas (per-file): write a new file per the filename pattern above; there is no placeholder to remove.
 - **If a single-file backlog is missing:** do not create it from scratch. Stop and tell the user: "Backlog file [name] is missing. Run /setup to repair the knowledge folder structure."
 - **If the `intake/ideas/` directory is missing:** do not create it. Stop and tell the user: "Ideas directory `intake/ideas/` is missing. Run /setup to repair the knowledge folder structure."
-- **Legacy-file detection (one-time):** if `{knowledge_folder}/intake/ideas-backlog.md` exists alongside `intake/ideas/`, surface a one-line note in Step 5's report: "Legacy `ideas-backlog.md` detected — run `/setup` or `bash ${CLAUDE_PLUGIN_ROOT}/bin/migrate-ideas-backlog.sh` to migrate pre-2.11 entries." Do not attempt the migration from within `/extract`.
+- **Legacy-file detection (one-time):** if `{knowledge_folder}/intake/ideas-backlog.md` exists alongside `intake/ideas/`, surface a one-line note in Step 5's report: "Legacy `ideas-backlog.md` detected — run `/setup` or `bash ${CLAUDE_PLUGIN_ROOT}/scripts/migrate-ideas-backlog.sh` to migrate pre-2.11 entries." Do not attempt the migration from within `/extract`.
 
 ## Step 5: Report
 

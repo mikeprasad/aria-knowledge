@@ -63,7 +63,7 @@ aria/
 - **`plugin-cursor-template/` is the Cursor repo-skeleton** — not a plugin install. Users clone or unzip its contents into the root of their own project. Cursor compiles 25 skills into 5 `.cursor/rules/*.mdc` files because Cursor's Rules system doesn't have a one-skill-per-folder concept. Knowledge folder schema stays compatible with `plugin-claude-code/template/`.
 - **Template files** in `plugin-claude-code/template/` are either plugin-managed (diffable on `/setup`) or user-owned (created once, never overwritten). See `plugin-claude-code/skills/setup/SKILL.md` for the authoritative list.
 - **Version** lives in `plugin-claude-code/.claude-plugin/plugin.json`
-- **Hook scripts** in `plugin-claude-code/bin/` are bash — they read config from `~/.claude/aria-knowledge.local.md`
+- **Hook scripts** in `plugin-claude-code/scripts/` are bash — they read config from `~/.claude/aria-knowledge.local.md`
 - **Skills** are markdown files — each skill is a `SKILL.md` with YAML frontmatter
 - **Codex hooks** require Codex `plugin_hooks` enabled; the adapter reads `~/.codex/aria-knowledge.local.md` first, then falls back to `~/.Codex/aria-knowledge.local.md`
 - **`plugin-claude-cowork/` is the Claude Cowork installable unit** — sibling to `plugin-claude-code/`, both share schema-identical knowledge-folder outputs (per ADR-013). Cowork runtime is skills-only (no hooks API); enforcement is skill-embedded. Per ADR-094, bare-slash skill names resolve to plugin-claude-code as canonical owner when both ports are loaded in the same session; cowork-namespaced variants are `/aria-cowork:handoff` etc.

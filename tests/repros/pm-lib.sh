@@ -3,7 +3,7 @@
 set -u
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$SCRIPT_DIR/../pm-helpers.sh"
-. "$SCRIPT_DIR/../../plugin-claude-code/bin/pm-lib.sh"
+. "$SCRIPT_DIR/../../plugin-claude-code/scripts/pm-lib.sh"
 PM_TMP="$(mktemp -d)"; trap 'rm -rf "$PM_TMP"' EXIT
 
 assert_eq "now honors override" "1000000" "$(ARIA_PM_NOW_EPOCH=1000000 apm_now_epoch)"

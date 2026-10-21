@@ -12,7 +12,7 @@
 #                                   an empty string and silently fails open)
 #
 # Every bin/ script declares '#!/bin/sh', but plugin.json invokes them as
-# 'bash ${CLAUDE_PLUGIN_ROOT}/bin/x.sh'. So the shebang and the invocation
+# 'bash ${CLAUDE_PLUGIN_ROOT}/scripts/x.sh'. So the shebang and the invocation
 # disagree: the scripts are correct only by accident of how they happen to be
 # called. Anything that runs one directly, or under a POSIX sh, gets the failing
 # behaviour -- and it fails OPEN, so a guard silently stops guarding.
@@ -29,13 +29,13 @@
 # listed four field names written from recollection, and was therefore blind to
 # task_subject and task_description -- two genuinely free-text fields carrying the exact
 # defect it exists to forbid. Re-derive with:
-#   grep -oh 'echo "$INPUT" | grep -o .\{0,3\}"[a-z_]*"' bin/*.sh \
+#   grep -oh 'echo "$INPUT" | grep -o .\{0,3\}"[a-z_]*"' scripts/*.sh \
 #     | grep -o '"[a-z_]*"$' | sort -u
 # then classify each field as free-text or not.
 set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-BIN="$REPO_ROOT/plugin-claude-code/bin"
+BIN="$REPO_ROOT/plugin-claude-code/scripts"
 PASS=0; FAIL=0
 ok()  { printf "PASS  %s\n" "$1"; PASS=$((PASS + 1)); }
 bad() { printf "FAIL  %s — %s\n" "$1" "$2"; FAIL=$((FAIL + 1)); }
@@ -77,7 +77,7 @@ fi
 # defect it names is itself a false green.
 # ⚠ pre-bash-write-check.sh was in this list until 2026-08-26, was retired that day,
 # and was RESTORED 2026-08-27 (v2.48.1) with its method replaced — targets are now
-# resolved by bin/pre-bash-write-resolve.py rather than matched in the command string.
+# resolved by scripts/pre-bash-write-resolve.py rather than matched in the command string.
 # It is shipped again, so the old "an archived script parses nothing" reason no longer
 # applies. It stays out of THIS loop for a different and narrower reason: it no longer
 # extracts a free-text field at all. It pre-filters with a builtin `case "$INPUT"` and

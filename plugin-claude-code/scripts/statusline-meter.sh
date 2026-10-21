@@ -9,7 +9,7 @@
 # (~/.claude/aria-statusline-meter.sh) and points settings.json -> statusLine at
 # the absolute copy. Re-run /statusline after a plugin update to refresh the copy.
 #
-# Design constraints (match the bin/ hook convention):
+# Design constraints (match the scripts/ hook convention):
 #   - POSIX sh, jq-preferred with a graceful no-jq degrade.
 #   - NEVER emit an error or non-zero-on-the-screen: a broken status line is
 #     worse than a sparse one. Every field is guarded; missing data is omitted.

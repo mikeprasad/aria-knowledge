@@ -90,7 +90,7 @@ ARIA v2.11 moved the ideas backlog from a single `intake/ideas-backlog.md` file 
 
   - **If count is 0:** the legacy file has no active entries (cleared-history HTML comments only). Prompt: *"Empty pre-2.11 `ideas-backlog.md` found. Delete it? (y/n)"* — on yes, `rm` the file; on no, leave it.
   - **If count > 0:** report: *"Pre-2.11 `ideas-backlog.md` detected with {N} active entries. ARIA v2.11 uses per-file ideas in `intake/ideas/`. Options:"*
-    - `(1) Migrate now` — run `bash ${CLAUDE_PLUGIN_ROOT}/bin/migrate-ideas-backlog.sh "{knowledge_folder}"` and report the output (N files written, original renamed to `ideas-backlog.md.pre-2.11-migration`)
+    - `(1) Migrate now` — run `bash ${CLAUDE_PLUGIN_ROOT}/scripts/migrate-ideas-backlog.sh "{knowledge_folder}"` and report the output (N files written, original renamed to `ideas-backlog.md.pre-2.11-migration`)
     - `(2) Skip for now` — leave the file in place; `/setup` will prompt again on the next run. Note in the Step 8 summary that legacy entries are still stranded.
     - `(3) Never migrate` — write a sentinel file at `{knowledge_folder}/intake/ideas/.legacy-skipped` so future `/setup` runs stop prompting. Document that the user accepts stranded pre-2.11 entries.
 
@@ -368,7 +368,7 @@ Configured by /setup on [today's date].
 
 In **update mode:** preserve any user-added content in the markdown body below the frontmatter when rewriting.
 
-**Formatting rules** — the config file MUST follow these exact conventions or the hook scripts cannot parse it. The hooks parse this file using pure `grep + sed` (no jq/yq/python) — these constraints exist so the substitution patterns in `bin/config.sh` work correctly, and any deviation breaks parsing silently.
+**Formatting rules** — the config file MUST follow these exact conventions or the hook scripts cannot parse it. The hooks parse this file using pure `grep + sed` (no jq/yq/python) — these constraints exist so the substitution patterns in `scripts/config.sh` work correctly, and any deviation breaks parsing silently.
 - Frontmatter delimiters must be exactly `---` on their own line (no leading spaces, no trailing content)
 - Each key must start at column 1 with no indentation
 - Keys use the exact names shown above (no quoting, no trailing spaces)
@@ -518,23 +518,23 @@ If no: continue to Step 8. Note in setup output: *"Shared knowledge enabled but 
 
 ## Step 7e: Self-Validation Audit (v2.15.2+)
 
-After Step 7b's round-trip verification, run a coverage audit to catch any `KT_*` fields documented in `bin/config.sh` but missing from the user's written config. **This is a defense-in-depth check against the wizard's own discipline failures** — if Step 6's Advanced Options bundle silently skipped surfacing a key (e.g., the `active_knowledge_surfacing` gap that bit v2.15.1's first users), this step catches it before the user leaves `/setup` thinking everything is current.
+After Step 7b's round-trip verification, run a coverage audit to catch any `KT_*` fields documented in `scripts/config.sh` but missing from the user's written config. **This is a defense-in-depth check against the wizard's own discipline failures** — if Step 6's Advanced Options bundle silently skipped surfacing a key (e.g., the `active_knowledge_surfacing` gap that bit v2.15.1's first users), this step catches it before the user leaves `/setup` thinking everything is current.
 
 **Algorithm:**
 
-1. Enumerate known user-facing field names by reading `${CLAUDE_PLUGIN_ROOT}/bin/config.sh` and extracting them from the parse lines. Each known field has the shape:
+1. Enumerate known user-facing field names by reading `${CLAUDE_PLUGIN_ROOT}/scripts/config.sh` and extracting them from the parse lines. Each known field has the shape:
 
    ```bash
    KT_FIELDNAME=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" | grep '^fieldname:' | sed 's/^fieldname: *//')
    ```
 
-   Use `grep -oE "grep '\\^[a-z_]+:'" plugin-claude-code/bin/config.sh | grep -oE '[a-z_]+'` to extract the user-facing field names — those are the canonical list of fields the wizard should have covered.
+   Use `grep -oE "grep '\\^[a-z_]+:'" plugin-claude-code/scripts/config.sh | grep -oE '[a-z_]+'` to extract the user-facing field names — those are the canonical list of fields the wizard should have covered.
 
 2. For each known field, grep the just-written config `~/.claude/aria-knowledge.local.md` for `^{fieldname}:`. If the grep returns zero hits, add to a `MISSING_FIELDS` list.
 
 3. **If `MISSING_FIELDS` is non-empty:**
    - Output: `Self-validation found {N} known field(s) missing from your config: {field1}, {field2}, ...`
-   - For each missing field, look up its default value by reading the matching `KT_FIELDNAME=${KT_FIELDNAME:-default}` line in `bin/config.sh`. If no default is set, treat as empty.
+   - For each missing field, look up its default value by reading the matching `KT_FIELDNAME=${KT_FIELDNAME:-default}` line in `scripts/config.sh`. If no default is set, treat as empty.
    - Prompt: *"Add all {N} missing fields with their defaults? (y/n/select): {field1}={default1}, {field2}={default2}, ..."*
    - If user answers **y**: append each missing field as `fieldname: default` between the last column-1 hook-parsed field and the closing `---` of the frontmatter. Re-run Step 7b's round-trip verification on the additions.
    - If user answers **n**: emit a one-liner to the setup output: *"Self-validation skipped: {N} field(s) missing ({list}). Run `/audit config` later to surface them again, or hand-add to `~/.claude/aria-knowledge.local.md`."* Do not block setup.
@@ -554,7 +554,7 @@ cat "${CLAUDE_PLUGIN_ROOT}"/.claude-plugin/plugin.json "${CLAUDE_PLUGIN_ROOT}"/h
 ```
 
 ⚠ The test is **registration**, not file presence, and the difference is the whole
-point. A port's build may copy every canonical `bin/*.sh` indiscriminately, so the
+point. A port's build may copy every canonical `scripts/*.sh` indiscriminately, so the
 script can be sitting there unwired — measured: antigravity ships a copy that appears
 in none of its hook manifests, so it never runs. A `[ -f ]` check answered `applies`
 for that port and would have had a user hand-install files into a directory nothing
@@ -588,7 +588,7 @@ this step is gated rather than ported.
 **Install them now:**
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/bin/session-start-rules.sh" >/dev/null 2>&1
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/session-start-rules.sh" >/dev/null 2>&1
 ls -l ~/.claude/rules/aria-rules.md ~/.claude/rules/aria-user-rules.md 2>/dev/null
 ```
 
@@ -701,7 +701,7 @@ harmless the base command looks.
   not imply safe. Do not offer it.
 - ⛔ Never offer `Bash(sh:*)` or `Bash(bash:*)`. Bare shell nullifies the whole allowlist
   (`sh -c '<anything>'`). If a plugin helper must run, scope it:
-  `Bash(sh */plugin-claude-code/bin/*.sh:*)`.
+  `Bash(sh */plugin-claude-code/scripts/*.sh:*)`.
 
 **Check what is already present first**, and offer only the remainder — never re-add a duplicate.
 ⚠ Handle **both** pattern idioms; a matcher that only understands `Bash(cmd:*)` reports an entry
@@ -829,9 +829,9 @@ If the user wants `/aria-assist` to run automatically each morning, offer to ins
 
 > "Want me to schedule the morning PM review? It runs `/aria-assist generate` at your
 > `pm_schedule_time` (default 07:30) and notifies you. macOS only; you can remove it later with
-> `sh <plugin>/bin/pm-schedule.sh --uninstall`."
+> `sh <plugin>/scripts/pm-schedule.sh --uninstall`."
 
-On yes (Bash available): `sh ${CLAUDE_PLUGIN_ROOT}/bin/pm-schedule.sh`.
+On yes (Bash available): `sh ${CLAUDE_PLUGIN_ROOT}/scripts/pm-schedule.sh`.
 The iMessage notification path needs a one-time **Automation permission** grant
 (System Settings → Privacy & Security → Automation); the desktop banner always works.
 The schedule also surfaces as a read-only "Morning run" card in aria-atlas (if you use it),

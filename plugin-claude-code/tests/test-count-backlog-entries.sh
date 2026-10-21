@@ -1,8 +1,8 @@
 # shellcheck shell=sh
-# test-count-backlog-entries.sh — bin/count-backlog-entries.sh over a fixture knowledge folder.
+# test-count-backlog-entries.sh — scripts/count-backlog-entries.sh over a fixture knowledge folder.
 # Every arm has a case that must count AND a case that must not, so a guard that is removed or
 # widened turns this red (each was mutation-checked when written, 2026-09-29).
-CB_BIN="$(cd "$(dirname "$0")/../bin" && pwd)/count-backlog-entries.sh"
+CB_BIN="$(cd "$(dirname "$0")/../scripts" && pwd)/count-backlog-entries.sh"
 CB_KF="${TMPDIR:-/tmp}/aria-cb-$$/knowledge"
 mkdir -p "$CB_KF/intake" "$CB_KF/logs"
 printf '# Log\n\n## Last Audit\n- **Date:** 2026-09-20 (**Nth pass**)\n' > "$CB_KF/logs/knowledge-audit-log.md"

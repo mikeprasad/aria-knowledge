@@ -71,7 +71,7 @@ kt_user_rules_block() {
   [ "${_kt_ur_n:-0}" -gt 0 ] || return 0
   KT_USER_RULES_COUNT="$_kt_ur_n"
 
-  # ⛔ THIS NUMBER AND bin/check-rule-lead-bytes.sh's DEFAULT MUST MOVE TOGETHER.
+  # ⛔ THIS NUMBER AND scripts/check-rule-lead-bytes.sh's DEFAULT MUST MOVE TOGETHER.
   # /audit rules Step 7 item 2 tells an author to verify a new lead fits this budget, and
   # that gate defaults to the same value. The pairing is what matters: change one alone and
   # the gate starts reporting leads the generator renders fine, or stops reporting leads it

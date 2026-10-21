@@ -802,7 +802,7 @@ kt_ss_read_active_token() {
 # left there is re-offered forever no matter what is written elsewhere.
 #
 # ⛔ NOT WIRED TO ANY EDIT-TIME HOOK — Mike's ruling 2026-09-17, "no new post or pre edit
-# hook checks; the only hooks for this should be on session start". bin/post-edit-check.sh
+# hook checks; the only hooks for this should be on session start". scripts/post-edit-check.sh
 # is deliberately NOT a caller. Wiring it there would demote-and-consume a handoff on ANY
 # session's first edit in the project, including a session that never read the prompt.
 kt_ss_ledger_consume_active() {

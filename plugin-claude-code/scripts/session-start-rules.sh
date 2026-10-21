@@ -2,7 +2,7 @@
 # session-start-rules.sh — SessionStart hook for aria-knowledge.
 #
 # Sole owner of the MODEL-directed session-start channel. Its sibling
-# bin/session-start-check.sh emits systemMessage, which renders to the USER's
+# scripts/session-start-check.sh emits systemMessage, which renders to the USER's
 # terminal and never reaches the model. That split is deliberate: a nag asks a
 # human to authorise something; the payload here instructs the model.
 #

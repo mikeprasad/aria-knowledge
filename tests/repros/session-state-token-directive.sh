@@ -12,7 +12,7 @@
 # own subject exists to avoid.
 set -e
 DIR="$(cd "$(dirname "$0")/../.." && pwd)"
-HOOK="$DIR/plugin-claude-code/bin/session-start-check.sh"
+HOOK="$DIR/plugin-claude-code/scripts/session-start-check.sh"
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
 KN="$TMP/kn"; mkdir -p "$KN/logs"
 printf -- '- **Date:** 2026-09-16 (seeded for test)\n' > "$KN/logs/knowledge-audit-log.md"

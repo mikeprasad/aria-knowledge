@@ -136,7 +136,7 @@ fi
 # ---------------------------------------------------------------------------
 # G. The SessionStart directive must not emit a literal ${session_id} the model cannot expand.
 # ---------------------------------------------------------------------------
-_ss="$ROOT/plugin-claude-code/bin/session-start-check.sh"
+_ss="$ROOT/plugin-claude-code/scripts/session-start-check.sh"
 if [ ! -f "$_ss" ]; then
   PM_FAIL=$((PM_FAIL+1)); printf '  FAIL: G session-start-check.sh not found\n'
 elif grep -qF 'aria-active-\${session_id}' "$_ss"; then

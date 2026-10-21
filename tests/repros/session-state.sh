@@ -1,12 +1,12 @@
 #!/bin/sh
-# session-state.sh — tests for bin/lib-session-state.sh (v2.23.0 first-edit
+# session-state.sh — tests for scripts/lib-session-state.sh (v2.23.0 first-edit
 # in-progress marking). Validates project-root resolution and the light-touch,
 # body-preserving, idempotent SESSION.md write.
 
 set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-LIB="$REPO_ROOT/plugin-claude-code/bin/lib-session-state.sh"
+LIB="$REPO_ROOT/plugin-claude-code/scripts/lib-session-state.sh"
 
 # shellcheck disable=SC1090
 . "$LIB"
@@ -573,7 +573,7 @@ _ss_fnsum() {
     | grep -vE '^[[:space:]]*#' | grep '[^[:space:]]' | cksum | awk '{print $1}'
 }
 _SS_PARITY_FNS="kt_ss_ledger_add kt_ss_ledger_prune"
-_SS_P1="$REPO_ROOT/plugin-claude-code/bin/lib-session-state.sh"
+_SS_P1="$REPO_ROOT/plugin-claude-code/scripts/lib-session-state.sh"
 _SS_P2="$REPO_ROOT/plugin-antigravity/bin/lib-session-state.sh"
 _SS_P3="$REPO_ROOT/plugin-cursor-template/scripts/aria/lib-session-state.sh"
 _SS_P4="$REPO_ROOT/plugin-openai-codex/bin/lib-session-state.sh"
@@ -660,7 +660,7 @@ grep -q 'O-SENTINEL-PRIOR-PROMPT' "$TMP/o/SESSION.md" \
 # ⭐ WHAT IS ASSERTED INSTEAD is the invariant the clauses actually depend on: the front-matter keys
 # are REWRITTEN and the BODY PASSES THROUGH. If that ever stops holding in a port, the corrected
 # clause's stated reason becomes false in that runtime while every other check stays green.
-_Q_LIBS="plugin-claude-code/bin plugin-antigravity/bin plugin-cursor-template/scripts/aria plugin-openai-codex/bin"
+_Q_LIBS="plugin-claude-code/scripts plugin-antigravity/bin plugin-cursor-template/scripts/aria plugin-openai-codex/bin"
 _Q_SEEN=0
 for _qd in $_Q_LIBS; do
   _qf="$REPO_ROOT/$_qd/lib-session-state.sh"

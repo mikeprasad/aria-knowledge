@@ -2,7 +2,7 @@
 # tests/repros/auto-retrospect.sh — assertions for post-push-retrospect-check.sh
 set -e
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-HOOK="$ROOT/plugin-claude-code/bin/post-push-retrospect-check.sh"
+HOOK="$ROOT/plugin-claude-code/scripts/post-push-retrospect-check.sh"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 PASS=0; FAIL=0

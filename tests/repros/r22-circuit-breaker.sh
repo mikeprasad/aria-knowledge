@@ -7,7 +7,7 @@
 set -u
 HERE=$(cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(cd "$HERE/../.." && pwd)
-HOOK="$REPO_ROOT/plugin-claude-code/bin/pre-edit-check.sh"
+HOOK="$REPO_ROOT/plugin-claude-code/scripts/pre-edit-check.sh"
 FIXTURES="$REPO_ROOT/tests/fixtures"
 fail() { echo "FAIL: $1"; exit 1; }
 export TMPDIR=$(mktemp -d); trap 'rm -rf "$TMPDIR"' EXIT

@@ -10,8 +10,8 @@
 #     resolved by config.sh, so we drive it via KT_CONFIG like the sibling repros.
 set -e
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-METER="$ROOT/plugin-claude-code/bin/statusline-meter.sh"
-INJECT="$ROOT/plugin-claude-code/bin/usage-threshold-inject.sh"
+METER="$ROOT/plugin-claude-code/scripts/statusline-meter.sh"
+INJECT="$ROOT/plugin-claude-code/scripts/usage-threshold-inject.sh"
 TMP=$(mktemp -d)
 # usage-threshold-inject keys its anti-spam band file off session_id in /tmp
 # (correct production behavior). Use a per-PID session prefix so repeated runs of

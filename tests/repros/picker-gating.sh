@@ -3,7 +3,7 @@
 # Verifies: emits "ARIA Project Picker" + menu when both gates on; silent when flag off.
 set -e
 DIR="$(cd "$(dirname "$0")/../.." && pwd)"
-HOOK="$DIR/plugin-claude-code/bin/session-start-check.sh"
+HOOK="$DIR/plugin-claude-code/scripts/session-start-check.sh"
 
 TMP=$(mktemp -d)
 KN="$TMP/kn"

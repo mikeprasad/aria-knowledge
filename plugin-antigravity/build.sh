@@ -198,7 +198,7 @@ mkdir -p "$DST/bin"
 # Remove stale top-level canonical scripts from prior builds (glob doesn't
 # recurse, so bin/antigravity/*.sh wrappers are left untouched).
 rm -f "$DST/bin"/*.sh
-for f in "$SRC/bin"/*.sh; do
+for f in "$SRC/scripts"/*.sh; do
   name=$(basename "$f")
   case "$name" in
     pre-compact-check.sh|post-compact-check.sh|session-start-check.sh|task-context-check.sh)
@@ -343,6 +343,19 @@ SAVE_TRANSCRIPT_EOF
 fi
 
 echo "  Copied + path-substituted $(ls "$DST/bin"/*.sh 2>/dev/null | wc -l | tr -d ' ') canonical bin scripts."
+
+# --- canonical scripts/ → this port's bin/ ---
+# Canonical keeps its scripts in plugin-claude-code/scripts/ (since 2.56.0): claude.ai and
+# Cowork refuse to install a Claude plugin with a top-level bin/. That rule does not apply
+# to Antigravity, so this port keeps bin/ and translates the directory name here, after
+# every copy and overlay. Only canonical script names are matched, so an unrelated
+# "scripts/" in the text is left alone.
+CANON_NAMES=$(ls "$SRC/scripts" | sed 's/\./\\./g' | paste -sd'|' -)
+export CANON_NAMES
+{ find "$DST/skills" "$DST/template" "$DST/rules" -name '*.md' 2>/dev/null
+  find "$DST/bin" -maxdepth 1 -name '*.sh'; } | while IFS= read -r f; do
+  perl -i -pe 's#\$\{CLAUDE_PLUGIN_ROOT\}/scripts/#\${CLAUDE_PLUGIN_ROOT}/bin/#g; s#plugin-claude-code/scripts\b#plugin-claude-code/bin#g; s#(?<![\w./\$-])scripts/((?:$ENV{CANON_NAMES})\b|\*|\.archived)#bin/$1#g; s#(?<![\w./\$-])scripts/(?=[\s)])#bin/#g; s#<plugin>/scripts/#<plugin>/bin/#g' "$f"
+done
 
 echo ""
 echo "[aria-knowledge] Antigravity port build complete."

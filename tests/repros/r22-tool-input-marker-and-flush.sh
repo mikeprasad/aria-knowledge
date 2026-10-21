@@ -28,7 +28,7 @@
 set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-HOOK="$REPO_ROOT/plugin-claude-code/bin/pre-edit-check.sh"
+HOOK="$REPO_ROOT/plugin-claude-code/scripts/pre-edit-check.sh"
 BASE="$REPO_ROOT/tests/fixtures/transcript-cc21280-real-base.jsonl"
 TARGET="toolu_fx_3"
 

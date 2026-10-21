@@ -3,7 +3,7 @@
 set -u
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$SCRIPT_DIR/../pm-helpers.sh"
-. "$SCRIPT_DIR/../../plugin-claude-code/bin/pm-lib.sh"
+. "$SCRIPT_DIR/../../plugin-claude-code/scripts/pm-lib.sh"
 PM_TMP="$(mktemp -d)"; trap 'rm -rf "$PM_TMP"' EXIT
 
 KT_CONFIG="$PM_TMP/aria-knowledge.local.md"

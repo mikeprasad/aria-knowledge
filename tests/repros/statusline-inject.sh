@@ -4,7 +4,7 @@
 # unsetting Desktop signals; real PATH kept so jq stays reachable.
 set -u
 HERE=$(cd "$(dirname "$0")" && pwd)
-HOOK="$HERE/../../plugin-claude-code/bin/usage-threshold-inject.sh"
+HOOK="$HERE/../../plugin-claude-code/scripts/usage-threshold-inject.sh"
 fail() { echo "FAIL: $1"; exit 1; }
 TMP=$(mktemp -d)
 SP="injtest-$$"

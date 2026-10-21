@@ -8,7 +8,7 @@ allowed-tools: Read, Glob, Grep, Bash, Write
 
 Canonical invocation: **`/audit usage`**. The direct `/audit-usage` form is retained for compatibility and is not advertised.
 
-Generate a value-analysis report computed against the user's OWN knowledge corpus — the user-facing counterpart to the plugin's published `docs/value-analysis.md` (which is the author's N=1 digest). Deterministic metrics come from `bin/usage-metrics.sh`; the interpretive narrative is written here, gated on sample size.
+Generate a value-analysis report computed against the user's OWN knowledge corpus — the user-facing counterpart to the plugin's published `docs/value-analysis.md` (which is the author's N=1 digest). Deterministic metrics come from `scripts/usage-metrics.sh`; the interpretive narrative is written here, gated on sample size.
 
 ## Runtime Gate (per ADR-094)
 
@@ -18,7 +18,7 @@ Generate a value-analysis report computed against the user's OWN knowledge corpu
 
 > ⚠️ **Runtime mismatch — you invoked aria-knowledge's `/audit usage` from a non-Code runtime.**
 >
-> This audit runs `bin/usage-metrics.sh` via Bash, unavailable here.
+> This audit runs `scripts/usage-metrics.sh` via Bash, unavailable here.
 >
 > **Proceed with this Code variant anyway?** (`y` / `n`)
 
@@ -36,7 +36,7 @@ Read `~/.claude/aria-knowledge.local.md`; extract `knowledge_folder`. If missing
 
 Run the deterministic emitter once:
 
-    bash ${CLAUDE_PLUGIN_ROOT}/bin/usage-metrics.sh
+    bash ${CLAUDE_PLUGIN_ROOT}/scripts/usage-metrics.sh
 
 Parse the labeled block (each line is `KEY value`, or `KEY subkey value` for month buckets). If the output contains `USAGE_METRICS_ERROR`, stop and tell the user their knowledge_folder is unset or missing.
 
@@ -75,5 +75,5 @@ Print a 3-4 line inline summary (needs-changes rate, clean rate, per-fix-verdict
 
 - **Opt-in only** — never fired by a cadence nudge; only explicit `/audit usage` or a menu pick.
 - **Honest on small samples** — print every `n`; gate trends on ≥10/month; never fabricate on a zero corpus.
-- **Metrics are the script's job** — do not re-derive counts inline; `bin/usage-metrics.sh` is the single source of truth. The skill only interprets and persists.
+- **Metrics are the script's job** — do not re-derive counts inline; `scripts/usage-metrics.sh` is the single source of truth. The skill only interprets and persists.
 - **The user's corpus, not the author's** — the report reflects THIS user's logs; do not import the published doc's numbers.

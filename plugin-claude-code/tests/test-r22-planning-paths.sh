@@ -4,8 +4,8 @@
 # while deliverable templates and critical_paths keep the full assessment.
 DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$DIR/.." && pwd)"
-PRE="$ROOT/bin/pre-edit-check.sh"
-POST="$ROOT/bin/post-edit-check.sh"
+PRE="$ROOT/scripts/pre-edit-check.sh"
+POST="$ROOT/scripts/post-edit-check.sh"
 
 # --- transcript fixtures (in the suite's temp dir) ---
 PP_TMP="${APM_TMP:-/tmp}/r22-pp"; mkdir -p "$PP_TMP"

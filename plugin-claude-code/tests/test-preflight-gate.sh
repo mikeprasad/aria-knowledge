@@ -8,7 +8,7 @@
 # a guard that denies on garbage input is worse than no guard at all.
 DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$DIR/.." && pwd)"
-HOOK="$ROOT/bin/pre-commit-preflight-check.sh"
+HOOK="$ROOT/scripts/pre-commit-preflight-check.sh"
 
 PF_TMP="${APM_TMP:-/tmp}/preflight-gate"; rm -rf "$PF_TMP"; mkdir -p "$PF_TMP"
 

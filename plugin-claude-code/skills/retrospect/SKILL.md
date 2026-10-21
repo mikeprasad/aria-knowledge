@@ -100,7 +100,7 @@ If the user's config (`~/.claude/aria-knowledge.local.md`) has `active_knowledge
 
 10. **Carry-forward.** These loaded files become input to Step 2 (Load Pattern Libraries — past retros may already have catalogued the relevant failure-mode patterns) and Step 3.5 (Evidence-Sourcing Pass — they may already provide validation or falsification for fixes in this range).
 
-11. **Tracked artifacts surfacing (added v2.16.1).** After Step 10's carry-forward, ALSO surface CODEMAP + STITCH for the analyzed range's project. The shared lib at `${CLAUDE_PLUGIN_ROOT}/bin/lib-tracked-artifacts.sh` implements equivalent logic for hooks; this step inlines the algorithm for skill-context portability.
+11. **Tracked artifacts surfacing (added v2.16.1).** After Step 10's carry-forward, ALSO surface CODEMAP + STITCH for the analyzed range's project. The shared lib at `${CLAUDE_PLUGIN_ROOT}/scripts/lib-tracked-artifacts.sh` implements equivalent logic for hooks; this step inlines the algorithm for skill-context portability.
 
     a. **Detect project tag from changed file paths.** Run `git diff --name-only <range>` for the analyzed bundle. For each changed file, check whether any `projects_list[<tag>].path` appears as substring. Count matches per tag; pick the tag with the most matches. Tie-breaker: explicit project flag if provided. If no detection (e.g., bundle touches knowledge folder only, no project files), skip the rest of Step 11.
 

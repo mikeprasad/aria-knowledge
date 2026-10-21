@@ -26,12 +26,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/bin/session-start-check.sh",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/session-start-check.sh",
             "timeout": 10
           },
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/bin/session-start-rules.sh",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/session-start-rules.sh",
             "timeout": 10
           }
         ]
@@ -42,7 +42,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/bin/usage-threshold-inject.sh",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/usage-threshold-inject.sh",
             "timeout": 5
           }
         ]
@@ -54,7 +54,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/bin/pre-edit-check.sh",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/pre-edit-check.sh",
             "timeout": 45
           }
         ]
@@ -64,7 +64,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/bin/pre-explore-codemap-check.sh",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/pre-explore-codemap-check.sh",
             "timeout": 5
           }
         ]
@@ -74,22 +74,22 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/bin/bash-cd-check.sh",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/bash-cd-check.sh",
             "timeout": 5
           },
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/bin/pre-commit-preflight-check.sh",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/pre-commit-preflight-check.sh",
             "timeout": 5
           },
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/bin/pre-bash-write-check.sh",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/pre-bash-write-check.sh",
             "timeout": 5
           },
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/bin/pre-bash-r22-carrier.sh",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/pre-bash-r22-carrier.sh",
             "timeout": 5
           }
         ]
@@ -99,7 +99,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/bin/pre-external-fetch-check.sh",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/pre-external-fetch-check.sh",
             "timeout": 5
           }
         ]
@@ -109,7 +109,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/bin/pre-cron-check.sh",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/pre-cron-check.sh",
             "timeout": 5
           }
         ]
@@ -121,12 +121,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/bin/post-edit-check.sh",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/post-edit-check.sh",
             "timeout": 5
           },
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/bin/post-edit-tautology-check.sh",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/post-edit-tautology-check.sh",
             "timeout": 5
           }
         ]
@@ -136,7 +136,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/bin/post-plan-prospect-check.sh",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/post-plan-prospect-check.sh",
             "timeout": 5
           }
         ]
@@ -146,7 +146,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/bin/post-push-retrospect-check.sh",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/post-push-retrospect-check.sh",
             "timeout": 5
           }
         ]
@@ -157,7 +157,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/bin/pre-compact-check.sh",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/pre-compact-check.sh",
             "timeout": 10
           }
         ]
@@ -168,7 +168,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/bin/post-compact-check.sh",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/post-compact-check.sh",
             "timeout": 10
           }
         ]
@@ -179,7 +179,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/bin/task-context-check.sh",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/task-context-check.sh",
             "timeout": 5
           }
         ]
@@ -190,7 +190,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/bin/subagent-stop-capture.sh",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/subagent-stop-capture.sh",
             "timeout": 10
           }
         ]
@@ -201,7 +201,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/bin/subagent-start-selfreport.sh",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/subagent-start-selfreport.sh",
             "timeout": 10
           }
         ]

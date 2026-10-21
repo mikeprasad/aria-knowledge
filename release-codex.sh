@@ -51,10 +51,10 @@ sh "$REPO_ROOT/plugin-openai-codex/tests/run.sh"
 # Gate C parity with the canonical release path: report port drift during Codex
 # releases too, without making pre-existing cross-port lag fatal yet.
 log "gate C: port drift (report-only)"
-if [[ -x "$REPO_ROOT/plugin-claude-code/bin/check-port-drift.sh" ]]; then
-    sh "$REPO_ROOT/plugin-claude-code/bin/check-port-drift.sh" || true
+if [[ -x "$REPO_ROOT/plugin-claude-code/scripts/check-port-drift.sh" ]]; then
+    sh "$REPO_ROOT/plugin-claude-code/scripts/check-port-drift.sh" || true
 else
-    warn "gate C skipped: plugin-claude-code/bin/check-port-drift.sh not found"
+    warn "gate C skipped: plugin-claude-code/scripts/check-port-drift.sh not found"
 fi
 
 # --- stage ------------------------------------------------------------------

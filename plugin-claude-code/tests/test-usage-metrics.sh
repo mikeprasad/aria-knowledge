@@ -1,6 +1,6 @@
 # shellcheck shell=sh
-# test-usage-metrics.sh — bin/usage-metrics.sh over a fixture corpus
-BIN="$(cd "$(dirname "$0")/../bin" && pwd)"
+# test-usage-metrics.sh — scripts/usage-metrics.sh over a fixture corpus
+BIN="$(cd "$(dirname "$0")/../scripts" && pwd)"
 UM_TMP="${TMPDIR:-/tmp}/aria-um-$$"
 KF="$UM_TMP/knowledge"
 mkdir -p "$KF/logs/prospect" "$KF/logs/retrospect" "$KF/rules" \

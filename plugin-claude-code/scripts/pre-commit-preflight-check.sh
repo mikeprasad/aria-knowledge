@@ -31,7 +31,7 @@ INPUT=$(cat)
 # becomes a real newline, the value splits across lines, and a single-line grep
 # silently matches nothing. Same reasoning as bash-cd-check.sh.
 # (This previously cited pre-bash-write-check.sh, retired 2026-08-26 for deciding
-# from the command string rather than the resolved target — see bin/.archived/.)
+# from the command string rather than the resolved target — see scripts/.archived/.)
 COMMAND=$(printf '%s' "$INPUT" | grep -o '"command":"[^"]*"' | head -1 | sed 's/"command":"//;s/"$//')
 [ -z "$COMMAND" ] && exit 0
 

@@ -15,8 +15,8 @@
 set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-HOOK="$REPO_ROOT/plugin-claude-code/bin/pre-edit-check.sh"
-REC="$REPO_ROOT/plugin-claude-code/bin/pre-bash-r22-carrier.sh"
+HOOK="$REPO_ROOT/plugin-claude-code/scripts/pre-edit-check.sh"
+REC="$REPO_ROOT/plugin-claude-code/scripts/pre-bash-r22-carrier.sh"
 BASE="$REPO_ROOT/tests/fixtures/transcript-cc21280-real-base.jsonl"
 
 export TMPDIR=$(mktemp -d)

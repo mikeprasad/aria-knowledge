@@ -19,7 +19,7 @@
 set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-BIN="$REPO_ROOT/plugin-claude-code/bin"
+BIN="$REPO_ROOT/plugin-claude-code/scripts"
 HOOK="$BIN/pre-edit-check.sh"
 REC="$BIN/pre-bash-r22-carrier.sh"
 MANIFEST="$REPO_ROOT/plugin-claude-code/.claude-plugin/plugin.json"

@@ -206,7 +206,7 @@ printf '%s' "$WSEC" | grep -qiE 'antigravity|codex' \
 # ── R: the Rule 22 bypass ledger is READ, and the false "no writer" claim stays retired ─────────
 # ⛔ FOUR ALWAYS-LOADED SKILLS TOLD EVERY SESSION THE LEDGER DID NOT EXIST WHILE IT DID. The claim
 # was "there is no ledger to read any more ... retired 2026-08-26 as its only writer". Measured
-# 2026-09-11: bin/pre-bash-write-check.sh is on disk, writes that exact path, is WIRED in the hooks
+# 2026-09-11: scripts/pre-bash-write-check.sh is on disk, writes that exact path, is WIRED in the hooks
 # block, and 19 live ledger files were present in $TMPDIR. The writer was REPLACED, not retired.
 #
 # ⭐ The false sentence carried its own removal trigger -- "until a replacement exists" -- and the

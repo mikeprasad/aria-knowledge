@@ -176,11 +176,11 @@ grep -qiE 'never fake or silently skip|classify it, never fake|model == backend'
   && ok "V honest-classify (no fake/skip)" || bad "V honest" "no don't-fake-or-skip clause"
 
 # SR: context-window self-restart (Piece A) — gated on continue + the self-restart flag,
-# writes a restart-signal file for the external bin/auto-runloop.sh wrapper, never self-/clear.
+# writes a restart-signal file for the external scripts/auto-runloop.sh wrapper, never self-/clear.
 grep -qiE 'self-restart' "$SK" && ok "SR self-restart flag documented" || bad "SR flag" "no self-restart flag in the arg grammar"
 grep -qiE 'restart-signal|auto-restart-requested|signal file' "$SK" \
   && ok "SR restart-signal file" || bad "SR signal" "no restart-signal-file write documented"
-grep -qiE 'auto-runloop' "$SK" && ok "SR names the external wrapper" || bad "SR wrapper" "doesn't point at bin/auto-runloop.sh"
+grep -qiE 'auto-runloop' "$SK" && ok "SR names the external wrapper" || bad "SR wrapper" "doesn't point at scripts/auto-runloop.sh"
 # Gate: BOTH continue-mode AND the explicit flag (never auto-clears an attended/default run)
 grep -qiE 'continue.*(and|\+|&).*self-restart|self-restart.*(and|requires|only).*continue|both .*continue.* and .*self-restart' "$SK" \
   && ok "SR gated on continue AND the flag" || bad "SR gate" "gate (continue AND self-restart) not stated"
