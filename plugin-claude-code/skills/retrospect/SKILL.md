@@ -584,7 +584,7 @@ After Step 4 produces the report, write outputs to the configured destinations:
   tickets: [<ABC-123>, <ABC-456>]   # empty list if none
   fixes_count: <N>
   model: <model executing this gate, e.g. claude-opus-5 — or `unrecorded` if unknown>
-  effort: <reasoning-effort level, e.g. xhigh | high | medium — or `unrecorded` if unknown>
+  effort: <output of printf '%s\n' "${CLAUDE_EFFORT:-unrecorded}" — run it, copy verbatim; never infer or guess>
   sourcing_pass:
     bundle_marker:
       candidates: <N>
@@ -607,6 +607,8 @@ After Step 4 produces the report, write outputs to the configured destinations:
   tags: [retrospect, <scope>, <project-tag-if-detected>, <pattern-tag-if-applicable>]
   ---
   ```
+
+  **`effort:` is read, never inferred.** Run `printf '%s\n' "${CLAUDE_EFFORT:-unrecorded}"` in Bash and copy the output verbatim — Claude Code sets `$CLAUDE_EFFORT` in Bash subprocesses to the effort level in effect when they start, a subagent sees its own level, and you cannot see your own effort setting (self-reported values disagreed with the harness record on 24% of 140 matched logs). If the variable is unset the command prints `unrecorded`; record that rather than a guess.
 
   **`overall_outcome` derivation:** `closed` if every fix's post-Step-3.5 Validated? is ✅; `unresolved` if any fix is ❌ Invalidated or ❌ Not-in-bundle; `partial` if any fix is ⚠ partial AND none are ❌; `mixed` for any other combination.
 
