@@ -142,4 +142,23 @@ for c5_dir in "$BIN" "$C5_REPO/plugin-openai-codex/bin" "$C5_REPO/plugin-cursor-
   done
 done
 
+# --- 2.57.1: a trailing `# comment` or trailing space must not move a value to another bucket ---
+# Forms copied from real logs ("closed  # was partial; …", "PROCEED  # was HOLD …").
+CV_KF="$UM_TMP/kf-comments"; mkdir -p "$CV_KF/logs/prospect" "$CV_KF/logs/retrospect"
+printf 'overall_verdict: PROCEED-WITH-CHANGES   # spec scope; plan scope PROCEED\n' > "$CV_KF/logs/prospect/2026-07-01-a.md"
+printf 'overall_verdict: PROCEED  # was HOLD at original run\n'                      > "$CV_KF/logs/prospect/2026-07-02-b.md"
+printf 'overall_verdict: HOLD — one prerequisite first\n'                           > "$CV_KF/logs/prospect/2026-07-03-c.md"
+printf 'overall_outcome: closed  # was partial; residual satisfied\n'               > "$CV_KF/logs/retrospect/2026-07-01-x.md"
+printf 'overall_outcome: closed \n'                                                 > "$CV_KF/logs/retrospect/2026-07-02-y.md"
+printf 'overall_outcome: partial   # corrected later\n'                             > "$CV_KF/logs/retrospect/2026-07-03-z.md"
+CV_OUT="$( HOME="$UM_HOME" KT_KNOWLEDGE_FOLDER="$CV_KF" KT_CONFIG="$UM_TMP/absent.md" sh "$BIN/usage-metrics.sh" || : )"
+cv() { printf '%s\n' "$CV_OUT" | grep "^$1 " | head -1 | sed "s/^$1 //"; }
+assert_eq "CV commented PWC counts as PWC"        "1" "$(cv PROSPECT_PWC)"
+assert_eq "CV commented PROCEED counts as clean"  "1" "$(cv PROSPECT_CLEAN)"
+assert_eq "CV only the real HOLD is hold"         "1" "$(cv PROSPECT_HOLD)"
+assert_eq "CV prospect month buckets"             "2026-07 1 1 1" "$(cv PROSPECT_MONTH)"
+assert_eq "CV commented + trailing-space closed"  "2" "$(cv RETRO_CLOSED)"
+assert_eq "CV commented partial counts"           "1" "$(cv RETRO_PARTIAL)"
+assert_eq "CV retro month closed/total"           "2026-07 2 3" "$(cv RETRO_MONTH)"
+
 rm -rf "$UM_TMP"

@@ -10,13 +10,20 @@ if [ -z "$KF" ] || [ ! -d "$KF" ]; then
   exit 0
 fi
 
+# fm_value KEY FILE — the first `KEY:` line's value, without a trailing `# comment`
+# or trailing whitespace. Real logs annotate values ("closed  # was partial …"), and
+# an exact-match bucket would otherwise count those in the total but in no bucket.
+fm_value() {
+  grep -m1 "^$1:" "$2" 2>/dev/null | sed "s/^$1:[[:space:]]*//; s/[[:space:]]*#.*\$//; s/[[:space:]]*\$//"
+}
+
 # --- Prospect verdict distribution (primary key only) ---
 pdir="$KF/logs/prospect"
 p_total=0; p_pwc=0; p_clean=0; p_hold=0
 if [ -d "$pdir" ]; then
   for f in "$pdir"/*.md; do
     [ -e "$f" ] || continue
-    v=$(grep -m1 '^overall_verdict:' "$f" 2>/dev/null | sed 's/^overall_verdict: *//')
+    v=$(fm_value overall_verdict "$f")
     [ -z "$v" ] && continue
     p_total=$((p_total+1))
     case "$v" in
@@ -37,7 +44,7 @@ if [ -d "$pdir" ]; then
     m_pwc=0; m_clean=0; m_hold=0
     for f in "$pdir"/"$ym"-*.md; do
       [ -e "$f" ] || continue
-      v=$(grep -m1 '^overall_verdict:' "$f" 2>/dev/null | sed 's/^overall_verdict: *//')
+      v=$(fm_value overall_verdict "$f")
       [ -z "$v" ] && continue
       case "$v" in
         PROCEED-WITH-CHANGES) m_pwc=$((m_pwc+1)) ;;
@@ -55,7 +62,7 @@ r_total=0; r_closed=0; r_partial=0; r_mixed=0; r_unres=0; r_vfiles=0
 if [ -d "$rdir" ]; then
   for f in "$rdir"/*.md; do
     [ -e "$f" ] || continue
-    o=$(grep -m1 '^overall_outcome:' "$f" 2>/dev/null | sed 's/^overall_outcome: *//')
+    o=$(fm_value overall_outcome "$f")
     if [ -n "$o" ]; then
       r_total=$((r_total+1))
       case "$o" in
@@ -83,7 +90,7 @@ if [ -d "$rdir" ]; then
     m_c=0; m_t=0
     for f in "$rdir"/"$ym"-*.md; do
       [ -e "$f" ] || continue
-      o=$(grep -m1 '^overall_outcome:' "$f" 2>/dev/null | sed 's/^overall_outcome: *//')
+      o=$(fm_value overall_outcome "$f")
       [ -z "$o" ] && continue
       m_t=$((m_t+1))
       [ "$o" = "closed" ] && m_c=$((m_c+1))
