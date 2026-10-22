@@ -1,7 +1,7 @@
 {
   "claude-code": {
-    "version": "2.57.0",
-    "parity_target": "2.57.0",
+    "version": "2.57.1",
+    "parity_target": "2.57.1",
     "last_parity_pass": "2026-10-21",
     "sla": "undeclared",
     "surfaces": {}
@@ -101,8 +101,8 @@
     }
   },
   "antigravity": {
-    "version": "2.57.0",
-    "parity_target": "2.57.0",
+    "version": "2.57.1",
+    "parity_target": "2.57.1",
     "last_parity_pass": "2026-10-21",
     "sla": "undeclared",
     "surfaces": {

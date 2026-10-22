@@ -37,7 +37,8 @@ Cursor-specific files live here:
 ## Current Parity Notes
 
 - **Canonical parity target:** `plugin-claude-code/` @ **v2.55.1** (2026-10-14).
-- **Cursor port version:** `scripts/aria/VERSION` → `2.57.0-cursor.0`.
+- **Cursor port version:** `scripts/aria/VERSION` → `2.57.1-cursor.0`.
+- **New in 2.57.1-cursor.0:** `/audit usage` verdict and outcome counters strip a trailing `# comment` (copied canonical `usage-metrics.sh`).
 - **New in 2.57.0-cursor.0:** the canonical 2.57.0 `/audit usage`, curated-dir fetch-gate and effort-line changes, compiled into the `.mdc` rules by `port-skills-to-mdc.py`, which also emits the earlier `bin/` → `scripts/` path wording not regenerated since 2.55.1. `RULES_DIGEST_BYTES` reads `unmeasured` here (no bundled rules digest), so `FIXED_COST_BYTES` is `partial`. The parity target above is unchanged.
 - **New in 2.55.1-cursor.0:** `/audit rules` compiled into `aria-audit.mdc` (the dispatcher already routed to it) with a Cursor step 6 and `scripts/aria/check-rule-lead-bytes.sh`; Bash-capability preconditions stripped like ADR-094 gates (Cursor has a shell); Claude-Code hook-mechanics paragraphs stripped from `aria-rule-22.mdc`, with `verify_markers` now failing generation if any such text, or a `/aria-cowork:` route, reaches a compiled rule; `lib-session-state.sh` gains `kt_ss_ledger_consume_active` + `kt_ss_read_active_token` and the 2.53.2 `mark_superseded` literal-match fix; sessionStart carries the token-resume SESSION STATE procedure; `pre-bash-write-check.sh` warns on the resolved write target via `pre-bash-write-resolve.py` (verbatim canonical) instead of exempting any command that mentions `/tmp`; edit-time handoff auto-consume removed from `post-edit-check.sh`; `knowledge/` re-mirrored (Rule 23 scope + falsifier text, `index.md`).
 - **ADR-094 Runtime Gates:** intentionally **omitted** in Cursor — aria-cowork is not loaded in typical Cursor sessions; namespace note lives in `aria-commands.mdc` preamble only.

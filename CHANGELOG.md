@@ -2,6 +2,14 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.57.1 — 2026-10-21
+
+**`/audit usage` no longer miscounts a verdict or outcome that carries a comment.** Gate logs are sometimes annotated after the fact (`closed  # was partial; …`, `PROCEED  # was HOLD …`). The older verdict and outcome counters matched values exactly, so an annotated value was counted in the total but in the wrong bucket, or in none. This dates from v2.41.0, when the counters were added; the keys added in 2.57.0 already handled it.
+
+- **One helper now reads all four counters** (verdict and outcome, totals and month buckets) and strips a trailing `# comment` and trailing spaces before matching.
+- **On the author's knowledge folder:** closed retrospects 391 → 394, three verdicts move from HOLD to their real buckets, and all nine counters match an independent count.
+- **Ports:** Codex (`2.57.1-codex.0`), Cursor (`2.57.1-cursor.0`) and Antigravity (`2.57.1`) carry the same script. Cowork has no `/audit usage` and stays at 1.8.1.
+
 ## 2.57.0 — 2026-10-21
 
 **`/audit usage` now reports what the gates caught, the external-fetch gate searches only your curated notes, and `/prospect` and `/retrospect` take the reasoning-effort level from the runtime instead of guessing it.** All three were found by re-measuring the plugin's own value analysis.
