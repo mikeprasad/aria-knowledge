@@ -31,7 +31,7 @@
 #
 # v2.57.3: on Claude Code 2.1.308 an edit that is the first tool call of its
 # response has its own transcript line written only AFTER its own PreToolUse hook
-# returns (measured: +0.12 s after return). The hook waits briefly (2 s) for its
+# returns (measured: +0.12 s after return). The hook waits briefly (5 s) for its
 # line; if absent it judges the transcript already on disk (tail mode) instead of
 # failing open. See docs/superpowers/specs/2026-10-22-r22-tail-window-when-own-
 # line-absent-spec.md.
@@ -318,15 +318,16 @@ try:
         # whole response when streaming ends. v2.57.3, measured on Claude Code
         # 2.1.308: a first-tool edit's own line lands only AFTER its own hook
         # returns, so no wait can find it; a later tool in the same response does
-        # see its line (~1.6 s after creation). So wait 2 s for the precise path,
+        # see its line (~1.6 s after creation; a Bash-less subagent's first-tool
+        # Write landed at 1.18 s). So wait 5 s for the precise path,
         # then fall back to tail mode below. Keep the cap UNDER the 45 s hook
         # timeout in plugin.json: a hook cancelled at its timeout is a SILENT
         # fail-open.
         import time
         try:
-            wait_ms = int(os.environ.get("ARIA_R22_FLUSH_WAIT_MS", "2000"))
+            wait_ms = int(os.environ.get("ARIA_R22_FLUSH_WAIT_MS", "5000"))
         except ValueError:
-            wait_ms = 2000
+            wait_ms = 5000
         deadline = time.time() + max(wait_ms, 0) / 1000.0
         target_line_idx, target_content_idx = find_target(lines)
         while target_line_idx is None and time.time() < deadline:
@@ -360,22 +361,15 @@ try:
                                 if isinstance(b, dict) and b.get("type") == "tool_use" and b.get("id") == prev:
                                     return True
                     return False
-                while not on_disk(lines) and time.time() < deadline:
-                    time.sleep(0.05)
-                    with open(path) as f:
-                        lines = f.readlines()
+                # Tail mode is entered only after the wait above has run out, so
+                # this is one snapshot taken at least the full wait after the hook
+                # started; a previous edit's line lands ~0.12 s after its own hook
+                # returned. No further polling: the deadline has already passed.
                 if not on_disk(lines):
                     print("unknown")
                     sys.exit(0)
-                # The re-reads above may have brought in this edit's own line;
-                # if so, the precise path decides (a tail walk would stop at it).
-                found_idx, found_content = find_target(lines)
-                if found_idx is not None:
-                    tail_mode = False
-                    target_line_idx, target_content_idx = found_idx, found_content
-            if tail_mode:
-                target_line_idx = len(lines)
-                target_content_idx = 0
+            target_line_idx = len(lines)
+            target_content_idx = 0
 
         # v2.53.3: Claude Code 2.1.280 persists most assistant text blocks as a
         # paraphrased thinking block with no marker token — even a text block

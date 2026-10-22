@@ -15,7 +15,7 @@
 ## Global Constraints
 
 - Hooks stay POSIX `sh` + inline `python3`; no new dependencies.
-- Default `ARIA_R22_FLUSH_WAIT_MS` = **2000**; the env override keeps working. Hook timeout in `plugin.json` stays **45**.
+- Default `ARIA_R22_FLUSH_WAIT_MS` = **2000** — *AMENDED to 5000 after the branch review (spec AC2 amendment); R3 and H4 follow*; the env override keeps working. Hook timeout in `plugin.json` stays **45**.
 - `unknown` (loud allow) remains for: transcript missing/unreadable, python failure, anchor recorded but not on disk.
 - New state file: `${TMPDIR:-/tmp}/aria-r22-lastedit-${SESSION_KEY}${AGENT_SUFFIX}`, atomic write (tmp + `mv`), Claude Code branch only (`STEP_INDEX` empty), skipped when `SESSION_KEY` is empty.
 - Keep `RULE 22 ORDERING —` verbatim in `session-start-check.sh` (`test-aria-rules-digest.sh` asserts it).

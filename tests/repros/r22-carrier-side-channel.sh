@@ -46,7 +46,7 @@ import json, sys
 L = [json.loads(l) for l in open(sys.argv[1]) if l.strip()]
 i = max(n for n, e in enumerate(L) if e.get("type") == "assistant"
         and any(b.get("id") == "toolu_fx_3" for b in e["message"]["content"]))
-L[i-1]["message"]["content"] = [{"type": "text", "text": "[Rule 22] Low Impact — probe / Change — x / Solutions — y / Execute — z"}]
+L[i]["message"]["content"] = [{"type": "text", "text": "[Rule 22] Low Impact — probe / Change — x / Solutions — y / Execute — z"}] + L[i]["message"]["content"]
 open(sys.argv[2], "w").write("".join(json.dumps(e, ensure_ascii=False) + "\n" for e in L[:i]))
 open(sys.argv[3], "w").write(json.dumps(L[i], ensure_ascii=False) + "\n")
 PY
@@ -133,7 +133,10 @@ record S6 P1 - "$CARRIER"
 v=$(verdict "$(edit_in S6 - - "$W/plain.jsonl")")
 if [ "$v" = "deny" ] && [ ! -e "$(state S6)" ]; then ok "C10-no-prompt-id-fails-closed"; else bad "C10-no-prompt-id-fails-closed" "got $v, state $( [ -e "$(state S6)" ] && echo kept || echo removed)"; fi
 
-# --- fallback wait (env UNSET: a line flushed within the shipped 2 s default is still found)
+# --- fallback wait (env UNSET: a line flushed within the shipped default is still found).
+# The marker sits INSIDE the late line (same message as the target), so only the
+# precise path can see it: if the wait stopped finding late lines, tail mode would
+# judge the on-disk part, find no marker, and deny.
 cp "$W/text.jsonl" "$W/late.jsonl"
 ( sleep 1.0; cat "$W/text.last" >> "$W/late.jsonl" ) &
 v=$(env -u ARIA_R22_FLUSH_WAIT_MS sh -c 'printf "%s" "$1" | sh "$2" 2>&1' _ "$(edit_in S12 P12 - "$W/late.jsonl")" "$HOOK")
@@ -152,7 +155,7 @@ h=json.load(open(sys.argv[1]))["hooks"]["PreToolUse"]
 print([x.get("timeout") for m in h for x in m["hooks"] if "pre-edit-check.sh" in x.get("command","")])' "$MANIFEST")
 [ "$r2" = "[45]" ] && ok "R2-pre-edit-timeout-45" || bad "R2-pre-edit-timeout-45" "timeouts=$r2"
 cap=$(grep -o 'ARIA_R22_FLUSH_WAIT_MS", "[0-9]*"' "$HOOK" | grep -o '[0-9]*"$' | tr -d '"')
-if [ "$cap" = "2000" ]; then ok "R3-default-cap-2000-under-timeout ($cap ms)"; else bad "R3-default-cap-2000-under-timeout" "cap=[$cap]"; fi
+if [ "$cap" = "5000" ]; then ok "R3-default-cap-5000-under-timeout ($cap ms)"; else bad "R3-default-cap-5000-under-timeout" "cap=[$cap]"; fi
 
 printf "\n%d passed, %d failed\n" "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

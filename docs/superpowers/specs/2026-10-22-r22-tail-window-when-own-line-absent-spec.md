@@ -19,7 +19,7 @@
 ## 2. Goals and acceptance criteria
 
 - **AC1 (verdict, not fail-open):** when the edit's own `tool_use` line is not on disk after the short wait, the hook evaluates the transcript already written and returns **allow** (marker found in the window) or **deny** (no marker) — never "could not verify" for a readable transcript.
-- **AC2 (latency):** the default `ARIA_R22_FLUSH_WAIT_MS` drops from 40,000 to **2,000**. A first-tool edit with no carrier is decided within wait + 1 s (measured by test), not 40 s.
+- **AC2 (latency):** the default `ARIA_R22_FLUSH_WAIT_MS` drops from 40,000 to **5,000**. A first-tool edit with no carrier is decided within wait + 2 s (measured by test), not 40 s. *Amended 2026-10-22 after review: the first draft said 2,000. Measured own-line landing times are 1.18 s (a Bash-less subagent's first-tool Write, watcher) and ~1.6 s (a later tool in a main-thread response, B3); a cap of 2 s left 0.4–0.8 s of margin, and a too-short cap falsely DENIES a compliant edit (three in a row trip the breaker), while a longer cap costs latency only on edits tail mode will judge anyway. 5 s is ~3× the largest observation.*
 - **AC3 (window start, ADR 062):** the window starts after the **previous Edit/Write checked by this hook in the same session and agent**, not merely after the last Edit/Write line that happens to be on disk. A marker that authorised the previous edit never authorises this one.
 - **AC4 (window start, turn scope):** with no previous edit in the turn, the window starts at the last real user message (tool-result-only user lines are skipped, as today).
 - **AC5 (precise path unchanged):** when the own line *is* found, the existing window logic decides, byte-for-byte the same verdicts as today on every existing fixture.
@@ -32,7 +32,7 @@
 
 ## 3. Design
 
-**D1 — Short wait.** Keep the polling loop for the own line, default 2,000 ms. Rationale: a later tool in a response sees its line ~1.6 s after creation (B3), so the precise path still serves multi-tool responses; for a first-tool edit the wait is pure cost, so it is short.
+**D1 — Short wait.** Keep the polling loop for the own line, default 5,000 ms (see AC2's amendment). Rationale: a later tool in a response sees its line ~1.6 s after creation (B3), so the precise path still serves multi-tool responses; for a first-tool edit the wait is pure cost, so it is short.
 
 **D2 — Tail window when the own line is absent.** All lines on disk precede this edit. Walk backward from the end of the file with the same accumulation rules as today's "previous messages" loop (text blocks → `MARKER`; non-content-tool string inputs → line-start `LINE_MARKER`; skip tool-result-only user lines; stop at a real user message; stop at the window-start anchor). Return yes/no. Refactor the existing backward loop into one function used by both paths, so the two cannot drift.
 

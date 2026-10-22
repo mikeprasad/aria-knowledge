@@ -135,7 +135,16 @@ late() {  # late <name> <source-fixture>
   head -n $(($(wc -l < "$2") - 1)) "$2" > "$WORK/$1.jsonl"
   tail -n 1 "$2" > "$WORK/$1.last"
 }
-late late_ok  "$WORK/carrier.jsonl"
+# late_ok: the visible-text marker is INSIDE the late line (same message as the target),
+# so only the precise path can see it — tail mode would deny. This is what proves the
+# wait still FINDS a late line, not merely that it waits.
+late late_ok  "$WORK/plain.jsonl"
+python3 - "$WORK/late_ok.last" <<'PY'
+import json, sys
+e = json.loads(open(sys.argv[1]).read())
+e["message"]["content"] = [{"type": "text", "text": "[Rule 22] Low Impact — late-line marker"}] + e["message"]["content"]
+open(sys.argv[1], "w").write(json.dumps(e, ensure_ascii=False) + "\n")
+PY
 late late_bad "$WORK/plain.jsonl"
 late never    "$WORK/carrier.jsonl"
 late never_plain "$WORK/plain.jsonl"
@@ -174,10 +183,10 @@ checkw "H5-tail-turn-boundary-denies"             deny  "$WORK/never_turn.jsonl"
 checkw "H6-tail-scope-line-denies"                deny  "$WORK/never_scope.jsonl"
 # H4: with the SHIPPED default wait, a never-flushed edit is decided promptly.
 t0=$(now_ms); H4_OUT=$(unset ARIA_R22_FLUSH_WAIT_MS; run_hook "$WORK/never_plain.jsonl"); H4_EL=$(( $(now_ms) - t0 ))
-if [ "$(verdict_of "$H4_OUT")" = "deny" ] && [ "$H4_EL" -lt 4000 ]; then
+if [ "$(verdict_of "$H4_OUT")" = "deny" ] && [ "$H4_EL" -lt 7000 ]; then
   printf "PASS  H4-tail-verdict-within-default-wait (deny, %d ms)\n" "$H4_EL"; PASS=$((PASS + 1))
 else
-  printf "FAIL  H4-tail-verdict-within-default-wait (got=%s in %d ms; want deny < 4000)\n" "$(verdict_of "$H4_OUT")" "$H4_EL"; FAIL=$((FAIL + 1))
+  printf "FAIL  H4-tail-verdict-within-default-wait (got=%s in %d ms; want deny < 7000)\n" "$(verdict_of "$H4_OUT")" "$H4_EL"; FAIL=$((FAIL + 1))
 fi
 # The cap is honoured and bounds the wait. DIFFERENTIAL on purpose: an absolute
 # ceiling flaked under load (interpreter startup varies with the machine), and a
