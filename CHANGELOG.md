@@ -2,6 +2,18 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.57.3 — 2026-10-22
+
+**The Rule 22 gate denies again when an edit is the first tool call of its response.** Measured on Claude Code 2.1.308: such an edit has its own transcript line written only after its own PreToolUse hook returns (a transcript watcher saw it land 0.12 s after the hook exited). `pre-edit-check.sh` waited up to 40 s for that line, could never find it, and failed open — every such edit without a recorded heredoc carrier was allowed after a 40 s stall, with "could not verify this edit". Census of the last 250 project transcripts (events dated 2026-10-10 or later): 143 of those fail-opens against 130 real denials, and every fail-open since 2026-10-02 ran the full 40 s.
+
+- **Tail mode:** the hook waits 2 s (`ARIA_R22_FLUSH_WAIT_MS`, was 40 s) for its own line, then judges the transcript already on disk — the same window walk as before, started at end-of-file. A readable transcript now always yields allow or deny.
+- **Previous-edit anchor:** each check records its `tool_use_id` in `${TMPDIR}/aria-r22-lastedit-<session><agent>`. In tail mode, a previous edit that has not landed yet returns the loud "could not verify" rather than a verdict whose window could reach that edit's marker (one marker, one edit).
+- **Expected effect, measured by replay:** run over the 144 recorded fail-opens with each edit's own line removed, the new hook denies 143 and allows 1. Of the 143: 108 had no marker at all, 23 only post-edit `[Rule 22 · Scope]` lines, and 12 wrote the marker mid-line (`echo "[Rule 22] …"`), a form the gate has never accepted — the heredoc carrier (`cat <<'R22'`) is the reliable path. Bound: carriers and anchors were not reconstructed, and the replay sees slightly more of the transcript than the live hook did.
+- **Still a loud fail-open:** a missing or unreadable transcript, or a python failure.
+- **Docs:** the change-decision framework (all five ports), the always-on rules digest and the SessionStart RULE 22 ORDERING message no longer promise a 40 s wait for visible text.
+- **Tests:** `r22-tool-input-marker-and-flush.sh` H2a/H2b/H4/H5/H6, `4-8-thinking-and-failopen.sh` E/E2, `r22-circuit-breaker.sh` test 3, `r22-carrier-side-channel.sh` W1/R3, and the new `r22-tail-anchor.sh` (T1–T6). The final suites run against the 2.57.2 hook fail exactly the eleven predicted controls.
+- **Ports:** Antigravity (`2.57.3`) regenerated; its hook is byte-identical to canonical. Codex, Cursor and Cowork have no transcript wait and are unchanged.
+
 ## 2.57.2 — 2026-10-21
 
 **Every hook now runs when the plugin is installed in a folder whose path contains a space.** The Claude desktop app (3.1623.1) installs plugins under `~/Library/Application Support/Claude/…`. Each hook command was `bash ${CLAUDE_PLUGIN_ROOT}/scripts/<x>.sh` with the path unquoted, so the shell split it at the space and bash exited 127. Claude Code treats that exit as a non-blocking error, so the hook was skipped and the tool call went ahead. Every aria hook stopped running in desktop-app sessions, including the Rule 22 edit gate, which failed open. Terminal installs under `~/.claude/plugins/` have no space and were not affected.
