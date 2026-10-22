@@ -36,7 +36,7 @@ Read `~/.claude/aria-knowledge.local.md`; extract `knowledge_folder`. If missing
 
 Run the deterministic emitter once:
 
-    bash ${CLAUDE_PLUGIN_ROOT}/scripts/usage-metrics.sh
+    bash "${CLAUDE_PLUGIN_ROOT}/scripts/usage-metrics.sh"
 
 Parse the labeled block (each line is `KEY value`, or `KEY subkey value` for month buckets). If the output contains `USAGE_METRICS_ERROR`, stop and tell the user their knowledge_folder is unset or missing.
 

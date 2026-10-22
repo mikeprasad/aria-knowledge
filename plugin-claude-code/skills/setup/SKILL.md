@@ -90,7 +90,7 @@ ARIA v2.11 moved the ideas backlog from a single `intake/ideas-backlog.md` file 
 
   - **If count is 0:** the legacy file has no active entries (cleared-history HTML comments only). Prompt: *"Empty pre-2.11 `ideas-backlog.md` found. Delete it? (y/n)"* — on yes, `rm` the file; on no, leave it.
   - **If count > 0:** report: *"Pre-2.11 `ideas-backlog.md` detected with {N} active entries. ARIA v2.11 uses per-file ideas in `intake/ideas/`. Options:"*
-    - `(1) Migrate now` — run `bash ${CLAUDE_PLUGIN_ROOT}/scripts/migrate-ideas-backlog.sh "{knowledge_folder}"` and report the output (N files written, original renamed to `ideas-backlog.md.pre-2.11-migration`)
+    - `(1) Migrate now` — run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/migrate-ideas-backlog.sh" "{knowledge_folder}"` and report the output (N files written, original renamed to `ideas-backlog.md.pre-2.11-migration`)
     - `(2) Skip for now` — leave the file in place; `/setup` will prompt again on the next run. Note in the Step 8 summary that legacy entries are still stranded.
     - `(3) Never migrate` — write a sentinel file at `{knowledge_folder}/intake/ideas/.legacy-skipped` so future `/setup` runs stop prompting. Document that the user accepts stranded pre-2.11 entries.
 
@@ -831,7 +831,7 @@ If the user wants `/aria-assist` to run automatically each morning, offer to ins
 > `pm_schedule_time` (default 07:30) and notifies you. macOS only; you can remove it later with
 > `sh <plugin>/scripts/pm-schedule.sh --uninstall`."
 
-On yes (Bash available): `sh ${CLAUDE_PLUGIN_ROOT}/scripts/pm-schedule.sh`.
+On yes (Bash available): `sh "${CLAUDE_PLUGIN_ROOT}/scripts/pm-schedule.sh"`.
 The iMessage notification path needs a one-time **Automation permission** grant
 (System Settings → Privacy & Security → Automation); the desktop banner always works.
 The schedule also surfaces as a read-only "Morning run" card in aria-atlas (if you use it),

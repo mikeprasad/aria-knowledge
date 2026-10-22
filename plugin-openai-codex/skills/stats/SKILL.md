@@ -30,7 +30,7 @@ Record counts per category and total.
 
 ## Step 2: Count Backlog Items
 
-For each backlog file, take its `live` count from `bash ${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/bin/count-backlog-entries.sh {knowledge_folder}` — the same counter `/audit knowledge` and the SessionStart trigger use, which also sees entries written at `## ` or mis-levelled at `####`. If the script is unavailable, fall back to counting `### ` (h3) entries below the `---` separator and say the figure may under-report:
+For each backlog file, take its `live` count from `bash "${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/bin/count-backlog-entries.sh" {knowledge_folder}` — the same counter `/audit knowledge` and the SessionStart trigger use, which also sees entries written at `## ` or mis-levelled at `####`. If the script is unavailable, fall back to counting `### ` (h3) entries below the `---` separator and say the figure may under-report:
 
 - `{knowledge_folder}/intake/insights-backlog.md`
 - `{knowledge_folder}/intake/decisions-backlog.md`

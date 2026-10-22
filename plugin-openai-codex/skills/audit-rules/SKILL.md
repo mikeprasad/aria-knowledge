@@ -120,7 +120,7 @@ For each approved candidate, in order:
 1. **Write the rule** into `rules/user-rules.md` (next `U<n>`, or apply the named amendment): a
    lead paragraph carrying the operative claim, Why with the dated quotes, How to apply,
    **Falsifier**, Origin with the approval stamp (who approved, when) and the source rows.
-2. **Byte-check the lead:** run `bash ${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/bin/check-rule-lead-bytes.sh
+2. **Byte-check the lead:** run `bash "${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/bin/check-rule-lead-bytes.sh"
    {knowledge_folder}/rules/user-rules.md`. The always-on digest builder truncates each rule's
    first paragraph at **240 BYTES** (multi-byte punctuation counts ×2–3) — a failing lead is
    reworded before proceeding, never shipped to truncate.

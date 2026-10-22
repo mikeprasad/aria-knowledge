@@ -47,8 +47,8 @@ Note the "Last Audit" date and calculate days since.
 **Compute the current trigger state** with the shared counter — the same one the SessionStart hook uses, so the prompt and the audit's scope can never disagree. It covers the four action-eligible backlogs (insights, decisions, extraction, rules — `intake/ideas/` is excluded, it routes out via the Accept submenu), below the first `---` separator per file:
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/scripts/count-backlog-entries.sh {knowledge_folder}          # per-file + TOTAL line
-bash ${CLAUDE_PLUGIN_ROOT}/scripts/count-backlog-entries.sh {knowledge_folder} --list   # every non-### live block
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/count-backlog-entries.sh" {knowledge_folder}          # per-file + TOTAL line
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/count-backlog-entries.sh" {knowledge_folder} --list   # every non-### live block
 ```
 
 The TOTAL line reads `canonical=N h2=N h4suspect=N live=N cutoff=YYYY-MM-DD`:
@@ -121,7 +121,7 @@ Glob `{knowledge_folder}/intake/ideas/*.md`. **If the directory is missing**, re
 
 **Counting note:** When reporting an idea count (Step 6's `Pending Ideas (N)` header and Step 8's `Plus N ideas` audit-log subfield), filter out `README.md` and `.gitkeep` from the glob result — they're directory-purpose files, not ideas, and inflate counts by 1-2 if included. The reads-and-categorize step below is unaffected since non-idea files lack the required `date:`/`project:`/`type:`/`title:` frontmatter and are skipped during per-file review. Concrete primitive: `ls intake/ideas/*.md 2>/dev/null | grep -v 'README\|\.gitkeep' | wc -l`.
 
-**Legacy-file detection (one-time):** Also check for `{knowledge_folder}/intake/ideas-backlog.md`. If it exists alongside `intake/ideas/`, surface a finding in Step 6 under a "Legacy Ideas Backlog" note: *"Pre-2.11 `ideas-backlog.md` detected. Run `bash ${CLAUDE_PLUGIN_ROOT}/scripts/migrate-ideas-backlog.sh {knowledge_folder}` or re-run `/setup` to migrate entries into per-file format."* Do not attempt the migration from within the audit flow.
+**Legacy-file detection (one-time):** Also check for `{knowledge_folder}/intake/ideas-backlog.md`. If it exists alongside `intake/ideas/`, surface a finding in Step 6 under a "Legacy Ideas Backlog" note: *"Pre-2.11 `ideas-backlog.md` detected. Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/migrate-ideas-backlog.sh" {knowledge_folder}` or re-run `/setup` to migrate entries into per-file format."* Do not attempt the migration from within the audit flow.
 
 For each `*.md` file in `intake/ideas/`: read the file (frontmatter + body). Each file is one idea — feature proposal, bug report, or design idea captured via `/extract`. Ideas have a **distinct disposition** from other backlogs — they do NOT promote to knowledge files directly. Present them in their own section in Step 6 with the options:
 
@@ -252,7 +252,7 @@ Scan `{knowledge_folder}/intake/pre-compact-captures/` for `.md` files. **If the
 **Digest mode (default):** For each transcript snapshot, run the digest script to extract high-signal content before reading:
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/scripts/digest-transcript.sh "{snapshot_path}" "/tmp/aria-digest-{filename}"
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/digest-transcript.sh" "{snapshot_path}" "/tmp/aria-digest-{filename}"
 ```
 
 Then read the digest file (not the raw transcript). The digest keeps all user messages (truncated at 500 chars), first/last 5 lines of each assistant turn, Insight blocks, and lines containing decision/feedback signal keywords. Tool calls and results are dropped entirely. Typical reduction: **~97% fewer tokens** vs raw transcript (~1-3K tokens per snapshot vs ~30-50K+ raw).
@@ -316,7 +316,7 @@ There is **no bare-Clear option** for subagent captures. Unlike pre-compact snap
 **Digest mode (default):** for each capture, run:
 
 ```
-bash ${CLAUDE_PLUGIN_ROOT}/scripts/digest-transcript.sh "{capture_path}" "/tmp/aria-digest-{filename}"
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/digest-transcript.sh" "{capture_path}" "/tmp/aria-digest-{filename}"
 ```
 
 Then read the digest (not the raw transcript). Extract findings into the standard six buckets (insights, decisions, feedback, project context, references, ideas) — same categorization as `/extract`.
@@ -866,7 +866,7 @@ After user approval and *before* executing any promotions, declare a batch manif
 **Write the manifest** via Bash before executing promotions:
 
 ```bash
-. ${CLAUDE_PLUGIN_ROOT}/scripts/config.sh
+. "${CLAUDE_PLUGIN_ROOT}/scripts/config.sh"
 kt_batch_begin "audit-knowledge" "Audit promotion: N items per approved plan" '[
   {"file_path_pattern": "/abs/path/to/knowledge/approaches/*.md", "operation_type": "create", "impact": "low", "justification": "New approach files per approved Step 7 plan"},
   {"file_path_pattern": "/abs/path/to/knowledge/decisions/*.md", "operation_type": "create", "impact": "high", "justification": "New ADR — architectural commitment requires full scrutiny"},
@@ -1008,7 +1008,7 @@ Also demote the previous "Last Audit" entry to the "## Previous Audits" section.
 After the audit log is written, clear the batch manifest to unblock default Rule 22 behavior for any edits later in the session:
 
 ```bash
-. ${CLAUDE_PLUGIN_ROOT}/scripts/config.sh
+. "${CLAUDE_PLUGIN_ROOT}/scripts/config.sh"
 kt_batch_end
 ```
 

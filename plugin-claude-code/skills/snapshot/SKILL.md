@@ -34,7 +34,7 @@ If `Bash` is available, proceed to Step 0.
 Execute:
 
 ```
-bash ${CLAUDE_PLUGIN_ROOT}/scripts/save-transcript.sh ${CLAUDE_SESSION_ID}
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/save-transcript.sh" ${CLAUDE_SESSION_ID}
 ```
 
 The script:

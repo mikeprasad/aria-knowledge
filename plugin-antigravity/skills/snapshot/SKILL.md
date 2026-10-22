@@ -25,7 +25,7 @@ If the cache doesn't exist yet, the most likely cause is that the agent hasn't c
 Execute:
 
 ```
-bash ${CLAUDE_PLUGIN_ROOT}/bin/save-transcript.sh
+bash "${CLAUDE_PLUGIN_ROOT}/bin/save-transcript.sh"
 ```
 
 The script (port-specific behavior):

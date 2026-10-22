@@ -27,7 +27,7 @@ Set backlog paths:
 
 ## Step 2: Overview Mode
 
-Read all four backlog files. For each, take its `live` count from `bash ${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/bin/count-backlog-entries.sh {knowledge_folder}` (fallback: count `### YYYY-MM-DD` entries after the `---` separator, noting it may under-report) and find the most recent date. **If any backlog file is missing**, show "missing — run /setup to repair" instead of a count for that file.
+Read all four backlog files. For each, take its `live` count from `bash "${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/bin/count-backlog-entries.sh" {knowledge_folder}` (fallback: count `### YYYY-MM-DD` entries after the `---` separator, noting it may under-report) and find the most recent date. **If any backlog file is missing**, show "missing — run /setup to repair" instead of a count for that file.
 
 Output:
 ```
