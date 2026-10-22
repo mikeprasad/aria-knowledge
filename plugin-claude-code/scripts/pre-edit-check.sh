@@ -98,6 +98,7 @@ fi
 # Claude Code branch only; the antigravity step_index branch never records carriers.
 PROMPT_ID=""
 CARRIER_STATE=""
+PREV_ANCHOR=""
 if [ -z "$STEP_INDEX" ] && [ -n "$SESSION_KEY" ]; then
   PROMPT_ID=$(printf '%s' "$INPUT" | python3 -c 'import json, sys
 try:
@@ -105,6 +106,15 @@ try:
 except Exception:
     print("")' 2>/dev/null)
   CARRIER_STATE="${TMPDIR:-/tmp}/aria-r22-carrier-${SESSION_KEY}${AGENT_SUFFIX}"
+  # v2.57.3: previous-edit anchor for tail mode. Read the previous edit's id, then
+  # record this one (atomic) — on every check, whatever its outcome (ADR 062 counts edits).
+  ANCHOR_STATE="${TMPDIR:-/tmp}/aria-r22-lastedit-${SESSION_KEY}${AGENT_SUFFIX}"
+  if [ -f "$ANCHOR_STATE" ]; then
+    PREV_ANCHOR=$(tr -cd 'A-Za-z0-9_-' < "$ANCHOR_STATE" 2>/dev/null)
+  fi
+  if [ -n "$TOOL_USE_ID" ]; then
+    printf '%s' "$TOOL_USE_ID" > "$ANCHOR_STATE.$$" 2>/dev/null && mv -f "$ANCHOR_STATE.$$" "$ANCHOR_STATE" 2>/dev/null
+  fi
 fi
 
 # Planning paths where abbreviated assessment is permitted
@@ -210,7 +220,7 @@ except Exception:
 fi
 
 if [ "$COMPLIANT" != "yes" ] && [ -n "$TRANSCRIPT" ] && [ -n "$TOOL_USE_ID" ] && [ -f "$TRANSCRIPT" ]; then
-  COMPLIANT=$(TRANSCRIPT="$TRANSCRIPT" TOOL_USE_ID="$TOOL_USE_ID" STEP_INDEX="$STEP_INDEX" python3 - <<'PY' 2>/dev/null
+  COMPLIANT=$(TRANSCRIPT="$TRANSCRIPT" TOOL_USE_ID="$TOOL_USE_ID" STEP_INDEX="$STEP_INDEX" PREV_ANCHOR="$PREV_ANCHOR" python3 - <<'PY' 2>/dev/null
 import json, os, re, sys
 try:
     path = os.environ["TRANSCRIPT"]
@@ -331,8 +341,41 @@ try:
         # cannot drift.
         tail_mode = target_line_idx is None
         if tail_mode:
-            target_line_idx = len(lines)
-            target_content_idx = 0
+            # The walk stops at the nearest Edit/Write ON DISK, which is the true
+            # boundary once the previous edit has landed. If the previous checked
+            # edit has not landed, the walk could reach the marker that authorised
+            # it (ADR 062: one marker, one edit) — so that case stays "unknown".
+            prev = os.environ.get("PREV_ANCHOR", "")
+            if prev and prev != tool_use_id:
+                def on_disk(ls):
+                    for line in ls:
+                        if prev not in line:
+                            continue
+                        try:
+                            evt = json.loads(line)
+                        except Exception:
+                            continue
+                        if evt.get("type") == "assistant":
+                            for b in evt.get("message", {}).get("content", []) or []:
+                                if isinstance(b, dict) and b.get("type") == "tool_use" and b.get("id") == prev:
+                                    return True
+                    return False
+                while not on_disk(lines) and time.time() < deadline:
+                    time.sleep(0.05)
+                    with open(path) as f:
+                        lines = f.readlines()
+                if not on_disk(lines):
+                    print("unknown")
+                    sys.exit(0)
+                # The re-reads above may have brought in this edit's own line;
+                # if so, the precise path decides (a tail walk would stop at it).
+                found_idx, found_content = find_target(lines)
+                if found_idx is not None:
+                    tail_mode = False
+                    target_line_idx, target_content_idx = found_idx, found_content
+            if tail_mode:
+                target_line_idx = len(lines)
+                target_content_idx = 0
 
         # v2.53.3: Claude Code 2.1.280 persists most assistant text blocks as a
         # paraphrased thinking block with no marker token — even a text block
