@@ -594,8 +594,12 @@ ls -l ~/.claude/rules/aria-rules.md ~/.claude/rules/aria-user-rules.md 2>/dev/nu
 
 ⛔ **Invoke the hook rather than copying the files here.** `kt_ensure_rules_files`
 inside that script is the single implementation: it byte-compares the digest against
-the bundled copy and regenerates the U-rule digest only when `user-rules.md` is
-newer. A second copy routine in this skill would be a second write path with nothing
+the bundled copy, and renders the U-rule digest to a temporary file and replaces the
+installed one only when the CONTENT differs. (It used to test whether `user-rules.md`
+was newer; that was retired 2026-08-28 because a timestamp cannot see a plugin upgrade
+that changes how a rule renders, and unzip keeps old mtimes on a fresh install.) So a
+run that rewrites nothing means the installed digest is current, whatever the file
+dates say. A second copy routine in this skill would be a second write path with nothing
 comparing the two — the drift shape this plugin has already paid for more than once.
 
 **Why this step exists at all**, given the hook self-heals on its own: the hook can
