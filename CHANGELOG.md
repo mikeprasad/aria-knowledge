@@ -2,6 +2,15 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.57.2 — 2026-10-21
+
+**Every hook now runs when the plugin is installed in a folder whose path contains a space.** The Claude desktop app (3.1623.1) installs plugins under `~/Library/Application Support/Claude/…`. Each hook command was `bash ${CLAUDE_PLUGIN_ROOT}/scripts/<x>.sh` with the path unquoted, so the shell split it at the space and bash exited 127. Claude Code treats that exit as a non-blocking error, so the hook was skipped and the tool call went ahead. Every aria hook stopped running in desktop-app sessions, including the Rule 22 edit gate, which failed open. Terminal installs under `~/.claude/plugins/` have no space and were not affected.
+
+- **All 19 Claude Code hook commands quote the root:** `bash "${CLAUDE_PLUGIN_ROOT}/scripts/<x>.sh"`.
+- **Skill instructions quote it too.** Claude Code substitutes the root into skill text, so a skill telling the agent to run `bash ${CLAUDE_PLUGIN_ROOT}/scripts/x.sh` handed it the same broken command. The 21 command-position references are quoted; plain path mentions are unchanged.
+- **New guard, `tests/repros/hook-commands-survive-spaced-plugin-root.sh`:** runs every hook command from a stub root whose path contains a space, with the variable both exported and substituted into the string, and scans every port's skills for an unquoted root after `bash`, `sh`, `.` or `source`. It failed on all 27 hook commands and 56 skill references before the fix.
+- **Ports:** Codex (`2.57.2-codex.0`) quotes its 8 hook commands and 14 skill references. Antigravity (`2.57.2`) is regenerated, and its two hand-written overlays are quoted. Its hooks use relative paths and were not affected. Cursor stays at `2.57.1-cursor.0` (relative paths, no defect) and Cowork stays at 1.8.1.
+
 ## 2.57.1 — 2026-10-21
 
 **`/audit usage` no longer miscounts a verdict or outcome that carries a comment.** Gate logs are sometimes annotated after the fact (`closed  # was partial; …`, `PROCEED  # was HOLD …`). The older verdict and outcome counters matched values exactly, so an annotated value was counted in the total but in the wrong bucket, or in none. This dates from v2.41.0, when the counters were added; the keys added in 2.57.0 already handled it.
