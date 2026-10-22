@@ -138,6 +138,12 @@ late() {  # late <name> <source-fixture>
 late late_ok  "$WORK/carrier.jsonl"
 late late_bad "$WORK/plain.jsonl"
 late never    "$WORK/carrier.jsonl"
+late never_plain "$WORK/plain.jsonl"
+variant scope bash_cmd "[Rule 22 · Scope] PASS — x"
+late never_scope "$WORK/scope.jsonl"
+# a real user message after the carrier: a new turn, so the carrier no longer counts
+cp "$WORK/never.jsonl" "$WORK/never_turn.jsonl"
+printf '%s\n' '{"type":"user","message":{"role":"user","content":"next"}}' >> "$WORK/never_turn.jsonl"
 
 ( sleep 0.3; cat "$WORK/late_ok.last" >> "$WORK/late_ok.jsonl" ) &
 check "H1-late-flush-compliant-allows"            allow "$WORK/late_ok.jsonl"
@@ -146,8 +152,10 @@ wait
 check "H1b-late-flush-noncompliant-denies"        deny  "$WORK/late_bad.jsonl"
 wait
 
-# Never appears: still a LOUD fail-open after the wait (never a silent allow,
-# never a deny). No absolute timing bound here on purpose: a ">= cap" lower bound
+# Never appears (v2.57.3): Claude Code 2.1.308 writes a first-tool edit's own line
+# only after its own hook returns, so after the wait the hook judges the transcript
+# already written (tail mode): allow when a marker is on disk in the window, deny
+# when not. Formerly a LOUD fail-open. No absolute timing bound here on purpose: a ">= cap" lower bound
 # was measured PASSING on the pre-poll hook at load average ~60 (interpreter
 # startup alone took 359 ms), so it could not tell "waited" from "slow machine".
 # H3 below is what proves the wait happened.
@@ -155,10 +163,21 @@ timed() {  # timed <cap_ms> -> sets T_OUT, T_EL
   t0=$(now_ms); T_OUT=$(ARIA_R22_FLUSH_WAIT_MS=$1 run_hook "$WORK/never.jsonl"); T_EL=$(( $(now_ms) - t0 ))
 }
 timed 400; got=$(verdict_of "$T_OUT"); el400=$T_EL
-if [ "$got" = "unknown" ]; then
-  printf "PASS  H2-never-flushed-failopen-loud (unknown, %d ms)\n" "$el400"; PASS=$((PASS + 1))
+if [ "$got" = "allow" ]; then
+  printf "PASS  H2a-never-flushed-marker-on-disk-allows (%d ms)\n" "$el400"; PASS=$((PASS + 1))
 else
-  printf "FAIL  H2-never-flushed-failopen-loud (got=%s; want unknown)\n      output: %s\n" "$got" "$T_OUT"; FAIL=$((FAIL + 1))
+  printf "FAIL  H2a-never-flushed-marker-on-disk-allows (got=%s; want allow)\n      output: %s\n" "$got" "$T_OUT"; FAIL=$((FAIL + 1))
+fi
+checkw() { ARIA_R22_FLUSH_WAIT_MS=400; export ARIA_R22_FLUSH_WAIT_MS; check "$@"; unset ARIA_R22_FLUSH_WAIT_MS; }
+checkw "H2b-never-flushed-no-marker-denies"       deny  "$WORK/never_plain.jsonl"
+checkw "H5-tail-turn-boundary-denies"             deny  "$WORK/never_turn.jsonl"
+checkw "H6-tail-scope-line-denies"                deny  "$WORK/never_scope.jsonl"
+# H4: with the SHIPPED default wait, a never-flushed edit is decided promptly.
+t0=$(now_ms); H4_OUT=$(unset ARIA_R22_FLUSH_WAIT_MS; run_hook "$WORK/never_plain.jsonl"); H4_EL=$(( $(now_ms) - t0 ))
+if [ "$(verdict_of "$H4_OUT")" = "deny" ] && [ "$H4_EL" -lt 4000 ]; then
+  printf "PASS  H4-tail-verdict-within-default-wait (deny, %d ms)\n" "$H4_EL"; PASS=$((PASS + 1))
+else
+  printf "FAIL  H4-tail-verdict-within-default-wait (got=%s in %d ms; want deny < 4000)\n" "$(verdict_of "$H4_OUT")" "$H4_EL"; FAIL=$((FAIL + 1))
 fi
 # The cap is honoured and bounds the wait. DIFFERENTIAL on purpose: an absolute
 # ceiling flaked under load (interpreter startup varies with the machine), and a

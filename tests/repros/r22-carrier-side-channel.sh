@@ -133,9 +133,9 @@ record S6 P1 - "$CARRIER"
 v=$(verdict "$(edit_in S6 - - "$W/plain.jsonl")")
 if [ "$v" = "deny" ] && [ ! -e "$(state S6)" ]; then ok "C10-no-prompt-id-fails-closed"; else bad "C10-no-prompt-id-fails-closed" "got $v, state $( [ -e "$(state S6)" ] && echo kept || echo removed)"; fi
 
-# --- fallback wait (env UNSET: the shipped default must outlast a streaming response)
+# --- fallback wait (env UNSET: a line flushed within the shipped 2 s default is still found)
 cp "$W/text.jsonl" "$W/late.jsonl"
-( sleep 2.5; cat "$W/text.last" >> "$W/late.jsonl" ) &
+( sleep 1.0; cat "$W/text.last" >> "$W/late.jsonl" ) &
 v=$(env -u ARIA_R22_FLUSH_WAIT_MS sh -c 'printf "%s" "$1" | sh "$2" 2>&1' _ "$(edit_in S12 P12 - "$W/late.jsonl")" "$HOOK")
 wait
 if printf '%s' "$v" | grep -q -E 'deny|could not verify|DEGRADED'; then bad "W1-text-marker-found-after-late-write" "output: $v"; else ok "W1-text-marker-found-after-late-write"; fi
@@ -152,7 +152,7 @@ h=json.load(open(sys.argv[1]))["hooks"]["PreToolUse"]
 print([x.get("timeout") for m in h for x in m["hooks"] if "pre-edit-check.sh" in x.get("command","")])' "$MANIFEST")
 [ "$r2" = "[45]" ] && ok "R2-pre-edit-timeout-45" || bad "R2-pre-edit-timeout-45" "timeouts=$r2"
 cap=$(grep -o 'ARIA_R22_FLUSH_WAIT_MS", "[0-9]*"' "$HOOK" | grep -o '[0-9]*"$' | tr -d '"')
-if [ -n "$cap" ] && [ "$cap" -ge 30000 ] && [ "$cap" -lt 45000 ]; then ok "R3-default-cap-under-timeout ($cap ms)"; else bad "R3-default-cap-under-timeout" "cap=[$cap]"; fi
+if [ "$cap" = "2000" ]; then ok "R3-default-cap-2000-under-timeout ($cap ms)"; else bad "R3-default-cap-2000-under-timeout" "cap=[$cap]"; fi
 
 printf "\n%d passed, %d failed\n" "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

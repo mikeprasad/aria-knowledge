@@ -50,9 +50,10 @@ is_deny "$(invoke "$SK" "$NC" "$NCID")" || fail "post-reset noncompliant must de
 # --- 3) unknown path never touches the counter ----------------------------
 SK_U="sess-unknown"
 SF_U="$TMPDIR/aria-r22-denies-$SK_U"
-o=$(invoke "$SK_U" "transcript-id-absent.jsonl" "toolu_absent_xyz")
-is_sysmsg "$o" || fail "id-absent should fail-open LOUD (systemMessage)"
-is_deny "$o" && fail "id-absent should allow, not deny"
+# v2.57.3: a missing transcript reaches `unknown`; an absent id in a readable one gets a verdict.
+o=$(invoke "$SK_U" "does-not-exist.jsonl" "toolu_absent_xyz")
+is_sysmsg "$o" || fail "missing transcript should fail-open LOUD (systemMessage)"
+is_deny "$o" && fail "missing transcript should allow, not deny"
 [ -f "$SF_U" ] && fail "unknown path must not create a counter file"
 
 # --- 4) distinct session keys are independent -----------------------------

@@ -26,9 +26,15 @@
 # marker is recorded by pre-bash-r22-carrier.sh when it runs; the next Edit/Write
 # in the same session + agent + prompt_id consumes that record and is allowed
 # without reading the transcript. Everything else (visible-text markers, other
-# tool inputs) still goes through the transcript, which now waits up to 40 s for
-# the response to be written. See docs/superpowers/specs/2026-09-24-r22-carrier-
-# side-channel-spec.md.
+# tool inputs) goes through the transcript. See docs/superpowers/specs/2026-09-24-
+# r22-carrier-side-channel-spec.md.
+#
+# v2.57.3: on Claude Code 2.1.308 an edit that is the first tool call of its
+# response has its own transcript line written only AFTER its own PreToolUse hook
+# returns (measured: +0.12 s after return). The hook waits briefly (2 s) for its
+# line; if absent it judges the transcript already on disk (tail mode) instead of
+# failing open. See docs/superpowers/specs/2026-10-22-r22-tail-window-when-own-
+# line-absent-spec.md.
 #
 # Decision hierarchy (path classification — unchanged from v2.10.x):
 #   1. Planning path (and not protected)              -> abbreviated variant expected
@@ -298,18 +304,19 @@ try:
         # fail-opens vs 70 denials over 40 sessions; the line lands within tens
         # of ms, during the hook's run). Re-read for a bounded wait instead of
         # fail-opening on the first miss. Timeout stays loud (below).
-        # v2.54.0: 1.5 s -> 40 s. Claude Code writes the whole response when the
-        # model finishes streaming it, so an edit early in a response waits for
-        # the rest of the response (measured p50 3.1 s, max 30.9 s). A carrier
-        # recorded at its own PreToolUse never reaches this wait. Keep the cap
-        # UNDER the 45 s hook timeout in plugin.json: a PreToolUse hook cancelled
-        # at its timeout "doesn't block the tool call" and its output is
-        # discarded — a SILENT fail-open. The cap guarantees the loud one first.
+        # v2.54.0 raised this to 40 s on the premise that Claude Code writes the
+        # whole response when streaming ends. v2.57.3, measured on Claude Code
+        # 2.1.308: a first-tool edit's own line lands only AFTER its own hook
+        # returns, so no wait can find it; a later tool in the same response does
+        # see its line (~1.6 s after creation). So wait 2 s for the precise path,
+        # then fall back to tail mode below. Keep the cap UNDER the 45 s hook
+        # timeout in plugin.json: a hook cancelled at its timeout is a SILENT
+        # fail-open.
         import time
         try:
-            wait_ms = int(os.environ.get("ARIA_R22_FLUSH_WAIT_MS", "40000"))
+            wait_ms = int(os.environ.get("ARIA_R22_FLUSH_WAIT_MS", "2000"))
         except ValueError:
-            wait_ms = 40000
+            wait_ms = 2000
         deadline = time.time() + max(wait_ms, 0) / 1000.0
         target_line_idx, target_content_idx = find_target(lines)
         while target_line_idx is None and time.time() < deadline:
@@ -318,9 +325,14 @@ try:
                 lines = f.readlines()
             target_line_idx, target_content_idx = find_target(lines)
 
-        if target_line_idx is None:
-            print("unknown")
-            sys.exit(0)
+        # v2.57.3 tail mode: the own line is not on disk, so every line on disk
+        # precedes this edit. Start the window walk at end-of-file with no
+        # same-message prefix — the SAME loop as the precise path, so the two
+        # cannot drift.
+        tail_mode = target_line_idx is None
+        if tail_mode:
+            target_line_idx = len(lines)
+            target_content_idx = 0
 
         # v2.53.3: Claude Code 2.1.280 persists most assistant text blocks as a
         # paraphrased thinking block with no marker token — even a text block
@@ -349,8 +361,7 @@ try:
         text_blocks = []
         tool_texts = []
 
-        target_evt = json.loads(lines[target_line_idx])
-        target_content = target_evt["message"]["content"]
+        target_content = [] if tail_mode else json.loads(lines[target_line_idx])["message"]["content"]
         for b in target_content[:target_content_idx]:
             if isinstance(b, dict):
                 if b.get("type") == "tool_use" and b.get("name") in ("Edit", "Write"):

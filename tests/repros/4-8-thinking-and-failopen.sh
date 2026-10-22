@@ -8,8 +8,9 @@
 #      satisfy enforcement. (If Opus 4.8 is found to route the marker into
 #      thinking by default, the fix is a SessionStart nudge to emit it as text,
 #      NOT flipping this expectation.)
-#   E. id-absent (LOUD fail-open) — queried tool_use_id is not in the
-#      transcript -> detector returns "unknown". Contract: ALLOW (no v2.10.5
+#   E. unreadable transcript (LOUD fail-open) — the transcript file is missing
+#      -> detector returns "unknown". (v2.57.3: an id merely ABSENT from a
+#      readable transcript is now judged from what is on disk — E2.) Contract: ALLOW (no v2.10.5
 #      deadlock) AND emit a visible warning systemMessage (enforcement is never
 #      lost silently — Option 3).
 #
@@ -79,7 +80,8 @@ run_planning_case() {
 }
 
 run_case          "D-thinking-only-marker-denies"   "$FIXTURES/transcript-thinking-only-marker.jsonl" "toolu_thinking_only" "deny"
-run_warn_case     "E-id-absent-failopen-loud"       "$FIXTURES/transcript-id-absent.jsonl"            "toolu_query_missing"
+run_warn_case     "E-missing-transcript-failopen-loud" "$FIXTURES/does-not-exist.jsonl"           "toolu_query_missing"
+run_case          "E2-id-absent-no-marker-denies"   "$FIXTURES/transcript-id-absent.jsonl"            "toolu_query_missing" "deny"
 run_planning_case "F-superpowers-plans-is-planning" "$FIXTURES/transcript-no-marker-planning.jsonl"   "toolu_plan_edit" "/x/docs/superpowers/plans/p.md"
 
 printf "\n%d passed, %d failed\n" "$PASS" "$FAIL"
