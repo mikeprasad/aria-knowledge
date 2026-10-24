@@ -164,6 +164,33 @@ ef_reset
 out=$(ef_fetch "https://support.atlassian.com/x" s10)
 assert_eq "archive/ excluded from the reason" "0" "$(ef_has 'archive/old.md' "$out")"
 
+# [AC-R] the reason must make the agent CONTINUE, not stop. Measured 2026-10-24: a
+# subagent denied on help.shopify.com returned without retrying and the parent
+# answered from memory, while the retry would have passed. The old text asserted
+# "already covers" (false: the three hits only mentioned the domain), put "the
+# retry will pass" last, and never said "do not stop" or "do not ask the user".
+# These are TEXT checks: they prove the wording shipped, not that an agent acts on
+# it — that needs a live denial after install. Case-insensitive on clause tokens so
+# a rewording that keeps the meaning stays green.
+ef_hasi() {
+  case "$(printf '%s' "$2" | tr 'A-Z' 'a-z')" in *"$1"*) echo 1 ;; *) echo 0 ;; esac
+}
+touch -t 202601020304 "$EF_TMP/kf/projects/proj-a/references/staging-bitbucket-auth.md"
+ef_reset
+out=$(ef_fetch "https://support.atlassian.com/x" sr1)
+assert_eq "AC-R1 says the pause is not a refusal" "1" "$(ef_hasi 'not a refusal' "$out")"
+assert_eq "AC-R1 says to retry the same fetch" "1" "$(ef_hasi 'retry this same fetch' "$out")"
+assert_eq "AC-R1 says do not stop" "1" "$(ef_hasi 'do not stop' "$out")"
+assert_eq "AC-R1 says do not ask the user" "1" "$(ef_hasi 'do not ask the user' "$out")"
+assert_eq "AC-R1 admits the match is by domain name only" "1" "$(ef_hasi 'domain name only' "$out")"
+assert_eq "AC-R1 no longer asserts coverage" "0" "$(ef_hasi 'already covers' "$out")"
+assert_eq "AC-R2 condition: not about the question" "1" "$(ef_hasi 'none of them is about your question' "$out")"
+assert_eq "AC-R2 condition: not enough" "1" "$(ef_hasi 'do not fully answer' "$out")"
+assert_eq "AC-R2 condition: needs validating" "1" "$(ef_hasi 'validat' "$out")"
+assert_eq "AC-R2 condition: may be stale" "1" "$(ef_hasi 'stale' "$out")"
+assert_eq "AC-R3 path carries its modified date" "1" \
+  "$(ef_has 'staging-bitbucket-auth.md (modified 2026-01-02)' "$out")"
+
 # ---------------------------------------------------------------------------
 # Task 3 — safety layer
 # ---------------------------------------------------------------------------

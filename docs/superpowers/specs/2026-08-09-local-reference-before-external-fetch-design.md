@@ -230,6 +230,19 @@ The reason text must state three things: the matched paths, that the correct nex
 step is *read them, then fetch only what they do not answer*, and that the retry
 will pass.
 
+> **Amended 2026-10-24 — those three were not enough.** A subagent denied on
+> `help.shopify.com` returned without retrying, and the parent answered from
+> memory; the retry passed the moment it was attempted. The text asserted
+> coverage ("already covers this surface") that a domain-string match cannot
+> establish, and never said not to stop. The reason text must now also: say the
+> pause is **not a refusal**; say the files matched **by domain name only** and
+> may not be relevant; name the four conditions for going external (**not about
+> the question · do not fully answer it · needs validating against the current
+> source · may be stale**); allow skipping the fetch only when a local file fully
+> answers and is believed current; say **do not stop and do not ask the user** to
+> fetch or paste the page; and show each file's **modified date**. Guarded by
+> `test-external-fetch-gate.sh` AC-R1..R3, which check wording only.
+
 ### 4.6 Fail open, always
 
 Unparseable payload, missing config, absent knowledge folder, `grep` non-zero,

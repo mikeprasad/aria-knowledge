@@ -2,6 +2,16 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## Unreleased
+
+**The external-fetch gate still blocks first, and its message now says when to go external.** Measured 2026-10-24: a subagent was denied on `help.shopify.com` and returned without retrying, and the parent answered from memory. The retry would have passed: it did, as soon as the subagent was told to try again. The three files the gate cited only mentioned `shopify.com` in passing (brand extraction, image URLs, a design-system list), but the old message said they "already cover this surface" and put "the retry will pass" last.
+
+- **New deny text (`pre-external-fetch-check.sh`):** says the pause is not a refusal; says the files matched by domain name only and may not be about the question; tells the agent to retry the same fetch if none of them is about the question, they do not fully answer it, what they say needs validating against the current source, or they may be stale; allows skipping the fetch only when a local file fully answers and is believed current; and says not to stop or ask the user to fetch or paste the page.
+- **Each cited file shows its modified date**, so staleness can be judged (`date -r`, BSD and GNU; the date is omitted if it cannot be read).
+- **Unchanged:** matching, the once-per-site cooldown, the circuit breaker, the hit cap, the time budget, fail-open and the output schema.
+- **Tests:** `test-external-fetch-gate.sh` AC-R1..R3 (11 assertions), all seen red on the previous hook. They check the wording; whether agents now retry needs a live denial after install.
+- **Ports:** the same change in Antigravity, Codex and Cursor; the Antigravity copy matches regeneration.
+
 ## 2.57.3 — 2026-10-22
 
 **The Rule 22 gate denies again when an edit is the first tool call of its response.** Measured on Claude Code 2.1.308: such an edit has its own transcript line written only after its own PreToolUse hook returns (a transcript watcher saw it land 0.12 s after the hook exited). `pre-edit-check.sh` waited up to 40 s for that line, could never find it, and failed open — every such edit without a recorded heredoc carrier was allowed after a 40 s stall, with "could not verify this edit". Census of the last 250 project transcripts (events dated 2026-10-10 or later): 143 of those fail-opens against 130 real denials, and every fail-open since 2026-10-02 ran the full 40 s.

@@ -203,9 +203,19 @@ printf '%s' "$(( EF_DENIES + 1 ))" > "$EF_DENY_FILE" 2>/dev/null
 
 # Render paths relative to the knowledge folder where possible — an absolute
 # temp path is noise in the reason text.
-EF_LIST=$(printf '%s\n' "$EF_HITS" | sed "s|^${KT_KNOWLEDGE_FOLDER}/||" | tr '\n' ';' | sed 's/;$//; s/;/; /g')
+# Each path carries its modification date so the reader can judge staleness.
+# `date -r FILE` works on BSD and GNU date; on failure the date is just omitted.
+EF_LIST=$(printf '%s\n' "$EF_HITS" | while IFS= read -r f; do
+  [ -n "$f" ] || continue
+  if d=$(date -r "$f" +%Y-%m-%d 2>/dev/null); then printf '%s (modified %s)\n' "$f" "$d"; else printf '%s\n' "$f"; fi
+done | sed "s|^${KT_KNOWLEDGE_FOLDER}/||" | tr '\n' ';' | sed 's/;$//; s/;/; /g')
 
-REASON="A recorded local reference already covers this surface (${EF_KEY}). Read these before fetching externally: ${EF_LIST}. Then fetch only what they do not answer — coverage is not currency, so re-verify anything they assert. This fires once per surface per session; the retry will pass."
+# This text has one job: make the agent check, then CONTINUE. Measured 2026-10-24:
+# the previous wording ("already covers this surface … the retry will pass") made a
+# subagent stop and return instead of retrying, and the matches were only incidental
+# mentions of the domain. So it must not assert coverage, must name when to go
+# external, and must say not to stop or hand the fetch to the user.
+REASON="Paused once to check local knowledge first — this is not a refusal. These local files mention ${EF_KEY} (matched by domain name only, so they may not be about your question): ${EF_LIST}. Read the ones that look relevant. Then retry this same fetch — it will go through — if any of these hold: none of them is about your question; they do not fully answer it; what they say needs validating against the current source; or they may be stale (check the modified dates — external docs and APIs change). Skip the external fetch only when a local file fully answers the question and you have no reason to doubt it is current. Do not stop here, and do not ask the user to fetch or paste the page for you. This pause fires once per site per session."
 REASON=$(kt_json_escape "$REASON")
 
 printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"%s"}}\n' "$REASON"
