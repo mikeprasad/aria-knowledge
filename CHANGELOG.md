@@ -2,7 +2,7 @@
 
 All notable changes to ARIA will be documented in this file.
 
-## Unreleased
+## 2.57.4 — 2026-10-24
 
 **The external-fetch gate still blocks first, and its message now says when to go external.** Measured 2026-10-24: a subagent was denied on `help.shopify.com` and returned without retrying, and the parent answered from memory. The retry would have passed: it did, as soon as the subagent was told to try again. The three files the gate cited only mentioned `shopify.com` in passing (brand extraction, image URLs, a design-system list), but the old message said they "already cover this surface" and put "the retry will pass" last.
 
@@ -10,7 +10,7 @@ All notable changes to ARIA will be documented in this file.
 - **Each cited file shows its modified date**, so staleness can be judged (`date -r`, BSD and GNU; the date is omitted if it cannot be read).
 - **Unchanged:** matching, the once-per-site cooldown, the circuit breaker, the hit cap, the time budget, fail-open and the output schema.
 - **Tests:** `test-external-fetch-gate.sh` AC-R1..R3 (11 assertions), all seen red on the previous hook. They check the wording; whether agents now retry needs a live denial after install.
-- **Ports:** the same change in Antigravity, Codex and Cursor; the Antigravity copy matches regeneration.
+- **Ports:** the same change in Antigravity (`2.57.4`, regenerated), Codex (`2.57.4-codex.0`) and Cursor (`2.57.4-cursor.0`). Cowork has no hooks and stays 1.8.1.
 
 ## 2.57.3 — 2026-10-22
 
