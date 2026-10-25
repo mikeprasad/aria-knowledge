@@ -2,6 +2,17 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## Unreleased
+
+**Codex `/snapshot` now copies the Codex session it runs in.** The Codex helper was a copy of the Claude Code one: it searched `~/.claude/projects`, never found a Codex thread, and fell back to the newest Claude Code transcript.
+
+- **Codex (`2.57.4-codex.1`):** `save-transcript.sh` finds `${CODEX_HOME:-~/.codex}/sessions/YYYY/MM/DD/rollout-*-<thread id>.jsonl` by `$CODEX_THREAD_ID` (then an id argument) and checks its `session_meta` record. A known id with no match writes nothing; no id at all guesses the newest rollout and says so.
+- **Codex capture names use the last 8 characters of the thread id** in the snapshot, pre-compact and subagent captures. Codex ids are UUIDv7 and start with a timestamp: 37 of 57 measured local rollouts shared their first 8 characters, so captures from sessions started close together overwrote each other.
+- **Claude Code `/snapshot` no-id fallback works on Linux.** It used a BSD-only `stat -f` mtime idiom; GNU `stat -f` reports filesystem status and exits 0, so the fallback found no file. It now uses `ls -t`. Only reachable on a Claude Code too old to set `CLAUDE_CODE_SESSION_ID`.
+- **`/extract` wording:** the "why sweep all captures" note no longer says a skill cannot learn its session id. The behaviour is unchanged.
+- **Tests:** five new Codex port tests and a GNU-`stat` arm in `tests/repros/snapshot-session-id.sh` (now 7 arms), all seen red on the previous helpers.
+- **Ports:** Antigravity and Cursor regenerated (the `/extract` note only); Antigravity's own snapshot locator is unchanged. Codex and Cowork parity re-verified against 2.57.4 and their ledger entries re-baselined. Cowork stays 1.8.1.
+
 ## 2.57.4 — 2026-10-24
 
 **The external-fetch gate still blocks first, and its message now says when to go external.** Measured 2026-10-24: a subagent was denied on `help.shopify.com` and returned without retrying, and the parent answered from memory. The retry would have passed: it did, as soon as the subagent was told to try again. The three files the gate cited only mentioned `shopify.com` in passing (brand extraction, image URLs, a design-system list), but the old message said they "already cover this surface" and put "the retry will pass" last.
