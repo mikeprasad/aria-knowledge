@@ -1,8 +1,8 @@
 {
   "claude-code": {
-    "version": "2.57.2",
-    "parity_target": "2.57.2",
-    "last_parity_pass": "2026-10-21",
+    "version": "2.57.4",
+    "parity_target": "2.57.4",
+    "last_parity_pass": "2026-10-25",
     "sla": "undeclared",
     "surfaces": {}
   },
@@ -91,19 +91,19 @@
     }
   },
   "cursor-template": {
-    "version": "2.55.1-cursor.0",
-    "parity_target": "2.55.1",
-    "last_parity_pass": "2026-10-14",
+    "version": "2.57.4-cursor.0",
+    "parity_target": "2.57.4",
+    "last_parity_pass": "2026-10-25",
     "sla": "undeclared",
     "surfaces": {
-      "plugin-cursor-template/.cursor/rules/aria-commands.mdc": "a250bc93f2febde9b583b4f3052888702117dacb261865175a4346525ebacbfd",
+      "plugin-cursor-template/.cursor/rules/aria-commands.mdc": "be3e92ac5b40194785ea845b916ef73fb014d991bb795d6871ec1dea0f55d06f",
       "plugin-cursor-template/knowledge/rules/working-rules.md": "58511d31bc9d03232b26e9c5afb79461ce851f6f4ad099c38a4c8b882d0c4d7f"
     }
   },
   "antigravity": {
-    "version": "2.57.2",
-    "parity_target": "2.57.2",
-    "last_parity_pass": "2026-10-21",
+    "version": "2.57.4",
+    "parity_target": "2.57.4",
+    "last_parity_pass": "2026-10-25",
     "sla": "undeclared",
     "surfaces": {
       "plugin-antigravity/skills/aria-assist/SKILL.md": "38441e11a1a7a544ce60544e8313020e87525afc819c9f9ad396a859deb708fc",
@@ -136,7 +136,7 @@
       "plugin-antigravity/skills/retrospect/SKILL.md": "cd434fb324d090124d70dc9983ff5676780686f21363ca1d35b534549e89ce5d",
       "plugin-antigravity/skills/roadmap/SKILL.md": "ad737023308196849ebd5ff6d3ea3f0e6f303c7bcf677676809113e451ec547a",
       "plugin-antigravity/skills/rules/SKILL.md": "d45fd10ca433f7f90473d33df54c7a36bc5be5c2209c2c44c373f143454a4d7d",
-      "plugin-antigravity/skills/setup/SKILL.md": "38f0ba42d515da8ed288e7c29ba369e430498127a6fbfd359abb3dbb80656639",
+      "plugin-antigravity/skills/setup/SKILL.md": "7fc4ee3ba9a4e2f0554ddb6d8f03b8dac181db19adecb788e78c2bcc842d1bd7",
       "plugin-antigravity/skills/snapshot/SKILL.md": "ae70fa8a29b02a8493e800ac27f3e8a9847bfbc9792f7ef619dfa2fbc6edc7cb",
       "plugin-antigravity/skills/stats/SKILL.md": "a704ba4b1965913ca2e9fc14e01183484f86c8780ce920d26403e9973f29345c",
       "plugin-antigravity/skills/statusline/SKILL.md": "219e64654dc79e5a9f9dd09d6eb45794c298cb919e5715a89235a9060cf82b07",
