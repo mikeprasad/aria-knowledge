@@ -1,37 +1,34 @@
 #!/bin/sh
 # tests/repros/session-state-token-directive.sh — the SESSION STATE directive's TOKEN branch (D5)
-# and the operator-precedence clause (D7), asserted on the hook's EMITTED output.
+# and the operator-precedence clause (D7), asserted on the DELIVERED copy.
 #
-# ⛔ EMITTED, NOT SOURCE. Grepping session-start-check.sh for the clause would be a spell-check: it
-# would pass for a clause sitting behind a gate that never fires. Driving the hook and reading stdout
-# is the technique picker-gating.sh and autonomy-posture.sh already use, and it is what makes this a
-# guard rather than a comment.
+# ⛔ RE-POINTED 2026-10-25. This used to drive session-start-check.sh and read its stdout. That
+# stdout was a systemMessage, which renders to the user and never reaches the model (measured from
+# a transcript's API request records), so the suite was guarding a copy nobody received — and the
+# copy the model DID receive, the bundled digest, lacked one of these clauses the whole time.
+# The digest is loaded verbatim as an instruction file, so reading it IS reading the payload.
 #
-# ⚠ STATED BOUND: this proves what the hook PRODUCES. It cannot prove an agent OBEYS it. A prose
-# contract is not testable past emission, and claiming otherwise would be the failure this file's
-# own subject exists to avoid.
+# Scoped to the SESSION STATE section on purpose: the same phrases could appear elsewhere in the
+# digest, and a whole-file grep would pass on a stray mention.
+#
+# ⚠ STATED BOUND: this proves what is DELIVERED. It cannot prove an agent OBEYS it.
 set -e
 DIR="$(cd "$(dirname "$0")/../.." && pwd)"
-HOOK="$DIR/plugin-claude-code/scripts/session-start-check.sh"
-TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
-KN="$TMP/kn"; mkdir -p "$KN/logs"
-printf -- '- **Date:** 2026-09-16 (seeded for test)\n' > "$KN/logs/knowledge-audit-log.md"
-CFG="$TMP/aria-knowledge.local.md"
-cat > "$CFG" <<EOF
----
-knowledge_folder: $KN
-knowledge_root: $KN
-configured: true
-session_state: true
-active_knowledge_surfacing: false
----
-EOF
+DIGEST="$DIR/plugin-claude-code/rules/aria-rules.md"
+GATE='### When `session_state` is `true`'
 
-out=$(cd "$TMP" && HOME="$TMP" KT_CONFIG="$CFG" sh "$HOOK" </dev/null 2>/dev/null || true)
+# The section: from the gate heading to the next ### heading.
+section=$(awk -v g="$GATE" '$0==g{f=1;next} f&&/^### /{exit} f' "$DIGEST")
 fail=0
+# Positive control FIRST: an empty extraction would make every grep below fail for the wrong reason.
+if [ -n "$section" ] && printf '%s' "$section" | grep -q 'SESSION STATE —'; then
+  printf '  PASS  control — the SESSION STATE directive sits under the session_state gate heading\n'
+else
+  printf '  FAIL  control — no SESSION STATE directive under %s\n' "$GATE"; fail=1
+fi
 chk() { # $1 = label, $2 = needle
-  if printf '%s' "$out" | grep -qF "$2"; then printf '  PASS  %s\n' "$1"
-  else printf '  FAIL  %s — not in the emitted directive\n' "$1"; fail=1; fi
+  if printf '%s' "$section" | grep -qF "$2"; then printf '  PASS  %s\n' "$1"
+  else printf '  FAIL  %s — not in the delivered directive\n' "$1"; fail=1; fi
 }
 # D5 — the five outcomes, each asserted by the phrase that carries it.
 chk "D5 token is scanned for"                "aria-handoff: <project>/<sid>@<at>"
@@ -44,18 +41,8 @@ chk "D5 terminal entry stops the resume"     "SURFACE AND STOP"
 # D7 — operator precedence.
 chk "R2 operator text outranks the prompt"   "OUTRANKS the stored prompt"
 chk "R2 names the gate shape"                "state-verify gate, not a preamble"
-# Backwards compatibility — the word trigger survives for the 152 tokenless prompts.
+# Backwards compatibility — the word trigger survives for tokenless prompts.
 chk "fallback word trigger retained"         "If no token is present"
-
-# ⛔ CONTROL: with session_state off the directive must not be emitted at all. Without this, every
-# assertion above could be matching a string that is always present regardless of the gate.
-sed 's/session_state: true/session_state: false/' "$CFG" > "$CFG.off"
-out2=$(cd "$TMP" && HOME="$TMP" KT_CONFIG="$CFG.off" sh "$HOOK" </dev/null 2>/dev/null || true)
-if printf '%s' "$out2" | grep -qF "kt_ss_ledger_token_locate"; then
-  printf '  FAIL  control — token branch emitted while session_state is off\n'; fail=1
-else
-  printf '  PASS  control — directive silent when session_state is off\n'
-fi
 
 [ "$fail" -eq 0 ] || { echo "session-state-token-directive: FAIL"; exit 1; }
 echo "session-state-token-directive: PASS"

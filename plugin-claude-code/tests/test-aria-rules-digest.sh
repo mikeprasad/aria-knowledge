@@ -118,6 +118,17 @@ u2_has() { jq -r '.hookSpecificOutput.additionalContext' "$U2OUT" 2>/dev/null | 
 
 digest_has() { grep -qF "$1" "$DIGEST" && echo yes || echo no; }
 
+# Session-start value lines (2026-10-25). The single emitter sends only VALUES
+# (ARIA PROJECTS / ARIA PROJECT / ARIA CODEMAPS / ARIA USAGE); the behaviour for
+# each lives here, keyed on the line having arrived. Before this, the picker,
+# project-context, CODEMAP and passive-context directives existed only in the
+# user-facing banner, which never reaches the model.
+for _vl_needle in 'PROJECT PICKER —' '`ARIA PROJECTS`' 'PROJECT CONTEXT —' '`ARIA PROJECT`' \
+                  'CODEMAP FIRST —' '`ARIA CODEMAPS`' '`ARIA USAGE`' 'ARIA CONTEXT —' \
+                  'aria-active-$CLAUDE_CODE_SESSION_ID' 'never use `ls -t`'; do
+  assert_eq "digest carries: $_vl_needle" "yes" "$(digest_has "$_vl_needle")"
+done
+
 # ⛔ THE GATING GUARANTEE CHANGED SHAPE, AND THAT IS A REAL TRADE, NOT A BUG.
 # Before the file/hook split the shell DECIDED: a directive gated off simply was
 # not emitted, and the assertions below proved it by its absence. Now the file

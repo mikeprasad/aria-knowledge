@@ -136,10 +136,12 @@ fi
 # ---------------------------------------------------------------------------
 # G. The SessionStart directive must not emit a literal ${session_id} the model cannot expand.
 # ---------------------------------------------------------------------------
-_ss="$ROOT/plugin-claude-code/scripts/session-start-check.sh"
+# ⛔ RE-POINTED 2026-10-25: this checked session-start-check.sh, whose output never reached the
+# model, while the DELIVERED copy — the bundled digest — still carried the literal.
+_ss="$ROOT/plugin-claude-code/rules/aria-rules.md"
 if [ ! -f "$_ss" ]; then
-  PM_FAIL=$((PM_FAIL+1)); printf '  FAIL: G session-start-check.sh not found\n'
-elif grep -qF 'aria-active-\${session_id}' "$_ss"; then
+  PM_FAIL=$((PM_FAIL+1)); printf '  FAIL: G rules/aria-rules.md not found\n'
+elif grep -qF 'aria-active-${session_id}' "$_ss"; then
   PM_FAIL=$((PM_FAIL+1)); printf '  FAIL: G directive still emits a literal ${session_id} the reader cannot expand\n'
 else
   PM_PASS=$((PM_PASS+1)); printf '  ok: G directive names a resolvable ledger path\n'
