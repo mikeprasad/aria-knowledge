@@ -27,7 +27,7 @@ active_knowledge_surfacing: false
 ---
 EOF
 
-out=$(cd "$TMP" && KT_CONFIG="$CFG" sh "$HOOK" 2>/dev/null || true)
+out=$(cd "$TMP" && HOME="$TMP" KT_CONFIG="$CFG" sh "$HOOK" </dev/null 2>/dev/null || true)
 fail=0
 chk() { # $1 = label, $2 = needle
   if printf '%s' "$out" | grep -qF "$2"; then printf '  PASS  %s\n' "$1"
@@ -50,7 +50,7 @@ chk "fallback word trigger retained"         "If no token is present"
 # ⛔ CONTROL: with session_state off the directive must not be emitted at all. Without this, every
 # assertion above could be matching a string that is always present regardless of the gate.
 sed 's/session_state: true/session_state: false/' "$CFG" > "$CFG.off"
-out2=$(cd "$TMP" && KT_CONFIG="$CFG.off" sh "$HOOK" 2>/dev/null || true)
+out2=$(cd "$TMP" && HOME="$TMP" KT_CONFIG="$CFG.off" sh "$HOOK" </dev/null 2>/dev/null || true)
 if printf '%s' "$out2" | grep -qF "kt_ss_ledger_token_locate"; then
   printf '  FAIL  control — token branch emitted while session_state is off\n'; fail=1
 else

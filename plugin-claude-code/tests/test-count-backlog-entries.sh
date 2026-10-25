@@ -104,7 +104,7 @@ printf '# I\n---\n### 2026-09-28 — x — one\n## 2026-09-28 — x — h2 entry
   > "$CB_HK/intake/insights-backlog.md"
 # rules-backlog: the hook counted three backlogs until 2026-09-29 while the audit skill counted four.
 printf '# R\n---\n### 2026-09-28 — x — a rule candidate\n' > "$CB_HK/intake/rules-backlog.md"
-cb_hook() { KT_CONFIG="${TMPDIR:-/tmp}/aria-cb-$$/config.md" sh "$1/session-start-check.sh" 2>/dev/null; }
+cb_hook() { HOME="${TMPDIR:-/tmp}/aria-cb-$$" KT_CONFIG="${TMPDIR:-/tmp}/aria-cb-$$/config.md" sh "$1/session-start-check.sh" </dev/null 2>/dev/null; }
 CB_BINDIR="$(dirname "$CB_BIN")"
 
 assert_eq "session-start: counts every live shape across all four backlogs, names the off-level ones" "yes" \
