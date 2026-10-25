@@ -1,6 +1,7 @@
 #!/bin/sh
 # lib-user-rules.sh — shared U-namespace user-rule DIGEST builder for aria-knowledge
-# Extracted from session-start-rules.sh:57-73 (v2.47.x → the file/hook split), then
+# Extracted from session-start-rules.sh:57-73 (v2.47.x → the file/hook split; that script was merged
+# into session-start-check.sh on 2026-10-25 and archived), then
 # widened from a bare title index to a digest (Mike's ruling, 2026-08-26).
 #
 # ⛔ ONE IMPLEMENTATION, TWO CALLERS — do not copy this logic anywhere.

@@ -57,7 +57,8 @@ AUDIT_SKILLS = [
 CONTEXT_SKILLS = ["context", "rules"]
 
 # Canonical step 6 regenerates Claude Code's instruction-file digest via
-# session-start-rules.sh, which Cursor does not ship. Cursor's sessionStart hook
+# session-start-check.sh (which absorbed session-start-rules.sh on 2026-10-25); Cursor's copy of that
+# script has no digest writer. Cursor's sessionStart hook
 # re-reads user-rules.md every session and injects each rule's header instead.
 AUDIT_RULES_CURSOR_STEP6 = """6. **Confirm the rule reaches the next session.** Cursor has no instruction-file digest: the
    `sessionStart` hook (`scripts/aria/session-start-check.sh`) re-reads

@@ -49,8 +49,8 @@ Hook-parsed fields run on every session start, every edit, every compaction — 
 | `freeform_promotion_threshold` | integer | 3 | audit-knowledge skill |
 | `staleness_threshold_months` | integer | 6 | audit-knowledge skill |
 | `ideas_staleness_threshold_days` | integer | 7 | audit-knowledge skill |
-| `auto_capture` | `true` \| `false` | true | pre-compact-check.sh, session-start-rules.sh (post-compaction /extract prompt), extract skill |
-| `active_knowledge_surfacing` | `true` \| `false` | true | session-start-check.sh, task-context-check.sh, bash-cd-check.sh, session-start-rules.sh (post-compaction ledger re-surface), /prospect, /retrospect, /audit config, /stats, /handoff, /wrapup (v2.16.1+ also gates CODEMAP+STITCH tracked-artifact loading) |
+| `auto_capture` | `true` \| `false` | true | pre-compact-check.sh, session-start-check.sh (post-compaction /extract prompt), extract skill |
+| `active_knowledge_surfacing` | `true` \| `false` | true | session-start-check.sh, task-context-check.sh, bash-cd-check.sh, session-start-check.sh (post-compaction ledger re-surface), /prospect, /retrospect, /audit config, /stats, /handoff, /wrapup (v2.16.1+ also gates CODEMAP+STITCH tracked-artifact loading) |
 | `critical_paths` | comma-separated patterns | empty | pre-edit-check.sh |
 | `planning_paths` | comma-separated patterns | empty | pre-edit-check.sh, post-edit-check.sh |
 | `preflight_gate` | `off` \| `warn` \| `deny` | warn | pre-commit-preflight-check.sh |

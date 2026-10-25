@@ -38,7 +38,7 @@ assert_eq "digest hardcodes no rule total" "no" \
   "$(grep -qE 'enforces [0-9]+ working rules|[0-9]+ working rules' "$DIGEST" 2>/dev/null && echo yes || echo no)"
 
 # ---------------------------------------------------------------------------
-# session-start-rules.sh — the model-directed channel
+# session-start-check.sh — the model-directed channel (additionalContext)
 # ---------------------------------------------------------------------------
 # Fixture defined ONCE here and reused by every later block. The hook must never
 # run against the developer's real config, or the suite is environment-dependent.
@@ -690,7 +690,7 @@ while [ "$urn" -le 40 ]; do
   urn=$((urn+1))
 done
 printf '# Index\n\n## Tag Index\n\n### aria\n- a.md\n\n### cs\n- b.md\n' > "$KFW/index.md"
-# The fixture must own $HOME too, not just the knowledge folder. session-start-rules.sh:83
+# The fixture must own $HOME too, not just the knowledge folder. session-start-rules.sh:83 (then)
 # branches on `ls "$HOME"/.claude/aria-statusline-state-*.json`, so on a machine without the
 # status-line meter the SHORT TASK BUDGET variant fires and the worst case is 403 ch smaller —
 # measured 20,322 with a real home vs 19,919 with an empty one. A ratchet that moves with the

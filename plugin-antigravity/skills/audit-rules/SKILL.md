@@ -140,9 +140,9 @@ For each approved candidate, in order:
 5. **Disposition consumed backlog entries**: demote the heading `###`→`####` with a disposition
    note; bodies preserved.
 6. **Regenerate the always-on digest** by invoking `bash
-   "${CLAUDE_PLUGIN_ROOT}/bin/session-start-rules.sh" </dev/null` (empty stdin — the hook reads stdin and would block on an open one) — never by hand-editing
-   `~/.gemini/antigravity/rules/aria-user-rules.md` (its header forbids it; the generator's newer-than guard
-   makes the rerun cheap). Then verify: the emitted rule count includes the new rules, and **none
+   "${CLAUDE_PLUGIN_ROOT}/bin/session-start-check.sh" </dev/null` (empty stdin — the hook reads stdin and would block on an open one) — never by hand-editing
+   `~/.gemini/antigravity/rules/aria-user-rules.md` (its header forbids it; the generator rewrites it only
+   when the rendered content differs, so the rerun is cheap). Then verify: the emitted rule count includes the new rules, and **none
    of the NEW rules' digest lines carry a truncation ellipsis** (scope the check to the new rules —
    older rules may legitimately carry one).
 7. **Check-before-create:** before writing any new artifact (an idea file, a backlog entry), search

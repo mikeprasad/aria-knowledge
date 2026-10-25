@@ -43,5 +43,5 @@ fi
 # ⛔ Print NOTHING. PreCompact has no hookSpecificOutput variant in the harness schema
 # (an emission is rejected as invalid) and the docs say it discards systemMessage, so no
 # output from this hook reaches the model or the user. The "/extract this snapshot"
-# prompt is emitted after compaction by session-start-rules.sh (source=compact), which
+# prompt is emitted after compaction by session-start-check.sh (source=compact), which
 # finds this file by session id.

@@ -7201,7 +7201,9 @@ After Step 7b's round-trip verification, run a coverage audit to catch any `KT_*
 
 ```bash
 cat "${CLAUDE_PLUGIN_ROOT}"/.claude-plugin/plugin.json "${CLAUDE_PLUGIN_ROOT}"/hooks.json 2>/dev/null \
-  | grep -q 'session-start-rules\.sh' && echo applies || echo skip
+  | grep -q 'session-start-check\.sh' \
+  && grep -q '^kt_ensure_rules_files()' "scripts/aria/session-start-check.sh" 2>/dev/null \
+  && echo applies || echo skip
 ```
 
 ⚠ The test is **registration**, not file presence, and the difference is the whole
@@ -7210,7 +7212,9 @@ script can be sitting there unwired — measured: antigravity ships a copy that 
 in none of its hook manifests, so it never runs. A `[ -f ]` check answered `applies`
 for that port and would have had a user hand-install files into a directory nothing
 reads. Verified discriminating: `applies` for claude-code, `skip` for antigravity and
-codex.
+codex. ⚠ Since 2026-10-25 the writer lives in `session-start-check.sh` (it absorbed
+`session-start-rules.sh`). Every port ships a script of that name, so the test also requires
+the writer function itself, `kt_ensure_rules_files`, which only the Claude Code one defines.
 
 If it prints `skip`, say so in one line and move to Step 7f. This step describes a
 **Claude Code** mechanism: the instruction-file channel plus the hook that maintains
@@ -7239,7 +7243,7 @@ this step is gated rather than ported.
 **Install them now:**
 
 ```bash
-sh "scripts/aria/session-start-rules.sh" </dev/null >/dev/null 2>&1
+sh "scripts/aria/session-start-check.sh" </dev/null >/dev/null 2>&1
 ls -l ~/.claude/rules/aria-rules.md ~/.claude/rules/aria-user-rules.md 2>/dev/null
 ```
 

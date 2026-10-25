@@ -246,6 +246,13 @@ Each AC names its instrument. Payload checks decode the JSON (`jq`), never grep 
   the picker and CODEMAP values in its `hook_additional_context` record and a nags-only
   `hook_system_message`. The compact arm cannot be triggered headlessly; it is owed after
   install (one live compaction, its `SessionStart:compact` records classified).
+  - ✅ **AC11 measured 2026-10-25** (real config, `~/Projects` as CWD, five CODEMAPs, 30-entry
+    menu): startup model payload **1,083** chars, banner **295** chars (was 12,660); compact
+    model payload **1,172** chars, no banner.
+  - ✅ **AC12 passed 2026-10-25** (Claude Code 2.1.310, `--plugin-dir` worktree, session
+    3910f3c1): `hook_system_message` held the nags only; `hook_additional_context` held the
+    CONFIG, PROJECTS and CODEMAPS lines; the model quoted all three and reported no
+    "Knowledge audit" text in its context. The compact arm remains owed after install.
 - **AC13** Every output arm parses with a strict JSON parser: config error, not configured,
   missing folder, first run, startup with nags, startup with no nags, compact, fallback.
   Seen red first against the current script (which fails at char 7,701 with the real config).

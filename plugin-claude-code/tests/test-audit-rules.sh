@@ -75,9 +75,9 @@ AR7=$(grep -c 'check-rule-lead-bytes.sh' "$ARSKILL" || true)
 assert_eq "[AR7] Step 7 runs check-rule-lead-bytes.sh" "yes" "$AR7"
 
 # [AR8] the digest regeneration goes through the sole sanctioned writer
-AR8=$(grep -c 'session-start-rules.sh' "$ARSKILL" || true)
+AR8=$(grep -c 'session-start-check.sh' "$ARSKILL" || true)
 [ "$AR8" -ge 1 ] && AR8=yes || AR8=no
-assert_eq "[AR8] regenerates via session-start-rules.sh" "yes" "$AR8"
+assert_eq "[AR8] regenerates via session-start-check.sh" "yes" "$AR8"
 
 # [AR9] runtime gate is a capability precondition, never a dead Cowork redirect
 AR9=$(grep -c 'No Cowork counterpart' "$ARSKILL" || true)
