@@ -78,4 +78,15 @@ grep -q "GUESSED" "$TMP/out" || fail "F: no GUESSED warning: $(cat "$TMP/out")"
 cmp -s "$CAPS"/*_bbbbbbbb.md "$P/$OTHER.jsonl" \
   || fail "F: legacy pick was not the newest top-level session file: $(ls "$CAPS")"
 
-echo "PASS: snapshot-session-id (6 arms)"
+# G. Same no-id fallback where `stat` is GNU coreutils (Linux). There `stat -f` means
+#    FILESYSTEM status and exits 0, so a BSD-only mtime idiom yields junk and no file.
+#    A shim on PATH plays GNU stat; the fallback must still pick the newest session.
+reset_caps
+mkdir -p "$TMP/gnubin"
+printf '#!/bin/sh\nif [ "$1" = "-f" ]; then echo "  File: \"$3\""; echo "    ID: 0 Namelen: 255 Type: ext2/ext3"; exit 0; fi\nexec /usr/bin/stat "$@"\n' > "$TMP/gnubin/stat"
+chmod +x "$TMP/gnubin/stat"
+env -u CLAUDE_CODE_SESSION_ID PATH="$TMP/gnubin:$PATH" sh "$SCRIPT" > "$TMP/out" 2>&1; rc=$?
+[ "$rc" -eq 0 ] || fail "G: exit $rc under GNU stat: $(cat "$TMP/out")"
+cmp -s "$CAPS"/*_bbbbbbbb.md "$P/$OTHER.jsonl" || fail "G: GNU-stat fallback did not pick the newest session file"
+
+echo "PASS: snapshot-session-id (7 arms)"

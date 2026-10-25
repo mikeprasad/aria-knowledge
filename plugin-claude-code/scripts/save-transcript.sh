@@ -33,8 +33,7 @@ GUESSED=""
 
 # A top-level <project>/<id>.jsonl is a session transcript. Deeper .jsonl files
 # (<sid>/subagents/agent-*.jsonl, plugin logs) are not, so stay at depth 2.
-# Session ids are UUIDs, so one match is expected; no mtime sort, which keeps
-# this path free of the BSD-only stat flags below.
+# Session ids are UUIDs, so one match is expected; no mtime sort is needed.
 find_by_id() {
   find "$PROJECTS_DIR" -mindepth 2 -maxdepth 2 -type f -name "$1.jsonl" 2>/dev/null | head -1
 }
@@ -60,9 +59,11 @@ fi
 if [ -z "$TRANSCRIPT_PATH" ]; then
   # No session id at all (older Claude Code). Fall back to the newest top-level
   # session transcript, and say plainly that this is a guess.
-  TRANSCRIPT_PATH=$(find "$PROJECTS_DIR" -mindepth 2 -maxdepth 2 -type f -name '*.jsonl' 2>/dev/null \
-    | while IFS= read -r f; do stat -f "%Fm %N" "$f" 2>/dev/null; done \
-    | sort -rn | head -1 | cut -d' ' -f2-)
+  # `ls -t` is POSIX, so this works on Linux too; a BSD `stat -f` idiom does
+  # not (GNU `stat -f` reports filesystem status and exits 0). `-exec … +`
+  # keeps paths with spaces intact.
+  TRANSCRIPT_PATH=$(find "$PROJECTS_DIR" -mindepth 2 -maxdepth 2 -type f -name '*.jsonl' \
+    -exec ls -t {} + 2>/dev/null | head -1)
   GUESSED=1
 fi
 
