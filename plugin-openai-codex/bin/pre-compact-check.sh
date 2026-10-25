@@ -34,7 +34,7 @@ mkdir -p "$CAPTURES_DIR" 2>/dev/null
 # Copy transcript if it exists and is readable
 if [ -n "$TRANSCRIPT_PATH" ] && [ -f "$TRANSCRIPT_PATH" ] && [ -r "$TRANSCRIPT_PATH" ]; then
   TODAY=$(date +%Y-%m-%d)
-  SESSION_SHORT=$(echo "$SESSION_ID" | cut -c1-8)
+  SESSION_SHORT=$(kt_codex_id_short "$SESSION_ID")
   SNAPSHOT_FILE="$CAPTURES_DIR/${TODAY}_${SESSION_SHORT}.md"
 
   cp "$TRANSCRIPT_PATH" "$SNAPSHOT_FILE" 2>/dev/null

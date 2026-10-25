@@ -26,8 +26,8 @@ bash "${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/bin/save-transcript.sh"
 
 The script:
 1. Reads `~/.claude/aria-knowledge.local.md` via `config.sh` — stops with a setup message if unconfigured.
-2. Locates **this** session's transcript by session id: `$CLAUDE_CODE_SESSION_ID` (set by Claude Code in Bash tool shells), then the id passed as the argument above, matched to `~/.claude/projects/<project>/<id>.jsonl`. If an id is known but no transcript matches, it exits 1 and writes nothing — it never falls back to another session's file. Only when no id is available at all (older Claude Code) does it take the most recently written top-level transcript, and then it prints a `⚠ GUESSED` line.
-3. Copies it to `{knowledge_folder}/intake/pre-compact-captures/{YYYY-MM-DD}_{session-id-8-chars}.md`.
+2. Locates **this** session's rollout by thread id: `$CODEX_THREAD_ID` (set by Codex in every shell command it runs), then an id passed as an argument, matched to `${CODEX_HOME:-~/.codex}/sessions/YYYY/MM/DD/rollout-<timestamp>-<id>.jsonl`, and confirmed against that file's first `session_meta` record. If an id is known but no rollout matches (or its `session_meta` names another thread), it exits 1 and writes nothing — it never falls back to another session's file. Only when no id is available at all does it take the most recently written rollout, and then it prints a `⚠ GUESSED` line.
+3. Copies it to `{knowledge_folder}/intake/pre-compact-captures/{YYYY-MM-DD}_{last-8-chars-of-thread-id}.md`. Codex thread ids are UUIDv7 and begin with a timestamp, so sessions started close together share their first characters; the last 8 are random, which keeps two sessions from overwriting each other's capture. The pre-compact and subagent capture hooks name files the same way.
 4. Prints the snapshot path, the source transcript path, and pointers to the two review paths — `/extract` for in-context synthesis now, or `/audit knowledge` which will review the snapshot at the next audit cycle via digest mode.
 
 ## Step 2: Relay The Output
@@ -47,6 +47,6 @@ If the script exits non-zero, relay the stderr message. Common causes:
 
 ## Concurrent Sessions
 
-Concurrent Claude Code sessions are safe: the script copies the transcript whose filename is this session's id, not the most recently written one. (Before this, it picked the newest `*.jsonl`, which with several sessions live was often another session's — and it still reported success.)
+Concurrent Codex sessions are safe: the script copies the rollout whose filename and `session_meta` carry this thread's id, not the most recently written one. (Before 2.57.4-codex.1 it searched Claude Code's `~/.claude/projects`, found nothing for a Codex thread, and fell back to the newest Claude Code transcript.)
 
-If the output contains `⚠ GUESSED`, no session id reached the script and it fell back to the newest transcript. Compare the `Source:` id with your own session; if they differ, relay that to the user and do not delete the captured file — it is a valid snapshot of another session that may have no other record. To capture the right one, copy `~/.claude/projects/<project>/<your-session-id>.jsonl` to `intake/pre-compact-captures/<YYYY-MM-DD>_<first-8-chars>.md`.
+If the output contains `⚠ GUESSED`, no thread id reached the script and it fell back to the newest rollout. Compare the `Source:` id with your own thread (`echo "$CODEX_THREAD_ID"`); if they differ, relay that to the user and do not delete the captured file — it is a valid snapshot of another session that may have no other record. To capture the right one, copy `~/.codex/sessions/YYYY/MM/DD/rollout-*-<your-thread-id>.jsonl` to `intake/pre-compact-captures/<YYYY-MM-DD>_<last-8-chars>.md`.

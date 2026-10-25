@@ -38,7 +38,7 @@ unless the user explicitly overrides `KT_CONFIG` or `ARIA_KNOWLEDGE_CONFIG`.
 
 - Skills should keep shared knowledge schemas compatible while using Codex-native
   metadata, config, and hook wording.
-- This port tracks Claude Code ARIA `2.55.1` (release label `2.57.4-codex.0`, which also carries the canonical 2.57.0 `/audit usage`, curated-dir fetch-gate and effort-line changes, and 2.57.4's external-fetch deny text) for shared knowledge templates, review skills, audit/preflight/prospect/retrospect workflows, Rule 35/Rule 36/Rule 37 content, and Codex-supported hook behavior.
+- This port tracks Claude Code ARIA `2.57.4` (release label `2.57.4-codex.1`; parity re-verified 2026-10-25, see that section) for shared knowledge templates, review skills, audit/preflight/prospect/retrospect workflows, Rule 35/Rule 36/Rule 37 content, and Codex-supported hook behavior.
 - Rule 22 maps Codex file edits to `apply_patch`; Codex also supports `Edit|Write`
   matcher aliases for the same canonical tool.
 - `UserPromptSubmit` is the Codex-native active-knowledge intent hook. It scans
@@ -78,6 +78,29 @@ unless the user explicitly overrides `KT_CONFIG` or `ARIA_KNOWLEDGE_CONFIG`.
   existing function before adding any `bin/` script here.** Canonical retains the
   `.sh` files, which remain the reference implementation.
 
+## 2.57.4-codex.1 update (2026-10-25) — Codex transcript locator; parity re-verified
+
+- **`/snapshot` reads Codex's own session store.** `bin/save-transcript.sh` finds this thread's rollout
+  at `${CODEX_HOME:-~/.codex}/sessions/YYYY/MM/DD/rollout-<timestamp>-<thread id>.jsonl` by
+  `$CODEX_THREAD_ID` (Codex sets it in every shell command), then by an id passed as an argument, and
+  checks the file's first `session_meta` record names the same thread. A known id with no match, or a
+  mismatched `session_meta`, exits 1 and writes nothing. With no id at all it takes the newest rollout
+  and prints `⚠ GUESSED`. Sources: Codex docs (via context7) and the on-disk store.
+- **Capture filenames use the LAST 8 characters of the id** (`kt_codex_id_short` in `bin/config.sh`),
+  in `save-transcript.sh`, `pre-compact-check.sh` and `subagent-stop-capture.sh`. Codex ids are
+  UUIDv7, whose leading characters are a timestamp: of 57 local rollouts, 37 shared their first 8
+  characters (`019e3929`), so first-8 names let sessions overwrite each other's capture; the last 8
+  had 0 duplicates. Do not "restore" `cut -c1-8` on a parity sync — canonical can keep first-8
+  because Claude Code ids are random UUIDv4.
+- **Tests:** five in `tests/test_codex_port.py` (own thread over a newer sibling sharing its prefix,
+  id argument + `CODEX_HOME`, unknown and mismatched ids write nothing, no-id `GUESSED`, pre-compact
+  name), all seen red on the previous helper; two mutations (first-8 helper, `session_meta` check
+  removed) each turned their intended tests red.
+- **Parity re-verified against canonical 2.57.4.** The 26 canonical skills changed since 2.55.1 add 96
+  lines. Every added line absent here is one of: a `scripts/` path rename, the `/auto` self-restart
+  section (not ported), or `/setup` Step 7ea text whose `session-start-rules.sh` this port does not
+  ship (the step self-gates to `skip`). The 2.57.4 external-fetch hook change was already here.
+
 ## v2.55.1 update (2026-10-14) — Current Claude parity pass
 
 Skills were brought from canonical v2.46.4 to v2.55.1 by a **3-way merge per skill** (base =
@@ -103,10 +126,12 @@ conflicts remained (16, each resolved by hand). Codex adaptations below survived
 - **Added dependency:** `bin/lib-state-key.sh` (sourced by the merged `pre-external-fetch-check.sh`;
   without it that hook emitted nothing — caught by the port suite).
 - **Adapted, not ported:** `/auto`'s "Runtime precondition — Bash required" section (routes to
-  Cowork gates; Codex always has a shell) is removed; the `/handoff` and `/wrapup` "Rule 22 bypasses
-  through the shell" step is a self-report, because Codex has no writer for that ledger and an
-  absent file must never read as "0 bypasses".
-- ⚠ **Open, pre-existing:** `/snapshot` → `bin/save-transcript.sh` searches Claude Code's
+  Cowork gates; Codex always has a shell) is removed. ⚠ *Corrected 2026-10-25:* this bullet also said
+  the `/handoff` and `/wrapup` "Rule 22 bypasses through the shell" step is a self-report because Codex
+  has no writer for that ledger. That was superseded in the same pass: `codex-hook.py` runs
+  `pre-bash-write-check.sh`, which writes `${TMPDIR}/aria-r22-bypass-<session_id>`, and both skills
+  read it (covered by `test_pre_tool_use_shell_records_in_place_write_to_bypass_ledger`).
+- ✅ **Closed 2026-10-25 in 2.57.4-codex.1** (see that section). Was: `/snapshot` → `bin/save-transcript.sh` searches Claude Code's
   `~/.claude/projects`, not Codex's own session store. It now prints a `GUESSED` warning instead of
   silently capturing, but a Codex transcript locator still needs writing against current Codex docs.
 

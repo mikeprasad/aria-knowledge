@@ -14,6 +14,15 @@ kt_json_escape() {
   printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' -e 's/	/\\t/g' | tr '\n' ' '
 }
 
+# Codex-only: the short id used in capture filenames ({date}_{short}.md).
+# Codex thread ids are UUIDv7, whose leading characters are a timestamp: of 57
+# measured rollouts, 37 shared their first 8 characters, so a first-8 name let
+# sessions started close together overwrite each other's capture. The last 8
+# are random (0 duplicates in the same 57). Every capture writer uses this.
+kt_codex_id_short() {
+  printf '%s' "$1" | awk '{ n = length($0); print (n > 8 ? substr($0, n - 7) : $0) }'
+}
+
 # Escape a string for a JSON value, PRESERVING newlines as the two-character \n
 # escape. Use this for any payload whose STRUCTURE matters — a rules digest, a
 # checklist, anything with headings or bullets.

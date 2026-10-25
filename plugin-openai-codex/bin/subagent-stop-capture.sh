@@ -41,8 +41,8 @@ mkdir -p "$CAPTURES_DIR" 2>/dev/null
 # preserved until /extract or /audit knowledge processes it (no ledger-clear here).
 if [ -n "$TRANSCRIPT_PATH" ] && [ -f "$TRANSCRIPT_PATH" ] && [ -r "$TRANSCRIPT_PATH" ]; then
   TODAY=$(date +%Y-%m-%d)
-  SESSION_SHORT=$(echo "$SESSION_ID" | cut -c1-8)
-  AGENT_SHORT=$(echo "$AGENT_ID" | cut -c1-8)
+  SESSION_SHORT=$(kt_codex_id_short "$SESSION_ID")
+  AGENT_SHORT=$(kt_codex_id_short "$AGENT_ID")
   AGENT_TYPE_SAFE=$(printf '%s' "$AGENT_TYPE" | sed 's/[^A-Za-z0-9._-]/-/g')
   SNAPSHOT_FILE="$CAPTURES_DIR/${TODAY}_${SESSION_SHORT}_${AGENT_TYPE_SAFE}_${AGENT_SHORT}.md"
   cp "$TRANSCRIPT_PATH" "$SNAPSHOT_FILE" 2>/dev/null

@@ -646,6 +646,127 @@ def test_subagent_start_self_report_and_stop_capture() -> None:
         assert "retry window matters" in read(captures[0])
 
 
+# Two Codex thread ids that share their first 8 characters. Codex ids are UUIDv7,
+# whose leading characters are a timestamp, so sessions started close together
+# share a prefix: measured, 37 of 57 local rollouts began `019e3929`.
+OWN_ID = "019e3929-aaaa-7000-8000-00000000aaaa"
+SIBLING_ID = "019e3929-bbbb-7000-8000-00000000bbbb"
+
+
+def write_rollout(sessions: Path, thread_id: str, body: str, mtime: float, meta_id: str | None = None) -> Path:
+    day = sessions / "2026" / "10" / "25"
+    day.mkdir(parents=True, exist_ok=True)
+    path = day / f"rollout-2026-10-25T10-00-00-{thread_id}.jsonl"
+    meta = {"type": "session_meta", "payload": {"id": meta_id or thread_id}}
+    path.write_text(json.dumps(meta, separators=(",", ":")) + "\n" + body + "\n", encoding="utf-8")
+    os.utime(path, (mtime, mtime))
+    return path
+
+
+def run_save_transcript(home: Path, config: Path, env: dict[str, str], *args: str) -> subprocess.CompletedProcess[str]:
+    run_env = {k: v for k, v in os.environ.items() if k not in {"CODEX_THREAD_ID", "CODEX_HOME", "CLAUDE_CODE_SESSION_ID"}}
+    run_env.update({"HOME": str(home), "KT_CONFIG": str(config)})
+    run_env.update(env)
+    return subprocess.run(
+        ["sh", str(PORT_ROOT / "bin" / "save-transcript.sh"), *args],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        env=run_env,
+        check=False,
+    )
+
+
+def snapshot_fixture(root: Path) -> tuple[Path, Path, Path, Path]:
+    home = root / "home"
+    knowledge = root / "knowledge"
+    knowledge.mkdir()
+    config = root / "aria-config.md"
+    write_config(config, knowledge)
+    sessions = home / ".codex" / "sessions"
+    write_rollout(sessions, OWN_ID, "OWN-SESSION", 1_000)
+    # The sibling is newer, so a "newest rollout" picker would take it.
+    write_rollout(sessions, SIBLING_ID, "SIBLING-SESSION", 2_000)
+    return home, knowledge, config, knowledge / "intake" / "pre-compact-captures"
+
+
+def test_snapshot_copies_this_codex_thread_not_the_newest_rollout() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        home, _, config, captures = snapshot_fixture(Path(tmp))
+        proc = run_save_transcript(home, config, {"CODEX_THREAD_ID": OWN_ID})
+        assert proc.returncode == 0, proc.stderr
+        files = sorted(p.name for p in captures.glob("*.md"))
+        assert len(files) == 1 and files[0].endswith("_0000aaaa.md"), files
+        assert "OWN-SESSION" in read(captures / files[0])
+        assert OWN_ID in proc.stdout and "GUESSED" not in proc.stdout
+
+        # The sibling shares the first 8 characters; its capture must be a
+        # separate file, not an overwrite of ours.
+        proc = run_save_transcript(home, config, {"CODEX_THREAD_ID": SIBLING_ID})
+        assert proc.returncode == 0, proc.stderr
+        assert len(list(captures.glob("*.md"))) == 2
+        assert "OWN-SESSION" in read(next(captures.glob("*_0000aaaa.md")))
+
+
+def test_snapshot_reads_the_id_argument_and_codex_home() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        home, _, config, captures = snapshot_fixture(root)
+        custom = root / "codex-home"
+        write_rollout(custom / "sessions", OWN_ID, "CUSTOM-HOME", 3_000)
+        proc = run_save_transcript(home, config, {"CODEX_HOME": str(custom)}, OWN_ID)
+        assert proc.returncode == 0, proc.stderr
+        assert "CUSTOM-HOME" in read(next(captures.glob("*_0000aaaa.md")))
+
+        proc = run_save_transcript(home, config, {"CODEX_HOME": str(root / "absent")})
+        assert proc.returncode == 1
+        assert "CODEX_HOME" in proc.stderr
+
+
+def test_snapshot_with_unknown_or_mismatched_id_writes_nothing() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        home, _, config, captures = snapshot_fixture(root)
+        proc = run_save_transcript(home, config, {"CODEX_THREAD_ID": "019e3929-cccc-7000-8000-00000000cccc"})
+        assert proc.returncode == 1
+        assert "Nothing was written" in proc.stderr
+        assert not list(captures.glob("*.md")) if captures.exists() else True
+
+        # A file whose name carries the id but whose session_meta names another
+        # thread is not this session's transcript.
+        bad_id = "019e3929-dddd-7000-8000-00000000dddd"
+        write_rollout(home / ".codex" / "sessions", bad_id, "RENAMED", 4_000, meta_id=SIBLING_ID)
+        proc = run_save_transcript(home, config, {"CODEX_THREAD_ID": bad_id})
+        assert proc.returncode == 1
+        assert not list(captures.glob("*.md")) if captures.exists() else True
+
+
+def test_snapshot_without_any_id_guesses_the_newest_and_says_so() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        home, _, config, captures = snapshot_fixture(Path(tmp))
+        proc = run_save_transcript(home, config, {})
+        assert proc.returncode == 0, proc.stderr
+        assert "GUESSED" in proc.stdout
+        assert "SIBLING-SESSION" in read(next(captures.glob("*_0000bbbb.md")))
+
+
+def test_pre_compact_capture_uses_the_random_tail_of_the_thread_id() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        knowledge = root / "knowledge"
+        knowledge.mkdir()
+        config = root / "aria-config.md"
+        write_config(config, knowledge)
+        transcript = write_rollout(root / "sessions", OWN_ID, "OWN-SESSION", 1_000)
+        run_hook(
+            "pre-compact",
+            {"hook_event_name": "PreCompact", "session_id": OWN_ID, "transcript_path": str(transcript)},
+            env={"KT_CONFIG": str(config)},
+        )
+        names = [p.name for p in (knowledge / "intake" / "pre-compact-captures").glob("*.md")]
+        assert len(names) == 1 and names[0].endswith("_0000aaaa.md"), names
+
+
 if __name__ == "__main__":
     failures = 0
     for name, fn in sorted(globals().items()):

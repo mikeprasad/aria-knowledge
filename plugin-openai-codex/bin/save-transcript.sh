@@ -18,28 +18,30 @@ if [ ! -d "$KT_KNOWLEDGE_FOLDER" ]; then
   exit 1
 fi
 
-# Locate THIS session's transcript by its session id. Claude Code sets
-# CLAUDE_CODE_SESSION_ID in Bash tool subprocesses; the /snapshot skill also
-# passes its ${CLAUDE_SESSION_ID} substitution as $1. Both are tried, env first:
-# on --continue / --resume without an id the env var may hold the startup id,
-# whose transcript does not exist.
+# Locate THIS session's transcript by its thread id. Codex stores each thread as
+#   ${CODEX_HOME:-~/.codex}/sessions/YYYY/MM/DD/rollout-<timestamp>-<thread id>.jsonl
+# whose first record is {"type":"session_meta","payload":{"id":"<thread id>",...}},
+# and sets CODEX_THREAD_ID in every shell command it runs. An id passed as $1 is
+# tried second. Codex documents that label as one it may remove, so the no-id
+# path below falls back to the newest rollout and says it guessed.
 #
-# Never "the newest *.jsonl": with several sessions live, that is another
-# session's transcript as often as not, and the copy still reports success.
-PROJECTS_DIR="$HOME/.claude/projects"
+# Never "the newest rollout" when an id is known: with several sessions live,
+# that is another session's as often as not, and the copy still reports success.
+if [ -n "${CODEX_HOME:-}" ] && [ ! -d "$CODEX_HOME" ]; then
+  echo "CODEX_HOME is set but is not a directory: $CODEX_HOME" >&2
+  exit 1
+fi
+SESSIONS_DIR="${CODEX_HOME:-$HOME/.codex}/sessions"
 TRANSCRIPT_PATH=""
 TRIED_IDS=""
 GUESSED=""
 
-# A top-level <project>/<id>.jsonl is a session transcript. Deeper .jsonl files
-# (<sid>/subagents/agent-*.jsonl, plugin logs) are not, so stay at depth 2.
-# Session ids are UUIDs, so one match is expected; no mtime sort, which keeps
-# this path free of the BSD-only stat flags below.
+# Rollouts sit exactly at sessions/YYYY/MM/DD/, so stay at depth 4.
 find_by_id() {
-  find "$PROJECTS_DIR" -mindepth 2 -maxdepth 2 -type f -name "$1.jsonl" 2>/dev/null | head -1
+  find "$SESSIONS_DIR" -mindepth 4 -maxdepth 4 -type f -name "rollout-*-$1.jsonl" 2>/dev/null | head -1
 }
 
-for CANDIDATE in "${CLAUDE_CODE_SESSION_ID:-}" "${1:-}"; do
+for CANDIDATE in "${CODEX_THREAD_ID:-}" "${1:-}"; do
   [ -n "$CANDIDATE" ] || continue
   case "$CANDIDATE" in
     *[!A-Za-z0-9-]*)
@@ -48,33 +50,40 @@ for CANDIDATE in "${CLAUDE_CODE_SESSION_ID:-}" "${1:-}"; do
   esac
   TRIED_IDS="$TRIED_IDS $CANDIDATE"
   TRANSCRIPT_PATH=$(find_by_id "$CANDIDATE")
-  [ -n "$TRANSCRIPT_PATH" ] && break
+  if [ -n "$TRANSCRIPT_PATH" ]; then
+    # The filename is only a claim; the session_meta record is the thread's own.
+    if ! head -n 1 "$TRANSCRIPT_PATH" | grep -q "\"id\":\"$CANDIDATE\""; then
+      echo "Rollout $TRANSCRIPT_PATH does not record thread id $CANDIDATE in its session_meta." >&2
+      echo "Nothing was written." >&2
+      exit 1
+    fi
+    break
+  fi
 done
 
 if [ -z "$TRANSCRIPT_PATH" ] && [ -n "$TRIED_IDS" ]; then
-  echo "No transcript found for session id(s):$TRIED_IDS under $PROJECTS_DIR" >&2
+  echo "No transcript found for session id(s):$TRIED_IDS under $SESSIONS_DIR" >&2
   echo "Nothing was written. Not falling back to the newest transcript — that is usually another session's." >&2
   exit 1
 fi
 
 if [ -z "$TRANSCRIPT_PATH" ]; then
-  # No session id at all (older Claude Code). Fall back to the newest top-level
-  # session transcript, and say plainly that this is a guess.
-  TRANSCRIPT_PATH=$(find "$PROJECTS_DIR" -mindepth 2 -maxdepth 2 -type f -name '*.jsonl' 2>/dev/null \
-    | while IFS= read -r f; do stat -f "%Fm %N" "$f" 2>/dev/null; done \
-    | sort -rn | head -1 | cut -d' ' -f2-)
+  # No thread id at all. Take the most recently written rollout, and say
+  # plainly that this is a guess. `ls -t` is POSIX; `-exec … +` keeps paths
+  # with spaces intact.
+  TRANSCRIPT_PATH=$(find "$SESSIONS_DIR" -mindepth 4 -maxdepth 4 -type f -name 'rollout-*.jsonl' \
+    -exec ls -t {} + 2>/dev/null | head -1)
   GUESSED=1
 fi
 
 if [ -z "$TRANSCRIPT_PATH" ] || [ ! -f "$TRANSCRIPT_PATH" ]; then
-  echo "No transcript file found under $PROJECTS_DIR" >&2
+  echo "No transcript file found under $SESSIONS_DIR" >&2
   exit 1
 fi
 
-# Claude Code names transcript files by session UUID, so the basename is the
-# session id — matches the hook's SESSION_ID format.
-SESSION_ID=$(basename "$TRANSCRIPT_PATH" .jsonl)
-SESSION_SHORT=$(printf '%s' "$SESSION_ID" | cut -c1-8)
+# The thread id is the last 36 characters of the rollout's basename.
+SESSION_ID=$(basename "$TRANSCRIPT_PATH" .jsonl | awk '{ n = length($0); print (n > 36 ? substr($0, n - 35) : $0) }')
+SESSION_SHORT=$(kt_codex_id_short "$SESSION_ID")
 TODAY=$(date +%Y-%m-%d)
 
 CAPTURES_DIR="$KT_KNOWLEDGE_FOLDER/intake/pre-compact-captures"
@@ -90,6 +99,6 @@ fi
 echo "Transcript snapshot saved → $SNAPSHOT_FILE"
 echo "Source: $TRANSCRIPT_PATH"
 if [ -n "$GUESSED" ]; then
-  echo "⚠ GUESSED: no session id was available, so this is the most recently written transcript (session $SESSION_SHORT). If that is not your session, it captured another one."
+  echo "⚠ GUESSED: no thread id was available, so this is the most recently written rollout (session $SESSION_ID). If that is not your session, it captured another one."
 fi
 echo "Run /extract now (in-context), or /audit knowledge will review this snapshot at the next audit cycle."
