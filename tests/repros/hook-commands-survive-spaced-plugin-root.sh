@@ -63,7 +63,8 @@ CC=$(count claude-code); CX=$(count codex)
 
 # C1 — every command names a root variable, and the parse found something.
 unrooted=$(awk -F"$TAB" '$2=="-"' "$LIST" | wc -l | tr -d ' ')
-if [ "$CC" -ge 19 ] && [ "$CX" -ge 8 ] && [ "$unrooted" -eq 0 ]; then
+# 18 since 2026-10-25: session-start-rules.sh merged into session-start-check.sh (one command fewer).
+if [ "$CC" -ge 18 ] && [ "$CX" -ge 8 ] && [ "$unrooted" -eq 0 ]; then
   ok "C1-every-command-parsed-and-rooted (claude-code $CC, codex $CX)"
 else
   bad "C1-every-command-parsed-and-rooted" "claude-code $CC, codex $CX, without a root variable $unrooted"

@@ -150,7 +150,7 @@ printf '### U1. Alpha\n\nAlpha claim, short and complete.\n' > "$UD_TMP/kf/rules
 printf -- '---\nknowledge_folder: %s\n---\n' "$UD_TMP/kf" > "$UD_H/.claude/aria-knowledge.local.md"
 printf 'CORRUPTED — not what the generator would produce\n' > "$UD_H/.claude/rules/aria-user-rules.md"
 HOME="$UD_H" KT_CONFIG="$UD_H/.claude/aria-knowledge.local.md" \
-  sh "$UD_BIN/session-start-rules.sh" </dev/null >/dev/null 2>&1 || true
+  sh "$UD_BIN/session-start-check.sh" </dev/null >/dev/null 2>&1 || true
 assert_eq "[UD12a] a stale rendering self-heals even when it is NEWER than the source" "1" \
   "$(grep -c '^- \*\*U1' "$UD_H/.claude/rules/aria-user-rules.md" 2>/dev/null || true)"
 assert_eq "[UD12b] the corrupted content is gone" "0" \

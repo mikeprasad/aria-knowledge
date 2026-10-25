@@ -1,4 +1,9 @@
 #!/bin/sh
+# ⛔ ARCHIVED 2026-10-25 — NOT REGISTERED, NOT RUN. Merged into scripts/session-start-check.sh,
+# which is now the single SessionStart emitter and routes each message by audience
+# (docs/superpowers/specs/2026-10-25-session-start-single-emitter-spec.md). Kept per Rule 6 as the
+# record of the two-hook design. Do not re-register it: two SessionStart hooks recording the same
+# tracked-artifacts ledger race each other (2026-08-25 delivery spec §8.3).
 # session-start-rules.sh — SessionStart hook for aria-knowledge.
 #
 # Sole owner of the MODEL-directed session-start channel. Its sibling

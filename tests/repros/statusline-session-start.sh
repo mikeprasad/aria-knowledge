@@ -27,7 +27,9 @@ unset CLAUDE_CODE_ENTRYPOINT CLAUDE_CODE_EXECPATH __CFBundleIdentifier 2>/dev/nu
 out=$(printf '{"session_id":"S1","source":"startup"}' | sh "$SCRIPT" 2>/dev/null)
 
 # Path keyed by the resolved (CLI) account, not a hard-coded ~/.claude.json read
-printf '%s' "$out" | grep -q "aria-statusline-state-cli-uuid-1.json" || fail "USAGE_SNAP key not resolved: $out"
+printf '%s' "$out" | jq -r '.hookSpecificOutput.additionalContext // ""' 2>/dev/null \
+  | grep -qF "ARIA USAGE — this account's usage snapshot: ~/.claude/aria-statusline-state-cli-uuid-1.json" \
+  || fail "USAGE_SNAP key not resolved into the model context: $out"
 # Staleness/scope rule taught to the agent.
 #
 # RE-SCOPED (v2.47.0), not relaxed. This used to assert against
@@ -37,10 +39,11 @@ printf '%s' "$out" | grep -q "aria-statusline-state-cli-uuid-1.json" || fail "US
 # session-start-rules.sh on hookSpecificOutput.additionalContext, so the
 # assertion follows it there and is checked on the DECODED payload: the property
 # is "the agent is taught the rule", and only the decoded value proves that.
-RULES_HOOK="$HERE/../../plugin-claude-code/scripts/session-start-rules.sh"
-rules_out=$(sh "$RULES_HOOK" </dev/null 2>/dev/null)
+# ⛔ RE-POINTED 2026-10-25: one hook now. The run above is this HOME's first, so the digest was
+# absent at snapshot time and the fallback arm carried the digest — the TASK BUDGET text below.
+rules_out="$out"
 printf '%s' "$rules_out" | grep -q "additionalContext" \
-  || fail "session-start-rules.sh did not emit additionalContext: $rules_out"
+  || fail "session-start-check.sh did not emit additionalContext: $rules_out"
 printf '%s' "$rules_out" | jq -r '.hookSpecificOutput.additionalContext' 2>/dev/null \
   | grep -qi "resets_at" || fail "missing resets_at staleness rule in the model-facing payload"
 # And it must NOT have regressed into telling the agent to decide from usage.
@@ -55,6 +58,6 @@ printf '%s' "$rules_ctx" | grep -qi "session_id" || fail "missing context sessio
 # The user-facing hook keeps a pointer to the snapshot, but must no longer carry
 # the directive body — leaving it there keeps a corrected behaviour one
 # channel-flip from returning.
-printf '%s' "$out" | grep -qi "re-read it fresh at decision time" \
-  && fail "old hook still carries the TASK BUDGET directive body"
+printf '%s' "$out" | jq -r '.systemMessage // ""' 2>/dev/null | grep -qi "TASK BUDGET" \
+  && fail "the banner still carries the TASK BUDGET directive"
 echo "PASS statusline-session-start"

@@ -28,13 +28,19 @@ EOF
 
 # Run from a non-project dir so the picker is not skipped by a CWD match.
 out=$(cd "$TMP" && HOME="$TMP" KT_CONFIG="$CFG" sh "$HOOK" </dev/null 2>/dev/null || true)
-echo "$out" | grep -q "ARIA Project Picker" || { echo "FAIL: picker absent when enabled"; echo "--out--"; echo "$out"; rm -rf "$TMP"; exit 1; }
-echo "$out" | grep -q "alpha (Alpha App), beta" || { echo "FAIL: menu string missing/incorrect"; echo "$out"; rm -rf "$TMP"; exit 1; }
+# ⛔ RE-POINTED 2026-10-25: the picker used to be banner text, which never reaches the model. It is
+# now a value line in the decoded model context; the behaviour lives in the digest.
+ctx=$(printf '%s' "$out" | jq -r '.hookSpecificOutput.additionalContext // ""' 2>/dev/null)
+printf '%s' "$ctx" | grep -qF "ARIA PROJECTS — menu: alpha (Alpha App), beta" || { echo "FAIL: picker value absent or wrong when enabled"; echo "--ctx--"; echo "$ctx" | grep -n 'ARIA ' ; rm -rf "$TMP"; exit 1; }
+printf '%s' "$out" | jq -r '.systemMessage // ""' 2>/dev/null | grep -q "Project Picker" && { echo "FAIL: picker text still in the banner"; rm -rf "$TMP"; exit 1; }
+# Not on compact: the offer belongs to the opening message.
+outc=$(cd "$TMP" && printf '{"session_id":"pg","source":"compact"}' | HOME="$TMP" KT_CONFIG="$CFG" sh "$HOOK" 2>/dev/null || true)
+printf '%s' "$outc" | jq -r '.hookSpecificOutput.additionalContext // ""' 2>/dev/null | grep -q "ARIA PROJECTS" && { echo "FAIL: picker offered again after compaction"; rm -rf "$TMP"; exit 1; }
 
 # Disable the flag -> picker must be silent.
 sed 's/session_start_project_picker: true/session_start_project_picker: false/' "$CFG" > "$CFG.off"
 out2=$(cd "$TMP" && HOME="$TMP" KT_CONFIG="$CFG.off" sh "$HOOK" </dev/null 2>/dev/null || true)
-echo "$out2" | grep -q "ARIA Project Picker" && { echo "FAIL: picker emitted while disabled"; rm -rf "$TMP"; exit 1; }
+printf '%s' "$out2" | jq -r '.hookSpecificOutput.additionalContext // ""' 2>/dev/null | grep -q "ARIA PROJECTS" && { echo "FAIL: picker emitted while disabled"; rm -rf "$TMP"; exit 1; }
 
 rm -rf "$TMP"
 echo "picker-gating: PASS"

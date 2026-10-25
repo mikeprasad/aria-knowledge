@@ -48,7 +48,9 @@ CFG="$APM_TMP/aria-cfg.md"
 KF="$APM_TMP/kf"; mkdir -p "$KF/rules"
 printf -- '---\nknowledge_folder: %s\n---\n' "$KF" > "$CFG"
 
-HOOK="$APM_ROOT/scripts/session-start-rules.sh"
+# The single SessionStart emitter (2026-10-25). It absorbed session-start-rules.sh, now under
+# scripts/.archived/; its model payload is the additionalContext field asserted below.
+HOOK="$APM_ROOT/scripts/session-start-check.sh"
 
 # ⛔ EVERY hook invocation in this file MUST set HOME. The hook writes the
 # user-scope rules files under $HOME/.claude/rules/, so a test that inherits the
@@ -80,8 +82,10 @@ if HOME="$APM_HOME" KT_CONFIG="$CFG" sh "$HOOK" </dev/null > "$OUT" 2>/dev/null;
 assert_eq "hook exits 0" "0" "$rc"
 assert_eq "emits additionalContext" "yes" \
   "$(grep -q 'additionalContext' "$OUT" 2>/dev/null && echo yes || echo no)"
-assert_eq "does NOT emit systemMessage" "no" \
-  "$(grep -q 'systemMessage' "$OUT" 2>/dev/null && echo yes || echo no)"
+# The banner (systemMessage) may carry human nags; it must carry no model directive, because it
+# never reaches the model. (Before 2026-10-25 this asserted the rules hook emitted no banner at all.)
+assert_eq "banner carries no model directive" "no" \
+  "$(jq -r '.systemMessage // ""' "$OUT" 2>/dev/null | grep -q 'RULE 22 ORDERING' && echo yes || echo no)"
 assert_eq "payload is valid JSON" "yes" \
   "$(jq -e . "$OUT" >/dev/null 2>&1 && echo yes || echo no)"
 assert_eq "payload carries a digest rule line" "yes" \
@@ -194,10 +198,14 @@ assert_eq "config line reports session_state=true" "yes" "$(u2_has 'session_stat
 # drift between two copies.
 #
 # Both stay in session-start-check.sh until the single-emitter collapse (spec §8).
-assert_eq "new hook stays out of the ledger" "no" \
-  "$(grep -q 'kt_artifact_record_ledger' "$APM_ROOT/scripts/session-start-rules.sh" 2>/dev/null && echo yes || echo no)"
-assert_eq "new hook does not duplicate CODEMAP staleness logic" "no" \
-  "$(grep -q 'CODEMAP Found' "$APM_ROOT/scripts/session-start-rules.sh" 2>/dev/null && echo yes || echo no)"
+# ⛔ RE-POINTED 2026-10-25 — the two guards here grepped session-start-rules.sh with 2>/dev/null and
+# expected "no". Once that file was archived the grep failed, read "no", and both would have stayed
+# green forever. The single emitter dissolves the race they guarded, so they now assert that shape:
+# exactly one SessionStart command, and exactly one ledger-recording call site in it.
+assert_eq "SessionStart registers exactly one command" "1" \
+  "$(jq '[.hooks.SessionStart[].hooks[]] | length' "$APM_ROOT/.claude-plugin/plugin.json" 2>/dev/null)"
+assert_eq "the single emitter records the tracked-artifacts ledger at one call site" "1" \
+  "$(grep -c 'kt_artifact_record_ledger "' "$APM_ROOT/scripts/session-start-check.sh" 2>/dev/null)"
 
 # ---------------------------------------------------------------------------
 # Compaction — an always-on rule stops being always-on when context is wiped

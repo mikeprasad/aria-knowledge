@@ -115,11 +115,19 @@ printf '# I\n---\n' > "$CB_HK/intake/insights-backlog.md"
 assert_eq "session-start: canonical-only backlog carries no off-level note" "yes" \
   "$(cb_hook "$CB_BINDIR" | grep -q 'Knowledge audit suggested — 3 entries ready for review' && echo yes || echo no)"
 
-# The hook repeats the INSIGHT CAPTURE directive inside a DOUBLE-QUOTED sh string. Backticks there
-# are command substitution: the first draft of this contract rendered as "each as one  heading",
-# silently, exit 0. Assert the RENDERED output — a grep of the source file passes over that.
-assert_eq "session-start: INSIGHT CAPTURE heading contract survives rendering" "yes" \
-  "$(cb_hook "$CB_BINDIR" | grep -qF "each as one '### YYYY-MM-DD — <project> — <title>' heading" && echo yes || echo no)"
+# ⛔ RE-POINTED 2026-10-25. The hook used to repeat the INSIGHT CAPTURE directive inside a
+# double-quoted sh string (where backticks are command substitution), in a banner the model never
+# reads. The directive now lives only in the digest, which is loaded verbatim — so assert the
+# contract there, and assert the hook no longer carries a copy that could drift.
+assert_eq "digest: INSIGHT CAPTURE heading contract is delivered" "yes" \
+  "$(grep -qF 'each as one `### YYYY-MM-DD — <project> — <title>` heading' "$(dirname "$CB_BINDIR")/rules/aria-rules.md" && echo yes || echo no)"
+# Banner only: on a HOME with no rules files the fallback arm legitimately sends the whole digest
+# (INSIGHT CAPTURE included) in additionalContext.
+CB_SM=$(cb_hook "$CB_BINDIR" | jq -r '.systemMessage // ""' 2>/dev/null)
+assert_eq "session-start: banner decodes (control for the absence check below)" "yes" \
+  "$(printf '%s' "$CB_SM" | grep -q 'Knowledge audit' && echo yes || echo no)"
+assert_eq "session-start: the banner carries no INSIGHT CAPTURE copy" "no" \
+  "$(printf '%s' "$CB_SM" | grep -q 'INSIGHT CAPTURE' && echo yes || echo no)"
 
 # Counter missing (a port or partial install): falls back to 0 — no count prompt, hook still runs.
 CB_BROKEN="${TMPDIR:-/tmp}/aria-cb-$$/bin-broken"

@@ -30,15 +30,24 @@ mkcfg() { # $1 = autonomy value (or "omit")
 }
 run() { printf '%s' '{"session_id":"auttest"}' | (cd "$TMP" && HOME="$TMP" KT_CONFIG="$1" sh "$HOOK" 2>/dev/null) || true; }
 
+# ⛔ RE-POINTED 2026-10-25. B/C used to grep the hook's banner, which never reaches the model.
+# The delivered design: the hook sends the resolved value in the ARIA CONFIG line (decoded
+# additionalContext), and the digest carries each variant keyed on that value.
+DIGEST="$DIR/plugin-claude-code/rules/aria-rules.md"
+ctxof() { printf '%s' "$1" | jq -r '.hookSpecificOutput.additionalContext // ""' 2>/dev/null; }
 out=$(run "$(mkcfg default)")
-echo "$out" | grep -qiE 'decision budget|decide .*forks yourself|investigate before asking|DECISION ROUTING' && bad "B1 default-silent" "autonomy directive emitted at default" || ok "B1 default injects nothing"
+ctxof "$out" | grep -qF 'autonomy=default' && ok "B1 default → config line says autonomy=default" || bad "B1 default" "no autonomy=default in the model context"
 out=$(run "$(mkcfg omit)")
-echo "$out" | grep -qiE 'decision budget|decide .*forks yourself|DECISION ROUTING' && bad "B2 omit-silent" "autonomy directive emitted when key absent" || ok "B2 omitted key injects nothing"
+ctxof "$out" | grep -qF 'autonomy=default' && ok "B2 omitted key → autonomy=default" || bad "B2 omit" "no autonomy=default in the model context"
+grep -qF 'When `autonomy` is `default`, or no value reached you: **no routing directive applies.**' "$DIGEST" \
+  && ok "B3 digest: default adds no directive" || bad "B3 digest default" "the digest does not state the default"
 out=$(run "$(mkcfg balanced)")
-echo "$out" | grep -qiE 'investigate first|DECISION ROUTING \(balanced\)' && ok "C1 balanced directive present" || bad "C1 balanced" "no balanced directive"
+ctxof "$out" | grep -qF 'autonomy=balanced' && ok "C1 balanced value sent" || bad "C1 balanced" "no autonomy=balanced in the model context"
+grep -qF 'DECISION ROUTING (balanced)' "$DIGEST" && ok "C1 digest carries the balanced directive" || bad "C1 digest" "no balanced directive"
 out=$(run "$(mkcfg autonomous)")
-echo "$out" | grep -qiE 'stop .*only|no gainable visibility|ungranted|explicit approval' && ok "C2 autonomous stop-clause" || bad "C2 stop-clause" "no stop-only clause"
-echo "$out" | grep -qiE 'Rules? 13|13/14/18' && ok "C2 autonomous 13/14/18 reference" || bad "C2 13/14/18" "no build-philosophy reference"
+ctxof "$out" | grep -qF 'autonomy=autonomous' && ok "C2 autonomous value sent" || bad "C2 autonomous" "no autonomy=autonomous in the model context"
+grep -qiE 'stop and ask only|no gainable visibility' "$DIGEST" && ok "C2 digest autonomous stop-clause" || bad "C2 stop-clause" "no stop-only clause"
+grep -qE 'Rules 13/14/18' "$DIGEST" && ok "C2 digest 13/14/18 reference" || bad "C2 13/14/18" "no build-philosophy reference"
 rm -rf "$TMP"
 
 printf "\n%d passed, %d failed\n" "$PASS" "$FAIL"
