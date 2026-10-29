@@ -1,6 +1,6 @@
 {
   "name": "aria-knowledge",
-  "version": "2.57.4",
+  "version": "2.57.5",
   "description": "ARIA \u2014 Applied Reasoning and Insight Architecture. Human-governed knowledge for Claude Code: stage session insights and decisions for review, promote approved items into a tag-indexed markdown knowledge base, and apply them via /context, /rules, /codemap, /stitch and /distill. Adds /prospect, /retrospect and /preflight gates and Rule 22 change-decision hooks on every edit. Run /setup first: every other skill needs ~/.claude/aria-knowledge.local.md.",
   "author": {
     "name": "Mike Prasad"

@@ -2,7 +2,17 @@
 
 All notable changes to ARIA will be documented in this file.
 
-## Unreleased
+## 2.57.5 — 2026-10-29
+
+**SessionStart has one emitter, and each message goes to the audience it is for.** Two hooks used to run at session start. `session-start-check.sh` put everything into `systemMessage`, which the user sees and the model never does, so the project picker and the "CODEMAP found" list had never reached any model. The old banner was also invalid JSON: `echo` under macOS `sh` halved its backslashes, and a strict parse failed at character 7,701.
+
+- **One hook, two channels:** `session-start-check.sh` now does both jobs and prints one JSON object with `printf`. Reminders and nags go to `systemMessage` (user only). Everything the model needs goes to `hookSpecificOutput.additionalContext`. `session-start-rules.sh` is archived in `scripts/.archived/`.
+- **No banner after compaction:** on `source=compact` the user-facing banner is dropped, so idle compaction no longer repeats the audit nags.
+- **Values in the hook, behaviour in the digest:** the hook emits short value lines (`ARIA CONFIG`, `ARIA PROJECT`, `ARIA PROJECTS`, `ARIA CODEMAPS`, `ARIA USAGE`, tracked artifacts). What to do with them lives in `rules/aria-rules.md`, which is installed to `~/.claude/rules/`. Measured payload: startup 1,083 characters (the banner is 295, down from 12,660), compact 1,172.
+- **Two old defects this exposed:** the CODEMAP scan's 5-map cap could fill with copies inside hidden `.wt-*` worktrees, hiding the real ones; and when two configured project tags mapped to the same path, the tag was picked by list order. The scan now skips hidden directories before applying the cap, and a tie goes to the tag that matches the directory name.
+- **`/setup` Step 7ea** looked for the retired script by name and would have skipped the rules-file install; it now looks for the rules writer in `session-start-check.sh`.
+- **Tests:** new `tests/repros/session-start-single-emitter.sh` (40 checks, including strict JSON parses of both channels) and `tests/repros/setup-rules-precondition.sh`. Both test runners now fail if a run changes the real `~/.claude/rules` files.
+- **Ports:** Antigravity regenerated, Cursor rules regenerated. Codex and Cursor keep their own session-start scripts and routing; only the project-tag tie-break is not ported there. Versions: Antigravity `2.57.5`, Codex `2.57.5-codex.0` and Cursor `2.57.5-cursor.0` (both also carry the session-state library change below). Cowork is unchanged at 1.8.1.
 
 **The first-edit in-progress mark no longer takes over another session's waiting handoff.** `post-edit-check.sh` calls `kt_ss_mark_inprogress` on a session's first edit in a project. It rewrote `lastEvent`, `at`, `branch`, `headCommit` and `sessionId` even when the `## Next session prompt` held another session's unconsumed handoff, so a pasted `aria-handoff:` token then located as the session that happened to edit first. Measured 2026-10-29: a token naming `5ce12827…@23:12:55Z` located as `879f0754…|23:16:12Z`, and resolved only after the front matter was restored by hand.
 
