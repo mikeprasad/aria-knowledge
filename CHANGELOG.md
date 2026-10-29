@@ -2,6 +2,14 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## Unreleased
+
+**`/wrapup` and `/handoff` no longer describe the 2.57.5 hook fix's old behaviour as current.** Both skills explained their rules with "`post-edit-check.sh` stamps the current session's id over another session's prompt — the routine state", and `/wrapup` cited `tests/repros/session-state.sh` block O as asserting it. Since 2.57.5 the hook leaves a file holding a live prompt alone, and block O guards against the overwrite.
+
+- Seven passages per skill pair now say what happened before 2.57.5 and why it still matters: files stamped then, and older installs, still carry the wrong header. The instructions they justify are unchanged — do not gate the demote on `sessionId`, demote an in-progress marker that holds a real prompt, flag a hook-stamped sid as a `HOOK ARTIFACT`, and trust the token over the front matter.
+- The same stale claim is corrected in `kt_ss_read_active_token`'s comment and in a comment in `tests/repros/wrapup-demotes-before-rewrite.sh`.
+- Ports: Codex by hand (same sentences, each matched once); Antigravity and Cursor regenerated. Cowork has none of this text.
+
 ## 2.57.5 — 2026-10-29
 
 **SessionStart has one emitter, and each message goes to the audience it is for.** Two hooks used to run at session start. `session-start-check.sh` put everything into `systemMessage`, which the user sees and the model never does, so the project picker and the "CODEMAP found" list had never reached any model. The old banner was also invalid JSON: `echo` under macOS `sh` halved its backslashes, and a strict parse failed at character 7,701.

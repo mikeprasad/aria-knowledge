@@ -780,9 +780,10 @@ kt_ss_ledger_token_locate() {
 # written before 2026-09-15).
 #
 # ⛔ WHY THIS EXISTS. kt_ss_read_active_sid reads the FRONT MATTER only, and the front
-# matter is exactly the value that is wrong when the two disagree: kt_ss_mark_inprogress
-# stamps the CURRENT session's id over the header while passing the body through, so a
-# prompt routinely sits under a later session's identity. The token travels in the body,
+# matter is exactly the value that is wrong when the two disagree: before v2.57.5,
+# kt_ss_mark_inprogress stamped the CURRENT session's id over the header while passing the
+# body through, so a prompt in a file stamped then (or written by an older install) sits under
+# a later session's identity. The token travels in the body,
 # which no rewrite path touches. Measured 2026-09-17 on a real ledger: token said
 # 10cf229b@11:00:01Z, front matter said 4c3e190c@11:06:37Z.
 kt_ss_read_active_token() {

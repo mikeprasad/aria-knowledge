@@ -70,8 +70,9 @@ printf '%s' "$WSEC" | grep -qiE 'ledger_add.*(then|before).*(write|rewrite)' \
 # ⛔ THE PREVIOUS VERSION OF THIS CHECK ASSERTED THE DEFECT. It REQUIRED the phrase
 # "different or absent sessionId" and its failure message argued for it ("unconditional demote would
 # demote the session's OWN entry"). That premise is false, and the mechanism is one function away:
-# post-edit-check.sh stamps the CURRENT session's id onto front-matter while kt_ss_mark_inprogress
-# passes the body through (asserted at session-state.sh block O), so "the session's OWN entry" is not
+# before v2.57.5 post-edit-check.sh stamped the CURRENT session's id onto front-matter while
+# kt_ss_mark_inprogress passed the body through (session-state.sh block O now guards against it, but
+# files stamped then remain), so "the session's OWN entry" is not
 # a state this gate can observe. `by:` does not rescue it either -- it IS preserved, but it is
 # person-granular and cannot separate two sessions of one author, which is the generator.
 #   => the gate is a CONJUNCTION and v2.48.2 fixed only its lastEvent conjunct. This check asserted
