@@ -2,6 +2,16 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## Unreleased
+
+**The model is told when its rules changed at session start.** Claude Code loads `~/.claude/rules/` before SessionStart hooks run, so when the hook rewrites `aria-rules.md` (a plugin update) or `aria-user-rules.md` (an edit to your `user-rules.md`), the session that triggered the rewrite holds the previous text. Measured on the first session after installing 2.57.5: its context carried the complete 2.57.4 digest while disk held the new one, and nothing said so. The session right after you add a rule was therefore not following it.
+
+- **Rules notice:** the hook checksums both files before and after it writes them. When either changed, or was installed for the first time, the model context starts with one `ARIA RULES REFRESHED` line naming the file(s) and telling the model to read them before its next tool call. When `~/.claude/rules` cannot be written at all, an `ARIA RULES NOT INSTALLED` line names the copy inside the plugin and your source `user-rules.md` instead.
+- **First install no longer inlines the digest.** That arm emitted 35.3 KB; measured, the harness delivered a ~2 KB preview that stopped before the first working rule. It is retired, and every case now points at a file the model can read.
+- **A test that could never fail is gone.** `test-aria-rules-digest.sh` asserted "the delivered prefix reaches the first rule" using `cut -c1-2000`, which truncates each line rather than the payload, so the "prefix" was nearly the whole text. Reproduced: the first rule sits at character 2,102 and still passed. The suites now assert the rules in the files the notice names.
+- **Tests:** eight new arms (RN1–RN8) in `tests/repros/session-start-single-emitter.sh`, all seen red on the previous hook, each mutation-checked; the repro's `has()` helper now passes `--` to grep, because a needle starting with `-` was read as an option and made absence checks vacuous.
+- **Ports:** Claude Code only. Antigravity's build excludes this hook; Codex and Cursor do not write these files.
+
 ## 2.57.5 — 2026-10-29
 
 **SessionStart has one emitter, and each message goes to the audience it is for.** Two hooks used to run at session start. `session-start-check.sh` put everything into `systemMessage`, which the user sees and the model never does, so the project picker and the "CODEMAP found" list had never reached any model. The old banner was also invalid JSON: `echo` under macOS `sh` halved its backslashes, and a strict parse failed at character 7,701.
