@@ -363,7 +363,11 @@ kt_project_for_path() {
     case "$_kt_path" in
       */"$_kt_proj_path"/*|*/"$_kt_proj_path")  # path-boundary match (not bare substring) so e.g. vox does not match innvoxate
         _kt_len=${#_kt_proj_path}
-        if [ "$_kt_len" -gt "$_kt_best_len" ]; then
+        # Equal-length tie (two tags mapped to one path — real configs do this deliberately, e.g.
+        # an old port tag kept as an alias): prefer the tag named like the path's last component.
+        # Otherwise the first-listed tag wins, as before.
+        if [ "$_kt_len" -gt "$_kt_best_len" ] \
+           || { [ "$_kt_len" -eq "$_kt_best_len" ] && [ "$_kt_tag" = "${_kt_proj_path##*/}" ]; }; then
           _kt_best_tag="$_kt_tag"
           _kt_best_len="$_kt_len"
         fi

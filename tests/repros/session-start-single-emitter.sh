@@ -130,5 +130,25 @@ check "AC6 a second run in the same session is deduplicated" "no" \
   "$(has "$(ctx "$TMP/proj2.json")" '[aria] Loaded CODEMAP directory')"
 rm -f "/tmp/aria-active-$SID"
 
+# --- Latent defects the routing change made model-visible (retrospect 2026-10-29) --------
+# (1) The CODEMAP scan takes the first 5 maps under CWD. Hidden directories are worktrees and
+#     scratch copies (.wt-*), and they crowded the real maps out of the line.
+WS2="$TMP/ws2"; mkdir -p "$WS2/.wt-scratch" "$WS2/realrepo"
+printf '# C\n\n> Last updated: %s\n' "$TODAY" > "$WS2/.wt-scratch/CODEMAP.md"
+printf '# C\n\n> Last updated: %s\n' "$TODAY" > "$WS2/realrepo/CODEMAP.md"
+printf '{"session_id":"sse-cm-%s","source":"startup"}' "$$" \
+  | (cd "$WS2" && HOME="$H" KT_CONFIG="$CFG2" sh "$HOOK" 2>/dev/null) > "$TMP/ws2.json" || true
+CM2=$(ctx "$TMP/ws2.json" | grep '^ARIA CODEMAPS')
+check "CODEMAP line names the real map" "yes" "$(has "$CM2" 'realrepo/CODEMAP.md')"
+check "CODEMAP line skips hidden directories" "no" "$(has "$CM2" '.wt-scratch')"
+# (2) Two tags mapped to one path (a real config does this on purpose). The tie went to
+#     whichever came first; it must go to the tag named like the folder.
+WS3="$TMP/ws3"; mkdir -p "$WS3/projy"
+printf -- '---\nknowledge_folder: %s\nprojects_enabled: true\nauto_load_project_context: true\nprojects_list: alias:projy,projy:projy\n---\n' "$KF2" > "$TMP/cfg3.md"
+printf '{"session_id":"sse-pt-%s","source":"startup"}' "$$" \
+  | (cd "$WS3/projy" && HOME="$H" KT_CONFIG="$TMP/cfg3.md" sh "$HOOK" 2>/dev/null) > "$TMP/ws3.json" || true
+check "tied path resolves to the tag named like the folder" "yes" \
+  "$(has "$(ctx "$TMP/ws3.json")" "ARIA PROJECT — this session started inside configured project 'projy'.")"
+
 printf '%d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

@@ -315,7 +315,16 @@ fi
 # at session start without running a full audit. Graceful on missing git,
 # missing Last-updated header, or non-git paths — falls back to mtime and
 # zero-files-changed respectively; worst case shows "(no date)".
-CODEMAPS=$(find "$PWD" -maxdepth 2 -name "CODEMAP.md" 2>/dev/null | head -5)
+# Skip maps under hidden directories (.wt-* worktrees, scratch copies): they are duplicates of a
+# real repo's map, and with the 5-map cap they crowded the real ones out. Measured 2026-10-29 at a
+# multi-repo root: the first maps found were all `.wt-*` copies. The test is on the path RELATIVE
+# to $PWD, so a session that itself starts inside a hidden directory still sees its own maps.
+CODEMAPS=$(find "$PWD" -maxdepth 2 -name "CODEMAP.md" 2>/dev/null \
+  | while IFS= read -r _cm_p; do
+      # Leading-paren pattern form on purpose: inside $( ) bash 3.2 reads a bare `pattern)` as the
+      # end of the command substitution and fails to parse.
+      case "${_cm_p#"$PWD"/}" in (.*/*) ;; (*) printf '%s\n' "$_cm_p" ;; esac
+    done | head -5)
 if [ -n "$CODEMAPS" ]; then
   CM_MSG=""
   CM_CUR_NAMES=""
