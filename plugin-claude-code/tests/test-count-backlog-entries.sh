@@ -121,8 +121,8 @@ assert_eq "session-start: canonical-only backlog carries no off-level note" "yes
 # contract there, and assert the hook no longer carries a copy that could drift.
 assert_eq "digest: INSIGHT CAPTURE heading contract is delivered" "yes" \
   "$(grep -qF 'each as one `### YYYY-MM-DD — <project> — <title>` heading' "$(dirname "$CB_BINDIR")/rules/aria-rules.md" && echo yes || echo no)"
-# Banner only: on a HOME with no rules files the fallback arm legitimately sends the whole digest
-# (INSIGHT CAPTURE included) in additionalContext.
+# Banner only. (Until 2026-10-29 a HOME with no rules files also got the whole digest inlined in
+# additionalContext; that arm is retired and the model is now pointed at the installed file.)
 CB_SM=$(cb_hook "$CB_BINDIR" | jq -r '.systemMessage // ""' 2>/dev/null)
 assert_eq "session-start: banner decodes (control for the absence check below)" "yes" \
   "$(printf '%s' "$CB_SM" | grep -q 'Knowledge audit' && echo yes || echo no)"
