@@ -4,6 +4,15 @@ All notable changes to ARIA will be documented in this file.
 
 ## Unreleased
 
+**The first-edit in-progress mark no longer takes over another session's waiting handoff.** `post-edit-check.sh` calls `kt_ss_mark_inprogress` on a session's first edit in a project. It rewrote `lastEvent`, `at`, `branch`, `headCommit` and `sessionId` even when the `## Next session prompt` held another session's unconsumed handoff, so a pasted `aria-handoff:` token then located as the session that happened to edit first. Measured 2026-10-29: a token naming `5ce12827…@23:12:55Z` located as `879f0754…|23:16:12Z`, and resolved only after the front matter was restored by hand.
+
+- **Writer:** a live active prompt now leaves `SESSION.md` untouched. An empty slot or a `(session in progress)` marker is marked as before. aria-atlas reads `at` as the handoff time, which the old behaviour overwrote.
+- **Readers:** `kt_ss_ledger_token_locate` (active slot) and `kt_ss_ledger_candidates` (active row) report the sid/at in the prompt's own token, falling back to front matter only for prompts without one. `kt_ss_ledger_consume_active` already did. This also fixes files stamped before this change.
+- **One predicate:** new `kt_ss_read_live_prompt` holds the active-block boundary and the empty-state test; `consume_active` and `mark_inprogress` both use it.
+- **Known bound:** the hook marks once per session per project. A session that consumes a prompt after its first edit leaves `lastEvent: handoff` and the consumed sid in front matter until another session's first edit.
+- **Tests (`tests/repros/session-state.sh`):** block O inverted from a characterization of the overwrite into a guard with positive controls; block D's stored prompt moved to `## Pending handoffs`; new block V adds the first committed tests for `consume_active` and the two reader arms. O1, O5, V3 and V4 were seen red on the old library; O3/O4 and V2 were seen red under mutation.
+- **Ports:** the same library change in Cursor and Codex (spliced; their existing drift from canonical unchanged) and Antigravity (regenerated). Codex's hook adapter never calls `kt_ss_mark_inprogress`, so only the reader fix applies there.
+
 **Codex `/snapshot` now copies the Codex session it runs in.** The Codex helper was a copy of the Claude Code one: it searched `~/.claude/projects`, never found a Codex thread, and fell back to the newest Claude Code transcript.
 
 - **Codex (`2.57.4-codex.1`):** `save-transcript.sh` finds `${CODEX_HOME:-~/.codex}/sessions/YYYY/MM/DD/rollout-*-<thread id>.jsonl` by `$CODEX_THREAD_ID` (then an id argument) and checks its `session_meta` record. A known id with no match writes nothing; no id at all guesses the newest rollout and says so.

@@ -16,6 +16,8 @@
 #                                        -> light-touch, idempotent write of
 #                                           ROOT/SESSION.md to lastEvent: in-progress.
 #                                           Preserves body + currentFocus/nextAction/by.
+#                                           A LIVE active prompt leaves the file
+#                                           untouched (its front matter is the handoff's).
 #
 # All operations are fail-safe: any error is swallowed so the host hook never
 # blocks an edit or errors out.
@@ -60,7 +62,18 @@ kt_ss_mark_inprogress() {
   _ss_branch=$(git -C "$_ss_root" rev-parse --abbrev-ref HEAD 2>/dev/null) || _ss_branch=""
   _ss_head=$(git -C "$_ss_root" rev-parse --short HEAD 2>/dev/null) || _ss_head=""
 
-  if [ -f "$_ss_file" ] && IFS= read -r _ss_first < "$_ss_file" && [ "$_ss_first" = "---" ]; then
+  if [ -n "$(kt_ss_read_live_prompt "$_ss_root")" ]; then
+    # ⛔ A LIVE ACTIVE PROMPT OWNS THE FRONT MATTER -- leave the file untouched. Its lastEvent,
+    # at and sessionId describe the waiting handoff: aria-atlas reads `at` as "handed off at",
+    # the resume offer ages the prompt by it, and pre-token readers take the prompt's identity
+    # from sessionId. Until 2026-10-29 this branch did not exist and the first edit of ANY
+    # session stamped its own identity over another session's unconsumed handoff; a pasted
+    # token then located as the stamping session (measured: 879f0754|23:16:12Z for a token
+    # naming 5ce12827@23:12:55Z). The resuming session consumes the prompt, which empties the
+    # slot, and the next first edit marks the project as before. See
+    # docs/superpowers/plans/2026-10-29-inprogress-mark-respects-live-handoff.md (bound C2).
+    :
+  elif [ -f "$_ss_file" ] && IFS= read -r _ss_first < "$_ss_file" && [ "$_ss_first" = "---" ]; then
     # Existing parseable header: refresh keys in the first frontmatter block,
     # append any missing override keys before the closing fence, preserve body.
     _ss_tmp="$_ss_file.$$.tmp"
@@ -629,7 +642,18 @@ kt_ss_ledger_candidates() {
   _ss_f="$1/SESSION.md"
   [ -f "$_ss_f" ] || return 0
   awk '
-    BEGIN { fm = 0; infence = 0; sec = ""; actseen = 0; fsid = ""; fat = "" }
+    # Active identity from the prompt own token (first one wins), front matter as the fallback --
+    # the same rule kt_ss_ledger_token_locate and kt_ss_ledger_consume_active follow.
+    function grab_token(line,    sl, r, ai, ts, ta) {
+      if (tsid != "" || line !~ /^aria-handoff:[[:space:]]*/) return
+      sub(/^aria-handoff:[[:space:]]*/, "", line)
+      sl = index(line, "/"); r = substr(line, sl + 1); ai = index(r, "@")
+      ts = substr(r, 1, ai - 1); ta = substr(r, ai + 1)
+      gsub(/^[ \t]+/, "", ts); gsub(/[ \t]+$/, "", ts)
+      gsub(/^[ \t]+/, "", ta); gsub(/[ \t]+$/, "", ta)
+      if (sl > 0 && ai > 0 && ts != "" && ta != "") { tsid = ts; tat = ta }
+    }
+    BEGIN { fm = 0; infence = 0; sec = ""; actseen = 0; fsid = ""; fat = ""; tsid = ""; tat = "" }
     NR == 1 && $0 == "---" { fm = 1; next }
     fm == 1 && $0 == "---" { fm = 0; next }
     fm == 1 {
@@ -639,7 +663,7 @@ kt_ss_ledger_candidates() {
     }
     /^```/ { if (infence == 1) { infence = 0 } else { infence = 1 } next }
     infence == 1 {
-      if (sec == "ACTIVE" && $0 ~ /[^[:space:]]/) { actseen = 1 }
+      if (sec == "ACTIVE" && $0 ~ /[^[:space:]]/) { actseen = 1; grab_token($0) }
       next
     }
     /^## / {
@@ -649,7 +673,7 @@ kt_ss_ledger_candidates() {
       else { sec = "OTHER" }
       next
     }
-    sec == "ACTIVE" && $0 ~ /[^[:space:]]/ { actseen = 1; next }
+    sec == "ACTIVE" && $0 ~ /[^[:space:]]/ { actseen = 1; grab_token($0); next }
     sec == "LEDGER" && /^### / {
       if ($0 ~ /(^|[^a-z])unconsumed([^a-z]|$)/) {
         n = split(substr($0, 5), f, " · ")
@@ -661,7 +685,12 @@ kt_ss_ledger_candidates() {
         }
       }
     }
-    END { if (actseen == 1 && fsid != "") { print fsid "|" fat "|unconsumed|active" } }
+    END {
+      if (actseen == 1) {
+        if (tsid != "")      { print tsid "|" tat "|unconsumed|active" }
+        else if (fsid != "") { print fsid "|" fat "|unconsumed|active" }
+      }
+    }
   ' "$_ss_f" 2>/dev/null
   return 0
 }
@@ -701,7 +730,23 @@ kt_ss_ledger_token_locate() {
       next
     }
     index($0, tok) > 0 {
-      if (sec == "ACTIVE") { print fsid "|" fat "|unconsumed|active"; exit }
+      # ⛔ ACTIVE identity comes from the matched TOKEN LINE, front matter only as the fallback.
+      # Front matter is what a pre-2026-10-29 post-edit hook re-stamped with whichever session
+      # edited first, so a file stamped then reports the wrong session for its own token
+      # (measured: 879f0754|23:16:12Z for a token naming 5ce12827@23:12:55Z). Same parse as
+      # kt_ss_read_active_token, which kt_ss_ledger_consume_active already trusts.
+      if (sec == "ACTIVE") {
+        isid = fsid; iat = fat
+        if ($0 ~ /^aria-handoff:[[:space:]]*/) {
+          l = $0; sub(/^aria-handoff:[[:space:]]*/, "", l)
+          sl = index(l, "/"); r = substr(l, sl + 1); ai = index(r, "@")
+          ts = substr(r, 1, ai - 1); ta = substr(r, ai + 1)
+          gsub(/^[ \t]+/, "", ts); gsub(/[ \t]+$/, "", ts)
+          gsub(/^[ \t]+/, "", ta); gsub(/[ \t]+$/, "", ta)
+          if (sl > 0 && ai > 0 && ts != "" && ta != "") { isid = ts; iat = ta }
+        }
+        print isid "|" iat "|unconsumed|active"; exit
+      }
       if (sec == "LEDGER" && hsid != "")   { print hsid "|" hat "|" hst "|pending";  exit }
       if (sec == "ARCHIVED" && hsid != "") { print hsid "|" hat "|" hst "|archived"; exit }
       next
@@ -762,6 +807,47 @@ kt_ss_read_active_token() {
   return 0
 }
 
+# Print the ACTIVE prompt body, trimmed of surrounding blank lines -- but ONLY when it is a live
+# prompt. Prints nothing for an absent heading, an empty block, or the fresh `(session in progress)`
+# marker. Read-only.
+#
+# ⛔ ONE BOUNDARY WALK, TWO CALLERS. kt_ss_ledger_consume_active uses the body to demote the prompt;
+# kt_ss_mark_inprogress uses its presence to decide whether the front matter belongs to a waiting
+# handoff (and so must not be re-stamped). If the two disagreed about where the active block ends or
+# what counts as empty, the hook could re-badge a prompt that consume_active would then demote under
+# the wrong identity. Moved here unchanged from consume_active on 2026-10-29.
+kt_ss_read_live_prompt() {
+  _ss_lp_f="$1/SESSION.md"
+  [ -f "$_ss_lp_f" ] || return 0
+
+  # Boundary: from the heading to the next column-0 "## " that is NOT inside a fence.
+  # Fence parity is tracked exactly as kt_ss_ledger_token_locate does -- mirrored on
+  # purpose, so the two readers can never disagree about where the active block ends.
+  _ss_lp_body=$(awk '
+    BEGIN { sec = ""; infence = 0; buf = ""; done = 0 }
+    /^```/      { if (sec == "ACTIVE") buf = buf $0 "\n"; infence = 1 - infence; next }
+    infence == 1 { if (sec == "ACTIVE") buf = buf $0 "\n"; next }
+    /^## /      { if (sec == "ACTIVE") { printf "%s", buf; done = 1; exit }
+                  sec = ($0 ~ /^## Next session prompt[[:space:]]*$/) ? "ACTIVE" : "OTHER"; next }
+    sec == "ACTIVE" { buf = buf $0 "\n" }
+    # ⛔ `done` is load-bearing: in awk, `exit` RUNS THE END BLOCK. Without the flag the
+    # buffer is printed twice whenever the active section is followed by another "## "
+    # heading -- which is the normal case. Measured 2026-09-17: the body came back
+    # duplicated verbatim.
+    END { if (sec == "ACTIVE" && !done) printf "%s", buf }
+  ' "$_ss_lp_f" 2>/dev/null)
+
+  # Trim surrounding blank lines, then print nothing for the three empty states. A no-op
+  # must be byte-for-byte: an absent heading, an empty block, and a fresh in-progress
+  # marker are all legitimate and must not be demoted (or treated as a waiting handoff).
+  _ss_lp_trim=$(printf '%s' "$_ss_lp_body" | sed -e '/./,$!d' | sed -e ':a' -e '/^[[:space:]]*$/{$d;N;ba' -e '}')
+  case "$(printf '%s' "$_ss_lp_trim" | tr -d '[:space:]')" in
+    ''|'(sessioninprogress)'|'```(sessioninprogress)```') return 0 ;;
+  esac
+  printf '%s' "$_ss_lp_trim"
+  return 0
+}
+
 # Consume the ACTIVE prompt: demote it into `## Pending handoffs`, mark that entry
 # consumed, and clear the active slot. Called by a RESUMING session once it has found an
 # `aria-handoff:` token in the opener.
@@ -791,30 +877,8 @@ kt_ss_ledger_consume_active() {
   _ss_f="$_ss_root/SESSION.md"
   [ -f "$_ss_f" ] || return 0
 
-  # Boundary: from the heading to the next column-0 "## " that is NOT inside a fence.
-  # Fence parity is tracked exactly as kt_ss_ledger_token_locate does -- mirrored on
-  # purpose, so the two readers can never disagree about where the active block ends.
-  _ss_body=$(awk '
-    BEGIN { sec = ""; infence = 0; buf = ""; done = 0 }
-    /^```/      { if (sec == "ACTIVE") buf = buf $0 "\n"; infence = 1 - infence; next }
-    infence == 1 { if (sec == "ACTIVE") buf = buf $0 "\n"; next }
-    /^## /      { if (sec == "ACTIVE") { printf "%s", buf; done = 1; exit }
-                  sec = ($0 ~ /^## Next session prompt[[:space:]]*$/) ? "ACTIVE" : "OTHER"; next }
-    sec == "ACTIVE" { buf = buf $0 "\n" }
-    # ⛔ `done` is load-bearing: in awk, `exit` RUNS THE END BLOCK. Without the flag the
-    # buffer is printed twice whenever the active section is followed by another "## "
-    # heading -- which is the normal case. Measured 2026-09-17: the body came back
-    # duplicated verbatim.
-    END { if (sec == "ACTIVE" && !done) printf "%s", buf }
-  ' "$_ss_f" 2>/dev/null)
-
-  # Trim surrounding blank lines, then bail on the three empty states. A no-op here must
-  # be byte-for-byte: an absent heading, an empty block, and a fresh in-progress marker
-  # are all legitimate and must not be demoted.
-  _ss_trim=$(printf '%s' "$_ss_body" | sed -e '/./,$!d' | sed -e ':a' -e '/^[[:space:]]*$/{$d;N;ba' -e '}')
-  case "$(printf '%s' "$_ss_trim" | tr -d '[:space:]')" in
-    ''|'(sessioninprogress)'|'```(sessioninprogress)```') return 0 ;;
-  esac
+  _ss_trim=$(kt_ss_read_live_prompt "$_ss_root")
+  [ -n "$_ss_trim" ] || return 0
 
   # Identity: THE TOKEN WINS. Front matter is the fallback for pre-token prompts only.
   _ss_tok=$(kt_ss_read_active_token "$_ss_root")

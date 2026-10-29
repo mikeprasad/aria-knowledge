@@ -84,15 +84,24 @@ Did the thing.
 
 ## Next session prompt
 
+## Pending handoffs
+
+### sess-earlier · 2026-04-30T00:00:00Z · handoff · unconsumed
+- prompt:
 ```
 ar
 resume the thing
 ```
+<!-- aria:entry-end -->
 SESS
+# ⛔ The stored prompt sits in PENDING, not in the active slot, on purpose. Until 2026-10-29 it sat in
+# `## Next session prompt` and D asserted the flip over it -- i.e. D pinned the defect that the hook
+# rewrote a live handoff's identity. A live ACTIVE prompt now leaves the front matter untouched
+# (block O); D keeps the refresh + body-passthrough cases, which need an empty active slot.
 kt_ss_mark_inprogress "$TMP/d" "sess-d" "mipr"
 grep -q '^lastEvent: in-progress$' "$TMP/d/SESSION.md" && ok "D flipped to in-progress" || bad "D flip" "lastEvent not flipped"
 grep -q '^currentFocus: Tranche-2 access-gate migration$' "$TMP/d/SESSION.md" && ok "D preserved currentFocus" || bad "D currentFocus" "lost"
-grep -q 'resume the thing' "$TMP/d/SESSION.md" && ok "D preserved Next session prompt" || bad "D body" "Next session prompt lost"
+grep -q 'resume the thing' "$TMP/d/SESSION.md" && ok "D preserved the stored Pending prompt" || bad "D body" "stored prompt lost"
 grep -q '## Where we left off' "$TMP/d/SESSION.md" && ok "D preserved body heading" || bad "D body" "body lost"
 # 'at' must have changed away from the stale value
 if grep -q '^at: 2026-05-01T00:00:00Z$' "$TMP/d/SESSION.md"; then bad "D at-refresh" "at not refreshed"; else ok "D refreshed at"; fi
@@ -597,23 +606,21 @@ for _fn in $_SS_PARITY_FNS; do
   # and is replaced by the 4-port equality above rather than deleted.
 done
 
-# --- O: mark_inprogress OVERWRITES an existing sessionId while the body survives ----------------
-# ⛔ THIS IS THE CASE-3 SIGNATURE, AND IT WAS ASSERTED NOWHERE before 2026-09-11. Block D covers the
-# neighbouring case (sessionId ABSENT, so the helper INSERTS one) and asserts body preservation there
-# ("D preserved Next session prompt"). Block K has a sessionId but never calls kt_ss_mark_inprogress.
-# So the state that matters most had no coverage: an EXISTING id REPLACED with the marking session's,
-# while ANOTHER session's prompt is carried through untouched.
+# --- O: mark_inprogress leaves a LIVE active prompt's identity alone ----------------------------
+# ⛔ INVERTED 2026-10-29 FROM A CHARACTERIZATION TEST TO A GUARD. From 2026-09-11 this block asserted
+# that an EXISTING sessionId was REPLACED by the marking session's while another session's prompt was
+# carried through -- recorded then as "ordinary operation" so the /wrapup and /handoff demote clauses
+# could reason about it. That state is the defect: post-edit-check.sh produced it on the first edit of
+# any session in a project holding a handoff, and kt_ss_ledger_token_locate then reported the HOOK's
+# sid/at for the prompt's own token. Measured 2026-10-29 (session 879f0754): a token naming
+# 5ce12827@23:12:55Z located as 879f0754|23:16:12Z, and resolved only after the front matter was
+# restored by hand. Plan: docs/superpowers/plans/2026-10-29-inprogress-mark-respects-live-handoff.md
 #
-# Why it matters beyond this helper: post-edit-check.sh produces exactly this state on the first edit
-# of any session in a project that holds a handoff. It is the reason /wrapup Step 6.5 and /handoff 3f
-# must NOT test sessionId — a front-matter sessionId names whoever last TOUCHED the file, not whoever
-# wrote the body. Design record:
-#   docs/superpowers/specs/2026-09-11-demote-gate-sessionid-conjunct-design.md
-#
-# ⭐ THIS IS A CHARACTERIZATION TEST. It passes BOTH before and after the skill-clause fix, by design:
-# it does not guard the fix, it establishes that the precondition the fix reasons about is produced by
-# ORDINARY OPERATION rather than by an edge case. Expecting it to go red after the fix would be wrong,
-# and predicting that is the tell that a mutation set contains no characterization arm.
+# A live active prompt now leaves the front matter byte-identical. O3/O4 are the POSITIVE controls: an
+# empty active slot and a fresh `(session in progress)` file ARE still marked, so a mutation that stops
+# the hook writing at all goes red here rather than passing as "guarded".
+# ⚠ The /wrapup + /handoff gate still must NOT test sessionId: files stamped before this fix, and
+# installs that predate it, keep the hook's id over another session's prompt.
 mkdir -p "$TMP/o"
 : > "$TMP/o/CLAUDE.md"
 cat > "$TMP/o/SESSION.md" <<'SESS'
@@ -632,18 +639,46 @@ by: mipr
 O-SENTINEL-PRIOR-PROMPT
 ```
 SESS
+cp "$TMP/o/SESSION.md" "$TMP/o/before.md"
 kt_ss_mark_inprogress "$TMP/o" "sess-mine" "mipr"
 
-# O1 — THE CLAIM: an existing sessionId is REPLACED by the marking session's id.
-grep -q '^sessionId: sess-mine$' "$TMP/o/SESSION.md" \
-  && ok "O1 existing sessionId OVERWRITTEN by the marking session" \
-  || bad "O1 sessionId overwrite" "an existing sessionId was NOT replaced — the case-3 state cannot arise, and the demote clauses' stated reason would be wrong"
+# O1 — THE GUARD (pre-token prompt): the whole file is byte-identical. Byte equality rather than a
+# sessionId grep, because lastEvent and at are the other two keys the locator and atlas read.
+cmp -s "$TMP/o/before.md" "$TMP/o/SESSION.md" \
+  && ok "O1 live active prompt (no token): front matter left byte-identical" \
+  || bad "O1 live-prompt guard" "the file changed: $(diff "$TMP/o/before.md" "$TMP/o/SESSION.md" | grep '^>' | tr '\n' ';') — the hook re-badged another session's handoff"
 
-# O2 — NON-VACUITY CONTROL, not a second claim. Block D owns body preservation; this exists only so O1
-# cannot pass against a file the helper mangled into something holding no pickup at all.
+# O2 — NON-VACUITY CONTROL: the fixture really did hold a live prompt for O1 to protect.
 grep -q 'O-SENTINEL-PRIOR-PROMPT' "$TMP/o/SESSION.md" \
-  && ok "O2 control: the prior prompt survived the overwrite" \
+  && ok "O2 control: the prior prompt is present" \
   || bad "O2 control" "the body was lost, so O1 proves nothing about a file that still holds a pickup"
+
+# O3 — POSITIVE CONTROL: heading present, active slot EMPTY -> the session IS marked.
+mkdir -p "$TMP/o3"; : > "$TMP/o3/CLAUDE.md"
+printf -- '---\nlastEvent: handoff\nat: 2026-05-02T00:00:00Z\nsessionId: sess-prior\n---\n\n## Next session prompt\n\n## Pending handoffs\n\n### sess-x · 2026-05-01T00:00:00Z · handoff · unconsumed\n- prompt: kept\n<!-- aria:entry-end -->\n' > "$TMP/o3/SESSION.md"
+kt_ss_mark_inprogress "$TMP/o3" "sess-mine" "mipr"
+{ grep -q '^sessionId: sess-mine$' "$TMP/o3/SESSION.md" && grep -q '^lastEvent: in-progress$' "$TMP/o3/SESSION.md"; } \
+  && ok "O3 control: empty active slot IS marked in-progress" \
+  || bad "O3 control" "an empty active slot was not marked — the guard has become 'never write'"
+
+# O4 — POSITIVE CONTROL: a fresh marker body `(session in progress)` counts as empty.
+mkdir -p "$TMP/o4"; : > "$TMP/o4/CLAUDE.md"
+printf -- '---\nlastEvent: in-progress\nat: 2026-05-02T00:00:00Z\nsessionId: sess-prior\n---\n\n## Next session prompt\n\n```\n(session in progress)\n```\n' > "$TMP/o4/SESSION.md"
+kt_ss_mark_inprogress "$TMP/o4" "sess-mine" "mipr"
+grep -q '^sessionId: sess-mine$' "$TMP/o4/SESSION.md" \
+  && ok "O4 control: a (session in progress) marker IS re-marked" \
+  || bad "O4 control" "a marker body was treated as a live prompt"
+
+# O5 — THE GUARD (token-bearing prompt, the shape every handoff since 2026-09-15 writes). The front
+# matter here deliberately DISAGREES with the token -- the stamped state a pre-fix install leaves --
+# and the hook must not stamp it again either.
+mkdir -p "$TMP/o5"; : > "$TMP/o5/CLAUDE.md"
+printf -- '---\nlastEvent: handoff\nat: 2026-10-28T23:12:55Z\nsessionId: author-sid\n---\n\n## Next session prompt\n\n```\naria-handoff: proj-a/author-sid@2026-10-28T23:12:55Z\nproj-a\nresume\n```\n' > "$TMP/o5/SESSION.md"
+cp "$TMP/o5/SESSION.md" "$TMP/o5/before.md"
+kt_ss_mark_inprogress "$TMP/o5" "sess-mine" "mipr"
+cmp -s "$TMP/o5/before.md" "$TMP/o5/SESSION.md" \
+  && ok "O5 live active prompt (token): front matter left byte-identical" \
+  || bad "O5 token guard" "the file changed: $(diff "$TMP/o5/before.md" "$TMP/o5/SESSION.md" | grep '^>' | tr '\n' ';')"
 
 # --- Q: kt_ss_mark_inprogress BEHAVIOURAL parity across every carrying port ---------------------
 # ⛔ THE PARITY SET (_SS_PARITY_FNS, block N) COVERS kt_ss_ledger_add AND kt_ss_ledger_prune ONLY, so
@@ -1022,6 +1057,60 @@ _uc=$(kt_ss_ledger_candidates "$UD/notoken" 2>/dev/null | awk 'NF{c++} END{print
 # ⛔ ANTI-VACUITY.
 [ "$_U_RAN" -eq 5 ] && ok "U coverage: $_U_RAN token-locate arms executed" \
   || bad "U coverage" "only $_U_RAN token-locate arms executed (want 5)"
+
+# --- V: the active slot's identity comes from its TOKEN, and consume_active is pinned ------------
+# Added 2026-10-29 with the block O inversion. Two gaps it closes:
+#   1. kt_ss_ledger_consume_active had NO committed test anywhere -- the one function that clears a
+#      prompt irreversibly. V1/V2 pin it before its boundary walk is shared with mark_inprogress.
+#   2. token_locate's ACTIVE branch and ledger_candidates' active row reported FRONT-MATTER identity.
+#      consume_active already read token-first; these two did not, so a hook-stamped file made a
+#      pasted token resolve to the stamping session (879f0754|23:16:12Z for 5ce12827@23:12:55Z).
+#      Files stamped before the writer fix keep that front matter, so the readers must not trust it.
+_V_RAN=0
+VD="$TMP/v"
+_v_tok='aria-handoff: proj-a/author-sid@2026-10-28T23:12:55Z'
+_v_stamped() {  # $1 dir — front matter stamped by another session, token names the author
+  mkdir -p "$1"; : > "$1/CLAUDE.md"
+  printf -- '---\nlastEvent: in-progress\nat: 2026-10-28T23:16:12Z\ncurrentFocus: the work\nnextAction: do it\nsessionId: stamper-sid\n---\n\n## Next session prompt\n\n```\n%s\nproj-a\nV-SENTINEL resume\n```\n\n## Pending handoffs\n' "$_v_tok" > "$1/SESSION.md"
+}
+
+# V1 -- consume_active on a live, token-bearing prompt: demoted under the TOKEN's identity, marked
+# consumed by the resuming session, active slot emptied.
+_V_RAN=$((_V_RAN + 1)); _v_stamped "$VD/c1"
+kt_ss_ledger_consume_active "$VD/c1" "resumer-sid" "2026-10-29T00:30:38Z" 2>/dev/null || true
+_v_hdr=$(grep '^### author-sid · 2026-10-28T23:12:55Z' "$VD/c1/SESSION.md" || true)
+_v_act=$(awk '/^## Next session prompt/{a=1;next} /^## /{a=0} a&&NF' "$VD/c1/SESSION.md")
+{ printf '%s' "$_v_hdr" | grep -q 'consumed 2026-10-29T00:30:38Z by resumer-sid' \
+  && [ -z "$_v_act" ] && grep -q 'V-SENTINEL resume' "$VD/c1/SESSION.md"; } \
+  && ok "V1 consume_active: demoted under the token's sid/at, consumed, active slot cleared" \
+  || bad "V1 consume_active" "header='$_v_hdr' active='$(printf '%s' "$_v_act" | tr '\n' ';')'"
+
+# V2 -- consume_active on a fresh `(session in progress)` marker is a BYTE-for-byte no-op.
+_V_RAN=$((_V_RAN + 1)); mkdir -p "$VD/c2"
+printf -- '---\nlastEvent: in-progress\nat: 2026-10-28T23:16:12Z\nsessionId: s\n---\n\n## Next session prompt\n\n```\n(session in progress)\n```\n' > "$VD/c2/SESSION.md"
+cp "$VD/c2/SESSION.md" "$VD/c2/before.md"
+kt_ss_ledger_consume_active "$VD/c2" "resumer-sid" "2026-10-29T00:30:38Z" 2>/dev/null || true
+cmp -s "$VD/c2/before.md" "$VD/c2/SESSION.md" \
+  && ok "V2 consume_active: a (session in progress) marker is left byte-identical" \
+  || bad "V2 consume_active no-op" "a marker body was demoted or the file was rewritten"
+
+# V3 -- token_locate on a stamped file reports the TOKEN's identity, not the stamper's.
+_V_RAN=$((_V_RAN + 1)); _v_stamped "$VD/l3"
+_vo=$(kt_ss_ledger_token_locate "$VD/l3" "$_v_tok" 2>/dev/null || true)
+[ "$_vo" = "author-sid|2026-10-28T23:12:55Z|unconsumed|active" ] \
+  && ok "V3 token_locate: active prompt reports the token's sid/at over stamped front matter" \
+  || bad "V3 token_locate identity" "got '$_vo' — the locator is reading front matter a hook rewrote"
+
+# V4 -- ledger_candidates' active row: same disagreement, same answer.
+_V_RAN=$((_V_RAN + 1)); _v_stamped "$VD/l4"
+_vo=$(kt_ss_ledger_candidates "$VD/l4" 2>/dev/null | grep '|active$' || true)
+[ "$_vo" = "author-sid|2026-10-28T23:12:55Z|unconsumed|active" ] \
+  && ok "V4 ledger_candidates: active row reports the token's sid/at" \
+  || bad "V4 candidates identity" "got '$_vo'"
+
+# ⛔ ANTI-VACUITY.
+[ "$_V_RAN" -eq 4 ] && ok "V coverage: $_V_RAN active-identity arms executed" \
+  || bad "V coverage" "only $_V_RAN arms executed (want 4)"
 
 printf "\n%d passed, %d failed\n" "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
