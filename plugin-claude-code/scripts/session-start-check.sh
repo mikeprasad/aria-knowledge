@@ -118,7 +118,7 @@ SOURCE_URULES="$KT_KNOWLEDGE_FOLDER/rules/user-rules.md"
 # with no matcher, so it fires on startup, resume, clear and compact alike.
 #
 # ⛔ Failure here must never break the hook. A read-only HOME, a full disk or a
-# missing mkdir leaves the files absent, which the fallback arm below handles.
+# missing mkdir leaves the files absent, which the NOT INSTALLED notice below handles.
 kt_ensure_rules_files() {
   [ -f "$BUNDLED_DIGEST" ] || return 0
   mkdir -p "$RULES_DIR" 2>/dev/null || return 0
@@ -170,19 +170,15 @@ kt_ensure_rules_files() {
   fi
   return 0
 }
-# ⛔ CAPTURE PRESENCE BEFORE ENSURING, and do not "tidy" this ordering away.
-# The arm below must branch on whether the file was there when this session's
-# instruction-file snapshot was taken — i.e. BEFORE this hook ran. Testing after
-# the ensure step makes the fallback arm unreachable whenever the write succeeds,
-# which is nearly always, and the first session after install then receives the
-# config line and NOTHING ELSE: the file exists on disk but §10.6's snapshot has
-# already been taken, so it is not delivered until the next session.
-# Measured, before this guard existed: arm 1 emitted 270 chars, 0 of 38 rules.
-if [ -f "$INSTALLED_DIGEST" ]; then
-  DIGEST_WAS_PRESENT=yes
-else
-  DIGEST_WAS_PRESENT=no
-fi
+# ⛔ CAPTURE BEFORE ENSURING, and do not "tidy" this ordering away. Claude Code loads
+# ~/.claude/rules/ into the session BEFORE SessionStart hooks run, so whatever the ensure step
+# below writes reaches THIS session only as its previous version, or not at all. A checksum taken
+# here and compared after is what lets the hook say so. Measured 2026-10-29: the first session
+# after installing an update held the complete previous digest while disk held the new one, and
+# nothing told it.
+_kt_rules_sum() { if [ -f "$1" ]; then cksum < "$1" 2>/dev/null; else echo absent; fi; }
+PRE_DIGEST=$(_kt_rules_sum "$INSTALLED_DIGEST")
+PRE_URULES=$(_kt_rules_sum "$INSTALLED_URULES")
 
 kt_ensure_rules_files
 
@@ -191,31 +187,33 @@ kt_ensure_rules_files
 # condition lives in the file, keyed on these names.
 CONFIG_LINE="ARIA CONFIG — knowledge_folder=${KT_KNOWLEDGE_FOLDER} autonomy=${KT_AUTONOMY:-default} session_state=${KT_SESSION_STATE:-false} auto_capture=${KT_AUTO_CAPTURE:-true} active_surfacing=${KT_ACTIVE_SURFACING:-false}. These are the values the standing directives in ~/.claude/rules/aria-rules.md are keyed on."
 
-if [ "$DIGEST_WAS_PRESENT" = "yes" ]; then
-  # STEADY STATE. The rules and directives are delivered in full through the file
-  # channel, so re-emitting them here would duplicate ~20 KB the model already has.
-  MODEL_MESSAGES="${CONFIG_LINE}
+# --- the rules-file notice --------------------------------------------------
+# One line that carries its own instruction, because the only digest this session holds is the
+# previous one, which cannot describe a line it has never seen. It names a file to Read rather
+# than inlining the rules: measured 2026-10-29, the old inline arm emitted 35.3 KB, the harness
+# delivered a ~2 KB preview, and the model reported the first working rule absent. A readable file
+# always exists — the installed one, or the bundled copy when ~/.claude/rules could not be written.
+# ⛔ Do NOT restore an inline copy of the digest here; it is the arm this replaced.
+RULES_NOTICE=""
+if [ ! -f "$INSTALLED_DIGEST" ]; then
+  # Resolved for display: the raw value reads ".../scripts/../rules/aria-rules.md".
+  _kt_named="$(cd "$(dirname "$BUNDLED_DIGEST")" 2>/dev/null && pwd)/aria-rules.md"
+  [ -f "$SOURCE_URULES" ] && _kt_named="${_kt_named} and ${SOURCE_URULES}"
+  RULES_NOTICE="ARIA RULES NOT INSTALLED — ${RULES_DIR} could not be written, so no ARIA rules file was loaded into this session. Read ${_kt_named} now, before your next tool call, and follow them for this session.
 "
 else
-  # FALLBACK, one session only. The ensure step above just wrote the file (or
-  # could not), so this arm covers the gap before the instruction-file snapshot
-  # picks it up. It carries the bundled digest — which now contains every standing
-  # directive, so there is nothing to inline separately — plus the U-rule block.
-  #
-  # ⛔ Do NOT re-add inline directive blocks here. They were deleted when the
-  # digest absorbed them; a copy would be a second source with nothing comparing
-  # the two. The digest leads deliberately: the harness delivers the first ~2,000
-  # characters, so whichever block is first is the only one that arrives.
-  MODEL_MESSAGES="ARIA WORKING RULES — in force for this session. Apply them as you work; do not wait to be asked.
-
-$(cat "$BUNDLED_DIGEST")
+  _kt_named=""
+  [ "$(_kt_rules_sum "$INSTALLED_DIGEST")" != "$PRE_DIGEST" ] && _kt_named="$INSTALLED_DIGEST"
+  if [ -f "$INSTALLED_URULES" ] && [ "$(_kt_rules_sum "$INSTALLED_URULES")" != "$PRE_URULES" ]; then
+    _kt_named="${_kt_named:+${_kt_named} and }${INSTALLED_URULES}"
+  fi
+  if [ -n "$_kt_named" ]; then
+    RULES_NOTICE="ARIA RULES REFRESHED — ${_kt_named} changed or were installed at this session's start, after this session loaded its rules, so the copy in your context is the previous version or absent. Read the named file(s) now, before your next tool call, and follow the file wherever the two differ.
 "
-  kt_user_rules_block
-  MODEL_MESSAGES="${MODEL_MESSAGES}${KT_USER_RULES_BLOCK}"
-  MODEL_MESSAGES="${MODEL_MESSAGES}
-${CONFIG_LINE}
-"
+  fi
 fi
+MODEL_MESSAGES="${RULES_NOTICE}${CONFIG_LINE}
+"
 
 # --- after compaction --------------------------------------------------------
 # SessionStart with source "compact" is the ONLY hook channel that reaches the model
@@ -445,7 +443,7 @@ fi
 
 if [ "$IS_FIRST_RUN" = "true" ]; then
   # The welcome replaces the audit nags. It no longer exits early: the first run is usually the
-  # first-install session, which is exactly when the model channel's fallback arm matters.
+  # first-install session, which is exactly when the model channel's rules notice matters.
   USER_MESSAGES="ARIA Knowledge Active: Auto insights collection, Rule 22 logic on edits, context surfacing, audit prompts, and precompact capture. Run /help for commands, see QUICKSTART.md for more."
   emit
   echo "$(date +%Y-%m-%dT%H:%M:%S) session-start-check: first-run welcome model=${#MODEL_MESSAGES}" >> "$KT_KNOWLEDGE_FOLDER/logs/hook-debug.log" 2>/dev/null

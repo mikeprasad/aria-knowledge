@@ -4,12 +4,11 @@
 # into session-start-check.sh on 2026-10-25 and archived), then
 # widened from a bare title index to a digest (Mike's ruling, 2026-08-26).
 #
-# ⛔ ONE IMPLEMENTATION, TWO CALLERS — do not copy this logic anywhere.
-# The split moves the U-rule block onto the file channel, but the hook must keep
-# emitting it for installs that do not yet have the file (the no-flag-day rule).
-# So the generator is shared and the SECOND caller — the hook's fallback arm — is
-# retired only when that fallback arm is. A copy would drift silently, because
-# nothing compares the two renderings.
+# ⛔ ONE IMPLEMENTATION — do not copy this logic anywhere.
+# It had two callers until 2026-10-29: the rules-file writer and the hook's inline fallback
+# arm. That arm is retired (spec 2026-10-29-rules-changed-notice — its 35.3 KB payload reached
+# the model as a ~2 KB preview), so the writer in session-start-check.sh is the only caller.
+# A copy would still drift silently, because nothing would compare the two renderings.
 #
 # WHY A DIGEST AND NOT TITLES.
 # The working-rules digest gives each rule a title AND a one-line summary — 320 ch
