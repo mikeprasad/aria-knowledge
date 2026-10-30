@@ -88,10 +88,16 @@ assert_eq "banner carries no model directive" "no" \
   "$(jq -r '.systemMessage // ""' "$OUT" 2>/dev/null | grep -q 'RULE 22 ORDERING' && echo yes || echo no)"
 assert_eq "payload is valid JSON" "yes" \
   "$(jq -e . "$OUT" >/dev/null 2>&1 && echo yes || echo no)"
-assert_eq "payload carries a digest rule line" "yes" \
-  "$(jq -r '.hookSpecificOutput.additionalContext' "$OUT" 2>/dev/null | grep -q 'Rule 13' && echo yes || echo no)"
-assert_eq "payload carries RULE 22 ORDERING" "yes" \
-  "$(jq -r '.hookSpecificOutput.additionalContext' "$OUT" 2>/dev/null | grep -q 'RULE 22 ORDERING' && echo yes || echo no)"
+# ⛔ RE-POINTED 2026-10-29 (spec 2026-10-29-rules-changed-notice). The first run on an empty
+# HOME no longer inlines the digest: it installs the file and names it in an ARIA RULES notice.
+# The rules are asserted where the model now reads them — the file — and the payload is asserted
+# to name that file.
+assert_eq "first-run payload names the installed digest" "yes" \
+  "$(jq -r '.hookSpecificOutput.additionalContext' "$OUT" 2>/dev/null | grep '^ARIA RULES REFRESHED' | grep -qF "$APM_HOME/.claude/rules/aria-rules.md" && echo yes || echo no)"
+assert_eq "the digest carries a rule line" "yes" \
+  "$(grep -q 'Rule 13' "$DIGEST" && echo yes || echo no)"
+assert_eq "the digest carries RULE 22 ORDERING" "yes" \
+  "$(grep -q 'RULE 22 ORDERING' "$DIGEST" && echo yes || echo no)"
 
 # Structure preservation. config.sh's kt_json_escape ends with `tr '\n' ' '` — it
 # STRIPS newlines, which is correct for the single-paragraph directives it was
@@ -99,8 +105,10 @@ assert_eq "payload carries RULE 22 ORDERING" "yes" \
 # the raw file: grepping raw JSON for a literal backslash-n passes on an
 # escaped-but-broken payload. Decoding is what proves a consumer sees structure.
 SSR_LINES=$(jq -r '.hookSpecificOutput.additionalContext' "$OUT" 2>/dev/null | wc -l | tr -d ' ')
-assert_eq "digest structure survives escaping" "yes" \
-  "$([ "${SSR_LINES:-0}" -gt 20 ] && echo yes || echo no)"
+# The escaping property still matters (the notice and the config line are separate lines), but
+# the payload is now 2-3 lines, not a 38-line document — so assert the line break survives.
+assert_eq "payload line structure survives escaping" "yes" \
+  "$([ "${SSR_LINES:-0}" -ge 2 ] && echo yes || echo no)"
 
 # Zero U-rules must emit no index — the brand-new-user case, pinned against
 # regression. The fixture's knowledge folder has no user-rules.md at all.
@@ -533,10 +541,12 @@ assert_eq "U-rules with no file emits nothing" "" "$(ur_block "$URN")"
 # ---------------------------------------------------------------------------
 # THE TWO ARMS — no flag day
 # ---------------------------------------------------------------------------
-# The hook branches on whether the user-scope digest existed BEFORE it ran, because
-# §10.6 measured that the instruction-file set is snapshotted at session start: a
-# file this hook writes is not delivered until the NEXT session. So the first
-# session after install must still receive everything through the emission.
+# The hook compares each user-scope rules file before and after it writes it, because §10.6
+# measured that the instruction-file set is snapshotted at session start: a file this hook
+# writes is not delivered until the NEXT session. ⛔ RE-POINTED 2026-10-29: the first session
+# after install no longer receives the rules through the emission (a 35.3 KB inline payload
+# reached the model as a ~2 KB preview). It receives a notice naming the files, and the guard
+# below now asserts those named files hold the rules — the same 270-chars-0-rules defect fails it.
 #
 # ⛔ Both arms are required and the transitional one is the load-bearing half. An
 # earlier version of this hook tested presence AFTER the ensure step, which made
@@ -559,10 +569,16 @@ ARM2=$(arm_run)   # file now present        -> steady state
 # assertion fails while the payload is in fact correct — verified: the emission
 # does begin with these bytes.
 case "$ARM1" in
-  "ARIA WORKING RULES"*) ARM1_LEADS=yes ;;
+  "ARIA RULES REFRESHED"*) ARM1_LEADS=yes ;;
   *) ARM1_LEADS=no ;;
 esac
-assert_eq "arm 1 leads with the rules digest" "yes" "$ARM1_LEADS"
+assert_eq "arm 1 leads with the rules notice" "yes" "$ARM1_LEADS"
+ARM1_NOTICE=$(printf '%s' "$ARM1" | grep '^ARIA RULES' | head -1)
+ARM_D="$ARMH/.claude/rules/aria-rules.md"; ARM_U="$ARMH/.claude/rules/aria-user-rules.md"
+assert_eq "arm 1 names the installed digest" "yes" \
+  "$(printf '%s' "$ARM1_NOTICE" | grep -qF "$ARM_D" && echo yes || echo no)"
+assert_eq "arm 1 names the installed user rules" "yes" \
+  "$(printf '%s' "$ARM1_NOTICE" | grep -qF "$ARM_U" && echo yes || echo no)"
 # ⚠ Derived HERE, not borrowed from the DELIVERY GUARD block below — that block
 # defines its needle later in the file, so referencing it from here would compare
 # against an EMPTY string, and `grep -qF ''` matches anything. Positive control
@@ -571,12 +587,12 @@ ARM_LAST_RULE=$(grep -o '^- \*\*Rule [0-9]* — [^*]*\*\*' "$DIGEST" 2>/dev/null
   | tail -1 | sed 's/^- \*\*//; s/\*\*$//')
 assert_eq "arm-block last-rule needle parses non-empty" "yes" \
   "$([ -n "$ARM_LAST_RULE" ] && echo yes || echo no)"
-assert_eq "arm 1 delivers the LAST rule title" "yes" \
-  "$(printf '%s' "$ARM1" | grep -qF "$ARM_LAST_RULE" && echo yes || echo no)"
-assert_eq "arm 1 delivers a standing directive" "yes" \
-  "$(printf '%s' "$ARM1" | grep -qF 'RULE 22 ORDERING —' && echo yes || echo no)"
-assert_eq "arm 1 delivers the user's own rules" "yes" \
-  "$(printf '%s' "$ARM1" | grep -qF 'an arm-fixture rule' && echo yes || echo no)"
+assert_eq "arm 1's named digest holds the LAST rule title" "yes" \
+  "$(grep -qF "$ARM_LAST_RULE" "$ARM_D" 2>/dev/null && echo yes || echo no)"
+assert_eq "arm 1's named digest holds a standing directive" "yes" \
+  "$(grep -qF 'RULE 22 ORDERING —' "$ARM_D" 2>/dev/null && echo yes || echo no)"
+assert_eq "arm 1's named user-rules file holds the user's own rules" "yes" \
+  "$(grep -qF 'an arm-fixture rule' "$ARM_U" 2>/dev/null && echo yes || echo no)"
 assert_eq "arm 1 carries the config line" "yes" \
   "$(printf '%s' "$ARM1" | grep -qF 'ARIA CONFIG —' && echo yes || echo no)"
 
@@ -584,8 +600,8 @@ assert_eq "arm 2 does not duplicate the digest" "no" \
   "$(printf '%s' "$ARM2" | grep -qF 'RULE 22 ORDERING —' && echo yes || echo no)"
 assert_eq "arm 2 still carries the config line" "yes" \
   "$(printf '%s' "$ARM2" | grep -qF 'ARIA CONFIG —' && echo yes || echo no)"
-assert_eq "arm 2 is far smaller than arm 1" "yes" \
-  "$([ "$(printf '%s' "$ARM2" | wc -c)" -lt "$(( $(printf '%s' "$ARM1" | wc -c) / 10 ))" ] && echo yes || echo no)"
+assert_eq "arm 2 carries no rules notice (nothing changed)" "no" \
+  "$(printf '%s' "$ARM2" | grep -q '^ARIA RULES' && echo yes || echo no)"
 
 # The ensure step must have produced BOTH files, or the file channel — the whole
 # point of the split, and the only channel that reaches subagents — is empty.
@@ -663,7 +679,13 @@ assert_eq "the suite left the real ~/.claude/rules untouched" "$APM_REAL_BEFORE"
 # above the split's expected end state (~33 KB: digest + directives + U-rule digest).
 # Do not read it as a budget, and do not tighten it into one: a tight bound here would
 # again gate ruled capability changes on a number that does not track delivery.
-ARIA_EMIT_RUNAWAY=40000
+# ⛔ SUPERSEDED 2026-10-29 — the history above stays as the record. The hook no longer inlines
+# the digest on any arm (spec 2026-10-29-rules-changed-notice), so the expected emission is a
+# notice plus value lines, well under 2,000 characters. The catch is lowered to 4,000: a
+# reintroduced inline digest is >= 23,568 characters and fails it loudly. Delivery is carried by
+# the leads-with assertion below, not by size — a hard 2,000 ceiling would gate on the user's
+# config size (plan-gate A1).
+ARIA_EMIT_RUNAWAY=4000
 
 # The needle: the LAST rule title, derived from the digest, never hardcoded — a
 # literal would keep passing after rule 39 is added, which is the same failure
@@ -709,8 +731,9 @@ PW=$(jq -r '.hookSpecificOutput.additionalContext' "$OUTW" 2>/dev/null || echo '
 
 # Prove the fixture is actually maximal. Without this the size assertion below
 # passes trivially on a fixture that emitted half the blocks.
+# Re-pointed 2026-10-29 to the user-rules file the hook installed, where the model reads it.
 assert_eq "worst-case fixture fires the LONG U-rule variant" "no" \
-  "$(printf '%s' "$PW" | grep -q 'too many to index inline' && echo yes || echo no)"
+  "$(grep -q 'too many to index inline' "$HOMEW/.claude/rules/aria-user-rules.md" 2>/dev/null && echo yes || echo no)"
 # Sibling of the line above, and it was missing. A maximality proof must cover EVERY branch
 # that changes size, or the ceiling bounds a payload never shown to be maximal — the U-rule
 # branch was proven and the TASK BUDGET branch was not, which is
@@ -728,10 +751,13 @@ assert_eq "worst-case fixture fires the LONG U-rule variant" "no" \
 # ⚠ The fixture's own HOME control is KEPT and is now load-bearing for a different
 # reason than it was written for: the hook WRITES under $HOME/.claude/rules/, so an
 # uncontrolled HOME mutates the developer's live config.
-for blk in 'RULE 22 ORDERING' 'DECISION ROUTING' 'SESSION STATE' 'TASK BUDGET' 'ARIA ACTIVE CONTEXT' 'STANDING USER RULES'; do
-  assert_eq "worst-case fixture carries ${blk}" "yes" \
-    "$(printf '%s' "$PW" | grep -qF "$blk" && echo yes || echo no)"
+# Re-pointed 2026-10-29: the blocks live in the files the notice names, not in the emission.
+for blk in 'RULE 22 ORDERING' 'DECISION ROUTING' 'SESSION STATE' 'TASK BUDGET' 'ARIA ACTIVE CONTEXT'; do
+  assert_eq "worst-case digest carries ${blk}" "yes" \
+    "$(grep -qF "$blk" "$HOMEW/.claude/rules/aria-rules.md" 2>/dev/null && echo yes || echo no)"
 done
+assert_eq "worst-case user-rules file carries STANDING USER RULES" "yes" \
+  "$(grep -qF 'STANDING USER RULES' "$HOMEW/.claude/rules/aria-user-rules.md" 2>/dev/null && echo yes || echo no)"
 
 # The two assertions that are the point of this block.
 # Length must be PATH- and LOCALE-normalised, or the ceiling is not measuring the
@@ -762,27 +788,22 @@ assert_eq "worst-case emission stays under the runaway catch" "yes" \
 # directive is ever prepended ahead of the digest, the payload's size will not move
 # and every size-based check stays green while the delivered prefix silently stops
 # being rules. Derived from the digest, never hardcoded.
-FIRST_RULE_TITLE=$(grep -o '^- \*\*Rule [0-9]* — [^*]*\*\*' "$DIGEST" 2>/dev/null \
-  | head -1 | sed 's/^- \*\*//; s/\*\*$//')
-assert_eq "first-rule-title needle parses non-empty" "yes" \
-  "$([ -n "$FIRST_RULE_TITLE" ] && echo yes || echo no)"
-PW_DELIVERED=$(printf '%s' "$PW" | cut -c1-2000)
-# ⚠ BEGINS-WITH, not contains — and the difference is not pedantry. The first version
-# of this assertion used `grep -qF 'ARIA WORKING RULES'` and SURVIVED its mutation: a
-# directive prepended ahead of the digest displaces it by only ~60 chars, so it still
-# appears inside the 2000-char window and a contains-check stays green. That is the
-# same vacuity as the size ceiling this block replaced, reproduced in its replacement.
-# Anchoring to the start is what makes it fail for the reason it exists.
+# ⛔ DELETED 2026-10-29: "the delivered prefix reaches the first rule". It built its prefix with
+# `cut -c1-2000`, which truncates each LINE, not the payload, so on a multi-line payload the
+# "prefix" was nearly the whole text and the check could never fail (reproduced: first rule at
+# char 2,102 of 26,242, still "in the prefix"; a live first-install session reported it absent).
+# Pattern: line-oriented-truncation-is-not-a-prefix. Nothing replaces it, because no rules are
+# inlined any more; delivery is now the notice leading the payload.
 case "$PW" in
-  "ARIA WORKING RULES"*) PW_LEADS=yes ;;
+  "ARIA RULES REFRESHED"*) PW_LEADS=yes ;;
   *) PW_LEADS=no ;;
 esac
-assert_eq "the delivered prefix leads with the rules digest" "yes" "$PW_LEADS"
-assert_eq "the delivered prefix reaches the first rule" "yes" \
-  "$(printf '%s' "$PW_DELIVERED" | grep -qF "$FIRST_RULE_TITLE" && echo yes || echo no)"
-assert_eq "worst-case emission carries the LAST rule title" "yes" \
-  "$(printf '%s' "$PW" | grep -qF "$LAST_RULE_TITLE" && echo yes || echo no)"
+assert_eq "the delivered prefix leads with the rules notice" "yes" "$PW_LEADS"
+assert_eq "worst-case notice names a digest holding the LAST rule title" "yes" \
+  "$(printf '%s' "$PW" | grep '^ARIA RULES' | grep -qF "$HOMEW/.claude/rules/aria-rules.md" \
+     && grep -qF "$LAST_RULE_TITLE" "$HOMEW/.claude/rules/aria-rules.md" && echo yes || echo no)"
 
 # And the minimal path, which is what most installs actually emit.
-assert_eq "minimal emission carries the LAST rule title" "yes" \
-  "$(jq -r '.hookSpecificOutput.additionalContext' "$OUT" 2>/dev/null | grep -qF "$LAST_RULE_TITLE" && echo yes || echo no)"
+assert_eq "minimal notice names a digest holding the LAST rule title" "yes" \
+  "$(jq -r '.hookSpecificOutput.additionalContext' "$OUT" 2>/dev/null | grep '^ARIA RULES' | grep -qF "$APM_HOME/.claude/rules/aria-rules.md" \
+     && grep -qF "$LAST_RULE_TITLE" "$APM_HOME/.claude/rules/aria-rules.md" && echo yes || echo no)"

@@ -35,7 +35,9 @@ run() { # $1 = home, $2 = cfg, $3 = source, $4 = out file
 }
 sm()  { jq -r '.systemMessage // ""' "$1" 2>/dev/null; }
 ctx() { jq -r '.hookSpecificOutput.additionalContext // ""' "$1" 2>/dev/null; }
-has() { if printf '%s' "$1" | grep -qF "$2"; then echo yes; else echo no; fi; }
+# `--` matters: a needle beginning with "-" is otherwise read as an option, grep errors, and an
+# absence check answers "no" whatever the payload holds.
+has() { if printf '%s' "$1" | grep -qF -- "$2"; then echo yes; else echo no; fi; }
 
 # --- AC1: one registration; the rules script is archived -------------------------------
 check "AC1 one SessionStart command" "1" \
@@ -53,7 +55,7 @@ printf '{}' > "$H/.claude/aria-statusline-state-x.json"   # makes the old banner
 KF="$TMP/kf"; mk_kf "$KF" 2020-01-01 ""                   # nags due: old audit, no config audit
 CFG="$TMP/cfg.md"; mk_cfg "$CFG" "$KF"
 
-# First run with this HOME = fallback arm (no rules files yet); it also installs them.
+# First run with this HOME = first install (no rules files yet): it installs them and names them in a notice.
 run "$H" "$CFG" startup "$TMP/fallback.json"
 # Second run = steady state.
 run "$H" "$CFG" startup "$TMP/startup.json"
@@ -104,7 +106,13 @@ for arm in fallback startup compact first quiet err unconf; do
   if [ -s "$TMP/$arm.json" ] && jq -e . "$TMP/$arm.json" >/dev/null 2>&1; then ok "AC13 $arm parses strictly"
   else bad "AC13 $arm parses strictly" "$(head -c 160 "$TMP/$arm.json" 2>/dev/null)"; fi
 done
-check "fallback arm carries the digest" "yes" "$(has "$(ctx "$TMP/fallback.json")" 'ARIA WORKING RULES — in force')"
+# The first run on an empty HOME installs the rules files and points the model at them. It no
+# longer inlines the digest: measured 2026-10-29, a 35.3 KB inline payload reached the model as a
+# ~2 KB preview that stopped before the first working rule (spec 2026-10-29-rules-changed-notice).
+check "first run points the model at the installed rules" "yes" \
+  "$(has "$(ctx "$TMP/fallback.json")" 'ARIA RULES REFRESHED')"
+check "first run does not inline the digest body" "no" \
+  "$(has "$(ctx "$TMP/fallback.json")" '- **Rule 1 —')"
 
 # --- AC5 / AC6: CODEMAP value line, and tracked artifacts --------------------------------
 # A workspace holding one configured project with a fresh CODEMAP.
@@ -149,6 +157,63 @@ printf '{"session_id":"sse-pt-%s","source":"startup"}' "$$" \
   | (cd "$WS3/projy" && HOME="$H" KT_CONFIG="$TMP/cfg3.md" sh "$HOOK" 2>/dev/null) > "$TMP/ws3.json" || true
 check "tied path resolves to the tag named like the folder" "yes" \
   "$(has "$(ctx "$TMP/ws3.json")" "ARIA PROJECT — this session started inside configured project 'projy'.")"
+
+# --- Rules-file notice (spec 2026-10-29-rules-changed-notice) ------------------------------
+# Claude Code loads ~/.claude/rules/ BEFORE SessionStart hooks run, so a file the hook rewrites
+# reaches this session as its previous version. The hook must say so, in the model channel.
+BUNDLED="$DIR/plugin-claude-code/rules/aria-rules.md"
+notice() { ctx "$1" | grep '^ARIA RULES' | head -1; }
+lead() { ctx "$1" | head -1; }
+KFR="$TMP/kfr"; mk_kf "$KFR" "$TODAY" "$TODAY"; CFGR="$TMP/cfgr.md"; mk_cfg "$CFGR" "$KFR"
+HR="$TMP/hr"; mkdir -p "$HR/.claude"
+run "$HR" "$CFGR" startup "$TMP/rn0.json"                   # installs both files
+printf '\nstale line from an older release\n' >> "$HR/.claude/rules/aria-rules.md"
+run "$HR" "$CFGR" startup "$TMP/rn1.json"
+N1=$(notice "$TMP/rn1.json")
+case "$(lead "$TMP/rn1.json")" in "ARIA RULES REFRESHED"*) _l=yes ;; *) _l=no ;; esac
+check "RN1 changed digest → the notice leads the model context" "yes" "$_l"
+check "RN1 the notice names the digest" "yes" "$(has "$N1" '/aria-rules.md')"
+check "RN1 the notice does not name the unchanged user-rules file" "no" "$(has "$N1" 'aria-user-rules.md')"
+check "RN1 the installed digest is current again" "yes" \
+  "$(cmp -s "$BUNDLED" "$HR/.claude/rules/aria-rules.md" && echo yes || echo no)"
+run "$HR" "$CFGR" startup "$TMP/rn2.json"
+check "RN2 nothing changed → no notice" "" "$(notice "$TMP/rn2.json")"
+printf '### U2 — A second user rule\nBody two.\n' >> "$KFR/rules/user-rules.md"
+run "$HR" "$CFGR" startup "$TMP/rn3.json"
+N3=$(notice "$TMP/rn3.json")
+check "RN3 changed user rules → the notice names aria-user-rules.md" "yes" "$(has "$N3" 'aria-user-rules.md')"
+check "RN3 the notice does not name the unchanged digest" "no" "$(has "$N3" '/aria-rules.md')"
+printf '\nstale line\n' >> "$HR/.claude/rules/aria-rules.md"
+printf '### U3 — A third user rule\nBody three.\n' >> "$KFR/rules/user-rules.md"
+run "$HR" "$CFGR" startup "$TMP/rn4.json"
+N4=$(notice "$TMP/rn4.json")
+check "RN4 both changed → the digest is named" "yes" "$(has "$N4" '/aria-rules.md')"
+check "RN4 both changed → the user rules are named" "yes" "$(has "$N4" 'aria-user-rules.md')"
+H5="$TMP/h5"; mkdir -p "$H5/.claude"
+run "$H5" "$CFGR" startup "$TMP/rn5.json"
+N5=$(notice "$TMP/rn5.json")
+check "RN5 first install → the digest is named" "yes" "$(has "$N5" '/aria-rules.md')"
+check "RN5 first install → the user rules are named" "yes" "$(has "$N5" 'aria-user-rules.md')"
+check "RN5 first install inlines no digest body" "no" "$(has "$(ctx "$TMP/rn5.json")" '- **Rule 1 —')"
+check "RN5 first install context stays under 2,000 characters" "yes" \
+  "$([ "$(ctx "$TMP/rn5.json" | wc -m | tr -d ' ')" -lt 2000 ] && echo yes || echo no)"
+H6="$TMP/h6"; mkdir -p "$H6/.claude"; : > "$H6/.claude/rules"   # a FILE, so mkdir -p fails
+run "$H6" "$CFGR" startup "$TMP/rn6.json"
+N6=$(notice "$TMP/rn6.json")
+check "RN6 unwritable → NOT INSTALLED notice" "yes" "$(has "$N6" 'ARIA RULES NOT INSTALLED')"
+check "RN6 the notice names the bundled digest" "yes" "$(has "$N6" "$BUNDLED")"
+check "RN6 the notice names the source user rules" "yes" "$(has "$N6" "$KFR/rules/user-rules.md")"
+check "RN6 no digest body inlined" "no" "$(has "$(ctx "$TMP/rn6.json")" '- **Rule 1 —')"
+printf '\nstale line\n' >> "$HR/.claude/rules/aria-rules.md"
+run "$HR" "$CFGR" compact "$TMP/rn7.json"
+case "$(lead "$TMP/rn7.json")" in "ARIA WORKING RULES — still in force after compaction"*) _l=yes ;; *) _l=no ;; esac
+check "RN7 compact still leads with the rules pointer" "yes" "$_l"
+check "RN7 compact carries the notice" "yes" "$(has "$(ctx "$TMP/rn7.json")" 'ARIA RULES REFRESHED')"
+for arm in rn1 rn2 rn3 rn4 rn5 rn6 rn7; do
+  if [ -s "$TMP/$arm.json" ] && jq -e . "$TMP/$arm.json" >/dev/null 2>&1; then ok "RN8 $arm parses strictly"
+  else bad "RN8 $arm parses strictly" "$(head -c 160 "$TMP/$arm.json" 2>/dev/null)"; fi
+  check "RN8 $arm banner never carries the notice" "no" "$(has "$(sm "$TMP/$arm.json")" 'ARIA RULES')"
+done
 
 printf '%d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

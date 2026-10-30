@@ -39,22 +39,24 @@ printf '%s' "$out" | jq -r '.hookSpecificOutput.additionalContext // ""' 2>/dev/
 # session-start-rules.sh on hookSpecificOutput.additionalContext, so the
 # assertion follows it there and is checked on the DECODED payload: the property
 # is "the agent is taught the rule", and only the decoded value proves that.
-# ⛔ RE-POINTED 2026-10-25: one hook now. The run above is this HOME's first, so the digest was
-# absent at snapshot time and the fallback arm carried the digest — the TASK BUDGET text below.
+# ⛔ RE-POINTED 2026-10-29 (spec 2026-10-29-rules-changed-notice): the first run no longer inlines
+# the digest — a 35.3 KB inline payload reached the model as a ~2 KB preview. It installs the file
+# and names it in an ARIA RULES notice, so the directive is asserted in the FILE the model is told
+# to read, and the payload is asserted to name that file.
 rules_out="$out"
 printf '%s' "$rules_out" | grep -q "additionalContext" \
   || fail "session-start-check.sh did not emit additionalContext: $rules_out"
-printf '%s' "$rules_out" | jq -r '.hookSpecificOutput.additionalContext' 2>/dev/null \
-  | grep -qi "resets_at" || fail "missing resets_at staleness rule in the model-facing payload"
-# And it must NOT have regressed into telling the agent to decide from usage.
-printf '%s' "$rules_out" | jq -r '.hookSpecificOutput.additionalContext' 2>/dev/null \
-  | grep -qi "judging whether to keep going" \
-  && fail "TASK BUDGET regressed: tells the agent to gate stopping on usage"
-# Same re-scope, same reason: these assert content of the TASK BUDGET directive,
-# which now lives in the model-facing hook.
 rules_ctx=$(printf '%s' "$rules_out" | jq -r '.hookSpecificOutput.additionalContext' 2>/dev/null)
-printf '%s' "$rules_ctx" | grep -qi "re-read" || fail "missing re-read-fresh directive"
-printf '%s' "$rules_ctx" | grep -qi "session_id" || fail "missing context session-scope rule"
+DIGEST_FILE="$HOME/.claude/rules/aria-rules.md"
+printf '%s' "$rules_ctx" | grep '^ARIA RULES REFRESHED' | grep -qF "$DIGEST_FILE" \
+  || fail "the model-facing payload does not name the installed digest: $rules_ctx"
+[ -f "$DIGEST_FILE" ] || fail "the named digest was not installed"
+grep -qi "resets_at" "$DIGEST_FILE" || fail "missing resets_at staleness rule in the digest"
+# And it must NOT have regressed into telling the agent to decide from usage.
+grep -qi "judging whether to keep going" "$DIGEST_FILE" \
+  && fail "TASK BUDGET regressed: tells the agent to gate stopping on usage"
+grep -qi "re-read" "$DIGEST_FILE" || fail "missing re-read-fresh directive"
+grep -qi "session_id" "$DIGEST_FILE" || fail "missing context session-scope rule"
 # The user-facing hook keeps a pointer to the snapshot, but must no longer carry
 # the directive body — leaving it there keeps a corrected behaviour one
 # channel-flip from returning.
