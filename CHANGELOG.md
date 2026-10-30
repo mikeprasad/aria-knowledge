@@ -2,13 +2,23 @@
 
 All notable changes to ARIA will be documented in this file.
 
-## Unreleased
+## 2.57.6 — 2026-10-29
+
+**The model is told when its rules changed at session start.** Claude Code loads `~/.claude/rules/` before SessionStart hooks run, so when the hook rewrites `aria-rules.md` (a plugin update) or `aria-user-rules.md` (an edit to your `user-rules.md`), the session that triggered the rewrite holds the previous text. Measured on the first session after installing 2.57.5: its context carried the complete 2.57.4 digest while disk held the new one, and nothing said so. The session right after you add a rule was therefore not following it.
+
+- **Rules notice:** the hook checksums both files before and after it writes them. When either changed, or was installed for the first time, the model context starts with one `ARIA RULES REFRESHED` line naming the file(s) and telling the model to read them before its next tool call. When `~/.claude/rules` cannot be written at all, an `ARIA RULES NOT INSTALLED` line names the copy inside the plugin and your source `user-rules.md` instead.
+- **First install no longer inlines the digest.** That arm emitted 35.3 KB; measured, the harness delivered a ~2 KB preview that stopped before the first working rule. It is retired, and every case now points at a file the model can read.
+- **A test that could never fail is gone.** `test-aria-rules-digest.sh` asserted "the delivered prefix reaches the first rule" using `cut -c1-2000`, which truncates each line rather than the payload, so the "prefix" was nearly the whole text. Reproduced: the first rule sits at character 2,102 and still passed. The suites now assert the rules in the files the notice names.
+- **Tests:** eight new arms (RN1–RN8) in `tests/repros/session-start-single-emitter.sh`, all seen red on the previous hook, each mutation-checked; the repro's `has()` helper now passes `--` to grep, because a needle starting with `-` was read as an option and made absence checks vacuous.
+- **Ports:** Claude Code only. Antigravity's build excludes this hook; Codex and Cursor do not write these files.
 
 **`/wrapup` and `/handoff` no longer describe the 2.57.5 hook fix's old behaviour as current.** Both skills explained their rules with "`post-edit-check.sh` stamps the current session's id over another session's prompt — the routine state", and `/wrapup` cited `tests/repros/session-state.sh` block O as asserting it. Since 2.57.5 the hook leaves a file holding a live prompt alone, and block O guards against the overwrite.
 
 - Seven passages per skill pair now say what happened before 2.57.5 and why it still matters: files stamped then, and older installs, still carry the wrong header. The instructions they justify are unchanged — do not gate the demote on `sessionId`, demote an in-progress marker that holds a real prompt, flag a hook-stamped sid as a `HOOK ARTIFACT`, and trust the token over the front matter.
 - The same stale claim is corrected in `kt_ss_read_active_token`'s comment and in a comment in `tests/repros/wrapup-demotes-before-rewrite.sh`.
 - Ports: Codex by hand (same sentences, each matched once); Antigravity and Cursor regenerated. Cowork has none of this text.
+
+**Versions:** Claude Code `2.57.6`, Antigravity `2.57.6`, Codex `2.57.6-codex.0` and Cursor `2.57.6-cursor.0` (both carry the `/wrapup` and `/handoff` wording change). Cowork is unchanged at 1.8.1.
 
 ## 2.57.5 — 2026-10-29
 
