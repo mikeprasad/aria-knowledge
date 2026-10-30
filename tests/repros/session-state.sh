@@ -680,6 +680,18 @@ cmp -s "$TMP/o5/before.md" "$TMP/o5/SESSION.md" \
   && ok "O5 live active prompt (token): front matter left byte-identical" \
   || bad "O5 token guard" "the file changed: $(diff "$TMP/o5/before.md" "$TMP/o5/SESSION.md" | grep '^>' | tr '\n' ';')"
 
+# O6 — POSITIVE CONTROL, and the regression this arm exists for: an EMPTY FENCE in the active slot
+# is what /wrapup and /handoff actually leave behind (`## Next session prompt` + a ``` pair with
+# nothing between). v2.57.5 counted the two fence lines as content, so after any wrapup or handoff
+# the next first edit was never marked in progress. O3/O4 could not see it: their fixtures had no
+# fence. Found 2026-10-30 at a /wrapup, measured on the installed copy.
+mkdir -p "$TMP/o6"; : > "$TMP/o6/CLAUDE.md"
+printf -- '---\nlastEvent: wrapup\nat: 2026-05-02T00:00:00Z\nsessionId: sess-prior\n---\n\n## Where we left off\nDone.\n\n## Next session prompt\n\n```\n```\n\n## Pending handoffs\n' > "$TMP/o6/SESSION.md"
+kt_ss_mark_inprogress "$TMP/o6" "sess-mine" "mipr"
+{ grep -q '^sessionId: sess-mine$' "$TMP/o6/SESSION.md" && grep -q '^lastEvent: in-progress$' "$TMP/o6/SESSION.md"; } \
+  && ok "O6 control: an empty fenced slot (what /wrapup leaves) IS marked in-progress" \
+  || bad "O6 empty fence" "an empty fenced prompt block was treated as a live prompt — after every /wrapup or /handoff the hook stops marking"
+
 # --- Q: kt_ss_mark_inprogress BEHAVIOURAL parity across every carrying port ---------------------
 # ⛔ THE PARITY SET (_SS_PARITY_FNS, block N) COVERS kt_ss_ledger_add AND kt_ss_ledger_prune ONLY, so
 # the function whose behaviour the /wrapup and /handoff demote clauses REASON ABOUT was unguarded --
@@ -1108,9 +1120,19 @@ _vo=$(kt_ss_ledger_candidates "$VD/l4" 2>/dev/null | grep '|active$' || true)
   && ok "V4 ledger_candidates: active row reports the token's sid/at" \
   || bad "V4 candidates identity" "got '$_vo'"
 
+# V5 -- consume_active on an EMPTY FENCE (the /wrapup and /handoff template) is a byte no-op: no
+# junk entry is demoted into Pending. Same predicate as O6, seen from the other caller.
+_V_RAN=$((_V_RAN + 1)); mkdir -p "$VD/c5"
+printf -- '---\nlastEvent: wrapup\nat: 2026-10-28T23:16:12Z\nsessionId: s\n---\n\n## Next session prompt\n\n```\n```\n\n## Pending handoffs\n' > "$VD/c5/SESSION.md"
+cp "$VD/c5/SESSION.md" "$VD/c5/before.md"
+kt_ss_ledger_consume_active "$VD/c5" "resumer-sid" "2026-10-29T00:30:38Z" 2>/dev/null || true
+cmp -s "$VD/c5/before.md" "$VD/c5/SESSION.md" \
+  && ok "V5 consume_active: an empty fenced slot is left byte-identical" \
+  || bad "V5 consume_active empty fence" "an empty fence was demoted as if it were a prompt"
+
 # ⛔ ANTI-VACUITY.
-[ "$_V_RAN" -eq 4 ] && ok "V coverage: $_V_RAN active-identity arms executed" \
-  || bad "V coverage" "only $_V_RAN arms executed (want 4)"
+[ "$_V_RAN" -eq 5 ] && ok "V coverage: $_V_RAN active-identity arms executed" \
+  || bad "V coverage" "only $_V_RAN arms executed (want 5)"
 
 printf "\n%d passed, %d failed\n" "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

@@ -838,12 +838,17 @@ kt_ss_read_live_prompt() {
     END { if (sec == "ACTIVE" && !done) printf "%s", buf }
   ' "$_ss_lp_f" 2>/dev/null)
 
-  # Trim surrounding blank lines, then print nothing for the three empty states. A no-op
-  # must be byte-for-byte: an absent heading, an empty block, and a fresh in-progress
+  # Trim surrounding blank lines, then print nothing for the empty states. A no-op must be
+  # byte-for-byte: an absent heading, an empty block, an EMPTY FENCE and a fresh in-progress
   # marker are all legitimate and must not be demoted (or treated as a waiting handoff).
+  # ⛔ Fence lines are dropped BEFORE the emptiness test, using the same `^```` rule as the
+  # walker above. /wrapup and /handoff both leave an empty fence pair in this slot, and v2.57.5
+  # counted those two lines as content: after any wrapup or handoff the next first edit was
+  # never marked in progress (found 2026-10-30; tests O6 and V5). The printed body keeps its
+  # fences, because consume_active demotes it verbatim.
   _ss_lp_trim=$(printf '%s' "$_ss_lp_body" | sed -e '/./,$!d' | sed -e ':a' -e '/^[[:space:]]*$/{$d;N;ba' -e '}')
-  case "$(printf '%s' "$_ss_lp_trim" | tr -d '[:space:]')" in
-    ''|'(sessioninprogress)'|'```(sessioninprogress)```') return 0 ;;
+  case "$(printf '%s\n' "$_ss_lp_trim" | grep -v '^```' | tr -d '[:space:]')" in
+    ''|'(sessioninprogress)') return 0 ;;
   esac
   printf '%s' "$_ss_lp_trim"
   return 0
