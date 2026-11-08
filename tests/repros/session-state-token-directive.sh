@@ -44,5 +44,21 @@ chk "R2 names the gate shape"                "state-verify gate, not a preamble"
 # Backwards compatibility — the word trigger survives for tokenless prompts.
 chk "fallback word trigger retained"         "If no token is present"
 
+# B6 (2.57.8) — consume_active takes the located token and refuses a slot holding another one. Every
+# copy of the directive must say both, or a resuming session calls the old three-argument form and
+# gets a refusal it has no instruction for. Four copies: two digests (section-scoped as above) and
+# the Codex and Cursor hooks, which carry the directive as one inline SESSION STATE string.
+b6() { # $1 = label, $2 = text
+  for _n in 'kt_ss_ledger_consume_active <project_root>' '<now UTC> <the same token>' 'never consume whatever is now active'; do
+    if printf '%s' "$2" | grep -qF -- "$_n"; then printf '  PASS  B6 %s — %s\n' "$1" "$_n"
+    else printf '  FAIL  B6 %s — missing: %s\n' "$1" "$_n"; fail=1; fi
+  done
+}
+b6 "claude-code digest" "$section"
+ag_section=$(awk -v g="$GATE" '$0==g{f=1;next} f&&/^### /{exit} f' "$DIR/plugin-antigravity/rules/aria-rules.md")
+b6 "antigravity digest" "$ag_section"
+b6 "codex hook"  "$(grep 'SESSION STATE —' "$DIR/plugin-openai-codex/bin/session-start-check.sh")"
+b6 "cursor hook" "$(grep 'SESSION STATE —' "$DIR/plugin-cursor-template/scripts/aria/session-start-check.sh")"
+
 [ "$fail" -eq 0 ] || { echo "session-state-token-directive: FAIL"; exit 1; }
 echo "session-state-token-directive: PASS"
