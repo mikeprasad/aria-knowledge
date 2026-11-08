@@ -161,7 +161,7 @@ Surfaces to scan: CLAUDE.md files in the working tree, README.md files, project 
 
 After 3a's pattern-based drift checks, run a structural check for config-schema gaps: any user-facing field documented in `CONFIG.md` but missing from `<knowledge_folder>/aria-config.md`. This catches `/aria-setup` discipline failures retroactively — if the wizard ever silently skipped surfacing a new field (e.g., the `active_knowledge_surfacing` gap that bit aria-knowledge v2.15.1's first users), this audit cadence picks it up at the configured `audit_cadence_config` cadence (default 14 days).
 
-**Cowork divergence per #17b + #17e:** aria-knowledge enumerates field names by parsing `${CLAUDE_PLUGIN_ROOT}/bin/config.sh` (its bash field-reader script). Cowork has no `bin/` — the canonical schema source is `CONFIG.md`, the human-readable schema doc cowork ships at repo root. Same audit logic; different parse target.
+**Cowork divergence per #17b + #17e:** aria-knowledge enumerates field names by parsing `${CLAUDE_PLUGIN_ROOT}/scripts/config.sh` (its bash field-reader script). Cowork has no `bin/` — the canonical schema source is `CONFIG.md`, the human-readable schema doc cowork ships at repo root. Same audit logic; different parse target.
 
 **Algorithm:**
 

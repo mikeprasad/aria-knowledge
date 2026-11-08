@@ -831,7 +831,7 @@ After user approval and *before* executing any promotions, declare a batch manif
 For reference, aria-knowledge writes the manifest via:
 
 ```bash
-. ${CLAUDE_PLUGIN_ROOT}/bin/config.sh
+. "${CLAUDE_PLUGIN_ROOT}/scripts/config.sh"
 kt_batch_begin "audit-knowledge" "Audit promotion: N items per approved plan" '[
   {"file_path_pattern": "/abs/path/to/knowledge/approaches/*.md", "operation_type": "create", "impact": "low", "justification": "New approach files per approved Step 7 plan"},
   {"file_path_pattern": "/abs/path/to/knowledge/decisions/*.md", "operation_type": "create", "impact": "high", "justification": "New ADR — architectural commitment requires full scrutiny"},
@@ -978,7 +978,7 @@ After the audit log is written, aria-knowledge clears the batch manifest to unbl
 For reference, aria-knowledge clears via:
 
 ```bash
-. ${CLAUDE_PLUGIN_ROOT}/bin/config.sh
+. "${CLAUDE_PLUGIN_ROOT}/scripts/config.sh"
 kt_batch_end
 ```
 
