@@ -157,8 +157,11 @@ no match). No release script creates or removes a worktree (grep over `release*.
 ### Decisions
 
 - **D10 — `RELEASING.md` gains a "Releasing from a worktree" section.** Its steps run in order, and
-  the copy-out and its check come before removal: build, publish, copy the artifacts to the main
-  checkout, verify each copy, then remove the worktree.
+  the copy-out and its check come before removal: build, copy the artifacts to the main checkout,
+  verify each copy, remove the worktree, then merge and publish from the main checkout.
+  *Corrected during T6:* the first draft put publish before the copy, but `publish-release.sh`
+  uploads the stable aliases at the root of the checkout it runs in, so it would have uploaded
+  the main checkout's older artifacts.
 - **D11 — A helper does the last three steps as one command:
   `./release-worktree-finish.sh <worktree>`.** It finds the main checkout from
   `git -C <worktree> rev-parse --git-common-dir`, refuses if `<worktree>` *is* the main checkout,

@@ -61,6 +61,41 @@ that every stable alias exists, uploads with `--clobber`, then checks that all
 five site `/latest/download/` URLs return 200. If a port wasn't rebuilt this
 cycle, its previously-built alias is reused (re-run its `release-*.sh` to refresh).
 
+## Releasing from a worktree
+
+Building in a separate worktree (so a parallel session's commits on `main` cannot ride along) is
+fine, with one trap: the built artifacts — `aria-knowledge-*.zip` at the root and
+`plugin-claude-cowork/*.plugin` — are **ignored** files, and `git worktree remove` deletes ignored
+files **without asking** (it refuses only on untracked or modified files). Removing the worktree
+before copying the artifacts out destroys the release you just built, with exit 0.
+
+Run these in order. Do not remove the worktree any other way.
+
+```bash
+# From the main checkout. Build the worktree somewhere other than /tmp: the suite's bash-write
+# tests treat /tmp paths as scratch and fail there.
+git worktree add -b release/<version> ../.wt-<version>-aria-knowledge origin/main
+cd ../.wt-<version>-aria-knowledge
+
+# 1. Commit the release, then build every port's artifacts (Steps 1 above).
+./release.sh && ./release-antigravity.sh && ./release-codex.sh && ./release-cursor.sh
+
+# 2. Copy the artifacts out, verify each copy, and only then remove the worktree — one command.
+cd -
+./release-worktree-finish.sh ../.wt-<version>-aria-knowledge
+
+# 3. Merge release/<version> into main, then publish from the main checkout as in Steps 2-3.
+#    This comes AFTER step 2 on purpose: publish-release.sh uploads the stable aliases at the root
+#    of the checkout it runs in, so publishing before the copy would upload older artifacts.
+```
+
+`release-worktree-finish.sh` copies every artifact to the same path in the main checkout, `cmp`s
+each copy, prints its size and checksum, and only if all of them match runs `git worktree remove`
+(never `--force`). On any failed copy, or if it finds no artifacts at all, it exits non-zero and
+leaves the worktree in place; a worktree that built nothing is removed with `--no-artifacts`.
+⛔ Never `git worktree remove --force` a release worktree: `--force` skips even the
+untracked-file refusal, and the artifacts were never protected by that in the first place.
+
 ## The failure mode this prevents
 
 Historically the publish step uploaded only the versioned canonical zip, so the
