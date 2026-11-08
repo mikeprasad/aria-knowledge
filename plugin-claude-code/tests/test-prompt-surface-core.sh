@@ -134,6 +134,21 @@ ps_body() {
   ( ps_src "$CFG" || exit 1; kt_ps_commit_paths "$T/ledger-q" "$T/pending-link" ) 2>/dev/null
   r "core_commit_paths: a symlinked paths file is refused" 0 "$(wc -c < "$T/ledger-q" | tr -d ' ')"
 
+  # --- core_commit_paths_rejects_bad_lines: only plain relative paths reach the ledger ----
+  # Ledger lines are later shown to the model (session start after compaction), so a stored
+  # paths file is shape-filtered line by line. `x..y` in a NAME is legitimate and kept (the
+  # positive control: a filter that dropped everything would fail here too).
+  printf 'projects/proj-a/hooks.md\n/etc/passwd\n../outside.md\nprojects/../up.md\nprojects/proj-b/..\n..\nprojects/tab\there.md\nprojects/esc\033x.md\nprojects/cr.md\r\nprojects/proj-c/a..b.md\nreferences/webhook-basics.md\n' > "$T/pending-bad"
+  : > "$T/ledger-b"
+  ( ps_src "$CFG" || exit 1; kt_ps_commit_paths "$T/ledger-b" "$T/pending-bad" ) 2>/dev/null
+  r "core_commit_paths_rejects_bad_lines: only plain relative paths are recorded" \
+    "projects/proj-a/hooks.md|projects/proj-c/a..b.md|references/webhook-basics.md|" "$(tr '\n' '|' < "$T/ledger-b")"
+  printf 'projects/proj-a/hooks.md\nprojects/nul\000x.md\n' > "$T/pending-nul"
+  : > "$T/ledger-n"
+  ( ps_src "$CFG" || exit 1; kt_ps_commit_paths "$T/ledger-n" "$T/pending-nul" ) 2>/dev/null
+  r "core_commit_paths_rejects_bad_lines: a paths file holding a NUL byte is refused whole" \
+    0 "$(wc -c < "$T/ledger-n" | tr -d ' ')"
+
   # --- hook flow: the Claude Code adapter commits only after its emission succeeded ----
   HH="$T/hhome"; mk_cfg "$HH/.claude/aria-knowledge.local.md" "$KF"; mkdir -p "$T/cache-h"
   PCC="$PS_SD/prompt-context-check.sh"
@@ -277,7 +292,7 @@ ps_body() {
 PS_RESULTS=$(ps_body)
 
 # Every `r` call in ps_body reports exactly once; raise this when adding a check.
-PS_EXPECTED=47
+PS_EXPECTED=49
 PS_GOT=0
 PS_TAB=$(printf '\t')
 PS_OLD_IFS=$IFS

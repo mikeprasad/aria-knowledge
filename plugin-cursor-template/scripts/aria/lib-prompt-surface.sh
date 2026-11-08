@@ -39,7 +39,11 @@
 #   kt_ps_commit_paths LEDGER FILE  appends FILE's non-blank lines to LEDGER. For a host that
 #                                delivers in a LATER process: store KT_PS_PENDING in a file at
 #                                rank time, commit from it once delivered. A FILE that is a
-#                                symlink or not owned by the caller is refused.
+#                                symlink, not owned by the caller, or holds a NUL byte is
+#                                refused; of the rest, only plain relative paths are kept
+#                                (a line with a control character, CR included, a leading
+#                                `/`, or a `..` segment is dropped) — ledger lines are later
+#                                shown to the model.
 #   kt_ps_log RUNTIME STEP REASON  appends `<UTC> <runtime> <step> <reason>` to
 #                                ${KT_SURFACE_CACHE_DIR:-${TMPDIR:-/tmp}}/aria-surface-hook.log;
 #                                never writes stdout.
@@ -275,9 +279,17 @@ kt_ps_commit() { # LEDGER
 kt_ps_commit_paths() { # LEDGER FILE
   [ -n "${1:-}" ] && [ -n "${2:-}" ] || return 0
   [ ! -L "$2" ] && [ -f "$2" ] && [ -O "$2" ] 2>/dev/null || return 0
+  # A shell `read` silently drops NUL bytes, so a line holding one would be recorded as a
+  # DIFFERENT path. Refuse the whole file instead: this host did not write it.
+  _kt_ps_n1=$(wc -c < "$2" 2>/dev/null) || return 0
+  _kt_ps_n2=$(LC_ALL=C tr -d '\000' < "$2" 2>/dev/null | wc -c) || return 0
+  [ "$_kt_ps_n1" -eq "$_kt_ps_n2" ] 2>/dev/null || return 0
   _kt_ps_add=""
   while IFS= read -r _kt_ps_l || [ -n "$_kt_ps_l" ]; do
-    [ -n "$_kt_ps_l" ] && _kt_ps_add="$_kt_ps_add$_kt_ps_l$_kt_ps_nl"
+    case $_kt_ps_l in
+      ''|/*|..|../*|*/../*|*/..|*[[:cntrl:]]*) continue ;;
+    esac
+    _kt_ps_add="$_kt_ps_add$_kt_ps_l$_kt_ps_nl"
   done < "$2"
   [ -n "$_kt_ps_add" ] && printf '%s' "$_kt_ps_add" >> "$1" 2>/dev/null
   return 0
