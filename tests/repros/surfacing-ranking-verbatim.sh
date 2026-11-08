@@ -184,23 +184,40 @@ else
   ok "digest: no numbered procedure outside the paragraph"
 fi
 
-# --- skills (Task 6) ---------------------------------------------------------------------------
-# Expected marked copies: 2 rules digests (claude-code, antigravity) + 2 Cowork skills = 4.
-# Task 7 raises this when the codex/antigravity/cursor skill copies join.
-EXPECTED_COPIES=4
+# --- skills (Task 6) + ports (Task 7) ----------------------------------------------------------
+# Expected marked copies (7):
+#   plugin-claude-code/rules/aria-rules.md                    (the canonical directive)
+#   plugin-antigravity/rules/aria-rules.md                    (regenerated from it by build.sh)
+#   plugin-claude-cowork/skills/{prospect,retrospect}/SKILL.md (Cowork has no shell: it carries the paragraph)
+#   plugin-openai-codex/bin/session-start-check.sh            (hand-maintained directive copy)
+#   plugin-cursor-template/scripts/aria/session-start-check.sh (hand-maintained directive copy)
+#   plugin-antigravity/bin/antigravity/pre-invocation-aria.sh (hand-maintained directive copy)
+# Code-port skills (claude-code, codex, antigravity, cursor .mdc) call aria-surface.sh instead.
+EXPECTED_COPIES=7
 if [ "$N_COPIES" -eq "$EXPECTED_COPIES" ]; then
   ok "census: exactly $EXPECTED_COPIES files carry the marker pair"
 else
   bad "census: exactly $EXPECTED_COPIES files carry the marker pair" "found $N_COPIES — a copy vanished or an unexpected one appeared"
 fi
 
-# no_first_appearance_order — the retired ordering rule must not survive in any skill.
-# (Task 7 extends the scope to every port.)
-_fao=$(grep -rlF 'first-appearance order' "$ROOT/plugin-claude-code" "$ROOT/plugin-claude-cowork" --include=SKILL.md 2>/dev/null)
+# no_first_appearance_order — the retired ordering rule must not survive in any port's skill text.
+# Scope: every SKILL.md in the four skill-carrying plugin dirs, plus the compiled Cursor .mdc rules.
+# The scope is counted and must be non-empty per source, or the absence would be vacuous.
+_fao_scope="$SCRATCH/fao-scope"
+: > "$_fao_scope"
+for _d in plugin-claude-code plugin-claude-cowork plugin-openai-codex plugin-antigravity; do
+  _n=$(find "$ROOT/$_d/skills" -name SKILL.md 2>/dev/null | tee -a "$_fao_scope" | wc -l | tr -d ' ')
+  if [ "${_n:-0}" -ge 1 ]; then ok "no_first_appearance_order scope: $_d has $_n SKILL.md file(s)"
+  else bad "no_first_appearance_order scope: $_d has SKILL.md files" "found none — the check below would be vacuous for $_d"; fi
+done
+_n=$(find "$ROOT/plugin-cursor-template/.cursor/rules" -name '*.mdc' 2>/dev/null | tee -a "$_fao_scope" | wc -l | tr -d ' ')
+if [ "${_n:-0}" -ge 1 ]; then ok "no_first_appearance_order scope: cursor has $_n .mdc file(s)"
+else bad "no_first_appearance_order scope: cursor has .mdc files" "found none — the check below would be vacuous for cursor"; fi
+_fao=$(while IFS= read -r _f; do grep -lF 'first-appearance order' "$_f" 2>/dev/null; done < "$_fao_scope")
 if [ -z "$_fao" ]; then
-  ok "no_first_appearance_order: no claude-code/cowork SKILL.md states the retired ordering"
+  ok "no_first_appearance_order: no port's skill text states the retired ordering ($(wc -l < "$_fao_scope" | tr -d ' ') files)"
 else
-  bad "no_first_appearance_order: no claude-code/cowork SKILL.md states the retired ordering" "still in: $(printf '%s' "$_fao" | sed "s|$ROOT/||" | tr '\n' ' ')"
+  bad "no_first_appearance_order: no port's skill text states the retired ordering" "still in: $(printf '%s' "$_fao" | sed "s|$ROOT/||" | tr '\n' ' ')"
 fi
 
 # code_skills_call_cli — Claude Code skills delegate the ranking to the CLI.
@@ -261,6 +278,150 @@ for _f in "$SK_CW/prospect/SKILL.md" "$SK_CW/retrospect/SKILL.md"; do
     if printf '%s' "$_blk" | grep -qF -e "$_needle"; then ok "cowork_matcher: $_n Step 0.5 names '$_needle'"
     else bad "cowork_matcher: $_n Step 0.5 names '$_needle'" "absent from Step 0.5"; fi
   done
+done
+
+# --- ports (Task 7) ------------------------------------------------------------------------------
+# Every shell port carries the SAME matcher and the SAME CLI, and each hand-maintained session-start
+# emitter sends the canonical ARIA ACTIVE CONTEXT directive plus an ARIA SURFACE line naming its own
+# CLI. Each emitter is RUN against a fixture: a directive that is present in the source but mangled
+# on the way out (a backtick inside a double-quoted shell string is command substitution and deletes
+# text silently) only shows in the emitted payload.
+LIB_CANON="$ROOT/plugin-claude-code/scripts/lib-index-match.sh"
+CLI_CANON="$ROOT/plugin-claude-code/scripts/aria-surface.sh"
+PORT_LIBS="$LIB_CANON $ROOT/plugin-antigravity/bin/lib-index-match.sh $ROOT/plugin-openai-codex/bin/lib-index-match.sh $ROOT/plugin-cursor-template/scripts/aria/lib-index-match.sh"
+PORT_CLIS="$CLI_CANON $ROOT/plugin-antigravity/bin/aria-surface.sh $ROOT/plugin-openai-codex/bin/aria-surface.sh $ROOT/plugin-cursor-template/scripts/aria/aria-surface.sh"
+
+# four_libs_identical — cksum of the four lib copies.
+_ref=$(cksum < "$LIB_CANON" 2>/dev/null)
+_diffs=""
+for _f in $PORT_LIBS; do
+  _c=$(cksum < "$_f" 2>/dev/null)
+  printf '        %s  %s\n' "${_c:-MISSING}" "${_f#$ROOT/}"
+  [ -n "$_c" ] && [ "$_c" = "$_ref" ] || _diffs="$_diffs ${_f#$ROOT/}"
+done
+if [ -n "$_ref" ] && [ -z "$_diffs" ]; then ok "four_libs_identical: the 4 lib-index-match.sh copies are byte-identical"
+else bad "four_libs_identical: the 4 lib-index-match.sh copies are byte-identical" "differ or missing:$_diffs"; fi
+
+# Fixture: the surfacing-rank index, a config that turns surfacing on, and a query that fires.
+T7="$SCRATCH/t7"; mkdir -p "$T7/kf/logs" "$T7/home" "$T7/home/.gemini/antigravity"
+cp "$ROOT/tests/repros/fixtures/surfacing/index.md" "$T7/kf/index.md"
+# Today-dated audit logs: without them a first-run emitter sends only the welcome banner and exits.
+printf -- '- **Date:** %s\n' "$(date +%Y-%m-%d)" > "$T7/kf/logs/knowledge-audit-log.md"
+printf -- '- **Date:** %s\n' "$(date +%Y-%m-%d)" > "$T7/kf/logs/config-audit-log.md"
+mk_t7_cfg() { # $1 = path, $2 = active_knowledge_surfacing value
+  printf -- '---\nknowledge_folder: %s\nactive_knowledge_surfacing: %s\nprojects_enabled: true\nprojects_list: proj-a:proj-a,proj-b:proj-b,proj-c:proj-c\n---\n' "$T7/kf" "$2" > "$1"
+}
+mk_t7_cfg "$T7/on.md" true
+mk_t7_cfg "$T7/off.md" false
+T7_QUERY="fix the proj-b payments webhook"
+cli_run() { ( cd "$T7" && TMPDIR="$T7" HOME="$T7/home" KT_ROOT="$T7" KT_CONFIG="$T7/on.md" sh "$1" "$T7_QUERY" </dev/null 2>/dev/null ) ; }
+
+CLI_REF=$(cli_run "$CLI_CANON")
+case "$CLI_REF" in
+  "tags: "*) ok "port CLI control: the canonical CLI ranks the fixture ($(printf '%s\n' "$CLI_REF" | sed 1d | wc -l | tr -d ' ') paths)" ;;
+  *) bad "port CLI control: the canonical CLI ranks the fixture" "got: $(printf '%s' "$CLI_REF" | head -c 120)" ;;
+esac
+for _f in $PORT_CLIS; do
+  _n=${_f#$ROOT/}
+  [ "$_f" = "$CLI_CANON" ] && continue
+  if [ -f "$_f" ] && cmp -s "$_f" "$CLI_CANON"; then ok "port_cli: $_n is byte-identical to the canonical CLI"
+  else bad "port_cli: $_n is byte-identical to the canonical CLI" "missing or differs"; fi
+  _out=$(cli_run "$_f")
+  if [ -n "$CLI_REF" ] && [ "$_out" = "$CLI_REF" ]; then ok "port_cli: $_n run in its own layout prints the canonical ranking"
+  else bad "port_cli: $_n run in its own layout prints the canonical ranking" "got: $(printf '%s' "$_out" | head -c 120)"; fi
+done
+
+# Canonical directive line with the knowledge folder substituted — the exact text every emitter must send.
+CANON_LINE=$(grep '^ARIA ACTIVE CONTEXT — ' "$DIGEST" 2>/dev/null | head -1)
+EXPECT_LINE=$(printf '%s' "$CANON_LINE" | KF="$T7/kf" awk '{ i = index($0, "{knowledge_folder}"); if (i) $0 = substr($0, 1, i - 1) ENVIRON["KF"] substr($0, i + 18); print }')
+if [ -n "$CANON_LINE" ] && [ "$EXPECT_LINE" != "$CANON_LINE" ]; then ok "emitter control: the canonical directive names {knowledge_folder} once and substitutes"
+else bad "emitter control: the canonical directive names {knowledge_folder} once and substitutes" "substitution changed nothing"; fi
+
+emit_port() { # $1 = port, $2 = cfg → decoded model text on stdout
+  case "$1" in
+    codex)
+      printf '{"session_id":"t7"}' | ( cd "$T7" && HOME="$T7/home" KT_CONFIG="$2" sh "$ROOT/plugin-openai-codex/bin/session-start-check.sh" 2>/dev/null ) \
+        | jq -r '.systemMessage // ""' 2>/dev/null ;;
+    cursor)
+      printf '{"sessionId":"t7"}' | ( cd "$T7" && HOME="$T7/home" KT_ROOT="$T7" KT_CONFIG="$2" sh "$ROOT/plugin-cursor-template/scripts/aria/session-start-check.sh" 2>/dev/null ) \
+        | jq -r '.agentMessage // ""' 2>/dev/null ;;
+    antigravity)
+      printf '{"conversationId":"t7","workspacePaths":["%s"],"transcriptPath":"","artifactDirectoryPath":"","invocationNum":0,"initialNumSteps":0}' "$T7" \
+        | ( cd "$T7" && HOME="$T7/home" KT_CONFIG="$2" bash "$ROOT/plugin-antigravity/bin/antigravity/pre-invocation-aria.sh" 2>/dev/null ) \
+        | jq -r '[.injectSteps[]?.ephemeralMessage] | join("\n")' 2>/dev/null ;;
+  esac
+}
+port_cli_path() {
+  case "$1" in
+    codex) printf '%s' "$ROOT/plugin-openai-codex/bin/aria-surface.sh" ;;
+    cursor) printf '%s' "$ROOT/plugin-cursor-template/scripts/aria/aria-surface.sh" ;;
+    antigravity) printf '%s' "$ROOT/plugin-antigravity/bin/aria-surface.sh" ;;
+  esac
+}
+for _p in codex cursor antigravity; do
+  _m=$(emit_port "$_p" "$T7/on.md")
+  if [ -z "$_m" ]; then bad "emitter $_p: produced a model message" "empty — every absence below would pass vacuously"; continue; fi
+  ok "emitter $_p: produced a model message (${#_m} chars)"
+  _nb=$(printf '%s' "$_m" | grep -oF 'ARIA ACTIVE CONTEXT — ' | wc -l | tr -d ' ')
+  if [ "$_nb" = "1" ]; then ok "emitter $_p: exactly one ARIA ACTIVE CONTEXT directive"
+  else bad "emitter $_p: exactly one ARIA ACTIVE CONTEXT directive" "found $_nb"; fi
+  if [ -n "$CANON_LINE" ] && printf '%s' "$_m" | grep -qF -e "$EXPECT_LINE"; then
+    ok "emitter $_p: emits the canonical directive byte for byte (knowledge folder substituted)"
+  else
+    bad "emitter $_p: emits the canonical directive byte for byte (knowledge folder substituted)" "directive differs from plugin-claude-code/rules/aria-rules.md"
+  fi
+  printf '%s\n' "$_m" > "$T7/emitted-$_p.txt"
+  if verbatim_guard "$T7/emitted-$_p.txt"; then ok "emitter $_p: the marked paragraph extracted from the payload equals the canonical text"
+  else bad "emitter $_p: the marked paragraph extracted from the payload equals the canonical text" "see the line above"; fi
+  for _needle in 'cap at top-5' 'first-appearance' 'dedupe by path'; do
+    if printf '%s' "$_m" | grep -qiF -e "$_needle"; then bad "emitter $_p: no retired ordering text ('$_needle')" "still emitted"
+    else ok "emitter $_p: no retired ordering text ('$_needle')"; fi
+  done
+  _sp=$(printf '%s' "$_m" | grep -o 'ARIA SURFACE — "[^"]*"' | head -1 | sed 's/^ARIA SURFACE — "//; s/"$//')
+  if [ "$_sp" = "$(port_cli_path "$_p")" ]; then ok "emitter $_p: ARIA SURFACE names this port's own CLI, absolute and quoted"
+  else bad "emitter $_p: ARIA SURFACE names this port's own CLI, absolute and quoted" "got '${_sp}'"; fi
+  if [ -n "$_sp" ] && [ "$(cli_run "$_sp")" = "$CLI_REF" ] && [ -n "$CLI_REF" ]; then ok "emitter $_p: the ARIA SURFACE path runs and ranks the fixture"
+  else bad "emitter $_p: the ARIA SURFACE path runs and ranks the fixture" "path did not produce the canonical ranking"; fi
+
+  _m0=$(emit_port "$_p" "$T7/off.md")
+  if printf '%s' "$_m0" | grep -qF 'ARIA CONTEXT — '; then
+    ok "emitter $_p control: surfacing off still emits the passive ARIA CONTEXT line"
+    if printf '%s' "$_m0" | grep -qF 'ARIA SURFACE'; then bad "emitter $_p: surfacing off → no ARIA SURFACE line" "still emitted"
+    else ok "emitter $_p: surfacing off → no ARIA SURFACE line"; fi
+  else
+    bad "emitter $_p control: surfacing off still emits the passive ARIA CONTEXT line" "absent — the off-arm absence is unproven"
+  fi
+  mv "$T7/kf/index.md" "$T7/kf/index.md.away"
+  _mn=$(emit_port "$_p" "$T7/on.md")
+  mv "$T7/kf/index.md.away" "$T7/kf/index.md"
+  if [ -n "$_mn" ]; then
+    if printf '%s' "$_mn" | grep -qF 'ARIA SURFACE'; then bad "emitter $_p: no index.md → no ARIA SURFACE line" "still emitted"
+    else ok "emitter $_p: no index.md → no ARIA SURFACE line"; fi
+  else
+    bad "emitter $_p: no index.md → no ARIA SURFACE line" "emitter sent nothing — absence unproven"
+  fi
+done
+
+# codex_skills_call_cli — Codex skills delegate the ranking to their own CLI. ARIA_PLUGIN_ROOT is not
+# set in a Codex skill's environment (only /setup's own snippet assigns it), so the command must
+# assign it in the same line, from the port's established ${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}.
+for _s in prospect retrospect; do
+  _f="$ROOT/plugin-openai-codex/skills/$_s/SKILL.md"
+  if grep -qF 'ARIA_PLUGIN_ROOT="${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}"; sh "${ARIA_PLUGIN_ROOT}/bin/aria-surface.sh"' "$_f"; then
+    ok "codex_skills_call_cli: codex /$_s assigns ARIA_PLUGIN_ROOT and calls bin/aria-surface.sh"
+  else
+    bad "codex_skills_call_cli: codex /$_s assigns ARIA_PLUGIN_ROOT and calls bin/aria-surface.sh" "CLI invocation absent"
+  fi
+done
+for _f in "$ROOT/plugin-openai-codex/skills/retrospect/SKILL.md"; do
+  if grep -qF 'added for loop closure' "$_f" && grep -qF 'at most ONE' "$_f"; then ok "loop_closure: codex /retrospect carries the bounded loop-closure addition"
+  else bad "loop_closure: codex /retrospect carries the bounded loop-closure addition" "absent"; fi
+done
+for _s in prospect retrospect; do
+  _f="$ROOT/plugin-openai-codex/skills/$_s/SKILL.md"
+  if grep -qF 'ledger records paths RELATIVE' "$_f" && grep -qF 'to an absolute path before `Read`' "$_f"; then
+    ok "paths: codex /$_s compares relative paths with the ledger and resolves to absolute before Read"
+  else bad "paths: codex /$_s compares relative paths with the ledger and resolves to absolute before Read" "absent"; fi
 done
 
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
