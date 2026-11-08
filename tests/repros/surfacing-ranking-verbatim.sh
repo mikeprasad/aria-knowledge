@@ -223,5 +223,45 @@ for _s in prospect retrospect; do
   fi
 done
 
+# --- fix round 1 -------------------------------------------------------------------------------
+SK_CC="$ROOT/plugin-claude-code/skills"; SK_CW="$ROOT/plugin-claude-cowork/skills"
+
+# F5: /retrospect keeps loop closure as a bounded ADDITION (never a re-ranking).
+for _f in "$SK_CC/retrospect/SKILL.md" "$SK_CW/retrospect/SKILL.md"; do
+  _n=${_f#$ROOT/}
+  if grep -qF 'added for loop closure' "$_f"; then ok "loop_closure: $_n carries the loop-closure addition"
+  else bad "loop_closure: $_n carries the loop-closure addition" "phrase 'added for loop closure' absent"; fi
+  if grep -qiE 'prioriti[sz]e the retro within the top-5|jump the queue' "$_f"; then
+    bad "loop_closure: $_n has no re-ranking of the top 5" "old re-ranking / queue-jump wording present"
+  else ok "loop_closure: $_n has no re-ranking of the top 5"; fi
+  if grep -qF 'at most ONE' "$_f"; then ok "loop_closure: $_n bounds the addition to one retro"
+  else bad "loop_closure: $_n bounds the addition to one retro" "'at most ONE' absent"; fi
+done
+
+# F1: relative paths vs the ledger, absolute paths for Read — all four skills say so.
+for _f in "$SK_CC/prospect/SKILL.md" "$SK_CC/retrospect/SKILL.md" "$SK_CW/prospect/SKILL.md" "$SK_CW/retrospect/SKILL.md"; do
+  _n=${_f#$ROOT/}
+  if grep -qF 'ledger records paths RELATIVE' "$_f" && grep -qF 'to an absolute path before `Read`' "$_f"; then
+    ok "paths: $_n compares relative paths with the ledger and resolves to absolute before Read"
+  else bad "paths: $_n compares relative paths with the ledger and resolves to absolute before Read" "relative/absolute statement absent"; fi
+done
+
+# F2: no stale 'N substeps' count in the Cowork Step 0.5 (items 2-6 merged).
+for _f in "$SK_CW/prospect/SKILL.md" "$SK_CW/retrospect/SKILL.md"; do
+  _n=${_f#$ROOT/}
+  if grep -qE '10[- ]substeps?' "$_f"; then bad "substeps: $_n has no stale substep count" "still says 10 substeps"
+  else ok "substeps: $_n has no stale substep count"; fi
+done
+
+# F3 + F4: the Cowork by-hand matcher carries aliases, the project-directory rule and the projects_enabled gate.
+for _f in "$SK_CW/prospect/SKILL.md" "$SK_CW/retrospect/SKILL.md"; do
+  _n=${_f#$ROOT/}
+  _blk=$(awk '/^## Step 0.5/{on=1;next} /^## Step 1/{on=0} on' "$_f")
+  for _needle in '[aliases:' 'projects/<tag>/' 'projects_enabled: true'; do
+    if printf '%s' "$_blk" | grep -qF -e "$_needle"; then ok "cowork_matcher: $_n Step 0.5 names '$_needle'"
+    else bad "cowork_matcher: $_n Step 0.5 names '$_needle'" "absent from Step 0.5"; fi
+  done
+done
+
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
