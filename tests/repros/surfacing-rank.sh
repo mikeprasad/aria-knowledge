@@ -37,6 +37,9 @@ export KT_PROJECTS_LIST
 if [ "$KT_PROJECTS_LIST" != "proj-a:proj-a,proj-b:proj-b,proj-c:proj-c" ]; then
   echo "fixture config.md projects_list is '$KT_PROJECTS_LIST' — arms assume proj-a,proj-b,proj-c"; exit 1
 fi
+# Project vocabulary applies only when projects_enabled is "true" (the
+# fixture config sets it). Every project arm below relies on this.
+KT_PROJECTS_ENABLED=true; export KT_PROJECTS_ENABLED
 
 # shellcheck disable=SC1090
 . "$LIB"
@@ -160,6 +163,23 @@ kt_index_match "look at proj-b"
   || bad "no_projects_list_no_project_tags (GUARD)" "count $KT_MATCH_COUNT"
 kt_match_cleanup
 KT_PROJECTS_LIST=$_saved
+
+# --- projects_disabled_no_project_tags --- projects_enabled false, list still
+# set: proj-b is an ordinary tag. A lone mention stays silent, and with two
+# generic tags billing-1 (2 task words, authored) takes rank 2 — with key 1
+# active every proj-b file would outrank it.
+KT_PROJECTS_ENABLED=false
+kt_index_match "look at proj-b"
+d1_count=$KT_MATCH_COUNT; kt_match_cleanup
+kt_index_match "proj-b payments"
+d2_tags=$KT_MATCH_TAGS; d2_got=$(ranked); kt_match_cleanup
+KT_PROJECTS_ENABLED=true
+d2_want="$S projects/proj-c/billing-1.md $L2 $A1 $A2"
+if [ "$d1_count" -eq 0 ] && [ "$d2_tags" = "payments proj-b" ] && [ "$d2_got" = "$d2_want" ]; then
+  ok "projects_disabled_no_project_tags"
+else
+  bad "projects_disabled_no_project_tags" "lone count $d1_count; tags '$d2_tags' got '$d2_got' want '$d2_want'"
+fi
 
 # --- task_word_tokens --- kt_index_tokens: lowercase, split on non-alnum,
 # drop length <=2 and the stopword list, one per line, first-seen order.

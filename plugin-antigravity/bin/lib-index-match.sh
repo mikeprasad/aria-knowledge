@@ -22,12 +22,16 @@
 #   - Sets/resets KT_MATCH_TAGS, KT_MATCH_COUNT, KT_MATCH_FILES_TMP on entry.
 #   - Returns 0 in all states; callers branch on KT_MATCH_COUNT.
 #   - Caller MUST invoke kt_match_cleanup to remove the temp file when done.
-#   - Honors the ≥2-tag-match threshold and 5-file emission cap historically
-#     enforced by task-context-check.sh. Changing those is a deliberate
-#     cross-cutting policy change, not a per-caller knob.
+#   - Fires on ≥2 matched tags OR ≥1 matched project tag; caps emission at
+#     5 files ranked project-first (order below, at the sort). Changing these
+#     is a deliberate cross-cutting policy change, not a per-caller knob.
 #
 # Inputs (environment):
 #   KT_KNOWLEDGE_FOLDER  — absolute path to the knowledge root (required)
+#   KT_PROJECTS_LIST     — optional `tag:path,tag:path`; its tags join the
+#                          match vocabulary as PROJECT tags (config.sh sets it)
+#   KT_PROJECTS_ENABLED  — project tags apply only when this is "true"; unset
+#                          or any other value means no project tags
 #
 # What this does NOT cover (caller's responsibility):
 #   - Cooldowns / throttling — per-trigger policy, not shared mechanism.
@@ -35,6 +39,19 @@
 #   - Per-session dedup ledger (/tmp/aria-active-{session_id}) — added in
 #     checkpoint 2 across active-mode hooks.
 #   - Active vs passive wording — caller branches on KT_ACTIVE_SURFACING.
+
+# Task words for ranking key 3: lowercase, split on non-alphanumerics, drop
+# tokens of length <= 2 and a fixed stopword list. One per line, first-seen
+# order, deduped. Distinct from the tag-matching tokenizer in kt_index_match,
+# which keeps hyphenated tokens whole and keeps short tokens.
+kt_index_tokens() {
+  printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | tr -cs '[:alnum:]' '\n' \
+    | awk 'BEGIN {
+             n = split("the and for from into with this that are was were have has add fix new update about make use", s, " ")
+             for (i = 1; i <= n; i++) stop[s[i]] = 1
+           }
+           length($0) > 2 && !($0 in stop) && !seen[$0]++'
+}
 
 kt_index_match() {
   KT_MATCH_TAGS=""
@@ -59,54 +76,118 @@ kt_index_match() {
   _kt_lower=$(printf '%s' "$_kt_query" | tr '[:upper:]' '[:lower:]')
   _kt_whole=$(printf '%s' "$_kt_lower" | tr -cs '[:alnum:]-' ' ' | tr ' ' '\n')
   _kt_split=$(printf '%s' "$_kt_lower" | tr -cs '[:alnum:]' ' ' | tr ' ' '\n')
-  _kt_words=$(printf '%s\n%s\n' "$_kt_whole" "$_kt_split" | grep -v '^-*$' | sort -u)
+  _kt_words=$(printf '%s\n%s\n' "$_kt_whole" "$_kt_split" | grep -v '^-*$' | sort -u | tr '\n' ' ')
   [ -z "$_kt_words" ] && return 0
+  _kt_task=$(kt_index_tokens "$_kt_query" | tr '\n' ' ')
 
-  # Extract "### tagname" headers from the ## Tag Index section only.
-  # ## Other Tags (freeform tier) is intentionally excluded — only promoted
-  # known tags participate in auto-surfacing.
-  _kt_tags=$(sed -n '/^## Tag Index$/,/^## /p' "$_kt_index" \
-             | grep '^### ' \
-             | sed 's/^### //' \
-             | tr '[:upper:]' '[:lower:]')
-  [ -z "$_kt_tags" ] && return 0
+  # Project tags exist only when projects are enabled; unset counts as off,
+  # matching the other project features (config.sh defaults it to false).
+  _kt_plist=""
+  [ "$KT_PROJECTS_ENABLED" = "true" ] && _kt_plist="$KT_PROJECTS_LIST"
 
-  # Exact word-vs-tag match (no substring, no fuzzy). Each tag can match
-  # at most once; inner loop breaks on first hit.
-  _kt_matched=""
-  _kt_match_count=0
-  for _kt_tag in $_kt_tags; do
-    for _kt_word in $_kt_words; do
-      if [ "$_kt_word" = "$_kt_tag" ]; then
-        _kt_matched="${_kt_matched} ${_kt_tag}"
-        _kt_match_count=$((_kt_match_count + 1))
-        break
-      fi
-    done
-  done
+  _kt_tab=$(printf '\t')
+  _kt_raw=$(mktemp "${TMPDIR:-/tmp}/aria-match-raw.XXXXXX") || return 0
 
-  # Precision floor: ≥2 distinct tag hits required. Single-tag matches
-  # generate too many false positives given ~670 freeform tags in play.
-  [ "$_kt_match_count" -lt 2 ] && return 0
+  # One pass over index.md, then rank in END. Output lines:
+  #   T<TAB>matched tags (vocabulary order)
+  #   C<TAB>k1<TAB>k2<TAB>k3<TAB>k4<TAB>k5<TAB>k6<TAB>path — description
+  # Vocabulary = `### ` headers under `## Tag Index` ∪ projects_list tags.
+  # File-listing sections are `## Tag Index` and `## Other Tags`; only
+  # Tag Index sections make a file CARRY a tag, while a project tag also
+  # carries every listed path under `projects/<tag>/` (either section).
+  # Aliases: `tag [aliases: a, b]` or `tag [aliases: a b]` anywhere in
+  # `## Known Tags`; an alias token is replaced by its canonical tag before
+  # matching. An alias containing a character the tokenizer splits on
+  # (e.g. a dot) can never match a token and is inert.
+  _KT_WORDS="$_kt_words" _KT_TASK="$_kt_task" _KT_PROJECTS="$_kt_plist" awk '
+    function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s); return s }
+    function pathof(l,   i) { i = index(l, " — "); return i ? substr(l, 1, i - 1) : l }
+    BEGIN {
+      nw = split(ENVIRON["_KT_WORDS"], W, " ")
+      nt = split(ENVIRON["_KT_TASK"], T, " ")
+      npl = split(ENVIRON["_KT_PROJECTS"], PL, ",")
+      for (i = 1; i <= npl; i++) {
+        c = index(PL[i], ":"); if (!c) continue
+        t = tolower(trim(substr(PL[i], 1, c - 1)))
+        if (t != "" && !(t in isproj)) { isproj[t] = 1; porder[++npo] = t }
+      }
+      sec = ""; tag = ""; known = ""; nv = 0; nl = 0
+    }
+    /^## / { sec = trim(substr($0, 4)); tag = ""; next }
+    sec == "Known Tags" { known = known " " $0; next }
+    /^### / {
+      tag = ""
+      if (sec == "Tag Index" || sec == "Other Tags") tag = tolower(trim(substr($0, 5)))
+      if (sec == "Tag Index" && tag != "" && !(tag in hassec)) { hassec[tag] = 1; vorder[++nv] = tag }
+      next
+    }
+    /^- / && (sec == "Tag Index" || sec == "Other Tags") {
+      line = substr($0, 3); p = pathof(line)
+      if (!(p in pos)) { pos[p] = ++nl; desc[p] = line }
+      if (sec == "Tag Index" && tag != "" && !((tag SUBSEP p) in carries)) { carries[tag SUBSEP p] = 1; cnt[tag]++ }
+      next
+    }
+    END {
+      s = known
+      while ((i = index(s, "[aliases:")) > 0) {
+        pre = substr(s, 1, i - 1); rest = substr(s, i + 9)
+        j = index(rest, "]"); if (!j) break
+        list = substr(rest, 1, j - 1); s = substr(rest, j + 1)
+        n = split(pre, pw, /[ ,`*\t]+/); canon = ""
+        for (k = n; k >= 1; k--) if (pw[k] != "") { canon = tolower(pw[k]); break }
+        if (canon == "") continue
+        m = split(list, al, /[ ,\t]+/)
+        for (k = 1; k <= m; k++) { a = tolower(al[k]); if (a != "" && !(a in alias)) alias[a] = canon }
+      }
 
-  # Collect file lines under matched tag headers, dedupe by path, cap at 5.
-  _kt_raw=$(mktemp /tmp/aria-match-raw.XXXXXX) || return 0
-  _kt_files=$(mktemp /tmp/aria-match-files.XXXXXX) || { rm -f "$_kt_raw"; return 0; }
+      for (i = 1; i <= nw; i++) {
+        w = W[i]; if (w == "") continue
+        c = w
+        if (!(c in hassec) && !(c in isproj) && (w in alias)) c = alias[w]
+        if ((c in hassec) || (c in isproj)) matched[c] = 1
+      }
+      out = ""; nm = 0; npm = 0
+      for (i = 1; i <= nv; i++) { t = vorder[i]; if (t in matched) { out = out " " t; nm++; if (t in isproj) npm++ } }
+      for (i = 1; i <= npo; i++) { t = porder[i]; if ((t in matched) && !(t in hassec)) { out = out " " t; nm++; npm++ } }
+      # Firing: >=2 matched tags, OR >=1 matched project tag.
+      if (nm < 2 && npm < 1) exit
 
-  # Most-specific-tag-first: a longer tag name is a more specific match
-  # (`web-app` > `web`/`app`), so its files should fill the 5-cap BEFORE a
-  # broad parent tag dilutes them. Sort matched tags by length desc.
-  _kt_ordered=$(printf '%s\n' $_kt_matched \
-                | awk '{ print length, $0 }' | sort -rn -k1,1 | cut -d' ' -f2-)
+      for (i = 1; i <= npo; i++) {
+        t = porder[i]; if (!(t in matched)) continue
+        pfx = "projects/" t "/"
+        for (p in pos) if (index(p, pfx) == 1 && !((t SUBSEP p) in carries)) { carries[t SUBSEP p] = 1; cnt[t]++ }
+      }
 
-  for _kt_tag in $_kt_ordered; do
-    awk "/^### ${_kt_tag}\$/{found=1; next} /^##/{found=0} found && /^- /" "$_kt_index" \
-      | sed 's/^- //' >> "$_kt_raw"
-  done
+      printf "T\t%s\n", substr(out, 2)
+      for (p in pos) {
+        k2 = 0; k1 = 0; k5 = 0
+        for (t in matched) if ((t SUBSEP p) in carries) {
+          k2++; if (t in isproj) k1 = 1
+          if (k5 == 0 || cnt[t] < k5) k5 = cnt[t]
+        }
+        if (!k2) continue
+        x = tolower(desc[p]); gsub(/[^a-z0-9]+/, " ", x); x = " " x " "
+        k3 = 0
+        for (k = 1; k <= nt; k++) if (T[k] != "" && index(x, " " T[k] " ")) k3++
+        k4 = (index(p, "logs/") == 1) ? 0 : 1
+        printf "C\t%d\t%d\t%d\t%d\t%d\t%d\t%s\n", k1, k2, k3, k4, k5, pos[p], desc[p]
+      }
+    }
+  ' "$_kt_index" > "$_kt_raw" 2>/dev/null
 
-  if [ -s "$_kt_raw" ]; then
-    awk -F ' — ' '!seen[$1]++' "$_kt_raw" | head -5 > "$_kt_files"
+  _kt_tags_line=$(grep "^T${_kt_tab}" "$_kt_raw" 2>/dev/null | head -1)
+  if [ -z "$_kt_tags_line" ]; then
+    rm -f "$_kt_raw" 2>/dev/null
+    return 0
   fi
+
+  _kt_files=$(mktemp "${TMPDIR:-/tmp}/aria-match-files.XXXXXX") || { rm -f "$_kt_raw"; return 0; }
+  # Order (D2): 1 carries a matched project tag · 2 more matched tags ·
+  # 3 more task-word overlap (path or description) · 4 authored before logs/ ·
+  # 5 rarest matched tag carried (fewest files) · 6 index order. Cap 5.
+  grep "^C${_kt_tab}" "$_kt_raw" \
+    | sort -t "$_kt_tab" -k2,2nr -k3,3nr -k4,4nr -k5,5nr -k6,6n -k7,7n \
+    | head -5 | cut -f8- > "$_kt_files"
   rm -f "$_kt_raw" 2>/dev/null
 
   if [ ! -s "$_kt_files" ]; then
@@ -115,7 +196,7 @@ kt_index_match() {
   fi
 
   KT_MATCH_COUNT=$(wc -l < "$_kt_files" | tr -d ' ')
-  KT_MATCH_TAGS=$(printf '%s' "$_kt_matched" | sed 's/^ //')
+  KT_MATCH_TAGS=$(printf '%s' "$_kt_tags_line" | cut -f2-)
   KT_MATCH_FILES_TMP="$_kt_files"
   return 0
 }

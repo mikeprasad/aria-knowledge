@@ -30,6 +30,8 @@
 #   KT_KNOWLEDGE_FOLDER  — absolute path to the knowledge root (required)
 #   KT_PROJECTS_LIST     — optional `tag:path,tag:path`; its tags join the
 #                          match vocabulary as PROJECT tags (config.sh sets it)
+#   KT_PROJECTS_ENABLED  — project tags apply only when this is "true"; unset
+#                          or any other value means no project tags
 #
 # What this does NOT cover (caller's responsibility):
 #   - Cooldowns / throttling — per-trigger policy, not shared mechanism.
@@ -78,6 +80,11 @@ kt_index_match() {
   [ -z "$_kt_words" ] && return 0
   _kt_task=$(kt_index_tokens "$_kt_query" | tr '\n' ' ')
 
+  # Project tags exist only when projects are enabled; unset counts as off,
+  # matching the other project features (config.sh defaults it to false).
+  _kt_plist=""
+  [ "$KT_PROJECTS_ENABLED" = "true" ] && _kt_plist="$KT_PROJECTS_LIST"
+
   _kt_tab=$(printf '\t')
   _kt_raw=$(mktemp "${TMPDIR:-/tmp}/aria-match-raw.XXXXXX") || return 0
 
@@ -92,7 +99,7 @@ kt_index_match() {
   # `## Known Tags`; an alias token is replaced by its canonical tag before
   # matching. An alias containing a character the tokenizer splits on
   # (e.g. a dot) can never match a token and is inert.
-  _KT_WORDS="$_kt_words" _KT_TASK="$_kt_task" _KT_PROJECTS="$KT_PROJECTS_LIST" awk '
+  _KT_WORDS="$_kt_words" _KT_TASK="$_kt_task" _KT_PROJECTS="$_kt_plist" awk '
     function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s); return s }
     function pathof(l,   i) { i = index(l, " — "); return i ? substr(l, 1, i - 1) : l }
     BEGIN {
