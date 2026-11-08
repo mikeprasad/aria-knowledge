@@ -902,22 +902,56 @@ kt_ss_read_live_prompt() {
 # hook checks; the only hooks for this should be on session start". bin/post-edit-check.sh
 # is deliberately NOT a caller. Wiring it there would demote-and-consume a handoff on ANY
 # session's first edit in the project, including a session that never read the prompt.
+#
+# ⛔ IT CONSUMES ONLY THE PROMPT THE CALLER LOCATED (2.57.8). Signature:
+#   kt_ss_ledger_consume_active <root> <by> <now> <token>
+# <token> is the string the caller passed to kt_ss_ledger_token_locate (with or without the
+# `aria-handoff:` prefix). Resume is locate-then-consume — two calls with a model turn between them
+# — while several sessions write one SESSION.md. Before 2.57.8 this took no token and consumed
+# WHATEVER was active at call time, so a peer's handoff written in that window was demoted, marked
+# consumed and the call exited 0 (measured twice; 2026-11-06 repaired by hand).
+#   0  consumed the expected prompt — and nothing else returns 0
+#   1  token missing or not parseable as <…>/<sid>@<at>; file untouched
+#   2  the active slot does not hold that token (no file, empty slot, in-progress marker, empty
+#      fence, tokenless prompt, a different token); file untouched; stderr names both
+#   3  the demote did not land; active slot untouched
+# The token is REQUIRED: optional would leave every un-updated caller on the silent path.
+# Identity is the slot's OWN first token line, never a substring match — a peer prompt can quote
+# the old token in its prose. No front-matter fallback: a tokenless prompt cannot be the one the
+# caller located by token.
+# ⚠ Residual, not closed here: no SESSION.md writer takes a lock, so a peer rewriting the whole
+# file between the demote and the clear can still lose one side's write (every ledger writer's
+# last-writer-wins class). The clear re-checks the token in the same pass that rewrites the file,
+# which narrows this function's own window to one read.
 kt_ss_ledger_consume_active() {
   _ss_root="$1"; _ss_by="$2"; _ss_now="$3"
   _ss_f="$_ss_root/SESSION.md"
-  [ -f "$_ss_f" ] || return 0
 
-  _ss_trim=$(kt_ss_read_live_prompt "$_ss_root")
-  [ -n "$_ss_trim" ] || return 0
-
-  # Identity: THE TOKEN WINS. Front matter is the fallback for pre-token prompts only.
-  _ss_tok=$(kt_ss_read_active_token "$_ss_root")
-  if [ -n "$_ss_tok" ]; then
-    _ss_sid=${_ss_tok%%|*}; _ss_at=${_ss_tok#*|}
-  else
-    _ss_sid=$(kt_ss_read_active_sid "$_ss_root"); _ss_at=$(kt_ss_read_active_at "$_ss_root")
+  # Expected identity from the caller's token — the same parse kt_ss_read_active_token uses.
+  _ss_exp=$(printf '%s\n' "$4" | awk '
+    { line = $0; sub(/^[ \t]*aria-handoff:[[:space:]]*/, "", line)
+      slash = index(line, "/"); if (slash == 0) exit
+      rest = substr(line, slash + 1); at_i = index(rest, "@"); if (at_i == 0) exit
+      sid = substr(rest, 1, at_i - 1); at = substr(rest, at_i + 1)
+      gsub(/^[ \t]+/, "", sid); gsub(/[ \t]+$/, "", sid)
+      gsub(/^[ \t]+/, "", at);  gsub(/[ \t]+$/, "", at)
+      if (sid != "" && at != "") print sid "|" at
+      exit }')
+  if [ -z "$_ss_exp" ]; then
+    printf 'kt_ss_ledger_consume_active: refused — no usable token (got "%s"); pass the token you located, e.g. aria-handoff: <project>/<sid>@<at>\n' "$4" >&2
+    return 1
   fi
-  [ -n "$_ss_sid" ] || return 0
+  _ss_sid=${_ss_exp%%|*}; _ss_at=${_ss_exp#*|}
+
+  _ss_tok=""
+  [ -f "$_ss_f" ] && _ss_tok=$(kt_ss_read_active_token "$_ss_root")
+  _ss_trim=""
+  [ "$_ss_tok" = "$_ss_exp" ] && _ss_trim=$(kt_ss_read_live_prompt "$_ss_root")
+  if [ -z "$_ss_trim" ]; then
+    printf 'kt_ss_ledger_consume_active: refused — the active slot does not hold %s@%s (it holds %s). A peer wrote or moved a prompt after you located it: re-run kt_ss_ledger_token_locate with the same token.\n' \
+      "$_ss_sid" "$_ss_at" "$(if [ -n "$_ss_tok" ]; then printf '%s' "$_ss_tok" | tr '|' '@'; else printf '(no token)'; fi)" >&2
+    return 2
+  fi
 
   _ss_focus=$(awk 'NR==1 && $0!="---"{exit} /^---$/ && NR>1{exit} /^currentFocus:[[:space:]]*/{sub(/^currentFocus:[[:space:]]*/,""); print; exit}' "$_ss_f" 2>/dev/null)
   _ss_next=$(awk 'NR==1 && $0!="---"{exit} /^---$/ && NR>1{exit} /^nextAction:[[:space:]]*/{sub(/^nextAction:[[:space:]]*/,""); print; exit}' "$_ss_f" 2>/dev/null)
@@ -933,15 +967,27 @@ kt_ss_ledger_consume_active() {
   # result -- the entry actually being present -- never to the proxy.
   if ! awk -v sid="$_ss_sid" '/^### / && index($0, sid) > 0 { found = 1 }
                               END { exit(found ? 0 : 1) }' "$_ss_f" 2>/dev/null; then
-    return 0
+    printf 'kt_ss_ledger_consume_active: the demote of %s@%s did not land; the active slot was left in place.\n' "$_ss_sid" "$_ss_at" >&2
+    return 3
   fi
 
   kt_ss_ledger_mark_consumed "$_ss_root" "$_ss_sid" "$_ss_now" "$_ss_by" "$_ss_at"
 
-  # Clear the active slot, leaving the heading present and empty.
+  # Clear the active slot, leaving the heading present and empty — but only if the slot STILL holds
+  # the expected token. The check sits in the same pass that writes the new file, so a peer write
+  # since the check above makes this awk exit 3 and the mv never runs.
   _ss_tmp="$_ss_f.$$.tmp"
-  awk '
-    BEGIN { sec = ""; infence = 0 }
+  _ss_rc=0
+  awk -v esid="$_ss_sid" -v eat="$_ss_at" '
+    BEGIN { sec = ""; infence = 0; seen = 0; ok = 0 }
+    sec == "ACTIVE" && seen == 0 && /^aria-handoff:[[:space:]]*/ {
+      seen = 1; l = $0; sub(/^aria-handoff:[[:space:]]*/, "", l)
+      sl = index(l, "/"); r = substr(l, sl + 1); ai = index(r, "@")
+      ts = substr(r, 1, ai - 1); ta = substr(r, ai + 1)
+      gsub(/^[ \t]+/, "", ts); gsub(/[ \t]+$/, "", ts)
+      gsub(/^[ \t]+/, "", ta); gsub(/[ \t]+$/, "", ta)
+      if (sl > 0 && ai > 0 && ts == esid && ta == eat) ok = 1
+    }
     /^```/       { if (sec != "ACTIVE") print; infence = 1 - infence; next }
     infence == 1 { if (sec != "ACTIVE") print; next }
     /^## /       { if (sec == "ACTIVE") print ""
@@ -949,7 +995,15 @@ kt_ss_ledger_consume_active() {
                    print; next }
     sec == "ACTIVE" { next }
     { print }
-  ' "$_ss_f" > "$_ss_tmp" 2>/dev/null && mv "$_ss_tmp" "$_ss_f" 2>/dev/null
+    END { if (!ok) exit 3 }
+  ' "$_ss_f" > "$_ss_tmp" 2>/dev/null || _ss_rc=$?
+  if [ "$_ss_rc" -eq 0 ]; then
+    mv "$_ss_tmp" "$_ss_f" 2>/dev/null
+  else
+    rm -f "$_ss_tmp" 2>/dev/null
+    printf 'kt_ss_ledger_consume_active: the active slot changed before it could be cleared; it now holds a different prompt and was left in place.\n' >&2
+    return 2
+  fi
   rm -f "$_ss_tmp" 2>/dev/null
   return 0
 }

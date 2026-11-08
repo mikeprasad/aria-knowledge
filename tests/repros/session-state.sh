@@ -1089,10 +1089,10 @@ _v_stamped() {  # $1 dir — front matter stamped by another session, token name
 # V1 -- consume_active on a live, token-bearing prompt: demoted under the TOKEN's identity, marked
 # consumed by the resuming session, active slot emptied.
 _V_RAN=$((_V_RAN + 1)); _v_stamped "$VD/c1"
-kt_ss_ledger_consume_active "$VD/c1" "resumer-sid" "2026-10-29T00:30:38Z" 2>/dev/null || true
+_v_rc=0; kt_ss_ledger_consume_active "$VD/c1" "resumer-sid" "2026-10-29T00:30:38Z" "$_v_tok" 2>/dev/null || _v_rc=$?
 _v_hdr=$(grep '^### author-sid · 2026-10-28T23:12:55Z' "$VD/c1/SESSION.md" || true)
 _v_act=$(awk '/^## Next session prompt/{a=1;next} /^## /{a=0} a&&NF' "$VD/c1/SESSION.md")
-{ printf '%s' "$_v_hdr" | grep -q 'consumed 2026-10-29T00:30:38Z by resumer-sid' \
+{ [ "$_v_rc" -eq 0 ] && printf '%s' "$_v_hdr" | grep -q 'consumed 2026-10-29T00:30:38Z by resumer-sid' \
   && [ -z "$_v_act" ] && grep -q 'V-SENTINEL resume' "$VD/c1/SESSION.md"; } \
   && ok "V1 consume_active: demoted under the token's sid/at, consumed, active slot cleared" \
   || bad "V1 consume_active" "header='$_v_hdr' active='$(printf '%s' "$_v_act" | tr '\n' ';')'"
@@ -1101,9 +1101,9 @@ _v_act=$(awk '/^## Next session prompt/{a=1;next} /^## /{a=0} a&&NF' "$VD/c1/SES
 _V_RAN=$((_V_RAN + 1)); mkdir -p "$VD/c2"
 printf -- '---\nlastEvent: in-progress\nat: 2026-10-28T23:16:12Z\nsessionId: s\n---\n\n## Next session prompt\n\n```\n(session in progress)\n```\n' > "$VD/c2/SESSION.md"
 cp "$VD/c2/SESSION.md" "$VD/c2/before.md"
-kt_ss_ledger_consume_active "$VD/c2" "resumer-sid" "2026-10-29T00:30:38Z" 2>/dev/null || true
-cmp -s "$VD/c2/before.md" "$VD/c2/SESSION.md" \
-  && ok "V2 consume_active: a (session in progress) marker is left byte-identical" \
+_v_rc=0; kt_ss_ledger_consume_active "$VD/c2" "resumer-sid" "2026-10-29T00:30:38Z" "$_v_tok" 2>/dev/null || _v_rc=$?
+[ "$_v_rc" -eq 2 ] && cmp -s "$VD/c2/before.md" "$VD/c2/SESSION.md" \
+  && ok "V2 consume_active: a (session in progress) marker is left byte-identical, exit 2" \
   || bad "V2 consume_active no-op" "a marker body was demoted or the file was rewritten"
 
 # V3 -- token_locate on a stamped file reports the TOKEN's identity, not the stamper's.
@@ -1125,14 +1125,96 @@ _vo=$(kt_ss_ledger_candidates "$VD/l4" 2>/dev/null | grep '|active$' || true)
 _V_RAN=$((_V_RAN + 1)); mkdir -p "$VD/c5"
 printf -- '---\nlastEvent: wrapup\nat: 2026-10-28T23:16:12Z\nsessionId: s\n---\n\n## Next session prompt\n\n```\n```\n\n## Pending handoffs\n' > "$VD/c5/SESSION.md"
 cp "$VD/c5/SESSION.md" "$VD/c5/before.md"
-kt_ss_ledger_consume_active "$VD/c5" "resumer-sid" "2026-10-29T00:30:38Z" 2>/dev/null || true
-cmp -s "$VD/c5/before.md" "$VD/c5/SESSION.md" \
-  && ok "V5 consume_active: an empty fenced slot is left byte-identical" \
-  || bad "V5 consume_active empty fence" "an empty fence was demoted as if it were a prompt"
+_v_rc=0; kt_ss_ledger_consume_active "$VD/c5" "resumer-sid" "2026-10-29T00:30:38Z" "$_v_tok" 2>/dev/null || _v_rc=$?
+[ "$_v_rc" -eq 2 ] && cmp -s "$VD/c5/before.md" "$VD/c5/SESSION.md" \
+  && ok "V5 consume_active: an empty fenced slot is left byte-identical, exit 2" \
+  || bad "V5 consume_active empty fence" "rc=$_v_rc — an empty fence was demoted, or the refusal was not reported"
 
 # ⛔ ANTI-VACUITY.
 [ "$_V_RAN" -eq 5 ] && ok "V coverage: $_V_RAN active-identity arms executed" \
   || bad "V coverage" "only $_V_RAN arms executed (want 5)"
+
+# --- W: consume_active consumes ONLY the prompt the caller located (2.57.8, I-4) ----------------
+# The resume flow is locate-then-consume, two calls with a model turn between them, while several
+# sessions write one SESSION.md. Before 2.57.8 consume_active took no token and consumed WHATEVER
+# was active at call time, so a peer's handoff written in that window was demoted, marked consumed
+# and the call exited 0 (measured twice; once 2026-11-06, repaired by hand). Exit 0 now means
+# "consumed the expected prompt" and nothing else: 1 = bad/missing token, 2 = the slot does not
+# hold that token, 3 = the demote did not land.
+_W_RAN=0
+WD="$TMP/w"
+_w_slot() {  # $1 dir, $2 token line, $3 extra body line
+  mkdir -p "$1"; : > "$1/CLAUDE.md"
+  printf -- '---\nlastEvent: handoff\nat: 2026-11-06T20:56:20Z\nsessionId: peer-sid\n---\n\n## Next session prompt\n\n```\n%s\n%s\nW-PEER live handoff\n```\n\n## Pending handoffs\n' "$2" "$3" > "$1/SESSION.md"
+  cp "$1/SESSION.md" "$1/before.md"
+}
+_w_a='aria-handoff: proj-a/old-sid@2026-11-06T20:40:00Z'
+_w_b='aria-handoff: proj-a/peer-sid@2026-11-06T20:56:20Z'
+
+# W1 (B1) -- the slot now holds a peer's token B; the caller located A. Refuse, touch nothing.
+_W_RAN=$((_W_RAN + 1)); _w_slot "$WD/w1" "$_w_b" "body"
+_w_rc=0; kt_ss_ledger_consume_active "$WD/w1" "resumer" "2026-11-06T20:57:07Z" "$_w_a" 2>/dev/null || _w_rc=$?
+[ "$_w_rc" -eq 2 ] && cmp -s "$WD/w1/before.md" "$WD/w1/SESSION.md" \
+  && ok "W1 consume_active refuses a slot holding a different token (exit 2, byte-identical)" \
+  || bad "W1 wrong-prompt consume" "rc=$_w_rc — the peer's live handoff was consumed or the file changed"
+
+# W2 (B2) -- no token at all (an un-updated caller): refuse loudly, touch nothing.
+_W_RAN=$((_W_RAN + 1)); _w_slot "$WD/w2" "$_w_b" "body"
+_w_rc=0; kt_ss_ledger_consume_active "$WD/w2" "resumer" "2026-11-06T20:57:07Z" 2>/dev/null || _w_rc=$?
+[ "$_w_rc" -eq 1 ] && cmp -s "$WD/w2/before.md" "$WD/w2/SESSION.md" \
+  && ok "W2 consume_active without a token is refused (exit 1, byte-identical)" \
+  || bad "W2 tokenless call" "rc=$_w_rc — a caller passing no token still consumed by position"
+
+# W3 (B4) -- the peer prompt QUOTES token A in its prose, but its own first token line is B.
+# token_locate's substring match would call A active; consume_active must compare the slot's token.
+_W_RAN=$((_W_RAN + 1)); _w_slot "$WD/w3" "$_w_b" "resumed from $_w_a"
+_w_rc=0; kt_ss_ledger_consume_active "$WD/w3" "resumer" "2026-11-06T20:57:07Z" "$_w_a" 2>/dev/null || _w_rc=$?
+[ "$_w_rc" -eq 2 ] && cmp -s "$WD/w3/before.md" "$WD/w3/SESSION.md" \
+  && ok "W3 a quoted token in the prose does not make the slot match (exit 2)" \
+  || bad "W3 quoted token" "rc=$_w_rc — identity was taken from a quoted mention, not the slot's own token"
+
+# W4 (B5) -- no SESSION.md at all, with a token: the expected prompt is not there; say so.
+_W_RAN=$((_W_RAN + 1)); mkdir -p "$WD/w4"
+_w_rc=0; kt_ss_ledger_consume_active "$WD/w4" "resumer" "2026-11-06T20:57:07Z" "$_w_a" 2>/dev/null || _w_rc=$?
+[ "$_w_rc" -eq 2 ] && [ ! -e "$WD/w4/SESSION.md" ] \
+  && ok "W4 no SESSION.md: refused with exit 2, nothing created" \
+  || bad "W4 absent ledger" "rc=$_w_rc"
+
+# W5 (B3) -- the positive case: the slot holds A, the caller passes A WITHOUT the prefix.
+_W_RAN=$((_W_RAN + 1)); _w_slot "$WD/w5" "$_w_a" "body"
+_w_rc=0; kt_ss_ledger_consume_active "$WD/w5" "resumer" "2026-11-06T20:57:07Z" "proj-a/old-sid@2026-11-06T20:40:00Z" 2>/dev/null || _w_rc=$?
+_w_hdr=$(grep '^### old-sid · 2026-11-06T20:40:00Z' "$WD/w5/SESSION.md" || true)
+_w_act=$(awk '/^## Next session prompt/{a=1;next} /^## /{a=0} a&&NF' "$WD/w5/SESSION.md")
+{ [ "$_w_rc" -eq 0 ] && printf '%s' "$_w_hdr" | grep -q 'consumed 2026-11-06T20:57:07Z by resumer' && [ -z "$_w_act" ]; } \
+  && ok "W5 matching token (bare form) consumes: demoted under it, consumed, slot cleared" \
+  || bad "W5 matching consume" "rc=$_w_rc header='$_w_hdr' active='$(printf '%s' "$_w_act" | tr '\n' ';')'"
+
+[ "$_W_RAN" -eq 5 ] && ok "W coverage: $_W_RAN expected-token arms executed" \
+  || bad "W coverage" "only $_W_RAN arms executed (want 5)"
+
+# --- X: the same contract in EVERY port that carries consume_active (behavioural, per lib) -------
+# Byte parity is the wrong unit here for the reason block Q gives; what must hold in each runtime
+# is the BEHAVIOUR: a mismatched token is refused untouched, a matching one is consumed.
+_X_SEEN=0
+for _xd in plugin-claude-code/scripts plugin-antigravity/bin plugin-cursor-template/scripts/aria plugin-openai-codex/bin; do
+  _xf="$REPO_ROOT/$_xd/lib-session-state.sh"
+  [ -f "$_xf" ] || { bad "X $_xd" "lib-session-state.sh missing -- a guard with no subject"; continue; }
+  _X_SEEN=$((_X_SEEN + 1))
+  _xn=$(printf '%s' "$_xd" | tr '/' '_')
+  _w_slot "$WD/x-$_xn-m" "$_w_b" "body"; _w_slot "$WD/x-$_xn-k" "$_w_a" "body"
+  _xr=$( ( . "$_xf"
+           r1=0; kt_ss_ledger_consume_active "$WD/x-$_xn-m" "resumer" "2026-11-06T20:57:07Z" "$_w_a" 2>/dev/null || r1=$?
+           r2=0; kt_ss_ledger_consume_active "$WD/x-$_xn-k" "resumer" "2026-11-06T20:57:07Z" "$_w_a" 2>/dev/null || r2=$?
+           printf '%s %s' "$r1" "$r2" ) )
+  if [ "$_xr" = "2 0" ] && cmp -s "$WD/x-$_xn-m/before.md" "$WD/x-$_xn-m/SESSION.md" \
+     && grep -q '^### old-sid · .*consumed' "$WD/x-$_xn-k/SESSION.md"; then
+    ok "X $_xd: mismatch refused untouched, match consumed"
+  else
+    bad "X $_xd" "exit codes '$_xr' (want '2 0'), or the mismatched file changed, or the match was not consumed"
+  fi
+done
+[ "$_X_SEEN" -eq 4 ] && ok "X coverage: all 4 carrying ports exercised" \
+  || bad "X coverage" "only $_X_SEEN of 4 port libs found"
 
 printf "\n%d passed, %d failed\n" "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
