@@ -20,7 +20,9 @@ All notable changes to ARIA will be documented in this file.
 - Everything lives under `tests/`, which ships in no artifact. The installed rules files are unchanged.
 - Forced red both ways before it was trusted: reverting Rule 23's digest line to `4af3d98^` gives `digest:23` only, and one word added to rule 7's source gives `source:7` only.
 
-**Cowork reference text names `config.sh` where aria-knowledge keeps it.** Three cowork passages described aria-knowledge sourcing `${CLAUDE_PLUGIN_ROOT}/bin/config.sh`. Canonical moved `bin/` to `scripts/` in 2.56.0 and quotes the root since 2.57.2. Two of them are "for reference" code blocks under `/audit-knowledge` steps that Cowork skips, so they never ran; the third is prose in `/audit-config`. All three now match canonical.
+**Cowork's descriptions of aria-knowledge name its scripts where they now live.** Eleven places in three cowork skills (`/audit-knowledge`, `/audit-config`, `/extract`) named aria-knowledge's `config.sh`, `count-backlog-entries.sh`, `migrate-ideas-backlog.sh` and `digest-transcript.sh` under `bin/`. Canonical moved them to `scripts/` in 2.56.0 and quotes the plugin root since 2.57.2. Two are "for reference" code blocks under `/audit-knowledge` steps that Cowork skips, so they never ran; the rest are prose. All now match canonical. Sentences saying Cowork itself has no `bin/` are unchanged.
+
+- The first pass searched for `${CLAUDE_PLUGIN_ROOT}/bin/` and found 3. The pre-release check searched for bare `bin/config.sh` and backticked `` `bin/<name>.sh` `` and found 8 more. The last search finds 0 in cowork and 52 in this CHANGELOG, so it works.
 
 **Checked and closed, no code change:**
 

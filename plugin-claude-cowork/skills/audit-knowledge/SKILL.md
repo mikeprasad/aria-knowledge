@@ -11,7 +11,7 @@ Scan the attached knowledge folder for extractable items, route ideas via the Ac
 **Cowork variant of aria-knowledge's `/audit-knowledge`.** Output schema is byte-identical (`archive/audit-{date}/MANIFEST.md`, disposition frontmatter, ledger formats) per item #4 archive-cohort conventions. Three input-discovery divergences:
 
 - **Memory + plans scan SKIPPED in cowork** (#16b, #16c locks): aria-knowledge reads `~/.claude/projects/{cwd}/memory/` and `~/.claude/plans/` to surface extractable items from auto-memory + Plan files. Cowork's persistent-grant model can't reach `~/.claude/` per probe 12. Cowork's `/audit-knowledge` audits the attached knowledge folder's `intake/` subfolder only. If you want memory/plans audited, run aria-knowledge's `/audit-knowledge` from Claude Code.
-- **`bin/` shell-outs replaced with Claude-driven inline logic** (per D3 + ADR-013): aria-knowledge sources `bin/config.sh` for shell helpers and uses `bin/digest-transcript.sh` for snapshot processing. Cowork has no `bin/` directory; equivalent operations are done inline by Claude reading config + processing snapshot bodies directly.
+- **`scripts/` shell-outs replaced with Claude-driven inline logic** (per D3 + ADR-013): aria-knowledge sources `scripts/config.sh` for shell helpers and uses `scripts/digest-transcript.sh` for snapshot processing. Cowork has no `bin/` directory; equivalent operations are done inline by Claude reading config + processing snapshot bodies directly.
 - **`projects_groups` features not consumed in cowork** (per ADR-005): aria-knowledge integrates `/distill`, `/stitch`, and codemap surfaces into the audit. Cowork excludes those skills; related audit branches are noted as aria-knowledge-only.
 
 Plugin attribution in archive frontmatter uses `plugin_version: aria-cowork@{INSTALLED_VERSION}` per item #4b. Schema-identical archive outputs mean a knowledge folder receiving audit-cohort writes from both plugins on the same day merges cleanly per item #4h same-day collision handling.
@@ -52,7 +52,7 @@ Read `{knowledge_folder}/logs/knowledge-audit-log.md`.
 
 Note the "Last Audit" date and calculate days since.
 
-**Compute the current trigger state.** Count each backlog's live entries **by reading the file** — Cowork has no shell, so aria-knowledge's shared counter script (`bin/count-backlog-entries.sh`) cannot run here; apply its rule by hand so this count matches the one the Code port uses for its prompt and scope. Scope: the four action-eligible backlogs `intake/{insights,decisions,extraction,rules}-backlog.md` (`intake/ideas/` is excluded, it routes out via the Accept submenu). A missing backlog file is reported as `<name>: missing`, never silently counted as 0.
+**Compute the current trigger state.** Count each backlog's live entries **by reading the file** — Cowork has no shell, so aria-knowledge's shared counter script (`scripts/count-backlog-entries.sh`) cannot run here; apply its rule by hand so this count matches the one the Code port uses for its prompt and scope. Scope: the four action-eligible backlogs `intake/{insights,decisions,extraction,rules}-backlog.md` (`intake/ideas/` is excluded, it routes out via the Accept submenu). A missing backlog file is reported as `<name>: missing`, never silently counted as 0.
 
 **Cutoff** — the last pass's date: the first `- **Date:**` line of `logs/knowledge-audit-log.md`, first token only (`YYYY-MM-DD`). If the log is absent or that token is not a date, there is no cutoff (`cutoff=none`) and the h4suspect arm is off.
 
@@ -126,7 +126,7 @@ For each entry, note it for presentation in Step 6. Feedback items are promoted 
 
 Glob `{knowledge_folder}/intake/ideas/*.md`. **If the directory is missing**, report it in Step 6 and suggest running `/aria-setup` to repair the structure. Do not create it.
 
-**Legacy-file detection (one-time):** Also check for `{knowledge_folder}/intake/ideas-backlog.md`. If it exists alongside `intake/ideas/`, surface a finding in Step 6 under a "Legacy Ideas Backlog" note: *"Pre-2.11 `ideas-backlog.md` detected. Re-run `/aria-setup` to migrate entries into per-file format."* Cowork has no `bin/migrate-ideas-backlog.sh` shell helper (aria-knowledge-only); cowork's `/aria-setup` handles the migration inline when it detects the legacy file. Do not attempt the migration from within the audit flow.
+**Legacy-file detection (one-time):** Also check for `{knowledge_folder}/intake/ideas-backlog.md`. If it exists alongside `intake/ideas/`, surface a finding in Step 6 under a "Legacy Ideas Backlog" note: *"Pre-2.11 `ideas-backlog.md` detected. Re-run `/aria-setup` to migrate entries into per-file format."* Cowork has no `scripts/migrate-ideas-backlog.sh` shell helper (aria-knowledge-only); cowork's `/aria-setup` handles the migration inline when it detects the legacy file. Do not attempt the migration from within the audit flow.
 
 For each `*.md` file in `intake/ideas/`: read the file (frontmatter + body). Each file is one idea — feature proposal, bug report, or design idea captured via `/extract`. Ideas have a **distinct disposition** from other backlogs — they do NOT promote to knowledge files directly. Present them in their own section in Step 6 with the options:
 
@@ -254,7 +254,7 @@ Scan `{knowledge_folder}/intake/pre-compact-captures/` for `.md` files. **If the
   4. Report count cleared, skip to Step 3.
 - If **Digest** or **Detailed** → continue with the selected mode below
 
-**Digest mode (default):** For each transcript snapshot, produce a high-signal digest before scanning. aria-knowledge uses a `bin/digest-transcript.sh` shell helper for this. Cowork has no `bin/` (per ADR-013 D3 — bin/ shell-outs replaced with Claude-driven inline logic), so cowork's `/audit-knowledge` does the digest **inline by Claude**:
+**Digest mode (default):** For each transcript snapshot, produce a high-signal digest before scanning. aria-knowledge uses a `scripts/digest-transcript.sh` shell helper for this. Cowork has no `bin/` (per ADR-013 D3 — bin/ shell-outs replaced with Claude-driven inline logic), so cowork's `/audit-knowledge` does the digest **inline by Claude**:
 
 1. Read the snapshot file.
 2. Extract: all user messages (truncated to ~500 chars each), first/last 5 lines of each assistant turn, all Insight blocks (lines between `★ Insight ──...` markers), and lines containing decision/feedback signal keywords (*decided*, *because*, *don't do*, *yes exactly*, *correct*, *wrong*, *fixed*, *broken*).
@@ -826,7 +826,7 @@ After user approval and *before* executing any promotions, declare a batch manif
 
 **Write the manifest** before executing promotions:
 
-**Cowork-skip (aria-knowledge-only):** the batch-manifest mechanism is part of aria-knowledge's Rule 22 hook-enforcement infrastructure (`bin/config.sh` shell helpers + `pre-edit-check.sh` hook reads the manifest to allow planned writes through). Cowork has no hook layer per ADR-001 and ADR-004, so cowork's `/audit-knowledge` SKIPS this step entirely. Cowork's audit-time writes (promotions, archive cohort files, backlog clears) proceed without the manifest because there's no PreToolUse hook to gate them.
+**Cowork-skip (aria-knowledge-only):** the batch-manifest mechanism is part of aria-knowledge's Rule 22 hook-enforcement infrastructure (`scripts/config.sh` shell helpers + `pre-edit-check.sh` hook reads the manifest to allow planned writes through). Cowork has no hook layer per ADR-001 and ADR-004, so cowork's `/audit-knowledge` SKIPS this step entirely. Cowork's audit-time writes (promotions, archive cohort files, backlog clears) proceed without the manifest because there's no PreToolUse hook to gate them.
 
 For reference, aria-knowledge writes the manifest via:
 
