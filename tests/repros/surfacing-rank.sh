@@ -308,6 +308,43 @@ else
   fi
 fi
 
+# --- cache_swap_mid_query_is_consistent --- another process can mv a rebuilt
+# cache into place between the query's plan step (which computes line ranges)
+# and its row extraction. Deterministic window: _kt_index_cache_plan is wrapped
+# (its definition is copied out of the lib under another name; sh functions are
+# late-bound) so that right after it runs, a VALID cache built from a shifted
+# index replaces the one it read. The answer must still equal a clean run.
+# Seen RED on 0f5c0f3, which applied the old ranges to the new file.
+KF5="$SCRATCH/kf5"; cp -R "$FIX" "$KF5"
+KF5S="$SCRATCH/kf5-shifted"; cp -R "$FIX" "$KF5S"
+awk '/^### payments/ { print "### aaa-shift"; for (i = 1; i <= 6; i++) print "- references/shift-" i ".md — Shift filler " i; print "" } { print }' \
+  "$FIX/index.md" > "$KF5S/index.md"
+C5="$SCRATCH/cache-swap"; C5S="$SCRATCH/cache-swap-src"; mkdir -p "$C5" "$C5S"
+_saved_kf=$KT_KNOWLEDGE_FOLDER
+KT_KNOWLEDGE_FOLDER="$KF5S"; KT_SURFACE_CACHE_DIR="$C5S"
+kt_index_match "$MAINQ"; kt_match_cleanup
+c5_shifted=$(kt_index_cache_path)
+KT_KNOWLEDGE_FOLDER="$KF5"; KT_SURFACE_CACHE_DIR="$C5"
+kt_index_match "$MAINQ"; c5_clean=$(ranked); c5_clean_tags=$KT_MATCH_TAGS; kt_match_cleanup
+C5_TARGET=$(kt_index_cache_path)
+C5_SWAP="$SCRATCH/swap-pending.tsv"; cp "$c5_shifted" "$C5_SWAP"
+eval "$(sed -n '/^_kt_index_cache_plan() {/,/^}/p' "$LIB" | sed '1s/^_kt_index_cache_plan()/_kt_orig_plan()/')"
+_kt_index_cache_plan() {
+  _kt_orig_plan; _kt_w_rc=$?
+  [ -f "$C5_SWAP" ] && mv -f "$C5_SWAP" "$C5_TARGET"
+  return $_kt_w_rc
+}
+kt_index_match "$MAINQ"; c5_got=$(ranked); c5_tags=$KT_MATCH_TAGS; kt_match_cleanup
+c5_swapped=no; [ ! -f "$C5_SWAP" ] && c5_swapped=yes
+eval "$(sed -n '/^_kt_index_cache_plan() {/,/^}/p' "$LIB")"
+KT_KNOWLEDGE_FOLDER=$_saved_kf; KT_SURFACE_CACHE_DIR=$_saved_cd
+if [ -n "$c5_shifted" ] && [ "$c5_clean" = "$MAIN_EXPECT" ] && [ "$c5_swapped" = yes ] \
+   && [ "$c5_got" = "$c5_clean" ] && [ "$c5_tags" = "$c5_clean_tags" ]; then
+  ok "cache_swap_mid_query_is_consistent"
+else
+  bad "cache_swap_mid_query_is_consistent" "swapped $c5_swapped clean '$c5_clean' got '$c5_got' tags '$c5_tags' vs '$c5_clean_tags'"
+fi
+
 # No temp files may outlive cleanup. GUARD: vacuous on the old lib, which
 # wrote its temp files to a hard-coded /tmp instead of $TMPDIR.
 left=$(find "$SCRATCH/tmp" -type f | wc -l | tr -d ' ')

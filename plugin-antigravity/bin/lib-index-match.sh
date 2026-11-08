@@ -148,12 +148,13 @@ _kt_index_cache_build() {
 # _kt_words and _kt_plist from kt_index_match. Vocabulary = @tag rows ∪
 # projects_list tags; an alias token is replaced by its canonical tag before
 # matching, unless the token is itself a tag. Prints nothing when the match
-# does not fire (>=2 matched tags, OR >=1 matched project tag); otherwise two
-# lines: the matched tags (vocabulary order), and a sed script printing the
+# does not fire (>=2 matched tags, OR >=1 matched project tag), and the single
+# line @stale when line 1 is not $_kt_head or the header is cut short; otherwise
+# two lines: the matched tags (vocabulary order), and a sed script printing the
 # groups that carry them — each matched tag's group, and for a matched project
 # tag also the group of every listed path under `projects/<tag>/`.
 _kt_index_cache_plan() {
-  _KT_WORDS="$_kt_words" _KT_PROJECTS="$_kt_plist" awk '
+  _KT_HEAD="$_kt_head" _KT_WORDS="$_kt_words" _KT_PROJECTS="$_kt_plist" awk '
     function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s); return s }
     function rng(a, b) { if (a > 0) { script = script a "," b "p;"; if (b > last) last = b } }
     BEGIN {
@@ -167,13 +168,13 @@ _kt_index_cache_plan() {
       }
       nv = 0
     }
-    NR == 1 { next }
+    NR == 1 { if ($0 != ENVIRON["_KT_HEAD"]) { stale = 1; exit }; next }
     $1 == "@tag" { if (!($2 in hassec)) { hassec[$2] = 1; vorder[++nv] = $2; ta[$2] = $3; tb[$2] = $4 }; next }
     $1 == "@dir" { da[$2] = $3; db[$2] = $4; next }
     $1 == "@alias" { if (!($2 in alias)) alias[$2] = $3; next }
     $1 == "@end" { done = 1; exit }
     END {
-      if (!done) exit
+      if (stale || !done) { print "@stale"; exit }
       for (i = 1; i <= nw; i++) {
         w = W[i]; if (w == "") continue
         c = w
@@ -191,11 +192,13 @@ _kt_index_cache_plan() {
   '
 }
 
-# Query step 2, reading the carrying rows step 1 selected on stdin; uses
-# _kt_mtags (the matched tags), _kt_task and _kt_plist. One output line per
+# Query step 2, reading on stdin the cache's line 1 followed by the carrying
+# rows step 1 selected; uses _kt_head, _kt_mtags (the matched tags), _kt_task
+# and _kt_plist. Prints the single line @stale when line 1 is not $_kt_head
+# (the file was replaced after step 1 read it); otherwise one line per
 # candidate:  C<TAB>k1<TAB>k2<TAB>k3<TAB>k4<TAB>k5<TAB>k6<TAB>path — description
 _kt_index_cache_rank() {
-  _KT_MATCHED="$_kt_mtags" _KT_TASK="$_kt_task" _KT_PROJECTS="$_kt_plist" awk '
+  _KT_HEAD="$_kt_head" _KT_MATCHED="$_kt_mtags" _KT_TASK="$_kt_task" _KT_PROJECTS="$_kt_plist" awk '
     function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s); return s }
     BEGIN {
       FS = "\t"
@@ -207,6 +210,7 @@ _kt_index_cache_rank() {
         t = tolower(trim(substr(PL[i], 1, c - 1))); if (t != "") isproj[t] = 1
       }
     }
+    NR == 1 { if ($0 != ENVIRON["_KT_HEAD"]) { stale = 1; exit }; next }
     {
       t = $1; p = $2
       if (!((t SUBSEP p) in carries)) { carries[t SUBSEP p] = 1; cnt[t]++ }
@@ -217,6 +221,7 @@ _kt_index_cache_rank() {
       }
     }
     END {
+      if (stale || NR == 0) { print "@stale"; exit }
       for (p in cpos) {
         k2 = 0; k1 = 0; k5 = 0
         for (t in matched) if ((t SUBSEP p) in carries) {
@@ -232,6 +237,51 @@ _kt_index_cache_rank() {
       }
     }
   '
+}
+
+# Rebuild from a SNAPSHOT of index.md into $1, and set _kt_head to the cksum of
+# the bytes actually parsed. Parsing the live file while it is being edited
+# could label one version's content with another version's cksum; with the
+# snapshot, one header always means one byte-identical cache (the build is
+# deterministic), which is what makes the header check in each read sufficient.
+_kt_index_cache_snapshot_build() {
+  _kt_snap=$(mktemp "${TMPDIR:-/tmp}/aria-match-index.XXXXXX") || return 1
+  _kt_brc=1
+  if cp "$_kt_index" "$_kt_snap" 2>/dev/null; then
+    _kt_ssum=$(cksum < "$_kt_snap" 2>/dev/null)
+    if [ -n "$_kt_ssum" ]; then
+      _kt_head="aria-surface-cache 2 $_kt_ssum"
+      _kt_index_cache_build "$_kt_snap" "$_kt_head" > "$1" 2>/dev/null && _kt_brc=0
+    fi
+  fi
+  rm -f "$_kt_snap" 2>/dev/null
+  return $_kt_brc
+}
+
+# Answer from cache file $1 into $_kt_raw. Returns 0 when answered (the raw
+# file is empty when the match does not fire), 2 when a read saw a different
+# cache than expected (stale, foreign, short or swapped mid-query by another
+# writer's mv). The file is opened twice — the plan reads the header, sed
+# pulls the row groups — and EACH read checks line 1 against $_kt_head, so
+# both reads provably came from the same cache version.
+_kt_index_cache_answer() {
+  : > "$_kt_raw"
+  _kt_plan=$(_kt_index_cache_plan < "$1" 2>/dev/null)
+  [ "$_kt_plan" = "@stale" ] && return 2
+  [ -z "$_kt_plan" ] && return 0
+  _kt_mtags=${_kt_plan%%"$_kt_nl"*}
+  _kt_sed=""
+  case "$_kt_plan" in *"$_kt_nl"*) _kt_sed=${_kt_plan#*"$_kt_nl"} ;; esac
+  _kt_rows=""
+  if [ -n "$_kt_sed" ]; then
+    _kt_rows=$(sed -n "1p;$_kt_sed" "$1" 2>/dev/null | _kt_index_cache_rank 2>/dev/null)
+    [ "$_kt_rows" = "@stale" ] && return 2
+  fi
+  {
+    printf 'T\t%s\n' "$_kt_mtags"
+    [ -n "$_kt_rows" ] && printf '%s\n' "$_kt_rows"
+  } > "$_kt_raw"
+  return 0
 }
 
 kt_index_match() {
@@ -271,50 +321,40 @@ kt_index_match() {
 
   # Parse cache (D1a). The key is the cksum of index.md's CONTENT, stored in
   # the cache's first line; any change to the index rebuilds it. A stale,
-  # foreign or unreadable cache is never used. When the cache cannot be
-  # written (unwritable dir, a file owned by someone else) the parse goes to a
-  # private temp file for this one call instead: same answer, only slower.
+  # foreign, unreadable or mid-query-swapped cache is never used for an answer
+  # (see _kt_index_cache_answer). When the cache cannot be (re)written —
+  # unwritable dir, a file owned by someone else — the parse goes to a private
+  # temp file for this one call instead: same answer, only slower.
   _kt_sum=$(cksum < "$_kt_index" 2>/dev/null)
   if [ -z "$_kt_sum" ]; then rm -f "$_kt_raw" 2>/dev/null; return 0; fi
   _kt_head="aria-surface-cache 2 $_kt_sum"
-  _kt_src=""; _kt_once=""
+  _kt_nl='
+'
+  _kt_arc=2
   _kt_cache=$(kt_index_cache_path 2>/dev/null) || _kt_cache=""
   if [ -n "$_kt_cache" ] && [ -f "$_kt_cache" ] && [ -O "$_kt_cache" ] 2>/dev/null; then
-    _kt_line=""
-    IFS= read -r _kt_line 2>/dev/null < "$_kt_cache"
-    [ "$_kt_line" = "$_kt_head" ] && _kt_src="$_kt_cache"
+    _kt_index_cache_answer "$_kt_cache"; _kt_arc=$?
   fi
-  if [ -z "$_kt_src" ] && [ -n "$_kt_cache" ]; then
+  if [ "$_kt_arc" -eq 2 ] && [ -n "$_kt_cache" ]; then
     # Temp file in the cache's own dir, then mv: a reader never sees half a cache.
     _kt_tmpc=$(mktemp "${_kt_cache%/*}/.aria-surface.XXXXXX" 2>/dev/null) || _kt_tmpc=""
     if [ -n "$_kt_tmpc" ]; then
-      if _kt_index_cache_build "$_kt_index" "$_kt_head" > "$_kt_tmpc" 2>/dev/null \
-         && mv -f "$_kt_tmpc" "$_kt_cache" 2>/dev/null; then
-        _kt_src="$_kt_cache"
+      if _kt_index_cache_snapshot_build "$_kt_tmpc" && mv -f "$_kt_tmpc" "$_kt_cache" 2>/dev/null; then
+        _kt_index_cache_answer "$_kt_cache"; _kt_arc=$?
       else
         rm -f "$_kt_tmpc" 2>/dev/null
       fi
     fi
   fi
-  if [ -z "$_kt_src" ]; then
+  if [ "$_kt_arc" -eq 2 ]; then
+    # Private, single-use: no other writer can touch it, so this cannot be stale.
     _kt_once=$(mktemp "${TMPDIR:-/tmp}/aria-match-cache.XXXXXX") || { rm -f "$_kt_raw" 2>/dev/null; return 0; }
-    _kt_index_cache_build "$_kt_index" "$_kt_head" > "$_kt_once" 2>/dev/null
-    _kt_src="$_kt_once"
+    if _kt_index_cache_snapshot_build "$_kt_once"; then
+      _kt_index_cache_answer "$_kt_once"; _kt_arc=$?
+    fi
+    rm -f "$_kt_once" 2>/dev/null
+    [ "$_kt_arc" -eq 0 ] || : > "$_kt_raw"
   fi
-
-  _kt_nl='
-'
-  _kt_plan=$(_kt_index_cache_plan < "$_kt_src" 2>/dev/null)
-  if [ -n "$_kt_plan" ]; then
-    _kt_mtags=${_kt_plan%%"$_kt_nl"*}
-    _kt_sed=""
-    case "$_kt_plan" in *"$_kt_nl"*) _kt_sed=${_kt_plan#*"$_kt_nl"} ;; esac
-    {
-      printf 'T\t%s\n' "$_kt_mtags"
-      [ -n "$_kt_sed" ] && sed -n "$_kt_sed" "$_kt_src" 2>/dev/null | _kt_index_cache_rank 2>/dev/null
-    } > "$_kt_raw"
-  fi
-  [ -n "$_kt_once" ] && rm -f "$_kt_once" 2>/dev/null
 
   _kt_tags_line=$(grep "^T${_kt_tab}" "$_kt_raw" 2>/dev/null | head -1)
   if [ -z "$_kt_tags_line" ]; then
