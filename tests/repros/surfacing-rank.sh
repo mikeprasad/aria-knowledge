@@ -24,10 +24,13 @@ ok()  { printf "PASS  %s\n" "$1"; PASS=$((PASS + 1)); }
 bad() { printf "FAIL  %s — %s\n" "$1" "$2"; FAIL=$((FAIL + 1)); }
 
 SCRATCH=$(mktemp -d "${TMPDIR:-/tmp}/aria-surfacing-test.XXXXXX") || exit 1
-trap 'rm -rf "$SCRATCH"' EXIT
-mkdir -p "$SCRATCH/tmp" "$SCRATCH/home"
+trap 'chmod -R u+w "$SCRATCH" 2>/dev/null; rm -rf "$SCRATCH"' EXIT
+mkdir -p "$SCRATCH/tmp" "$SCRATCH/home" "$SCRATCH/cache"
 TMPDIR="$SCRATCH/tmp"; export TMPDIR
 HOME="$SCRATCH/home"; export HOME
+# The parse cache lives here, not in TMPDIR, so no_temp_files_left still
+# means "no stray temp files" and the cache arms own their directories.
+KT_SURFACE_CACHE_DIR="$SCRATCH/cache"; export KT_SURFACE_CACHE_DIR
 KT_KNOWLEDGE_FOLDER="$FIX"; export KT_KNOWLEDGE_FOLDER
 
 # projects_list comes from the fixture config, extracted the way config.sh does
@@ -226,6 +229,84 @@ kt_match_record_ledger "$LEDGER"
 [ "$(wc -l < "$LEDGER" | tr -d ' ')" -eq 5 ] && ok "ledger_record_appends (GUARD)" \
   || bad "ledger_record_appends (GUARD)" "ledger has $(wc -l < "$LEDGER" | tr -d ' ') lines, want 5"
 kt_match_cleanup
+
+# --- parse cache (D1a, C2) --- the three arms below were seen RED on the
+# bbe22d3 lib, which had no cache. Each copies what it mutates.
+idx_key() { printf '%s' "$1" | cksum | cut -d' ' -f1; }
+sum_of() { cksum < "$1" | cut -d' ' -f1-2; }
+
+# --- cache_built_on_first_call --- one match writes the cache, named from the
+# cksum of the index PATH, its first line naming the cksum of the index CONTENT;
+# a second (warm) call answers the same. With KT_SURFACE_CACHE_DIR unset the
+# cache goes to TMPDIR.
+C1="$SCRATCH/cache-built"; mkdir -p "$C1"
+_saved_cd=$KT_SURFACE_CACHE_DIR; KT_SURFACE_CACHE_DIR="$C1"
+c1_file="$C1/aria-surface-$(idx_key "$FIX/index.md").tsv"
+kt_index_match "$MAINQ"; c1_cold=$(ranked); kt_match_cleanup
+c1_exists=no; [ -f "$c1_file" ] && c1_exists=yes
+c1_head=""; [ -f "$c1_file" ] && IFS= read -r c1_head < "$c1_file"
+kt_index_match "$MAINQ"; c1_warm=$(ranked); kt_match_cleanup
+KT_SURFACE_CACHE_DIR=$_saved_cd
+mkdir -p "$SCRATCH/tmp2"
+c1_default=$( unset KT_SURFACE_CACHE_DIR; TMPDIR="$SCRATCH/tmp2"; export TMPDIR
+  kt_index_match "$MAINQ"; kt_match_cleanup
+  [ -f "$SCRATCH/tmp2/aria-surface-$(idx_key "$FIX/index.md").tsv" ] && echo yes || echo no )
+case "$c1_head" in *" $(sum_of "$FIX/index.md")") c1_keyed=yes ;; *) c1_keyed=no ;; esac
+if [ "$c1_exists" = yes ] && [ "$c1_keyed" = yes ] && [ "$c1_default" = yes ] \
+   && [ "$c1_cold" = "$MAIN_EXPECT" ] && [ "$c1_warm" = "$MAIN_EXPECT" ]; then
+  ok "cache_built_on_first_call"
+else
+  bad "cache_built_on_first_call" "exists $c1_exists keyed $c1_keyed (head '$c1_head') default-dir $c1_default cold '$c1_cold' warm '$c1_warm'"
+fi
+
+# --- cache_invalidates_on_index_change --- warm the cache on a copy, add a
+# `### gadgets` section to its Tag Index, and the next match must see it:
+# "gadgets and webhooks" is silent before (one tag) and fires after. No sleep
+# is needed because the key is the content, not the mtime.
+KF="$SCRATCH/kf"; cp -R "$FIX" "$KF"
+C2="$SCRATCH/cache-inval"; mkdir -p "$C2"
+_saved_kf=$KT_KNOWLEDGE_FOLDER; KT_KNOWLEDGE_FOLDER="$KF"; KT_SURFACE_CACHE_DIR="$C2"
+c2_file="$C2/aria-surface-$(idx_key "$KF/index.md").tsv"
+kt_index_match "gadgets and webhooks"; c2_before=$KT_MATCH_COUNT; kt_match_cleanup
+c2_head1=""; [ -f "$c2_file" ] && IFS= read -r c2_head1 < "$c2_file"
+awk '/^## Other Tags/ { print "### gadgets"; print "- references/gadget-guide.md — Gadget guide"; print "" } { print }' \
+  "$FIX/index.md" > "$KF/index.md"
+kt_index_match "gadgets and webhooks"; c2_tags=$KT_MATCH_TAGS; c2_got=$(ranked); kt_match_cleanup
+c2_head2=""; [ -f "$c2_file" ] && IFS= read -r c2_head2 < "$c2_file"
+KT_KNOWLEDGE_FOLDER=$_saved_kf; KT_SURFACE_CACHE_DIR=$_saved_cd
+c2_want="references/gadget-guide.md projects/proj-a/hooks.md references/webhook-basics.md"
+case "$c2_head2" in *" $(sum_of "$KF/index.md")") c2_keyed=yes ;; *) c2_keyed=no ;; esac
+if [ "$c2_before" -eq 0 ] && [ -n "$c2_head1" ] && [ "$c2_head1" != "$c2_head2" ] && [ "$c2_keyed" = yes ] \
+   && [ "$c2_tags" = "webhooks gadgets" ] && [ "$c2_got" = "$c2_want" ]; then
+  ok "cache_invalidates_on_index_change"
+else
+  bad "cache_invalidates_on_index_change" "before $c2_before head1 '$c2_head1' head2 '$c2_head2' keyed $c2_keyed tags '$c2_tags' got '$c2_got' want '$c2_want'"
+fi
+
+# --- cache_survives_unwritable_dir --- with the cache dir read-only the match
+# is still correct and returns 0, and nothing is written there. Then the dir
+# is made writable and the next match must build the cache IN IT, which proves
+# the read-only dir was the cache target (otherwise this arm passes on any lib).
+if [ "$(id -u)" -eq 0 ]; then
+  printf "SKIP  cache_survives_unwritable_dir — running as root, a read-only dir does not stop writes\n"
+else
+  C3="$SCRATCH/cache-ro"; mkdir -p "$C3"; chmod 555 "$C3"
+  KT_SURFACE_CACHE_DIR="$C3"
+  kt_index_match "$MAINQ"; c3_rc=$?; c3_main=$(ranked); kt_match_cleanup
+  kt_index_match "check webhooks and payments"; c3_rc2=$?; c3_rar=$(ranked); kt_match_cleanup
+  c3_files_ro=$(find "$C3" -type f | wc -l | tr -d ' ')
+  chmod 755 "$C3"
+  kt_index_match "$MAINQ"; kt_match_cleanup
+  c3_built=no; [ -f "$C3/aria-surface-$(idx_key "$FIX/index.md").tsv" ] && c3_built=yes
+  KT_SURFACE_CACHE_DIR=$_saved_cd
+  c3_rar_want="projects/proj-c/billing-1.md projects/proj-a/hooks.md references/webhook-basics.md projects/proj-c/billing-2.md projects/proj-c/billing-3.md"
+  if [ "$c3_rc" -eq 0 ] && [ "$c3_rc2" -eq 0 ] && [ "$c3_main" = "$MAIN_EXPECT" ] && [ "$c3_rar" = "$c3_rar_want" ] \
+     && [ "$c3_files_ro" -eq 0 ] && [ "$c3_built" = yes ]; then
+    ok "cache_survives_unwritable_dir"
+  else
+    bad "cache_survives_unwritable_dir" "rc $c3_rc/$c3_rc2 main '$c3_main' rarest '$c3_rar' files-in-ro $c3_files_ro built-after-chmod $c3_built"
+  fi
+fi
 
 # No temp files may outlive cleanup. GUARD: vacuous on the old lib, which
 # wrote its temp files to a hard-coded /tmp instead of $TMPDIR.
