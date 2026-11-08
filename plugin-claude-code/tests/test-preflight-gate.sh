@@ -132,6 +132,59 @@ p1=$(pf_run "$CFG_DENY" pfagent1 "cd $PF_CODE && git commit -m x")
 assert_eq "breaker per agent: agent's 4th degrades" "1" "$(pf_has 'DEGRADED' "$a4")"
 assert_eq "breaker per agent: parent in same session still denied" "1" "$(pf_has '"deny"' "$p1")"
 
+# [10c] a COMPLIANT commit resets the breaker (v2.57.9). The contract above is "three
+# CONSECUTIVE denials with no compliant commit between them", but before 2.57.9 nothing
+# removed the counter: after a preflight the stale count survived, and if the marker was
+# later lost (macOS clears old $TMPDIR files; sessions run for days) the gate degraded
+# after ONE denial instead of three. Driven against every port's hook, which all share one
+# input contract. Red-before-fix signature, measured on all four: DENY DENY | allowed |
+# DENY DEGRADED. A skip writes the same marker as a preflight, so it is covered here too.
+PF_REPO_ROOT="$(cd "$ROOT/.." && pwd)"
+pf_run_h() { # HOOK CFG SID COMMAND
+  printf '{"session_id":"%s","tool_input":{"command":"%s"}}' "$3" "$4" \
+    | KT_CONFIG="$2" sh "$1" 2>/dev/null
+}
+for pf_h in plugin-claude-code/scripts plugin-antigravity/bin plugin-openai-codex/bin plugin-cursor-template/scripts/aria; do
+  pf_hook="$PF_REPO_ROOT/$pf_h/pre-commit-preflight-check.sh"
+  pf_sid="pfreset$(printf '%s' "$pf_h" | cksum | cut -d' ' -f1)"
+  pf_fresh "$pf_sid"
+  assert_eq "breaker reset [$pf_h]: hook exists (non-vacuity)" "yes" "$([ -f "$pf_hook" ] && echo yes || echo no)"
+  pf_run_h "$pf_hook" "$CFG_DENY" "$pf_sid" "cd $PF_CODE && git commit -m x" >/dev/null   # deny 1
+  pf_run_h "$pf_hook" "$CFG_DENY" "$pf_sid" "cd $PF_CODE && git commit -m x" >/dev/null   # deny 2
+  printf 't\tSKIP\tfixture\n' > "${TMPDIR:-/tmp}/aria-preflight-$pf_sid"
+  out=$(pf_run_h "$pf_hook" "$CFG_DENY" "$pf_sid" "cd $PF_CODE && git commit -m x")      # compliant
+  assert_eq "breaker reset [$pf_h]: compliant commit is allowed" "0" "$(pf_has '"deny"' "$out")"
+  rm -f "${TMPDIR:-/tmp}/aria-preflight-$pf_sid"                                          # marker lost
+  r1=$(pf_run_h "$pf_hook" "$CFG_DENY" "$pf_sid" "cd $PF_CODE && git commit -m x")
+  r2=$(pf_run_h "$pf_hook" "$CFG_DENY" "$pf_sid" "cd $PF_CODE && git commit -m x")
+  r3=$(pf_run_h "$pf_hook" "$CFG_DENY" "$pf_sid" "cd $PF_CODE && git commit -m x")
+  r4=$(pf_run_h "$pf_hook" "$CFG_DENY" "$pf_sid" "cd $PF_CODE && git commit -m x")
+  assert_eq "breaker reset [$pf_h]: 3 denials after a compliant commit all deny" "1 1 1" \
+    "$(pf_has '"deny"' "$r1") $(pf_has '"deny"' "$r2") $(pf_has '"deny"' "$r3")"
+  assert_eq "breaker reset [$pf_h]: the 4th degrades" "1" "$(pf_has 'DEGRADED' "$r4")"
+  pf_fresh "$pf_sid"
+done
+
+# [10d] codex only: its per-repo marker (written by codex's own /preflight) is a SECOND
+# compliant exit, and it must reset the breaker too.
+pf_hook="$PF_REPO_ROOT/plugin-openai-codex/bin/pre-commit-preflight-check.sh"; pf_sid=pfresetrepo
+pf_fresh "$pf_sid"
+pf_top=$(git -C "$PF_CODE" rev-parse --show-toplevel)
+pf_rmk="${TMPDIR:-/tmp}/aria-preflight-repo-$(printf '%s' "$pf_top" | cksum | cut -d' ' -f1)"
+assert_eq "codex repo marker absent before [10d] (non-vacuity)" "no" "$([ -e "$pf_rmk" ] && echo yes || echo no)"
+pf_run_h "$pf_hook" "$CFG_DENY" "$pf_sid" "cd $PF_CODE && git commit -m x" >/dev/null
+pf_run_h "$pf_hook" "$CFG_DENY" "$pf_sid" "cd $PF_CODE && git commit -m x" >/dev/null
+printf 't\tSKIP\tfixture\n' > "$pf_rmk"
+out=$(pf_run_h "$pf_hook" "$CFG_DENY" "$pf_sid" "cd $PF_CODE && git commit -m x")
+assert_eq "codex repo-marker commit is allowed" "0" "$(pf_has '"deny"' "$out")"
+rm -f "$pf_rmk"
+r1=$(pf_run_h "$pf_hook" "$CFG_DENY" "$pf_sid" "cd $PF_CODE && git commit -m x")
+r2=$(pf_run_h "$pf_hook" "$CFG_DENY" "$pf_sid" "cd $PF_CODE && git commit -m x")
+r3=$(pf_run_h "$pf_hook" "$CFG_DENY" "$pf_sid" "cd $PF_CODE && git commit -m x")
+assert_eq "codex repo-marker reset: 3 denials after it all deny" "1 1 1" \
+  "$(pf_has '"deny"' "$r1") $(pf_has '"deny"' "$r2") $(pf_has '"deny"' "$r3")"
+pf_fresh "$pf_sid"
+
 # [11] fail-open — every input the hook cannot read must behave as approval
 pf_fresh pf12
 out=$(printf '{"tool_input":{"command":"cd %s && git commit -m x"}}' "$PF_CODE" | KT_CONFIG="$CFG_DENY" sh "$HOOK" 2>/dev/null)
