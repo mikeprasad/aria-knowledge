@@ -99,7 +99,9 @@ text left the suite green. Re-confirmed by reading the test: no assertion reads 
 
 ### Fix — a digest lock
 
-A sidecar, `plugin-claude-code/tests/fixtures/aria-rules.digest-lock.json`, records for each rule N.
+A sidecar, `plugin-claude-code/tests/fixtures/aria-rules.digest-lock.tsv` (one line per rule:
+`N<TAB>source_sha256<TAB>digest_sha256`; TSV, decided at planning, because the test and the relock
+helper are shell and need no parser), records for each rule N.
 (Prospect finding: **not** under `rules/`. The SessionStart writer installs `aria-rules.md` by name
 only (`session-start-check.sh:108`), so a lock there would never reach `~/.claude/rules`, but it
 would ship in every plugin zip as dev-only data. `tests/` is excluded from every artifact.)
