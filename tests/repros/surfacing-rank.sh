@@ -381,9 +381,12 @@ else
 fi
 
 EMPTYHOME="$SCRATCH/emptyhome"; mkdir -p "$EMPTYHOME"
-cli_e1=$(HOME="$EMPTYHOME" KT_CONFIG= KT_KNOWLEDGE_FOLDER= sh "$CLI" "$MAINQ" 2>&1); cli_e1rc=$?
-cli_e2=$(HOME="$EMPTYHOME" KT_CONFIG= KT_KNOWLEDGE_FOLDER= sh "$CLI" 2>&1); cli_e2rc=$?
-if [ "$cli_e1rc" -eq 0 ] && [ -z "$cli_e1" ] && [ "$cli_e2rc" -eq 0 ] && [ -z "$cli_e2" ]; then
+# No config: text in → one `unavailable:` line (could not look, NOT "0 matches");
+# no text at all (no argument, stdin closed) → silent. Exit 0 both ways.
+cli_e1=$(HOME="$EMPTYHOME" KT_CONFIG= KT_KNOWLEDGE_FOLDER= sh "$CLI" "$MAINQ" </dev/null 2>&1); cli_e1rc=$?
+cli_e2=$(HOME="$EMPTYHOME" KT_CONFIG= KT_KNOWLEDGE_FOLDER= sh "$CLI" </dev/null 2>&1); cli_e2rc=$?
+if [ "$cli_e1rc" -eq 0 ] && [ "$cli_e1" = "unavailable: no knowledge folder configured" ] \
+   && [ "$cli_e2rc" -eq 0 ] && [ -z "$cli_e2" ]; then
   ok "cli_exit0_without_config"
 else
   bad "cli_exit0_without_config" "rc $cli_e1rc/$cli_e2rc out '$cli_e1' '$cli_e2'"
@@ -517,6 +520,99 @@ KT_SURFACE_CACHE_DIR=$_saved_cd
 t_want="projects/proj-c/billing-1.md projects/proj-a/hooks.md references/webhook-basics.md projects/proj-c/billing-2.md projects/proj-c/billing-3.md"
 if [ "$t_fired" = yes ] && [ "$t_clean" = "$t_want" ] && [ "$t_got" = "$t_clean" ]; then ok "cache_truncated_plan_is_a_failure"
 else bad "cache_truncated_plan_is_a_failure" "fired $t_fired clean '$t_clean' got '$t_got'"; fi
+
+# --- match_status (2.58.0 fix wave, I1) --- kt_index_match sets KT_MATCH_STATUS
+# on every path: ok | nofire | error:<step>. "Could not look" must never read
+# as "nothing matched". Expected values are declared per arm. Seen RED on 224c8b8
+# (the variable did not exist, so every arm read empty).
+st_check() { if [ "$2" = "$3" ]; then ok "match_status: $1 → $2"; else bad "match_status: $1 → $2" "got '${3}'"; fi; }
+_st_kf=$KT_KNOWLEDGE_FOLDER; _st_cd=$KT_SURFACE_CACHE_DIR; _st_tmp=$TMPDIR
+kt_index_match "$MAINQ"; st_check "a query that fires" ok "$KT_MATCH_STATUS"; kt_match_cleanup
+kt_index_match "nothing relevant here at all"; st_check "a query below the firing rule" nofire "$KT_MATCH_STATUS"; kt_match_cleanup
+kt_index_match ""; st_check "an empty query" nofire "$KT_MATCH_STATUS"
+KT_KNOWLEDGE_FOLDER=""; kt_index_match "$MAINQ"; st_check "no knowledge folder" error:no-knowledge-folder "$KT_MATCH_STATUS"
+mkdir -p "$SCRATCH/kf-noindex"; KT_KNOWLEDGE_FOLDER="$SCRATCH/kf-noindex"
+kt_index_match "$MAINQ"; st_check "no index.md" error:no-index "$KT_MATCH_STATUS"
+mkdir -p "$SCRATCH/kf-unreadable"; cp "$FIX/index.md" "$SCRATCH/kf-unreadable/index.md"; chmod 000 "$SCRATCH/kf-unreadable/index.md"
+KT_KNOWLEDGE_FOLDER="$SCRATCH/kf-unreadable"; KT_SURFACE_CACHE_DIR="$SCRATCH/cache-unr"; mkdir -p "$KT_SURFACE_CACHE_DIR"
+kt_index_match "$MAINQ"; st_check "an unreadable index.md" error:index-unreadable "$KT_MATCH_STATUS"; kt_match_cleanup
+chmod 644 "$SCRATCH/kf-unreadable/index.md"
+KT_KNOWLEDGE_FOLDER=$_st_kf
+# Every build fails (cache and uncached fallback share the snapshot build), with a
+# fresh cache dir so no earlier cache can answer.
+eval "$(sed -n '/^_kt_index_cache_snapshot_build() {/,/^}/p' "$LIB" | sed '1s/^_kt_index_cache_snapshot_build()/_kt_orig_snap()/')"
+_kt_index_cache_snapshot_build() { return 1; }
+KT_SURFACE_CACHE_DIR="$SCRATCH/cache-mf"; mkdir -p "$KT_SURFACE_CACHE_DIR"
+kt_index_match "$MAINQ"; st_check "every cache and uncached build failing" error:match-failed "$KT_MATCH_STATUS"; st_mf_n=$KT_MATCH_COUNT; kt_match_cleanup
+eval "$(sed -n '/^_kt_index_cache_snapshot_build() {/,/^}/p' "$LIB")"
+KT_SURFACE_CACHE_DIR=$_st_cd
+[ "$st_mf_n" = 0 ] && ok "match_status: a failed build still reports KT_MATCH_COUNT 0" || bad "match_status: a failed build still reports KT_MATCH_COUNT 0" "got '$st_mf_n'"
+TMPDIR="$SCRATCH/no-such-tmpdir"
+kt_index_match "$MAINQ"; st_check "mktemp failing (TMPDIR missing)" error:mktemp "$KT_MATCH_STATUS"
+TMPDIR=$_st_tmp
+# Control for the build wrap: after restoring the real build the same query fires.
+KT_SURFACE_CACHE_DIR="$SCRATCH/cache-mf"
+kt_index_match "$MAINQ"; st_check "control: the restored build answers again" ok "$KT_MATCH_STATUS"; kt_match_cleanup
+KT_SURFACE_CACHE_DIR=$_st_cd
+
+# --- cli_unavailable (I1) --- each setup failure or matcher error prints ONE line
+# `unavailable: <reason>`, exit 0; only nofire prints nothing (cli_silent_when_not_fired).
+cli_un() { # $1 name, $2 expected exact line, then: env assignments; runs the CLI on $MAINQ
+  _cu_name=$1; _cu_want=$2; shift 2
+  _cu_out=$(env "$@" sh "$CLI" "$MAINQ" </dev/null 2>/dev/null); _cu_rc=$?
+  if [ "$_cu_rc" -eq 0 ] && [ "$_cu_out" = "$_cu_want" ]; then ok "cli_unavailable: $_cu_name"
+  else bad "cli_unavailable: $_cu_name" "rc $_cu_rc out '$_cu_out' want '$_cu_want'"; fi
+}
+CUH="$SCRATCH/cuhome"; mkdir -p "$CUH/.claude"
+printf -- '---\nprojects_enabled: true\n---\n' > "$CUH/.claude/aria-knowledge.local.md"
+cli_un "no config file" "unavailable: no knowledge folder configured" HOME="$EMPTYHOME" KT_CONFIG= KT_KNOWLEDGE_FOLDER=
+cli_un "config without knowledge_folder" "unavailable: config error (run /setup)" HOME="$CUH" KT_CONFIG= KT_KNOWLEDGE_FOLDER=
+CUN="$SCRATCH/cunoidx"; mkdir -p "$CUN/.claude"
+printf -- '---\nknowledge_folder: %s\n---\n' "$SCRATCH/kf-noindex" > "$CUN/.claude/aria-knowledge.local.md"
+cli_un "no index.md" "unavailable: matcher error: no-index" HOME="$CUN" KT_CONFIG= KT_KNOWLEDGE_FOLDER=
+CUU="$SCRATCH/cuunr"; mkdir -p "$CUU/.claude"
+printf -- '---\nknowledge_folder: %s\n---\n' "$SCRATCH/kf-unreadable" > "$CUU/.claude/aria-knowledge.local.md"
+chmod 000 "$SCRATCH/kf-unreadable/index.md"
+cli_un "an unreadable index.md" "unavailable: matcher error: index-unreadable" HOME="$CUU" KT_CONFIG= KT_KNOWLEDGE_FOLDER= KT_SURFACE_CACHE_DIR="$SCRATCH/cache-unr"
+chmod 644 "$SCRATCH/kf-unreadable/index.md"
+cli_un "mktemp failing (TMPDIR missing)" "unavailable: matcher error: mktemp" HOME="$CLIHOME" KT_CONFIG= KT_KNOWLEDGE_FOLDER= TMPDIR="$SCRATCH/no-such-tmpdir"
+# Control: the same harness with a working config prints the ranking, not `unavailable:`.
+_cu_ctl=$(env HOME="$CLIHOME" KT_CONFIG= KT_KNOWLEDGE_FOLDER= sh "$CLI" "$MAINQ" </dev/null 2>/dev/null | head -1)
+case "$_cu_ctl" in "tags: "*) ok "cli_unavailable control: a working config ranks" ;; *) bad "cli_unavailable control: a working config ranks" "got '$_cu_ctl'" ;; esac
+
+# --- cli_hostile_text (C1) --- a model writes the command its skill shows. With the
+# text inside double quotes on the command line, backticks and $(...) RUN and $VAR
+# expands. With the quoted heredoc (`- <<'ARIA_TASK'`) nothing expands and the
+# matcher sees the literal words. The fixture's tags are `touch`, `home` and
+# `webhook`, so `tags: touch home webhook` is produced ONLY when the backtick span
+# and `$HOME` survived as text (a substitution deletes `touch`; an expansion turns
+# `home` into a path). Expected: no marker file, that exact tags line.
+# SURFACING_HOSTILE_SHAPE=old runs the guard on the old shape, to show it red.
+KFH="$SCRATCH/kfh"; mkdir -p "$KFH"
+printf '# Index\n\n## Tag Index\n\n### touch\n- references/t.md — T\n\n### home\n- references/h.md — H\n\n### webhook\n- references/w.md — W\n' > "$KFH/index.md"
+HH="$SCRATCH/hh"; mkdir -p "$HH/.claude"
+printf -- '---\nknowledge_folder: %s\n---\n' "$KFH" > "$HH/.claude/aria-knowledge.local.md"
+MK1="$SCRATCH/mk-backtick"; MK2="$SCRATCH/mk-dollar"
+HOSTILE='webhook `touch '"$MK1"'` $(touch '"$MK2"') $HOME'
+hostile_script() { # $1 shape (old|new) → script file on stdout
+  if [ "$1" = old ]; then printf 'sh "%s" "%s"\n' "$CLI" "$HOSTILE"
+  else printf 'sh "%s" - <<'"'"'ARIA_TASK'"'"'\n%s\nARIA_TASK\n' "$CLI" "$HOSTILE"; fi
+}
+hostile_run() { # $1 shape → sets h_marker (yes|no) and h_tags (first output line)
+  rm -f "$MK1" "$MK2"
+  hostile_script "$1" > "$SCRATCH/hostile-$1.sh"
+  h_tags=$(HOME="$HH" KT_CONFIG= KT_KNOWLEDGE_FOLDER= sh "$SCRATCH/hostile-$1.sh" </dev/null 2>/dev/null | head -1)
+  h_marker=no; { [ -e "$MK1" ] || [ -e "$MK2" ]; } && h_marker=yes
+  rm -f "$MK1" "$MK2"
+}
+hostile_run old
+if [ "$h_marker" = yes ]; then ok "cli_hostile_text control: the old double-quoted shape executes the text (instrument live)"
+else bad "cli_hostile_text control: the old double-quoted shape executes the text (instrument live)" "no marker — the probe cannot see execution"; fi
+hostile_run "${SURFACING_HOSTILE_SHAPE:-new}"
+if [ "$h_marker" = no ]; then ok "cli_hostile_text: the heredoc shape runs nothing in the text"
+else bad "cli_hostile_text: the heredoc shape runs nothing in the text" "a marker file was created"; fi
+if [ "$h_tags" = "tags: touch home webhook" ]; then ok "cli_hostile_text: the matcher sees the literal words"
+else bad "cli_hostile_text: the matcher sees the literal words" "got '$h_tags' want 'tags: touch home webhook'"; fi
 
 # No temp files may outlive cleanup. GUARD: vacuous on the old lib, which
 # wrote its temp files to a hard-coded /tmp instead of $TMPDIR.

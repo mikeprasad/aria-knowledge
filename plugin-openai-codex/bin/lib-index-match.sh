@@ -21,6 +21,18 @@
 # Contract:
 #   - Sets/resets KT_MATCH_TAGS, KT_MATCH_COUNT, KT_MATCH_FILES_TMP on entry.
 #   - Returns 0 in all states; callers branch on KT_MATCH_COUNT.
+#   - Sets KT_MATCH_STATUS on every path, so a caller can tell "nothing to
+#     surface" from "could not look":
+#       ok             KT_MATCH_COUNT > 0
+#       nofire         nothing to surface: empty query, no tag matched, below
+#                      the firing rule, or fired on tags that carry no files
+#       error:<step>   could not answer — no-knowledge-folder, no-index,
+#                      index-unreadable, mktemp, match-failed (every cache and
+#                      uncached attempt failed, e.g. a step that died or an
+#                      argument list too long for awk)
+#     It starts as error:incomplete, so a path that forgets to set it reads as
+#     an error, never as nofire. Callers that only read KT_MATCH_COUNT are
+#     unaffected.
 #   - Caller MUST invoke kt_match_cleanup to remove the temp file when done.
 #   - Fires on ≥2 matched tags OR ≥1 matched project tag; caps emission at
 #     5 files ranked project-first (order below, at the sort). Changing these
@@ -346,13 +358,14 @@ kt_index_match() {
   KT_MATCH_TAGS=""
   KT_MATCH_COUNT=0
   KT_MATCH_FILES_TMP=""
+  KT_MATCH_STATUS="error:incomplete"
 
   _kt_query="$1"
-  [ -z "$_kt_query" ] && return 0
-  [ -z "$KT_KNOWLEDGE_FOLDER" ] && return 0
+  if [ -z "$_kt_query" ]; then KT_MATCH_STATUS="nofire"; return 0; fi
+  if [ -z "$KT_KNOWLEDGE_FOLDER" ]; then KT_MATCH_STATUS="error:no-knowledge-folder"; return 0; fi
 
   _kt_index="$KT_KNOWLEDGE_FOLDER/index.md"
-  [ ! -f "$_kt_index" ] && return 0
+  if [ ! -f "$_kt_index" ]; then KT_MATCH_STATUS="error:no-index"; return 0; fi
 
   # Tokenize: lowercase, then emit TWO kinds of tokens, deduped together:
   #   1. hyphen-preserving whole tokens — so a multi-word directory/tag name
@@ -366,7 +379,7 @@ kt_index_match() {
   _kt_whole=$(printf '%s' "$_kt_lower" | tr -cs '[:alnum:]-' ' ' | tr ' ' '\n')
   _kt_split=$(printf '%s' "$_kt_lower" | tr -cs '[:alnum:]' ' ' | tr ' ' '\n')
   _kt_words=$(printf '%s\n%s\n' "$_kt_whole" "$_kt_split" | grep -v '^-*$' | sort -u | tr '\n' ' ')
-  [ -z "$_kt_words" ] && return 0
+  if [ -z "$_kt_words" ]; then KT_MATCH_STATUS="nofire"; return 0; fi
   _kt_task=$(kt_index_tokens "$_kt_query" | tr '\n' ' ')
 
   # Project tags exist only when projects are enabled; unset counts as off,
@@ -375,7 +388,7 @@ kt_index_match() {
   [ "$KT_PROJECTS_ENABLED" = "true" ] && _kt_plist="$KT_PROJECTS_LIST"
 
   _kt_tab=$(printf '\t')
-  _kt_raw=$(mktemp "${TMPDIR:-/tmp}/aria-match-raw.XXXXXX") || return 0
+  _kt_raw=$(mktemp "${TMPDIR:-/tmp}/aria-match-raw.XXXXXX") || { KT_MATCH_STATUS="error:mktemp"; return 0; }
 
   # Parse cache (D1a). The key is the cksum of index.md's CONTENT, stored in
   # the cache's first line; any change to the index rebuilds it. A stale,
@@ -384,7 +397,7 @@ kt_index_match() {
   # cannot be (re)written, or any step fails — the answer comes from an
   # uncached private build through the same plan and rank: same answer, slower.
   _kt_sum=$(cksum < "$_kt_index" 2>/dev/null)
-  if [ -z "$_kt_sum" ]; then rm -f "$_kt_raw" 2>/dev/null; return 0; fi
+  if [ -z "$_kt_sum" ]; then rm -f "$_kt_raw" 2>/dev/null; KT_MATCH_STATUS="error:index-unreadable"; return 0; fi
   _kt_head="aria-surface-cache 2 $_kt_sum"
   _kt_nl='
 '
@@ -407,21 +420,28 @@ kt_index_match() {
   if [ "$_kt_arc" -ne 0 ]; then
     # Uncached fallback: a private copy built by the same build step, answered by
     # the same plan and rank steps; only row selection differs (awk, not sed).
-    _kt_once=$(mktemp "${TMPDIR:-/tmp}/aria-match-cache.XXXXXX") || { rm -f "$_kt_raw" 2>/dev/null; return 0; }
+    _kt_once=$(mktemp "${TMPDIR:-/tmp}/aria-match-cache.XXXXXX") || { rm -f "$_kt_raw" 2>/dev/null; KT_MATCH_STATUS="error:mktemp"; return 0; }
     if _kt_index_cache_snapshot_build "$_kt_once"; then
       _kt_index_cache_answer "$_kt_once" _kt_index_cache_select_awk; _kt_arc=$?
     fi
     rm -f "$_kt_once" 2>/dev/null
-    [ "$_kt_arc" -eq 0 ] || : > "$_kt_raw"
+    if [ "$_kt_arc" -ne 0 ]; then
+      # Every attempt failed: that is "could not look", never "no match".
+      rm -f "$_kt_raw" 2>/dev/null
+      KT_MATCH_STATUS="error:match-failed"
+      return 0
+    fi
   fi
 
   _kt_tags_line=$(grep "^T${_kt_tab}" "$_kt_raw" 2>/dev/null | head -1)
   if [ -z "$_kt_tags_line" ]; then
+    # Answered, and the plan said @nofire (the raw file is empty).
     rm -f "$_kt_raw" 2>/dev/null
+    KT_MATCH_STATUS="nofire"
     return 0
   fi
 
-  _kt_files=$(mktemp "${TMPDIR:-/tmp}/aria-match-files.XXXXXX") || { rm -f "$_kt_raw"; return 0; }
+  _kt_files=$(mktemp "${TMPDIR:-/tmp}/aria-match-files.XXXXXX") || { rm -f "$_kt_raw"; KT_MATCH_STATUS="error:mktemp"; return 0; }
   # Order (D2): 1 carries a matched project tag · 2 more matched tags ·
   # 3 more task-word overlap (path or description) · 4 authored before logs/ ·
   # 5 rarest matched tag carried (fewest files) · 6 index order. Cap 5.
@@ -431,13 +451,16 @@ kt_index_match() {
   rm -f "$_kt_raw" 2>/dev/null
 
   if [ ! -s "$_kt_files" ]; then
+    # Fired on tags that carry no files: nothing to surface.
     rm -f "$_kt_files" 2>/dev/null
+    KT_MATCH_STATUS="nofire"
     return 0
   fi
 
   KT_MATCH_COUNT=$(wc -l < "$_kt_files" | tr -d ' ')
   KT_MATCH_TAGS=$(printf '%s' "$_kt_tags_line" | cut -f2-)
   KT_MATCH_FILES_TMP="$_kt_files"
+  KT_MATCH_STATUS="ok"
   return 0
 }
 
