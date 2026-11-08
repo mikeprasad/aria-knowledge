@@ -2,6 +2,39 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.57.9 — 2026-11-08
+
+**Two test-and-enforcement gaps closed, one set of stale reference text corrected, and the Codex and Cowork port records brought current.**
+
+**A compliant commit resets the commit-gate breaker.** The preflight commit gate degrades to a warning after three denials, and its contract says three *consecutive* denials with no compliant commit between them. Nothing ever removed the counter, though. After a preflight the old count survived, and if the session marker was later lost (macOS clears old `$TMPDIR` files, and sessions run for days), the gate degraded after one denial instead of three.
+
+- The breaker key is now computed before the compliant exit, and that exit removes it. Codex has two compliant exits, the session marker and its per-repo marker, and both reset.
+- Same fix in all four hooks: Claude Code, Antigravity (regenerated), Codex and Cursor.
+- ⚠ The report that queued this said a *skip* left the count behind. A skip writes the same marker as a preflight, and that exit runs before the breaker is read, so the stale count only matters once the marker is gone. The new test drives that path.
+- Tests: blocks `[10c]` (all four hooks, which share one input contract) and `[10d]` (Codex's repo-marker exit), seen red on the old hooks with 5 failures, each on "3 denials … all deny". Each of the 5 reset sites, removed alone, turns only its own arm red. Codex and Cursor's hooks had no test at all before this.
+
+**Each always-on digest line is locked to the rule it summarises.** `test-aria-rules-digest.sh` checked only that `rules/aria-rules.md` names the same rule *numbers* as `working-rules.md`, so a digest whose Rule 23 text had been reverted passed (measured 2026-08-26).
+
+- `tests/fixtures/aria-rules.digest-lock.tsv` records, per rule, the sha256 of the source section and of the digest line. The test goes red naming the rule and the direction (` source:7`, ` digest:23`) when either half changes without the other being reviewed.
+- `tests/relock-rules-digest.sh <rule#>…` refreshes the named rules after review. It has no bulk mode, refuses an existing lock on `--init`, and refuses to lock an empty extraction.
+- Everything lives under `tests/`, which ships in no artifact. The installed rules files are unchanged.
+- Forced red both ways before it was trusted: reverting Rule 23's digest line to `4af3d98^` gives `digest:23` only, and one word added to rule 7's source gives `source:7` only.
+
+**Cowork reference text names `config.sh` where aria-knowledge keeps it.** Three cowork passages described aria-knowledge sourcing `${CLAUDE_PLUGIN_ROOT}/bin/config.sh`. Canonical moved `bin/` to `scripts/` in 2.56.0 and quotes the root since 2.57.2. Two of them are "for reference" code blocks under `/audit-knowledge` steps that Cowork skips, so they never ran; the third is prose in `/audit-config`. All three now match canonical.
+
+**Checked and closed, no code change:**
+
+- A worktree under `/tmp` failing the bash-write tests is a location constraint, already documented in `RELEASING.md` ("build outside `/tmp`").
+- The desktop app blocking Edit/Write in other repos from a worktree session is not this plugin: no aria hook contains a worktree guard.
+- Not checked: the 2.54.2 Scope-line fix in a live Antigravity or Codex session. Neither runtime was available.
+
+**Ports.** `PORT-LEDGER.json` re-baselined for all five ports at 2.57.9.
+
+- **Codex** had stayed at 2.57.4 because its hand-synced `handoff`, `wrapup` and `setup` were never verified. They now are: every line the canonical 2.57.6 and 2.57.8 commits added to those skills is present in Codex. The three canonical commits Codex did not take don't apply to it: the `bin/`→`scripts/` rename (Codex keeps `bin/`), the claude.ai upload limits (touched no Codex file), and the single-emitter re-key of `/setup` Step 7ea (gated `skip` in Codex either way). Its `kt_ss_read_live_prompt` and `kt_ss_ledger_consume_active` match canonical byte for byte.
+- **Cowork** has none of the 2.57.5–2.57.8 mechanisms in its skills or templates, and every surface matched its baseline before this release's reference fix.
+
+**Versions:** Claude Code `2.57.9`, Antigravity `2.57.9`, Codex `2.57.9-codex.0`, Cursor `2.57.9-cursor.0`. Cowork's source changed (the reference text above), but it is not re-released here; it stays at 1.8.1.
+
 ## 2.57.8 — 2026-11-07
 
 **Three fixes for operations that were correct with one actor and silently lost something with two.**
