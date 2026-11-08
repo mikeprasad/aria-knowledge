@@ -345,6 +345,50 @@ else
   bad "cache_swap_mid_query_is_consistent" "swapped $c5_swapped clean '$c5_clean' got '$c5_got' tags '$c5_tags' vs '$c5_clean_tags'"
 fi
 
+# --- aria-surface.sh CLI arms --- the script is run as a subprocess with HOME,
+# TMPDIR and KT_SURFACE_CACHE_DIR already isolated above. The config is written
+# in the format config.sh parses (YAML-ish front matter between --- lines); the
+# committed fixture config.md has no knowledge_folder, so it is not used here.
+CLI="$REPO_ROOT/plugin-claude-code/scripts/aria-surface.sh"
+CLIHOME="$SCRATCH/clihome"; mkdir -p "$CLIHOME/.claude"
+cat > "$CLIHOME/.claude/aria-knowledge.local.md" <<CFG
+---
+knowledge_folder: $FIX
+projects_enabled: true
+projects_list: proj-a:proj-a,proj-b:proj-b,proj-c:proj-c
+---
+CFG
+cli_run() { # $1 text; stdout only, exit code in cli_rc
+  cli_out=$(HOME="$CLIHOME" KT_CONFIG= KT_KNOWLEDGE_FOLDER= KT_PROJECTS_LIST= KT_PROJECTS_ENABLED= \
+    sh "$CLI" "$1" 2>/dev/null); cli_rc=$?
+}
+cli_run "$MAINQ"
+cli_want_paths=$(printf '%s\n' $MAIN_EXPECT)
+cli_first=$(printf '%s\n' "$cli_out" | sed -n 1p)
+cli_rest=$(printf '%s\n' "$cli_out" | sed 1d)
+if [ "$cli_rc" -eq 0 ] && [ -n "${cli_first#tags: }" ] && [ "${cli_first#tags: }" != "$cli_first" ] \
+   && [ "$cli_rest" = "$cli_want_paths" ]; then
+  ok "cli_prints_tags_then_paths"
+else
+  bad "cli_prints_tags_then_paths" "rc $cli_rc first '$cli_first' paths '$(printf '%s' "$cli_rest" | tr '\n' ' ')'"
+fi
+
+cli_run "nothing relevant here at all"
+if [ "$cli_rc" -eq 0 ] && [ -z "$cli_out" ]; then
+  ok "cli_silent_when_not_fired"
+else
+  bad "cli_silent_when_not_fired" "rc $cli_rc out '$cli_out'"
+fi
+
+EMPTYHOME="$SCRATCH/emptyhome"; mkdir -p "$EMPTYHOME"
+cli_e1=$(HOME="$EMPTYHOME" KT_CONFIG= KT_KNOWLEDGE_FOLDER= sh "$CLI" "$MAINQ" 2>&1); cli_e1rc=$?
+cli_e2=$(HOME="$EMPTYHOME" KT_CONFIG= KT_KNOWLEDGE_FOLDER= sh "$CLI" 2>&1); cli_e2rc=$?
+if [ "$cli_e1rc" -eq 0 ] && [ -z "$cli_e1" ] && [ "$cli_e2rc" -eq 0 ] && [ -z "$cli_e2" ]; then
+  ok "cli_exit0_without_config"
+else
+  bad "cli_exit0_without_config" "rc $cli_e1rc/$cli_e2rc out '$cli_e1' '$cli_e2'"
+fi
+
 # No temp files may outlive cleanup. GUARD: vacuous on the old lib, which
 # wrote its temp files to a hard-coded /tmp instead of $TMPDIR.
 left=$(find "$SCRATCH/tmp" -type f | wc -l | tr -d ' ')
