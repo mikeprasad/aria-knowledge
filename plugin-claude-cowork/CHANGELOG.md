@@ -4,6 +4,20 @@ All notable changes to aria-cowork are documented here. Format follows [Keep a C
 
 Cross-plugin parity callouts (per ADR-006) note when changes coordinate with aria-knowledge releases.
 
+## [1.8.2] — 2026-11-08
+
+**Catches up four months of small fixes, none of which change what a skill does.** Coordinated with aria-knowledge v2.57.9.
+
+### Fixed
+
+- `prospect`, `retrospect`: the log's `effort:` field is always written as `unrecorded`. Cowork has no Bash, so the effort level cannot be read here, and a model's guess at its own setting disagreed with the recorded value on 24% of 140 matched logs.
+- `audit-knowledge`, `audit-config`, `extract`: eleven places that describe how aria-knowledge works named its `config.sh`, `count-backlog-entries.sh`, `migrate-ideas-backlog.sh` and `digest-transcript.sh` under `bin/`. aria-knowledge moved them to `scripts/` in 2.56.0 and quotes the plugin root since 2.57.2; the text now matches. Two of these are "for reference" code blocks under steps Cowork skips, so they never ran. Sentences saying Cowork itself has no `bin/` are unchanged.
+- `template/rules/change-decision-framework.md`: the description of Claude Code's Rule 22 hook now matches its current wait (5 s, then judges what is on disk). Cowork has no hooks; this is reference text.
+
+### Build
+
+- `release.sh` no longer copies Python bytecode (`__pycache__/`, `*.pyc`) into the `.plugin`, and fails the build if any gets through.
+
 ## [1.8.1] — 2026-10-20
 
 **Passes claude.ai's upload validation.** Coordinated with aria-knowledge v2.56.2. claude.ai refuses a plugin whose skill descriptions contain tag-shaped text, and Anthropic's published validator rejects any `<` or `>` in a description.
