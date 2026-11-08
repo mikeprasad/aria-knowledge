@@ -297,5 +297,97 @@ printf '{"session_id":"sse-vg8","source":"startup"}' \
   | (cd "$TMP" && HOME="$G8" KT_CONFIG="$CFGR" sh "$PV/plugin-claude-code/scripts/session-start-check.sh" 2>/dev/null) > "$TMP/vg8.json" || true
 check "VG8 a 2.57.9 hook does not replace a 2.57.10 digest" "TEN BODY" "$(sed -n 2p "$G8/.claude/rules/aria-rules.md")"
 
+# --- ARIA SURFACE value line (2.58.0) ------------------------------------------------------------
+# The digest is installed under ~/.claude/rules and cannot know where the plugin lives, so a
+# relative "scripts/aria-surface.sh" in the digest runs from the user's project and fails. The hook
+# knows its own directory: it sends the absolute path as a value line, and the digest's ARIA ACTIVE
+# CONTEXT branch (b) runs whatever path that line names. Sent only when active surfacing is on and
+# the knowledge folder has an index.md.
+# 2.58.0 fix wave (C1): the line carries the exact command — `sh "<path>" - <<'ARIA_TASK'` — so the
+# task text goes on stdin through a quoted heredoc and nothing in it expands.
+surface_cmd() { ctx "$1" | grep '^ARIA SURFACE — run: ' | head -1 \
+  | sed -n "s/^ARIA SURFACE — run: \(sh \".*\" - <<'ARIA_TASK'\) — then .*/\1/p"; }
+surface_path() { surface_cmd "$1" | sed 's/^sh "//; s/" - <<.*$//'; }
+# A two-tag index, so a real query FIRES and the run proves the path does the job, not just exists.
+KFS="$TMP/kfs"; mk_kf "$KFS" "$TODAY" "$TODAY"
+printf '## Tag Index\n### alpha\n- a.md — A\n### beta\n- a.md — A\n' > "$KFS/index.md"
+CFGS="$TMP/cfgs.md"; mk_cfg "$CFGS" "$KFS"
+# surface_runs CMD → the first output line of the script a model writes from the line: the command,
+# the task text on its own line (here with a backtick span and a $() span that would each create a
+# marker file if run), then the delimiter line. Prints "tags: alpha beta" when it ranks; sets
+# SR_MARKER=yes when anything in the text executed.
+surface_runs() {
+  rm -f "$TMP/sr-mk1" "$TMP/sr-mk2"
+  { printf '%s\n' "$1"; printf 'alpha beta `touch %s` $(touch %s)\n' "$TMP/sr-mk1" "$TMP/sr-mk2"; printf 'ARIA_TASK\n'; } > "$TMP/sr.sh"
+  ( TMPDIR="$TMP" HOME="$H" KT_CONFIG="$CFGS" sh "$TMP/sr.sh" </dev/null 2>/dev/null | head -1 )
+}
+sr_marker() { if [ -e "$TMP/sr-mk1" ] || [ -e "$TMP/sr-mk2" ]; then echo yes; else echo no; fi; }
+run "$H" "$CFGS" startup "$TMP/sf1.json"
+SP1=$(surface_path "$TMP/sf1.json")
+SC1=$(surface_cmd "$TMP/sf1.json")
+check "SF1 surfacing on + index.md → an ARIA SURFACE line" "yes" "$([ -n "$SP1" ] && echo yes || echo no)"
+case "$SP1" in /*) _abs=yes ;; *) _abs=no ;; esac
+check "SF1 the path is absolute" "yes" "$_abs"
+check "SF1 the path is this install's aria-surface.sh" "$DIR/plugin-claude-code/scripts/aria-surface.sh" "$SP1"
+check "SF1 the line carries the quoted-heredoc command" "sh \"$DIR/plugin-claude-code/scripts/aria-surface.sh\" - <<'ARIA_TASK'" "$SC1"
+check "SF1 the command a model copies from it ranks the task" "tags: alpha beta" "$(surface_runs "$SC1")"
+check "SF1 … and runs nothing in the task text" "no" "$(sr_marker)"
+check "SF1 the line is in the model context, not the banner" "no" "$(has "$(sm "$TMP/sf1.json")" 'ARIA SURFACE')"
+
+printf -- '---\nknowledge_folder: %s\nactive_knowledge_surfacing: false\n---\n' "$KFS" > "$TMP/cfgs-off.md"
+run "$H" "$TMP/cfgs-off.md" startup "$TMP/sf2.json"
+check "SF2 active_knowledge_surfacing: false → no ARIA SURFACE line" "no" "$(has "$(ctx "$TMP/sf2.json")" 'ARIA SURFACE')"
+check "SF2 control: the model context was still sent" "yes" "$(has "$(ctx "$TMP/sf2.json")" 'ARIA CONFIG —')"
+
+KFN="$TMP/kfn"; mk_kf "$KFN" "$TODAY" "$TODAY"; rm -f "$KFN/index.md"
+CFGN="$TMP/cfgn.md"; mk_cfg "$CFGN" "$KFN"
+run "$H" "$CFGN" startup "$TMP/sf3.json"
+check "SF3 no index.md → no ARIA SURFACE line" "no" "$(has "$(ctx "$TMP/sf3.json")" 'ARIA SURFACE')"
+check "SF3 control: the model context was still sent" "yes" "$(has "$(ctx "$TMP/sf3.json")" 'ARIA CONFIG —')"
+
+# A plugin root containing a space (the desktop app installs under "Application Support").
+PS="$TMP/with space"; mkdir -p "$PS"; cp -R "$DIR/plugin-claude-code" "$PS/"
+printf '{"session_id":"sse-sf4","source":"startup"}' \
+  | (cd "$TMP" && HOME="$H" KT_CONFIG="$CFGS" sh "$PS/plugin-claude-code/scripts/session-start-check.sh" 2>/dev/null) > "$TMP/sf4.json" || true
+SP4=$(surface_path "$TMP/sf4.json")
+check "SF4 spaced root → the line names the spaced path whole" "$PS/plugin-claude-code/scripts/aria-surface.sh" "$SP4"
+check "SF4 the command a model copies from the spaced line ranks the task" "tags: alpha beta" "$(surface_runs "$(surface_cmd "$TMP/sf4.json")")"
+
+for arm in sf1 sf2 sf3 sf4; do
+  if [ -s "$TMP/$arm.json" ] && jq -e . "$TMP/$arm.json" >/dev/null 2>&1; then ok "SF5 $arm parses strictly"
+  else bad "SF5 $arm parses strictly" "$(head -c 160 "$TMP/$arm.json" 2>/dev/null)"; fi
+done
+# --- jq notice (2.58.0 fix wave, I3) ---------------------------------------------------------------
+# prompt-context-check.sh needs jq and exits silently without it, and the digest says that injection
+# is the only source in Claude Code — so the hook tells the HUMAN (systemMessage), never the model.
+# NJF is a PATH farm of every tool in the system bin dirs EXCEPT jq.
+NJF="$TMP/nojq-farm"; mkdir -p "$NJF"
+for _d in /bin /usr/bin /sbin /usr/sbin; do
+  for _t in "$_d"/*; do
+    _n=${_t##*/}; [ "$_n" = jq ] && continue; [ -e "$NJF/$_n" ] || ln -s "$_t" "$NJF/$_n" 2>/dev/null
+  done
+done
+JQF="$TMP/jq-farm"; mkdir -p "$JQF"; ln -s "$(command -v jq)" "$JQF/jq"
+run_path() { # $1 = PATH, $2 = cfg, $3 = out file
+  printf '{"session_id":"sse-jq","source":"startup"}' \
+    | (cd "$TMP" && PATH="$1" HOME="$H" KT_CONFIG="$2" sh "$HOOK" 2>/dev/null) > "$3" || true
+}
+check "JQ0 the farm really has no jq" "no" "$( (PATH="$NJF"; command -v jq >/dev/null 2>&1) && echo yes || echo no)"
+check "JQ0 control: the jq farm has jq" "yes" "$( (PATH="$JQF"; command -v jq >/dev/null 2>&1) && echo yes || echo no)"
+run_path "$NJF" "$CFGS" "$TMP/jq1.json"
+check "JQ1 no jq + surfacing on → the banner says active surfacing needs jq" "yes" "$(has "$(sm "$TMP/jq1.json")" 'active surfacing needs jq')"
+check "JQ1 the notice is not in the model context" "no" "$(has "$(ctx "$TMP/jq1.json")" 'needs jq')"
+check "JQ1 control: the model context was still sent" "yes" "$(has "$(ctx "$TMP/jq1.json")" 'ARIA CONFIG —')"
+run_path "$NJF:$JQF" "$CFGS" "$TMP/jq2.json"
+check "JQ2 jq present → no jq notice" "no" "$(has "$(sm "$TMP/jq2.json")" 'needs jq')"
+check "JQ2 control: the model context was sent" "yes" "$(has "$(ctx "$TMP/jq2.json")" 'ARIA CONFIG —')"
+run_path "$NJF" "$TMP/cfgs-off.md" "$TMP/jq3.json"
+check "JQ3 no jq + surfacing off → no jq notice" "no" "$(has "$(sm "$TMP/jq3.json")" 'needs jq')"
+check "JQ3 control: the model context was sent" "yes" "$(has "$(ctx "$TMP/jq3.json")" 'ARIA CONFIG —')"
+
+# test-aria-rules-digest.sh's ARIA_EMIT_RUNAWAY catch is 4,000 characters.
+check "SF5 model context with the line stays under 4,000 characters" "yes" \
+  "$([ "$(ctx "$TMP/sf4.json" | wc -m | tr -d ' ')" -lt 4000 ] && echo yes || echo no)"
+
 printf '%d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

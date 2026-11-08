@@ -468,6 +468,17 @@ if ls "$HOME"/.claude/aria-statusline-state-*.json >/dev/null 2>&1; then
 "
 fi
 
+# Surfacing CLI command. The digest is installed under ~/.claude/rules and cannot know where this
+# plugin lives, so the ARIA ACTIVE CONTEXT directive runs whatever command this line names. The
+# path is quoted (the desktop app installs under a path containing a space). The task text goes on
+# stdin through a QUOTED heredoc: inside double quotes on a command line, backticks and $(...) in
+# untrusted task text would run. ⛔ This string is double-quoted shell: keep backticks and dollar
+# signs out of the prose below, or they run HERE.
+if [ "$KT_ACTIVE_SURFACING" = "true" ] && [ -f "$KT_KNOWLEDGE_FOLDER/index.md" ] && [ -f "$SCRIPT_DIR/aria-surface.sh" ]; then
+  MODEL_MESSAGES="${MODEL_MESSAGES}ARIA SURFACE — run: sh \"${SCRIPT_DIR}/aria-surface.sh\" - <<'ARIA_TASK' — then the task text on its own lines (drop any line that is exactly ARIA_TASK), then a line holding only ARIA_TASK; never put the text in quotes on the command line, where shell syntax in it would run.
+"
+fi
+
 # =============================================================================
 # USER CHANNEL — things a human must decide or authorise.
 # =============================================================================
@@ -488,6 +499,13 @@ if [ -z "$TODAY_EPOCH" ]; then
   emit_and_exit
 fi
 
+# Per-prompt surfacing (prompt-context-check.sh) needs jq and exits silently without it, while the
+# digest says that injection is the ONLY source in Claude Code — so without jq surfacing would just
+# stop. The human has to install it, so this goes to the user channel.
+if [ "$KT_ACTIVE_SURFACING" = "true" ] && ! command -v jq >/dev/null 2>&1; then
+  USER_MESSAGES="${USER_MESSAGES}ARIA: active surfacing needs jq — install jq (per-prompt knowledge surfacing is off without it). "
+fi
+
 KNOWLEDGE_LOG="$KT_KNOWLEDGE_FOLDER/logs/knowledge-audit-log.md"
 CONFIG_LOG="$KT_KNOWLEDGE_FOLDER/logs/config-audit-log.md"
 
@@ -504,7 +522,7 @@ fi
 if [ "$IS_FIRST_RUN" = "true" ]; then
   # The welcome replaces the audit nags. It no longer exits early: the first run is usually the
   # first-install session, which is exactly when the model channel's rules notice matters.
-  USER_MESSAGES="ARIA Knowledge Active: Auto insights collection, Rule 22 logic on edits, context surfacing, audit prompts, and precompact capture. Run /help for commands, see QUICKSTART.md for more."
+  USER_MESSAGES="${USER_MESSAGES}ARIA Knowledge Active: Auto insights collection, Rule 22 logic on edits, context surfacing, audit prompts, and precompact capture. Run /help for commands, see QUICKSTART.md for more."
   emit
   echo "$(date +%Y-%m-%dT%H:%M:%S) session-start-check: first-run welcome model=${#MODEL_MESSAGES}" >> "$KT_KNOWLEDGE_FOLDER/logs/hook-debug.log" 2>/dev/null
   exit 0

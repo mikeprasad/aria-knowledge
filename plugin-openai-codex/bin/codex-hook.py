@@ -298,63 +298,44 @@ def find_codemap(start: Path) -> Path | None:
     return None
 
 
-def index_section(index_text: str) -> str:
-    in_section = False
-    lines: list[str] = []
-    for line in index_text.splitlines():
-        if line == "## Tag Index":
-            in_section = True
-            continue
-        if in_section and line.startswith("## "):
-            break
-        if in_section:
-            lines.append(line)
-    return "\n".join(lines)
-
-
-def tokenize(text: str) -> set[str]:
-    return set(re.findall(r"[a-z0-9]+", text.lower()))
-
-
 def active_context_matches(prompt: str, knowledge_folder: Path) -> tuple[list[str], list[str]]:
-    index = knowledge_folder / "index.md"
-    if not index.exists():
+    """Ranked knowledge files for a prompt, from the port's shared CLI (bin/aria-surface.sh).
+
+    The ranking lives in lib-index-match.sh alone (spec D1): this only runs the CLI and parses its
+    output, in its order. KT_CONFIG is pinned to the file this hook read, so both halves read the
+    same config (config.sh alone would never fall back to ~/.codex). A missing CLI, a non-zero exit,
+    a timeout or any OS error yields no match: a broken install surfaces nothing, and never crashes
+    or blocks the prompt.
+    """
+    if not (knowledge_folder / "index.md").exists():
         return [], []
-
-    section = index_section(index.read_text(errors="ignore"))
-    words = tokenize(prompt)
-    if not words:
+    root = os.environ.get("ARIA_CODEX_PLUGIN_ROOT")
+    if not root:
         return [], []
-
-    tags: list[str] = []
-    current = ""
-    entries_by_tag: dict[str, list[str]] = {}
-    for line in section.splitlines():
-        if line.startswith("### "):
-            current = line[4:].strip().lower()
-            entries_by_tag.setdefault(current, [])
-            if current in words:
-                tags.append(current)
-            continue
-        if current and line.startswith("- "):
-            entries_by_tag.setdefault(current, []).append(line[2:].strip())
-
-    tags = sorted(set(tags))
-    if len(tags) < 2:
+    cli = Path(root) / "bin" / "aria-surface.sh"
+    if not cli.is_file():
         return [], []
-
-    files: list[str] = []
-    seen_paths: set[str] = set()
-    for tag in tags:
-        for entry in entries_by_tag.get(tag, []):
-            path = entry.split(" — ", 1)[0]
-            if path in seen_paths:
-                continue
-            seen_paths.add(path)
-            files.append(entry)
-            if len(files) >= 5:
-                return tags, files
-    return tags, files
+    env = os.environ.copy()
+    env["KT_CONFIG"] = str(config_path())
+    try:
+        proc = subprocess.run(
+            ["sh", str(cli), prompt],
+            text=True,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            env=env,
+            timeout=3,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return [], []
+    if proc.returncode != 0:
+        return [], []
+    lines = [line for line in proc.stdout.splitlines() if line.strip()]
+    if len(lines) < 2 or not lines[0].startswith("tags: "):
+        return [], []
+    return lines[0][len("tags: "):].split(), lines[1:]
 
 
 def codemap_artifact_message(start: Path, config: dict[str, str]) -> tuple[str, list[str]]:
@@ -427,7 +408,7 @@ def user_prompt_submit(data: dict[str, Any]) -> None:
         file_list = " ".join(f"  - {item};" for item in files).rstrip(";")
         if active:
             messages.append(
-                f"ARIA ACTIVE - {len(files)} knowledge file(s) match this prompt (tags: {' '.join(tags)}). "
+                f"ARIA ACTIVE — {len(files)} knowledge file(s) match this prompt (tags: {' '.join(tags)}). "
                 f"Read each, then summarize what loaded in 1-2 sentences before proceeding. Files: {file_list}. "
                 "(Recorded to session ledger - won't re-surface.)"
             )

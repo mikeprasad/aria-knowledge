@@ -28,9 +28,9 @@
       "plugin-claude-cowork/skills/intake/SKILL.md": "584104c9c9d051aa04c55217ffc8e31530753fcf8c498cac8cf28e85b3026d86",
       "plugin-claude-cowork/skills/interview/SKILL.md": "e3dcd7b11d51dab5db9fe51ed1e31e1e005ebbfba7fdfcb893e32b63ccb77e2f",
       "plugin-claude-cowork/skills/meeting-notes/SKILL.md": "981b039c7d0e7f02753faf82fc625d216969b748fc10287e8c6797603503e6dc",
-      "plugin-claude-cowork/skills/prospect/SKILL.md": "775137fcfcad7067f8b336117f69f580b70e2dcf764a6b9f9d5c2627ac20e9c9",
+      "plugin-claude-cowork/skills/prospect/SKILL.md": "1671a5b4c55e12a67fbfebaaa5fdd6e598a8078aaace39e9c2f9159fedf64e19",
       "plugin-claude-cowork/skills/readiness-audit/SKILL.md": "74656062f5d8bfcb0494f97222f315015aa6ca344622dcae4f28aedbb74d50fe",
-      "plugin-claude-cowork/skills/retrospect/SKILL.md": "e8f3a1d0969340c24e7817a9fca0054f370d40e65bd4b8c679314c11e371b6e5",
+      "plugin-claude-cowork/skills/retrospect/SKILL.md": "d0514d91ebd8c27111ec999856f9ab5d0a4ede118ef26e0e0f8b140a2a8849c8",
       "plugin-claude-cowork/skills/rules/SKILL.md": "b0bd6396254119cd795cf9430dadecc8a0cc7596549968fa7b40014342fe5b91",
       "plugin-claude-cowork/skills/snapshot/SKILL.md": "51a21c9b89121ed674bc93c021c603e59a56faf6ec488f62f045f50a7a03884f",
       "plugin-claude-cowork/skills/stats/SKILL.md": "d203b9f40d225af49f643b817809c61d940a6ad0c46500538e464567af516260",
@@ -69,10 +69,10 @@
       "plugin-openai-codex/skills/interview/SKILL.md": "ef7a860e20d5213f913c2c648cd0d2faed9cbdb797d8b4511bf8b21b332f421b",
       "plugin-openai-codex/skills/meeting-notes/SKILL.md": "a99e2bcf99ae95e8624321495ef586977addf4eb6afe4fdfe5232e510e55fdd4",
       "plugin-openai-codex/skills/preflight/SKILL.md": "94caaf4e5d6c6b72c9add2f14d4c0d1f100d33a528d56c27597881c8c5ba2cf2",
-      "plugin-openai-codex/skills/prospect/SKILL.md": "fedd2cb0576157f741dad4504724cb3487fa75a726fb3aef117d2ff70455b0ab",
+      "plugin-openai-codex/skills/prospect/SKILL.md": "c9c3a349c9c1f5c85ad736f59c6c6978a49a593e2fa2671fd5a5ed4933aea788",
       "plugin-openai-codex/skills/readiness-audit/SKILL.md": "21a6060846ca8e83b25bee60b6e0a9dda937936aa9ebbf327d3fcdb13bf439b1",
       "plugin-openai-codex/skills/recap/SKILL.md": "b78435f51c10b80937b1efa4738d329419bf979e188d84d6d5056abf490b46a4",
-      "plugin-openai-codex/skills/retrospect/SKILL.md": "e2bc782de28ccd01c1bc23772dcf7ae2e51069a35cca13f11ec62e2df10c957a",
+      "plugin-openai-codex/skills/retrospect/SKILL.md": "f8f4bc94ef629c57bc20655b68b5fd39feec47d60209221dea8b40e7e845d64f",
       "plugin-openai-codex/skills/roadmap/SKILL.md": "129056188cebb543e884719563c1e6c0edb563557e4cd70f4617381ee0f5fd2b",
       "plugin-openai-codex/skills/rules/SKILL.md": "136f2a4b734722aab0b68833f9e98fc5953463edf495a80d09df15db9fc1ab3c",
       "plugin-openai-codex/skills/setup/SKILL.md": "906755eb021c802ad4c61297e15e022c2a10f2658ea814ef67531b7b034edc0f",
@@ -87,7 +87,9 @@
       "plugin-openai-codex/template/rules/retrospect-patterns.md": "d0c6e718b461b7fe07a21afbc0d35d193483b77b8f0ac9a27c2a9b3a1437836f",
       "plugin-openai-codex/template/rules/user-examples.md": "5f5e0f1a6c76b939ca045f49c2fae7f9763348731217d0a035ebdecf14bb57d0",
       "plugin-openai-codex/template/rules/user-rules.md": "ec5d843ab1494c0949f4cfcbdbfdc677c013187fcdd42ab90c2147de703c057d",
-      "plugin-openai-codex/template/rules/working-rules.md": "58511d31bc9d03232b26e9c5afb79461ce851f6f4ad099c38a4c8b882d0c4d7f"
+      "plugin-openai-codex/template/rules/working-rules.md": "58511d31bc9d03232b26e9c5afb79461ce851f6f4ad099c38a4c8b882d0c4d7f",
+      "plugin-openai-codex/bin/lib-index-match.sh": "c7105dfbd763f392ef54c132fca6a9187e4223b48df9e1887ab712f866ea4626",
+      "plugin-openai-codex/bin/aria-surface.sh": "add1369409e81b6d06355bdbc614c6a2de2eabc8a28ff945832d73c02baae4d3"
     }
   },
   "cursor-template": {
@@ -96,8 +98,10 @@
     "last_parity_pass": "2026-11-08",
     "sla": "undeclared",
     "surfaces": {
-      "plugin-cursor-template/.cursor/rules/aria-commands.mdc": "097fbcfdbda09d94bade9407cd61971918e42ccbb0d3b5efd67f47e704304c5b",
-      "plugin-cursor-template/knowledge/rules/working-rules.md": "58511d31bc9d03232b26e9c5afb79461ce851f6f4ad099c38a4c8b882d0c4d7f"
+      "plugin-cursor-template/.cursor/rules/aria-commands.mdc": "3d62847fa2a4e33bef8977238d463d983dfd5ef1b49bad3ab059b91136dffcf1",
+      "plugin-cursor-template/knowledge/rules/working-rules.md": "58511d31bc9d03232b26e9c5afb79461ce851f6f4ad099c38a4c8b882d0c4d7f",
+      "plugin-cursor-template/scripts/aria/lib-index-match.sh": "c7105dfbd763f392ef54c132fca6a9187e4223b48df9e1887ab712f866ea4626",
+      "plugin-cursor-template/scripts/aria/aria-surface.sh": "add1369409e81b6d06355bdbc614c6a2de2eabc8a28ff945832d73c02baae4d3"
     }
   },
   "antigravity": {
@@ -130,10 +134,10 @@
       "plugin-antigravity/skills/interview/SKILL.md": "ac5ac16dc85489f0109bd7d8d72f9745b7ee2fbe525d2ec305de9854d30b5505",
       "plugin-antigravity/skills/meeting-notes/SKILL.md": "8cd999afa99fbf77365e2d6c86377cfb2933b095a78d52de630c8e175a208bac",
       "plugin-antigravity/skills/preflight/SKILL.md": "f545d725ca6ae7a694a952e3da23342e30f21db3558cd2736e0be568690899d1",
-      "plugin-antigravity/skills/prospect/SKILL.md": "f9d1c8232b295fe1b02c1cf2da1b981d9f908d030d02a72b8c1a5a9ed38d90fc",
+      "plugin-antigravity/skills/prospect/SKILL.md": "9d0a3f0aa3aca22a97d53ec58e97c8114649be4feb9cbf18cf6bc5a6cc99ecbf",
       "plugin-antigravity/skills/readiness-audit/SKILL.md": "46115523a7dd9235dfb646c7d467280939c1ac3dda1f9897bc0991eb179ea397",
       "plugin-antigravity/skills/recap/SKILL.md": "3dbda42864a20fa2b117a522e8ba2074b662bb554ea0a9df8b2eb56f959a4160",
-      "plugin-antigravity/skills/retrospect/SKILL.md": "cd434fb324d090124d70dc9983ff5676780686f21363ca1d35b534549e89ce5d",
+      "plugin-antigravity/skills/retrospect/SKILL.md": "bbbb774b7b8404046b5a99ef90b1f11c2ea8ed215bd8356e3702cde41fc6ef05",
       "plugin-antigravity/skills/roadmap/SKILL.md": "ad737023308196849ebd5ff6d3ea3f0e6f303c7bcf677676809113e451ec547a",
       "plugin-antigravity/skills/rules/SKILL.md": "d45fd10ca433f7f90473d33df54c7a36bc5be5c2209c2c44c373f143454a4d7d",
       "plugin-antigravity/skills/setup/SKILL.md": "f3d244e50ac2849918c053e77a3e84c6333e5974aa9d0e6a750cae37b35785b9",
@@ -142,7 +146,9 @@
       "plugin-antigravity/skills/statusline/SKILL.md": "219e64654dc79e5a9f9dd09d6eb45794c298cb919e5715a89235a9060cf82b07",
       "plugin-antigravity/skills/stitch/SKILL.md": "19de4e6ff0a6870cfd9279caf6849f1488ae45b65ee7ee469290327983c8b8bd",
       "plugin-antigravity/skills/sync-decisions/SKILL.md": "3a04bc8ba7307c3f35aecccd56842251730a9bfde5886f66065893a5dba1aae6",
-      "plugin-antigravity/skills/wrapup/SKILL.md": "9730b63f69ac4c3cd392e934726c024cf984b39e4ab3f101ea83798b77755e57"
+      "plugin-antigravity/skills/wrapup/SKILL.md": "9730b63f69ac4c3cd392e934726c024cf984b39e4ab3f101ea83798b77755e57",
+      "plugin-antigravity/bin/lib-index-match.sh": "c7105dfbd763f392ef54c132fca6a9187e4223b48df9e1887ab712f866ea4626",
+      "plugin-antigravity/bin/aria-surface.sh": "add1369409e81b6d06355bdbc614c6a2de2eabc8a28ff945832d73c02baae4d3"
     }
   }
 }

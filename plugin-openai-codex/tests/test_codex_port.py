@@ -548,6 +548,92 @@ def test_user_prompt_submit_surfaces_index_matches_as_codex_context() -> None:
         assert "guides/stripe.md" in hook["additionalContext"]
 
 
+SURFACING_FIXTURE = PORT_ROOT.parent / "tests" / "repros" / "fixtures" / "surfacing" / "index.md"
+
+
+def _surfacing_setup(root: Path) -> Path:
+    knowledge = root / "knowledge"
+    knowledge.mkdir()
+    (knowledge / "index.md").write_text(SURFACING_FIXTURE.read_text(encoding="utf-8"), encoding="utf-8")
+    config = root / "aria-config.md"
+    write_config(
+        config,
+        knowledge,
+        "projects_enabled: true\nprojects_list: proj-a:proj-a,proj-b:proj-b,proj-c:proj-c\n",
+    )
+    return config
+
+
+def _prompt_payload(root: Path, prompt: str) -> dict[str, object]:
+    return {
+        "hook_event_name": "UserPromptSubmit",
+        "session_id": f"session-{root.name}",
+        "turn_id": "turn-prompt",
+        "cwd": str(root),
+        "prompt": prompt,
+    }
+
+
+def test_user_prompt_submit_ranks_through_the_shared_cli_project_first() -> None:
+    # The fixture lists proj-c billing files FIRST under `payments`, so the retired Python
+    # first-appearance rule would surface proj-c files; the shared matcher puts the matched
+    # project's file first.
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        config = _surfacing_setup(root)
+        output = run_hook(
+            "user-prompt-submit",
+            _prompt_payload(root, "fix the proj-b payments webhook"),
+            env={"KT_CONFIG": str(config), "TMPDIR": tmp},
+        )
+        ctx = output["hookSpecificOutput"]["additionalContext"]
+        assert ctx.startswith("ARIA ACTIVE — "), ctx[:80]
+        assert "ARIA ACTIVE -" not in ctx, ctx[:80]
+        files = re.findall(r"  - ([^;]+?)(?:;|\.? \()", ctx)
+        assert files and files[0].strip() == "projects/proj-b/deposits.md", files
+        assert "tags: payments proj-b" in ctx, ctx[:200]
+
+
+def test_user_prompt_submit_is_silent_when_the_cli_is_missing_or_fails() -> None:
+    # Two plain tags, so the prompt FIRES with a working CLI (control below) — otherwise the
+    # silence asserted for the broken CLIs would carry no information.
+    prompt = "fix the payments webhooks flow"
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        config = _surfacing_setup(root)
+        control = run_hook(
+            "user-prompt-submit",
+            _prompt_payload(root, prompt),
+            env={"KT_CONFIG": str(config), "TMPDIR": tmp},
+        )
+        assert "ARIA ACTIVE" in control["hookSpecificOutput"]["additionalContext"], control
+    for mode in ("missing", "fails"):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            config = _surfacing_setup(root)
+            fake_root = root / "fake-plugin"
+            (fake_root / "bin").mkdir(parents=True)
+            if mode == "fails":
+                (fake_root / "bin" / "aria-surface.sh").write_text(
+                    "#!/bin/sh\nprintf 'tags: payments proj-b\\nprojects/proj-b/deposits.md\\n'\nexit 3\n",
+                    encoding="utf-8",
+                )
+            output = run_hook(
+                "user-prompt-submit",
+                _prompt_payload(root, prompt),
+                env={"KT_CONFIG": str(config), "TMPDIR": tmp, "ARIA_CODEX_PLUGIN_ROOT": str(fake_root)},
+                expect_json=False,
+            )
+            assert output == {}, (mode, output)
+
+
+def test_codex_hook_carries_no_ranking_logic() -> None:
+    source = read(PORT_ROOT / "bin" / "codex-hook.py")
+    for retired in ("def tokenize(", "def index_section(", "len(tags) < 2", "ARIA ACTIVE - "):
+        assert retired not in source, retired
+    assert "aria-surface.sh" in source
+
+
 def test_session_start_surfaces_autonomy_and_project_picker() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)

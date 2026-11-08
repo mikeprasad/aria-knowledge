@@ -2,6 +2,35 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## [Unreleased]
+
+**Active surfacing ranks project-first, fires on a single named project, and runs on every prompt in Claude Code.** Before this, the hooks ordered matched tags by the *length of the tag name*, the skills used first-appearance order, and the always-on directive left the order unspecified, so each session improvised one. A short project tag lost to any longer generic tag: a task naming a project and "payments" surfaced another project's payments logs.
+
+**One ranking, everywhere.** `kt_index_match` (`scripts/lib-index-match.sh`) is the single implementation; the shell ports carry byte-identical copies tracked by `check-port-drift.sh`, and Cowork carries one canonical paragraph guarded by a test.
+
+- **Fires** on ≥2 matched tags, **or on one matched configured-project tag** — a project the user names is the strongest signal there is. ⚠ This means more surfacing on messages that name a single project.
+- **Order:** carries a matched project tag → carries more of the matched tags → more task-word overlap with the file's path or index description → authored before `logs/` → rarest matched tag → index order. Cap stays 5.
+- **Configured projects surface without a hand-promoted tag.** Every project in `projects_list` joins the match vocabulary, and its candidates include index entries under `projects/<tag>/`, so a newly configured project needs no index rebuild.
+- **Aliases are honoured.** `tag [aliases: a, b]` (commas or spaces) in `## Known Tags` maps each alias to its tag before matching.
+- The Tag Index is parsed once into a cache file named by the checksum of the index's PATH and validated by the checksum of its CONTENT, stored in the file's first line (`KT_SURFACE_CACHE_DIR`, default `$TMPDIR`, else `/tmp`), so a query does not re-parse a large index and any edit to the index rebuilds it.
+
+**Per-prompt surfacing (Claude Code).** A new `UserPromptSubmit` hook (`prompt-context-check.sh`) ranks each prompt and injects the file paths as `additionalContext`. It strips `<pasted_content>` blocks first (pasted text is not the user's words), drops paths this session already surfaced (the `/tmp/aria-active-<session>` ledger), stays silent when nothing new ranks, injects paths only, and always exits 0. The `ARIA ACTIVE CONTEXT` directive no longer asks the model to run a selection algorithm on Claude Code; it reads what was injected.
+
+**`scripts/aria-surface.sh`** reads the task text from stdin — `sh "<path>" - <<'ARIA_TASK'`, the text on its own lines, then `ARIA_TASK` — so backticks, `$(…)` and `$VAR` in task text, plan headings or commit subjects are never run by the shell; a program that execs it without a shell may pass the text as one argument. It prints `tags: …` and the ranked paths; nothing only when the matcher reports no match or there is no text; and one `unavailable: <reason>` line when it could not look (no config or knowledge folder, the matcher library failing to load, no or unreadable `index.md`, a temp-file or cache failure). It exits 0 whenever it runs to completion. `kt_index_match` now sets `KT_MATCH_STATUS` (`ok`, `nofire` or `error:<step>`) on every path; callers that read only `KT_MATCH_COUNT` are unaffected. The `/prospect` and `/retrospect` Step 0.5 copies run it through that heredoc. The SessionStart hook sends an `ARIA SURFACE — run: sh "<path>" - <<'ARIA_TASK'` value line carrying the exact command, and a skill reports an `unavailable:` line, a missing command or a non-zero exit as "unavailable", never as "0 matches". The per-prompt hook needs `jq` and is silent without it, so when active surfacing is on and `jq` is missing, SessionStart tells the user (in the banner, not the model context) to install it.
+
+**Ports.** Codex's per-prompt surfacing now calls the shared CLI instead of its own Python ranking; Codex and Cursor carry the canonical matcher and CLI; Antigravity has no prompt hook and uses the CLI from skills. Each port's session-start emitter sends the canonical ranking paragraph inside a directive written for that port: Codex's names its prompt hook's `ARIA ACTIVE —` injection as the only source, Cursor's and Antigravity's run the `ARIA SURFACE` command once per topic, and none names a Claude Code session variable, which those runtimes never set. ⚠ Codex skill surfacing (Step 0.5 running the CLI) has not yet been verified in a live Codex session. **Cursor's sessionStart payload was invalid JSON** whenever `auto_capture` was not `false` (a literal `\xe2\x98\x85` escape that `kt_json_escape` and `echo` mangled into `Invalid escape`), so nothing in it reached the model; it now parses.
+
+**Public-hygiene gate D** also reads an untracked private-terms list (`~/.claude/aria-private-terms.txt`), so names that must never ship can be checked without writing them into this public repo (`9fbe412`).
+
+**Measured on the maintainer's real index before release** (inputs and per-message results are kept privately; aggregates only):
+
+- 13-phrasing evaluation set, real lib under `bash`: fires on 12/13 (was 9/13), **60/65** top-5 files relevant to the task's project (was 30/65); both ARIA control phrasings 5/5 (was 5 and 3). The single miss names no known tag or alias.
+- 40 real opening messages sampled systematically by date from local transcripts: fired on 33 (was 32); project relevance@5 **89%** (was 49%); task relevance@5, judged per file, 21% strict / 36% lenient (was 9% / 17%). Better on 20 of the 32 messages where both fired, worse on 6.
+- Across all 287 eligible opening messages it fired on 232 (was 208) and never where the old lib fired and it did not. Of the 24 new firings, 22 come from a single project tag; judged by hand, 7 surfaced a task-relevant file, 7 only background, 8 nothing useful or unclear.
+- Known weaknesses seen in that sample: task-word overlap is lexical and promoted an unrelated file through a shared word in 5 of the 33; and when no configured project matches, rarest-tag order can rank a generic tag above the one that names the subject. Aliases for project nicknames close several of the misses.
+
+**Tests:** `tests/repros/surfacing-rank.sh` — the matcher's first tests, on a synthetic fixture index. Each behaviour arm was seen red against the old lib first; the arms labelled GUARD pass on both libs by design and pin what must not change.
+
 ## 2.57.9 — 2026-11-08
 
 **Two test-and-enforcement gaps closed, one set of stale reference text corrected, and the Codex and Cowork port records brought current.**
