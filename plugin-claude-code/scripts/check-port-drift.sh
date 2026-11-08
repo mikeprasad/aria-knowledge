@@ -123,6 +123,16 @@ port_manifest_version() {
 # Glob spec → repo-relative surface paths for the known ports. Emits one path per
 # line for every file that currently exists. Unknown ports emit nothing (the
 # --update fallback then re-hashes whatever the ledger already lists).
+# The shared knowledge-surfacing matcher and its CLI. Each shell port carries byte-identical copies
+# of plugin-claude-code/scripts/{lib-index-match.sh,aria-surface.sh} (surfacing spec 2026-11-08,
+# D1/AC1); tracking them here makes a copy that lags canonical report `drifted`.
+port_surfacing_paths() {
+  for _n in lib-index-match.sh aria-surface.sh; do
+    [ -f "$ROOT/$1/$_n" ] && printf '%s\n' "$1/$_n"
+  done
+  return 0
+}
+
 port_surface_paths() {
   case "$1" in
     claude-code) : ;;  # baseline — version only, no surfaces
@@ -133,13 +143,16 @@ port_surface_paths() {
     openai-codex)
       for f in "$ROOT"/plugin-openai-codex/skills/*/SKILL.md; do [ -f "$f" ] && printf '%s\n' "${f#$ROOT/}"; done
       for f in "$ROOT"/plugin-openai-codex/template/rules/*.md; do [ -f "$f" ] && printf '%s\n' "${f#$ROOT/}"; done
+      port_surfacing_paths plugin-openai-codex/bin
       ;;
     cursor-template)
       [ -f "$ROOT/plugin-cursor-template/.cursor/rules/aria-commands.mdc" ] && printf '%s\n' "plugin-cursor-template/.cursor/rules/aria-commands.mdc"
       [ -f "$ROOT/plugin-cursor-template/knowledge/rules/working-rules.md" ] && printf '%s\n' "plugin-cursor-template/knowledge/rules/working-rules.md"
+      port_surfacing_paths plugin-cursor-template/scripts/aria
       ;;
     antigravity)
       for f in "$ROOT"/plugin-antigravity/skills/*/SKILL.md; do [ -f "$f" ] && printf '%s\n' "${f#$ROOT/}"; done
+      port_surfacing_paths plugin-antigravity/bin
       ;;
   esac
 }

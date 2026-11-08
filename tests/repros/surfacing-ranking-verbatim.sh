@@ -213,7 +213,17 @@ done
 _n=$(find "$ROOT/plugin-cursor-template/.cursor/rules" -name '*.mdc' 2>/dev/null | tee -a "$_fao_scope" | wc -l | tr -d ' ')
 if [ "${_n:-0}" -ge 1 ]; then ok "no_first_appearance_order scope: cursor has $_n .mdc file(s)"
 else bad "no_first_appearance_order scope: cursor has .mdc files" "found none — the check below would be vacuous for cursor"; fi
-_fao=$(while IFS= read -r _f; do grep -lF 'first-appearance order' "$_f" 2>/dev/null; done < "$_fao_scope")
+# Needle: both spellings, any case ("first-appearance", "first appearance", "First Appearance").
+# fao_hits prints each file that states it; the two planted controls prove the needle fires on
+# each spelling, so a clean result is evidence and not a dead pattern.
+fao_hits() { while IFS= read -r _f; do grep -liE 'first[- ]appearance' "$_f" 2>/dev/null; done; }
+printf 'Cap at top-5 by First-Appearance order.\n' > "$SCRATCH/fao-hyphen.md"
+printf 'Cap at top-5 by first appearance order.\n' > "$SCRATCH/fao-space.md"
+for _c in fao-hyphen fao-space; do
+  if [ -n "$(printf '%s\n' "$SCRATCH/$_c.md" | fao_hits)" ]; then ok "no_first_appearance_order control: the needle fires on $_c"
+  else bad "no_first_appearance_order control: the needle fires on $_c" "a planted copy was not caught"; fi
+done
+_fao=$(fao_hits < "$_fao_scope")
 if [ -z "$_fao" ]; then
   ok "no_first_appearance_order: no port's skill text states the retired ordering ($(wc -l < "$_fao_scope" | tr -d ' ') files)"
 else
@@ -422,6 +432,54 @@ for _s in prospect retrospect; do
   if grep -qF 'ledger records paths RELATIVE' "$_f" && grep -qF 'to an absolute path before `Read`' "$_f"; then
     ok "paths: codex /$_s compares relative paths with the ledger and resolves to absolute before Read"
   else bad "paths: codex /$_s compares relative paths with the ledger and resolves to absolute before Read" "absent"; fi
+done
+
+# --- fix round 1 (Task 7) ------------------------------------------------------------------------
+# F1: every Step 0.5 copy that RUNS the CLI (a) prefers the absolute path the session-start emitter
+# sent on its ARIA SURFACE line — a plugin-root variable is not guaranteed in the model's shell, and
+# unset it turns the command into `sh /bin/aria-surface.sh` (exit 127, empty stdout); and (b) says a
+# not-found or non-zero run is "unavailable", never "0 matches", which would claim the index was
+# searched. Cowork does not run the CLI and is not in this set.
+F1_A='if an `ARIA SURFACE — "<path>"` line reached you at session start, run `sh "<that path>" "<the query built in item 1>"`'
+F1_B='`Active surfacing: unavailable (<the error>)`'
+F1_C='never `Active surfacing: 0 matches`'
+F1_DEAD='It always exits 0.'
+f1_count() { grep -oF -e "$1" "$2" 2>/dev/null | wc -l | tr -d ' '; }
+for _spec in \
+  "plugin-claude-code/skills/prospect/SKILL.md:1" "plugin-claude-code/skills/retrospect/SKILL.md:1" \
+  "plugin-antigravity/skills/prospect/SKILL.md:1" "plugin-antigravity/skills/retrospect/SKILL.md:1" \
+  "plugin-openai-codex/skills/prospect/SKILL.md:1" "plugin-openai-codex/skills/retrospect/SKILL.md:1" \
+  "plugin-cursor-template/.cursor/rules/aria-commands.mdc:2"; do
+  _n=${_spec%:*}; _want=${_spec##*:}; _f="$ROOT/$_n"
+  for _p in A B C; do
+    eval "_needle=\$F1_$_p"
+    _got=$(f1_count "$_needle" "$_f")
+    if [ "$_got" = "$_want" ]; then ok "F1 $_p: $_n carries it ($_got)"
+    else bad "F1 $_p: $_n carries it" "want $_want, got $_got"; fi
+  done
+  if grep -qF -e "$F1_DEAD" "$_f"; then bad "F1: $_n no longer promises the CLI always exits 0" "'$F1_DEAD' still present"
+  else ok "F1: $_n no longer promises the CLI always exits 0"; fi
+done
+# The codex fallback keeps the in-line ARIA_PLUGIN_ROOT assignment (asserted above); the Claude Code
+# and antigravity fallbacks keep their plugin-root form.
+for _spec in "plugin-claude-code/skills/prospect/SKILL.md:\${CLAUDE_PLUGIN_ROOT}/scripts/aria-surface.sh" \
+             "plugin-antigravity/skills/prospect/SKILL.md:\${CLAUDE_PLUGIN_ROOT}/bin/aria-surface.sh" \
+             "plugin-cursor-template/.cursor/rules/aria-commands.mdc:scripts/aria/aria-surface.sh"; do
+  _n=${_spec%%:*}; _needle=${_spec#*:}
+  if grep -qF -e "otherwise run \`sh \"$_needle\"" "$ROOT/$_n"; then ok "F1 fallback: $_n falls back to $_needle"
+  else bad "F1 fallback: $_n falls back to $_needle" "fallback form absent"; fi
+done
+
+# F2: spec AC1 — every port's lib-index-match.sh and aria-surface.sh is a PORT-LEDGER surface and the
+# drift checker reports it. Row must be present AND ok (a missing row is the failure this guards).
+_drift=$(sh "$ROOT/plugin-claude-code/scripts/check-port-drift.sh" 2>/dev/null)
+for _row in "openai-codex plugin-openai-codex/bin/lib-index-match.sh" "openai-codex plugin-openai-codex/bin/aria-surface.sh" \
+            "cursor-template plugin-cursor-template/scripts/aria/lib-index-match.sh" "cursor-template plugin-cursor-template/scripts/aria/aria-surface.sh" \
+            "antigravity plugin-antigravity/bin/lib-index-match.sh" "antigravity plugin-antigravity/bin/aria-surface.sh"; do
+  _port=${_row%% *}; _path=${_row#* }
+  _st=$(printf '%s\n' "$_drift" | awk -v p="$_port" -v s="$_path" '$1 == p && $2 == s { print $3 }')
+  if [ "$_st" = "ok" ]; then ok "F2 ledger: $_port tracks $_path (ok)"
+  else bad "F2 ledger: $_port tracks $_path (ok)" "status '${_st:-absent}'"; fi
 done
 
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
