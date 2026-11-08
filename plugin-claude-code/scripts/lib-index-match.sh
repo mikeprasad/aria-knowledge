@@ -145,18 +145,28 @@ _kt_index_cache_build() {
 }
 
 # Query step 1, reading the cache header on stdin (it stops at @end); uses
-# _kt_words and _kt_plist from kt_index_match. Vocabulary = @tag rows ∪
-# projects_list tags; an alias token is replaced by its canonical tag before
-# matching, unless the token is itself a tag. Prints nothing when the match
-# does not fire (>=2 matched tags, OR >=1 matched project tag), and the single
-# line @stale when line 1 is not $_kt_head or the header is cut short; otherwise
-# two lines: the matched tags (vocabulary order), and a sed script printing the
-# groups that carry them — each matched tag's group, and for a matched project
-# tag also the group of every listed path under `projects/<tag>/`.
+# _kt_head, _kt_words and _kt_plist from kt_index_match. Vocabulary = @tag rows
+# ∪ projects_list tags; an alias token is replaced by its canonical tag before
+# matching, unless the token is itself a tag. Prints exactly one of:
+#   @stale    line 1 is not $_kt_head, or the header ends before @end
+#   @nofire   the match does not fire (>=2 matched tags, OR >=1 matched project tag)
+#   @fire, then the matched tags (vocabulary order) on one line, then a sed
+#       script, ONE COMMAND PER LINE: the line ranges of the groups carrying
+#       them (each matched tag's group, and for a matched project tag the group
+#       of every listed path under `projects/<tag>/`), adjacent ranges merged,
+#       ending `<last>q`. One per line because BSD sed reads a one-line script
+#       in 2,048-byte chunks and fails ("command expected", no output) on any
+#       command straddling a chunk boundary (measured); per line has no limit.
+# Anything else (e.g. an awk that died) is treated by the caller as a failure.
 _kt_index_cache_plan() {
   _KT_HEAD="$_kt_head" _KT_WORDS="$_kt_words" _KT_PROJECTS="$_kt_plist" awk '
     function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s); return s }
-    function rng(a, b) { if (a > 0) { script = script a "," b "p;"; if (b > last) last = b } }
+    function flush() { if (ca) { script = script ca "," cb "p\n"; if (cb > last) last = cb }; ca = 0 }
+    function rng(a, b) {
+      if (a <= 0) return
+      if (ca && a == cb + 1) { cb = b; return }
+      flush(); ca = a; cb = b
+    }
     BEGIN {
       FS = "\t"
       nw = split(ENVIRON["_KT_WORDS"], W, " ")
@@ -166,11 +176,11 @@ _kt_index_cache_plan() {
         t = tolower(trim(substr(PL[i], 1, c - 1)))
         if (t != "" && !(t in isproj)) { isproj[t] = 1; porder[++npo] = t }
       }
-      nv = 0
+      nv = 0; nd = 0
     }
     NR == 1 { if ($0 != ENVIRON["_KT_HEAD"]) { stale = 1; exit }; next }
     $1 == "@tag" { if (!($2 in hassec)) { hassec[$2] = 1; vorder[++nv] = $2; ta[$2] = $3; tb[$2] = $4 }; next }
-    $1 == "@dir" { da[$2] = $3; db[$2] = $4; next }
+    $1 == "@dir" { if (!($2 in da)) { da[$2] = $3; db[$2] = $4; dorder[++nd] = $2 }; next }
     $1 == "@alias" { if (!($2 in alias)) alias[$2] = $3; next }
     $1 == "@end" { done = 1; exit }
     END {
@@ -181,29 +191,36 @@ _kt_index_cache_plan() {
         if (!(c in hassec) && !(c in isproj) && (w in alias)) c = alias[w]
         if ((c in hassec) || (c in isproj)) matched[c] = 1
       }
-      out = ""; nm = 0; npm = 0; script = ""; last = 0
+      out = ""; nm = 0; npm = 0; script = ""; last = 0; ca = 0
       for (i = 1; i <= nv; i++) { t = vorder[i]; if (t in matched) { out = out " " t; nm++; if (t in isproj) npm++; rng(ta[t], tb[t]) } }
       for (i = 1; i <= npo; i++) { t = porder[i]; if ((t in matched) && !(t in hassec)) { out = out " " t; nm++; npm++ } }
-      if (nm < 2 && npm < 1) exit
-      for (i = 1; i <= npo; i++) { t = porder[i]; if ((t in matched) && (t in da)) rng(da[t], db[t]) }
+      if (nm < 2 && npm < 1) { print "@nofire"; exit }
+      # Dir groups in file order, so ranges stay ascending and can merge.
+      for (i = 1; i <= nd; i++) { d = dorder[i]; if ((d in matched) && (d in isproj)) rng(da[d], db[d]) }
+      flush()
+      print "@fire"
       print substr(out, 2)
-      print (last ? script last "q" : "")
+      printf "%s", script
+      if (last) print last "q"
     }
   '
 }
 
 # Query step 2, reading on stdin the cache's line 1 followed by the carrying
-# rows step 1 selected; uses _kt_head, _kt_mtags (the matched tags), _kt_task
-# and _kt_plist. Prints the single line @stale when line 1 is not $_kt_head
-# (the file was replaced after step 1 read it); otherwise one line per
-# candidate:  C<TAB>k1<TAB>k2<TAB>k3<TAB>k4<TAB>k5<TAB>k6<TAB>path — description
+# rows step 1 selected; uses _kt_head, _kt_task and _kt_plist. Every row it
+# receives belongs to a matched carrier, so the matched set is read from the
+# rows themselves (a matched tag with no rows carries nothing). Prints the
+# single line @stale when line 1 is not $_kt_head (the file was replaced after
+# step 1 read it) or nothing arrived; otherwise one line per candidate:
+#   C<TAB>k1<TAB>k2<TAB>k3<TAB>k4<TAB>k5<TAB>k6<TAB>path — description
+# and a final @done, so a step that died is never mistaken for "no candidates".
 _kt_index_cache_rank() {
-  _KT_HEAD="$_kt_head" _KT_MATCHED="$_kt_mtags" _KT_TASK="$_kt_task" _KT_PROJECTS="$_kt_plist" awk '
+  _KT_HEAD="$_kt_head" _KT_TASK="$_kt_task" _KT_PROJECTS="$_kt_plist" awk '
     function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s); return s }
     BEGIN {
       FS = "\t"
-      n = split(ENVIRON["_KT_MATCHED"], M, " "); for (i = 1; i <= n; i++) matched[M[i]] = 1
       nt = split(ENVIRON["_KT_TASK"], T, " ")
+      for (k = 1; k <= nt; k++) if (T[k] != "") TW[T[k]] = 1
       npl = split(ENVIRON["_KT_PROJECTS"], PL, ",")
       for (i = 1; i <= npl; i++) {
         c = index(PL[i], ":"); if (!c) continue
@@ -212,8 +229,11 @@ _kt_index_cache_rank() {
     }
     NR == 1 { if ($0 != ENVIRON["_KT_HEAD"]) { stale = 1; exit }; next }
     {
+      # A carrier never holds a TAB (the build drops such tags), so a TAB-joined
+      # list of the carriers of each path is exact. Keeping it here makes the END
+      # pass O(rows), not O(candidates x matched tags).
       t = $1; p = $2
-      if (!((t SUBSEP p) in carries)) { carries[t SUBSEP p] = 1; cnt[t]++ }
+      if (!((t SUBSEP p) in carries)) { carries[t SUBSEP p] = 1; cnt[t]++; pc[p] = pc[p] "\t" t }
       if (!(p in cpos)) {
         cpos[p] = $3; l = $0
         for (k = 1; k <= 3; k++) l = substr(l, index(l, "\t") + 1)
@@ -223,18 +243,21 @@ _kt_index_cache_rank() {
     END {
       if (stale || NR == 0) { print "@stale"; exit }
       for (p in cpos) {
-        k2 = 0; k1 = 0; k5 = 0
-        for (t in matched) if ((t SUBSEP p) in carries) {
-          k2++; if (t in isproj) k1 = 1
+        k2 = split(substr(pc[p], 2), cs, "\t"); k1 = 0; k5 = 0
+        for (i = 1; i <= k2; i++) {
+          t = cs[i]; if (t in isproj) k1 = 1
           if (k5 == 0 || cnt[t] < k5) k5 = cnt[t]
         }
         if (!k2) continue
-        x = tolower(cdesc[p]); gsub(/[^a-z0-9]+/, " ", x); x = " " x " "
-        k3 = 0
-        for (k = 1; k <= nt; k++) if (T[k] != "" && index(x, " " T[k] " ")) k3++
+        # Key 3: distinct description tokens that are task words, by set lookup
+        # (task words are deduped, so this equals counting the task words found).
+        x = tolower(cdesc[p]); gsub(/[^a-z0-9]+/, " ", x)
+        m = split(x, xs, " "); k3 = 0; pid++
+        for (i = 1; i <= m; i++) { w = xs[i]; if ((w in TW) && seen3[w] != pid) { seen3[w] = pid; k3++ } }
         k4 = (index(p, "logs/") == 1) ? 0 : 1
         printf "C\t%d\t%d\t%d\t%d\t%d\t%d\t%s\n", k1, k2, k3, k4, k5, cpos[p], cdesc[p]
       }
+      print "@done"
     }
   '
 }
@@ -259,29 +282,129 @@ _kt_index_cache_snapshot_build() {
 }
 
 # Answer from cache file $1 into $_kt_raw. Returns 0 when answered (the raw
-# file is empty when the match does not fire), 2 when a read saw a different
-# cache than expected (stale, foreign, short or swapped mid-query by another
-# writer's mv). The file is opened twice — the plan reads the header, sed
-# pulls the row groups — and EACH read checks line 1 against $_kt_head, so
-# both reads provably came from the same cache version.
+# file is empty when the match does not fire), 2 on ANY failure: a stale,
+# foreign, short or mid-query-swapped cache, or a step that died. The file is
+# opened twice — the plan reads the header, sed pulls the row groups — and
+# EACH read checks line 1 against $_kt_head, so both reads provably came from
+# the same cache version.
 _kt_index_cache_answer() {
   : > "$_kt_raw"
   _kt_plan=$(_kt_index_cache_plan < "$1" 2>/dev/null)
-  [ "$_kt_plan" = "@stale" ] && return 2
-  [ -z "$_kt_plan" ] && return 0
+  case "$_kt_plan" in
+    @nofire) return 0 ;;
+    "@fire$_kt_nl"*) ;;
+    *) return 2 ;;
+  esac
+  _kt_plan=${_kt_plan#*"$_kt_nl"}
   _kt_mtags=${_kt_plan%%"$_kt_nl"*}
   _kt_sed=""
   case "$_kt_plan" in *"$_kt_nl"*) _kt_sed=${_kt_plan#*"$_kt_nl"} ;; esac
   _kt_rows=""
   if [ -n "$_kt_sed" ]; then
-    _kt_rows=$(sed -n "1p;$_kt_sed" "$1" 2>/dev/null | _kt_index_cache_rank 2>/dev/null)
-    [ "$_kt_rows" = "@stale" ] && return 2
+    # The script goes in a file: no argument-length limit at any match size.
+    _kt_sedf=$(mktemp "${TMPDIR:-/tmp}/aria-match-sed.XXXXXX") || return 2
+    printf '1p\n%s\n' "$_kt_sed" > "$_kt_sedf"
+    sed -n -f "$_kt_sedf" "$1" > "$_kt_raw" 2>/dev/null
+    _kt_sedrc=$?
+    rm -f "$_kt_sedf" 2>/dev/null
+    [ "$_kt_sedrc" -eq 0 ] || return 2
+    _kt_rows=$(_kt_index_cache_rank < "$_kt_raw" 2>/dev/null)
+    case "$_kt_rows" in
+      @done) _kt_rows="" ;;
+      *"$_kt_nl@done") _kt_rows=${_kt_rows%"$_kt_nl@done"} ;;
+      *) return 2 ;;
+    esac
   fi
   {
     printf 'T\t%s\n' "$_kt_mtags"
     [ -n "$_kt_rows" ] && printf '%s\n' "$_kt_rows"
   } > "$_kt_raw"
   return 0
+}
+
+# The uncached full parse: the pre-cache algorithm, unchanged — one awk pass
+# over index.md writing the same T/C lines into $_kt_raw. Used only when every
+# cache attempt failed, so a cache fault can never read as "no match".
+# Vocabulary = `### ` headers under `## Tag Index` ∪ projects_list tags.
+# File-listing sections are `## Tag Index` and `## Other Tags`; only Tag Index
+# sections make a file CARRY a tag, while a project tag also carries every
+# listed path under `projects/<tag>/` (either section). Aliases as in the cache.
+_kt_index_full_parse() {
+  _KT_WORDS="$_kt_words" _KT_TASK="$_kt_task" _KT_PROJECTS="$_kt_plist" awk '
+    function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s); return s }
+    function pathof(l,   i) { i = index(l, " — "); return i ? substr(l, 1, i - 1) : l }
+    BEGIN {
+      nw = split(ENVIRON["_KT_WORDS"], W, " ")
+      nt = split(ENVIRON["_KT_TASK"], T, " ")
+      npl = split(ENVIRON["_KT_PROJECTS"], PL, ",")
+      for (i = 1; i <= npl; i++) {
+        c = index(PL[i], ":"); if (!c) continue
+        t = tolower(trim(substr(PL[i], 1, c - 1)))
+        if (t != "" && !(t in isproj)) { isproj[t] = 1; porder[++npo] = t }
+      }
+      sec = ""; tag = ""; known = ""; nv = 0; nl = 0
+    }
+    /^## / { sec = trim(substr($0, 4)); tag = ""; next }
+    sec == "Known Tags" { known = known " " $0; next }
+    /^### / {
+      tag = ""
+      if (sec == "Tag Index" || sec == "Other Tags") tag = tolower(trim(substr($0, 5)))
+      if (sec == "Tag Index" && tag != "" && !(tag in hassec)) { hassec[tag] = 1; vorder[++nv] = tag }
+      next
+    }
+    /^- / && (sec == "Tag Index" || sec == "Other Tags") {
+      line = substr($0, 3); p = pathof(line)
+      if (!(p in pos)) { pos[p] = ++nl; desc[p] = line }
+      if (sec == "Tag Index" && tag != "" && !((tag SUBSEP p) in carries)) { carries[tag SUBSEP p] = 1; cnt[tag]++ }
+      next
+    }
+    END {
+      s = known
+      while ((i = index(s, "[aliases:")) > 0) {
+        pre = substr(s, 1, i - 1); rest = substr(s, i + 9)
+        j = index(rest, "]"); if (!j) break
+        list = substr(rest, 1, j - 1); s = substr(rest, j + 1)
+        n = split(pre, pw, /[ ,`*\t]+/); canon = ""
+        for (k = n; k >= 1; k--) if (pw[k] != "") { canon = tolower(pw[k]); break }
+        if (canon == "") continue
+        m = split(list, al, /[ ,\t]+/)
+        for (k = 1; k <= m; k++) { a = tolower(al[k]); if (a != "" && !(a in alias)) alias[a] = canon }
+      }
+
+      for (i = 1; i <= nw; i++) {
+        w = W[i]; if (w == "") continue
+        c = w
+        if (!(c in hassec) && !(c in isproj) && (w in alias)) c = alias[w]
+        if ((c in hassec) || (c in isproj)) matched[c] = 1
+      }
+      out = ""; nm = 0; npm = 0
+      for (i = 1; i <= nv; i++) { t = vorder[i]; if (t in matched) { out = out " " t; nm++; if (t in isproj) npm++ } }
+      for (i = 1; i <= npo; i++) { t = porder[i]; if ((t in matched) && !(t in hassec)) { out = out " " t; nm++; npm++ } }
+      # Firing: >=2 matched tags, OR >=1 matched project tag.
+      if (nm < 2 && npm < 1) exit
+
+      for (i = 1; i <= npo; i++) {
+        t = porder[i]; if (!(t in matched)) continue
+        pfx = "projects/" t "/"
+        for (p in pos) if (index(p, pfx) == 1 && !((t SUBSEP p) in carries)) { carries[t SUBSEP p] = 1; cnt[t]++ }
+      }
+
+      printf "T\t%s\n", substr(out, 2)
+      for (p in pos) {
+        k2 = 0; k1 = 0; k5 = 0
+        for (t in matched) if ((t SUBSEP p) in carries) {
+          k2++; if (t in isproj) k1 = 1
+          if (k5 == 0 || cnt[t] < k5) k5 = cnt[t]
+        }
+        if (!k2) continue
+        x = tolower(desc[p]); gsub(/[^a-z0-9]+/, " ", x); x = " " x " "
+        k3 = 0
+        for (k = 1; k <= nt; k++) if (T[k] != "" && index(x, " " T[k] " ")) k3++
+        k4 = (index(p, "logs/") == 1) ? 0 : 1
+        printf "C\t%d\t%d\t%d\t%d\t%d\t%d\t%s\n", k1, k2, k3, k4, k5, pos[p], desc[p]
+      }
+    }
+  ' "$_kt_index" > "$_kt_raw" 2>/dev/null
 }
 
 kt_index_match() {
@@ -322,9 +445,9 @@ kt_index_match() {
   # Parse cache (D1a). The key is the cksum of index.md's CONTENT, stored in
   # the cache's first line; any change to the index rebuilds it. A stale,
   # foreign, unreadable or mid-query-swapped cache is never used for an answer
-  # (see _kt_index_cache_answer). When the cache cannot be (re)written —
-  # unwritable dir, a file owned by someone else — the parse goes to a private
-  # temp file for this one call instead: same answer, only slower.
+  # (see _kt_index_cache_answer). When no cache attempt can answer — the cache
+  # cannot be (re)written, or any step fails — the answer comes from the
+  # uncached full parse: same answer, only slower, never a silent empty one.
   _kt_sum=$(cksum < "$_kt_index" 2>/dev/null)
   if [ -z "$_kt_sum" ]; then rm -f "$_kt_raw" 2>/dev/null; return 0; fi
   _kt_head="aria-surface-cache 2 $_kt_sum"
@@ -335,7 +458,7 @@ kt_index_match() {
   if [ -n "$_kt_cache" ] && [ -f "$_kt_cache" ] && [ -O "$_kt_cache" ] 2>/dev/null; then
     _kt_index_cache_answer "$_kt_cache"; _kt_arc=$?
   fi
-  if [ "$_kt_arc" -eq 2 ] && [ -n "$_kt_cache" ]; then
+  if [ "$_kt_arc" -ne 0 ] && [ -n "$_kt_cache" ]; then
     # Temp file in the cache's own dir, then mv: a reader never sees half a cache.
     _kt_tmpc=$(mktemp "${_kt_cache%/*}/.aria-surface.XXXXXX" 2>/dev/null) || _kt_tmpc=""
     if [ -n "$_kt_tmpc" ]; then
@@ -346,15 +469,7 @@ kt_index_match() {
       fi
     fi
   fi
-  if [ "$_kt_arc" -eq 2 ]; then
-    # Private, single-use: no other writer can touch it, so this cannot be stale.
-    _kt_once=$(mktemp "${TMPDIR:-/tmp}/aria-match-cache.XXXXXX") || { rm -f "$_kt_raw" 2>/dev/null; return 0; }
-    if _kt_index_cache_snapshot_build "$_kt_once"; then
-      _kt_index_cache_answer "$_kt_once"; _kt_arc=$?
-    fi
-    rm -f "$_kt_once" 2>/dev/null
-    [ "$_kt_arc" -eq 0 ] || : > "$_kt_raw"
-  fi
+  [ "$_kt_arc" -eq 0 ] || _kt_index_full_parse
 
   _kt_tags_line=$(grep "^T${_kt_tab}" "$_kt_raw" 2>/dev/null | head -1)
   if [ -z "$_kt_tags_line" ]; then

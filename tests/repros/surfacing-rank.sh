@@ -389,6 +389,80 @@ else
   bad "cli_exit0_without_config" "rc $cli_e1rc/$cli_e2rc out '$cli_e1' '$cli_e2'"
 fi
 
+# --- many_matched_tags_still_ranks --- a query matching hundreds of tags or
+# project dirs must still rank. The cache path once returned 0 files, silently,
+# past ~175 matched tags: BSD sed rejects a script line over 2,048 bytes and the
+# extraction script was one line. Synthetic index generated here: 420 tags
+# (tag001-010 carry 3 files each, the rest 1; tag200 is an empty section; the
+# tag300 file has a 10 KB description), one 300-char tag, and a `### misc`
+# section listing projects/p001..p400/notes.md. Seen RED on a8c0a2d.
+KFM="$SCRATCH/kfm"; mkdir -p "$KFM"
+LONGTAG=$(awk 'BEGIN { s = "long"; for (i = 0; i < 296; i++) s = s "x"; print s }')
+awk -v longtag="$LONGTAG" 'BEGIN {
+  print "# Knowledge Index"; print ""; print "## Known Tags"; print ""; print "none"; print ""; print "## Tag Index"; print ""
+  for (i = 1; i <= 420; i++) {
+    n = sprintf("%03d", i); print "### tag" n
+    if (i <= 10) { print "- references/n" n "-a.md — Note " n " a"; print "- references/n" n "-b.md — Note " n " b"; print "- references/n" n "-c.md — Note " n " c" }
+    else if (i == 200) { }
+    else if (i == 300) { d = ""; for (k = 0; k < 1000; k++) d = d "filler-txt"; print "- references/n" n ".md — " d }
+    else print "- references/n" n ".md — Note " n
+    print ""
+  }
+  print "### " longtag; print "- references/long.md — Long tag note"; print ""
+  print "### misc"
+  for (j = 1; j <= 400; j++) { n = sprintf("%03d", j); print "- projects/p" n "/notes.md — Project " n " notes" }
+  print ""; print "## Other Tags"; print ""
+}' > "$KFM/index.md"
+mq_all=$(awk 'BEGIN { for (i = 1; i <= 420; i++) printf "tag%03d ", i }')"$LONGTAG"
+mq_odd=$(awk 'BEGIN { for (i = 1; i <= 420; i += 2) printf "tag%03d ", i }')
+mq_proj=$(awk 'BEGIN { for (j = 1; j <= 400; j += 2) printf "p%03d ", j }')
+mp_list=$(awk 'BEGIN { for (j = 1; j <= 400; j++) printf "%sp%03d:p%03d", (j > 1 ? "," : ""), j, j }')
+_saved_kf=$KT_KNOWLEDGE_FOLDER; _saved_pl=$KT_PROJECTS_LIST
+# The uncached fallback is disabled here, so this arm proves the CACHE path
+# ranks dense queries; a fallback rescuing a broken cache path would mask it.
+_kt_index_full_parse() { : > "$_kt_raw"; }
+KT_KNOWLEDGE_FOLDER="$KFM"; KT_SURFACE_CACHE_DIR="$SCRATCH/cache-many"; mkdir -p "$KT_SURFACE_CACHE_DIR"
+kt_index_match "$mq_all"; m_all_n=$KT_MATCH_COUNT; m_all_t=$(printf '%s' "$KT_MATCH_TAGS" | wc -w | tr -d ' '); m_all=$(ranked); kt_match_cleanup
+kt_index_match "$mq_odd"; m_odd_n=$KT_MATCH_COUNT; m_odd=$(ranked); kt_match_cleanup
+KT_PROJECTS_LIST="$mp_list"
+kt_index_match "$mq_proj"; m_proj_n=$KT_MATCH_COUNT; m_proj_t=$(printf '%s' "$KT_MATCH_TAGS" | wc -w | tr -d ' '); m_proj=$(ranked); kt_match_cleanup
+KT_KNOWLEDGE_FOLDER=$_saved_kf; KT_PROJECTS_LIST=$_saved_pl; KT_SURFACE_CACHE_DIR=$_saved_cd
+unset -f _kt_index_full_parse
+eval "$(sed -n '/^_kt_index_full_parse() {/,/^}/p' "$LIB")"
+m_all_want="references/n011.md references/n012.md references/n013.md references/n014.md references/n015.md"
+m_odd_want="references/n011.md references/n013.md references/n015.md references/n017.md references/n019.md"
+m_proj_want="projects/p001/notes.md projects/p003/notes.md projects/p005/notes.md projects/p007/notes.md projects/p009/notes.md"
+if [ "$m_all_n" -eq 5 ] && [ "$m_all_t" -eq 421 ] && [ "$m_all" = "$m_all_want" ] \
+   && [ "$m_odd_n" -eq 5 ] && [ "$m_odd" = "$m_odd_want" ] \
+   && [ "$m_proj_n" -eq 5 ] && [ "$m_proj_t" -eq 200 ] && [ "$m_proj" = "$m_proj_want" ]; then
+  ok "many_matched_tags_still_ranks"
+else
+  bad "many_matched_tags_still_ranks" "all: n $m_all_n tags $m_all_t got '$m_all' | odd: n $m_odd_n got '$m_odd' | proj: n $m_proj_n tags $m_proj_t got '$m_proj'"
+fi
+
+# --- cache_failure_falls_back_to_full_parse --- if every cache attempt fails,
+# the answer must come from an uncached full parse, never be an empty "no
+# match". Every attempt is forced to fail by wrapping _kt_index_cache_answer
+# (late-bound) to report failure; the answers must equal the normal path's.
+# Seen RED on a8c0a2d, which answered nothing.
+kt_index_match "$MAINQ"; fb_n1=$(ranked); fb_t1=$KT_MATCH_TAGS; kt_match_cleanup
+kt_index_match "check webhooks and payments"; fb_n2=$(ranked); kt_match_cleanup
+kt_index_match "site-1 skylights"; fb_n3=$(ranked); fb_t3=$KT_MATCH_TAGS; kt_match_cleanup
+kt_index_match "look at payments"; fb_n4=$KT_MATCH_COUNT; kt_match_cleanup
+_kt_index_cache_answer() { : > "$_kt_raw"; return 2; }
+kt_index_match "$MAINQ"; fb_f1=$(ranked); fb_ft1=$KT_MATCH_TAGS; kt_match_cleanup
+kt_index_match "check webhooks and payments"; fb_f2=$(ranked); kt_match_cleanup
+kt_index_match "site-1 skylights"; fb_f3=$(ranked); fb_ft3=$KT_MATCH_TAGS; kt_match_cleanup
+kt_index_match "look at payments"; fb_f4=$KT_MATCH_COUNT; kt_match_cleanup
+eval "$(sed -n '/^_kt_index_cache_answer() {/,/^}/p' "$LIB")"
+if [ "$fb_n1" = "$MAIN_EXPECT" ] && [ "$fb_f1" = "$fb_n1" ] && [ "$fb_ft1" = "$fb_t1" ] \
+   && [ -n "$fb_n2" ] && [ "$fb_f2" = "$fb_n2" ] && [ -n "$fb_n3" ] && [ "$fb_f3" = "$fb_n3" ] && [ "$fb_ft3" = "$fb_t3" ] \
+   && [ "$fb_n4" -eq 0 ] && [ "$fb_f4" -eq 0 ]; then
+  ok "cache_failure_falls_back_to_full_parse"
+else
+  bad "cache_failure_falls_back_to_full_parse" "main '$fb_f1' vs '$fb_n1'; rarest '$fb_f2' vs '$fb_n2'; alias '$fb_f3' vs '$fb_n3'; lone-generic $fb_f4 vs $fb_n4"
+fi
+
 # No temp files may outlive cleanup. GUARD: vacuous on the old lib, which
 # wrote its temp files to a hard-coded /tmp instead of $TMPDIR.
 left=$(find "$SCRATCH/tmp" -type f | wc -l | tr -d ' ')
