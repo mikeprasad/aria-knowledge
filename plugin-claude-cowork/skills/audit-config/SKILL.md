@@ -10,7 +10,7 @@ Scan all CLAUDE.md files, plugin manifests, and knowledge files for drift, broke
 
 **Cowork variant of aria-knowledge's `/audit-config`.** Output schema (4-tier findings table) is byte-identical per item #17g + #17m. Three input-discovery + scope divergences:
 
-- **Field enumeration via `CONFIG.md`, not `bin/config.sh`** (#17b + #17e + ADR-013). Cowork has no `bin/` directory; the canonical schema list is the human-readable `CONFIG.md` cowork ships at repo root.
+- **Field enumeration via `CONFIG.md`, not `scripts/config.sh`** (#17b + #17e + ADR-013). Cowork has no `bin/` directory; the canonical schema list is the human-readable `CONFIG.md` cowork ships at repo root.
 - **Tracked-artifact staleness check (Step 5a) SKIPPED per ADR-005** (#17f). aria-knowledge stats `CODEMAP.md` / `STITCH.md` per project; cowork excludes `/codemap` + `/stitch` so no tracked artifacts to check.
 - **Cadence invocation differs** (#17n). aria-knowledge runs cadence checks at SessionStart via hook. Cowork has no hook layer — cadence checks fire at the first aria-cowork skill invocation per session (entry-points: `/aria-setup`, `/extract`, etc., which check the log and prompt if cadence exceeded).
 
@@ -26,7 +26,7 @@ Plugin attribution in audit-log entries uses `aria-cowork@{INSTALLED_VERSION}`. 
 
 > ↪️ **Redirecting to `/audit-config` — you invoked the aria-cowork variant, but you are running in Claude Code or another runtime with shell access.**
 >
-> This variant uses `CONFIG.md`-driven field enumeration and skips `CODEMAP.md` / `STITCH.md` checks per ADR-005 — but you appear to be in Claude Code, where the canonical aria-knowledge variant uses `bin/config.sh` + Agent sub-audits + tracked-artifact staleness. For the Code-native variant, use `/audit-config` (the aria-knowledge canonical).
+> This variant uses `CONFIG.md`-driven field enumeration and skips `CODEMAP.md` / `STITCH.md` checks per ADR-005 — but you appear to be in Claude Code, where the canonical aria-knowledge variant uses `scripts/config.sh` + Agent sub-audits + tracked-artifact staleness. For the Code-native variant, use `/audit-config` (the aria-knowledge canonical).
 
 ⛔ **The redirect is unconditional** — every mode including `auto`, and no opt-out. Reaching this variant under that condition is always a mis-invocation, so there is nothing for the user to decide. Design record: `docs/superpowers/specs/2026-08-28-runtime-gate-auto-redirect-design.md` (D2 auto-redirect, D3 no escape hatch, D6 announce-don't-swap-silently).
 
@@ -161,7 +161,7 @@ Surfaces to scan: CLAUDE.md files in the working tree, README.md files, project 
 
 After 3a's pattern-based drift checks, run a structural check for config-schema gaps: any user-facing field documented in `CONFIG.md` but missing from `<knowledge_folder>/aria-config.md`. This catches `/aria-setup` discipline failures retroactively — if the wizard ever silently skipped surfacing a new field (e.g., the `active_knowledge_surfacing` gap that bit aria-knowledge v2.15.1's first users), this audit cadence picks it up at the configured `audit_cadence_config` cadence (default 14 days).
 
-**Cowork divergence per #17b + #17e:** aria-knowledge enumerates field names by parsing `${CLAUDE_PLUGIN_ROOT}/bin/config.sh` (its bash field-reader script). Cowork has no `bin/` — the canonical schema source is `CONFIG.md`, the human-readable schema doc cowork ships at repo root. Same audit logic; different parse target.
+**Cowork divergence per #17b + #17e:** aria-knowledge enumerates field names by parsing `${CLAUDE_PLUGIN_ROOT}/scripts/config.sh` (its bash field-reader script). Cowork has no `bin/` — the canonical schema source is `CONFIG.md`, the human-readable schema doc cowork ships at repo root. Same audit logic; different parse target.
 
 **Algorithm:**
 

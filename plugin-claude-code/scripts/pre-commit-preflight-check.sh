@@ -118,11 +118,17 @@ done
 SESSION_ID=$(printf '%s' "$INPUT" | grep -o '"session_id":"[^"]*"' | head -1 | sed 's/"session_id":"//;s/"$//')
 [ -z "$SESSION_ID" ] && exit 0
 
+[ -f "$SCRIPT_DIR/lib-state-key.sh" ] && . "$SCRIPT_DIR/lib-state-key.sh"
+BREAKER="${TMPDIR:-/tmp}/aria-preflight-denies-$SESSION_ID$(kt_agent_suffix "$INPUT" 2>/dev/null)"
+
 MARKER="${TMPDIR:-/tmp}/aria-preflight-$SESSION_ID"
 # A recorded preflight -- of any verdict -- satisfies the gate. Recording a FAIL and
 # proceeding anyway is a legitimate, visible choice; the failure this guards against
 # is not running the checks at all.
-[ -s "$MARKER" ] && exit 0
+# A compliant commit also resets this agent's breaker (v2.57.9): the contract is three
+# CONSECUTIVE denials with no compliant commit between them. Before, nothing removed the
+# counter, so a marker lost later in the session degraded the gate after one denial.
+[ -s "$MARKER" ] && { rm -f "$BREAKER" 2>/dev/null; exit 0; }
 
 UNCHECKED=$(printf '%s' "$CODE_FILES" | tr ' ' '\n' | grep -v '^$' | head -5 | tr '\n' ' ')
 N=$(printf '%s' "$CODE_FILES" | tr ' ' '\n' | grep -cv '^$')
@@ -188,9 +194,8 @@ if [ -n "$MATCHED" ]; then
   # Keyed per agent (v2.54.1): a subagent carries the parent's session_id, so a
   # session-only key let its denials switch off the PARENT's commit gate. The
   # session MARKER above stays session-level on purpose — a preflight that ran in
-  # this session counts for its subagents too.
-  [ -f "$SCRIPT_DIR/lib-state-key.sh" ] && . "$SCRIPT_DIR/lib-state-key.sh"
-  BREAKER="${TMPDIR:-/tmp}/aria-preflight-denies-$SESSION_ID$(kt_agent_suffix "$INPUT" 2>/dev/null)"
+  # this session counts for its subagents too. ($BREAKER is computed above MARKER, so the
+  # compliant exit can reset it.)
   COUNT=$(cat "$BREAKER" 2>/dev/null || echo 0)
   COUNT=$((COUNT + 1))
   printf '%s' "$COUNT" > "$BREAKER" 2>/dev/null || true

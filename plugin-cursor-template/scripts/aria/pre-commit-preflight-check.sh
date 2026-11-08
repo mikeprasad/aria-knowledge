@@ -80,8 +80,11 @@ SESSION_ID=$(printf '%s' "$INPUT" | grep -o '"sessionId":"[^"]*"' | head -1 | se
 [ -z "$SESSION_ID" ] && SESSION_ID=$(printf '%s' "$INPUT" | grep -o '"session_id":"[^"]*"' | head -1 | sed 's/"session_id":"//;s/"$//')
 [ -z "$SESSION_ID" ] && exit 0
 
+BREAKER="${TMPDIR:-/tmp}/aria-preflight-denies-$SESSION_ID"
 MARKER="${TMPDIR:-/tmp}/aria-preflight-$SESSION_ID"
-[ -s "$MARKER" ] && exit 0
+# A compliant commit also resets the breaker (v2.57.9): the contract is three CONSECUTIVE
+# denials with no compliant commit between them; before, nothing removed the counter.
+[ -s "$MARKER" ] && { rm -f "$BREAKER" 2>/dev/null; exit 0; }
 
 UNCHECKED=$(printf '%s' "$CODE_FILES" | tr ' ' '\n' | grep -v '^$' | head -5 | tr '\n' ' ')
 N=$(printf '%s' "$CODE_FILES" | tr ' ' '\n' | grep -cv '^$')
@@ -116,7 +119,6 @@ if [ -n "$MATCHED" ]; then
     *)     WHY="This commit touches a path listed in your preflight_deny_paths." ;;
   esac
 
-  BREAKER="${TMPDIR:-/tmp}/aria-preflight-denies-$SESSION_ID"
   COUNT=$(cat "$BREAKER" 2>/dev/null || echo 0)
   COUNT=$((COUNT + 1))
   printf '%s' "$COUNT" > "$BREAKER" 2>/dev/null || true

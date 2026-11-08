@@ -42,7 +42,7 @@ Determine the current project context. Cowork has no automatic CWD detection (un
 2. **Conversation-thread context:** if the conversation is anchored to docs, files, or topics that match a configured project, infer the project tag from `projects_list`.
 3. **No match:** leave `current_project` unset — subsequent steps will skip auto-tagging and use explicit context labels.
 
-Cowork's persistent-grant model means there's no single "current working directory" — multiple folders may be attached, and the active conversation context is the better signal than path inference. Aria-knowledge's `bin/config.sh` CWD-matching helper does not apply here.
+Cowork's persistent-grant model means there's no single "current working directory" — multiple folders may be attached, and the active conversation context is the better signal than path inference. Aria-knowledge's `scripts/config.sh` CWD-matching helper does not apply here.
 
 ## Step 1: Determine extraction scope
 

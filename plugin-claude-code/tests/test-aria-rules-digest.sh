@@ -28,6 +28,32 @@ assert_eq "source rule parse is non-empty" "yes" \
 
 assert_eq "digest covers every working rule by number" "$src_nums" "$dig_nums"
 
+# --- digest lock (v2.57.9) ----------------------------------------------------
+# The number-set check above passed a digest whose Rule 23 TEXT had been reverted (measured
+# 2026-08-26). The lock binds each digest line to the source rule it summarises, in both
+# directions: a source rule edited without reviewing its digest line, or a digest line edited
+# or reverted alone, goes red naming the rule (" source:7", " digest:23"). Refresh with
+# tests/relock-rules-digest.sh <rule#>... after reviewing those rules — it has no bulk mode.
+LOCK="$APM_ROOT/tests/fixtures/aria-rules.digest-lock.tsv"
+. "$APM_ROOT/tests/lib-digest-lock.sh"
+assert_eq "digest lock exists" "yes" "$([ -s "$LOCK" ] && echo yes || echo no)"
+lock_nums=$(cut -f1 "$LOCK" 2>/dev/null | sort -n | tr '\n' ',')
+assert_eq "digest lock has one entry per source rule" "$src_nums" "$lock_nums"
+dl_bad=""
+for n in $(cut -f1 "$LOCK" 2>/dev/null); do
+  want_s=$(awk -F'\t' -v n="$n" '$1 == n { print $2 }' "$LOCK")
+  want_d=$(awk -F'\t' -v n="$n" '$1 == n { print $3 }' "$LOCK")
+  [ "$(kt_dl_source_sha "$SRC" "$n")" = "$want_s" ] || dl_bad="$dl_bad source:$n"
+  [ "$(kt_dl_digest_sha "$DIGEST" "$n")" = "$want_d" ] || dl_bad="$dl_bad digest:$n"
+done
+assert_eq "every digest line matches its locked source rule" "" "$dl_bad"
+# An extraction that matched nothing hashes to the sha of empty input; a lock holding that
+# value would compare equal to a broken extractor forever.
+# (`|| :`, not `|| echo 0`: grep -c already prints 0 when nothing matches, and ALSO exits 1,
+# so `|| echo 0` produced "0\n0" — this assertion failed on its first run for exactly that.)
+assert_eq "no lock field is the empty-input sha" "0" \
+  "$(grep -c "$(kt_dl_empty_sha)" "$LOCK" 2>/dev/null || :)"
+
 # The digest is a summary, not a replacement — it must route to the full text.
 assert_eq "digest points at the full rules file" "yes" \
   "$(grep -q 'rules/working-rules.md' "$DIGEST" 2>/dev/null && echo yes || echo no)"
