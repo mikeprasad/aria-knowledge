@@ -240,6 +240,16 @@ for f in "$SRC/scripts"/*.sh; do
       echo "  [skip] $name (PreToolUse:Bash carrier recorder; unregistered here, consumer is CC-branch only)"
       continue
       ;;
+    prompt-context-check.sh)
+      # Added 2026-11-08 (v2.58.0). A Claude Code UserPromptSubmit hook (per-prompt ranked knowledge
+      # surfacing). Antigravity has no prompt-submit event and hooks.json registers no equivalent, so
+      # copying it would ship a dead file — the shipped-but-unwired class above. The surfacing spec
+      # defers a hook equivalent for this port (OQ3); it gets the shared lib, the CLI (aria-surface.sh)
+      # and the canonical ARIA ACTIVE CONTEXT directive instead. Wire a PreInvocation equivalent in
+      # bin/antigravity/ FIRST if that changes.
+      echo "  [skip] $name (UserPromptSubmit; no Antigravity equivalent event — surfacing hook deferred, spec OQ3)"
+      continue
+      ;;
   esac
   cp "$f" "$DST/bin/$name"
   chmod +x "$DST/bin/$name"
