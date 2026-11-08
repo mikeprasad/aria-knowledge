@@ -347,6 +347,30 @@ EXPECT_LINE=$(printf '%s' "$CANON_LINE" | KF="$T7/kf" awk '{ i = index($0, "{kno
 if [ -n "$CANON_LINE" ] && [ "$EXPECT_LINE" != "$CANON_LINE" ]; then ok "emitter control: the canonical directive names {knowledge_folder} once and substitutes"
 else bad "emitter control: the canonical directive names {knowledge_folder} once and substitutes" "substitution changed nothing"; fi
 
+# Per-port directive (2.58.0 fix wave, I2). Each port keeps the canonical ranking paragraph byte for
+# byte between its markers; the clauses AROUND it are the port's own: Codex's prompt hook injects
+# `ARIA ACTIVE —`, so that is its only source; Cursor and Antigravity have no prompt hook and run the
+# ARIA SURFACE command once per topic. No port names CLAUDE_CODE_SESSION_ID, which none of them sets.
+PD_HEAD="ARIA ACTIVE CONTEXT — Unasked, read each task's knowledge files before answering; say in one line which you used and why. Source: "
+PD_TAIL=" Skip files already read this session."
+port_directive() { # $1 = port → the exact directive that emitter must send
+  case "$1" in
+    codex) printf '%s%s%s%s%s%s' "$PD_HEAD" 'an `ARIA ACTIVE —` injection, in Codex the only source (none = read nothing); the plugin ranks its files this way: ' "$MS" "$CANON" "$ME" "$PD_TAIL" ;;
+    *) printf '%s%s%s%s%s%s' "$PD_HEAD" '(a) an `ARIA ACTIVE —` injection; else (b) with a shell, run the `ARIA SURFACE` command on the task text, once per topic; else (c) `## Tag Index` headers of '"$T7/kf"'/index.md matching task words, ordered: ' "$MS" "$CANON" "$ME" "$PD_TAIL" ;;
+  esac
+}
+# model_run CMD → what the CLI prints for the script a model writes from an ARIA SURFACE line: the
+# command, the task text on its own line, the delimiter line. The text carries a backtick span and a
+# $() span that each create a marker file if anything runs them (C1).
+T7_HOSTILE="$T7_QUERY "'`touch '"$T7/mk1"'` $(touch '"$T7/mk2"')'
+model_run() {
+  rm -f "$T7/mk1" "$T7/mk2"
+  { printf '%s\n' "$1"; printf '%s\n' "$T7_HOSTILE"; printf 'ARIA_TASK\n'; } > "$T7/model.sh"
+  ( cd "$T7" && TMPDIR="$T7" HOME="$T7/home" KT_ROOT="$T7" KT_CONFIG="$T7/on.md" sh "$T7/model.sh" </dev/null 2>/dev/null )
+}
+# Reference: the canonical CLI given the same text as ONE argv element (no shell parses it).
+CLI_REF_H=$( cd "$T7" && TMPDIR="$T7" HOME="$T7/home" KT_ROOT="$T7" KT_CONFIG="$T7/on.md" sh "$CLI_CANON" "$T7_HOSTILE" </dev/null 2>/dev/null )
+
 emit_port() { # $1 = port, $2 = cfg → decoded model text on stdout
   case "$1" in
     codex)
@@ -375,11 +399,15 @@ for _p in codex cursor antigravity; do
   _nb=$(printf '%s' "$_m" | grep -oF 'ARIA ACTIVE CONTEXT — ' | wc -l | tr -d ' ')
   if [ "$_nb" = "1" ]; then ok "emitter $_p: exactly one ARIA ACTIVE CONTEXT directive"
   else bad "emitter $_p: exactly one ARIA ACTIVE CONTEXT directive" "found $_nb"; fi
-  if [ -n "$CANON_LINE" ] && printf '%s' "$_m" | grep -qF -e "$EXPECT_LINE"; then
-    ok "emitter $_p: emits the canonical directive byte for byte (knowledge folder substituted)"
+  if [ -n "$CANON" ] && printf '%s' "$_m" | grep -qF -e "$(port_directive "$_p")"; then
+    ok "emitter $_p: emits this port's directive byte for byte (canonical paragraph + port template)"
   else
-    bad "emitter $_p: emits the canonical directive byte for byte (knowledge folder substituted)" "directive differs from plugin-claude-code/rules/aria-rules.md"
+    bad "emitter $_p: emits this port's directive byte for byte (canonical paragraph + port template)" "directive differs from the $_p template"
   fi
+  for _needle in 'CLAUDE_CODE_SESSION_ID' 'in Claude Code the only source'; do
+    if printf '%s' "$_m" | grep -qF -e "$_needle"; then bad "emitter $_p: no Claude-Code-only clause ('$_needle')" "still emitted"
+    else ok "emitter $_p: no Claude-Code-only clause ('$_needle')"; fi
+  done
   printf '%s\n' "$_m" > "$T7/emitted-$_p.txt"
   if verbatim_guard "$T7/emitted-$_p.txt"; then ok "emitter $_p: the marked paragraph extracted from the payload equals the canonical text"
   else bad "emitter $_p: the marked paragraph extracted from the payload equals the canonical text" "see the line above"; fi
@@ -387,11 +415,17 @@ for _p in codex cursor antigravity; do
     if printf '%s' "$_m" | grep -qiF -e "$_needle"; then bad "emitter $_p: no retired ordering text ('$_needle')" "still emitted"
     else ok "emitter $_p: no retired ordering text ('$_needle')"; fi
   done
-  _sp=$(printf '%s' "$_m" | grep -o 'ARIA SURFACE — "[^"]*"' | head -1 | sed 's/^ARIA SURFACE — "//; s/"$//')
-  if [ "$_sp" = "$(port_cli_path "$_p")" ]; then ok "emitter $_p: ARIA SURFACE names this port's own CLI, absolute and quoted"
-  else bad "emitter $_p: ARIA SURFACE names this port's own CLI, absolute and quoted" "got '${_sp}'"; fi
+  _sc=$(printf '%s\n' "$_m" | sed -n "s/^.*ARIA SURFACE — run: \(sh \"[^\"]*\" - <<'ARIA_TASK'\) — then .*$/\1/p" | head -1)
+  _sp=$(printf '%s' "$_sc" | sed 's/^sh "//; s/" - <<.*$//')
+  if [ "$_sp" = "$(port_cli_path "$_p")" ]; then ok "emitter $_p: ARIA SURFACE names this port's own CLI, absolute and quoted, in the heredoc command"
+  else bad "emitter $_p: ARIA SURFACE names this port's own CLI, absolute and quoted, in the heredoc command" "got '${_sp}' from '${_sc}'"; fi
   if [ -n "$_sp" ] && [ "$(cli_run "$_sp")" = "$CLI_REF" ] && [ -n "$CLI_REF" ]; then ok "emitter $_p: the ARIA SURFACE path runs and ranks the fixture"
   else bad "emitter $_p: the ARIA SURFACE path runs and ranks the fixture" "path did not produce the canonical ranking"; fi
+  _mr=$(model_run "$_sc")
+  if [ -n "$_sc" ] && [ -n "$CLI_REF_H" ] && [ "$_mr" = "$CLI_REF_H" ]; then ok "emitter $_p: the command a model copies from ARIA SURFACE ranks the literal text"
+  else bad "emitter $_p: the command a model copies from ARIA SURFACE ranks the literal text" "got '$(printf '%s' "$_mr" | head -1)'"; fi
+  if [ -e "$T7/mk1" ] || [ -e "$T7/mk2" ]; then bad "emitter $_p: … and runs nothing in the task text" "a marker file was created"
+  else ok "emitter $_p: … and runs nothing in the task text"; fi
 
   _m0=$(emit_port "$_p" "$T7/off.md")
   if printf '%s' "$_m0" | grep -qF 'ARIA CONTEXT — '; then
@@ -417,7 +451,7 @@ done
 # assign it in the same line, from the port's established ${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}.
 for _s in prospect retrospect; do
   _f="$ROOT/plugin-openai-codex/skills/$_s/SKILL.md"
-  if grep -qF 'ARIA_PLUGIN_ROOT="${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}"; sh "${ARIA_PLUGIN_ROOT}/bin/aria-surface.sh"' "$_f"; then
+  if grep -qF 'ARIA_PLUGIN_ROOT="${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}"; sh "${ARIA_PLUGIN_ROOT}/bin/aria-surface.sh" - <<'"'"'ARIA_TASK'"'"'' "$_f"; then
     ok "codex_skills_call_cli: codex /$_s assigns ARIA_PLUGIN_ROOT and calls bin/aria-surface.sh"
   else
     bad "codex_skills_call_cli: codex /$_s assigns ARIA_PLUGIN_ROOT and calls bin/aria-surface.sh" "CLI invocation absent"
@@ -440,9 +474,13 @@ done
 # unset it turns the command into `sh /bin/aria-surface.sh` (exit 127, empty stdout); and (b) says a
 # not-found or non-zero run is "unavailable", never "0 matches", which would claim the index was
 # searched. Cowork does not run the CLI and is not in this set.
-F1_A='if an `ARIA SURFACE — "<path>"` line reached you at session start, run `sh "<that path>" "<the query built in item 1>"`'
-F1_B='`Active surfacing: unavailable (<the error>)`'
+# 2.58.0 fix wave: (A) the command comes from ARIA SURFACE, (D) an `unavailable:` line is handled, and
+# (E) the query never goes inside quotes on the command line (C1 — backticks and $() would run there).
+F1_A='if an `ARIA SURFACE — run: …` line reached you at session start, use the command it names'
+F1_B='`Active surfacing: unavailable (<the reason or error>)`'
 F1_C='never `Active surfacing: 0 matches`'
+F1_D='If it prints `unavailable: <reason>`'
+F1_E='Never put the query inside quotes on the command line'
 F1_DEAD='It always exits 0.'
 f1_count() { grep -oF -e "$1" "$2" 2>/dev/null | wc -l | tr -d ' '; }
 for _spec in \
@@ -451,7 +489,7 @@ for _spec in \
   "plugin-openai-codex/skills/prospect/SKILL.md:1" "plugin-openai-codex/skills/retrospect/SKILL.md:1" \
   "plugin-cursor-template/.cursor/rules/aria-commands.mdc:2"; do
   _n=${_spec%:*}; _want=${_spec##*:}; _f="$ROOT/$_n"
-  for _p in A B C; do
+  for _p in A B C D E; do
     eval "_needle=\$F1_$_p"
     _got=$(f1_count "$_needle" "$_f")
     if [ "$_got" = "$_want" ]; then ok "F1 $_p: $_n carries it ($_got)"
@@ -466,7 +504,7 @@ for _spec in "plugin-claude-code/skills/prospect/SKILL.md:\${CLAUDE_PLUGIN_ROOT}
              "plugin-antigravity/skills/prospect/SKILL.md:\${CLAUDE_PLUGIN_ROOT}/bin/aria-surface.sh" \
              "plugin-cursor-template/.cursor/rules/aria-commands.mdc:scripts/aria/aria-surface.sh"; do
   _n=${_spec%%:*}; _needle=${_spec#*:}
-  if grep -qF -e "otherwise run \`sh \"$_needle\"" "$ROOT/$_n"; then ok "F1 fallback: $_n falls back to $_needle"
+  if grep -qF -e "otherwise use \`sh \"$_needle\" - <<'ARIA_TASK'\`" "$ROOT/$_n"; then ok "F1 fallback: $_n falls back to $_needle"
   else bad "F1 fallback: $_n falls back to $_needle" "fallback form absent"; fi
 done
 
