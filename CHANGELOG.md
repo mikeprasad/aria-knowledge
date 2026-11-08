@@ -29,7 +29,7 @@ All notable changes to ARIA will be documented in this file.
 - Across all 287 eligible opening messages it fired on 232 (was 208) and never where the old lib fired and it did not. Of the 24 new firings, 22 come from a single project tag; judged by hand, 7 surfaced a task-relevant file, 7 only background, 8 nothing useful or unclear.
 - Known weaknesses seen in that sample: task-word overlap is lexical and promoted an unrelated file through a shared word in 5 of the 33; and when no configured project matches, rarest-tag order can rank a generic tag above the one that names the subject. Aliases for project nicknames close several of the misses.
 
-**Tests:** `tests/repros/surfacing-rank.sh` — the matcher's first tests, on a synthetic fixture index, each arm seen red against the old lib first.
+**Tests:** `tests/repros/surfacing-rank.sh` — the matcher's first tests, on a synthetic fixture index. Each behaviour arm was seen red against the old lib first; the arms labelled GUARD pass on both libs by design and pin what must not change.
 
 ## 2.57.9 — 2026-11-08
 
