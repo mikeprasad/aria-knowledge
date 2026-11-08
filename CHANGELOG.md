@@ -2,6 +2,26 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.57.8 — 2026-11-07
+
+**Three fixes for operations that were correct with one actor and silently lost something with two.**
+
+**Rules written by a newer aria-knowledge are no longer overwritten.** The SessionStart hook copied its bundled rules over `~/.claude/rules/aria-rules.md` (and re-rendered `aria-user-rules.md`) whenever the bytes differed. A session started before an upgrade kept running its old hook and put older rules back (measured: a 2.57.4 session overwrote 2.57.5's digest), and two installs can run at once (measured: the Claude Code registry named 2.57.5 while the desktop app's own copy was 2.57.6).
+
+- Each writer puts its version on line 1 of both files (`<!-- aria-knowledge <version> -->`) and never replaces a file stamped with a newer version. An unstamped or unparseable stamp is replaced as before.
+- When a file is held, the model context gets an `ARIA RULES NOT REFRESHED` line naming the file and both versions. To downgrade on purpose, delete the two files and start a new session.
+- A version bump that leaves the rules unchanged is not announced as a rules change.
+- ⚠ Sessions running 2.57.7 or older have no guard and still overwrite until they are restarted.
+
+**Resuming a handoff consumes only the prompt you located.** `kt_ss_ledger_consume_active` took no token and consumed whatever was in the active slot when it ran. Resume is two calls with a model turn between them, so a handoff another session wrote in that window was demoted, marked consumed, and the call reported success (seen twice). It now takes the located token as a required fourth argument and refuses (non-zero, with a message naming both tokens) when the slot holds anything else. The SESSION STATE directive passes the token and says what to do on a refusal: locate again with the same token, never consume whatever is now active.
+
+**Release zips survive removing a release worktree.** The built zips are ignored files, and `git worktree remove` deletes ignored files without asking. New `release-worktree-finish.sh` copies every artifact to the main checkout, verifies each copy, and only then removes the worktree; it refuses on a failed copy or an empty artifact set. `RELEASING.md` gains an ordered "Releasing from a worktree" section. Proven on a scratch worktree of this repo with a real build: both zips arrived with the checksums recorded before removal.
+
+- Tests: `session-start-single-emitter.sh` VG1–VG8, `session-state.sh` blocks W and X (X runs the contract against all four port libraries), `session-state-token-directive.sh` B6 (all four directive copies), new `release-worktree-finish.sh` (C1 is a control that shows the loss). Each was seen red first; a mutation of the version compare turns VG1, VG2 and VG8 red.
+- Ports: `consume_active` and the directive in Codex and Cursor (spliced, function bodies identical) and Antigravity (regenerated); `/setup`'s description of the rules writer in every port. The rules writer itself is Claude Code only.
+
+**Versions:** Claude Code `2.57.8`, Antigravity `2.57.8`, Codex `2.57.8-codex.0`, Cursor `2.57.8-cursor.0`. Cowork is unchanged at 1.8.1.
+
 ## 2.57.7 — 2026-10-30
 
 **Fix a 2.57.5 regression: the in-progress mark works again after `/wrapup` and `/handoff`.** 2.57.5 stopped the first-edit hook from rewriting a `SESSION.md` whose `## Next session prompt` holds a live handoff. Its emptiness test counted fence lines as content, so the empty fence pair that `/wrapup` and `/handoff` both leave in that slot read as a live prompt. After either one, the next session's first edit was never marked in progress (measured on an installed 2.57.5: an empty-fence file stayed `wrapup`, the same file without a fence was marked). Nothing was overwritten or lost.
