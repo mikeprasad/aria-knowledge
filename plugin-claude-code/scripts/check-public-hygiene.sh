@@ -151,6 +151,54 @@ if [ "$st_fail" -ne 0 ]; then
     exit 2
 fi
 
+# --- private name list (added 2.58.0) ------------------------------------------
+# TERMS/CODES/ARTIFACTS live in this PUBLIC repo, so a private name can only be listed above
+# by publishing it, and names nobody listed passed silently. This file is UNTRACKED and lives
+# outside the repo: ${ARIA_PRIVATE_TERMS_FILE:-$HOME/.claude/aria-private-terms.txt}.
+#   one entry per line · `#` comments and blank lines ignored · CR stripped
+#   `path:X`  matched in PATH POSITION, boundary-anchored exactly like CODES (for common words)
+#   other     matched like TERMS: case-insensitive SUBSTRING (what line "for t in $TERMS" does)
+# Entries are regex-escaped, so a dot in a name is a dot. ⛔ The list is never echoed: findings
+# print the matching LINES of tracked content, never the list. A missing file is reported, not
+# an error — fresh clones run the public lists only.
+_kt_ere_escape() { printf '%s' "$1" | sed 's/[][\.*^$+?(){}|]/\\&/g'; }
+PRIV_FILE="${ARIA_PRIVATE_TERMS_FILE:-$HOME/.claude/aria-private-terms.txt}"
+PRIV_TERMS=""   # one escaped entry per line (a name may contain spaces, so never word-split)
+PRIV_PATHS=""   # |-joined escaped path names
+PRIV_COUNT=0
+if [ -f "$PRIV_FILE" ] && [ -r "$PRIV_FILE" ]; then
+    while IFS= read -r _l || [ -n "$_l" ]; do
+        _l=$(printf '%s' "$_l" | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+        case "$_l" in ''|'#'*) continue ;; esac
+        case "$_l" in
+            path:*)
+                _p=${_l#path:}; _p=${_p%/}; [ -n "$_p" ] || continue
+                _p=$(_kt_ere_escape "$_p")
+                if [ -z "$PRIV_PATHS" ]; then PRIV_PATHS="$_p"; else PRIV_PATHS="$PRIV_PATHS|$_p"; fi ;;
+            *)
+                PRIV_TERMS="${PRIV_TERMS}$(_kt_ere_escape "$_l")
+" ;;
+        esac
+        PRIV_COUNT=$((PRIV_COUNT + 1))
+    done < "$PRIV_FILE"
+    PRIV_STATUS="$PRIV_COUNT loaded from $PRIV_FILE"
+else
+    PRIV_STATUS="none (file absent)"
+fi
+PRIV_PATH_RE=""
+[ -n "$PRIV_PATHS" ] && PRIV_PATH_RE="(^|[^A-Za-z0-9.-])($PRIV_PATHS)/"
+# Stated on EVERY run, clean or not: a list that silently failed to load reads exactly like a
+# list that found nothing.
+printf 'gate D: private terms: %s\n' "$PRIV_STATUS"
+# scan_list FN -> run FN (scan | scan_msg) once per private entry; one hit per output line.
+scan_list() {
+    [ -n "$PRIV_TERMS" ] && printf '%s' "$PRIV_TERMS" | while IFS= read -r _t; do
+        [ -n "$_t" ] && "$1" "$_t" | head -20
+    done
+    [ -n "$PRIV_PATH_RE" ] && "$1" "$PRIV_PATH_RE" | head -20
+    return 0
+}
+
 # --- scan --------------------------------------------------------------------
 # SCOPE IS TRACKED FILES, NOT THE WORKING TREE. What publishes is what git
 # carries; a gitignored scratch directory is not the artifact. On the run that
@@ -242,6 +290,7 @@ $(printf '%s\n' "$2" | sed "s|^|[$1] |")"
 for t in $TERMS;     do _add_msg "$t" "$(scan_msg "$t"     | head -5)"; done
 for a in $ARTIFACTS; do _add_msg "$a" "$(scan_msg "$a"     | head -5)"; done
 _add_msg "path-code" "$(scan_msg "$CODE_RE" | head -5)"
+_add_msg "private-list" "$(scan_list scan_msg | head -5)"
 _add_msg "own-repo"  "$(scan_msg "github\.com/$OWNER/[A-Za-z0-9._-]+" | while IFS= read -r l; do
     printf '%s\n' "$l" | _kt_own_repo_leak | grep -q . && printf '%s\n' "$l"; done | head -5)"
 _add_msg "home-path" "$(scan_msg "(^|[^A-Za-z0-9._$-])/(Users|home)/[A-Za-z0-9._-]+" | while IFS= read -r l; do
@@ -275,6 +324,17 @@ for a in $ARTIFACTS; do
     done
     FOUND=$((FOUND + 1))
 done
+
+# --- names from the untracked private list ------------------------------------
+# The header names the list FILE, not its entries; the lines below are tracked content.
+priv_hits=$(scan_list scan | sed '/^$/d')
+if [ -n "$priv_hits" ]; then
+    printf 'name from your private list (%s):\n' "$PRIV_FILE"
+    echo "$priv_hits" | head -20 | while IFS= read -r line; do
+        printf '  %s\n' "$(echo "$line" | cut -c1-160)"
+    done
+    FOUND=$((FOUND + 1))
+fi
 
 # --- own-org links to a repo that is not on the public allowlist ---------------
 # A line is reported if ANY own-org repo on it is unlisted — not just the first. Taking
@@ -328,6 +388,7 @@ any=$(
       printf '%s' "$own_hits"
       printf '%s' "$home_hits"
       printf '%s' "$msg_hits"
+      printf '%s' "$priv_hits"
     } | head -1
 )
 
