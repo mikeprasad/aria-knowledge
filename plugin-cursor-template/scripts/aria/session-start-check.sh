@@ -249,7 +249,24 @@ fi
 INDEX_FILE="$KT_KNOWLEDGE_FOLDER/index.md"
 if [ -f "$INDEX_FILE" ]; then
   if [ "$KT_ACTIVE_SURFACING" = "true" ]; then
-    MESSAGES="${MESSAGES}ARIA ACTIVE CONTEXT — Knowledge index at ${KT_KNOWLEDGE_FOLDER}/index.md. After the user states their first task, do this autonomously (do NOT wait for /context): (1) Read index.md and parse the ## Tag Index section for ### tagname headers; (2) tokenize the user's task text (lowercase, alnum-only, dedupe); (3) find tags whose names exactly match any token; (4) if ≥2 tags match, collect file lines under those tag sections, dedupe by path, cap at top-5; (5) Read each matched file; (6) before answering, output 1-2 sentences naming which files loaded and why each is relevant. Offer once per session and again on clear topic change. The TaskCreated / Bash-cd / PostCompact hooks will auto-surface for those triggers — this instruction covers the SessionStart→first-user-message gap. Honors a session ledger at /tmp/aria-active-\${session_id} (paths already there, don't re-Read). "
+    # The directive is plugin-claude-code/rules/aria-rules.md's ARIA ACTIVE CONTEXT line, byte for
+    # byte, with {knowledge_folder} substituted below. It sits in a QUOTED heredoc because it carries
+    # backticks and apostrophes: inside a double-quoted string a backtick is command substitution and
+    # deletes text silently. Do NOT escape it or move it into a double-quoted string —
+    # tests/repros/surfacing-ranking-verbatim.sh runs this emitter and compares the text byte for byte.
+    # read, not $(cat <<...): bash 3.2 (macOS /bin/sh) mis-parses an apostrophe in a heredoc that
+    # sits inside a command substitution.
+    IFS= read -r _aa_text <<'ARIA_ACTIVE_CONTEXT'
+ARIA ACTIVE CONTEXT — Unasked, read each task's knowledge files before answering; say in one line which you used and why. Source: (a) an `ARIA ACTIVE —` injection; in Claude Code the only source (none = read nothing); else (b) with a shell, `sh` any `ARIA SURFACE` path with the task text; else (c) `## Tag Index` headers of {knowledge_folder}/index.md matching task words, ordered: <!-- surfacing-ranking:start -->Rank the candidate files: (1) a file carrying a matched project tag first; (2) then files carrying more of the matched tags; (3) then files whose path or index description contains more of the task's own words (lowercase, length over 2, common words dropped); (4) then authored files before files under `logs/`; (5) then the file whose rarest matched tag has the fewest files; (6) then index order. Fire when 2 or more tags match, or when 1 matched tag is a configured project. Keep the top 5.<!-- surfacing-ranking:end --> Skip paths in /tmp/aria-active-$CLAUDE_CODE_SESSION_ID; never use `ls -t` over that glob (wrong session).
+ARIA_ACTIVE_CONTEXT
+    _aa_tok='{knowledge_folder}'
+    MESSAGES="${MESSAGES}${_aa_text%%"$_aa_tok"*}${KT_KNOWLEDGE_FOLDER}${_aa_text#*"$_aa_tok"} "
+    # ARIA SURFACE value line, as plugin-claude-code/scripts/session-start-check.sh sends it: branch (b)
+    # of the directive runs whatever path this names. Absolute and quoted — an install path may
+    # contain a space.
+    if [ -f "${SCRIPT_DIR}/aria-surface.sh" ]; then
+      MESSAGES="${MESSAGES}ARIA SURFACE — \"${SCRIPT_DIR}/aria-surface.sh\" "
+    fi
   else
     MESSAGES="${MESSAGES}ARIA CONTEXT — Knowledge index available at ${KT_KNOWLEDGE_FOLDER}/index.md. After user states task, check it for relevant tags and suggest a /context with any found relevant tags. Offer once per session and again when changing topics. Do not block. "
   fi
@@ -314,7 +331,7 @@ fi
 
 # Per-task insight batch capture — gated by auto_capture
 if [ "$KT_AUTO_CAPTURE" != "false" ]; then
-  MESSAGES="${MESSAGES}INSIGHT CAPTURE — After completing discrete tasks, batch-append any uncaptured \xe2\x98\x85 Insight blocks to ${KT_KNOWLEDGE_FOLDER}/intake/insights-backlog.md, each as one '### YYYY-MM-DD — <project> — <title>' heading with its body under it — never under a '## ' group header and never at '####', the level that means already processed. Do not capture mid-task — only at task completion boundaries. "
+  MESSAGES="${MESSAGES}INSIGHT CAPTURE — After completing discrete tasks, batch-append any uncaptured starred Insight blocks to ${KT_KNOWLEDGE_FOLDER}/intake/insights-backlog.md, each as one '### YYYY-MM-DD — <project> — <title>' heading with its body under it — never under a '## ' group header and never at '####', the level that means already processed. Do not capture mid-task — only at task completion boundaries. "
 fi
 
 # Memory pathway guardrail (v2.10.6). Recent Claude models have enhanced
