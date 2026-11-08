@@ -418,17 +418,18 @@ mq_odd=$(awk 'BEGIN { for (i = 1; i <= 420; i += 2) printf "tag%03d ", i }')
 mq_proj=$(awk 'BEGIN { for (j = 1; j <= 400; j += 2) printf "p%03d ", j }')
 mp_list=$(awk 'BEGIN { for (j = 1; j <= 400; j++) printf "%sp%03d:p%03d", (j > 1 ? "," : ""), j, j }')
 _saved_kf=$KT_KNOWLEDGE_FOLDER; _saved_pl=$KT_PROJECTS_LIST
-# The uncached fallback is disabled here, so this arm proves the CACHE path
-# ranks dense queries; a fallback rescuing a broken cache path would mask it.
-_kt_index_full_parse() { : > "$_kt_raw"; }
+# The uncached fallback's row selector is disabled here, so this arm proves the
+# CACHE path ranks dense queries; a fallback rescuing a broken cache path would
+# mask it.
+_kt_index_cache_select_awk() { return 1; }
 KT_KNOWLEDGE_FOLDER="$KFM"; KT_SURFACE_CACHE_DIR="$SCRATCH/cache-many"; mkdir -p "$KT_SURFACE_CACHE_DIR"
 kt_index_match "$mq_all"; m_all_n=$KT_MATCH_COUNT; m_all_t=$(printf '%s' "$KT_MATCH_TAGS" | wc -w | tr -d ' '); m_all=$(ranked); kt_match_cleanup
 kt_index_match "$mq_odd"; m_odd_n=$KT_MATCH_COUNT; m_odd=$(ranked); kt_match_cleanup
 KT_PROJECTS_LIST="$mp_list"
 kt_index_match "$mq_proj"; m_proj_n=$KT_MATCH_COUNT; m_proj_t=$(printf '%s' "$KT_MATCH_TAGS" | wc -w | tr -d ' '); m_proj=$(ranked); kt_match_cleanup
 KT_KNOWLEDGE_FOLDER=$_saved_kf; KT_PROJECTS_LIST=$_saved_pl; KT_SURFACE_CACHE_DIR=$_saved_cd
-unset -f _kt_index_full_parse
-eval "$(sed -n '/^_kt_index_full_parse() {/,/^}/p' "$LIB")"
+unset -f _kt_index_cache_select_awk
+eval "$(sed -n '/^_kt_index_cache_select_awk() {/,/^}/p' "$LIB")"
 m_all_want="references/n011.md references/n012.md references/n013.md references/n014.md references/n015.md"
 m_odd_want="references/n011.md references/n013.md references/n015.md references/n017.md references/n019.md"
 m_proj_want="projects/p001/notes.md projects/p003/notes.md projects/p005/notes.md projects/p007/notes.md projects/p009/notes.md"
@@ -440,28 +441,82 @@ else
   bad "many_matched_tags_still_ranks" "all: n $m_all_n tags $m_all_t got '$m_all' | odd: n $m_odd_n got '$m_odd' | proj: n $m_proj_n tags $m_proj_t got '$m_proj'"
 fi
 
-# --- cache_failure_falls_back_to_full_parse --- if every cache attempt fails,
-# the answer must come from an uncached full parse, never be an empty "no
-# match". Every attempt is forced to fail by wrapping _kt_index_cache_answer
-# (late-bound) to report failure; the answers must equal the normal path's.
-# Seen RED on a8c0a2d, which answered nothing.
-kt_index_match "$MAINQ"; fb_n1=$(ranked); fb_t1=$KT_MATCH_TAGS; kt_match_cleanup
-kt_index_match "check webhooks and payments"; fb_n2=$(ranked); kt_match_cleanup
-kt_index_match "site-1 skylights"; fb_n3=$(ranked); fb_t3=$KT_MATCH_TAGS; kt_match_cleanup
-kt_index_match "look at payments"; fb_n4=$KT_MATCH_COUNT; kt_match_cleanup
-_kt_index_cache_answer() { : > "$_kt_raw"; return 2; }
-kt_index_match "$MAINQ"; fb_f1=$(ranked); fb_ft1=$KT_MATCH_TAGS; kt_match_cleanup
-kt_index_match "check webhooks and payments"; fb_f2=$(ranked); kt_match_cleanup
-kt_index_match "site-1 skylights"; fb_f3=$(ranked); fb_ft3=$KT_MATCH_TAGS; kt_match_cleanup
-kt_index_match "look at payments"; fb_f4=$KT_MATCH_COUNT; kt_match_cleanup
-eval "$(sed -n '/^_kt_index_cache_answer() {/,/^}/p' "$LIB")"
-if [ "$fb_n1" = "$MAIN_EXPECT" ] && [ "$fb_f1" = "$fb_n1" ] && [ "$fb_ft1" = "$fb_t1" ] \
-   && [ -n "$fb_n2" ] && [ "$fb_f2" = "$fb_n2" ] && [ -n "$fb_n3" ] && [ "$fb_f3" = "$fb_n3" ] && [ "$fb_ft3" = "$fb_t3" ] \
-   && [ "$fb_n4" -eq 0 ] && [ "$fb_f4" -eq 0 ]; then
-  ok "cache_failure_falls_back_to_full_parse"
-else
-  bad "cache_failure_falls_back_to_full_parse" "main '$fb_f1' vs '$fb_n1'; rarest '$fb_f2' vs '$fb_n2'; alias '$fb_f3' vs '$fb_n3'; lone-generic $fb_f4 vs $fb_n4"
-fi
+# --- cache_failure_falls_back_uncached --- if every cache attempt fails, the
+# answer must come from an uncached parse, never be an empty "no match". The
+# cache attempts are forced to fail at their sed row selector (late-bound
+# wrap); the fallback builds a private copy and selects rows with awk, then
+# uses the SAME plan and rank steps. Answers must equal the normal path's,
+# including a configured project with no Tag Index section (proj-a), which
+# surfaces only through project-folder carrying. Seen RED on a8c0a2d.
+fb_q1="$MAINQ"; fb_q2="check webhooks and payments"; fb_q3="site-1 skylights"; fb_q4="look at payments"; fb_q5="work on proj-a"
+for i in 1 2 3 4 5; do
+  eval "q=\$fb_q$i"; kt_index_match "$q"
+  eval "fb_n$i=\$(ranked); fb_nt$i=\$KT_MATCH_TAGS"; kt_match_cleanup
+done
+_kt_index_cache_select_sed() { return 1; }
+for i in 1 2 3 4 5; do
+  eval "q=\$fb_q$i"; kt_index_match "$q"
+  eval "fb_f$i=\$(ranked); fb_ft$i=\$KT_MATCH_TAGS"; kt_match_cleanup
+done
+unset -f _kt_index_cache_select_sed
+eval "$(sed -n '/^_kt_index_cache_select_sed() {/,/^}/p' "$LIB")"
+fb_ok=yes; fb_why=""
+for i in 1 2 3 4 5; do
+  eval "a=\$fb_n$i; b=\$fb_f$i; at=\$fb_nt$i; bt=\$fb_ft$i"
+  if [ "$a" != "$b" ] || [ "$at" != "$bt" ]; then fb_ok=no; fb_why="$fb_why | q$i normal '$a' [$at] fallback '$b' [$bt]"; fi
+done
+[ "$fb_n1" = "$MAIN_EXPECT" ] || { fb_ok=no; fb_why="$fb_why | normal main '$fb_n1'"; }
+[ "$fb_n5" = "projects/proj-a/hooks.md" ] || { fb_ok=no; fb_why="$fb_why | normal proj-a '$fb_n5'"; }
+[ -z "$fb_n4" ] || { fb_ok=no; fb_why="$fb_why | lone generic fired '$fb_n4'"; }
+[ "$fb_ok" = yes ] && ok "cache_failure_falls_back_uncached" || bad "cache_failure_falls_back_uncached" "$fb_why"
+
+# --- rarest_tag_is_min_not_max --- key 5 is the FEWEST-files matched tag a
+# candidate carries (MIN). cand-a and cand-b tie on keys 1-4 and each carry two
+# matched tags: cand-a {alpha 2 files, beta 9}, cand-b {gamma 4, delta 5}. MIN
+# puts cand-a first (2 < 4); MAX would put cand-b first (5 < 9); index order
+# alone also puts cand-b first (it is listed first).
+KFR="$SCRATCH/kfr"; mkdir -p "$KFR"
+{
+  printf '## Tag Index\n\n### gamma\n- references/cand-b.md — Candidate B\n'
+  for i in 1 2 3; do printf -- '- references/gamma-%d.md — Filler %d\n' "$i" "$i"; done
+  printf '\n### delta\n- references/cand-b.md — Candidate B\n'
+  for i in 1 2 3 4; do printf -- '- references/delta-%d.md — Filler %d\n' "$i" "$i"; done
+  printf '\n### alpha\n- references/cand-a.md — Candidate A\n- references/alpha-1.md — Filler 1\n'
+  printf '\n### beta\n- references/cand-a.md — Candidate A\n'
+  for i in 1 2 3 4 5 6 7 8; do printf -- '- references/beta-%d.md — Filler %d\n' "$i" "$i"; done
+} > "$KFR/index.md"
+_saved_kf=$KT_KNOWLEDGE_FOLDER; KT_KNOWLEDGE_FOLDER="$KFR"; KT_SURFACE_CACHE_DIR="$SCRATCH/cache-rar"; mkdir -p "$KT_SURFACE_CACHE_DIR"
+kt_index_match "alpha beta gamma delta"; r_got=$(ranked); kt_match_cleanup
+_kt_index_cache_select_sed() { return 1; }
+kt_index_match "alpha beta gamma delta"; r_fb=$(ranked); kt_match_cleanup
+unset -f _kt_index_cache_select_sed
+eval "$(sed -n '/^_kt_index_cache_select_sed() {/,/^}/p' "$LIB")"
+KT_KNOWLEDGE_FOLDER=$_saved_kf; KT_SURFACE_CACHE_DIR=$_saved_cd
+r_want="references/cand-a.md references/cand-b.md references/alpha-1.md references/gamma-1.md references/gamma-2.md"
+if [ "$r_got" = "$r_want" ]; then ok "rarest_tag_is_min_not_max"
+else bad "rarest_tag_is_min_not_max" "got '$r_got' want '$r_want' (fallback path '$r_fb')"; fi
+
+# --- cache_truncated_plan_is_a_failure --- a plan step cut off on a line
+# boundary (killed mid-output) must count as a failure, not as a shorter list
+# of groups. One-shot wrap: the first plan call returns only its first three
+# lines (@fire, tags, the first range); the query must still equal a clean
+# run (the failure is detected and the next attempt answers). The query's
+# groups (payments, webhooks) are not adjacent, so the cut drops one.
+C6="$SCRATCH/cache-trunc"; mkdir -p "$C6"
+KT_SURFACE_CACHE_DIR="$C6"
+kt_index_match "check webhooks and payments"; t_clean=$(ranked); kt_match_cleanup
+T6="$SCRATCH/truncate-once"; : > "$T6"
+eval "$(sed -n '/^_kt_index_cache_plan() {/,/^}/p' "$LIB" | sed '1s/^_kt_index_cache_plan()/_kt_orig_plan()/')"
+_kt_index_cache_plan() {
+  if [ -f "$T6" ]; then rm -f "$T6"; _kt_orig_plan | head -3; else _kt_orig_plan; fi
+}
+kt_index_match "check webhooks and payments"; t_got=$(ranked); kt_match_cleanup
+t_fired=no; [ ! -f "$T6" ] && t_fired=yes
+eval "$(sed -n '/^_kt_index_cache_plan() {/,/^}/p' "$LIB")"
+KT_SURFACE_CACHE_DIR=$_saved_cd
+t_want="projects/proj-c/billing-1.md projects/proj-a/hooks.md references/webhook-basics.md projects/proj-c/billing-2.md projects/proj-c/billing-3.md"
+if [ "$t_fired" = yes ] && [ "$t_clean" = "$t_want" ] && [ "$t_got" = "$t_clean" ]; then ok "cache_truncated_plan_is_a_failure"
+else bad "cache_truncated_plan_is_a_failure" "fired $t_fired clean '$t_clean' got '$t_got'"; fi
 
 # No temp files may outlive cleanup. GUARD: vacuous on the old lib, which
 # wrote its temp files to a hard-coded /tmp instead of $TMPDIR.

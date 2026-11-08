@@ -156,7 +156,8 @@ _kt_index_cache_build() {
 #       of every listed path under `projects/<tag>/`), adjacent ranges merged,
 #       ending `<last>q`. One per line because BSD sed reads a one-line script
 #       in 2,048-byte chunks and fails ("command expected", no output) on any
-#       command straddling a chunk boundary (measured); per line has no limit.
+#       command straddling a chunk boundary (measured); per line has no limit;
+#       then a closing @endplan, so a plan cut off mid-output is detectable.
 # Anything else (e.g. an awk that died) is treated by the caller as a failure.
 _kt_index_cache_plan() {
   _KT_HEAD="$_kt_head" _KT_WORDS="$_kt_words" _KT_PROJECTS="$_kt_plist" awk '
@@ -202,6 +203,7 @@ _kt_index_cache_plan() {
       print substr(out, 2)
       printf "%s", script
       if (last) print last "q"
+      print "@endplan"
     }
   '
 }
@@ -281,21 +283,39 @@ _kt_index_cache_snapshot_build() {
   return $_kt_brc
 }
 
-# Answer from cache file $1 into $_kt_raw. Returns 0 when answered (the raw
-# file is empty when the match does not fire), 2 on ANY failure: a stale,
-# foreign, short or mid-query-swapped cache, or a step that died. The file is
-# opened twice — the plan reads the header, sed pulls the row groups — and
-# EACH read checks line 1 against $_kt_head, so both reads provably came from
-# the same cache version.
+# Row selection for the answer step: print line 1 of cache file $2, then the
+# line ranges listed in script file $1 (`1p`, then `a,bp` lines, ascending and
+# non-overlapping, then `Nq` — what the plan emits). Two implementations of
+# this one small step: sed for the cache path (fast), awk for the uncached
+# fallback (one pass, so a sed fault cannot take the fallback down too).
+# Everything else — parse, aliases, match, rank — has one implementation.
+_kt_index_cache_select_sed() { sed -n -f "$1" "$2"; }
+_kt_index_cache_select_awk() {
+  awk -F '[,p]' '
+    NR == FNR { if ($0 ~ /^[0-9]+,[0-9]+p$/) { n++; A[n] = $1 + 0; B[n] = $2 + 0 }; next }
+    FNR == 1 { print; r = 1; next }
+    { while (r <= n && FNR > B[r]) r++; if (r > n) exit; if (FNR >= A[r]) print }
+  ' "$1" "$2"
+}
+
+# Answer from cache file $1 into $_kt_raw, selecting rows with function $2
+# (one of the two above). Returns 0 when answered (the raw file is empty when
+# the match does not fire), 2 on ANY failure: a stale, foreign, short or
+# mid-query-swapped cache, a plan cut short, or a step that died. The file is
+# opened twice — the plan reads the header, the selector pulls the row groups —
+# and EACH read checks line 1 against $_kt_head, so both reads provably came
+# from the same cache version.
 _kt_index_cache_answer() {
   : > "$_kt_raw"
   _kt_plan=$(_kt_index_cache_plan < "$1" 2>/dev/null)
+  [ $? -eq 0 ] || return 2
   case "$_kt_plan" in
     @nofire) return 0 ;;
-    "@fire$_kt_nl"*) ;;
+    "@fire$_kt_nl"*"$_kt_nl@endplan") ;;
     *) return 2 ;;
   esac
   _kt_plan=${_kt_plan#*"$_kt_nl"}
+  _kt_plan=${_kt_plan%"$_kt_nl@endplan"}
   _kt_mtags=${_kt_plan%%"$_kt_nl"*}
   _kt_sed=""
   case "$_kt_plan" in *"$_kt_nl"*) _kt_sed=${_kt_plan#*"$_kt_nl"} ;; esac
@@ -304,10 +324,10 @@ _kt_index_cache_answer() {
     # The script goes in a file: no argument-length limit at any match size.
     _kt_sedf=$(mktemp "${TMPDIR:-/tmp}/aria-match-sed.XXXXXX") || return 2
     printf '1p\n%s\n' "$_kt_sed" > "$_kt_sedf"
-    sed -n -f "$_kt_sedf" "$1" > "$_kt_raw" 2>/dev/null
-    _kt_sedrc=$?
+    "$2" "$_kt_sedf" "$1" > "$_kt_raw" 2>/dev/null
+    _kt_selrc=$?
     rm -f "$_kt_sedf" 2>/dev/null
-    [ "$_kt_sedrc" -eq 0 ] || return 2
+    [ "$_kt_selrc" -eq 0 ] || return 2
     _kt_rows=$(_kt_index_cache_rank < "$_kt_raw" 2>/dev/null)
     case "$_kt_rows" in
       @done) _kt_rows="" ;;
@@ -320,91 +340,6 @@ _kt_index_cache_answer() {
     [ -n "$_kt_rows" ] && printf '%s\n' "$_kt_rows"
   } > "$_kt_raw"
   return 0
-}
-
-# The uncached full parse: the pre-cache algorithm, unchanged — one awk pass
-# over index.md writing the same T/C lines into $_kt_raw. Used only when every
-# cache attempt failed, so a cache fault can never read as "no match".
-# Vocabulary = `### ` headers under `## Tag Index` ∪ projects_list tags.
-# File-listing sections are `## Tag Index` and `## Other Tags`; only Tag Index
-# sections make a file CARRY a tag, while a project tag also carries every
-# listed path under `projects/<tag>/` (either section). Aliases as in the cache.
-_kt_index_full_parse() {
-  _KT_WORDS="$_kt_words" _KT_TASK="$_kt_task" _KT_PROJECTS="$_kt_plist" awk '
-    function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s); return s }
-    function pathof(l,   i) { i = index(l, " — "); return i ? substr(l, 1, i - 1) : l }
-    BEGIN {
-      nw = split(ENVIRON["_KT_WORDS"], W, " ")
-      nt = split(ENVIRON["_KT_TASK"], T, " ")
-      npl = split(ENVIRON["_KT_PROJECTS"], PL, ",")
-      for (i = 1; i <= npl; i++) {
-        c = index(PL[i], ":"); if (!c) continue
-        t = tolower(trim(substr(PL[i], 1, c - 1)))
-        if (t != "" && !(t in isproj)) { isproj[t] = 1; porder[++npo] = t }
-      }
-      sec = ""; tag = ""; known = ""; nv = 0; nl = 0
-    }
-    /^## / { sec = trim(substr($0, 4)); tag = ""; next }
-    sec == "Known Tags" { known = known " " $0; next }
-    /^### / {
-      tag = ""
-      if (sec == "Tag Index" || sec == "Other Tags") tag = tolower(trim(substr($0, 5)))
-      if (sec == "Tag Index" && tag != "" && !(tag in hassec)) { hassec[tag] = 1; vorder[++nv] = tag }
-      next
-    }
-    /^- / && (sec == "Tag Index" || sec == "Other Tags") {
-      line = substr($0, 3); p = pathof(line)
-      if (!(p in pos)) { pos[p] = ++nl; desc[p] = line }
-      if (sec == "Tag Index" && tag != "" && !((tag SUBSEP p) in carries)) { carries[tag SUBSEP p] = 1; cnt[tag]++ }
-      next
-    }
-    END {
-      s = known
-      while ((i = index(s, "[aliases:")) > 0) {
-        pre = substr(s, 1, i - 1); rest = substr(s, i + 9)
-        j = index(rest, "]"); if (!j) break
-        list = substr(rest, 1, j - 1); s = substr(rest, j + 1)
-        n = split(pre, pw, /[ ,`*\t]+/); canon = ""
-        for (k = n; k >= 1; k--) if (pw[k] != "") { canon = tolower(pw[k]); break }
-        if (canon == "") continue
-        m = split(list, al, /[ ,\t]+/)
-        for (k = 1; k <= m; k++) { a = tolower(al[k]); if (a != "" && !(a in alias)) alias[a] = canon }
-      }
-
-      for (i = 1; i <= nw; i++) {
-        w = W[i]; if (w == "") continue
-        c = w
-        if (!(c in hassec) && !(c in isproj) && (w in alias)) c = alias[w]
-        if ((c in hassec) || (c in isproj)) matched[c] = 1
-      }
-      out = ""; nm = 0; npm = 0
-      for (i = 1; i <= nv; i++) { t = vorder[i]; if (t in matched) { out = out " " t; nm++; if (t in isproj) npm++ } }
-      for (i = 1; i <= npo; i++) { t = porder[i]; if ((t in matched) && !(t in hassec)) { out = out " " t; nm++; npm++ } }
-      # Firing: >=2 matched tags, OR >=1 matched project tag.
-      if (nm < 2 && npm < 1) exit
-
-      for (i = 1; i <= npo; i++) {
-        t = porder[i]; if (!(t in matched)) continue
-        pfx = "projects/" t "/"
-        for (p in pos) if (index(p, pfx) == 1 && !((t SUBSEP p) in carries)) { carries[t SUBSEP p] = 1; cnt[t]++ }
-      }
-
-      printf "T\t%s\n", substr(out, 2)
-      for (p in pos) {
-        k2 = 0; k1 = 0; k5 = 0
-        for (t in matched) if ((t SUBSEP p) in carries) {
-          k2++; if (t in isproj) k1 = 1
-          if (k5 == 0 || cnt[t] < k5) k5 = cnt[t]
-        }
-        if (!k2) continue
-        x = tolower(desc[p]); gsub(/[^a-z0-9]+/, " ", x); x = " " x " "
-        k3 = 0
-        for (k = 1; k <= nt; k++) if (T[k] != "" && index(x, " " T[k] " ")) k3++
-        k4 = (index(p, "logs/") == 1) ? 0 : 1
-        printf "C\t%d\t%d\t%d\t%d\t%d\t%d\t%s\n", k1, k2, k3, k4, k5, pos[p], desc[p]
-      }
-    }
-  ' "$_kt_index" > "$_kt_raw" 2>/dev/null
 }
 
 kt_index_match() {
@@ -446,8 +381,8 @@ kt_index_match() {
   # the cache's first line; any change to the index rebuilds it. A stale,
   # foreign, unreadable or mid-query-swapped cache is never used for an answer
   # (see _kt_index_cache_answer). When no cache attempt can answer — the cache
-  # cannot be (re)written, or any step fails — the answer comes from the
-  # uncached full parse: same answer, only slower, never a silent empty one.
+  # cannot be (re)written, or any step fails — the answer comes from an
+  # uncached private build through the same plan and rank: same answer, slower.
   _kt_sum=$(cksum < "$_kt_index" 2>/dev/null)
   if [ -z "$_kt_sum" ]; then rm -f "$_kt_raw" 2>/dev/null; return 0; fi
   _kt_head="aria-surface-cache 2 $_kt_sum"
@@ -456,20 +391,29 @@ kt_index_match() {
   _kt_arc=2
   _kt_cache=$(kt_index_cache_path 2>/dev/null) || _kt_cache=""
   if [ -n "$_kt_cache" ] && [ -f "$_kt_cache" ] && [ -O "$_kt_cache" ] 2>/dev/null; then
-    _kt_index_cache_answer "$_kt_cache"; _kt_arc=$?
+    _kt_index_cache_answer "$_kt_cache" _kt_index_cache_select_sed; _kt_arc=$?
   fi
   if [ "$_kt_arc" -ne 0 ] && [ -n "$_kt_cache" ]; then
     # Temp file in the cache's own dir, then mv: a reader never sees half a cache.
     _kt_tmpc=$(mktemp "${_kt_cache%/*}/.aria-surface.XXXXXX" 2>/dev/null) || _kt_tmpc=""
     if [ -n "$_kt_tmpc" ]; then
       if _kt_index_cache_snapshot_build "$_kt_tmpc" && mv -f "$_kt_tmpc" "$_kt_cache" 2>/dev/null; then
-        _kt_index_cache_answer "$_kt_cache"; _kt_arc=$?
+        _kt_index_cache_answer "$_kt_cache" _kt_index_cache_select_sed; _kt_arc=$?
       else
         rm -f "$_kt_tmpc" 2>/dev/null
       fi
     fi
   fi
-  [ "$_kt_arc" -eq 0 ] || _kt_index_full_parse
+  if [ "$_kt_arc" -ne 0 ]; then
+    # Uncached fallback: a private copy built by the same build step, answered by
+    # the same plan and rank steps; only row selection differs (awk, not sed).
+    _kt_once=$(mktemp "${TMPDIR:-/tmp}/aria-match-cache.XXXXXX") || { rm -f "$_kt_raw" 2>/dev/null; return 0; }
+    if _kt_index_cache_snapshot_build "$_kt_once"; then
+      _kt_index_cache_answer "$_kt_once" _kt_index_cache_select_awk; _kt_arc=$?
+    fi
+    rm -f "$_kt_once" 2>/dev/null
+    [ "$_kt_arc" -eq 0 ] || : > "$_kt_raw"
+  fi
 
   _kt_tags_line=$(grep "^T${_kt_tab}" "$_kt_raw" 2>/dev/null | head -1)
   if [ -z "$_kt_tags_line" ]; then
