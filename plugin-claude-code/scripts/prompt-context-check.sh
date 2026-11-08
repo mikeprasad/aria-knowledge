@@ -67,11 +67,14 @@ _pcc_text=$(printf '%s' "$_pcc_raw" | kt_ps_strip_pasted)
 
 # --- Rank, filter, format (shared core); then emit in Claude Code's shape -----------
 # Output (C4, Claude Code 2.1.319): hookSpecificOutput.additionalContext — a top-level
-# field is ignored.
-_pcc_ctx=$(kt_ps_surface "$_pcc_text" "/tmp/aria-active-${_pcc_sid}")
-[ -n "$_pcc_ctx" ] || exit 0
-_pcc_out=$(jq -cn --arg c "$_pcc_ctx" \
+# field is ignored. The ledger is committed only once the output is printed: a file the
+# model never received must not be marked as surfaced (lib header, "The ledger contract").
+LEDGER="/tmp/aria-active-${_pcc_sid}"
+kt_ps_surface "$_pcc_text" "$LEDGER" >/dev/null
+[ -n "$KT_PS_TEXT" ] || exit 0
+_pcc_out=$(jq -cn --arg c "$KT_PS_TEXT" \
   '{hookSpecificOutput: {hookEventName: "UserPromptSubmit", additionalContext: $c}}' 2>/dev/null) \
   || { kt_ps_log claude-code emit jq-failed; exit 0; }
-printf '%s\n' "$_pcc_out"
+printf '%s\n' "$_pcc_out" || { kt_ps_log claude-code emit write-failed; exit 0; }
+kt_ps_commit "$LEDGER"
 exit 0

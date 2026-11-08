@@ -25,7 +25,9 @@ ps_has_line() { # TEXT LINE → 1 if LINE is one of TEXT's lines
 ps_body() {
   set +e +u
   T="${TMPDIR:-/tmp}/aria-psc-$$"
-  trap 'rm -rf "$T"' EXIT
+  # The hook-flow arms run the real hook, which writes /tmp/aria-active-<session id>.
+  RUN_ID="psc-$$-$(od -An -N4 -tx4 /dev/urandom 2>/dev/null | tr -d ' ')"
+  trap 'rm -rf "$T"; rm -f /tmp/aria-active-"$RUN_ID"-* 2>/dev/null' EXIT
   rm -rf "$T"; mkdir -p "$T/tmpdir" "$T/cache"
 
   r() { printf '%s\t%s\t%s\n' "$1" "$2" "$3"; }
@@ -49,10 +51,12 @@ ps_body() {
   KF="$T/kf"; mk_kf "$KF"
   CFG="$T/cfg/main.local.md"; mk_cfg "$CFG" "$KF"
 
-  # ps_call CONFIG CACHE-DIR TEXT LEDGER — sources the lib in a fresh subshell and runs
-  # kt_ps_surface. Sets PS_STATUS (empty if the lib could not run); stdout → $T/out.
+  # ps_call CONFIG CACHE-DIR TEXT LEDGER — sources the lib in a fresh subshell, runs
+  # kt_ps_surface, then (as an adapter does once it has delivered) kt_ps_commit — unless
+  # PS_NOCOMMIT=1. Sets PS_STATUS (empty if the lib could not run); stdout → $T/out;
+  # KT_PS_PENDING → $T/pending.
   ps_call() {
-    rm -f "$T/out" "$T/status"
+    rm -f "$T/out" "$T/status" "$T/pending"
     (
       HOME="$T/home"; KT_CONFIG=$1; KT_SURFACE_CACHE_DIR=$2; TMPDIR="$T/tmpdir"
       export HOME KT_CONFIG KT_SURFACE_CACHE_DIR TMPDIR
@@ -60,6 +64,8 @@ ps_body() {
       . "$PS_LIB" || exit 1
       kt_ps_surface "$3" "$4" > "$T/out" 2>"$T/err"
       printf '%s' "$KT_PS_STATUS" > "$T/status"
+      printf '%s' "${KT_PS_PENDING:-}" > "$T/pending"
+      [ "${PS_NOCOMMIT:-}" = 1 ] || kt_ps_commit "$4"
     ) 2>/dev/null
     PS_STATUS=$(cat "$T/status" 2>/dev/null)
   }
@@ -91,6 +97,64 @@ ps_body() {
   r "core_nothing_new: second call, same ledger — status" nothing-new "$PS_STATUS"
   r "core_nothing_new: second call prints nothing" 0 "$(outsize)"
   r "core_nothing_new: nothing is recorded twice" 1 "$(grep -cx 'projects/proj-b/deposits.md' "$T/ledger-1" 2>/dev/null)"
+
+  # --- core_surface_does_not_record / core_commit_records (F1) ----------------------
+  # kt_ps_surface ranks and filters against the ledger but RECORDS NOTHING: a host that
+  # delivers later (Cursor's postToolUse) must not mark as seen what the model never got.
+  # ps_src CONFIG — inside a subshell: isolated env + the lib sourced.
+  ps_src() {
+    HOME="$T/home"; KT_CONFIG=$1; KT_SURFACE_CACHE_DIR="$T/cache"; TMPDIR="$T/tmpdir"
+    export HOME KT_CONFIG KT_SURFACE_CACHE_DIR TMPDIR
+    KT_PS_SCRIPT_DIR="$PS_SD"; KT_PS_RUNTIME=core-test
+    . "$PS_LIB"
+  }
+  printf 'references/seed-entry.md\n' > "$T/ledger-c"; SEED=$(cksum < "$T/ledger-c")
+  PS_NOCOMMIT=1; ps_call "$CFG" "$T/cache" "$PROMPT_PAY" "$T/ledger-c"; PS_NOCOMMIT=
+  EXP=$(out | sed -n "s|^- $KF/||p"); EXPL=$(printf '%s' "$EXP" | tr '\n' '|')
+  NEXP=$(printf '%s\n' "$EXP" | grep -c .)
+  r "core_surface_does_not_record: surface alone still injects" injected "$PS_STATUS"
+  r "core_surface_does_not_record: ledger unchanged after surface alone" "$SEED" "$(cksum < "$T/ledger-c")"
+  r "core_surface_does_not_record: KT_PS_PENDING is exactly the surfaced relative paths" \
+    "1|$EXPL" "$( [ "$NEXP" -gt 0 ] && echo 1 || echo 0)|$(tr '\n' '|' < "$T/pending" 2>/dev/null)"
+  ps_call "$CFG" "$T/cache" "$PROMPT_PAY" "$T/ledger-c"
+  r "core_commit_records: after kt_ps_commit the ledger is the seed plus exactly those paths" \
+    "references/seed-entry.md|$EXPL|" "$(tr '\n' '|' < "$T/ledger-c")"
+  printf 'references/seed-entry.md\n' > "$T/ledger-d"
+  ( ps_src "$CFG" || exit 1; kt_ps_surface "$PROMPT_PAY" "$T/ledger-d" >/dev/null
+    kt_ps_commit "$T/ledger-d"; kt_ps_commit "$T/ledger-d" ) 2>/dev/null
+  r "core_commit_records: a second kt_ps_commit adds nothing" "$((NEXP + 1))" "$(wc -l < "$T/ledger-d" | tr -d ' ')"
+
+  # --- core_commit_paths: commit later, from a stored pending file (Task 3's shape) ----
+  printf 'projects/proj-a/hooks.md\n\nreferences/webhook-basics.md\n' > "$T/pending-file"
+  : > "$T/ledger-p"
+  ( ps_src "$CFG" || exit 1; kt_ps_commit_paths "$T/ledger-p" "$T/pending-file" ) 2>/dev/null
+  r "core_commit_paths: records the stored paths, blank lines dropped" \
+    "projects/proj-a/hooks.md|references/webhook-basics.md|" "$(tr '\n' '|' < "$T/ledger-p")"
+  ln -s "$T/pending-file" "$T/pending-link"; : > "$T/ledger-q"
+  ( ps_src "$CFG" || exit 1; kt_ps_commit_paths "$T/ledger-q" "$T/pending-link" ) 2>/dev/null
+  r "core_commit_paths: a symlinked paths file is refused" 0 "$(wc -c < "$T/ledger-q" | tr -d ' ')"
+
+  # --- hook flow: the Claude Code adapter commits only after its emission succeeded ----
+  HH="$T/hhome"; mk_cfg "$HH/.claude/aria-knowledge.local.md" "$KF"; mkdir -p "$T/cache-h"
+  PCC="$PS_SD/prompt-context-check.sh"
+  hook_run() { # SID [PATH-PREFIX]
+    jq -n --arg s "$1" --arg p "$PROMPT_PAY" \
+      '{session_id:$s, prompt:$p, hook_event_name:"UserPromptSubmit"}' > "$T/hin.json"
+    env HOME="$HH" TMPDIR="$T/tmpdir" KT_SURFACE_CACHE_DIR="$T/cache-h" KT_CONFIG= \
+      PATH="${2:+$2:}$PATH" sh "$PCC" < "$T/hin.json" > "$T/hout" 2>/dev/null
+  }
+  hook_run "$RUN_ID-ok"
+  r "hook: a delivered injection is recorded" "1|1" \
+    "$(grep -c '^{"hookSpecificOutput"' "$T/hout")|$(grep -cx 'projects/proj-b/deposits.md' "/tmp/aria-active-$RUN_ID-ok" 2>/dev/null)"
+  # A jq shim that fails ONLY the emission call (`jq -cn …`); extraction still works.
+  mkdir -p "$T/jqshim"
+  printf '#!/bin/sh\ncase " $* " in *" -cn "*) exit 1 ;; esac\nexec "%s" "$@"\n' "$(command -v jq)" > "$T/jqshim/jq"
+  chmod +x "$T/jqshim/jq"
+  hook_run "$RUN_ID-fail" "$T/jqshim"
+  r "hook: a failed emission prints nothing and records nothing" "0|0" \
+    "$(wc -c < "$T/hout" | tr -d ' ')|$( [ -e "/tmp/aria-active-$RUN_ID-fail" ] && echo 1 || echo 0)"
+  r "hook: the failed run reached emission (logged emit jq-failed)" 1 \
+    "$(grep -c ' claude-code emit jq-failed$' "$T/cache-h/aria-surface-hook.log" 2>/dev/null)"
 
   # --- nofire: words that rank nothing ------------------------------------------
   ps_call "$CFG" "$T/cache" "zebra quantum lattice" "$T/ledger-nf"
@@ -213,7 +277,7 @@ ps_body() {
 PS_RESULTS=$(ps_body)
 
 # Every `r` call in ps_body reports exactly once; raise this when adding a check.
-PS_EXPECTED=37
+PS_EXPECTED=47
 PS_GOT=0
 PS_TAB=$(printf '\t')
 PS_OLD_IFS=$IFS

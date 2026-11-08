@@ -18,25 +18,42 @@
 #   KT_CONFIG=${KT_CONFIG:-<this port's config.sh default>}  # see kt_ps_load_config
 #   . "$KT_PS_SCRIPT_DIR/lib-prompt-surface.sh"
 #   text=$(printf '%s' "$raw" | kt_ps_strip_pasted)
-#   ctx=$(kt_ps_surface "$text" "/tmp/aria-active-$(kt_ps_sanitize_id "$sid")")
-#   [ -n "$ctx" ] && <emit $ctx in the host's shape>
+#   ledger="/tmp/aria-active-$(kt_ps_sanitize_id "$sid")"
+#   kt_ps_surface "$text" "$ledger" >/dev/null     # no $( ): keeps the variables below
+#   [ -n "$KT_PS_TEXT" ] || exit 0
+#   <deliver $KT_PS_TEXT in the host's shape> && kt_ps_commit "$ledger"
 #
 # Interface:
 #   kt_ps_load_config            sets KT_CONFIGURED, KT_CONFIG_ERROR, KT_KNOWLEDGE_FOLDER,
 #                                KT_ACTIVE_SURFACING, KT_PROJECTS_ENABLED, KT_PROJECTS_LIST
 #   kt_ps_strip_pasted           stdin → stdout, <pasted_content …> … </pasted_content …> removed
-#   kt_ps_surface TEXT LEDGER    prints the injection text or nothing; sets KT_PS_STATUS to
-#                                injected | nothing-new | nofire | disabled | error:<step>;
-#                                records LEDGER only after the text was printed. Every
-#                                error:<step> also appends one line to the debug log.
+#   kt_ps_surface TEXT LEDGER    ranks TEXT, drops what LEDGER already holds, and prints the
+#                                injection text or nothing. Sets KT_PS_STATUS to
+#                                injected | nothing-new | nofire | disabled | error:<step>,
+#                                KT_PS_TEXT to what it printed (empty otherwise), and
+#                                KT_PS_PENDING to the knowledge-folder-relative paths that
+#                                text names, one per line. It does NOT record the ledger.
+#                                Every error:<step> also appends one line to the debug log.
+#   kt_ps_commit LEDGER          appends KT_PS_PENDING to LEDGER, then clears it (a second
+#                                call adds nothing).
+#   kt_ps_commit_paths LEDGER FILE  appends FILE's non-blank lines to LEDGER. For a host that
+#                                delivers in a LATER process: store KT_PS_PENDING in a file at
+#                                rank time, commit from it once delivered. A FILE that is a
+#                                symlink or not owned by the caller is refused.
 #   kt_ps_log RUNTIME STEP REASON  appends `<UTC> <runtime> <step> <reason>` to
 #                                ${KT_SURFACE_CACHE_DIR:-${TMPDIR:-/tmp}}/aria-surface-hook.log;
 #                                never writes stdout.
 #   kt_ps_sanitize_id RAW        prints RAW with every byte outside [A-Za-z0-9._-] removed.
 #
-# KT_PS_STATUS is set in the CALLING shell. An adapter that captures the text with $( )
-# runs kt_ps_surface in a subshell and loses the status (the ledger write and the log
-# line still happen); to read the status, redirect the output to a file instead.
+# The ledger contract: it records ONLY what the model was actually handed. Ranking is not
+# delivery — Cursor ranks in beforeSubmitPrompt and delivers in a later postToolUse, which
+# may never fire — so recording at rank time would mark files as seen that the model never
+# received and suppress them for the rest of the session. Commit after delivery succeeded,
+# never before, and not at all when delivery failed.
+#
+# KT_PS_STATUS, KT_PS_TEXT and KT_PS_PENDING are set in the CALLING shell. Calling
+# kt_ps_surface inside $( ) runs it in a subshell and loses all three (the log line still
+# happens) — call it directly with stdout redirected, as above.
 #
 # Latency (spec C2/C4: p95 <= 150 ms warm on a ~45k-line index). Sourcing config.sh
 # costs ~150 ms on its own (42 sed|grep|sed pipelines), so kt_ps_load_config reads the
@@ -189,7 +206,7 @@ kt_ps_load_config() {
 # file path + preview, so this prints paths only (never file bodies or descriptions)
 # and keeps the path list under 9,000 chars.
 kt_ps_surface() {
-  KT_PS_STATUS="error:incomplete"
+  KT_PS_STATUS="error:incomplete"; KT_PS_TEXT=""; KT_PS_PENDING=""
   _kt_ps_text=$1
   _kt_ps_ledger=${2:-}
   if [ -z "${KT_PS_SCRIPT_DIR:-}" ] || [ ! -f "$KT_PS_SCRIPT_DIR/config.sh" ] \
@@ -223,27 +240,45 @@ kt_ps_surface() {
     return 0
   fi
 
-  _kt_ps_list=""; _kt_ps_n=0; _kt_ps_cut=0
+  # Pending = the path part of each INJECTED entry (text before the first " — ", exactly
+  # what kt_match_record_ledger writes), so an entry cut by the bound is never pending.
+  _kt_ps_list=""; _kt_ps_pend=""; _kt_ps_n=0
   while IFS= read -r _kt_ps_line || [ -n "$_kt_ps_line" ]; do
-    _kt_ps_p=${_kt_ps_line%% — *}
-    [ -n "$_kt_ps_p" ] || continue
-    case $_kt_ps_p in /*) ;; *) _kt_ps_p="$KT_KNOWLEDGE_FOLDER/$_kt_ps_p" ;; esac
+    _kt_ps_rel=${_kt_ps_line%% — *}
+    [ -n "$_kt_ps_rel" ] || continue
+    case $_kt_ps_rel in /*) _kt_ps_p=$_kt_ps_rel ;; *) _kt_ps_p="$KT_KNOWLEDGE_FOLDER/$_kt_ps_rel" ;; esac
     _kt_ps_try="$_kt_ps_list$_kt_ps_nl- $_kt_ps_p"
-    if [ "${#_kt_ps_try}" -gt 9000 ]; then _kt_ps_cut=1; break; fi
+    if [ "${#_kt_ps_try}" -gt 9000 ]; then break; fi
     _kt_ps_list=$_kt_ps_try; _kt_ps_n=$((_kt_ps_n + 1))
+    _kt_ps_pend="$_kt_ps_pend$_kt_ps_rel$_kt_ps_nl"
   done < "$KT_MATCH_FILES_TMP"
-  if [ "$_kt_ps_n" -eq 0 ]; then kt_match_cleanup; _kt_ps_fail too-long; return 0; fi
-  # Record only what is injected (the ledger records every line of the file).
-  if [ "$_kt_ps_cut" -eq 1 ]; then
-    head -n "$_kt_ps_n" "$KT_MATCH_FILES_TMP" > "$KT_MATCH_FILES_TMP.cut" 2>/dev/null \
-      && mv -f "$KT_MATCH_FILES_TMP.cut" "$KT_MATCH_FILES_TMP" 2>/dev/null
-  fi
-
-  if ! printf '%s\n' "ARIA ACTIVE — ${_kt_ps_n} knowledge file(s) for this task (tags: ${KT_MATCH_TAGS}). Read them before answering and say in one line which you used and why:${_kt_ps_list}" 2>/dev/null; then
-    kt_match_cleanup; _kt_ps_fail write; return 0
-  fi
-  kt_match_record_ledger "$_kt_ps_ledger" 2>/dev/null
   kt_match_cleanup
+  if [ "$_kt_ps_n" -eq 0 ]; then _kt_ps_fail too-long; return 0; fi
+
+  _kt_ps_out="ARIA ACTIVE — ${_kt_ps_n} knowledge file(s) for this task (tags: ${KT_MATCH_TAGS}). Read them before answering and say in one line which you used and why:${_kt_ps_list}"
+  if ! printf '%s\n' "$_kt_ps_out" 2>/dev/null; then _kt_ps_fail write; return 0; fi
+  KT_PS_TEXT=$_kt_ps_out
+  KT_PS_PENDING=${_kt_ps_pend%"$_kt_ps_nl"}
   KT_PS_STATUS="injected"
+  return 0
+}
+
+# --- record what was DELIVERED --------------------------------------------------
+# Separate from kt_ps_surface on purpose: see "The ledger contract" in the header.
+kt_ps_commit() { # LEDGER
+  [ -n "${1:-}" ] && [ -n "${KT_PS_PENDING:-}" ] || return 0
+  printf '%s\n' "$KT_PS_PENDING" >> "$1" 2>/dev/null
+  KT_PS_PENDING=""
+  return 0
+}
+
+kt_ps_commit_paths() { # LEDGER FILE
+  [ -n "${1:-}" ] && [ -n "${2:-}" ] || return 0
+  [ ! -L "$2" ] && [ -f "$2" ] && [ -O "$2" ] 2>/dev/null || return 0
+  _kt_ps_add=""
+  while IFS= read -r _kt_ps_l || [ -n "$_kt_ps_l" ]; do
+    [ -n "$_kt_ps_l" ] && _kt_ps_add="$_kt_ps_add$_kt_ps_l$_kt_ps_nl"
+  done < "$2"
+  [ -n "$_kt_ps_add" ] && printf '%s' "$_kt_ps_add" >> "$1" 2>/dev/null
   return 0
 }

@@ -191,11 +191,14 @@ pcc_body() {
   # if executed (it creates a marker). An ownership check follows the link and passes, so
   # only refusing the link — and never executing the cache — keeps the marker absent. Both
   # the current cache name and the 21c92a8 one (.sh) are planted, so the arm is not vacuous
-  # against either version of the hook.
+  # against either version of the hook. The current name carries a cksum of the config
+  # path (2.58.0 G1), derived here exactly as lib-prompt-surface.sh derives it; planting
+  # the retired fixed name would leave the arm passing against a file nothing reads.
+  KEYED="aria-prompt-config.$(printf '%s' "$H/.claude/aria-knowledge.local.md" | cksum | awk '{print $1}').cache"
   rm -rf "$T/cache-l"; mkdir -p "$T/cache-l"
   printf 'touch "%s"\n' "$T/sym-marker" > "$T/evil.sh"; cp "$T/evil.sh" "$T/evil.orig"
   ln -s "$T/evil.sh" "$T/cache-l/aria-prompt-config.sh"
-  ln -s "$T/evil.sh" "$T/cache-l/aria-prompt-config.cache"
+  ln -s "$T/evil.sh" "$T/cache-l/$KEYED"
   payload "$(sid sym)" "$PROMPT_PAY"; pcc_exec "$T/in.json" KT_SURFACE_CACHE_DIR="$T/cache-l"
   r "symlink cache: never executed (no marker)" 0 "$( [ -e "$T/sym-marker" ] && echo 1 || echo 0)"
   r "symlink cache: hook output still correct" 1 "$(ctx | grep -cxF -- "- $KF/projects/proj-b/deposits.md")"
@@ -208,7 +211,7 @@ pcc_body() {
   VKEY="$(printf '%s\n' "$VKEY" | sed -n 1p) | $(printf '%s\n' "$VKEY" | sed -n 2p)"
   printf '%s\n' "aria-prompt-config 1" "$VKEY" true "" "$KS" true true \
     "proj-a:proj-a,proj-b:proj-b,proj-c:proj-c" end > "$T/planted.dat"
-  ln -s "$T/planted.dat" "$T/cache-v/aria-prompt-config.cache"
+  ln -s "$T/planted.dat" "$T/cache-v/$KEYED"
   payload "$(sid symv)" "$PROMPT_PAY"; pcc_exec "$T/in.json" KT_SURFACE_CACHE_DIR="$T/cache-v"
   r "symlink cache: valid-looking data behind a link is not used" "1|0" \
     "$(ctx | grep -cxF -- "- $KF/projects/proj-b/deposits.md")|$(ctx | grep -cF -- "$KS/")"
