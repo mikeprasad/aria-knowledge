@@ -20,7 +20,8 @@ pcc_body() {
   set +e +u
   T="${TMPDIR:-/tmp}/aria-pcc-$$"
   RUN_ID="pcc-test-$$-$(od -An -N4 -tx4 /dev/urandom 2>/dev/null | tr -d ' ')"
-  trap 'rm -rf "$T"; rm -f /tmp/aria-active-"$RUN_ID"-* 2>/dev/null' EXIT
+  # rm -rf: the session-id arm pre-creates a DIRECTORY under this prefix.
+  trap 'rm -rf "$T"; rm -rf /tmp/aria-active-"$RUN_ID"-* 2>/dev/null' EXIT
   rm -rf "$T"; mkdir -p "$T/tmpdir" "$T/cache"
 
   r() { printf '%s\t%s\t%s\n' "$1" "$2" "$3"; }
@@ -158,14 +159,68 @@ pcc_body() {
   payload "$(sid rt1)" "$PROMPT_PAY"; pcc_exec "$T/in.json" HOME="$HQ" KT_SURFACE_CACHE_DIR="$T/cache-q"
   OUT1=$(ctx)
   r "roundtrip: miss writes the config cache" 1 "$(ls "$T/cache-q" | grep -c '^aria-prompt-config')"
+  # A miss re-writes the cache through mv (new inode); a hit leaves it alone. Without this
+  # check the round trip is unfalsifiable: an unreadable cache falls back to a correct miss.
+  inode() { ls -i "$1"/aria-prompt-config.* 2>/dev/null | awk '{print $1}'; }
+  INO1=$(inode "$T/cache-q")
   payload "$(sid rt2)" "$PROMPT_PAY"; pcc_exec "$T/in.json" HOME="$HQ" KT_SURFACE_CACHE_DIR="$T/cache-q"
   OUT2=$(ctx)
+  r "roundtrip: second call was served from the cache (not re-written)" "1|$INO1" \
+    "$( [ -n "$INO1" ] && echo 1 || echo 0)|$(inode "$T/cache-q")"
   case "$OUT1" in *"- $KQ/projects/proj-b/deposits.md"*) h=1 ;; *) h=0 ;; esac
   r "roundtrip: miss fires with the quoted knowledge path" 1 "$h"
   # Compared by cksum: the values are multi-line and this protocol is one line per check.
   r "roundtrip: cache hit fires" 1 "$(printf '%s\n' "$OUT2" | grep -c '^ARIA ACTIVE')"
   r "roundtrip: cache hit output equals miss output" \
     "$(printf '%s' "$OUT1" | cksum)" "$(printf '%s' "$OUT2" | cksum)"
+
+  # --- knowledge_folder containing a plain space: round-trips through the cache ---
+  KS="$T/k space"; mk_kf "$KS"; HS="$T/home-s"; mk_home "$HS" "$KS"
+  rm -rf "$T/cache-s"; mkdir -p "$T/cache-s"
+  payload "$(sid sp1)" "$PROMPT_PAY"; pcc_exec "$T/in.json" HOME="$HS" KT_SURFACE_CACHE_DIR="$T/cache-s"
+  r "space path: miss lists the spaced absolute path" 1 "$(ctx | grep -cxF -- "- $KS/projects/proj-b/deposits.md")"
+  INO1=$(inode "$T/cache-s")
+  payload "$(sid sp2)" "$PROMPT_PAY"; pcc_exec "$T/in.json" HOME="$HS" KT_SURFACE_CACHE_DIR="$T/cache-s"
+  r "space path: second call was served from the cache (not re-written)" "1|$INO1" \
+    "$( [ -n "$INO1" ] && echo 1 || echo 0)|$(inode "$T/cache-s")"
+  r "space path: cache hit lists it too, with the project tag" "1|1" \
+    "$(ctx | grep -cxF -- "- $KS/projects/proj-b/deposits.md")|$(ctx | grep -c 'tags: [^)]*proj-b')"
+
+  # --- config_cache_symlink_refused -------------------------------------------
+  # The cache name is planted as a symlink to a file WE own that would visibly misbehave
+  # if executed (it creates a marker). An ownership check follows the link and passes, so
+  # only refusing the link — and never executing the cache — keeps the marker absent. Both
+  # the current cache name and the 21c92a8 one (.sh) are planted, so the arm is not vacuous
+  # against either version of the hook.
+  rm -rf "$T/cache-l"; mkdir -p "$T/cache-l"
+  printf 'touch "%s"\n' "$T/sym-marker" > "$T/evil.sh"; cp "$T/evil.sh" "$T/evil.orig"
+  ln -s "$T/evil.sh" "$T/cache-l/aria-prompt-config.sh"
+  ln -s "$T/evil.sh" "$T/cache-l/aria-prompt-config.cache"
+  payload "$(sid sym)" "$PROMPT_PAY"; pcc_exec "$T/in.json" KT_SURFACE_CACHE_DIR="$T/cache-l"
+  r "symlink cache: never executed (no marker)" 0 "$( [ -e "$T/sym-marker" ] && echo 1 || echo 0)"
+  r "symlink cache: hook output still correct" 1 "$(ctx | grep -cxF -- "- $KF/projects/proj-b/deposits.md")"
+  r "symlink cache: link target left unmodified" 1 "$(cmp -s "$T/evil.sh" "$T/evil.orig" && echo 1 || echo 0)"
+  # Variant: the link points at a VALID-LOOKING data cache (right header and key) naming a
+  # different knowledge folder. Reading it would be safe from execution but would still let a
+  # planted file choose which paths get injected — the -L refusal is what stops that.
+  rm -rf "$T/cache-v"; mkdir -p "$T/cache-v"
+  VKEY=$(cksum "$H/.claude/aria-knowledge.local.md" "${PCC_HOOK%/*}/config.sh")
+  VKEY="$(printf '%s\n' "$VKEY" | sed -n 1p) | $(printf '%s\n' "$VKEY" | sed -n 2p)"
+  printf '%s\n' "aria-prompt-config 1" "$VKEY" true "" "$KS" true true \
+    "proj-a:proj-a,proj-b:proj-b,proj-c:proj-c" end > "$T/planted.dat"
+  ln -s "$T/planted.dat" "$T/cache-v/aria-prompt-config.cache"
+  payload "$(sid symv)" "$PROMPT_PAY"; pcc_exec "$T/in.json" KT_SURFACE_CACHE_DIR="$T/cache-v"
+  r "symlink cache: valid-looking data behind a link is not used" "1|0" \
+    "$(ctx | grep -cxF -- "- $KF/projects/proj-b/deposits.md")|$(ctx | grep -cF -- "$KS/")"
+
+  # --- session_id_cannot_escape_ledger_dir -------------------------------------
+  # Pre-create a directory under the ledger prefix so an UNSANITISED id would resolve
+  # through it: <prefix>-esc/../../…/..$T/escaped lands at $T/escaped.
+  mkdir -p "/tmp/aria-active-$RUN_ID-esc"
+  payload "$RUN_ID-esc/../../../../../../../..$T/escaped" "$PROMPT_PAY"; pcc_exec "$T/in.json"
+  r "session id: nothing written outside /tmp" 0 "$( [ -e "$T/escaped" ] && echo 1 || echo 0)"
+  n=0; for f in /tmp/aria-active-"$RUN_ID"-esc?*; do [ -f "$f" ] && n=$((n + 1)); done
+  r "session id: ledger is one regular file directly under /tmp" 1 "$n"
 
   # --- KT_CONFIG is honoured the way config.sh honours it -------------------
   HN="$T/home-none"; mkdir -p "$HN"
@@ -221,11 +276,20 @@ pcc_body() {
 }
 PCC_RESULTS=$(pcc_body)
 
+# Every `r` call in pcc_body reports exactly once. If pcc_body dies partway, the checks it
+# never reached would otherwise vanish without failing — so the count is asserted too.
+# Raise it when adding a check; a check that prints a multi-line value also breaks it.
+PCC_EXPECTED=52
+PCC_GOT=0
 PCC_TAB=$(printf '\t')
 PCC_OLD_IFS=$IFS
 while IFS="$PCC_TAB" read -r pcc_name pcc_exp pcc_act; do
-  [ -n "$pcc_name" ] && assert_eq "prompt-context-check: $pcc_name" "$pcc_exp" "$pcc_act"
+  if [ -n "$pcc_name" ]; then
+    PCC_GOT=$((PCC_GOT + 1))
+    assert_eq "prompt-context-check: $pcc_name" "$pcc_exp" "$pcc_act"
+  fi
 done <<PCC_EOF
 $PCC_RESULTS
 PCC_EOF
 IFS=$PCC_OLD_IFS
+assert_eq "prompt-context-check: every check reported (pcc_body ran to the end)" "$PCC_EXPECTED" "$PCC_GOT"

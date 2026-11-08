@@ -26,8 +26,8 @@
 # Latency (C2: p95 <= 150 ms warm on a ~45k-line index). Sourcing config.sh
 # costs ~150 ms on its own (42 sed|grep|sed pipelines), so this hook reads the
 # six values it needs from a cache that config.sh ITSELF fills: on a miss the
-# hook sources config.sh and writes the resulting values; on a hit it sources
-# that file. The cache key is the cksum (content + size + path) of the config
+# hook sources config.sh and writes the resulting values; on a hit it READS
+# them back as data (never sourced). The cache key is the cksum (content + size + path) of the config
 # file AND of config.sh, so editing either one is a miss. config.sh stays the
 # only parser — nothing here interprets the config file's syntax.
 
@@ -51,45 +51,55 @@ command -v jq >/dev/null 2>&1 || exit 0
 _pcc_cfg="${KT_CONFIG:-$HOME/.gemini/antigravity/aria-knowledge.local.md}"
 [ -f "$_pcc_cfg" ] || exit 0
 
-_pcc_sq="'"
-# Single-quote $1 for re-sourcing, without forking (a sed would add a newline
-# to a value that lacks one on BSD).
-_pcc_quote() {
-  _pcc_s=$1; _pcc_r=
-  while :; do
-    case $_pcc_s in
-      *"$_pcc_sq"*) _pcc_r="$_pcc_r${_pcc_s%%"$_pcc_sq"*}'\\''"; _pcc_s=${_pcc_s#*"$_pcc_sq"} ;;
-      *) _pcc_r="$_pcc_r$_pcc_s"; break ;;
-    esac
-  done
-  printf "'%s'" "$_pcc_r"
-}
-
-_pcc_cache="${KT_SURFACE_CACHE_DIR:-${TMPDIR:-/tmp}}/aria-prompt-config.sh"
+_pcc_nl='
+'
+# The cache is DATA, never shell code: it is read back with `read`, so nothing
+# in it can execute even if the name is planted by someone else (in a shared
+# /tmp, another user can pre-create it). Layout, one value per line:
+#   aria-prompt-config 1 · <key> · KT_CONFIGURED · KT_CONFIG_ERROR ·
+#   KT_KNOWLEDGE_FOLDER · KT_ACTIVE_SURFACING · KT_PROJECTS_ENABLED ·
+#   KT_PROJECTS_LIST · end
+# A value is used only after the header, the key and the end sentinel all
+# match. A symlink is refused before the ownership test, which follows links.
+# A key or value holding a newline cannot be stored this way and is simply not
+# cached (a miss every call: correct, only slower).
+_pcc_hdr="aria-prompt-config 1"
+_pcc_cache="${KT_SURFACE_CACHE_DIR:-${TMPDIR:-/tmp}}/aria-prompt-config.cache"
 _pcc_key=$(cksum "$_pcc_cfg" "$SCRIPT_DIR/config.sh" 2>/dev/null) || _pcc_key=""
+# cksum prints one line per file; join the two into one line.
+_pcc_k2=${_pcc_key#*"$_pcc_nl"}
+case $_pcc_k2 in
+  *"$_pcc_nl"*|"$_pcc_key") _pcc_key="" ;;
+  *) _pcc_key="${_pcc_key%%"$_pcc_nl"*} | $_pcc_k2" ;;
+esac
 _pcc_hit=0
-if [ -n "$_pcc_key" ] && [ -f "$_pcc_cache" ] && [ -O "$_pcc_cache" ] 2>/dev/null; then
-  _pcc_ckey=""
-  . "$_pcc_cache" 2>/dev/null
-  # The file names its own key; another writer's mv between the -f test and
-  # the source can only yield a mismatch, never a wrong answer.
-  [ "$_pcc_ckey" = "$_pcc_key" ] && _pcc_hit=1
+if [ -n "$_pcc_key" ] && [ ! -L "$_pcc_cache" ] && [ -f "$_pcc_cache" ] && [ -O "$_pcc_cache" ] 2>/dev/null; then
+  if { IFS= read -r _pcc_h && IFS= read -r _pcc_k \
+       && IFS= read -r _pcc_v1 && IFS= read -r _pcc_v2 && IFS= read -r _pcc_v3 \
+       && IFS= read -r _pcc_v4 && IFS= read -r _pcc_v5 && IFS= read -r _pcc_v6 \
+       && IFS= read -r _pcc_end; } < "$_pcc_cache" 2>/dev/null \
+     && [ "$_pcc_h" = "$_pcc_hdr" ] && [ "$_pcc_k" = "$_pcc_key" ] && [ "$_pcc_end" = "end" ]; then
+    KT_CONFIGURED=$_pcc_v1; KT_CONFIG_ERROR=$_pcc_v2; KT_KNOWLEDGE_FOLDER=$_pcc_v3
+    KT_ACTIVE_SURFACING=$_pcc_v4; KT_PROJECTS_ENABLED=$_pcc_v5; KT_PROJECTS_LIST=$_pcc_v6
+    _pcc_hit=1
+  fi
 fi
 if [ "$_pcc_hit" -eq 0 ]; then
   . "$SCRIPT_DIR/config.sh" >/dev/null 2>&1
-  # Cache only when config.sh read the file this key was computed for.
+  # Cache only when config.sh read the file this key was computed for, and
+  # only values that fit on one line each.
+  case "$_pcc_key$KT_CONFIGURED$KT_CONFIG_ERROR$KT_KNOWLEDGE_FOLDER$KT_ACTIVE_SURFACING$KT_PROJECTS_ENABLED$KT_PROJECTS_LIST" in
+    *"$_pcc_nl"*) _pcc_key="" ;;
+  esac
   if [ -n "$_pcc_key" ] && [ "$KT_CONFIG" = "$_pcc_cfg" ]; then
+    # Temp file in the cache's own dir, then mv: rename replaces the directory
+    # entry (a planted link included) and a reader never sees half a file.
     _pcc_tmp=$(mktemp "${_pcc_cache%/*}/.aria-prompt-config.XXXXXX" 2>/dev/null) || _pcc_tmp=""
     if [ -n "$_pcc_tmp" ]; then
-      if {
-        printf '_pcc_ckey=%s\n' "$(_pcc_quote "$_pcc_key")"
-        printf 'KT_CONFIGURED=%s\n' "$(_pcc_quote "$KT_CONFIGURED")"
-        printf 'KT_CONFIG_ERROR=%s\n' "$(_pcc_quote "$KT_CONFIG_ERROR")"
-        printf 'KT_KNOWLEDGE_FOLDER=%s\n' "$(_pcc_quote "$KT_KNOWLEDGE_FOLDER")"
-        printf 'KT_ACTIVE_SURFACING=%s\n' "$(_pcc_quote "$KT_ACTIVE_SURFACING")"
-        printf 'KT_PROJECTS_ENABLED=%s\n' "$(_pcc_quote "$KT_PROJECTS_ENABLED")"
-        printf 'KT_PROJECTS_LIST=%s\n' "$(_pcc_quote "$KT_PROJECTS_LIST")"
-      } > "$_pcc_tmp" 2>/dev/null && mv -f "$_pcc_tmp" "$_pcc_cache" 2>/dev/null; then :
+      if printf '%s\n' "$_pcc_hdr" "$_pcc_key" "$KT_CONFIGURED" "$KT_CONFIG_ERROR" \
+           "$KT_KNOWLEDGE_FOLDER" "$KT_ACTIVE_SURFACING" "$KT_PROJECTS_ENABLED" \
+           "$KT_PROJECTS_LIST" end > "$_pcc_tmp" 2>/dev/null \
+         && mv -f "$_pcc_tmp" "$_pcc_cache" 2>/dev/null; then :
       else rm -f "$_pcc_tmp" 2>/dev/null; fi
     fi
   fi
@@ -122,8 +132,6 @@ $INPUT
 PCC_INPUT
 ) || exit 0
 
-_pcc_nl='
-'
 _pcc_sid=${_pcc_parsed%%"$_pcc_nl"*}
 _pcc_text=""
 case $_pcc_parsed in *"$_pcc_nl"*) _pcc_text=${_pcc_parsed#*"$_pcc_nl"} ;; esac
