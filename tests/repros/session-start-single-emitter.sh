@@ -297,5 +297,55 @@ printf '{"session_id":"sse-vg8","source":"startup"}' \
   | (cd "$TMP" && HOME="$G8" KT_CONFIG="$CFGR" sh "$PV/plugin-claude-code/scripts/session-start-check.sh" 2>/dev/null) > "$TMP/vg8.json" || true
 check "VG8 a 2.57.9 hook does not replace a 2.57.10 digest" "TEN BODY" "$(sed -n 2p "$G8/.claude/rules/aria-rules.md")"
 
+# --- ARIA SURFACE value line (2.58.0) ------------------------------------------------------------
+# The digest is installed under ~/.claude/rules and cannot know where the plugin lives, so a
+# relative "scripts/aria-surface.sh" in the digest runs from the user's project and fails. The hook
+# knows its own directory: it sends the absolute path as a value line, and the digest's ARIA ACTIVE
+# CONTEXT branch (b) runs whatever path that line names. Sent only when active surfacing is on and
+# the knowledge folder has an index.md.
+surface_path() { ctx "$1" | grep '^ARIA SURFACE — ' | head -1 | sed 's/^ARIA SURFACE — "//; s/"$//'; }
+# A two-tag index, so a real query FIRES and the run proves the path does the job, not just exists.
+KFS="$TMP/kfs"; mk_kf "$KFS" "$TODAY" "$TODAY"
+printf '## Tag Index\n### alpha\n- a.md — A\n### beta\n- a.md — A\n' > "$KFS/index.md"
+CFGS="$TMP/cfgs.md"; mk_cfg "$CFGS" "$KFS"
+surface_runs() { # $1 = path → "tags: alpha beta" when the CLI at that path ranks the fixture
+  ( TMPDIR="$TMP" HOME="$H" KT_CONFIG="$CFGS" sh "$1" "alpha beta" </dev/null 2>/dev/null | head -1 )
+}
+run "$H" "$CFGS" startup "$TMP/sf1.json"
+SP1=$(surface_path "$TMP/sf1.json")
+check "SF1 surfacing on + index.md → an ARIA SURFACE line" "yes" "$([ -n "$SP1" ] && echo yes || echo no)"
+case "$SP1" in /*) _abs=yes ;; *) _abs=no ;; esac
+check "SF1 the path is absolute" "yes" "$_abs"
+check "SF1 the path is this install's aria-surface.sh" "$DIR/plugin-claude-code/scripts/aria-surface.sh" "$SP1"
+check "SF1 running it under sh ranks the task" "tags: alpha beta" "$(surface_runs "$SP1")"
+check "SF1 the line is in the model context, not the banner" "no" "$(has "$(sm "$TMP/sf1.json")" 'ARIA SURFACE')"
+
+printf -- '---\nknowledge_folder: %s\nactive_knowledge_surfacing: false\n---\n' "$KFS" > "$TMP/cfgs-off.md"
+run "$H" "$TMP/cfgs-off.md" startup "$TMP/sf2.json"
+check "SF2 active_knowledge_surfacing: false → no ARIA SURFACE line" "no" "$(has "$(ctx "$TMP/sf2.json")" 'ARIA SURFACE')"
+check "SF2 control: the model context was still sent" "yes" "$(has "$(ctx "$TMP/sf2.json")" 'ARIA CONFIG —')"
+
+KFN="$TMP/kfn"; mk_kf "$KFN" "$TODAY" "$TODAY"; rm -f "$KFN/index.md"
+CFGN="$TMP/cfgn.md"; mk_cfg "$CFGN" "$KFN"
+run "$H" "$CFGN" startup "$TMP/sf3.json"
+check "SF3 no index.md → no ARIA SURFACE line" "no" "$(has "$(ctx "$TMP/sf3.json")" 'ARIA SURFACE')"
+check "SF3 control: the model context was still sent" "yes" "$(has "$(ctx "$TMP/sf3.json")" 'ARIA CONFIG —')"
+
+# A plugin root containing a space (the desktop app installs under "Application Support").
+PS="$TMP/with space"; mkdir -p "$PS"; cp -R "$DIR/plugin-claude-code" "$PS/"
+printf '{"session_id":"sse-sf4","source":"startup"}' \
+  | (cd "$TMP" && HOME="$H" KT_CONFIG="$CFGS" sh "$PS/plugin-claude-code/scripts/session-start-check.sh" 2>/dev/null) > "$TMP/sf4.json" || true
+SP4=$(surface_path "$TMP/sf4.json")
+check "SF4 spaced root → the line names the spaced path whole" "$PS/plugin-claude-code/scripts/aria-surface.sh" "$SP4"
+check "SF4 running the spaced path under sh ranks the task" "tags: alpha beta" "$(surface_runs "$SP4")"
+
+for arm in sf1 sf2 sf3 sf4; do
+  if [ -s "$TMP/$arm.json" ] && jq -e . "$TMP/$arm.json" >/dev/null 2>&1; then ok "SF5 $arm parses strictly"
+  else bad "SF5 $arm parses strictly" "$(head -c 160 "$TMP/$arm.json" 2>/dev/null)"; fi
+done
+# test-aria-rules-digest.sh's ARIA_EMIT_RUNAWAY catch is 4,000 characters.
+check "SF5 model context with the line stays under 4,000 characters" "yes" \
+  "$([ "$(ctx "$TMP/sf4.json" | wc -m | tr -d ' ')" -lt 4000 ] && echo yes || echo no)"
+
 printf '%d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

@@ -468,6 +468,14 @@ if ls "$HOME"/.claude/aria-statusline-state-*.json >/dev/null 2>&1; then
 "
 fi
 
+# Surfacing CLI path. The digest is installed under ~/.claude/rules and cannot know where this
+# plugin lives, so the ARIA ACTIVE CONTEXT directive runs whatever path this line names. Quoted,
+# because the desktop app installs under a path containing a space.
+if [ "$KT_ACTIVE_SURFACING" = "true" ] && [ -f "$KT_KNOWLEDGE_FOLDER/index.md" ] && [ -f "$SCRIPT_DIR/aria-surface.sh" ]; then
+  MODEL_MESSAGES="${MODEL_MESSAGES}ARIA SURFACE — \"${SCRIPT_DIR}/aria-surface.sh\"
+"
+fi
+
 # =============================================================================
 # USER CHANNEL — things a human must decide or authorise.
 # =============================================================================
