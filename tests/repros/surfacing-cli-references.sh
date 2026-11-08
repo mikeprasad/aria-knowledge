@@ -67,20 +67,34 @@ case "$first" in
 esac
 
 # --- file_content_is_never_shell ---
-{
+# hostile_content <markerdir> — backticks, $(...), a bare ARIA_TASK line then a
+# touch line, plus words that must still rank (proj-b payments).
+hostile_content() {
   printf '# notes\n'
-  printf '`touch %s/m1`\n' "$T"
-  printf '$(touch %s/m2)\n' "$T"
+  printf '`touch %s/m1`\n' "$1"
+  printf '$(touch %s/m2)\n' "$1"
   printf 'ARIA_TASK\n'
-  printf 'touch %s/m3\n' "$T"
+  printf 'touch %s/m3\n' "$1"
   printf 'proj-b payments $HOME\n'
-} > "$T/hostile.md"
+}
+hostile_content "$T" > "$T/hostile.md"
 run_cli "$T" --file "$T/hostile.md"
 made=""
 for m in m1 m2 m3; do [ -e "$T/$m" ] && made="$made $m"; done
+# Firing control: the SAME content through a deliberately unsafe double-quoted
+# command, against a separate marker dir with no spaces in its path. The
+# detector must see markers here, or "no markers" above proves nothing.
+CTL="$SCRATCH/ctl"; mkdir -p "$CTL"
+ctl_c=$(hostile_content "$CTL")
+sh -c "printf '%s' \"$ctl_c\"" >/dev/null 2>&1
+ctl_made=""
+for m in m1 m2; do [ -e "$CTL/$m" ] && ctl_made="$ctl_made $m"; done
 case "$cli_out" in
-  ""|"tags: "*) [ -z "$made" ] && ok "file_content_is_never_shell" || bad "file_content_is_never_shell" "markers created:$made" ;;
-  *) bad "file_content_is_never_shell" "out '$cli_out' markers:$made" ;;
+  "tags: "*)
+    if [ -n "$made" ]; then bad "file_content_is_never_shell" "markers created:$made"
+    elif [ "$ctl_made" != " m1 m2" ]; then bad "file_content_is_never_shell" "control did not fire (markers:$ctl_made) — detector unproven"
+    else ok "file_content_is_never_shell"; fi ;;
+  *) bad "file_content_is_never_shell" "out '$cli_out' markers:$made (want a tags: line)" ;;
 esac
 
 # --- git_range_leading_dash_rejected ---
@@ -95,6 +109,17 @@ fi
 run_cli "$T" --file "$T/none.md"
 [ "$cli_out" = "unavailable: invalid --file" ] && ok "file_missing_unavailable" \
   || bad "file_missing_unavailable" "out '$cli_out'"
+
+# --- unknown_option_unavailable ---
+run_cli "$T" --fil "$T/note.md"
+o1=$cli_out
+run_cli "$T" "--file=$T/note.md"
+o2=$cli_out
+if [ "$o1" = "unavailable: unknown option --fil" ] && [ "$o2" = "unavailable: unknown option --file" ]; then
+  ok "unknown_option_unavailable"
+else
+  bad "unknown_option_unavailable" "--fil -> '$o1'; --file=x -> '$o2'"
+fi
 
 # --- exit_always_zero ---
 if [ -s "$RC_FILE" ] && ! grep -qv '^0$' "$RC_FILE"; then

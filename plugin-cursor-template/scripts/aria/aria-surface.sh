@@ -16,6 +16,8 @@
 #              (no leading `-`) and resolve with `git rev-parse --verify
 #              --end-of-options`; git is always called with --end-of-options.
 #              Anything else is `unavailable: invalid --git-range`.
+# Any other `--option` (including the `--file=x` form) is `unavailable: unknown
+# option <name>`, never a silent empty result.
 # Positional text and `-` (stdin) remain for PROGRAMS that exec this without a
 # shell (codex-hook.py passes an argv list): `-` reads the text from stdin, so
 # does no argument when stdin is not a terminal. ⛔ A model must not put text on
@@ -49,6 +51,8 @@ while [ "$#" -gt 0 ]; do
       _range=$2; _have_flag=1; shift 2 ;;
     -)
       _as_text=$(cat); _positional=1; shift ;;
+    --*)
+      unavailable "unknown option ${1%%=*}" ;;
     *)
       if [ "$_positional" -eq 0 ]; then _as_text=$1; _positional=1; fi
       shift ;;
