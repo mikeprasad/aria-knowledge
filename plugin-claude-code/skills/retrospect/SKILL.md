@@ -75,19 +75,11 @@ If the user's config (`~/.claude/aria-knowledge.local.md`) has `active_knowledge
 
 1. **Build query.** Combine, separated by spaces: the Goal sentence from Step 0; the first 3 commit subjects in the bundle range; PR title if scope is `pr`; any detected ticket IDs (e.g., `ABC-123`); the resolved deployment marker label if scope is `deployment`; the range descriptor (e.g., `v0.4.2..HEAD`).
 
-2. **Read the index.** `Read` `<knowledge_folder>/index.md` (resolve `<knowledge_folder>` from the config's `knowledge_folder` field). Parse the `## Tag Index` section for `### tagname` headers — that's the matching vocabulary (~77 known tags as of v2.15.0). Ignore the `## Other Tags` section (freeform tier, intentionally excluded from auto-surfacing).
-
-3. **Tokenize.** Lowercase the query, strip punctuation to spaces, dedupe to a word set.
-
-4. **Match.** Exact word-vs-tag equality only — no substring, no fuzzy. Collect the set of matched tags.
-
-5. **Threshold gate.** If fewer than 2 tags matched, note `Active surfacing: 0 matches (below threshold)` in the Anchor block and skip to Step 1.
-
-6. **Collect files.** Under each matched tag's `### tag` section, gather the `- path — description` lines. Dedupe by path. Cap at top-5 by first-appearance order.
+2–6. **Rank and select (one CLI call — do not re-implement it).** Run `sh "${CLAUDE_PLUGIN_ROOT}/scripts/aria-surface.sh" "<the query built in item 1>"`. It reads the tag index, matches tags (including the configured-project vocabulary and aliases) and ranks the candidates; it prints line 1 `tags: <matched tags>` followed by up to 5 ranked paths, one per line, relative to `<knowledge_folder>` (resolve `<knowledge_folder>` from the config's `knowledge_folder` field). It prints nothing when surfacing does not fire (no matching tag, below the firing rule, or no index) — in that case note `Active surfacing: 0 matches (below threshold)` in the Anchor block and skip to Step 1. It always exits 0. The ranking lives in that script alone: never re-order, re-cap or re-filter its output.
 
 7. **Ledger filter (best-effort).** Resolve the ledger at `/tmp/aria-active-<session-id>`, where `<session-id>` is your runtime's session identifier — in Claude Code, `$CLAUDE_CODE_SESSION_ID`. If it exists, read it and drop any matched paths already listed there — they were surfaced by an earlier hook/skill in this session. ⛔ If your runtime exposes no such identifier, or the file is absent, proceed **UNFILTERED** and say so in the surfacing block (`Ledger: none for this session — proceeding unfiltered`). ⛔ Do NOT use `ls -t` over the ledger glob to guess: it returns the most recently modified ledger on the MACHINE, which is another live session's whenever yours is absent or not newest (measured 2026-09-11: 71 ledgers present, 4 concurrent sessions, a foreign one returned). A foreign ledger DROPS files never surfaced to this session, so the filter suppresses exactly the knowledge this step exists to load.
 
-8. **Read matched files.** For each remaining path (up to 5), `Read` the full file into context. **Prefer files under `logs/retrospect/`** if any matched — they're prior retros on overlapping tags, which is the loop-closure case (past retros inform new retros on the same topic). If both a retro and a non-retro file match, prioritize the retro within the top-5 cap.
+8. **Read matched files.** For each remaining path (up to 5), `Read` the full file into context. Do not re-prioritise: the shared ranking already orders authored files before files under `logs/`, so prior retros come in on their merits and no longer jump the queue.
 
 9. **Summarize.** Before Step 1's Anchor Block, emit a 3-line surfacing block:
 

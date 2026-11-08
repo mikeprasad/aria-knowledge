@@ -184,5 +184,44 @@ else
   ok "digest: no numbered procedure outside the paragraph"
 fi
 
+# --- skills (Task 6) ---------------------------------------------------------------------------
+# Expected marked copies: 2 rules digests (claude-code, antigravity) + 2 Cowork skills = 4.
+# Task 7 raises this when the codex/antigravity/cursor skill copies join.
+EXPECTED_COPIES=4
+if [ "$N_COPIES" -eq "$EXPECTED_COPIES" ]; then
+  ok "census: exactly $EXPECTED_COPIES files carry the marker pair"
+else
+  bad "census: exactly $EXPECTED_COPIES files carry the marker pair" "found $N_COPIES — a copy vanished or an unexpected one appeared"
+fi
+
+# no_first_appearance_order — the retired ordering rule must not survive in any skill.
+# (Task 7 extends the scope to every port.)
+_fao=$(grep -rlF 'first-appearance order' "$ROOT/plugin-claude-code" "$ROOT/plugin-claude-cowork" --include=SKILL.md 2>/dev/null)
+if [ -z "$_fao" ]; then
+  ok "no_first_appearance_order: no claude-code/cowork SKILL.md states the retired ordering"
+else
+  bad "no_first_appearance_order: no claude-code/cowork SKILL.md states the retired ordering" "still in: $(printf '%s' "$_fao" | sed "s|$ROOT/||" | tr '\n' ' ')"
+fi
+
+# code_skills_call_cli — Claude Code skills delegate the ranking to the CLI.
+for _s in prospect retrospect; do
+  if grep -qF '"${CLAUDE_PLUGIN_ROOT}/scripts/aria-surface.sh"' "$ROOT/plugin-claude-code/skills/$_s/SKILL.md"; then
+    ok "code_skills_call_cli: claude-code /$_s calls aria-surface.sh"
+  else
+    bad "code_skills_call_cli: claude-code /$_s calls aria-surface.sh" "CLI invocation absent"
+  fi
+done
+
+# cowork_carries_paragraph — Cowork cannot run code, so its skills carry the paragraph itself
+# (the verbatim_guard above then compares them byte for byte).
+for _s in prospect retrospect; do
+  if [ -n "$CANON" ] && grep -qF -e "$MS" "$ROOT/plugin-claude-cowork/skills/$_s/SKILL.md" \
+     && verbatim_guard "$ROOT/plugin-claude-cowork/skills/$_s/SKILL.md" >/dev/null; then
+    ok "cowork_carries_paragraph: cowork /$_s carries the marked canonical paragraph"
+  else
+    bad "cowork_carries_paragraph: cowork /$_s carries the marked canonical paragraph" "marked paragraph absent or divergent"
+  fi
+done
+
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
