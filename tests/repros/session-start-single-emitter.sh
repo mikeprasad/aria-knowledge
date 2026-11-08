@@ -174,8 +174,11 @@ case "$(lead "$TMP/rn1.json")" in "ARIA RULES REFRESHED"*) _l=yes ;; *) _l=no ;;
 check "RN1 changed digest → the notice leads the model context" "yes" "$_l"
 check "RN1 the notice names the digest" "yes" "$(has "$N1" '/aria-rules.md')"
 check "RN1 the notice does not name the unchanged user-rules file" "no" "$(has "$N1" 'aria-user-rules.md')"
-check "RN1 the installed digest is current again" "yes" \
-  "$(cmp -s "$BUNDLED" "$HR/.claude/rules/aria-rules.md" && echo yes || echo no)"
+# 2.57.8: the installed copy is the bundled digest under a one-line version stamp (I-2 D6b).
+SELFV=$(jq -r .version "$MANIFEST")
+check "RN1 the installed digest is current again (stamp + bundled body)" "yes" \
+  "$( [ "$(head -1 "$HR/.claude/rules/aria-rules.md")" = "<!-- aria-knowledge $SELFV -->" ] \
+      && tail -n +2 "$HR/.claude/rules/aria-rules.md" | cmp -s "$BUNDLED" - && echo yes || echo no)"
 run "$HR" "$CFGR" startup "$TMP/rn2.json"
 check "RN2 nothing changed → no notice" "" "$(notice "$TMP/rn2.json")"
 printf '### U2 — A second user rule\nBody two.\n' >> "$KFR/rules/user-rules.md"
@@ -214,6 +217,85 @@ for arm in rn1 rn2 rn3 rn4 rn5 rn6 rn7; do
   else bad "RN8 $arm parses strictly" "$(head -c 160 "$TMP/$arm.json" 2>/dev/null)"; fi
   check "RN8 $arm banner never carries the notice" "no" "$(has "$(sm "$TMP/$arm.json")" 'ARIA RULES')"
 done
+
+# --- Version guard (2.57.8, spec 2026-11-07, I-2) -----------------------------------------------
+# Two installs can run this hook against one ~/.claude/rules at once (measured: the CLI registry
+# named 2.57.5 while the desktop app's own copy was 2.57.6), and an old session keeps running its
+# old hook until restarted. Each writer stamps line 1 with its own version and never replaces a
+# file stamped newer. Seen red on the 2.57.7 hook, which overwrote both files unconditionally.
+stamp() { printf '<!-- aria-knowledge %s -->\n' "$1"; }
+vg_home() { # $1 = home; fresh home with both files installed by THIS hook
+  mkdir -p "$1/.claude"; run "$1" "$CFGR" startup "$TMP/vg-init.json"
+}
+held() { has "$(ctx "$1")" 'ARIA RULES NOT REFRESHED'; }
+refreshed() { has "$(ctx "$1")" 'ARIA RULES REFRESHED'; }
+
+# VG1 (A1) newer-stamped digest that differs → kept, NOT REFRESHED, no REFRESHED.
+G1="$TMP/g1"; vg_home "$G1"
+{ stamp 99.0.0; printf 'NEWER RULES BODY\n'; } > "$G1/.claude/rules/aria-rules.md"
+cp "$G1/.claude/rules/aria-rules.md" "$TMP/g1-before"
+run "$G1" "$CFGR" compact "$TMP/vg1.json"
+check "VG1 a newer-stamped digest is left in place" "yes" \
+  "$(cmp -s "$TMP/g1-before" "$G1/.claude/rules/aria-rules.md" && echo yes || echo no)"
+check "VG1 the hook says the rules were not refreshed" "yes" "$(held "$TMP/vg1.json")"
+check "VG1 the hook does not claim a refresh" "no" "$(refreshed "$TMP/vg1.json")"
+check "VG1 the held line names the newer version" "yes" "$(has "$(ctx "$TMP/vg1.json")" '99.0.0')"
+
+# VG2 (A2) newer-stamped user-rules file that differs → kept.
+G2="$TMP/g2"; vg_home "$G2"
+{ stamp 99.0.0; printf 'NEWER USER RULES RENDERING\n'; } > "$G2/.claude/rules/aria-user-rules.md"
+cp "$G2/.claude/rules/aria-user-rules.md" "$TMP/g2-before"
+run "$G2" "$CFGR" startup "$TMP/vg2.json"
+check "VG2 a newer-stamped user-rules file is left in place" "yes" \
+  "$(cmp -s "$TMP/g2-before" "$G2/.claude/rules/aria-user-rules.md" && echo yes || echo no)"
+check "VG2 the held line names aria-user-rules.md" "yes" "$(has "$(ctx "$TMP/vg2.json" | grep 'NOT REFRESHED')" 'aria-user-rules.md')"
+
+# VG3 (A3, positive) older stamp, different content → replaced, stamped with ours, REFRESHED.
+G3="$TMP/g3"; vg_home "$G3"
+{ stamp 0.0.1; printf 'OLDER RULES BODY\n'; } > "$G3/.claude/rules/aria-rules.md"
+run "$G3" "$CFGR" startup "$TMP/vg3.json"
+check "VG3 an older-stamped digest is replaced and stamped with this version" "<!-- aria-knowledge $SELFV -->" \
+  "$(head -1 "$G3/.claude/rules/aria-rules.md")"
+check "VG3 the replaced body is the bundled digest" "yes" \
+  "$(tail -n +2 "$G3/.claude/rules/aria-rules.md" | cmp -s "$BUNDLED" - && echo yes || echo no)"
+check "VG3 REFRESHED is announced" "yes" "$(refreshed "$TMP/vg3.json")"
+check "VG3 no NOT REFRESHED line" "no" "$(held "$TMP/vg3.json")"
+
+# VG4 (A4, positive) an UNSTAMPED digest (2.57.7 and older wrote none) → replaced and stamped.
+G4="$TMP/g4"; vg_home "$G4"
+cp "$BUNDLED" "$G4/.claude/rules/aria-rules.md"
+run "$G4" "$CFGR" startup "$TMP/vg4.json"
+check "VG4 an unstamped digest gets this version's stamp" "<!-- aria-knowledge $SELFV -->" \
+  "$(head -1 "$G4/.claude/rules/aria-rules.md")"
+
+# VG5 (A5) absent digest → written and stamped, no NOT REFRESHED.
+G5="$TMP/g5"; mkdir -p "$G5/.claude"
+run "$G5" "$CFGR" startup "$TMP/vg5.json"
+check "VG5 a fresh install is stamped" "<!-- aria-knowledge $SELFV -->" "$(head -1 "$G5/.claude/rules/aria-rules.md" 2>/dev/null)"
+check "VG5 no NOT REFRESHED on a fresh install" "no" "$(held "$TMP/vg5.json")"
+
+# VG6 (A6) same rules, only the stamp is older → stamp updated, NO REFRESHED (rules did not change).
+G6="$TMP/g6"; vg_home "$G6"
+{ stamp 0.0.1; cat "$BUNDLED"; } > "$G6/.claude/rules/aria-rules.md"
+run "$G6" "$CFGR" startup "$TMP/vg6.json"
+check "VG6 a stamp-only difference updates the stamp" "<!-- aria-knowledge $SELFV -->" "$(head -1 "$G6/.claude/rules/aria-rules.md")"
+check "VG6 a stamp-only difference is not announced as a rules change" "no" "$(refreshed "$TMP/vg6.json")"
+
+# VG7 (A7) newer stamp, identical body → nothing would have changed → no NOT REFRESHED.
+G7="$TMP/g7"; vg_home "$G7"
+{ stamp 99.0.0; cat "$BUNDLED"; } > "$G7/.claude/rules/aria-rules.md"
+run "$G7" "$CFGR" startup "$TMP/vg7.json"
+check "VG7 a newer stamp over identical rules is not reported as held" "no" "$(held "$TMP/vg7.json")"
+
+# VG8 (A8) numeric per field: 2.57.10 is NEWER than 2.57.9. A copied plugin tree carries the fake
+# version so the real plugin.json is never touched.
+PV="$TMP/pv"; mkdir -p "$PV"; cp -R "$DIR/plugin-claude-code" "$PV/"
+jq '.version = "2.57.9"' "$DIR/plugin-claude-code/.claude-plugin/plugin.json" > "$PV/plugin-claude-code/.claude-plugin/plugin.json"
+G8="$TMP/g8"; vg_home "$G8"
+{ stamp 2.57.10; printf 'TEN BODY\n'; } > "$G8/.claude/rules/aria-rules.md"
+printf '{"session_id":"sse-vg8","source":"startup"}' \
+  | (cd "$TMP" && HOME="$G8" KT_CONFIG="$CFGR" sh "$PV/plugin-claude-code/scripts/session-start-check.sh" 2>/dev/null) > "$TMP/vg8.json" || true
+check "VG8 a 2.57.9 hook does not replace a 2.57.10 digest" "TEN BODY" "$(sed -n 2p "$G8/.claude/rules/aria-rules.md")"
 
 printf '%d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

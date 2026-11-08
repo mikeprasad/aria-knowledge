@@ -7248,9 +7248,11 @@ ls -l ~/.claude/rules/aria-rules.md ~/.claude/rules/aria-user-rules.md 2>/dev/nu
 ```
 
 ⛔ **Invoke the hook rather than copying the files here.** `kt_ensure_rules_files`
-inside that script is the single implementation: it byte-compares the digest against
-the bundled copy, and renders the U-rule digest to a temporary file and replaces the
-installed one only when the CONTENT differs. (It used to test whether `user-rules.md`
+inside that script is the single implementation: it compares the digest, under its
+one-line version stamp, against the bundled copy, and renders the U-rule digest to a
+temporary file and replaces the installed one only when the CONTENT differs. Since 2.57.8
+it never replaces either file when the file's stamp names a NEWER aria-knowledge, because
+two installs, or a session started before an upgrade, can run the hook at the same time. (It used to test whether `user-rules.md`
 was newer; that was retired 2026-08-28 because a timestamp cannot see a plugin upgrade
 that changes how a rule renders, and unzip keeps old mtimes on a fresh install.) So a
 run that rewrites nothing means the installed digest is current, whatever the file

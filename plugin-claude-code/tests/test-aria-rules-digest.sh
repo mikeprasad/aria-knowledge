@@ -609,8 +609,12 @@ assert_eq "ensure step wrote the digest to user scope" "yes" \
   "$([ -f "$ARMH/.claude/rules/aria-rules.md" ] && echo yes || echo no)"
 assert_eq "ensure step wrote the user-rule digest to user scope" "yes" \
   "$([ -f "$ARMH/.claude/rules/aria-user-rules.md" ] && echo yes || echo no)"
-assert_eq "installed digest matches the bundled one byte for byte" "yes" \
-  "$(cmp -s "$DIGEST" "$ARMH/.claude/rules/aria-rules.md" && echo yes || echo no)"
+# 2.57.8: line 1 is the writer's version stamp; the rest is the bundled digest byte for byte.
+_APM_V=$(sed -n 's/^[[:space:]]*"version":[[:space:]]*"\([^"]*\)".*/\1/p' "$APM_ROOT/.claude-plugin/plugin.json" | head -1)
+assert_eq "installed digest is stamped with this plugin's version" "<!-- aria-knowledge $_APM_V -->" \
+  "$(head -1 "$ARMH/.claude/rules/aria-rules.md")"
+assert_eq "installed digest body matches the bundled one byte for byte" "yes" \
+  "$(tail -n +2 "$ARMH/.claude/rules/aria-rules.md" | cmp -s "$DIGEST" - && echo yes || echo no)"
 assert_eq "installed user-rule digest carries the user's rule" "yes" \
   "$(grep -qF 'an arm-fixture rule' "$ARMH/.claude/rules/aria-user-rules.md" && echo yes || echo no)"
 

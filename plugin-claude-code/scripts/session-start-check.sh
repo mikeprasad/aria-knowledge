@@ -119,17 +119,69 @@ SOURCE_URULES="$KT_KNOWLEDGE_FOLDER/rules/user-rules.md"
 #
 # ⛔ Failure here must never break the hook. A read-only HOME, a full disk or a
 # missing mkdir leaves the files absent, which the NOT INSTALLED notice below handles.
+# --- version stamp (2.57.8) ---------------------------------------------------
+# ⛔ NEWEST WRITER WINS. Line 1 of each installed rules file is `<!-- aria-knowledge <version> -->`,
+# written by whichever plugin wrote the file, and a file stamped by a NEWER version is never
+# replaced. Before this the writer copied whenever the bytes differed, and two writers fight:
+# a session started before an upgrade keeps running its old hook (measured 2026-10-30: a 2.57.4
+# session put its digest back over 2.57.5's), and two installs can run at once (measured
+# 2026-11-07: the CLI registry named 2.57.5 while the desktop app's own copy was 2.57.6).
+# ⛔ The plugin REGISTRY is not the oracle for this — the desktop copy is not in it, which is why
+# the first design for this fix was falsified. The stamp travels with the file whoever wrote it.
+# The stamp is computed here from plugin.json, so no release step keeps it in sync.
+# Unknown means write (an unstamped file, an unreadable plugin.json, an unparseable version):
+# the guard only refuses on positive evidence of a newer writer. ⚠ A pre-2.57.8 session has no
+# guard and still overwrites; and a deliberate downgrade keeps the newer files until they are
+# deleted (the NOT REFRESHED line below says so).
+KT_SELF_VERSION=$(sed -n 's/^[[:space:]]*"version":[[:space:]]*"\([^"]*\)".*/\1/p' \
+  "$SCRIPT_DIR/../.claude-plugin/plugin.json" 2>/dev/null | head -1)
+KT_RULES_HELD=""
+kt_stamp_of() { [ -f "$1" ] && head -1 "$1" 2>/dev/null | sed -n 's/^<!-- aria-knowledge \([^ ]*\) -->$/\1/p'; return 0; }
+# 0 when $1 is strictly newer than $2, numerically per dot field (2.57.10 > 2.57.9). A field's
+# trailing non-digits are ignored (2.57.4-codex.1 → 2.57.4). Empty on either side → not newer.
+# No ternaries: BSD awk rejects some forms, and this script runs under plain sh.
+kt_version_newer() {
+  [ -n "$1" ] && [ -n "$2" ] || return 1
+  awk -v a="$1" -v b="$2" 'BEGIN {
+    na = split(a, x, "."); nb = split(b, y, "."); n = na; if (nb > n) n = nb
+    for (i = 1; i <= n; i++) {
+      p = x[i]; q = y[i]; sub(/[^0-9].*$/, "", p); sub(/[^0-9].*$/, "", q); p += 0; q += 0
+      if (p > q) exit 0
+      if (p < q) exit 1
+    }
+    exit 1 }'
+}
+# Move a rendered, stamped temp file into place unless the installed file is stamped newer.
+# $1 = temp (removed on every path), $2 = installed file.
+kt_place_rules() {
+  if cmp -s "$1" "$2" 2>/dev/null; then rm -f "$1" 2>/dev/null; return 0; fi
+  _kt_theirs=$(kt_stamp_of "$2")
+  if [ -f "$2" ] && kt_version_newer "$_kt_theirs" "${KT_SELF_VERSION:-0}"; then
+    # Held. Reported only when the rules THEMSELVES differ — a newer stamp over identical rules
+    # changes nothing this session would have read.
+    tail -n +2 "$1" > "$1.body" 2>/dev/null
+    if ! tail -n +2 "$2" 2>/dev/null | cmp -s "$1.body" - ; then
+      KT_RULES_HELD="${KT_RULES_HELD:+${KT_RULES_HELD} and }$2 (written by aria-knowledge ${_kt_theirs})"
+    fi
+    rm -f "$1" "$1.body" 2>/dev/null
+    return 0
+  fi
+  mv -f "$1" "$2" 2>/dev/null || rm -f "$1" 2>/dev/null
+}
+
 kt_ensure_rules_files() {
   [ -f "$BUNDLED_DIGEST" ] || return 0
   mkdir -p "$RULES_DIR" 2>/dev/null || return 0
 
-  # Digest: byte-compare against the bundled copy. Exact, self-healing across
-  # plugin upgrades, and no version marker to keep in sync. This file is a plugin
-  # artifact — the user-editable surface is working-rules.md in their knowledge
-  # folder — and the file says so in its own header.
-  if ! cmp -s "$BUNDLED_DIGEST" "$INSTALLED_DIGEST" 2>/dev/null; then
-    cp "$BUNDLED_DIGEST" "$INSTALLED_DIGEST" 2>/dev/null || return 0
-  fi
+  # Digest: the bundled copy under a one-line version stamp. Content compare, not a timestamp,
+  # and the stamp guard above decides whether an installed copy may be replaced. This file is a
+  # plugin artifact — the user-editable surface is working-rules.md in their knowledge folder —
+  # and the file says so in its own header. The temp name does not end in `.md`, so the
+  # instruction-file glob cannot pick it up mid-write.
+  _kt_dg_tmp="${INSTALLED_DIGEST}.tmp$$"
+  { printf '<!-- aria-knowledge %s -->\n' "${KT_SELF_VERSION:-unknown}"; cat "$BUNDLED_DIGEST"; } \
+    > "$_kt_dg_tmp" 2>/dev/null || { rm -f "$_kt_dg_tmp" 2>/dev/null; return 0; }
+  kt_place_rules "$_kt_dg_tmp" "$INSTALLED_DIGEST"
 
   # U-rules: regenerate whenever the RENDERED CONTENT differs from what is installed.
   #
@@ -157,15 +209,13 @@ kt_ensure_rules_files() {
     if [ -n "$KT_USER_RULES_BLOCK" ]; then
       _kt_ur_tmp="${INSTALLED_URULES}.tmp$$"
       {
+        printf '<!-- aria-knowledge %s -->\n' "${KT_SELF_VERSION:-unknown}"
         printf '# ARIA — Your Standing Rules\n\n'
         printf 'Generated by aria-knowledge from %s. Do not edit this file; edit that one.\n' "$SOURCE_URULES"
         printf '%s' "$KT_USER_RULES_BLOCK"
       } > "$_kt_ur_tmp" 2>/dev/null || { rm -f "$_kt_ur_tmp" 2>/dev/null; return 0; }
-      if cmp -s "$_kt_ur_tmp" "$INSTALLED_URULES" 2>/dev/null; then
-        rm -f "$_kt_ur_tmp" 2>/dev/null
-      else
-        mv -f "$_kt_ur_tmp" "$INSTALLED_URULES" 2>/dev/null || rm -f "$_kt_ur_tmp" 2>/dev/null
-      fi
+      # Same stamp guard as the digest: an old generator must not re-render a newer one's output.
+      kt_place_rules "$_kt_ur_tmp" "$INSTALLED_URULES"
     fi
   fi
   return 0
@@ -176,7 +226,11 @@ kt_ensure_rules_files() {
 # here and compared after is what lets the hook say so. Measured 2026-10-29: the first session
 # after installing an update held the complete previous digest while disk held the new one, and
 # nothing told it.
-_kt_rules_sum() { if [ -f "$1" ]; then cksum < "$1" 2>/dev/null; else echo absent; fi; }
+# The leading version stamp is excluded, so a version bump that leaves the rules unchanged is not
+# announced as a rules change (spec 2026-11-07 D6a).
+_kt_rules_sum() {
+  if [ -f "$1" ]; then sed '1{/^<!-- aria-knowledge [^ ]* -->$/d;}' "$1" 2>/dev/null | cksum; else echo absent; fi
+}
 PRE_DIGEST=$(_kt_rules_sum "$INSTALLED_DIGEST")
 PRE_URULES=$(_kt_rules_sum "$INSTALLED_URULES")
 
@@ -209,6 +263,12 @@ else
   fi
   if [ -n "$_kt_named" ]; then
     RULES_NOTICE="ARIA RULES REFRESHED — ${_kt_named} changed or were installed at this session's start, after this session loaded its rules, so the copy in your context is the previous version or absent. Read the named file(s) now, before your next tool call, and follow the file wherever the two differ.
+"
+  fi
+  # Model channel on purpose: the measured overwrite fired on source=compact, where emit() drops
+  # the user banner by design.
+  if [ -n "$KT_RULES_HELD" ]; then
+    RULES_NOTICE="${RULES_NOTICE}ARIA RULES NOT REFRESHED — ${KT_RULES_HELD}, newer than this session's aria-knowledge ${KT_SELF_VERSION:-unknown}, so they were left in place. If the user meant to downgrade, they should delete those files and start a new session; otherwise tell the user to restart this session so its hooks match the installed plugin.
 "
   fi
 fi
