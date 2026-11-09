@@ -580,9 +580,10 @@ cli_un "mktemp failing (TMPDIR missing)" "unavailable: matcher error: mktemp" HO
 _cu_ctl=$(env HOME="$CLIHOME" KT_CONFIG= KT_KNOWLEDGE_FOLDER= sh "$CLI" "$MAINQ" </dev/null 2>/dev/null | head -1)
 case "$_cu_ctl" in "tags: "*) ok "cli_unavailable control: a working config ranks" ;; *) bad "cli_unavailable control: a working config ranks" "got '$_cu_ctl'" ;; esac
 
-# --- cli_hostile_text (C1) --- a model writes the command its skill shows. With the
-# text inside double quotes on the command line, backticks and $(...) RUN and $VAR
-# expands. With the quoted heredoc (`- <<'ARIA_TASK'`) nothing expands and the
+# --- cli_hostile_text (C1) --- covers the CLI's programmatic stdin path (`-` with the text on
+# stdin; skills no longer show a heredoc, they pass --file/--git-range references). With the
+# text inside double quotes on a command line, backticks and $(...) RUN and $VAR expands.
+# Fed on stdin through a quoted heredoc (`- <<'ARIA_TASK'`) nothing expands and the
 # matcher sees the literal words. The fixture's tags are `touch`, `home` and
 # `webhook`, so `tags: touch home webhook` is produced ONLY when the backtick span
 # and `$HOME` survived as text (a substitution deletes `touch`; an expansion turns

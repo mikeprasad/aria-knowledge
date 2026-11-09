@@ -121,6 +121,11 @@ else
   bad "unknown_option_unavailable" "--fil -> '$o1'; --file=x -> '$o2'"
 fi
 
+# --- unknown_option_name_stops_at_whitespace --- a prompt that starts with `--` must not be echoed
+run_cli "$T" "--not-an-option some secret words"
+if [ "$cli_out" = "unavailable: unknown option --not-an-option" ]; then ok "unknown_option_name_stops_at_whitespace"
+else bad "unknown_option_name_stops_at_whitespace" "out '$cli_out'"; fi
+
 # --- exit_always_zero ---
 if [ -s "$RC_FILE" ] && ! grep -qv '^0$' "$RC_FILE"; then
   ok "exit_always_zero"

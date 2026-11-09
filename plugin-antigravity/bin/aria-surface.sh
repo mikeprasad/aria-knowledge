@@ -52,7 +52,8 @@ while [ "$#" -gt 0 ]; do
     -)
       _as_text=$(cat); _positional=1; shift ;;
     --*)
-      unavailable "unknown option ${1%%=*}" ;;
+      _opt=${1%%=*}; _opt=${_opt%%[[:space:]]*}
+      unavailable "unknown option $_opt" ;;
     *)
       if [ "$_positional" -eq 0 ]; then _as_text=$1; _positional=1; fi
       shift ;;

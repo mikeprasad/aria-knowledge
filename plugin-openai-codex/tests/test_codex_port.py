@@ -594,6 +594,21 @@ def test_user_prompt_submit_ranks_through_the_shared_cli_project_first() -> None
         assert "tags: payments proj-b" in ctx, ctx[:200]
 
 
+def test_user_prompt_submit_ranks_a_prompt_that_starts_with_dashes() -> None:
+    # The CLI treats a positional `--word` as an unknown option, so the hook must pass the
+    # prompt on stdin (`-`), never as an argv element.
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        config = _surfacing_setup(root)
+        output = run_hook(
+            "user-prompt-submit",
+            _prompt_payload(root, "--not-an-option fix the proj-b payments webhook"),
+            env={"KT_CONFIG": str(config), "TMPDIR": tmp},
+        )
+        ctx = output["hookSpecificOutput"]["additionalContext"]
+        assert "tags: payments proj-b" in ctx, ctx[:200]
+
+
 def test_user_prompt_submit_is_silent_when_the_cli_is_missing_or_fails() -> None:
     # Two plain tags, so the prompt FIRES with a working CLI (control below) — otherwise the
     # silence asserted for the broken CLIs would carry no information.

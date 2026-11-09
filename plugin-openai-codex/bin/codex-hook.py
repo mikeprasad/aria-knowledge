@@ -319,9 +319,9 @@ def active_context_matches(prompt: str, knowledge_folder: Path) -> tuple[list[st
     env["KT_CONFIG"] = str(config_path())
     try:
         proc = subprocess.run(
-            ["sh", str(cli), prompt],
+            ["sh", str(cli), "-"],
+            input=prompt,
             text=True,
-            stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
             env=env,

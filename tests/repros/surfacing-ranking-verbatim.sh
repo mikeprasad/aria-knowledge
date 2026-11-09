@@ -312,6 +312,17 @@ done
 if [ -n "$_ref" ] && [ -z "$_diffs" ]; then ok "four_libs_identical: the 4 lib-index-match.sh copies are byte-identical"
 else bad "four_libs_identical: the 4 lib-index-match.sh copies are byte-identical" "differ or missing:$_diffs"; fi
 
+# prompt_surface_libs_identical — the shared capture core, canonical + the cursor and antigravity copies.
+PS_CANON="$ROOT/plugin-claude-code/scripts/lib-prompt-surface.sh"
+_ref=$(cksum < "$PS_CANON" 2>/dev/null)
+_diffs=""
+for _f in "$ROOT/plugin-antigravity/bin/lib-prompt-surface.sh" "$ROOT/plugin-cursor-template/scripts/aria/lib-prompt-surface.sh"; do
+  _c=$(cksum < "$_f" 2>/dev/null)
+  [ -n "$_c" ] && [ "$_c" = "$_ref" ] || _diffs="$_diffs ${_f#$ROOT/}"
+done
+if [ -n "$_ref" ] && [ -z "$_diffs" ]; then ok "prompt_surface_libs_identical: the 3 lib-prompt-surface.sh copies are byte-identical"
+else bad "prompt_surface_libs_identical: the 3 lib-prompt-surface.sh copies are byte-identical" "differ or missing:$_diffs"; fi
+
 # Fixture: the surfacing-rank index, a config that turns surfacing on, and a query that fires.
 T7="$SCRATCH/t7"; mkdir -p "$T7/kf/logs" "$T7/home" "$T7/home/.gemini/antigravity"
 cp "$ROOT/tests/repros/fixtures/surfacing/index.md" "$T7/kf/index.md"
