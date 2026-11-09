@@ -1238,6 +1238,7 @@ done
 #   Y6 add_file refuses a symlinked entry file      Y7 add_file refuses bad headers / args
 #   Y8 add_file verifies its write landed (exit 3 when kt_ss_ledger_add is neutered)
 #   Y3b/Y8b a header QUOTED inside the active slot is not proof of landing (fix round 1)
+#   Y3c the same prompt with the REAL add lands on the first try (fix round 2)
 #   Y9 an idempotent re-run (RC-3 byte-identical skip) still reads as landed (fix round 1)
 YD="$TMP/y"
 _y_tok='aria-handoff: proj-a/tok-sid@2026-11-01T00:00:00Z'
@@ -1320,6 +1321,22 @@ _y_arms() {  # $1 tag. The caller has sourced ONE port's lib into this subshell.
     echo "OK Y3b demote_active_landing_ignores_a_quoted_header"
   else
     echo "BAD Y3b demote_active_landing_ignores_a_quoted_header -- exits '$rr' (want '3 3'), slot $(cmp -s "$b/d3bc/before.md" "$b/d3bc/SESSION.md" && echo kept || echo CHANGED)"
+  fi
+
+  # Y3c (fix round 2) -- the same self-quoting prompt with the REAL add. Storing it adds TWO lines that
+  # start with the header prefix (the entry's header and the quoted line in its body), so a "+1" rule
+  # reported a landed demote as not landed (exit 3) and only the retry, via the level-count allowance,
+  # returned 0. It must succeed on the first try, with exactly one stored entry.
+  _y_slot "$b/d3c" "$b/p3b"; _y_slot "$b/d3cc" "$b/p3b"
+  x=0; kt_ss_ledger_demote_active "$b/d3c" >/dev/null 2>&1 || x=$?
+  y=0; kt_ss_ledger_consume_active "$b/d3cc" resumer 2026-11-03T00:00:00Z "$_y_tok" >/dev/null 2>&1 || y=$?
+  e1=$(grep -c '^<!-- aria:entry-end -->$' "$b/d3c/SESSION.md" || true)
+  e2=$(grep -c '^<!-- aria:entry-end -->$' "$b/d3cc/SESSION.md" || true)
+  a2=$(awk '/^## Next session prompt/{a=1;next} /^## /{a=0} a&&NF' "$b/d3cc/SESSION.md")
+  if [ "$x$y" = "00" ] && [ "$e1" -eq 1 ] && [ "$e2" -eq 1 ] && [ -z "$a2" ]; then
+    echo "OK Y3c self_quoting_prompt_lands_first_try"
+  else
+    echo "BAD Y3c self_quoting_prompt_lands_first_try -- exits $x$y (want 00), stored entries $e1/$e2 (want 1/1), consume slot $([ -z "$a2" ] && echo cleared || echo NOT-cleared)"
   fi
 
   printf '%s\n' '```' 'Y4 tokenless prompt' '```' > "$b/p4"
@@ -1412,7 +1429,7 @@ for _yd in plugin-claude-code/scripts plugin-antigravity/bin plugin-cursor-templ
 $_yout
 YOUT
   _yn=$(printf '%s\n' "$_yout" | grep -c '^OK ' || true)
-  [ "$_yn" -eq 11 ] || bad "Y coverage $_yd" "only $_yn of 11 arms passed -- see the lines above"
+  [ "$_yn" -eq 12 ] || bad "Y coverage $_yd" "only $_yn of 12 arms passed -- see the lines above"
 done
 [ "$_Y_SEEN" -eq 4 ] && ok "Y coverage: all 4 carrying ports exercised" \
   || bad "Y coverage" "only $_Y_SEEN of 4 port libs found"

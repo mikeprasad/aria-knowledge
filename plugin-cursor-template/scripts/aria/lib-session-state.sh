@@ -882,7 +882,8 @@ kt_ss_read_live_prompt() {
 # kt_ss_ledger_demote_active and kt_ss_ledger_add_file; same arguments as kt_ss_ledger_add.
 #
 # ⛔ THE CHECK IS A COUNT, NOT A PRESENCE TEST (fix round 1). Lines starting `### <sid> · <at> · ` are
-# counted before and after the add, and the count must RISE BY ONE. A presence test was a data-loss
+# counted before and after the add, and the count must RISE BY the number of such lines in the entry
+# being written -- one (its header) plus any prompt line that starts the same way. A presence test was a data-loss
 # path: a prompt that quotes its own header at column 0 sits in the active slot, so the header is
 # "present" before anything is written -- with the add failing silently, demote_active returned 0 and
 # consume_active cleared the slot, leaving the prompt in neither place (measured by review).
@@ -917,11 +918,15 @@ $6
       }' "$_ss_av_blkf" "$_ss_av_f" 2>/dev/null; then
     _ss_av_had=0
   fi
+  # The rise to expect is the number of block lines carrying the prefix -- the entry's own header, plus
+  # any line of the PROMPT that starts the same way (a prompt quoting its own header). "+1" reported a
+  # landed self-quoting demote as not landed (fix round 2).
+  _ss_av_k=$(awk -v h="$_ss_av_h" 'index($0, h) == 1 { n++ } END { print n + 0 }' "$_ss_av_blkf" 2>/dev/null)
   rm -f "$_ss_av_blkf" 2>/dev/null
   _ss_av_n0=$(awk -v h="$_ss_av_h" 'index($0, h) == 1 { n++ } END { print n + 0 }' "$_ss_av_f" 2>/dev/null)
   kt_ss_ledger_add "$@"
   _ss_av_n1=$(awk -v h="$_ss_av_h" 'index($0, h) == 1 { n++ } END { print n + 0 }' "$_ss_av_f" 2>/dev/null)
-  [ "${_ss_av_n1:-0}" -eq $(( ${_ss_av_n0:-0} + 1 )) ] && return 0
+  [ "${_ss_av_n1:-0}" -eq $(( ${_ss_av_n0:-0} + ${_ss_av_k:-1} )) ] && return 0
   [ "$_ss_av_had" -eq 0 ] && [ "${_ss_av_n1:-0}" -eq "${_ss_av_n0:-0}" ] && return 0
   return 1
 }
