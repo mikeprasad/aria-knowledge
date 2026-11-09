@@ -7,10 +7,58 @@ setup() {
   CACHE_FILE="$CACHE_DIR/.last-transcript-path"
   LOG_FILE="$CACHE_DIR/aria-knowledge-scope-check.log"
   mkdir -p "$CACHE_DIR" 2>/dev/null || true
+  # Responsibility 4 (spec D4) keeps its state, config cache and debug log under
+  # KT_SURFACE_CACHE_DIR: one fresh dir per test, never the user's TMPDIR.
+  SURF="$(mktemp -d "${BATS_TMPDIR}/ag-surf.XXXXXX")"
+  export KT_SURFACE_CACHE_DIR="$SURF"
+  HOOKLOG="$SURF/aria-surface-hook.log"
+  FIXTURE="${BATS_TEST_DIRNAME}/fixtures/transcript-user-input.jsonl"
+  # The ledger path is fixed by contract (/tmp/aria-active-<id>), so every id carries RUN_ID.
+  RUN_ID="agpi$$t${BATS_TEST_NUMBER}x$(od -An -N4 -tx4 /dev/urandom 2>/dev/null | tr -d ' ')"
 }
 
 teardown() {
-  rm -rf "$CACHE_DIR" 2>/dev/null || true
+  rm -rf "$CACHE_DIR" "$SURF" 2>/dev/null || true
+  rm -f /tmp/aria-active-"${RUN_ID}"* 2>/dev/null || true
+}
+
+# --- Responsibility 4 helpers (spec D4: rank the newest USER_INPUT in code) ---------
+
+# A knowledge folder holding the shared surfacing fixture index, and an Antigravity
+# config pointing at it with active surfacing on.
+r4_configure() {
+  KF="$SURF/kf"
+  mkdir -p "$KF"
+  cp "${BATS_TEST_DIRNAME}/../../tests/repros/fixtures/surfacing/index.md" "$KF/index.md"
+  cat > "$CACHE_DIR/aria-knowledge.local.md" <<CFG
+---
+knowledge_folder: $KF
+active_knowledge_surfacing: true
+projects_enabled: true
+projects_list: proj-a:proj-a,proj-b:proj-b,proj-c:proj-c
+---
+CFG
+}
+
+# r4_payload CONV TRANSCRIPT INVOCATION [MODEL] — a PreInvocation payload on $SURF/in.
+r4_payload() {
+  if [ -n "${4:-}" ]; then
+    jq -cn --arg c "$1" --arg t "$2" --argjson n "$3" --arg m "$4" \
+      '{conversationId:$c, workspacePaths:["/tmp"], transcriptPath:$t, artifactDirectoryPath:"/tmp/art",
+        invocationNum:$n, initialNumSteps:5, modelName:$m}' > "$SURF/in"
+  else
+    jq -cn --arg c "$1" --arg t "$2" --argjson n "$3" \
+      '{conversationId:$c, workspacePaths:["/tmp"], transcriptPath:$t, artifactDirectoryPath:"/tmp/art",
+        invocationNum:$n, initialNumSteps:5}' > "$SURF/in"
+  fi
+}
+
+r4_run() { bash "$WRAPPER" < "$SURF/in" > "$SURF/out" 2>/dev/null; }
+# The R4 step (if any): the ephemeralMessage that starts with "ARIA ACTIVE —".
+r4_active() { jq -r '(.injectSteps // [])[] | .ephemeralMessage | select(startswith("ARIA ACTIVE —"))' "$SURF/out" 2>/dev/null; }
+r4_user_input() { # STEP CONTENT — one USER_INPUT record in the measured schema
+  jq -cn --argjson s "$1" --arg c "$2" \
+    '{type:"USER_INPUT", content:$c, source:"USER_EXPLICIT", status:"DONE", step_index:$s, created_at:"2026-11-08T00:01:00Z"}'
 }
 
 @test "wrapper output is valid JSON for any invocationNum" {
@@ -63,4 +111,254 @@ teardown() {
   [[ "$msg" =~ "Rule 22" ]] || [[ "$msg" =~ "scope" ]]
   # Log file should be truncated/removed after drain
   [ ! -s "$LOG_FILE" ]
+}
+
+# --- Responsibility 4: the newest USER_INPUT, ranked in code (spec D4, AC4) ----------
+# `[[ ]]` and `! cmd` do not trip errexit on every bash, so assertions use [ ] / grep.
+has()   { printf '%s' "$1" | grep -qF -- "$2"; }
+hasnt() { ! printf '%s' "$1" | grep -qF -- "$2"; }
+logged() { grep -q -- " antigravity $1\$" "$HOOKLOG" 2>/dev/null; }
+
+@test "R4 inject_once_per_user_input: newest USER_INPUT only, once per step_index" {
+  r4_configure
+  cp "$FIXTURE" "$SURF/t.jsonl"
+  C="${RUN_ID}A"
+  r4_payload "$C" "$SURF/t.jsonl" 3
+  r4_run
+  m=$(r4_active)
+  has "$m" "$KF/projects/proj-b/deposits.md"
+  hasnt "$m" "projects/proj-a/hooks.md"        # the OLDER USER_INPUT is not the one ranked
+  grep -qxF 'projects/proj-b/deposits.md' "/tmp/aria-active-$C"
+  grep -qxF '4' "$SURF/aria-ag-surfaced-$C"
+  # Same newest USER_INPUT on the next model call: nothing.
+  r4_run
+  [ "$(cat "$SURF/out")" = "{}" ]
+  # With the ledger gone, the state file alone still holds it to once.
+  rm -f "/tmp/aria-active-$C"
+  r4_run
+  [ "$(cat "$SURF/out")" = "{}" ]
+}
+
+@test "R4 new_user_input_injects_again: a newer USER_INPUT step is ranked and injected" {
+  r4_configure
+  cp "$FIXTURE" "$SURF/t.jsonl"
+  C="${RUN_ID}B"
+  r4_payload "$C" "$SURF/t.jsonl" 3
+  r4_run
+  has "$(r4_active)" "projects/proj-b/deposits.md"
+  r4_user_input 7 "webhooks retry for proj-a hooks" >> "$SURF/t.jsonl"
+  r4_run
+  has "$(r4_active)" "$KF/projects/proj-a/hooks.md"
+  grep -qxF '4' "$SURF/aria-ag-surfaced-$C"
+  grep -qxF '7' "$SURF/aria-ag-surfaced-$C"
+}
+
+@test "R4 no_user_input_silent: no USER_INPUT → {} and no log line; fires once one appears" {
+  r4_configure
+  C="${RUN_ID}N"
+  printf '%s\n' \
+    '{"type":"SYSTEM_MESSAGE","content":"Session started.","source":"SYSTEM","status":"DONE","step_index":0,"created_at":"2026-11-08T00:00:00Z"}' \
+    '{"type":"PLANNER_RESPONSE","content":"payments for proj-b deposits","source":"MODEL","status":"DONE","step_index":1,"created_at":"2026-11-08T00:00:01Z"}' \
+    > "$SURF/t.jsonl"
+  r4_payload "$C" "$SURF/t.jsonl" 3
+  r4_run
+  [ "$(cat "$SURF/out")" = "{}" ]
+  [ "$(grep -c ' antigravity ' "$HOOKLOG" 2>/dev/null || true)" = "0" ] || [ ! -e "$HOOKLOG" ]
+  # Positive control in the same arm: the hook is alive and reads this transcript.
+  r4_user_input 2 "how do we handle payments for proj-b deposits" >> "$SURF/t.jsonl"
+  r4_run
+  has "$(r4_active)" "projects/proj-b/deposits.md"
+}
+
+@test "R4 malformed_line_ignored: bad lines are skipped, the valid USER_INPUT still ranks" {
+  r4_configure
+  cp "$FIXTURE" "$SURF/t.jsonl"
+  printf '%s\n' 'not json {' '[1,2]' '"just a string"' \
+    '{"type":"USER_INPUT","content":42,"source":"USER_EXPLICIT","step_index":9}' \
+    '{"type":"USER_INPUT","content":"webhooks retry for proj-a hooks","step_index":10' \
+    >> "$SURF/t.jsonl"
+  C="${RUN_ID}M"
+  r4_payload "$C" "$SURF/t.jsonl" 3
+  r4_run
+  m=$(r4_active)
+  has "$m" "projects/proj-b/deposits.md"
+  hasnt "$m" "projects/proj-a/hooks.md"
+  grep -qxF '4' "$SURF/aria-ag-surfaced-$C"
+}
+
+@test "R4 no_transcript_logged: missing transcript → debug-log line; other outputs unchanged" {
+  r4_configure
+  C="${RUN_ID}T"
+  printf '%s\n' "--- 2026-05-24T08:00:00Z stepIdx=5 error=none" "[Rule 22 Scope] PASS — sample entry" > "$LOG_FILE"
+  r4_payload "$C" "$SURF/missing.jsonl" 3
+  r4_run
+  [ "$(jq '.injectSteps | length' "$SURF/out")" = "1" ]
+  jq -r '.injectSteps[0].ephemeralMessage' "$SURF/out" | grep -q 'Rule 22 scope-check feedback'
+  logged 'transcript unreadable'
+  r4_payload "$C" "" 3
+  r4_run
+  [ "$(cat "$SURF/out")" = "{}" ]
+  logged 'transcript no-transcript-path'
+}
+
+@test "R4 existing_responsibilities_unchanged: session-start + drain byte-identical, R4 step appended last" {
+  r4_configure
+  cp "$FIXTURE" "$SURF/t.jsonl"
+  # A: R4 has nothing to read.
+  printf '%s\n' "--- 2026-05-24T08:00:00Z stepIdx=5 error=none" "[Rule 22 Scope] PASS — sample entry" > "$LOG_FILE"
+  r4_payload "${RUN_ID}E1" "$SURF/missing.jsonl" 0
+  r4_run
+  cp "$SURF/out" "$SURF/outA"
+  # B: R4 fires.
+  printf '%s\n' "--- 2026-05-24T08:00:00Z stepIdx=5 error=none" "[Rule 22 Scope] PASS — sample entry" > "$LOG_FILE"
+  r4_payload "${RUN_ID}E2" "$SURF/t.jsonl" 0
+  r4_run
+  [ "$(jq '.injectSteps | length' "$SURF/outA")" = "2" ]
+  jq -r '.injectSteps[0].ephemeralMessage' "$SURF/outA" | grep -q 'RULE 22 ORDERING'
+  jq -r '.injectSteps[1].ephemeralMessage' "$SURF/outA" | grep -q 'Rule 22 scope-check feedback'
+  [ "$(jq -c '.injectSteps' "$SURF/outA")" = "$(jq -c '.injectSteps[:-1]' "$SURF/out")" ]
+  jq -r '.injectSteps[-1].ephemeralMessage' "$SURF/out" | grep -q '^ARIA ACTIVE —'
+  [ "$(cat "$CACHE_FILE")" = "$SURF/t.jsonl" ]
+}
+
+@test "R4 modelName_logged: modelName goes to the debug log only when it changes" {
+  r4_configure
+  cp "$FIXTURE" "$SURF/t.jsonl"
+  C="${RUN_ID}G"
+  r4_payload "$C" "$SURF/t.jsonl" 3 "model-x-1"; r4_run
+  r4_payload "$C" "$SURF/t.jsonl" 4 "model-x-1"; r4_run
+  r4_payload "$C" "$SURF/t.jsonl" 5 "model-y-2"; r4_run
+  [ "$(grep -c ' antigravity capture modelName=' "$HOOKLOG")" = "2" ]
+  [ "$(grep ' antigravity capture modelName=' "$HOOKLOG" | sed 's/.*modelName=//' | tr '\n' ' ')" = "model-x-1 model-y-2 " ]
+}
+
+@test "R4 hostile_content_ranked_as_words: shell syntax in USER_INPUT never executes" {
+  r4_configure
+  MK="$SURF/MARKER"
+  content=$(printf 'payments for proj-b deposits `touch %s` $(touch %s)\nARIA_TASK\n${IFS} %s' "$MK" "$MK" "'")
+  r4_user_input 4 "$content" > "$SURF/t.jsonl"
+  C="${RUN_ID}H"
+  r4_payload "$C" "$SURF/t.jsonl" 3
+  r4_run
+  [ ! -e "$MK" ]
+  has "$(r4_active)" "projects/proj-b/deposits.md"
+}
+
+@test "R4 state_symlink_refused: a planted state symlink blocks injection and is not followed" {
+  r4_configure
+  cp "$FIXTURE" "$SURF/t.jsonl"
+  C="${RUN_ID}S"
+  printf 'keep\n' > "$SURF/target"
+  ln -s "$SURF/target" "$SURF/aria-ag-surfaced-$C"
+  r4_payload "$C" "$SURF/t.jsonl" 3
+  r4_run
+  [ -z "$(r4_active)" ]
+  [ "$(cat "$SURF/target")" = "keep" ]
+  [ ! -e "/tmp/aria-active-$C" ]
+  logged 'state refused'
+  rm -f "$SURF/aria-ag-surfaced-$C"
+  r4_run
+  has "$(r4_active)" "projects/proj-b/deposits.md"
+}
+
+@test "R4 delivery_failure_records_nothing: unwritable output → no ledger, no state" {
+  r4_configure
+  cp "$FIXTURE" "$SURF/t.jsonl"
+  C="${RUN_ID}D"
+  r4_payload "$C" "$SURF/t.jsonl" 3
+  bash "$WRAPPER" < "$SURF/in" >&- 2>/dev/null || true
+  [ ! -e "$SURF/aria-ag-surfaced-$C" ]
+  [ ! -e "/tmp/aria-active-$C" ]
+  logged 'emit write-failed'
+  r4_run
+  has "$(r4_active)" "projects/proj-b/deposits.md"
+  grep -qxF '4' "$SURF/aria-ag-surfaced-$C"
+}
+
+@test "R4 window_is_last_400_lines: a USER_INPUT older than 400 lines is not read" {
+  r4_configure
+  C="${RUN_ID}W"
+  r4_user_input 0 "how do we handle payments for proj-b deposits" > "$SURF/t.jsonl"
+  i=1
+  while [ "$i" -le 450 ]; do
+    printf '{"type":"VIEW_FILE","content":"x","source":"MODEL","status":"DONE","step_index":%d,"created_at":"2026-11-08T00:00:00Z"}\n' "$i"
+    i=$((i + 1))
+  done >> "$SURF/t.jsonl"
+  r4_payload "$C" "$SURF/t.jsonl" 3
+  r4_run
+  [ "$(cat "$SURF/out")" = "{}" ]
+  # The same record inside the window is read.
+  { r4_user_input 0 "how do we handle payments for proj-b deposits"; sed -n '1,300p' "$SURF/t.jsonl" | tail -n 299; } > "$SURF/t2.jsonl"
+  r4_payload "$C" "$SURF/t2.jsonl" 3
+  r4_run
+  has "$(r4_active)" "projects/proj-b/deposits.md"
+}
+
+@test "R4 schema_miss_logged: records without the measured shape are logged, not injected" {
+  r4_configure
+  C="${RUN_ID}X"
+  printf '%s\n' '{"kind":"USER_INPUT","text":"payments for proj-b deposits"}' '{"foo":1}' > "$SURF/t.jsonl"
+  r4_payload "$C" "$SURF/t.jsonl" 3
+  r4_run
+  [ "$(cat "$SURF/out")" = "{}" ]
+  logged 'transcript schema-miss'
+  printf '%s\n' '{"type":"USER_INPUT","content":"payments for proj-b deposits","source":"USER_EXPLICIT"}' > "$SURF/t2.jsonl"
+  r4_payload "$C" "$SURF/t2.jsonl" 3
+  r4_run
+  [ "$(cat "$SURF/out")" = "{}" ]
+  logged 'transcript no-step-index'
+}
+
+@test "R4 conversation_id_sanitised: a path-shaped conversationId names one plain file" {
+  r4_configure
+  cp "$FIXTURE" "$SURF/t.jsonl"
+  mkdir -p "$SURF/sub"
+  r4_payload "${RUN_ID}x/../sub/y" "$SURF/t.jsonl" 3
+  r4_run
+  has "$(r4_active)" "projects/proj-b/deposits.md"
+  grep -qxF '4' "$SURF/aria-ag-surfaced-${RUN_ID}x..suby"
+  grep -qxF 'projects/proj-b/deposits.md' "/tmp/aria-active-${RUN_ID}x..suby"
+  [ -z "$(ls -A "$SURF/sub")" ]
+}
+
+@test "R4 stale_state_pruned_on_first_call: state files older than 24 h go on invocationNum 0" {
+  r4_configure
+  printf '4\n' > "$SURF/aria-ag-surfaced-${RUN_ID}old"
+  touch -t 202001010000 "$SURF/aria-ag-surfaced-${RUN_ID}old"
+  printf '4\n' > "$SURF/aria-ag-surfaced-${RUN_ID}new"
+  r4_payload "${RUN_ID}P" "$SURF/missing.jsonl" 0
+  r4_run
+  [ ! -e "$SURF/aria-ag-surfaced-${RUN_ID}old" ]
+  [ -e "$SURF/aria-ag-surfaced-${RUN_ID}new" ]
+}
+
+@test "R4 lib_missing_logged: without lib-prompt-surface.sh → logged, output unchanged" {
+  r4_configure
+  cp "$FIXTURE" "$SURF/t.jsonl"
+  P="$SURF/plug"
+  mkdir -p "$P/bin/antigravity"
+  cp "${BATS_TEST_DIRNAME}"/../bin/antigravity/*.sh "$P/bin/antigravity/"
+  cp "${BATS_TEST_DIRNAME}/../bin/config.sh" "${BATS_TEST_DIRNAME}/../bin/lib-index-match.sh" "$P/bin/"
+  r4_payload "${RUN_ID}L" "$SURF/t.jsonl" 3
+  bash "$P/bin/antigravity/pre-invocation-aria.sh" < "$SURF/in" > "$SURF/out" 2>/dev/null
+  [ "$(cat "$SURF/out")" = "{}" ]
+  logged 'surface lib-missing'
+}
+
+@test "R4 jq_missing_logged: no jq → the existing deny output, plus one debug-log line" {
+  FARM="$SURF/farm"; mkdir -p "$FARM"
+  for d in /usr/bin /bin /usr/sbin /sbin; do
+    for b in "$d"/*; do
+      n=${b##*/}
+      [ "$n" = jq ] && continue
+      [ -e "$FARM/$n" ] || ln -s "$b" "$FARM/$n" 2>/dev/null || true
+    done
+  done
+  ! (PATH="$FARM"; command -v jq >/dev/null 2>&1) || false
+  r4_payload "${RUN_ID}J" "$SURF/missing.jsonl" 3
+  rc=0
+  PATH="$FARM" /bin/bash "$WRAPPER" < "$SURF/in" > "$SURF/out" 2>/dev/null || rc=$?
+  [ "$rc" = "1" ]
+  grep -q '"decision":"deny"' "$SURF/out"
+  logged 'input jq-missing'
 }

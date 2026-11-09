@@ -10,8 +10,21 @@
 #      and inject as ephemeralMessage. Restores PostToolUse → agent
 #      feedback channel that Antigravity's PostToolUse {} return
 #      cannot deliver inline.
+#   4. Rank the newest USER_INPUT from the transcript in code and inject
+#      the result once per user turn (spec D4). Antigravity's PreInvocation
+#      input carries no prompt, so the transcript is the only source; the
+#      text reaches the matcher through jq and argv, never a shell string.
 
 set -uo pipefail
+
+# C3: lib-antigravity-input.sh denies and exits when jq is missing, before
+# responsibility 4 can say why. Record it in the surfacing debug log first
+# (a symlinked log is refused). Output and exit status stay the lib's.
+if ! command -v jq >/dev/null 2>&1; then
+  _ag_lf="${KT_SURFACE_CACHE_DIR:-${TMPDIR:-/tmp}}/aria-surface-hook.log"
+  [ -L "$_ag_lf" ] || printf '%s antigravity input jq-missing\n' \
+    "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown-time)" >> "$_ag_lf" 2>/dev/null
+fi
 
 LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=./lib-antigravity-input.sh
@@ -412,7 +425,173 @@ $SCOPE_CONTENT
   fi
 fi
 
+# --- Responsibility 4: rank the newest user input in code (spec D4) ---
+# The ranking, ledger filter and "ARIA ACTIVE —" text are the shared capture core,
+# bin/lib-prompt-surface.sh (byte-identical with the Claude Code and Cursor copies;
+# build.sh copies it here). This block is only the Antigravity I/O adapter:
+#   - text:  the newest USER_INPUT record in the LAST 400 lines of transcriptPath
+#            (measured schema: type, content, source, status, step_index, created_at;
+#            a user turn is type "USER_INPUT" with string content). Read by jq one line
+#            at a time; a malformed line is skipped. The content is untrusted text: it
+#            reaches the matcher only as a jq output and an argv item.
+#   - once:  per conversation, per step_index — state file
+#            ${KT_SURFACE_CACHE_DIR:-${TMPDIR:-/tmp}}/aria-ag-surfaced-<sanitised conversationId>,
+#            one surfaced step_index per line. A symlinked or foreign state file is
+#            refused (and nothing is injected, since it could not be recorded).
+#   - ledger: /tmp/aria-active-<sanitised conversationId>, the same ledger as the
+#            other hosts. Both the ledger and the state file are written ONLY after the
+#            hook output carrying the step was written (the lib's ledger contract): a
+#            failure before delivery records nothing, so the next model call retries.
+#   - timing: if Antigravity logs the user turn only after this hook fires, the
+#            injection lands one model call later (still once).
+# Failures go to the debug log (spec C3) as `<UTC> antigravity <step> <reason>`, never to
+# model context; the model name is logged there when it changes (spec C2). Disabled or
+# unconfigured surfacing does nothing and logs nothing. Responsibilities 1-3 never see
+# any of this: it only appends one step to INJECT_STEPS_JSON.
+AG_SURFACE_STEP=""
+ag_surface() {
+  local dir="${KT_SURFACE_CACHE_DIR:-${TMPDIR:-/tmp}}"
+  if [ ! -f "$CLAUDE_PLUGIN_ROOT/bin/lib-prompt-surface.sh" ]; then
+    local lf="$dir/aria-surface-hook.log"
+    [ -L "$lf" ] || printf '%s antigravity surface lib-missing\n' \
+      "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown-time)" >> "$lf" 2>/dev/null
+    return 0
+  fi
+  KT_PS_SCRIPT_DIR="$CLAUDE_PLUGIN_ROOT/bin"
+  KT_PS_RUNTIME=antigravity
+  # Same expression as config.sh's first assignment, so the lib's config cache keys on
+  # the file without sourcing config.sh (~150 ms) on every model call.
+  KT_CONFIG="${KT_CONFIG:-$HOME/.gemini/antigravity/aria-knowledge.local.md}"
+  # shellcheck source=../lib-prompt-surface.sh
+  . "$CLAUDE_PLUGIN_ROOT/bin/lib-prompt-surface.sh"
+
+  # Housekeeping, once per conversation: state files older than 24 h, ours only.
+  if [ "$INVOCATION_NUM" = "0" ]; then
+    find "$dir" -maxdepth 1 -name 'aria-ag-surfaced-*' \
+      -user "${USER:-$(id -u)}" -mmin +1440 -exec rm -f {} + 2>/dev/null
+  fi
+
+  # C2: the model name, logged when it differs from the last one logged. The small state
+  # files here are written in place, only after a check that they are not links and are
+  # ours (spec C4: every fork counts on this path; same check-then-write class as the
+  # ledger's own append).
+  local model last="" mf="$dir/aria-ag-model.last"
+  model=$(jq -r '(.modelName // "") | tostring | gsub("[^A-Za-z0-9._+:/-]"; "") | .[0:60]' \
+    <<<"$ARIA_HOOK_INPUT" 2>/dev/null) || model=""
+  if [ -n "$model" ] && [ ! -L "$mf" ] && { [ ! -e "$mf" ] || { [ -f "$mf" ] && [ -O "$mf" ]; }; }; then
+    [ -f "$mf" ] && { IFS= read -r last < "$mf" 2>/dev/null || :; }
+    if [ "$model" != "$last" ]; then
+      kt_ps_log antigravity capture "modelName=$model"
+      printf '%s\n' "$model" > "$mf" 2>/dev/null
+    fi
+  fi
+
+  kt_ps_load_config
+  if [ -z "$KT_CONFIG_ERROR" ] \
+     && { [ "$KT_CONFIGURED" != "true" ] || [ "$KT_ACTIVE_SURFACING" != "true" ]; }; then
+    return 0
+  fi
+
+  local sid
+  sid=$(kt_ps_sanitize_id "$ARIA_CONVERSATION_ID")
+  [ -n "$sid" ] || { kt_ps_log antigravity input no-conversation-id; return 0; }
+  local tp="$ARIA_TRANSCRIPT_PATH"
+  [ -n "$tp" ] || { kt_ps_log antigravity transcript no-transcript-path; return 0; }
+  if [ ! -f "$tp" ] || [ ! -r "$tp" ]; then
+    kt_ps_log antigravity transcript unreadable; return 0
+  fi
+
+  # One jq call over the last 400 lines (gate-2 G3). Line 1 is a status; on "ok", line 2
+  # is the step_index reduced to a filename-safe charset and the rest is the content plus
+  # a closing "." ($( ) strips trailing newlines, which would change the text).
+  local parsed status
+  parsed=$(tail -n 400 -- "$tp" 2>/dev/null | jq -Rnr '
+    [inputs] as $lines
+    | [$lines[] | fromjson? | select(type == "object")] as $r
+    | ([$r[] | select((.type | type) == "string")] | length) as $typed
+    | ([$r[] | select(.type == "USER_INPUT" and ((.content | type) == "string"))] | last) as $u
+    | if ($lines | length) == 0 then "empty"
+      elif $typed == 0 then "schema-miss"
+      elif $u == null then "none"
+      else (($u.step_index // "") | tostring | gsub("[^A-Za-z0-9._-]"; "")) as $s
+        | if $s == "" then "no-step-index" else "ok", $s, ($u.content + ".") end
+      end
+  ' 2>/dev/null) || { kt_ps_log antigravity transcript jq-failed; return 0; }
+  local nl='
+'
+  status=${parsed%%"$nl"*}
+  case $status in
+    ok) ;;
+    empty|none) return 0 ;;
+    schema-miss|no-step-index) kt_ps_log antigravity transcript "$status"; return 0 ;;
+    *) kt_ps_log antigravity transcript unexpected-parse; return 0 ;;
+  esac
+  local rest step content
+  rest=${parsed#*"$nl"}
+  step=${rest%%"$nl"*}
+  content=""
+  case $rest in *"$nl"*) content=${rest#*"$nl"} ;; esac
+  content=${content%.}
+
+  local state="$dir/aria-ag-surfaced-$sid"
+  if [ -L "$state" ] || { [ -e "$state" ] && { [ ! -f "$state" ] || [ ! -O "$state" ]; }; }; then
+    kt_ps_log antigravity state refused; return 0
+  fi
+  if [ -f "$state" ]; then
+    local seen
+    while IFS= read -r seen || [ -n "$seen" ]; do
+      [ "$seen" = "$step" ] && return 0
+    done < "$state"
+  fi
+
+  # The user's own words: pasted blocks removed (the strip runs only when there is one).
+  # Ranking only; nothing is recorded here.
+  local text
+  case $content in
+    *'<pasted_content'*) text=$(printf '%s' "$content" | kt_ps_strip_pasted) ;;
+    *) text=$content ;;
+  esac
+  [ -n "$text" ] || return 0
+  AG_SURFACE_LEDGER="/tmp/aria-active-$sid"
+  kt_ps_surface "$text" "$AG_SURFACE_LEDGER" >/dev/null
+  [ -n "$KT_PS_TEXT" ] || return 0
+  # The whole hook output, built in one jq call: steps 1-3 unchanged, this one appended.
+  AG_OUT=$(jq -cn --argjson s "$INJECT_STEPS_JSON" --arg m "$KT_PS_TEXT" \
+    '{injectSteps: ($s + [{"ephemeralMessage": $m}])}' 2>/dev/null)
+  [ -n "$AG_OUT" ] || { kt_ps_log antigravity emit jq-failed; return 0; }
+  AG_SURFACE_STEP=$step
+  AG_SURFACE_STATE=$state
+}
+
+# After the output was written: record what was delivered. The state line is appended
+# only after the file is checked again (not a link, ours) — never through a planted link.
+ag_surface_commit() {
+  kt_ps_commit "$AG_SURFACE_LEDGER"
+  if [ -L "$AG_SURFACE_STATE" ] \
+     || { [ -e "$AG_SURFACE_STATE" ] && { [ ! -f "$AG_SURFACE_STATE" ] || [ ! -O "$AG_SURFACE_STATE" ]; }; }; then
+    kt_ps_log antigravity state refused; return 0
+  fi
+  printf '%s\n' "$AG_SURFACE_STEP" >> "$AG_SURFACE_STATE" 2>/dev/null \
+    || kt_ps_log antigravity state write-failed
+}
+
+# The shared core is POSIX sh written for unset-tolerant shells; run it without -u.
+set +u
+ag_surface
+set -u
+
 # --- Emit response ---
+if [ -n "$AG_SURFACE_STEP" ]; then
+  # Responsibility 4 added a step: write, and only then record it. Written from a
+  # subshell — a failed write in this shell stays in its stdout buffer and is flushed into
+  # the next file opened on fd 1 (measured in the Cursor hook).
+  if ( printf '%s\n' "$AG_OUT" ) 2>/dev/null; then
+    set +u; ag_surface_commit; set -u
+  else
+    set +u; kt_ps_log antigravity emit write-failed; set -u
+  fi
+  exit 0
+fi
 STEP_COUNT=$(jq -r 'length' <<<"$INJECT_STEPS_JSON")
 if [ "$STEP_COUNT" -gt 0 ]; then
   jq -cn --argjson steps "$INJECT_STEPS_JSON" '{injectSteps: $steps}'
