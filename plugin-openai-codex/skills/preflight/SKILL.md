@@ -82,11 +82,11 @@ second, and nothing in the model, the migration or your endpoint will mention it
 
 ```bash
 # every consumer, minus vendored code and migrations
-grep -rn "<SYMBOL>" --include='*.<ext>' . | grep -v "/<vendor_dir>/\|/migrations/"
+grep -rn --include='*.<ext>' --exclude-dir='<vendor_dir>' --exclude-dir=migrations -e '<SYMBOL>' .
 
-# of those, which sit inside an authorization decision?
-grep -rn "<SYMBOL>" --include='*.<ext>' . | grep -viE "test|migration" \
-  | grep -iE "allow|permission|access|authoriz|can_view|visibility|entitle"
+# of those, which sit inside an authorization decision? (same line holds both; tests and migrations out)
+git grep -niE -e '<SYMBOL>' --and -e 'allow|permission|access|authoriz|can_view|visibility|entitle' \
+  -- '*.<ext>' ':(exclude)*test*' ':(exclude)*migration*'
 ```
 
 1. Run it **before** writing the endpoint, not after.
@@ -113,7 +113,7 @@ out: it compiles, it deploys, and it is not in the product.
 
 ```bash
 # does anything import it? zero here = the feature does not exist
-grep -rn "<COMPONENT>" src --include='*.js' | grep -v "<COMPONENT>/"
+grep -rn --include='*.js' --exclude-dir='<COMPONENT>' -e '<COMPONENT>' src
 ```
 
 After deploy, read the **source map's module list**, not the bundle's strings — a string search
@@ -215,17 +215,21 @@ not.
 
 **Always write a marker — this is what the commit gate reads.** Claude Code can stamp a session
 marker directly; Codex also stamps a repo-scoped fallback because skills do not reliably receive
-the hook `session_id`. One line per run, appended:
+the hook `session_id`. One line per run, appended to both. Run the block unchanged, keeping exactly
+one of its last two lines — the `READY` line when the verdict is READY, the `NOT READY` line
+otherwise:
 
 ```bash
-printf '%s\t%s\t%s\n' "$(date +%H:%M)" "<VERDICT>" "<scope>" \
-  >> "${TMPDIR:-/tmp}/aria-preflight-${CODEX_SESSION_ID:-${CLAUDE_SESSION_ID:-manual}}"
-
 repo_top=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
 repo_hash=$(printf '%s' "$repo_top" | cksum | cut -d' ' -f1)
-printf '%s\t%s\t%s\n' "$(date +%H:%M)" "<VERDICT>" "<scope>" \
-  >> "${TMPDIR:-/tmp}/aria-preflight-repo-${repo_hash}"
+pf_session="${TMPDIR:-/tmp}/aria-preflight-${CODEX_SESSION_ID:-${CLAUDE_SESSION_ID:-manual}}"
+pf_repo="${TMPDIR:-/tmp}/aria-preflight-repo-${repo_hash}"
+printf '%s\tREADY\n' "$(date +%H:%M)" | tee -a "$pf_session" >> "$pf_repo"
+printf '%s\tNOT READY\n' "$(date +%H:%M)" | tee -a "$pf_session" >> "$pf_repo"
 ```
+
+⛔ The markers carry the verdict token only. The scope is user-supplied text and never goes into a
+shell command — it lives in the PREFLIGHT table and in the log file below.
 
 `pre-commit-preflight-check.sh` fires on `git commit` and warns when no marker exists for the
 session or repo. **Any recorded verdict satisfies it, including NOT READY** — recording a FAIL and

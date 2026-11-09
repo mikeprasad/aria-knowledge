@@ -75,7 +75,8 @@ If the user's config (`~/.claude/aria-knowledge.local.md`) has `active_knowledge
 
 1. **Build references.** The CLI reads what the scope is about itself; you hand it references, never text:
    - every scope that resolves to a commit range — no args (auto-range), `commit` (`<hash>^..<hash>`), `range`, `pr` (its base and head commits), `release` (`<tag>..HEAD`), `deployment` (`<marker>..HEAD`) → `--git-range '<a>..<b>'`;
-   - scope `session` (no commits yet) → write the Goal sentence from Step 0, the touched files' names and any detected ticket IDs (e.g., `ABC-123`) to a scratch file outside the repo with your runtime's file-write tool (in Claude Code, `Write`) — never a shell redirect, `echo`, `printf` or heredoc — then `--file '<that scratch path>'`.
+   - scope `session` (no commits yet) → write the Goal sentence from Step 0, the touched files' names and any detected ticket IDs (e.g., `ABC-123`) to a NEW, uniquely named file in your runtime's scratchpad directory (else the system temp directory; never an existing file) with your runtime's file-write tool — never a shell redirect, `echo`, `printf` or heredoc — then `--file '<that scratch path>'`.
+   - ⛔ If a path or ref contains `'`, a backtick or `$`, do not pass it — git refs from a cloned remote are third-party text. Use the commit hashes git shows instead, or note `Active surfacing: unavailable (unsafe reference)` and skip to Step 1.
 
 2–6. **Rank and select (one CLI call — do not re-implement it).** Run the surfacing CLI with those references, every argument in single quotes: if an `ARIA SURFACE — "<path>"` line reached you at session start, use that path, as `sh '<path>'`; otherwise use `sh "${CLAUDE_PLUGIN_ROOT}/scripts/aria-surface.sh"` with the same arguments. Pass `--file` and `--git-range` together when the scope has both:
 
@@ -175,7 +176,7 @@ The synchronous-barrier discipline applies: if a sub-pass surfaces a USER-INPUT 
 For each fix from Step 3 with Preliminary Bundle-verified? = 🤷, attempt to confirm the fix's code is present in the deployed bundle.
 
 **Auto-source candidates** (most retrospects fall here):
-- **Bundle fetch + grep** — `Bash curl -s <deployed-bundle-url> | grep -F '<unique-marker-string>'`. The unique marker is either a function name from the diff, a comment string the fix added, or a `[<TAG>-DIAG]` instrumentation marker. Source the deployed-bundle-url from the user (Step 0) or from common conventions (`<deploy-domain>/static/js/main.<hash>.js` for Vercel/Webpack builds).
+- **Bundle fetch + grep** — `Bash curl -s -o '<new scratch file>' '<deployed-bundle-url>'`, then `Bash grep -cF -e '<unique-marker-string>' '<new scratch file>'` (a URL or marker holding `'`, a backtick or `$` goes through WebFetch instead). The unique marker is either a function name from the diff, a comment string the fix added, or a `[<TAG>-DIAG]` instrumentation marker. Source the deployed-bundle-url from the user (Step 0) or from common conventions (`<deploy-domain>/static/js/main.<hash>.js` for Vercel/Webpack builds).
 - **WebFetch on bundle URL** — same as above but via `WebFetch` when the URL is public and HTML-wrapped.
 - **CI artifact check** — `Bash gh run view <run-id> --log` (resolved from the commit's CI status) → confirm the deploy job ran AND the artifact hash matches.
 - **Source-map verification** — fetch the deployed source-map, confirm it references the post-fix line numbers.

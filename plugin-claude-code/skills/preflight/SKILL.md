@@ -81,11 +81,11 @@ second, and nothing in the model, the migration or your endpoint will mention it
 
 ```bash
 # every consumer, minus vendored code and migrations
-grep -rn "<SYMBOL>" --include='*.<ext>' . | grep -v "/<vendor_dir>/\|/migrations/"
+grep -rn --include='*.<ext>' --exclude-dir='<vendor_dir>' --exclude-dir=migrations -e '<SYMBOL>' .
 
-# of those, which sit inside an authorization decision?
-grep -rn "<SYMBOL>" --include='*.<ext>' . | grep -viE "test|migration" \
-  | grep -iE "allow|permission|access|authoriz|can_view|visibility|entitle"
+# of those, which sit inside an authorization decision? (same line holds both; tests and migrations out)
+git grep -niE -e '<SYMBOL>' --and -e 'allow|permission|access|authoriz|can_view|visibility|entitle' \
+  -- '*.<ext>' ':(exclude)*test*' ':(exclude)*migration*'
 ```
 
 1. Run it **before** writing the endpoint, not after.
@@ -112,7 +112,7 @@ out: it compiles, it deploys, and it is not in the product.
 
 ```bash
 # does anything import it? zero here = the feature does not exist
-grep -rn "<COMPONENT>" src --include='*.js' | grep -v "<COMPONENT>/"
+grep -rn --include='*.js' --exclude-dir='<COMPONENT>' -e '<COMPONENT>' src
 ```
 
 After deploy, read the **source map's module list**, not the bundle's strings — a string search
@@ -213,12 +213,16 @@ not.
 ## Recording
 
 **Always write the session marker — this is what the commit gate reads.** One line per run,
-appended:
+appended. Run exactly one of these two lines, unchanged — the first when the verdict is READY, the
+second otherwise:
 
 ```bash
-printf '%s\t%s\t%s\n' "$(date +%H:%M)" "<VERDICT>" "<scope>" \
-  >> "${TMPDIR:-/tmp}/aria-preflight-${CLAUDE_SESSION_ID}"
+printf '%s\tREADY\n' "$(date +%H:%M)" >> "${TMPDIR:-/tmp}/aria-preflight-${CLAUDE_SESSION_ID}"
+printf '%s\tNOT READY\n' "$(date +%H:%M)" >> "${TMPDIR:-/tmp}/aria-preflight-${CLAUDE_SESSION_ID}"
 ```
+
+⛔ The marker carries the verdict token only. The scope is user-supplied text and never goes into a
+shell command — it lives in the PREFLIGHT table and in the log file below.
 
 `pre-commit-preflight-check.sh` fires on `git commit` and warns when no marker exists for the
 session. **Any recorded verdict satisfies it, including NOT READY** — recording a FAIL and

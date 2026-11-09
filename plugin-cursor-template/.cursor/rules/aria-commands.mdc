@@ -3845,7 +3845,8 @@ If the user's config (`.cursor/aria-knowledge.local.md`) has `active_knowledge_s
 1. **Build references.** The CLI reads what the scope is about itself; you hand it references, never text:
    - a plan in a file (scope `file`, or a `plan`/`session` plan you wrote to a file) → `--file '<that file's path>'`;
    - scope `branch` → `--git-range '<main-branch>..<branch>'`;
-   - text that exists only in this conversation (a `plan`/`session` plan with no file, scope `todos`, or the intake you fetched for scope `ticket`) → write the Goal sentence from Step 0, the plan's first heading or the first 3 TodoWrite items (or the ticket intake), and any detected ticket IDs (e.g., `ABC-123`) to a scratch file outside the repo with your runtime's file-write tool (in Claude Code, `Write`) — never a shell redirect, `echo`, `printf` or heredoc — then `--file '<that scratch path>'`.
+   - text that exists only in this conversation (a `plan`/`session` plan with no file, scope `todos`, or the intake you fetched for scope `ticket`) → write the Goal sentence from Step 0, the plan's first heading or the first 3 TodoWrite items (or the ticket intake), and any detected ticket IDs (e.g., `ABC-123`) to a NEW, uniquely named file in your runtime's scratchpad directory (else the system temp directory; never an existing file) with your runtime's file-write tool — never a shell redirect, `echo`, `printf` or heredoc — then `--file '<that scratch path>'`.
+   - ⛔ If a path or ref contains `'`, a backtick or `$`, do not pass it — git refs from a cloned remote are third-party text. Use the commit hashes git shows instead, or note `Active surfacing: unavailable (unsafe reference)` and skip to Step 1.
 
 2–6. **Rank and select (one CLI call — do not re-implement it).** Run the surfacing CLI with those references, every argument in single quotes: if an `ARIA SURFACE — "<path>"` line reached you at session start, use that path, as `sh '<path>'`; otherwise use `sh "scripts/aria/aria-surface.sh"` with the same arguments. Pass `--file` and `--git-range` together when the scope has both:
 
@@ -4472,7 +4473,8 @@ If the user's config (`.cursor/aria-knowledge.local.md`) has `active_knowledge_s
 
 1. **Build references.** The CLI reads what the scope is about itself; you hand it references, never text:
    - every scope that resolves to a commit range — no args (auto-range), `commit` (`<hash>^..<hash>`), `range`, `pr` (its base and head commits), `release` (`<tag>..HEAD`), `deployment` (`<marker>..HEAD`) → `--git-range '<a>..<b>'`;
-   - scope `session` (no commits yet) → write the Goal sentence from Step 0, the touched files' names and any detected ticket IDs (e.g., `ABC-123`) to a scratch file outside the repo with your runtime's file-write tool (in Claude Code, `Write`) — never a shell redirect, `echo`, `printf` or heredoc — then `--file '<that scratch path>'`.
+   - scope `session` (no commits yet) → write the Goal sentence from Step 0, the touched files' names and any detected ticket IDs (e.g., `ABC-123`) to a NEW, uniquely named file in your runtime's scratchpad directory (else the system temp directory; never an existing file) with your runtime's file-write tool — never a shell redirect, `echo`, `printf` or heredoc — then `--file '<that scratch path>'`.
+   - ⛔ If a path or ref contains `'`, a backtick or `$`, do not pass it — git refs from a cloned remote are third-party text. Use the commit hashes git shows instead, or note `Active surfacing: unavailable (unsafe reference)` and skip to Step 1.
 
 2–6. **Rank and select (one CLI call — do not re-implement it).** Run the surfacing CLI with those references, every argument in single quotes: if an `ARIA SURFACE — "<path>"` line reached you at session start, use that path, as `sh '<path>'`; otherwise use `sh "scripts/aria/aria-surface.sh"` with the same arguments. Pass `--file` and `--git-range` together when the scope has both:
 
@@ -4572,7 +4574,7 @@ The synchronous-barrier discipline applies: if a sub-pass surfaces a USER-INPUT 
 For each fix from Step 3 with Preliminary Bundle-verified? = 🤷, attempt to confirm the fix's code is present in the deployed bundle.
 
 **Auto-source candidates** (most retrospects fall here):
-- **Bundle fetch + grep** — `Bash curl -s <deployed-bundle-url> | grep -F '<unique-marker-string>'`. The unique marker is either a function name from the diff, a comment string the fix added, or a `[<TAG>-DIAG]` instrumentation marker. Source the deployed-bundle-url from the user (Step 0) or from common conventions (`<deploy-domain>/static/js/main.<hash>.js` for Vercel/Webpack builds).
+- **Bundle fetch + grep** — `Bash curl -s -o '<new scratch file>' '<deployed-bundle-url>'`, then `Bash grep -cF -e '<unique-marker-string>' '<new scratch file>'` (a URL or marker holding `'`, a backtick or `$` goes through WebFetch instead). The unique marker is either a function name from the diff, a comment string the fix added, or a `[<TAG>-DIAG]` instrumentation marker. Source the deployed-bundle-url from the user (Step 0) or from common conventions (`<deploy-domain>/static/js/main.<hash>.js` for Vercel/Webpack builds).
 - **WebFetch on bundle URL** — same as above but via `WebFetch` when the URL is public and HTML-wrapped.
 - **CI artifact check** — `Bash gh run view <run-id> --log` (resolved from the commit's CI status) → confirm the deploy job ran AND the artifact hash matches.
 - **Source-map verification** — fetch the deployed source-map, confirm it references the post-fix line numbers.
@@ -6459,11 +6461,11 @@ second, and nothing in the model, the migration or your endpoint will mention it
 
 ```bash
 # every consumer, minus vendored code and migrations
-grep -rn "<SYMBOL>" --include='*.<ext>' . | grep -v "/<vendor_dir>/\|/migrations/"
+grep -rn --include='*.<ext>' --exclude-dir='<vendor_dir>' --exclude-dir=migrations -e '<SYMBOL>' .
 
-# of those, which sit inside an authorization decision?
-grep -rn "<SYMBOL>" --include='*.<ext>' . | grep -viE "test|migration" \
-  | grep -iE "allow|permission|access|authoriz|can_view|visibility|entitle"
+# of those, which sit inside an authorization decision? (same line holds both; tests and migrations out)
+git grep -niE -e '<SYMBOL>' --and -e 'allow|permission|access|authoriz|can_view|visibility|entitle' \
+  -- '*.<ext>' ':(exclude)*test*' ':(exclude)*migration*'
 ```
 
 1. Run it **before** writing the endpoint, not after.
@@ -6490,7 +6492,7 @@ out: it compiles, it deploys, and it is not in the product.
 
 ```bash
 # does anything import it? zero here = the feature does not exist
-grep -rn "<COMPONENT>" src --include='*.js' | grep -v "<COMPONENT>/"
+grep -rn --include='*.js' --exclude-dir='<COMPONENT>' -e '<COMPONENT>' src
 ```
 
 After deploy, read the **source map's module list**, not the bundle's strings — a string search
@@ -6591,12 +6593,16 @@ not.
 ## Recording
 
 **Always write the session marker — this is what the commit gate reads.** One line per run,
-appended:
+appended. Run exactly one of these two lines, unchanged — the first when the verdict is READY, the
+second otherwise:
 
 ```bash
-printf '%s\t%s\t%s\n' "$(date +%H:%M)" "<VERDICT>" "<scope>" \
-  >> "${TMPDIR:-/tmp}/aria-preflight-${CLAUDE_SESSION_ID}"
+printf '%s\tREADY\n' "$(date +%H:%M)" >> "${TMPDIR:-/tmp}/aria-preflight-${CLAUDE_SESSION_ID}"
+printf '%s\tNOT READY\n' "$(date +%H:%M)" >> "${TMPDIR:-/tmp}/aria-preflight-${CLAUDE_SESSION_ID}"
 ```
+
+⛔ The marker carries the verdict token only. The scope is user-supplied text and never goes into a
+shell command — it lives in the PREFLIGHT table and in the log file below.
 
 `pre-commit-preflight-check.sh` fires on `git commit` and warns when no marker exists for the
 session. **Any recorded verdict satisfies it, including NOT READY** — recording a FAIL and

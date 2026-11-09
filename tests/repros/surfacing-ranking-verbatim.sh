@@ -535,11 +535,16 @@ for _spec in \
   "plugin-openai-codex/skills/prospect/SKILL.md:1" "plugin-openai-codex/skills/retrospect/SKILL.md:1" \
   "plugin-cursor-template/.cursor/rules/aria-commands.mdc:2"; do
   _n=${_spec%:*}; _want=${_spec##*:}; _f="$ROOT/$_n"
-  for _needle in "--file '" "--git-range '" 'file-write tool'; do
+  # fix round 1: m1 an unsafe reference (a `'`, backtick or `$` in a path or ref — a cloned remote's
+  # refs are third-party text) is never passed; m3 the scratch file is a new one in the scratchpad.
+  for _needle in "--file '" "--git-range '" 'file-write tool' 'unsafe reference' 'scratchpad directory'; do
     _got=$(grep -oF -e "$_needle" "$_f" 2>/dev/null | wc -l | tr -d ' ')
     if [ "${_got:-0}" -ge "$_want" ]; then ok "skills_use_references: $_n carries \"$_needle\" ($_got)"
     else bad "skills_use_references: $_n carries \"$_needle\"" "want >= $_want, got ${_got:-0}"; fi
   done
+  # m2: the canonical text must not name Claude Code's tool, or the generated ports name the wrong one.
+  if grep -qF 'in Claude Code, `Write`' "$_f"; then bad "skills_use_references: $_n names no runtime-specific write tool" "'(in Claude Code, \`Write\`)' present"
+  else ok "skills_use_references: $_n names no runtime-specific write tool"; fi
 done
 
 # --- no_text_transport_anywhere (AC1, D6) --------------------------------------------------------
@@ -549,18 +554,76 @@ done
 # own AGENTS.md/CLAUDE.md, and every hook that emits model-facing text. Programmatic callers that exec
 # the CLI with an argv list (codex-hook.py, tests) are not instructions: codex-hook.py is scanned for
 # its model-facing strings and passes, because a Python argv list matches none of these shapes.
-# Patterns, one per line (ERE): a heredoc on the retired delimiter; a stdin `-` argument to the CLI; a
-# `"<task …>"` / `"<the query …>"` placeholder; a quoted positional (free-text) argument to the CLI;
-# text piped into the CLI; any heredoc fed to the CLI.
-TT_PAT="$SCRATCH/tt-patterns"
-cat > "$TT_PAT" <<'PATTERNS'
-<<-?[[:space:]]*['"]?ARIA_TASK
-aria-surface\.sh['"]?[[:space:]]+-([[:space:]]|$)
-['"]<(task|the query)([[:space:]>]|$)
-aria-surface\.sh['"]?[[:space:]]+['"]
-\|[[:space:]]*(ba|z|da)?sh[[:space:]][^|]*aria-surface\.sh
-aria-surface\.sh.*<<
-PATTERNS
+# fix round 1 (I1): the first version was a DENYLIST anchored on the literal `aria-surface.sh`, and
+# the skills invoke `sh '<path>' …`, so a reviewer's seven plants all passed it. This is an ALLOWLIST:
+#   D  any CLI invocation — `sh`/`bash` followed by a quoted `<…>` placeholder or by a token naming
+#      aria-surface.sh — may carry ONLY `--file '…'` and `--git-range '…'` arguments (single-quoted),
+#      up to the end of the code span / line or a `;` `&` `|` `)` boundary;
+# plus deny rules for free text reaching a shell some other way:
+#   A  a heredoc on the retired ARIA_TASK delimiter;
+#   B  a quoted `<…>` placeholder on the same command as `>`, `>>`, `<(` or `|`;
+#   C  a heredoc together with a redirect (a shell write of text: `cat > f <<'X'`);
+#   E  `printf` carrying a quoted `<…>` placeholder (P1: /preflight's marker took free-text scope).
+# Markdown is checked where a model would copy a command from: whole lines inside a fence, backtick
+# spans elsewhere, and whole prose lines that carry no backtick (a leading `>` quote marker and table
+# rows are skipped there). Scripts are checked whole-line.
+TT_AWK="$SCRATCH/tt-guard.awk"
+cat > "$TT_AWK" <<'AWK'
+function bad(r) { printf "        %s:%d: [%s] %s\n", F, FNR, r, substr($0, 1, 150); hit = 1 }
+function check(s,    t, t2, hasq, rest, a, ok) {
+  if (s ~ RE_A) bad("A retired ARIA_TASK heredoc")
+  # B, C and E judge the SHAPE of a command a model is told to write, so they run on instruction
+  # text only. In a hook script the same shapes are the hook's own plumbing (`<<PCC_INPUT …
+  # 2>/dev/null`, a Python list of redirect tokens); its model-facing strings are covered by A and D.
+  if (MD) {
+    t = s
+    gsub(RE_QPH, "QPH", t)
+    hasq = (t != s)
+    gsub(RE_QLIT, "QS", t)              # a | or > INSIDE quotes is data, not a pipe or redirect
+    gsub(/<[A-Za-z][^<>]*>/, "PH", t)
+    if (hasq && (t ~ />/ || t ~ /<\(/ || t ~ /\|/)) bad("B quoted placeholder with > >> <( or |")
+    t2 = t; gsub(/<<<?/, "", t2); gsub(/[0-9&]>+/, "", t2)
+    if (t ~ /<</ && t2 ~ />/) bad("C heredoc with a redirect")
+    if (hasq && s ~ /(^|[^A-Za-z0-9_])printf[ \t]/) bad("E printf with a quoted placeholder")
+  }
+  rest = s
+  while (match(rest, /(^|[^A-Za-z0-9_.\/-])(sh|bash|zsh|dash)[ \t]+/)) {
+    rest = substr(rest, RSTART + RLENGTH)
+    if (!match(rest, RE_SCRIPT)) continue
+    a = substr(rest, RLENGTH + 1); ok = 1
+    while (1) {
+      sub(/^[ \t]+/, "", a)
+      if (a == "" || a ~ /^[`;)|&]/) break
+      if (match(a, RE_ARG)) { a = substr(a, RLENGTH + 1); continue }
+      ok = 0; break
+    }
+    if (!ok) bad("D CLI argument other than --file '…' / --git-range '…'")
+  }
+}
+BEGIN {
+  q = sprintf("%c", 39)
+  RE_A = "<<-?[ \t]*[\"" q "]?ARIA_TASK"
+  RE_QPH = "(\"<[^<>\"]*>\"|" q "<[^<>" q "]*>" q ")"
+  RE_QLIT = "(\"[^\"]*\"|" q "[^" q "]*" q ")"
+  RE_SCRIPT = "^(\"<[^<>\"]*>\"|" q "<[^<>" q "]*>" q "|\"[^\"]*aria-surface\\.sh\"|" q "[^" q "]*aria-surface\\.sh" q "|[^ \t`\"" q "]*aria-surface\\.sh)"
+  RE_ARG = "^--(file|git-range)[ \t]+" q "[^" q "]*" q
+}
+FNR == 1 { fence = 0 }
+{
+  if (!MD) { check($0); next }
+  if ($0 ~ /^[ \t]*(```|~~~)/) { fence = !fence; next }
+  if (fence) { if ($0 !~ /^[ \t]*\|/) check($0); next }   # a table row in a fence is a listing
+  if (index($0, "`") == 0) {
+    line = $0; sub(/^[ \t]*>+[ \t]?/, "", line)
+    if (line !~ /^[ \t]*\|/) check(line)
+    next
+  }
+  s = $0
+  # Save the span bounds BEFORE check(): its own match() calls overwrite RSTART/RLENGTH.
+  while (match(s, /`[^`]+`/)) { st = RSTART; ln = RLENGTH; check(substr(s, st + 1, ln - 2)); s = substr(s, st + ln) }
+}
+END { exit hit }
+AWK
 TT_EMITTERS="plugin-claude-code/scripts/session-start-check.sh plugin-claude-code/scripts/prompt-context-check.sh
 plugin-claude-code/scripts/lib-prompt-surface.sh plugin-openai-codex/bin/session-start-check.sh plugin-openai-codex/bin/codex-hook.py
 plugin-cursor-template/scripts/aria/session-start-check.sh plugin-cursor-template/scripts/aria/prompt-capture-check.sh
@@ -570,8 +633,8 @@ plugin-antigravity/bin/antigravity/pre-invocation-aria.sh plugin-antigravity/bin
 tt_guard() {
   _tt_rc=0
   for _tt_f in "$@"; do
-    _tt_h=$(grep -nE -f "$TT_PAT" "$_tt_f" 2>/dev/null)
-    if [ -n "$_tt_h" ]; then printf '%s\n' "$_tt_h" | sed "s|^|        ${_tt_f#$ROOT/}:|"; _tt_rc=1; fi
+    case "$_tt_f" in *.md|*.mdc) _tt_md=1 ;; *) _tt_md=0 ;; esac
+    awk -v F="${_tt_f#$ROOT/}" -v MD="$_tt_md" -f "$TT_AWK" "$_tt_f" || _tt_rc=1
   done
   return "$_tt_rc"
 }
@@ -593,24 +656,64 @@ for _d in plugin-claude-code plugin-claude-cowork plugin-openai-codex plugin-ant
   if [ "${_c:-0}" -ge 5 ]; then ok "no_text_transport census: $_d contributes $_c file(s)"
   else bad "no_text_transport census: $_d contributes files" "only ${_c:-0} — the guard would be near-vacuous there"; fi
 done
-# Planted controls: each pattern must fire on its own specimen (so no pattern is dead), and the
-# guard must pass the reference forms the skills now use (so it does not over-match).
+# Planted controls. MUST-FAIL: the review's seven plants plus the retired heredoc and the old
+# /preflight marker, each planted three ways — inside a ```sh fence, inside a backtick span on a
+# prose line, and as a bare prose line — so no wrapping hides one. MUST-PASS: the reference forms
+# the skills now use and the skills' own "Never put task text" prose line (it names heredocs and
+# pipes in prose and must not trip the guard).
+cat > "$SCRATCH/tt-must-fail.txt" <<'PLANTS'
+sh '<path>' '<the goal sentence>'
+sh '<path>' - <<'EOF2'
+printf '%s' '<goal>' | sh '<path>'
+sh "<ARIA SURFACE path>" "<your query>"
+sh '<path>' --file <(printf '%s' '<goal>')
+cat > /tmp/q.md <<'Q'
+echo '<goal sentence>' > /tmp/q.md && sh '<path>' --file /tmp/q.md
+cat <<'ARIA_TASK'
+printf '%s\t%s\t%s\n' "$(date +%H:%M)" "<VERDICT>" "<scope>"
+PLANTS
+cat > "$SCRATCH/tt-must-pass.txt" <<'CLEAN'
+sh '<path>' --file '<file path>'
+sh '<path>' --git-range '<a>..<b>'
+sh '<path>' --file '<file path>' --git-range '<a>..<b>'
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/aria-surface.sh" --git-range 'main..HEAD'
+ARIA_PLUGIN_ROOT="${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}"; sh "${ARIA_PLUGIN_ROOT}/bin/aria-surface.sh" --file '/tmp/a.md'
+printf '%s\tREADY\n' "$(date +%H:%M)" >> "${TMPDIR:-/tmp}/aria-preflight-${CLAUDE_SESSION_ID}"
+ARIA SURFACE — "/p/aria-surface.sh"
+"<task-notification"
+CLEAN
+tt_wrap() { # $1 = mode (fence|span|bare), $2 = line → a markdown file on stdout
+  case "$1" in
+    fence) printf 'before\n```sh\n%s\n```\nafter\n' "$2" ;;
+    span)  printf 'Run `%s` now.\n' "$2" ;;
+    bare)  printf '%s\n' "$2" ;;
+  esac
+}
 _i=0
-for _spec in "cat <<'ARIA_TASK'" 'sh "/p/aria-surface.sh" -' 'run the CLI on "<task text>"' \
-             "sh '/p/aria-surface.sh' 'fix the bug'" 'printf %s "$x" | sh /p/aria-surface.sh' 'sh /p/aria-surface.sh <<EOF'; do
+while IFS= read -r _spec; do
   _i=$((_i + 1))
-  _pat=$(sed -n "${_i}p" "$TT_PAT")
-  printf 'before\n%s\nafter\n' "$_spec" > "$SCRATCH/tt-plant-$_i.md"
-  if printf '%s\n' "$_spec" | grep -qE -e "$_pat"; then ok "no_text_transport control: pattern $_i fires on its specimen"
-  else bad "no_text_transport control: pattern $_i fires on its specimen" "pattern '$_pat' missed '$_spec' — dead pattern"; fi
-  if tt_guard "$SCRATCH/tt-plant-$_i.md" >/dev/null; then bad "no_text_transport control: a planted copy ($_i) fails the guard" "guard passed it"
-  else ok "no_text_transport control: a planted copy ($_i) fails the guard"; fi
-done
-printf '%s\n' "sh '/p/aria-surface.sh' --file '/tmp/task.md'" \
-  'sh "${CLAUDE_PLUGIN_ROOT}/scripts/aria-surface.sh" --git-range '"'"'main..HEAD'"'" \
-  'ARIA SURFACE — "/p/aria-surface.sh"' '"<task-notification"' > "$SCRATCH/tt-clean.md"
-if tt_guard "$SCRATCH/tt-clean.md" >/dev/null; then ok "no_text_transport control: the reference forms pass the guard"
-else bad "no_text_transport control: the reference forms pass the guard" "guard over-matches a legitimate form"; fi
+  for _w in fence span bare; do
+    tt_wrap "$_w" "$_spec" > "$SCRATCH/tt-plant-$_i-$_w.md"
+    if tt_guard "$SCRATCH/tt-plant-$_i-$_w.md" >/dev/null; then bad "no_text_transport must-FAIL control $_i ($_w): $_spec" "guard passed it"
+    else ok "no_text_transport must-FAIL control $_i ($_w)"; fi
+  done
+done < "$SCRATCH/tt-must-fail.txt"
+_i=0
+while IFS= read -r _spec; do
+  _i=$((_i + 1))
+  for _w in fence span bare; do
+    tt_wrap "$_w" "$_spec" > "$SCRATCH/tt-clean-$_i-$_w.md"
+    if tt_guard "$SCRATCH/tt-clean-$_i-$_w.md" >/dev/null; then ok "no_text_transport must-PASS control $_i ($_w)"
+    else bad "no_text_transport must-PASS control $_i ($_w): $_spec" "guard over-matches a legitimate form"; fi
+  done
+done < "$SCRATCH/tt-must-pass.txt"
+# The skills' own prose line, taken from the canonical file so the control tracks its real wording.
+_never=$(grep -F 'Never put task text' "$ROOT/plugin-claude-code/skills/prospect/SKILL.md" | head -1)
+if [ -n "$_never" ]; then
+  printf '%s\n' "$_never" > "$SCRATCH/tt-never.md"
+  if tt_guard "$SCRATCH/tt-never.md" >/dev/null; then ok "no_text_transport must-PASS control: the \"Never put task text\" prose line"
+  else bad "no_text_transport must-PASS control: the \"Never put task text\" prose line" "guard flags the prohibition itself"; fi
+else bad "no_text_transport must-PASS control: the \"Never put task text\" prose line" "line not found in canonical prospect"; fi
 # shellcheck disable=SC2046
 if tt_guard $(cat "$TT_SCOPE"); then ok "no_text_transport_anywhere: no instruction file composes free text into a shell command ($N_TT files)"
 else bad "no_text_transport_anywhere: no instruction file composes free text into a shell command" "see the file:line hits above"; fi

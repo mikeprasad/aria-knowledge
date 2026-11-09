@@ -166,7 +166,7 @@ The synchronous-barrier discipline applies: if a sub-pass surfaces a USER-INPUT 
 For each fix from Step 3 with Preliminary Bundle-verified? = 🤷, attempt to confirm the fix's code is present in the deployed bundle.
 
 **Auto-source candidates** (most retrospects fall here):
-- **Bundle fetch + grep** — `Bash curl -s <deployed-bundle-url> | grep -F '<unique-marker-string>'`. The unique marker is either a function name from the diff, a comment string the fix added, or a `[<TAG>-DIAG]` instrumentation marker. Source the deployed-bundle-url from the user (Step 0) or from common conventions (`<deploy-domain>/static/js/main.<hash>.js` for Vercel/Webpack builds).
+- **Bundle fetch + grep** — `Bash curl -s -o '<new scratch file>' '<deployed-bundle-url>'`, then `Bash grep -cF -e '<unique-marker-string>' '<new scratch file>'` (a URL or marker holding `'`, a backtick or `$` goes through WebFetch instead). The unique marker is either a function name from the diff, a comment string the fix added, or a `[<TAG>-DIAG]` instrumentation marker. Source the deployed-bundle-url from the user (Step 0) or from common conventions (`<deploy-domain>/static/js/main.<hash>.js` for Vercel/Webpack builds).
 - **WebFetch on bundle URL** — same as above but via `WebFetch` when the URL is public and HTML-wrapped.
 - **CI artifact check** — `Bash gh run view <run-id> --log` (resolved from the commit's CI status) → confirm the deploy job ran AND the artifact hash matches.
 - **Source-map verification** — fetch the deployed source-map, confirm it references the post-fix line numbers.

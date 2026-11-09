@@ -73,10 +73,10 @@ Do NOT emit it after the edit. Do NOT skip it for "trivial", "docs-only", or "ro
 **Edit-intent marker (Cursor-native enforcement).** Before invoking Edit/Write, run:
 
 ```bash
-bash scripts/aria/record-edit-intent.sh <filePath> rule22-low|rule22-high "<one-line rationale>"
+bash scripts/aria/record-edit-intent.sh '<filePath>' rule22-low
 ```
 
-This writes `.cursor/aria-edit-intent.json` with the filePath, sessionId, marker type, rationale, and timestamp. The `beforeFileEdit` hook reads it and verifies a recent (<10 min) marker matching the file being edited. Missing / stale / mismatched markers escalate the advisory wording — for protected files, the hook calls out the violation explicitly. The marker is consumed (deleted) by `afterFileEdit` on a successful matching edit, so each edit needs its own fresh marker.
+Use `rule22-high` instead of `rule22-low` for a High Impact change. Pass no rationale: the rationale is your visible `[Rule 22]` block, and free text never goes on a command line. This writes `.cursor/aria-edit-intent.json` with the filePath, sessionId, marker type and timestamp. The `beforeFileEdit` hook reads it and verifies a recent (<10 min) marker matching the file being edited. Missing / stale / mismatched markers escalate the advisory wording — for protected files, the hook calls out the violation explicitly. The marker is consumed (deleted) by `afterFileEdit` on a successful matching edit, so each edit needs its own fresh marker.
 
 After every edit, verify scope was not exceeded and check for unintended side effects on parent, sibling, or dependent files.
 

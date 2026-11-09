@@ -128,8 +128,10 @@ Code, write, debug, refactor — normal flow. ARIA stays mostly invisible. Two i
 1. **Rule 22 markers**: before any non-trivial edit, the agent should emit a `[Rule 22]` block declaring impact + the change being made, and run:
 
     ```bash
-    bash scripts/aria/record-edit-intent.sh <filePath> rule22-low|rule22-high "<one-line rationale>"
+    bash scripts/aria/record-edit-intent.sh '<filePath>' rule22-low
     ```
+
+    (`rule22-high` for a High Impact change. No rationale argument: the `[Rule 22]` block is the rationale, and free text never goes on a command line.)
 
     The `beforeFileEdit` hook checks for a recent matching marker. Missing/stale/mismatched markers raise an escalated advisory (especially loud for protected files like `AGENTS.md`, `working-rules.md`, `change-decision-framework.md`, and any file under `critical_paths`). Cursor's hooks plan does not document a stable agent-side deny for `beforeFileEdit`, so this stays advisory; the discipline is instruction-based.
 
@@ -247,8 +249,10 @@ For non-trivial edits, declare:
 Then run:
 
 ```bash
-bash scripts/aria/record-edit-intent.sh <filePath> rule22-low|rule22-high "<rationale>"
+bash scripts/aria/record-edit-intent.sh '<filePath>' rule22-low
 ```
+
+(`rule22-high` for a High Impact change; no rationale argument — free text never goes on a command line.)
 
 The `beforeFileEdit` hook reads this marker to verify you assessed before the edit. The marker is consumed (deleted) by `afterFileEdit` on a matching successful edit, so each edit needs its own fresh marker.
 

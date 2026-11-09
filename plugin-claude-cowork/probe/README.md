@@ -22,11 +22,9 @@ If all hard-fail probes pass, aria-cowork's spec is greenlit. If any hard-fail p
 
 ## Pre-conditions (do these in Code first)
 
-The fixture file for probe 3 should already exist at `~/Projects/knowledge/probe-test/code-write-test.md`. If it doesn't (or if you want to regenerate it), run from Code:
+The fixture file for probe 3 should already exist at `~/Projects/knowledge/probe-test/code-write-test.md`. If it doesn't (or if you want to regenerate it), create it from Code with your file-write tool (not a shell redirect or heredoc), with exactly this content:
 
-```bash
-mkdir -p ~/Projects/knowledge/probe-test
-cat > ~/Projects/knowledge/probe-test/code-write-test.md <<'EOF'
+```markdown
 ---
 written_by: aria-knowledge (running in Claude Code)
 written_at: 2026-04-30
@@ -40,7 +38,6 @@ FIXTURE_MARKER:ARIA_PROBE_3_CODE_SIDE_WROTE_THIS
 This file was written from Claude Code by Mike (or by aria-knowledge) into the
 shared knowledge folder. aria-probe (running in Cowork) will read this file
 in probe 3 to verify cross-surface read works.
-EOF
 ```
 
 (I — Claude in this Code session — already placed this file as part of the spec round. If you've moved or modified it, regenerate.)
