@@ -321,14 +321,82 @@ logged() { grep -q -- " antigravity $1\$" "$HOOKLOG" 2>/dev/null; }
   [ -z "$(ls -A "$SURF/sub")" ]
 }
 
+@test "R4 nofire_turn_ranked_once: a decided turn (nofire, nothing-new) is ranked at most once" {
+  r4_configure
+  # A copy of the plugin's bin/ whose kt_index_match counts its calls: ranking is observed
+  # directly, not inferred from an empty output.
+  P="$SURF/plug"
+  mkdir -p "$P/bin/antigravity"
+  cp "${BATS_TEST_DIRNAME}"/../bin/antigravity/*.sh "$P/bin/antigravity/"
+  cp "${BATS_TEST_DIRNAME}/../bin/config.sh" "${BATS_TEST_DIRNAME}/../bin/lib-index-match.sh" \
+     "${BATS_TEST_DIRNAME}/../bin/lib-prompt-surface.sh" "$P/bin/"
+  cat >> "$P/bin/lib-index-match.sh" <<'WRAP'
+eval "_r4_counted_$(declare -f kt_index_match)"
+kt_index_match() { printf 'x\n' >> "$KT_TEST_MATCH_COUNTER"; _r4_counted_kt_index_match "$@"; }
+WRAP
+  export KT_TEST_MATCH_COUNTER="$SURF/matches"
+  H="$P/bin/antigravity/pre-invocation-aria.sh"
+  ranked() { if [ -f "$KT_TEST_MATCH_COUNTER" ]; then wc -l < "$KT_TEST_MATCH_COUNTER" | tr -d ' '; else echo 0; fi; }
+  # nofire: words that match no tag.
+  C="${RUN_ID}F"
+  r4_user_input 4 "hello there friend" > "$SURF/t.jsonl"
+  r4_payload "$C" "$SURF/t.jsonl" 3
+  bash "$H" < "$SURF/in" > "$SURF/out" 2>/dev/null
+  [ "$(cat "$SURF/out")" = "{}" ]
+  [ "$(ranked)" = "1" ]
+  bash "$H" < "$SURF/in" > "$SURF/out" 2>/dev/null
+  [ "$(cat "$SURF/out")" = "{}" ]
+  [ "$(ranked)" = "1" ]
+  grep -qxF '4' "$SURF/aria-ag-surfaced-$C"
+  [ ! -e "/tmp/aria-active-$C" ]                 # the ledger records delivered paths only
+  # nothing-new: deliver, lose only the state file (the ledger still holds the paths).
+  C2="${RUN_ID}Q"
+  cp "$FIXTURE" "$SURF/t2.jsonl"
+  r4_payload "$C2" "$SURF/t2.jsonl" 3
+  bash "$H" < "$SURF/in" > "$SURF/out" 2>/dev/null
+  has "$(r4_active)" "projects/proj-b/deposits.md"
+  [ "$(ranked)" = "2" ]
+  rm -f "$SURF/aria-ag-surfaced-$C2"
+  bash "$H" < "$SURF/in" > "$SURF/out" 2>/dev/null
+  [ "$(cat "$SURF/out")" = "{}" ]
+  [ "$(ranked)" = "3" ]
+  grep -qxF '4' "$SURF/aria-ag-surfaced-$C2"
+  bash "$H" < "$SURF/in" > "$SURF/out" 2>/dev/null
+  [ "$(cat "$SURF/out")" = "{}" ]
+  [ "$(ranked)" = "3" ]
+}
+
+@test "R4 unreadable_transcript_logged_once: one log line per conversation and reason" {
+  r4_configure
+  C="${RUN_ID}U"
+  r4_payload "$C" "$SURF/missing.jsonl" 3
+  r4_run; r4_run
+  [ "$(grep -c ' antigravity transcript unreadable$' "$HOOKLOG")" = "1" ]
+  r4_payload "$C" "" 3
+  r4_run; r4_run
+  [ "$(grep -c ' antigravity transcript no-transcript-path$' "$HOOKLOG")" = "1" ]
+  r4_payload "${RUN_ID}V" "$SURF/missing.jsonl" 3
+  r4_run
+  [ "$(grep -c ' antigravity transcript unreadable$' "$HOOKLOG")" = "2" ]
+  # A planted marker link is never created through. Dangling on purpose: `-e` follows a
+  # link, so a link to an existing file already reads as "logged" and would prove nothing.
+  ln -s "$SURF/planted-target" "$SURF/aria-ag-logged-${RUN_ID}W.unreadable"
+  r4_payload "${RUN_ID}W" "$SURF/missing.jsonl" 3
+  r4_run
+  [ ! -e "$SURF/planted-target" ]
+  [ "$(grep -c ' antigravity transcript unreadable$' "$HOOKLOG")" = "3" ]
+}
+
 @test "R4 stale_state_pruned_on_first_call: state files older than 24 h go on invocationNum 0" {
   r4_configure
   printf '4\n' > "$SURF/aria-ag-surfaced-${RUN_ID}old"
-  touch -t 202001010000 "$SURF/aria-ag-surfaced-${RUN_ID}old"
+  : > "$SURF/aria-ag-logged-${RUN_ID}old.unreadable"
+  touch -t 202001010000 "$SURF/aria-ag-surfaced-${RUN_ID}old" "$SURF/aria-ag-logged-${RUN_ID}old.unreadable"
   printf '4\n' > "$SURF/aria-ag-surfaced-${RUN_ID}new"
   r4_payload "${RUN_ID}P" "$SURF/missing.jsonl" 0
   r4_run
   [ ! -e "$SURF/aria-ag-surfaced-${RUN_ID}old" ]
+  [ ! -e "$SURF/aria-ag-logged-${RUN_ID}old.unreadable" ]
   [ -e "$SURF/aria-ag-surfaced-${RUN_ID}new" ]
 }
 
