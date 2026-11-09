@@ -5,8 +5,8 @@
 # Usage (a model, or anything that goes through a shell) — pass REFERENCES,
 # never text. A path or a ref range carries no free text, so nothing in it can
 # be parsed by the shell:
-#   sh "<plugin-root>/scripts/aria-surface.sh" --file "<path>"
-#   sh "<plugin-root>/scripts/aria-surface.sh" --git-range "<a>..<b>"
+#   sh "<plugin-root>/scripts/aria-surface.sh" --file '<path>'
+#   sh "<plugin-root>/scripts/aria-surface.sh" --git-range '<a>..<b>'
 #   (either or both; the query is the file part followed by the git part)
 # --file       the file's Markdown headings (lines starting 1-6 `#` and a space)
 #              plus its first 40 non-blank lines. The path must be a readable

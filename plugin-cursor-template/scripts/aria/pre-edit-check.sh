@@ -178,16 +178,16 @@ INTENT_NOTE=""
 case "$INTENT_STATUS" in
   missing)
     if [ "$IS_PROTECTED" = "true" ]; then
-      INTENT_NOTE=" PROTECTED FILE + NO EDIT-INTENT MARKER: run \`bash scripts/aria/record-edit-intent.sh <filePath> rule22-high \"<rationale>\"\` BEFORE this Edit/Write, emit the [Rule 22] block above the tool call, then proceed. Skipping is a Rule 22 violation."
+      INTENT_NOTE=" PROTECTED FILE + NO EDIT-INTENT MARKER: run \`bash scripts/aria/record-edit-intent.sh '<filePath>' rule22-high\` BEFORE this Edit/Write, emit the [Rule 22] block above the tool call, then proceed. Skipping is a Rule 22 violation."
     else
-      INTENT_NOTE=" No recent edit-intent marker found. Before invoking Edit/Write, run \`bash scripts/aria/record-edit-intent.sh <filePath> rule22-low|rule22-high \"<rationale>\"\` and emit the [Rule 22] block in the same turn above the tool call."
+      INTENT_NOTE=" No recent edit-intent marker found. Before invoking Edit/Write, run \`bash scripts/aria/record-edit-intent.sh '<filePath>' rule22-low|rule22-high\` (no rationale argument — free text never goes in a shell command) and emit the [Rule 22] block in the same turn above the tool call."
     fi
     ;;
   stale)
     INTENT_NOTE=" Edit-intent marker is stale (>10 min old). Re-record via \`bash scripts/aria/record-edit-intent.sh\` for this specific edit before proceeding — a stale marker means the Rule 22 reasoning may not match the current change."
     ;;
   mismatch)
-    INTENT_NOTE=" Edit-intent marker does not match this file or session. Re-record via \`bash scripts/aria/record-edit-intent.sh <filePath>\` for the file you are about to edit."
+    INTENT_NOTE=" Edit-intent marker does not match this file or session. Re-record via \`bash scripts/aria/record-edit-intent.sh '<filePath>'\` for the file you are about to edit."
     ;;
   ok)
     : # silent on success

@@ -619,9 +619,30 @@ done
 #      Measured on a82127c: the census finds exactly the four old kt_ss_ledger_add lines; a rule
 #      without the command-start condition also flagged `--decision "<text>"` (a /foundational-review
 #      argument, 4 ports) and a `dismissal-reason: "<text>"` frontmatter row — neither is a shell command.
+#   G  (final fix wave, F2) kt_ss_ledger_token_locate or kt_ss_ledger_consume_active followed by an
+#      argument (`<`, a quote, `$`, `(`, `{`, or "with …") anywhere -- prose included. Both take a
+#      token copied from the user's pasted text; the token-taking call is code-internal now, and a
+#      model reaches it only through the _file forms, which read the token from a file the model wrote
+#      with its file-write tool and check its shape in code. This retires the blanket `token`
+#      identifier exemption for these two helpers (F still exempts `<… token>` placeholders elsewhere).
 # Markdown is checked where a model would copy a command from: whole lines inside a fence, backtick
 # spans elsewhere, and whole prose lines that carry no backtick (a leading `>` quote marker and table
-# rows are skipped there). Scripts are checked whole-line.
+# rows are skipped there). Scripts are checked whole-line AND span by span (final fix wave, F1): a
+# hook builds its model-facing text in a shell or Python string, where the command it tells the
+# model to run sits in an escaped backtick span (\`bash x.sh <p> \"<rationale>\"\`) that no
+# command-start pattern sees from the whole line. Cursor's pre-edit-check.sh emitted exactly that,
+# and a hand-written emitter list had left the file out; the script scope is now every tracked
+# .sh/.py under plugin-*/scripts and plugin-*/bin (tests excluded), so no new emitter can be missed.
+# RECORDED EXEMPTIONS (each is a decision, kept here so it is not rediscovered as a gap):
+#   E1 the Rule 22 `cat <<'R22'` heredoc (the always-on digest and the change-decision framework tell
+#      the model to emit its [Rule 22] block that way). It is a model-composed shell command carrying
+#      free text, but the text is the model's OWN marker -- no third-party content (no pasted prompt,
+#      ticket, file or web text) reaches it, and the quoted delimiter stops expansion. No rule here
+#      flags it; the must-PASS control below pins that it stays allowed.
+#   E2 rule G skips shell/Python COMMENT lines in scripts: a `#` line documents a function's signature
+#      for maintainers and is never emitted to a model.
+#   E3 rule G skips the repo CLAUDE.md's dated `*Session …` footers: they are history records of what
+#      a release shipped; rewriting them back-dates the record.
 TT_AWK="$SCRATCH/tt-guard.awk"
 cat > "$TT_AWK" <<'AWK'
 function bad(r) { printf "        %s:%d: [%s] %s\n", F, FNR, r, substr($0, 1, 150); hit = 1 }
@@ -643,6 +664,9 @@ function check(s, code,    t, t2, hasq, rest, a, ok, cmd) {
   cmd = 0                               # no ternary: BSD awk rejects some ternary forms
   if (code) { if (s ~ RE_CODECMD) cmd = 1 } else if (s ~ RE_BARECMD) cmd = 1
   if (cmd && freeph(s)) bad("F free-text placeholder in a shell command")
+  # In a script, a quoted shell VARIABLE after the name is the lib's own in-process call (code); a
+  # model-facing hook string always shows a placeholder or prose, so only those count there.
+  if (!EXG && s ~ (MD ? RE_TOKCALL : RE_TOKCALL_SCRIPT)) bad("G token passed as an argument -- use kt_ss_ledger_token_locate_file / kt_ss_ledger_consume_active_file")
   # B, C and E judge the SHAPE of a command a model is told to write, so they run on instruction
   # text only. In a hook script the same shapes are the hook's own plumbing (`<<PCC_INPUT …
   # 2>/dev/null`, a Python list of redirect tokens); its model-facing strings are covered by A and D.
@@ -679,8 +703,16 @@ function scan_inv(rest, re,    a, ok, nx) {
     if (!ok) bad("D CLI argument other than --file '…' / --git-range '…'")
   }
 }
+# F1: check each backtick span of a script line as code, with the string's own escapes removed, so
+# \`bash x.sh <p> \"<rationale>\"\` is judged as the model will read it.
+function scan_spans(s,    st, ln) {
+  gsub(/\\`/, "`", s); gsub(/\\"/, "\"", s)
+  while (match(s, /`[^`]+`/)) { st = RSTART; ln = RLENGTH; check(substr(s, st + 1, ln - 2), 1); s = substr(s, st + ln) }
+}
 BEGIN {
   q = sprintf("%c", 39)
+  RE_TOKCALL = "kt_ss_ledger_(token_locate|consume_active)[ \t]+([<\"$({]|" q "|with[ \t])"
+  RE_TOKCALL_SCRIPT = "kt_ss_ledger_(token_locate|consume_active)[ \t]+([\"" q "]?<|with[ \t])"
   RE_A = "<<-?[ \t]*[\"" q "]?ARIA_TASK"
   RE_QPH = "(\"<[^<>\"]*>\"|" q "<[^<>" q "]*>" q ")"
   RE_QLIT = "(\"[^\"]*\"|" q "[^" q "]*" q ")"
@@ -695,7 +727,10 @@ BEGIN {
 }
 FNR == 1 { fence = 0 }
 {
-  if (!MD) { check($0, 1); next }
+  EXG = 0                                            # recorded exemptions E2 / E3 (rule G only)
+  if (!MD && $0 ~ /^[ \t]*#/) EXG = 1
+  if (MD && F == "CLAUDE.md" && $0 ~ /^\*Session /) EXG = 1
+  if (!MD) { check($0, 1); scan_spans($0); next }
   if ($0 ~ /^[ \t]*(```|~~~)/) { fence = !fence; next }
   if (fence) { if ($0 !~ /^[ \t]*\|/) check($0, 1); next }   # a table row in a fence is a listing
   if (index($0, "`") == 0) {
@@ -709,11 +744,11 @@ FNR == 1 { fence = 0 }
 }
 END { exit hit }
 AWK
-TT_EMITTERS="plugin-claude-code/scripts/session-start-check.sh plugin-claude-code/scripts/prompt-context-check.sh
-plugin-claude-code/scripts/lib-prompt-surface.sh plugin-openai-codex/bin/session-start-check.sh plugin-openai-codex/bin/codex-hook.py
-plugin-cursor-template/scripts/aria/session-start-check.sh plugin-cursor-template/scripts/aria/prompt-capture-check.sh
-plugin-cursor-template/scripts/aria/prompt-context-inject.sh plugin-cursor-template/scripts/aria/lib-prompt-surface.sh
-plugin-antigravity/bin/antigravity/pre-invocation-aria.sh plugin-antigravity/bin/lib-prompt-surface.sh"
+# F1: the script scope is DERIVED, never hand-listed — every tracked .sh/.py under plugin-*/scripts and
+# plugin-*/bin, tests excluded. The hand list this replaces had omitted cursor's pre-edit-check.sh.
+TT_SCRIPTS="$SCRATCH/tt-scripts"
+git -C "$ROOT" ls-files -- 'plugin-*/scripts/**' 'plugin-*/bin/**' 2>/dev/null \
+  | grep -E '\.(sh|py)$' | grep -vE '(^|/)tests?/' | sort -u > "$TT_SCRIPTS"
 # tt_guard FILE... — prints every matching line as file:line:text; returns 1 if anything matched.
 tt_guard() {
   _tt_rc=0
@@ -727,15 +762,23 @@ TT_SCOPE="$SCRATCH/tt-scope"
 {
   git -C "$ROOT" ls-files -- 'plugin-*' 'AGENTS.md' 'CLAUDE.md' 2>/dev/null \
     | grep -E '\.(md|mdc)$' | grep -vE '(^|/)tests?/'
-  for _e in $TT_EMITTERS; do printf '%s\n' "$_e"; done
+  cat "$TT_SCRIPTS"
 } | sort -u | sed "s|^|$ROOT/|" > "$TT_SCOPE"
 _tt_missing=""
 while IFS= read -r _f; do [ -f "$_f" ] || _tt_missing="$_tt_missing ${_f#$ROOT/}"; done < "$TT_SCOPE"
 N_TT=$(wc -l < "$TT_SCOPE" | tr -d ' ')
 printf '        no_text_transport census (%s instruction file(s) scanned):\n' "$N_TT"
 sed "s|^$ROOT/|          |" "$TT_SCOPE"
-if [ -z "$_tt_missing" ]; then ok "no_text_transport census: every named emitter exists"
-else bad "no_text_transport census: every named emitter exists" "missing:$_tt_missing"; fi
+if [ -z "$_tt_missing" ]; then ok "no_text_transport census: every file in scope exists"
+else bad "no_text_transport census: every file in scope exists" "missing:$_tt_missing"; fi
+for _d in plugin-claude-code plugin-openai-codex plugin-antigravity plugin-cursor-template; do
+  _c=$(grep -c "^$_d/" "$TT_SCRIPTS")
+  if [ "${_c:-0}" -ge 5 ]; then ok "no_text_transport census: $_d contributes $_c script(s) from git ls-files"
+  else bad "no_text_transport census: $_d contributes scripts" "only ${_c:-0} — the derived script scope is near-empty"; fi
+done
+if grep -qx 'plugin-cursor-template/scripts/aria/pre-edit-check.sh' "$TT_SCRIPTS"; then
+  ok "no_text_transport census: the emitter the hand list missed (cursor pre-edit-check.sh) is in scope"
+else bad "no_text_transport census: cursor pre-edit-check.sh is in scope" "absent from the derived list"; fi
 for _d in plugin-claude-code plugin-claude-cowork plugin-openai-codex plugin-antigravity plugin-cursor-template; do
   _c=$(grep -c "^$ROOT/$_d/" "$TT_SCOPE")
   if [ "${_c:-0}" -ge 5 ]; then ok "no_text_transport census: $_d contributes $_c file(s)"
@@ -762,6 +805,10 @@ sh <path> "<the goal>"
 . '<path>' '<goal>'
 kt_ss_ledger_add "{project_root}" "<prior sessionId>" "<prior at>" "<prior currentFocus>" "<prior nextAction>" "<prior next-session-prompt>"
 sh <path>/x.sh "<goal>"
+call kt_ss_ledger_token_locate <project_root> <token>
+kt_ss_ledger_consume_active "{project_root}" "<your sid>" "<now>" "<the same token>"
+kt_ss_ledger_token_locate "$ROOT" 'aria-handoff: proj-a/s@2026-11-09T00:00:00Z'
+then re-run kt_ss_ledger_token_locate with the same token
 PLANTS
 cat > "$SCRATCH/tt-must-pass.txt" <<'CLEAN'
 sh '<path>' --file '<file path>'
@@ -778,6 +825,10 @@ kt_ss_ledger_add_file "{project_root}" "<your sid>" "<your at>" '<entry file pat
 --decision "<text>"
 dismissal-reason: "<text>"
 kt_ss_ledger_add_file "{project_root}" "<your sid>" "<your at>" '<prompt file path>'
+call kt_ss_ledger_token_locate_file <project_root> <file>
+kt_ss_ledger_consume_active_file "{project_root}" "<your sid>" "<now>" '<token file path>'
+cat <<'R22'
+[Rule 22] LOW IMPACT — <what>
 CLEAN
 tt_wrap() { # $1 = mode (fence|span|bare), $2 = line → a markdown file on stdout
   case "$1" in
@@ -811,6 +862,30 @@ if [ -n "$_never" ]; then
   if tt_guard "$SCRATCH/tt-never.md" >/dev/null; then ok "no_text_transport must-PASS control: the \"Never put task text\" prose line"
   else bad "no_text_transport must-PASS control: the \"Never put task text\" prose line" "guard flags the prohibition itself"; fi
 else bad "no_text_transport must-PASS control: the \"Never put task text\" prose line" "line not found in canonical prospect"; fi
+# F1 hook-string controls: a SCRIPT that builds model-facing text with an escaped backtick span. The
+# must-FAIL forms are cursor pre-edit-check.sh's old line and the same shape in a Python string; the
+# must-PASS form is the corrected line (path + marker type, no rationale). Planted as real .sh/.py
+# files so tt_guard runs them in script mode, exactly as it runs the census.
+cat > "$SCRATCH/tt-hook-fail.sh" <<'HOOK'
+      INTENT_NOTE=" PROTECTED FILE: run \`bash scripts/aria/record-edit-intent.sh <filePath> rule22-high \"<rationale>\"\` BEFORE this Edit/Write."
+HOOK
+cat > "$SCRATCH/tt-hook-fail.py" <<'HOOK'
+    msg = f"Run `sh {root}/x.sh \"<the goal>\"` first."
+HOOK
+cat > "$SCRATCH/tt-hook-fail-tok.sh" <<'HOOK'
+  MESSAGES="${MESSAGES}... then call kt_ss_ledger_token_locate <project_root> <token> ..."
+HOOK
+cat > "$SCRATCH/tt-hook-pass.sh" <<'HOOK'
+      INTENT_NOTE=" PROTECTED FILE: run \`bash scripts/aria/record-edit-intent.sh '<filePath>' rule22-high\` BEFORE this Edit/Write."
+# kt_ss_ledger_consume_active <root> <by> <now> <token>   (E2: a comment documents a signature)
+  kt_ss_ledger_token_locate "$1" "$_ss_tlf_tok"
+HOOK
+for _hf in tt-hook-fail.sh tt-hook-fail.py tt-hook-fail-tok.sh; do
+  if tt_guard "$SCRATCH/$_hf" >/dev/null; then bad "no_text_transport hook-string must-FAIL control: $_hf" "guard passed it"
+  else ok "no_text_transport hook-string must-FAIL control: $_hf"; fi
+done
+if tt_guard "$SCRATCH/tt-hook-pass.sh" >/dev/null; then ok "no_text_transport hook-string must-PASS control: corrected record-edit-intent line + E2 comment"
+else bad "no_text_transport hook-string must-PASS control" "guard flags the corrected line or a signature comment"; fi
 # shellcheck disable=SC2046
 if tt_guard $(cat "$TT_SCOPE"); then ok "no_text_transport_anywhere: no instruction file composes free text into a shell command ($N_TT files)"
 else bad "no_text_transport_anywhere: no instruction file composes free text into a shell command" "see the file:line hits above"; fi
