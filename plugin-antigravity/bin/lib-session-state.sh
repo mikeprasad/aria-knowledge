@@ -597,7 +597,7 @@ kt_ss_read_active_at() {
 # Is the SESSION.md at $1 owned by a session whose state is STRICTLY NEWER than $2?
 #
 #   exit 0  -> incumbent IS newer   => the caller MUST NOT rewrite the front matter.
-#                                      Self-demote instead: kt_ss_ledger_add your own prompt into
+#                                      Self-demote instead: kt_ss_ledger_add_file your own entry into
 #                                      `## Pending handoffs` and leave the active slot alone.
 #   exit 1  -> anything else        => the caller rewrites exactly as it does today.
 #
@@ -873,6 +873,120 @@ kt_ss_read_live_prompt() {
   return 0
 }
 
+# Demote the ACTIVE prompt into `## Pending handoffs` as `unconsumed`, reading EVERY value from the
+# file itself. Called by /handoff 3f and /wrapup Step 6.5 before their full rewrite, and by
+# kt_ss_ledger_consume_active.
+#
+# ⛔ WHY CODE-ONLY (2.58.0). The skills used to tell the model to run
+#   kt_ss_ledger_add "<root>" "<sid>" "<at>" "<focus>" "<next>" "<the stored prompt>"
+# and a stored prompt routinely carries backtick code spans and `$`: inside double quotes the shell
+# EXECUTES them. No argument here is free text -- the root is a path, the optional caller sid an id.
+#
+#   kt_ss_ledger_demote_active <root> [<caller sid>]
+#   0  demoted, and the entry's header is on disk; prints <sid>@<at> on stdout
+#   1  nothing live to demote: no SESSION.md, an empty slot, an empty fence, or a fresh
+#      `(session in progress)` marker (kt_ss_read_live_prompt's predicate); file untouched
+#   3  the demote did not land; file untouched
+# It does NOT clear the active slot: /handoff and /wrapup rewrite it next, and
+# kt_ss_ledger_consume_active clears it under its own token check.
+#
+# Identity: the slot's own `aria-handoff:` token wins over the front matter, which a hook may have
+# re-stamped (see kt_ss_read_active_token). A tokenless prompt falls back to the front matter's
+# sessionId / at, and a missing one is written as `unknown` -- the placeholder /handoff already writes
+# for an unresolvable sessionId -- so the header stays parseable. focus/next come from the front matter.
+#
+# Hook-artifact annotation: when the prompt carries NO token and the front matter's sessionId equals
+# <caller sid>, that id was most likely stamped by post-edit-check.sh before v2.57.5, and the true
+# author is not recoverable from the file. The stored focus is then prefixed with
+#   ⚠ sid is a post-edit-check.sh HOOK ARTIFACT, not attribution —
+# It goes in focus, never in the sid: the sid is what kt_ss_ledger_mark_consumed and is_entry_header
+# key on. A token-bearing prompt is never annotated -- its token names its author.
+#
+# ⛔ VERIFY THE DEMOTE LANDED. kt_ss_ledger_add returns 0 whether or not it wrote -- every failure path
+# in it ends `return 0` -- so its exit code carries no information about the entry being on disk.
+# The check is a header STARTING `### <sid> · <at> · `, not a `### ` line merely containing the sid:
+# a pending entry left by an earlier handoff of the same session would satisfy a sid-only check after
+# a silent discard. Bound: an older entry with the same sid AND at would still satisfy it.
+kt_ss_ledger_demote_active() {
+  _ss_dm_root="$1"; _ss_dm_caller="$2"
+  _ss_dm_f="$_ss_dm_root/SESSION.md"
+  [ -f "$_ss_dm_f" ] || return 1
+  _ss_dm_body=$(kt_ss_read_live_prompt "$_ss_dm_root")
+  [ -n "$_ss_dm_body" ] || return 1
+  _ss_dm_tok=$(kt_ss_read_active_token "$_ss_dm_root")
+  if [ -n "$_ss_dm_tok" ]; then
+    _ss_dm_sid=${_ss_dm_tok%%|*}; _ss_dm_at=${_ss_dm_tok#*|}
+  else
+    _ss_dm_sid=$(kt_ss_read_active_sid "$_ss_dm_root"); _ss_dm_at=$(kt_ss_read_active_at "$_ss_dm_root")
+  fi
+  [ -n "$_ss_dm_sid" ] || _ss_dm_sid=unknown
+  [ -n "$_ss_dm_at" ] || _ss_dm_at=unknown
+  _ss_dm_focus=$(awk 'NR==1 && $0!="---"{exit} /^---$/ && NR>1{exit} /^currentFocus:[[:space:]]*/{sub(/^currentFocus:[[:space:]]*/,""); print; exit}' "$_ss_dm_f" 2>/dev/null)
+  _ss_dm_next=$(awk 'NR==1 && $0!="---"{exit} /^---$/ && NR>1{exit} /^nextAction:[[:space:]]*/{sub(/^nextAction:[[:space:]]*/,""); print; exit}' "$_ss_dm_f" 2>/dev/null)
+  if [ -z "$_ss_dm_tok" ] && [ -n "$_ss_dm_caller" ] && [ "$_ss_dm_sid" = "$_ss_dm_caller" ]; then
+    _ss_dm_focus="⚠ sid is a post-edit-check.sh HOOK ARTIFACT, not attribution — $_ss_dm_focus"
+  fi
+
+  kt_ss_ledger_add "$_ss_dm_root" "$_ss_dm_sid" "$_ss_dm_at" "$_ss_dm_focus" "$_ss_dm_next" "$_ss_dm_body"
+
+  if ! awk -v h="### $_ss_dm_sid · $_ss_dm_at · " 'index($0, h) == 1 { found = 1 }
+                                                   END { exit(found ? 0 : 1) }' "$_ss_dm_f" 2>/dev/null; then
+    printf 'kt_ss_ledger_demote_active: the demote of %s@%s did not land; the active slot was left in place.\n' "$_ss_dm_sid" "$_ss_dm_at" >&2
+    return 3
+  fi
+  printf '%s@%s\n' "$_ss_dm_sid" "$_ss_dm_at"
+  return 0
+}
+
+# Store THIS session's own entry in `## Pending handoffs`, reading its free text from a FILE. Used by
+# the self-demote branch of /handoff and /wrapup (the incumbent is strictly newer, so the active slot
+# is left alone).
+#   kt_ss_ledger_add_file <root> <sid> <at> <entry file>
+# The entry file, line by line:
+#   focus: <one line>
+#   next: <one line>
+#   prompt:
+#   <the prompt body, verbatim, to end of file>
+# ⛔ WHY A FILE (2.58.0). The model writes the file with its file-write tool, so the free text never
+# passes through a shell argument -- a prompt with backticks or `$` inside a double-quoted argument is
+# executed by the shell. The values are parsed here and handed to kt_ss_ledger_add in-process;
+# nothing is re-composed into a command.
+#   0  stored, and the entry's header is on disk; prints <sid>@<at>
+#   1  refused, nothing written: an empty sid or at, or the entry file is missing, a symlink, not a
+#      regular file, not owned by the caller, or its first three lines are not `focus:`, `next:`,
+#      `prompt:` in that order
+#   3  the entry did not land (kt_ss_ledger_add returns 0 either way), or there is no SESSION.md
+# ⛔ A SYMLINK, AND A FILE THE CALLER DOES NOT OWN, ARE REFUSED: the path comes from a model, and either
+# would let content the session never wrote (a planted file in a shared temp dir) become a stored prompt.
+# The body keeps every byte after line 3 except trailing newlines, which command substitution strips;
+# kt_ss_ledger_add supplies the line end before its terminator, exactly as for a demoted prompt.
+kt_ss_ledger_add_file() {
+  _ss_af_root="$1"; _ss_af_sid="$2"; _ss_af_at="$3"; _ss_af_e="$4"
+  if [ -z "$_ss_af_sid" ] || [ -z "$_ss_af_at" ] || [ -z "$_ss_af_e" ] || [ -L "$_ss_af_e" ] \
+     || [ ! -f "$_ss_af_e" ] || [ ! -O "$_ss_af_e" ]; then
+    printf 'kt_ss_ledger_add_file: refused — pass a non-empty sid and at, and an entry file you own that is a regular file, not a symlink (got "%s").\n' "$_ss_af_e" >&2
+    return 1
+  fi
+  if ! awk 'NR == 1 { a = /^focus:/ } NR == 2 { b = /^next:/ } NR == 3 { c = /^prompt:[[:space:]]*$/; exit }
+            END { exit((a && b && c) ? 0 : 1) }' "$_ss_af_e" 2>/dev/null; then
+    printf 'kt_ss_ledger_add_file: refused — %s must start with the lines "focus: ...", "next: ...", "prompt:" in that order.\n' "$_ss_af_e" >&2
+    return 1
+  fi
+  _ss_af_focus=$(sed -n '1s/^focus:[[:space:]]*//p' "$_ss_af_e")
+  _ss_af_next=$(sed -n '2s/^next:[[:space:]]*//p' "$_ss_af_e")
+  _ss_af_body=$(sed '1,3d' "$_ss_af_e")
+
+  kt_ss_ledger_add "$_ss_af_root" "$_ss_af_sid" "$_ss_af_at" "$_ss_af_focus" "$_ss_af_next" "$_ss_af_body"
+
+  if ! awk -v h="### $_ss_af_sid · $_ss_af_at · " 'index($0, h) == 1 { found = 1 }
+                                                   END { exit(found ? 0 : 1) }' "$_ss_af_root/SESSION.md" 2>/dev/null; then
+    printf 'kt_ss_ledger_add_file: the entry for %s@%s did not land in %s/SESSION.md.\n' "$_ss_af_sid" "$_ss_af_at" "$_ss_af_root" >&2
+    return 3
+  fi
+  printf '%s@%s\n' "$_ss_af_sid" "$_ss_af_at"
+  return 0
+}
+
 # Consume the ACTIVE prompt: demote it into `## Pending handoffs`, mark that entry
 # consumed, and clear the active slot. Called by a RESUMING session once it has found an
 # `aria-handoff:` token in the opener.
@@ -948,22 +1062,28 @@ kt_ss_ledger_consume_active() {
     return 2
   fi
 
-  _ss_focus=$(awk 'NR==1 && $0!="---"{exit} /^---$/ && NR>1{exit} /^currentFocus:[[:space:]]*/{sub(/^currentFocus:[[:space:]]*/,""); print; exit}' "$_ss_f" 2>/dev/null)
-  _ss_next=$(awk 'NR==1 && $0!="---"{exit} /^---$/ && NR>1{exit} /^nextAction:[[:space:]]*/{sub(/^nextAction:[[:space:]]*/,""); print; exit}' "$_ss_f" 2>/dev/null)
-
-  kt_ss_ledger_add "$_ss_root" "$_ss_sid" "$_ss_at" "$_ss_focus" "$_ss_next" "$_ss_trim"
-
+  # The demote itself is kt_ss_ledger_demote_active (2.58.0), the one code path /handoff and /wrapup
+  # also use. Its stderr is discarded so this function's messages stay exactly as they were.
   # ⛔ VERIFY THE DEMOTE LANDED BEFORE CLEARING ANYTHING. kt_ss_ledger_add returns 0
   # whether or not it wrote -- every failure path in it ends `return 0` by design, so its
   # exit code carries NO information about whether the entry is on disk. Clearing the
   # active slot on the strength of that return is how a handoff gets destroyed: measured
   # 2026-09-17, an add silently discarded by the heading-last defect left the fixture with
   # the prompt gone from both places. Bind the irreversible step to the load-bearing
-  # result -- the entry actually being present -- never to the proxy.
-  if ! awk -v sid="$_ss_sid" '/^### / && index($0, sid) > 0 { found = 1 }
-                              END { exit(found ? 0 : 1) }' "$_ss_f" 2>/dev/null; then
+  # result -- the entry actually being present -- never to the proxy. demote_active does
+  # that check (exit 3) against the entry's own header.
+  # Its printed identity must be the one this call located: demote_active re-reads the slot, so a
+  # peer write between the check above and the demote shows up here as a different sid@at (or as
+  # exit 1). That copy is stored `unconsumed` -- nothing is destroyed -- and nothing is cleared.
+  _ss_drc=0
+  _ss_dout=$(kt_ss_ledger_demote_active "$_ss_root" 2>/dev/null) || _ss_drc=$?
+  if [ "$_ss_drc" -eq 3 ]; then
     printf 'kt_ss_ledger_consume_active: the demote of %s@%s did not land; the active slot was left in place.\n' "$_ss_sid" "$_ss_at" >&2
     return 3
+  fi
+  if [ "$_ss_drc" -ne 0 ] || [ "$_ss_dout" != "$_ss_sid@$_ss_at" ]; then
+    printf 'kt_ss_ledger_consume_active: the active slot changed before it could be demoted (expected %s@%s, demoted "%s"); it was left in place. Re-run kt_ss_ledger_token_locate with the same token.\n' "$_ss_sid" "$_ss_at" "$_ss_dout" >&2
+    return 2
   fi
 
   kt_ss_ledger_mark_consumed "$_ss_root" "$_ss_sid" "$_ss_now" "$_ss_by" "$_ss_at"

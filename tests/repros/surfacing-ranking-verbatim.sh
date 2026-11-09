@@ -594,15 +594,44 @@ done
 #   A  a heredoc on the retired ARIA_TASK delimiter;
 #   B  a quoted `<…>` placeholder on the same command as `>`, `>>`, `<(` or `|`;
 #   C  a heredoc together with a redirect (a shell write of text: `cat > f <<'X'`);
-#   E  `printf` carrying a quoted `<…>` placeholder (P1: /preflight's marker took free-text scope).
+#   E  `printf` carrying a quoted `<…>` placeholder (P1: /preflight's marker took free-text scope);
+#   F  (Task 5b) any shell command carrying a quoted `<…>` placeholder whose NAME is free text —
+#      it contains prompt / focus / next / goal / query / task / scope / rationale / text / body /
+#      message / summary / description (case-insensitive) — unless its LAST word is an identifier
+#      (sid, sessionid, at, token, path, root, ref, hash, file: `<entry file path>` is a path).
+#      This is the shape D cannot see: a helper called by NAME (`kt_ss_ledger_add "<root>" … "<prior
+#      next-session-prompt>"`, the session ledger's old demote line) or a script behind a path prefix
+#      (`sh <path>/x.sh "<goal>"`). A "shell command" is: in code (a fence line or a backtick span)
+#      any command word at the start or after `;` `&` `|` `(` — a span starting `--flag` (a skill
+#      argument) or `key:` (a YAML field) is not one; on a bare prose line, only a line that STARTS
+#      with sh/bash/zsh/dash/source/./python/echo/printf/cat, a snake_case helper or a *.sh/*.py path.
+#      Measured on a82127c: the census finds exactly the four old kt_ss_ledger_add lines; a rule
+#      without the command-start condition also flagged `--decision "<text>"` (a /foundational-review
+#      argument, 4 ports) and a `dismissal-reason: "<text>"` frontmatter row — neither is a shell command.
 # Markdown is checked where a model would copy a command from: whole lines inside a fence, backtick
 # spans elsewhere, and whole prose lines that carry no backtick (a leading `>` quote marker and table
 # rows are skipped there). Scripts are checked whole-line.
 TT_AWK="$SCRATCH/tt-guard.awk"
 cat > "$TT_AWK" <<'AWK'
 function bad(r) { printf "        %s:%d: [%s] %s\n", F, FNR, r, substr($0, 1, 150); hit = 1 }
-function check(s,    t, t2, hasq, rest, a, ok) {
+# F: does s carry a quoted placeholder whose name is free text? An identifier as the LAST word wins.
+function freeph(s,    t, nm, w, n, i, last) {
+  t = s
+  while (match(t, RE_QPH)) {
+    nm = tolower(substr(t, RSTART + 2, RLENGTH - 4))
+    t = substr(t, RSTART + RLENGTH)
+    n = split(nm, w, /[^a-z0-9]+/); last = ""
+    for (i = n; i >= 1; i--) if (w[i] != "") { last = w[i]; break }
+    if (last in IDW) continue
+    if (nm ~ RE_FREE) return 1
+  }
+  return 0
+}
+function check(s, code,    t, t2, hasq, rest, a, ok, cmd) {
   if (s ~ RE_A) bad("A retired ARIA_TASK heredoc")
+  cmd = 0                               # no ternary: BSD awk rejects some ternary forms
+  if (code) { if (s ~ RE_CODECMD) cmd = 1 } else if (s ~ RE_BARECMD) cmd = 1
+  if (cmd && freeph(s)) bad("F free-text placeholder in a shell command")
   # B, C and E judge the SHAPE of a command a model is told to write, so they run on instruction
   # text only. In a hook script the same shapes are the hook's own plumbing (`<<PCC_INPUT …
   # 2>/dev/null`, a Python list of redirect tokens); its model-facing strings are covered by A and D.
@@ -648,20 +677,24 @@ BEGIN {
   RE_INV_SRC = "(^|[;&|(` \t])(\\.|source)[ \t]+"
   RE_SCRIPT = "^(\"<[^<>\"]*>\"|" q "<[^<>" q "]*>" q "|<[^<>]+>|\"\\$[A-Za-z_][A-Za-z0-9_]*\"|\"\\$[{][^}\"]*[}]\"|\"[^\"]*aria-surface\\.sh\"|" q "[^" q "]*aria-surface\\.sh" q "|[^ \t`\"" q "]*aria-surface\\.sh)"
   RE_ARG = "^--(file|git-range)[ \t]+" q "[^" q "]*" q
+  RE_FREE = "(prompt|focus|next|goal|query|task|scope|rationale|text|body|message|summary|description)"
+  RE_CODECMD = "(^|[;&|(])[ \t]*(\\$[ \t]+)?[A-Za-z_./$~{][A-Za-z0-9_./${}~-]*[ \t]"
+  RE_BARECMD = "^[ \t]*(\\$[ \t]+)?(sh|bash|zsh|dash|source|\\.|python3?|echo|printf|cat|[A-Za-z][A-Za-z0-9]*_[A-Za-z0-9_]+|[^ \t]*\\.(sh|py))[ \t]"
+  split("sid sessionid at token path root ref hash file", _idw, " "); for (_i in _idw) IDW[_idw[_i]] = 1
 }
 FNR == 1 { fence = 0 }
 {
-  if (!MD) { check($0); next }
+  if (!MD) { check($0, 1); next }
   if ($0 ~ /^[ \t]*(```|~~~)/) { fence = !fence; next }
-  if (fence) { if ($0 !~ /^[ \t]*\|/) check($0); next }   # a table row in a fence is a listing
+  if (fence) { if ($0 !~ /^[ \t]*\|/) check($0, 1); next }   # a table row in a fence is a listing
   if (index($0, "`") == 0) {
     line = $0; sub(/^[ \t]*>+[ \t]?/, "", line)
-    if (line !~ /^[ \t]*\|/) check(line)
+    if (line !~ /^[ \t]*\|/) check(line, 0)
     next
   }
   s = $0
   # Save the span bounds BEFORE check(): its own match() calls overwrite RSTART/RLENGTH.
-  while (match(s, /`[^`]+`/)) { st = RSTART; ln = RLENGTH; check(substr(s, st + 1, ln - 2)); s = substr(s, st + ln) }
+  while (match(s, /`[^`]+`/)) { st = RSTART; ln = RLENGTH; check(substr(s, st + 1, ln - 2), 1); s = substr(s, st + ln) }
 }
 END { exit hit }
 AWK
@@ -716,6 +749,8 @@ printf '%s\t%s\t%s\n' "$(date +%H:%M)" "<VERDICT>" "<scope>"
 sh "$ARIA_SURFACE" '<the goal>'
 sh <path> "<the goal>"
 . '<path>' '<goal>'
+kt_ss_ledger_add "{project_root}" "<prior sessionId>" "<prior at>" "<prior currentFocus>" "<prior nextAction>" "<prior next-session-prompt>"
+sh <path>/x.sh "<goal>"
 PLANTS
 cat > "$SCRATCH/tt-must-pass.txt" <<'CLEAN'
 sh '<path>' --file '<file path>'
@@ -726,6 +761,12 @@ ARIA_PLUGIN_ROOT="${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}"; sh "${ARIA_PLUGIN_ROOT
 printf '%s\tREADY\n' "$(date +%H:%M)" >> "${TMPDIR:-/tmp}/aria-preflight-${CLAUDE_SESSION_ID}"
 ARIA SURFACE — "/p/aria-surface.sh"
 "<task-notification"
+kt_ss_ledger_demote_active "{project_root}"
+kt_ss_ledger_demote_active "{project_root}" "<your sid>"
+kt_ss_ledger_add_file "{project_root}" "<your sid>" "<your at>" '<entry file path>'
+--decision "<text>"
+dismissal-reason: "<text>"
+kt_ss_ledger_add_file "{project_root}" "<your sid>" "<your at>" '<prompt file path>'
 CLEAN
 tt_wrap() { # $1 = mode (fence|span|bare), $2 = line → a markdown file on stdout
   case "$1" in

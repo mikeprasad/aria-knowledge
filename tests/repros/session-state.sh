@@ -581,7 +581,10 @@ _ss_fnsum() {
   awk -v fn="$2" '$0 ~ ("^" fn "\\(\\)"){f=1} f{print} f&&/^}$/{exit}' "$1" \
     | grep -vE '^[[:space:]]*#' | grep '[^[:space:]]' | cksum | awk '{print $1}'
 }
-_SS_PARITY_FNS="kt_ss_ledger_add kt_ss_ledger_prune"
+# (2.58.0) demote_active + add_file are the two entry points /handoff and /wrapup now call instead of
+# a model-composed kt_ss_ledger_add; consume_active joined because it now delegates its demote to
+# demote_active, so it is edited in four ports at once like the rest of this list.
+_SS_PARITY_FNS="kt_ss_ledger_add kt_ss_ledger_prune kt_ss_ledger_demote_active kt_ss_ledger_add_file kt_ss_ledger_consume_active"
 _SS_P1="$REPO_ROOT/plugin-claude-code/scripts/lib-session-state.sh"
 _SS_P2="$REPO_ROOT/plugin-antigravity/bin/lib-session-state.sh"
 _SS_P3="$REPO_ROOT/plugin-cursor-template/scripts/aria/lib-session-state.sh"
@@ -1215,6 +1218,165 @@ for _xd in plugin-claude-code/scripts plugin-antigravity/bin plugin-cursor-templ
 done
 [ "$_X_SEEN" -eq 4 ] && ok "X coverage: all 4 carrying ports exercised" \
   || bad "X coverage" "only $_X_SEEN of 4 port libs found"
+
+# --- Y: the ledger takes no free text from a model command (2.58.0) ----------------------------
+# /handoff and /wrapup used to tell the model to run
+#   kt_ss_ledger_add "<root>" "<sid>" "<at>" "<focus>" "<next>" "<the stored prompt>"
+# A stored prompt routinely carries backtick code spans and `$`, and inside double quotes the shell
+# EXECUTES them -- code execution from a handoff body. Now the demote is code-only
+# (kt_ss_ledger_demote_active reads every value from the file) and the self-demote reads its free
+# text from a file the model wrote with its file-write tool (kt_ss_ledger_add_file).
+# Every arm runs against EVERY port's lib, in a subshell, so a port that lacks a function or behaves
+# differently goes red here, not only in block N's cksum.
+#   Y1 a hostile prompt is demoted byte-identical, nothing executes, the token's sid/at win over a
+#      disagreeing front matter, and the active slot is NOT cleared (the skill rewrites it)
+#   Y2 nothing live (empty fence / in-progress marker / no file) -> exit 1, byte-identical
+#   Y3 kt_ss_ledger_add neutered -> demote_active AND consume_active exit 3, byte-identical
+#   Y4 hook-artifact annotation, two-sided: tokenless + front-matter sid == caller sid is annotated;
+#      a different caller sid, or a token-bearing prompt, is not
+#   Y5 add_file stores a hostile body verbatim with its focus/next, nothing executes
+#   Y6 add_file refuses a symlinked entry file      Y7 add_file refuses bad headers / args
+#   Y8 add_file verifies its write landed (exit 3 when kt_ss_ledger_add is neutered)
+YD="$TMP/y"
+_y_tok='aria-handoff: proj-a/tok-sid@2026-11-01T00:00:00Z'
+_y_hdr_tok='### tok-sid · 2026-11-01T00:00:00Z · handoff · unconsumed'
+_y_annot='⚠ sid is a post-edit-check.sh HOOK ARTIFACT, not attribution — '
+_y_hostile() {  # $1 marker path -> a prompt body a shell would execute if it were ever re-composed
+  printf '%s\n' '```' "$_y_tok" \
+    'run `date` then $(touch '"$1"') and ${HOME} and $HOME' \
+    "it's \"quoted\" both ways" 'ARIA_TASK' '## a column-0 heading inside the fence' \
+    'focus: a decoy header line' '```'
+}
+_y_slot() {  # $1 dir, $2 prompt file -- the front matter DISAGREES with the token on purpose
+  mkdir -p "$1"; : > "$1/CLAUDE.md"
+  { printf -- '---\nlastEvent: handoff\nat: 2026-11-02T00:00:00Z\ncurrentFocus: fm focus line\nnextAction: fm next line\nsessionId: fm-sid\n---\n\n## Where we left off\n\nY-BODY\n\n## Next session prompt\n\n'
+    cat "$2"
+    printf '\n## Pending handoffs\n'
+  } > "$1/SESSION.md"
+  cp "$1/SESSION.md" "$1/before.md"
+}
+_y_stored() {  # $1 file, $2 exact header line -> that entry's stored prompt, verbatim
+  awk -v h="$2" '$0 == h { f = 1; next } f && $0 == "- prompt:" { p = 1; next }
+                 p && $0 == "<!-- aria:entry-end -->" { exit } p { print }' "$1"
+}
+_y_field() {  # $1 file, $2 exact header line, $3 key -> the value of that entry's "- key: " line
+  awk -v h="$2" -v k="- $3: " '$0 == h { f = 1; next }
+                               f && index($0, k) == 1 { print substr($0, length(k) + 1); exit }' "$1"
+}
+_y_active() { awk '/^## Pending handoffs/ { exit } { print }' "$1"; }
+_y_arms() {  # $1 tag. The caller has sourced ONE port's lib into this subshell.
+  b="$YD/$1"; mkdir -p "$b"
+
+  _y_hostile "$b/M1" > "$b/p1"; _y_slot "$b/d1" "$b/p1"
+  r=0; o=$(kt_ss_ledger_demote_active "$b/d1" 2>/dev/null) || r=$?
+  _y_stored "$b/d1/SESSION.md" "$_y_hdr_tok" > "$b/s1"
+  _y_active "$b/d1/SESSION.md" > "$b/a1"; _y_active "$b/d1/before.md" > "$b/a1b"
+  if [ "$r" -eq 0 ] && [ "$o" = "tok-sid@2026-11-01T00:00:00Z" ] && cmp -s "$b/p1" "$b/s1" \
+     && [ "$(_y_field "$b/d1/SESSION.md" "$_y_hdr_tok" focus)" = "fm focus line" ] \
+     && [ "$(_y_field "$b/d1/SESSION.md" "$_y_hdr_tok" next)" = "fm next line" ] \
+     && ! grep -q '^### fm-sid' "$b/d1/SESSION.md" && [ ! -e "$b/M1" ] && cmp -s "$b/a1" "$b/a1b"; then
+    echo "OK Y1 demote_active_moves_prompt_verbatim"
+  else
+    echo "BAD Y1 demote_active_moves_prompt_verbatim -- rc=$r out='$o' stored=$(cmp -s "$b/p1" "$b/s1" && echo same || echo DIFFERS) marker=$([ -e "$b/M1" ] && echo CREATED || echo none) fm-sid-header=$(grep -c '^### fm-sid' "$b/d1/SESSION.md" || true) active=$(cmp -s "$b/a1" "$b/a1b" && echo kept || echo CHANGED)"
+  fi
+
+  mkdir -p "$b/d2a" "$b/d2b" "$b/d2c"
+  printf -- '---\nlastEvent: wrapup\nat: 2026-11-02T00:00:00Z\nsessionId: s\n---\n\n## Next session prompt\n\n```\n```\n\n## Pending handoffs\n' > "$b/d2a/SESSION.md"
+  printf -- '---\nlastEvent: in-progress\nat: 2026-11-02T00:00:00Z\nsessionId: s\n---\n\n## Next session prompt\n\n```\n(session in progress)\n```\n' > "$b/d2b/SESSION.md"
+  cp "$b/d2a/SESSION.md" "$b/d2a/before.md"; cp "$b/d2b/SESSION.md" "$b/d2b/before.md"
+  r1=0; o1=$(kt_ss_ledger_demote_active "$b/d2a" 2>/dev/null) || r1=$?
+  r2=0; o2=$(kt_ss_ledger_demote_active "$b/d2b" 2>/dev/null) || r2=$?
+  r3=0; o3=$(kt_ss_ledger_demote_active "$b/d2c" 2>/dev/null) || r3=$?
+  if [ "$r1$r2$r3" = "111" ] && [ -z "$o1$o2$o3" ] && cmp -s "$b/d2a/before.md" "$b/d2a/SESSION.md" \
+     && cmp -s "$b/d2b/before.md" "$b/d2b/SESSION.md" && [ ! -e "$b/d2c/SESSION.md" ]; then
+    echo "OK Y2 demote_active_nothing_live"
+  else
+    echo "BAD Y2 demote_active_nothing_live -- exits=$r1$r2$r3 (want 111) out='$o1$o2$o3', or a file changed/was created"
+  fi
+
+  _y_hostile "$b/M3" > "$b/p3"; _y_slot "$b/d3" "$b/p3"; _y_slot "$b/d3c" "$b/p3"
+  rr=$( ( kt_ss_ledger_add() { return 0; }
+          x=0; kt_ss_ledger_demote_active "$b/d3" >/dev/null 2>&1 || x=$?
+          y=0; kt_ss_ledger_consume_active "$b/d3c" resumer 2026-11-03T00:00:00Z "$_y_tok" >/dev/null 2>&1 || y=$?
+          printf '%s %s' "$x" "$y" ) ) || true
+  if [ "$rr" = "3 3" ] && cmp -s "$b/d3/before.md" "$b/d3/SESSION.md" && cmp -s "$b/d3c/before.md" "$b/d3c/SESSION.md"; then
+    echo "OK Y3 demote_active_verifies_landed (and consume_active through it)"
+  else
+    echo "BAD Y3 demote_active_verifies_landed -- exits '$rr' (want '3 3'), or a file changed"
+  fi
+
+  printf '%s\n' '```' 'Y4 tokenless prompt' '```' > "$b/p4"
+  printf '%s\n' '```' "$_y_tok" 'Y4 token prompt' '```' > "$b/p4t"
+  _y_slot "$b/d4a" "$b/p4"; _y_slot "$b/d4b" "$b/p4"; _y_slot "$b/d4c" "$b/p4t"
+  ra=0; kt_ss_ledger_demote_active "$b/d4a" fm-sid >/dev/null 2>&1 || ra=$?
+  rb=0; kt_ss_ledger_demote_active "$b/d4b" other-sid >/dev/null 2>&1 || rb=$?
+  rc=0; kt_ss_ledger_demote_active "$b/d4c" tok-sid >/dev/null 2>&1 || rc=$?
+  hf='### fm-sid · 2026-11-02T00:00:00Z · handoff · unconsumed'
+  fa=$(_y_field "$b/d4a/SESSION.md" "$hf" focus); fb=$(_y_field "$b/d4b/SESSION.md" "$hf" focus)
+  fc=$(_y_field "$b/d4c/SESSION.md" "$_y_hdr_tok" focus)
+  if [ "$ra$rb$rc" = "000" ] && [ "$fa" = "${_y_annot}fm focus line" ] && [ "$fb" = "fm focus line" ] && [ "$fc" = "fm focus line" ]; then
+    echo "OK Y4 hook-artifact annotation: annotated only for a tokenless prompt under the caller's own sid"
+  else
+    echo "BAD Y4 hook-artifact annotation -- exits=$ra$rb$rc focus a='$fa' b='$fb' c='$fc'"
+  fi
+
+  _y_hostile "$b/M5" > "$b/p5"; _y_hostile "$b/M5x" > "$b/p5x"; _y_slot "$b/d5" "$b/p5x"
+  { printf 'focus: f one line\nnext: n one line\nprompt:\n'; cat "$b/p5"; } > "$b/e5"
+  r=0; kt_ss_ledger_add_file "$b/d5" my-sid 2026-11-03T00:00:00Z "$b/e5" >/dev/null 2>&1 || r=$?
+  h5='### my-sid · 2026-11-03T00:00:00Z · handoff · unconsumed'
+  _y_stored "$b/d5/SESSION.md" "$h5" > "$b/s5"
+  _y_active "$b/d5/SESSION.md" > "$b/a5"; _y_active "$b/d5/before.md" > "$b/a5b"
+  if [ "$r" -eq 0 ] && cmp -s "$b/p5" "$b/s5" && [ "$(_y_field "$b/d5/SESSION.md" "$h5" focus)" = "f one line" ] \
+     && [ "$(_y_field "$b/d5/SESSION.md" "$h5" next)" = "n one line" ] && [ ! -e "$b/M5" ] && cmp -s "$b/a5" "$b/a5b"; then
+    echo "OK Y5 add_file_parses_and_stores"
+  else
+    echo "BAD Y5 add_file_parses_and_stores -- rc=$r stored=$(cmp -s "$b/p5" "$b/s5" && echo same || echo DIFFERS) marker=$([ -e "$b/M5" ] && echo CREATED || echo none)"
+  fi
+
+  _y_slot "$b/d6" "$b/p5x"; ln -s "$b/e5" "$b/e6"
+  r=0; kt_ss_ledger_add_file "$b/d6" my-sid 2026-11-03T00:00:00Z "$b/e6" >/dev/null 2>&1 || r=$?
+  if [ "$r" -ne 0 ] && cmp -s "$b/d6/before.md" "$b/d6/SESSION.md"; then echo "OK Y6 add_file_refuses_symlink"
+  else echo "BAD Y6 add_file_refuses_symlink -- rc=$r, or the ledger changed"; fi
+
+  _y_slot "$b/d7" "$b/p5x"
+  printf 'focus: f\nnext: n\nbody without the prompt header\n' > "$b/e7a"
+  printf 'next: n\nfocus: f\nprompt:\nbody\n' > "$b/e7b"
+  ra=0; kt_ss_ledger_add_file "$b/d7" my-sid 2026-11-03T00:00:00Z "$b/e7a" >/dev/null 2>&1 || ra=$?
+  rb=0; kt_ss_ledger_add_file "$b/d7" my-sid 2026-11-03T00:00:00Z "$b/e7b" >/dev/null 2>&1 || rb=$?
+  rc=0; kt_ss_ledger_add_file "$b/d7" my-sid 2026-11-03T00:00:00Z "$b/e7-missing" >/dev/null 2>&1 || rc=$?
+  rd=0; kt_ss_ledger_add_file "$b/d7" "" 2026-11-03T00:00:00Z "$b/e5" >/dev/null 2>&1 || rd=$?
+  if [ "$ra" -ne 0 ] && [ "$rb" -ne 0 ] && [ "$rc" -ne 0 ] && [ "$rd" -ne 0 ] && cmp -s "$b/d7/before.md" "$b/d7/SESSION.md"; then
+    echo "OK Y7 add_file_refuses_missing_headers (and a missing file, and an empty sid)"
+  else
+    echo "BAD Y7 add_file_refuses_missing_headers -- exits $ra/$rb/$rc/$rd (want all non-zero), or the ledger changed"
+  fi
+
+  _y_slot "$b/d8" "$b/p5x"
+  rr=$( ( kt_ss_ledger_add() { return 0; }
+          x=0; kt_ss_ledger_add_file "$b/d8" my-sid 2026-11-03T00:00:00Z "$b/e5" >/dev/null 2>&1 || x=$?
+          printf '%s' "$x" ) ) || true
+  if [ "$rr" = "3" ] && cmp -s "$b/d8/before.md" "$b/d8/SESSION.md"; then echo "OK Y8 add_file_verifies_landed"
+  else echo "BAD Y8 add_file_verifies_landed -- exit '$rr' (want 3), or the ledger changed"; fi
+}
+_Y_SEEN=0
+for _yd in plugin-claude-code/scripts plugin-antigravity/bin plugin-cursor-template/scripts/aria plugin-openai-codex/bin; do
+  _yf="$REPO_ROOT/$_yd/lib-session-state.sh"
+  [ -f "$_yf" ] || { bad "Y $_yd" "lib-session-state.sh missing -- a guard with no subject"; continue; }
+  _Y_SEEN=$((_Y_SEEN + 1))
+  _yout=$( ( . "$_yf"; _y_arms "$(printf '%s' "$_yd" | tr '/' '_')" ) 2>&1 ) || true
+  while IFS= read -r _yl; do
+    case "$_yl" in
+      "OK "*)  ok "$_yd: ${_yl#OK }" ;;
+      "BAD "*) _yn=${_yl#BAD }; bad "$_yd: ${_yn%% -- *}" "${_yn#* -- }" ;;
+    esac
+  done <<YOUT
+$_yout
+YOUT
+  _yn=$(printf '%s\n' "$_yout" | grep -c '^OK ' || true)
+  [ "$_yn" -eq 8 ] || bad "Y coverage $_yd" "only $_yn of 8 arms passed -- see the lines above"
+done
+[ "$_Y_SEEN" -eq 4 ] && ok "Y coverage: all 4 carrying ports exercised" \
+  || bad "Y coverage" "only $_Y_SEEN of 4 port libs found"
 
 printf "\n%d passed, %d failed\n" "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
