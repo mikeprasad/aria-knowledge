@@ -25,8 +25,13 @@ set -uo pipefail
 # symlink to a directory, `ln` creates the file INSIDE that directory. Not `set -C`:
 # noclobber opens an existing FIFO without O_EXCL and blocks.) The temp name is removed
 # either way; one left by a killed run is pruned after 24 h.
+# Fast path: when anything already exists at NAME, return without forking (the common
+# case — the file was created on an earlier call). This test is safe: it opens nothing,
+# a name planted after it only makes `link` fail, and every caller still checks the file
+# (regular, ours, not a link) before it appends.
 ag_create_new() {
   local t rc
+  if [ -e "$1" ] || [ -L "$1" ]; then return 1; fi
   t=$(mktemp "${1%/*}/.aria-ag-new.XXXXXX" 2>/dev/null) || return 1
   link "$t" "$1" 2>/dev/null; rc=$?
   rm -f "$t" 2>/dev/null

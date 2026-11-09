@@ -605,6 +605,67 @@ CFG
   logged 'transcript unreadable'
 }
 
+@test "R4 steady_state_no_create_forks: recording into an existing state file makes no create call" {
+  r4_configure
+  # `link` is called only by the hook's create helper, so a counting shim on PATH counts
+  # create attempts exactly (mktemp is also used by the matcher and the config cache).
+  mkdir "$SURF/shim"
+  real=$(command -v link)
+  printf '#!/bin/sh\nprintf "x\\n" >> "%s"\nexec "%s" "$@"\n' "$SURF/links" "$real" > "$SURF/shim/link"
+  chmod +x "$SURF/shim/link"
+  links() { if [ -f "$SURF/links" ]; then wc -l < "$SURF/links" | tr -d ' '; else echo 0; fi; }
+  C="${RUN_ID}SS"
+  r4_user_input 4 "hello there friend" > "$SURF/t.jsonl"            # nofire: records step 4
+  r4_payload "$C" "$SURF/t.jsonl" 3
+  env PATH="$SURF/shim:$PATH" bash "$WRAPPER" < "$SURF/in" > "$SURF/out" 2>/dev/null
+  [ "$(links)" = "1" ]                         # instrument check: the first record created the file
+  grep -qxF '4' "$SURF/aria-ag-surfaced-$C"
+  r4_user_input 5 "good morning friend" >> "$SURF/t.jsonl"           # nofire: records step 5
+  env PATH="$SURF/shim:$PATH" bash "$WRAPPER" < "$SURF/in" > "$SURF/out" 2>/dev/null
+  grep -qxF '5' "$SURF/aria-ag-surfaced-$C"
+  [ "$(links)" = "1" ]                         # the second record made no create call
+}
+
+@test "R4 plant_in_create_window_is_harmless: a name planted between the fast path and link is never opened or entered" {
+  r4_configure
+  # A mktemp shim plants at the create name when it is asked for the helper's temp, i.e.
+  # AFTER ag_create_new's existence test and BEFORE its link call — the only window left.
+  mkdir "$SURF/shim" "$SURF/elsewhere"
+  real=$(command -v mktemp)
+  cat > "$SURF/shim/mktemp" <<SHIM
+#!/bin/sh
+case "\$*" in
+  *.aria-ag-new.*)
+    if [ -n "\${KT_TEST_WINDOW_NAME:-}" ] && [ ! -e "\$KT_TEST_WINDOW_NAME" ] && [ ! -L "\$KT_TEST_WINDOW_NAME" ]; then
+      case "\${KT_TEST_WINDOW_PLANT:-}" in
+        fifo) mkfifo "\$KT_TEST_WINDOW_NAME" ;;
+        dirlink) ln -s "$SURF/elsewhere" "\$KT_TEST_WINDOW_NAME" ;;
+      esac
+    fi ;;
+esac
+exec "$real" "\$@"
+SHIM
+  chmod +x "$SURF/shim/mktemp"
+  r4_user_input 4 "hello there friend" > "$SURF/t.jsonl"            # nofire: records the step
+  # FIFO in the window: no hang, nothing recorded.
+  C="${RUN_ID}WF"
+  r4_payload "$C" "$SURF/t.jsonl" 3
+  r4_run_bounded 5 env PATH="$SURF/shim:$PATH" KT_TEST_WINDOW_PLANT=fifo \
+    KT_TEST_WINDOW_NAME="$SURF/aria-ag-surfaced-$C" bash "$WRAPPER"
+  [ "$BOUNDED" = ok ]
+  [ -p "$SURF/aria-ag-surfaced-$C" ]           # instrument check: planted in the window
+  # Symlink to a directory in the window: nothing is created inside the directory.
+  C2="${RUN_ID}WD"
+  r4_payload "$C2" "$SURF/t.jsonl" 3
+  r4_run_bounded 5 env PATH="$SURF/shim:$PATH" KT_TEST_WINDOW_PLANT=dirlink \
+    KT_TEST_WINDOW_NAME="$SURF/aria-ag-surfaced-$C2" bash "$WRAPPER"
+  [ "$BOUNDED" = ok ]
+  [ -L "$SURF/aria-ag-surfaced-$C2" ]
+  [ -z "$(ls -A "$SURF/elsewhere")" ]
+  [ "$(grep -c ' antigravity state refused$' "$HOOKLOG")" = "2" ]
+  [ -z "$(ls -A "$SURF" | grep '^\.aria-ag-new\.' || true)" ]
+}
+
 @test "R4 orphan_new_temp_pruned: create temps older than 24 h go on invocationNum 0" {
   r4_configure
   : > "$SURF/.aria-ag-new.OLD123"
