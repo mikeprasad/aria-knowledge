@@ -157,6 +157,33 @@ ps_body() {
   r "core_commit_filters_like_commit_paths: kt_ps_commit records only plain relative paths" \
     "projects/proj-a/hooks.md|projects/proj-c/a..b.md|" "$(tr '\n' '|' < "$T/ledger-k")"
 
+  # --- core_unsafe_entries_never_surfaced: delivered must equal recordable -----------------
+  # An index entry that is not a plain relative path (absolute, or with a `..` segment) is
+  # dropped BEFORE it enters the injection: it could never be recorded, so delivering it would
+  # re-surface it on every prompt. The entries are listed under BOTH firing tags so they rank
+  # into the top-5 cap (under one tag they rank below it and the arm would prove nothing). The
+  # cap makes call 1 differ from a clean fixture by construction; call 2 must match it.
+  KU="$T/ku"; mk_kf "$KU" no-index
+  awk '{ print } /^### (payments|proj-b)$/ { print "- /abs/outside.md — Absolute entry"; print "- ../escape.md — Escape entry" }' \
+    "$PS_FIXTURE" > "$KU/index.md"
+  CFGU="$T/cfg/unsafe.local.md"; mk_cfg "$CFGU" "$KU"
+  KC="$T/kc"; mk_kf "$KC"; CFGC="$T/cfg/clean.local.md"; mk_cfg "$CFGC" "$KC"
+  mkdir -p "$T/cache-u" "$T/cache-c"
+  ps_call "$CFGU" "$T/cache-u" "$PROMPT_PAY" "$T/ledger-u"; U1=$(out | sed "s|$KU/|KF/|g")
+  ps_call "$CFGC" "$T/cache-c" "$PROMPT_PAY" "$T/ledger-cc"
+  ps_call "$CFGU" "$T/cache-u" "$PROMPT_PAY" "$T/ledger-u"; U2=$(out | sed "s|$KU/|KF/|g"); U2S=$PS_STATUS
+  ps_call "$CFGC" "$T/cache-c" "$PROMPT_PAY" "$T/ledger-cc"; C2=$(out | sed "s|$KC/|KF/|g"); C2S=$PS_STATUS
+  r "core_unsafe_entries_never_surfaced: neither entry is in the injection" \
+    0 "$(printf '%s\n' "$U1" | grep -c -e '/abs/outside\.md' -e 'escape\.md')"
+  r "core_unsafe_entries_never_surfaced: first call still fires with the safe paths" \
+    "1|1" "$(ps_header_ok "$U1")|$(ps_has_line "$U1" "- KF/projects/proj-b/deposits.md")"
+  r "core_unsafe_entries_never_surfaced: second call matches the clean fixture (output, status)" \
+    "$(printf '%s' "$C2" | cksum)|$C2S" "$(printf '%s' "$U2" | cksum)|$U2S"
+  r "core_unsafe_entries_never_surfaced: the drop is logged as dropped-unsafe-entry" \
+    1 "$( [ "$(grep -c ' surface dropped-unsafe-entry$' "$T/cache-u/aria-surface-hook.log" 2>/dev/null)" -ge 1 ] && echo 1 || echo 0)"
+  r "core_unsafe_entries_never_surfaced: the ledger never holds them" \
+    0 "$(grep -c -e '^/abs' -e 'escape\.md' "$T/ledger-u" 2>/dev/null)"
+
   # --- hook flow: the Claude Code adapter commits only after its emission succeeded ----
   HH="$T/hhome"; mk_cfg "$HH/.claude/aria-knowledge.local.md" "$KF"; mkdir -p "$T/cache-h"
   PCC="$PS_SD/prompt-context-check.sh"
@@ -300,7 +327,7 @@ ps_body() {
 PS_RESULTS=$(ps_body)
 
 # Every `r` call in ps_body reports exactly once; raise this when adding a check.
-PS_EXPECTED=50
+PS_EXPECTED=55
 PS_GOT=0
 PS_TAB=$(printf '\t')
 PS_OLD_IFS=$IFS

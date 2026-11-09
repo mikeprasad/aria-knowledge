@@ -33,6 +33,9 @@
 #                                KT_PS_TEXT to what it printed (empty otherwise), and
 #                                KT_PS_PENDING to the knowledge-folder-relative paths that
 #                                text names, one per line. It does NOT record the ledger.
+#                                A ranked entry that is not a plain relative path (the
+#                                ledger could never record it) is dropped before delivery
+#                                and logged once per call as `dropped-unsafe-entry`.
 #                                Every error:<step> also appends one line to the debug log.
 #   kt_ps_commit LEDGER          appends KT_PS_PENDING to LEDGER, then clears it (a second
 #                                call adds nothing). Same line filter as kt_ps_commit_paths
@@ -247,18 +250,23 @@ kt_ps_surface() {
 
   # Pending = the path part of each INJECTED entry (text before the first " — ", exactly
   # what kt_match_record_ledger writes), so an entry cut by the bound is never pending.
-  _kt_ps_list=""; _kt_ps_pend=""; _kt_ps_n=0
+  # Delivered must equal recordable: an entry the ledger would refuse (_kt_ps_plain_rel) is
+  # dropped HERE, before it reaches the model, or it would be re-delivered on every prompt.
+  _kt_ps_list=""; _kt_ps_pend=""; _kt_ps_n=0; _kt_ps_dropped=0
   while IFS= read -r _kt_ps_line || [ -n "$_kt_ps_line" ]; do
     _kt_ps_rel=${_kt_ps_line%% — *}
-    [ -n "$_kt_ps_rel" ] || continue
-    case $_kt_ps_rel in /*) _kt_ps_p=$_kt_ps_rel ;; *) _kt_ps_p="$KT_KNOWLEDGE_FOLDER/$_kt_ps_rel" ;; esac
-    _kt_ps_try="$_kt_ps_list$_kt_ps_nl- $_kt_ps_p"
+    if ! _kt_ps_plain_rel "$_kt_ps_rel"; then _kt_ps_dropped=1; continue; fi
+    _kt_ps_try="$_kt_ps_list$_kt_ps_nl- $KT_KNOWLEDGE_FOLDER/$_kt_ps_rel"
     if [ "${#_kt_ps_try}" -gt 9000 ]; then break; fi
     _kt_ps_list=$_kt_ps_try; _kt_ps_n=$((_kt_ps_n + 1))
     _kt_ps_pend="$_kt_ps_pend$_kt_ps_rel$_kt_ps_nl"
   done < "$KT_MATCH_FILES_TMP"
   kt_match_cleanup
-  if [ "$_kt_ps_n" -eq 0 ]; then _kt_ps_fail too-long; return 0; fi
+  [ "$_kt_ps_dropped" -eq 1 ] && kt_ps_log "${KT_PS_RUNTIME:-unknown}" surface dropped-unsafe-entry
+  if [ "$_kt_ps_n" -eq 0 ]; then
+    if [ "$_kt_ps_dropped" -eq 1 ]; then KT_PS_STATUS="nothing-new"; else _kt_ps_fail too-long; fi
+    return 0
+  fi
 
   _kt_ps_out="ARIA ACTIVE — ${_kt_ps_n} knowledge file(s) for this task (tags: ${KT_MATCH_TAGS}). Read them before answering and say in one line which you used and why:${_kt_ps_list}"
   if ! printf '%s\n' "$_kt_ps_out" 2>/dev/null; then _kt_ps_fail write; return 0; fi
@@ -271,17 +279,25 @@ kt_ps_surface() {
 # --- record what was DELIVERED --------------------------------------------------
 # Separate from kt_ps_surface on purpose: see "The ledger contract" in the header.
 
-# _kt_ps_append_kept LEDGER — the ONE ledger-line filter, shared by both commits. Reads
-# lines on stdin and appends, in one write, only plain knowledge-folder-relative paths:
-# a line that is empty, holds a control character (CR and tab included), starts with `/`,
-# or has a `..` segment is dropped. Ledger lines are shown to the model again (session
-# start after compaction), so nothing else may reach the file.
+# _kt_ps_plain_rel PATH — the ONE shape test for a knowledge-folder-relative path: true
+# unless PATH is empty, starts with `/`, has a `..` segment, or holds a control character
+# (CR and tab included; a NUL cannot reach a shell variable). kt_ps_surface applies it to
+# what it DELIVERS and _kt_ps_append_kept to what the ledger RECORDS, so the two sets are
+# the same set: an entry that could not be recorded is never delivered.
+_kt_ps_plain_rel() {
+  case $1 in
+    ''|/*|..|../*|*/../*|*/..|*[[:cntrl:]]*) return 1 ;;
+  esac
+  return 0
+}
+
+# _kt_ps_append_kept LEDGER — the ONE ledger writer, shared by both commits. Reads lines on
+# stdin and appends, in one write, only those _kt_ps_plain_rel accepts. Ledger lines are
+# shown to the model again (session start after compaction), so nothing else may reach it.
 _kt_ps_append_kept() { # LEDGER
   _kt_ps_add=""
   while IFS= read -r _kt_ps_l || [ -n "$_kt_ps_l" ]; do
-    case $_kt_ps_l in
-      ''|/*|..|../*|*/../*|*/..|*[[:cntrl:]]*) continue ;;
-    esac
+    _kt_ps_plain_rel "$_kt_ps_l" || continue
     _kt_ps_add="$_kt_ps_add$_kt_ps_l$_kt_ps_nl"
   done
   [ -n "$_kt_ps_add" ] && printf '%s' "$_kt_ps_add" >> "$1" 2>/dev/null
