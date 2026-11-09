@@ -245,14 +245,14 @@ if [ -f "$INDEX_FILE" ]; then
     # read, not $(cat <<...): bash 3.2 (macOS /bin/sh) mis-parses an apostrophe in a heredoc that
     # sits inside a command substitution.
     IFS= read -r _aa_text <<'ARIA_ACTIVE_CONTEXT'
-ARIA ACTIVE CONTEXT — Unasked, read each task's knowledge files before answering; say in one line which you used and why. Source: an `ARIA ACTIVE —` injection, in Codex the only source (none = read nothing); the plugin ranks its files this way: <!-- surfacing-ranking:start -->Rank the candidate files: (1) a file carrying a matched project tag first; (2) then files carrying more of the matched tags; (3) then files whose path or index description contains more of the task's own words (lowercase, length over 2, common words dropped); (4) then authored files before files under `logs/`; (5) then the file whose rarest matched tag has the fewest files; (6) then index order. Fire when 2 or more tags match, or when 1 matched tag is a configured project. Keep the top 5.<!-- surfacing-ranking:end --> Skip files already read this session.
+ARIA ACTIVE CONTEXT — Unasked, read each task's knowledge files before answering; say in one line which you used and why. Source: an `ARIA ACTIVE —` injection from the Codex prompt hook, the only source (none = read nothing); the plugin ranks its files this way: <!-- surfacing-ranking:start -->Rank the candidate files: (1) a file carrying a matched project tag first; (2) then files carrying more of the matched tags; (3) then files whose path or index description contains more of the task's own words (lowercase, length over 2, common words dropped); (4) then authored files before files under `logs/`; (5) then the file whose rarest matched tag has the fewest files; (6) then index order. Fire when 2 or more tags match, or when 1 matched tag is a configured project. Keep the top 5.<!-- surfacing-ranking:end --> Skip files already read this session.
 ARIA_ACTIVE_CONTEXT
     MESSAGES="${MESSAGES}${_aa_text} "
-    # ARIA SURFACE value line, as plugin-claude-code/scripts/session-start-check.sh sends it: the exact
-    # command (absolute, quoted path; task text on stdin through a QUOTED heredoc so nothing in it
-    # expands). Double-quoted shell: keep backticks and dollar signs out of the prose in it.
+    # ARIA SURFACE value line, as plugin-claude-code/scripts/session-start-check.sh sends it: the
+    # absolute, quoted CLI path and nothing else. Skills pass it references (--file, --git-range),
+    # never task text. Double-quoted shell: keep backticks and dollar signs out of it.
     if [ -f "${SCRIPT_DIR}/aria-surface.sh" ]; then
-      MESSAGES="${MESSAGES}ARIA SURFACE — run: sh \"${SCRIPT_DIR}/aria-surface.sh\" - <<'ARIA_TASK' — then the task text on its own lines (drop any line that is exactly ARIA_TASK), then a line holding only ARIA_TASK; never put the text in quotes on the command line, where shell syntax in it would run. "
+      MESSAGES="${MESSAGES}ARIA SURFACE — \"${SCRIPT_DIR}/aria-surface.sh\" "
     fi
   else
     MESSAGES="${MESSAGES}ARIA CONTEXT — Knowledge index available at ${KT_KNOWLEDGE_FOLDER}/index.md. After user states task, check it for relevant tags and suggest a /context with any found relevant tags. Offer once per session and again when changing topics. Do not block. "

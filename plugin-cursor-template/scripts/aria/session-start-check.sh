@@ -249,26 +249,27 @@ fi
 INDEX_FILE="$KT_KNOWLEDGE_FOLDER/index.md"
 if [ -f "$INDEX_FILE" ]; then
   if [ "$KT_ACTIVE_SURFACING" = "true" ]; then
-    # This port's ARIA ACTIVE CONTEXT directive, with {knowledge_folder} substituted below. The ranking
-    # paragraph between the surfacing-ranking markers is plugin-claude-code/scripts/surfacing-ranking.txt
-    # byte for byte; the clauses around it are this port's: no prompt hook here, so (b) runs the
-    # ARIA SURFACE command once per topic, and the model skips files it already read (this runtime
-    # never sets the CLAUDE_CODE_SESSION_ID the Claude Code directive keys its ledger on). It sits in a QUOTED heredoc because it carries
+    # This port's ARIA ACTIVE CONTEXT directive. The ranking paragraph between the surfacing-ranking
+    # markers is plugin-claude-code/scripts/surfacing-ranking.txt byte for byte; the clauses around it
+    # are this port's: the beforeSubmitPrompt hook (prompt-capture-check.sh) ranks each prompt in code
+    # and postToolUse (prompt-context-inject.sh) injects `ARIA ACTIVE —` after the first tool call of
+    # the generation, so that injection is the only source and no instruction asks the model to run
+    # anything on the task text. The model skips files it already read (this runtime never sets the
+    # CLAUDE_CODE_SESSION_ID the Claude Code directive keys its ledger on). It sits in a QUOTED heredoc because it carries
     # backticks and apostrophes: inside a double-quoted string a backtick is command substitution and
     # deletes text silently. Do NOT escape it or move it into a double-quoted string —
     # tests/repros/surfacing-ranking-verbatim.sh runs this emitter and compares the text byte for byte.
     # read, not $(cat <<...): bash 3.2 (macOS /bin/sh) mis-parses an apostrophe in a heredoc that
     # sits inside a command substitution.
     IFS= read -r _aa_text <<'ARIA_ACTIVE_CONTEXT'
-ARIA ACTIVE CONTEXT — Unasked, read each task's knowledge files before answering; say in one line which you used and why. Source: (a) an `ARIA ACTIVE —` injection; else (b) with a shell, run the `ARIA SURFACE` command on the task text, once per topic; else (c) `## Tag Index` headers of {knowledge_folder}/index.md matching task words, ordered: <!-- surfacing-ranking:start -->Rank the candidate files: (1) a file carrying a matched project tag first; (2) then files carrying more of the matched tags; (3) then files whose path or index description contains more of the task's own words (lowercase, length over 2, common words dropped); (4) then authored files before files under `logs/`; (5) then the file whose rarest matched tag has the fewest files; (6) then index order. Fire when 2 or more tags match, or when 1 matched tag is a configured project. Keep the top 5.<!-- surfacing-ranking:end --> Skip files already read this session.
+ARIA ACTIVE CONTEXT — Unasked, read each task's knowledge files before answering; say in one line which you used and why. Source: an `ARIA ACTIVE —` injection from the Cursor prompt hooks (it arrives after the first tool call of a turn), the only source (none = read nothing); the plugin ranks its files this way: <!-- surfacing-ranking:start -->Rank the candidate files: (1) a file carrying a matched project tag first; (2) then files carrying more of the matched tags; (3) then files whose path or index description contains more of the task's own words (lowercase, length over 2, common words dropped); (4) then authored files before files under `logs/`; (5) then the file whose rarest matched tag has the fewest files; (6) then index order. Fire when 2 or more tags match, or when 1 matched tag is a configured project. Keep the top 5.<!-- surfacing-ranking:end --> Skip files already read this session.
 ARIA_ACTIVE_CONTEXT
-    _aa_tok='{knowledge_folder}'
-    MESSAGES="${MESSAGES}${_aa_text%%"$_aa_tok"*}${KT_KNOWLEDGE_FOLDER}${_aa_text#*"$_aa_tok"} "
-    # ARIA SURFACE value line, as plugin-claude-code/scripts/session-start-check.sh sends it: the exact
-    # command (absolute, quoted path; task text on stdin through a QUOTED heredoc so nothing in it
-    # expands). Double-quoted shell: keep backticks and dollar signs out of the prose in it.
+    MESSAGES="${MESSAGES}${_aa_text} "
+    # ARIA SURFACE value line, as plugin-claude-code/scripts/session-start-check.sh sends it: the
+    # absolute, quoted CLI path and nothing else. Skills pass it references (--file, --git-range),
+    # never task text. Double-quoted shell: keep backticks and dollar signs out of it.
     if [ -f "${SCRIPT_DIR}/aria-surface.sh" ]; then
-      MESSAGES="${MESSAGES}ARIA SURFACE — run: sh \"${SCRIPT_DIR}/aria-surface.sh\" - <<'ARIA_TASK' — then the task text on its own lines (drop any line that is exactly ARIA_TASK), then a line holding only ARIA_TASK; never put the text in quotes on the command line, where shell syntax in it would run. "
+      MESSAGES="${MESSAGES}ARIA SURFACE — \"${SCRIPT_DIR}/aria-surface.sh\" "
     fi
   else
     MESSAGES="${MESSAGES}ARIA CONTEXT — Knowledge index available at ${KT_KNOWLEDGE_FOLDER}/index.md. After user states task, check it for relevant tags and suggest a /context with any found relevant tags. Offer once per session and again when changing topics. Do not block. "

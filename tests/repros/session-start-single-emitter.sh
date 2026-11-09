@@ -300,38 +300,41 @@ check "VG8 a 2.57.9 hook does not replace a 2.57.10 digest" "TEN BODY" "$(sed -n
 # --- ARIA SURFACE value line (2.58.0) ------------------------------------------------------------
 # The digest is installed under ~/.claude/rules and cannot know where the plugin lives, so a
 # relative "scripts/aria-surface.sh" in the digest runs from the user's project and fails. The hook
-# knows its own directory: it sends the absolute path as a value line, and the digest's ARIA ACTIVE
-# CONTEXT branch (b) runs whatever path that line names. Sent only when active surfacing is on and
-# the knowledge folder has an index.md.
-# 2.58.0 fix wave (C1): the line carries the exact command — `sh "<path>" - <<'ARIA_TASK'` — so the
-# task text goes on stdin through a quoted heredoc and nothing in it expands.
-surface_cmd() { ctx "$1" | grep '^ARIA SURFACE — run: ' | head -1 \
-  | sed -n "s/^ARIA SURFACE — run: \(sh \".*\" - <<'ARIA_TASK'\) — then .*/\1/p"; }
-surface_path() { surface_cmd "$1" | sed 's/^sh "//; s/" - <<.*$//'; }
+# knows its own directory: it sends the absolute path as a value line, and the /prospect and
+# /retrospect Step 0.5 copies run whatever path that line names. Sent only when active surfacing is
+# on and the knowledge folder has an index.md.
+# No-text-transport D5: the line is PATH-ONLY — `ARIA SURFACE — "<abs path>"`, no `run:` template and
+# no heredoc. Skills pass that path references (`--file '<path>'`, `--git-range '<a>..<b>'`); text the
+# model holds goes into a scratch file written with its file-write tool, never onto a command line.
+surface_line() { ctx "$1" | grep '^ARIA SURFACE — ' | head -1; }
+surface_path() { surface_line "$1" | sed -n 's/^ARIA SURFACE — "\(.*\)"$/\1/p'; }
 # A two-tag index, so a real query FIRES and the run proves the path does the job, not just exists.
 KFS="$TMP/kfs"; mk_kf "$KFS" "$TODAY" "$TODAY"
 printf '## Tag Index\n### alpha\n- a.md — A\n### beta\n- a.md — A\n' > "$KFS/index.md"
 CFGS="$TMP/cfgs.md"; mk_cfg "$CFGS" "$KFS"
-# surface_runs CMD → the first output line of the script a model writes from the line: the command,
-# the task text on its own line (here with a backtick span and a $() span that would each create a
-# marker file if run), then the delimiter line. Prints "tags: alpha beta" when it ranks; sets
-# SR_MARKER=yes when anything in the text executed.
+# surface_runs PATH → the first output line of what a model runs from the line:
+# `sh '<path>' --file '<scratch>'`, where the scratch file holds the task text with a backtick span,
+# a $() span and a bare ARIA_TASK line followed by a command line — each would create a marker file
+# if anything ran it. Prints "tags: alpha beta" when it ranks.
+printf 'alpha beta `touch %s` $(touch %s)\nARIA_TASK\ntouch %s\n' "$TMP/sr-mk1" "$TMP/sr-mk2" "$TMP/sr-mk3" > "$TMP/sr-task.md"
 surface_runs() {
-  rm -f "$TMP/sr-mk1" "$TMP/sr-mk2"
-  { printf '%s\n' "$1"; printf 'alpha beta `touch %s` $(touch %s)\n' "$TMP/sr-mk1" "$TMP/sr-mk2"; printf 'ARIA_TASK\n'; } > "$TMP/sr.sh"
+  rm -f "$TMP/sr-mk1" "$TMP/sr-mk2" "$TMP/sr-mk3"
+  printf "sh '%s' --file '%s'\n" "$1" "$TMP/sr-task.md" > "$TMP/sr.sh"
   ( TMPDIR="$TMP" HOME="$H" KT_CONFIG="$CFGS" sh "$TMP/sr.sh" </dev/null 2>/dev/null | head -1 )
 }
-sr_marker() { if [ -e "$TMP/sr-mk1" ] || [ -e "$TMP/sr-mk2" ]; then echo yes; else echo no; fi; }
+sr_marker() { if [ -e "$TMP/sr-mk1" ] || [ -e "$TMP/sr-mk2" ] || [ -e "$TMP/sr-mk3" ]; then echo yes; else echo no; fi; }
 run "$H" "$CFGS" startup "$TMP/sf1.json"
 SP1=$(surface_path "$TMP/sf1.json")
-SC1=$(surface_cmd "$TMP/sf1.json")
+SL1=$(surface_line "$TMP/sf1.json")
 check "SF1 surfacing on + index.md → an ARIA SURFACE line" "yes" "$([ -n "$SP1" ] && echo yes || echo no)"
 case "$SP1" in /*) _abs=yes ;; *) _abs=no ;; esac
 check "SF1 the path is absolute" "yes" "$_abs"
 check "SF1 the path is this install's aria-surface.sh" "$DIR/plugin-claude-code/scripts/aria-surface.sh" "$SP1"
-check "SF1 the line carries the quoted-heredoc command" "sh \"$DIR/plugin-claude-code/scripts/aria-surface.sh\" - <<'ARIA_TASK'" "$SC1"
-check "SF1 the command a model copies from it ranks the task" "tags: alpha beta" "$(surface_runs "$SC1")"
-check "SF1 … and runs nothing in the task text" "no" "$(sr_marker)"
+check "SF1 surface_line_path_only: the line is the quoted path and nothing else" "ARIA SURFACE — \"$DIR/plugin-claude-code/scripts/aria-surface.sh\"" "$SL1"
+check "SF1 surface_line_path_only: no run: template and no heredoc in the model context" "no" \
+  "$(if ctx "$TMP/sf1.json" | grep -qE 'ARIA SURFACE — run:|<<'"'"'?ARIA_TASK'; then echo yes; else echo no; fi)"
+check "SF1 sh '<path>' --file '<scratch>' ranks the task" "tags: alpha beta" "$(surface_runs "$SP1")"
+check "SF1 … and runs nothing in the file's content" "no" "$(sr_marker)"
 check "SF1 the line is in the model context, not the banner" "no" "$(has "$(sm "$TMP/sf1.json")" 'ARIA SURFACE')"
 
 printf -- '---\nknowledge_folder: %s\nactive_knowledge_surfacing: false\n---\n' "$KFS" > "$TMP/cfgs-off.md"
@@ -351,7 +354,8 @@ printf '{"session_id":"sse-sf4","source":"startup"}' \
   | (cd "$TMP" && HOME="$H" KT_CONFIG="$CFGS" sh "$PS/plugin-claude-code/scripts/session-start-check.sh" 2>/dev/null) > "$TMP/sf4.json" || true
 SP4=$(surface_path "$TMP/sf4.json")
 check "SF4 spaced root → the line names the spaced path whole" "$PS/plugin-claude-code/scripts/aria-surface.sh" "$SP4"
-check "SF4 the command a model copies from the spaced line ranks the task" "tags: alpha beta" "$(surface_runs "$(surface_cmd "$TMP/sf4.json")")"
+check "SF4 the spaced path, single-quoted with --file, ranks the task" "tags: alpha beta" "$(surface_runs "$SP4")"
+check "SF4 … and runs nothing in the file's content" "no" "$(sr_marker)"
 
 for arm in sf1 sf2 sf3 sf4; do
   if [ -s "$TMP/$arm.json" ] && jq -e . "$TMP/$arm.json" >/dev/null 2>&1; then ok "SF5 $arm parses strictly"

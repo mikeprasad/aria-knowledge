@@ -347,29 +347,34 @@ EXPECT_LINE=$(printf '%s' "$CANON_LINE" | KF="$T7/kf" awk '{ i = index($0, "{kno
 if [ -n "$CANON_LINE" ] && [ "$EXPECT_LINE" != "$CANON_LINE" ]; then ok "emitter control: the canonical directive names {knowledge_folder} once and substitutes"
 else bad "emitter control: the canonical directive names {knowledge_folder} once and substitutes" "substitution changed nothing"; fi
 
-# Per-port directive (2.58.0 fix wave, I2). Each port keeps the canonical ranking paragraph byte for
-# byte between its markers; the clauses AROUND it are the port's own: Codex's prompt hook injects
-# `ARIA ACTIVE —`, so that is its only source; Cursor and Antigravity have no prompt hook and run the
-# ARIA SURFACE command once per topic. No port names CLAUDE_CODE_SESSION_ID, which none of them sets.
+# Per-port directive (2.58.0 fix wave, I2; no-text-transport D5). Each port keeps the canonical
+# ranking paragraph byte for byte between its markers; the clauses AROUND it are the port's own.
+# Every hooked runtime now ranks in code (Codex prompt hook, Cursor beforeSubmitPrompt+postToolUse,
+# Antigravity PreInvocation), so its injection is the only source and each emitter names its hook.
+# No port names CLAUDE_CODE_SESSION_ID, which none of them sets.
 PD_HEAD="ARIA ACTIVE CONTEXT — Unasked, read each task's knowledge files before answering; say in one line which you used and why. Source: "
 PD_TAIL=" Skip files already read this session."
 port_directive() { # $1 = port → the exact directive that emitter must send
   case "$1" in
-    codex) printf '%s%s%s%s%s%s' "$PD_HEAD" 'an `ARIA ACTIVE —` injection, in Codex the only source (none = read nothing); the plugin ranks its files this way: ' "$MS" "$CANON" "$ME" "$PD_TAIL" ;;
-    *) printf '%s%s%s%s%s%s' "$PD_HEAD" '(a) an `ARIA ACTIVE —` injection; else (b) with a shell, run the `ARIA SURFACE` command on the task text, once per topic; else (c) `## Tag Index` headers of '"$T7/kf"'/index.md matching task words, ordered: ' "$MS" "$CANON" "$ME" "$PD_TAIL" ;;
+    codex) _pd_src='an `ARIA ACTIVE —` injection from the Codex prompt hook, the only source (none = read nothing); the plugin ranks its files this way: ' ;;
+    cursor) _pd_src='an `ARIA ACTIVE —` injection from the Cursor prompt hooks (it arrives after the first tool call of a turn), the only source (none = read nothing); the plugin ranks its files this way: ' ;;
+    antigravity) _pd_src='an `ARIA ACTIVE —` injection from the Antigravity PreInvocation hook, the only source (none = read nothing); the plugin ranks its files this way: ' ;;
   esac
+  printf '%s%s%s%s%s%s' "$PD_HEAD" "$_pd_src" "$MS" "$CANON" "$ME" "$PD_TAIL"
 }
-# model_run CMD → what the CLI prints for the script a model writes from an ARIA SURFACE line: the
-# command, the task text on its own line, the delimiter line. The text carries a backtick span and a
-# $() span that each create a marker file if anything runs them (C1).
+# model_run PATH → what the CLI prints when a model does what the skills now say: write the text to
+# a scratch file with its file-write tool, then run `sh '<ARIA SURFACE path>' --file '<scratch>'`.
+# The text carries a backtick span, a $() span and a bare ARIA_TASK line followed by a command line,
+# each of which creates a marker file if anything runs it.
 T7_HOSTILE="$T7_QUERY "'`touch '"$T7/mk1"'` $(touch '"$T7/mk2"')'
+printf '%s\nARIA_TASK\ntouch %s\n' "$T7_HOSTILE" "$T7/mk3" > "$T7/task.md"
 model_run() {
-  rm -f "$T7/mk1" "$T7/mk2"
-  { printf '%s\n' "$1"; printf '%s\n' "$T7_HOSTILE"; printf 'ARIA_TASK\n'; } > "$T7/model.sh"
+  rm -f "$T7/mk1" "$T7/mk2" "$T7/mk3"
+  printf "sh '%s' --file '%s'\n" "$1" "$T7/task.md" > "$T7/model.sh"
   ( cd "$T7" && TMPDIR="$T7" HOME="$T7/home" KT_ROOT="$T7" KT_CONFIG="$T7/on.md" sh "$T7/model.sh" </dev/null 2>/dev/null )
 }
-# Reference: the canonical CLI given the same text as ONE argv element (no shell parses it).
-CLI_REF_H=$( cd "$T7" && TMPDIR="$T7" HOME="$T7/home" KT_ROOT="$T7" KT_CONFIG="$T7/on.md" sh "$CLI_CANON" "$T7_HOSTILE" </dev/null 2>/dev/null )
+# Reference: the canonical CLI given the same file as an argv element (no shell parses it).
+CLI_REF_H=$( cd "$T7" && TMPDIR="$T7" HOME="$T7/home" KT_ROOT="$T7" KT_CONFIG="$T7/on.md" sh "$CLI_CANON" --file "$T7/task.md" </dev/null 2>/dev/null )
 
 emit_port() { # $1 = port, $2 = cfg → decoded model text on stdout
   case "$1" in
@@ -415,17 +420,30 @@ for _p in codex cursor antigravity; do
     if printf '%s' "$_m" | grep -qiF -e "$_needle"; then bad "emitter $_p: no retired ordering text ('$_needle')" "still emitted"
     else ok "emitter $_p: no retired ordering text ('$_needle')"; fi
   done
-  _sc=$(printf '%s\n' "$_m" | sed -n "s/^.*ARIA SURFACE — run: \(sh \"[^\"]*\" - <<'ARIA_TASK'\) — then .*$/\1/p" | head -1)
-  _sp=$(printf '%s' "$_sc" | sed 's/^sh "//; s/" - <<.*$//')
-  if [ "$_sp" = "$(port_cli_path "$_p")" ]; then ok "emitter $_p: ARIA SURFACE names this port's own CLI, absolute and quoted, in the heredoc command"
-  else bad "emitter $_p: ARIA SURFACE names this port's own CLI, absolute and quoted, in the heredoc command" "got '${_sp}' from '${_sc}'"; fi
+  # surface_line_path_only (D5): the value line is `ARIA SURFACE — "<abs path>"` and nothing else —
+  # no `run:` template, no heredoc, no instruction to put text anywhere.
+  _sp=$(printf '%s\n' "$_m" | sed -n 's/^.*ARIA SURFACE — "\([^"]*\)".*$/\1/p' | head -1)
+  if [ "$_sp" = "$(port_cli_path "$_p")" ]; then ok "emitter $_p: ARIA SURFACE names this port's own CLI, absolute and quoted"
+  else bad "emitter $_p: ARIA SURFACE names this port's own CLI, absolute and quoted" "got '${_sp}'"; fi
+  # These emitters join their messages with a space on one line, so after the closing quote comes
+  # either the end of the line or the next message, which starts with an UPPERCASE name and ` — `
+  # (e.g. `INSIGHT CAPTURE — `). Anything else — ` - <<…`, ` run: …`, prose — is a command template.
+  _after=$(printf '%s\n' "$_m" | awk '{ i = index($0, "ARIA SURFACE — \""); if (!i) next
+      r = substr($0, i + length("ARIA SURFACE — \"")); j = index(r, "\""); if (!j) { print "UNTERMINATED"; exit }
+      print "[" substr(r, j + 1, 60) "]"; exit }')
+  if [ -n "$_sp" ] && printf '%s' "$_after" | grep -qE '^\[[[:space:]]*(\]|[A-Z][A-Z0-9 ]* — )'; then
+    ok "emitter $_p: surface_line_path_only — the line is the quoted path and nothing else"
+  else bad "emitter $_p: surface_line_path_only — the line is the quoted path and nothing else" "after the path: '$(printf '%s' "$_after" | head -c 160)'"; fi
+  if printf '%s' "$_m" | grep -qE 'ARIA SURFACE — run:|<<'"'"'?ARIA_TASK'; then
+    bad "emitter $_p: no run: template and no heredoc anywhere in the payload" "retired transport still emitted"
+  else ok "emitter $_p: no run: template and no heredoc anywhere in the payload"; fi
   if [ -n "$_sp" ] && [ "$(cli_run "$_sp")" = "$CLI_REF" ] && [ -n "$CLI_REF" ]; then ok "emitter $_p: the ARIA SURFACE path runs and ranks the fixture"
   else bad "emitter $_p: the ARIA SURFACE path runs and ranks the fixture" "path did not produce the canonical ranking"; fi
-  _mr=$(model_run "$_sc")
-  if [ -n "$_sc" ] && [ -n "$CLI_REF_H" ] && [ "$_mr" = "$CLI_REF_H" ]; then ok "emitter $_p: the command a model copies from ARIA SURFACE ranks the literal text"
-  else bad "emitter $_p: the command a model copies from ARIA SURFACE ranks the literal text" "got '$(printf '%s' "$_mr" | head -1)'"; fi
-  if [ -e "$T7/mk1" ] || [ -e "$T7/mk2" ]; then bad "emitter $_p: … and runs nothing in the task text" "a marker file was created"
-  else ok "emitter $_p: … and runs nothing in the task text"; fi
+  _mr=$(model_run "$_sp")
+  if [ -n "$_sp" ] && [ -n "$CLI_REF_H" ] && [ "$_mr" = "$CLI_REF_H" ]; then ok "emitter $_p: sh '<ARIA SURFACE path>' --file '<scratch>' ranks the file's literal words"
+  else bad "emitter $_p: sh '<ARIA SURFACE path>' --file '<scratch>' ranks the file's literal words" "got '$(printf '%s' "$_mr" | head -1)'"; fi
+  if [ -e "$T7/mk1" ] || [ -e "$T7/mk2" ] || [ -e "$T7/mk3" ]; then bad "emitter $_p: … and runs nothing in the file's content" "a marker file was created"
+  else ok "emitter $_p: … and runs nothing in the file's content"; fi
 
   _m0=$(emit_port "$_p" "$T7/off.md")
   if printf '%s' "$_m0" | grep -qF 'ARIA CONTEXT — '; then
@@ -451,7 +469,7 @@ done
 # assign it in the same line, from the port's established ${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}.
 for _s in prospect retrospect; do
   _f="$ROOT/plugin-openai-codex/skills/$_s/SKILL.md"
-  if grep -qF 'ARIA_PLUGIN_ROOT="${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}"; sh "${ARIA_PLUGIN_ROOT}/bin/aria-surface.sh" - <<'"'"'ARIA_TASK'"'"'' "$_f"; then
+  if grep -qF 'ARIA_PLUGIN_ROOT="${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}"; sh "${ARIA_PLUGIN_ROOT}/bin/aria-surface.sh"' "$_f"; then
     ok "codex_skills_call_cli: codex /$_s assigns ARIA_PLUGIN_ROOT and calls bin/aria-surface.sh"
   else
     bad "codex_skills_call_cli: codex /$_s assigns ARIA_PLUGIN_ROOT and calls bin/aria-surface.sh" "CLI invocation absent"
@@ -474,13 +492,13 @@ done
 # unset it turns the command into `sh /bin/aria-surface.sh` (exit 127, empty stdout); and (b) says a
 # not-found or non-zero run is "unavailable", never "0 matches", which would claim the index was
 # searched. Cowork does not run the CLI and is not in this set.
-# 2.58.0 fix wave: (A) the command comes from ARIA SURFACE, (D) an `unavailable:` line is handled, and
-# (E) the query never goes inside quotes on the command line (C1 — backticks and $() would run there).
-F1_A='if an `ARIA SURFACE — run: …` line reached you at session start, use the command it names'
+# 2.58.0 fix wave: (A) the CLI path comes from ARIA SURFACE, (D) an `unavailable:` line is handled, and
+# (E) no free text goes on the command line at all — the CLI takes references (no-text-transport D1/D2).
+F1_A='if an `ARIA SURFACE — "<path>"` line reached you at session start, use that path'
 F1_B='`Active surfacing: unavailable (<the reason or error>)`'
 F1_C='never `Active surfacing: 0 matches`'
 F1_D='If it prints `unavailable: <reason>`'
-F1_E='Never put the query inside quotes on the command line'
+F1_E='Never put task text'
 F1_DEAD='It always exits 0.'
 f1_count() { grep -oF -e "$1" "$2" 2>/dev/null | wc -l | tr -d ' '; }
 for _spec in \
@@ -504,9 +522,110 @@ for _spec in "plugin-claude-code/skills/prospect/SKILL.md:\${CLAUDE_PLUGIN_ROOT}
              "plugin-antigravity/skills/prospect/SKILL.md:\${CLAUDE_PLUGIN_ROOT}/bin/aria-surface.sh" \
              "plugin-cursor-template/.cursor/rules/aria-commands.mdc:scripts/aria/aria-surface.sh"; do
   _n=${_spec%%:*}; _needle=${_spec#*:}
-  if grep -qF -e "otherwise use \`sh \"$_needle\" - <<'ARIA_TASK'\`" "$ROOT/$_n"; then ok "F1 fallback: $_n falls back to $_needle"
+  if grep -qF -e "otherwise use \`sh \"$_needle\"\` with the same arguments" "$ROOT/$_n"; then ok "F1 fallback: $_n falls back to $_needle"
   else bad "F1 fallback: $_n falls back to $_needle" "fallback form absent"; fi
 done
+
+# skills_use_references (D2) — every Step 0.5 copy that runs the CLI passes references: a file
+# (`--file '<path>'`) and a commit range (`--git-range '<a>..<b>'`), single-quoted, and tells the model
+# to write text-only scopes to a scratch file with its file-write tool, never a shell redirect.
+for _spec in \
+  "plugin-claude-code/skills/prospect/SKILL.md:1" "plugin-claude-code/skills/retrospect/SKILL.md:1" \
+  "plugin-antigravity/skills/prospect/SKILL.md:1" "plugin-antigravity/skills/retrospect/SKILL.md:1" \
+  "plugin-openai-codex/skills/prospect/SKILL.md:1" "plugin-openai-codex/skills/retrospect/SKILL.md:1" \
+  "plugin-cursor-template/.cursor/rules/aria-commands.mdc:2"; do
+  _n=${_spec%:*}; _want=${_spec##*:}; _f="$ROOT/$_n"
+  for _needle in "--file '" "--git-range '" 'file-write tool'; do
+    _got=$(grep -oF -e "$_needle" "$_f" 2>/dev/null | wc -l | tr -d ' ')
+    if [ "${_got:-0}" -ge "$_want" ]; then ok "skills_use_references: $_n carries \"$_needle\" ($_got)"
+    else bad "skills_use_references: $_n carries \"$_needle\"" "want >= $_want, got ${_got:-0}"; fi
+  done
+done
+
+# --- no_text_transport_anywhere (AC1, D6) --------------------------------------------------------
+# No instruction a model loads may tell it to compose a shell command carrying free text. The guard
+# is a CLASS guard over every tracked instruction surface in every port: all Markdown/.mdc under the
+# plugin dirs (skills, rules, workflows, commands, AGENTS/GEMINI/CLAUDE files, templates), the repo's
+# own AGENTS.md/CLAUDE.md, and every hook that emits model-facing text. Programmatic callers that exec
+# the CLI with an argv list (codex-hook.py, tests) are not instructions: codex-hook.py is scanned for
+# its model-facing strings and passes, because a Python argv list matches none of these shapes.
+# Patterns, one per line (ERE): a heredoc on the retired delimiter; a stdin `-` argument to the CLI; a
+# `"<task …>"` / `"<the query …>"` placeholder; a quoted positional (free-text) argument to the CLI;
+# text piped into the CLI; any heredoc fed to the CLI.
+TT_PAT="$SCRATCH/tt-patterns"
+cat > "$TT_PAT" <<'PATTERNS'
+<<-?[[:space:]]*['"]?ARIA_TASK
+aria-surface\.sh['"]?[[:space:]]+-([[:space:]]|$)
+['"]<(task|the query)([[:space:]>]|$)
+aria-surface\.sh['"]?[[:space:]]+['"]
+\|[[:space:]]*(ba|z|da)?sh[[:space:]][^|]*aria-surface\.sh
+aria-surface\.sh.*<<
+PATTERNS
+TT_EMITTERS="plugin-claude-code/scripts/session-start-check.sh plugin-claude-code/scripts/prompt-context-check.sh
+plugin-claude-code/scripts/lib-prompt-surface.sh plugin-openai-codex/bin/session-start-check.sh plugin-openai-codex/bin/codex-hook.py
+plugin-cursor-template/scripts/aria/session-start-check.sh plugin-cursor-template/scripts/aria/prompt-capture-check.sh
+plugin-cursor-template/scripts/aria/prompt-context-inject.sh plugin-cursor-template/scripts/aria/lib-prompt-surface.sh
+plugin-antigravity/bin/antigravity/pre-invocation-aria.sh plugin-antigravity/bin/lib-prompt-surface.sh"
+# tt_guard FILE... — prints every matching line as file:line:text; returns 1 if anything matched.
+tt_guard() {
+  _tt_rc=0
+  for _tt_f in "$@"; do
+    _tt_h=$(grep -nE -f "$TT_PAT" "$_tt_f" 2>/dev/null)
+    if [ -n "$_tt_h" ]; then printf '%s\n' "$_tt_h" | sed "s|^|        ${_tt_f#$ROOT/}:|"; _tt_rc=1; fi
+  done
+  return "$_tt_rc"
+}
+TT_SCOPE="$SCRATCH/tt-scope"
+{
+  git -C "$ROOT" ls-files -- 'plugin-*' 'AGENTS.md' 'CLAUDE.md' 2>/dev/null \
+    | grep -E '\.(md|mdc)$' | grep -vE '(^|/)tests?/'
+  for _e in $TT_EMITTERS; do printf '%s\n' "$_e"; done
+} | sort -u | sed "s|^|$ROOT/|" > "$TT_SCOPE"
+_tt_missing=""
+while IFS= read -r _f; do [ -f "$_f" ] || _tt_missing="$_tt_missing ${_f#$ROOT/}"; done < "$TT_SCOPE"
+N_TT=$(wc -l < "$TT_SCOPE" | tr -d ' ')
+printf '        no_text_transport census (%s instruction file(s) scanned):\n' "$N_TT"
+sed "s|^$ROOT/|          |" "$TT_SCOPE"
+if [ -z "$_tt_missing" ]; then ok "no_text_transport census: every named emitter exists"
+else bad "no_text_transport census: every named emitter exists" "missing:$_tt_missing"; fi
+for _d in plugin-claude-code plugin-claude-cowork plugin-openai-codex plugin-antigravity plugin-cursor-template; do
+  _c=$(grep -c "^$ROOT/$_d/" "$TT_SCOPE")
+  if [ "${_c:-0}" -ge 5 ]; then ok "no_text_transport census: $_d contributes $_c file(s)"
+  else bad "no_text_transport census: $_d contributes files" "only ${_c:-0} — the guard would be near-vacuous there"; fi
+done
+# Planted controls: each pattern must fire on its own specimen (so no pattern is dead), and the
+# guard must pass the reference forms the skills now use (so it does not over-match).
+_i=0
+for _spec in "cat <<'ARIA_TASK'" 'sh "/p/aria-surface.sh" -' 'run the CLI on "<task text>"' \
+             "sh '/p/aria-surface.sh' 'fix the bug'" 'printf %s "$x" | sh /p/aria-surface.sh' 'sh /p/aria-surface.sh <<EOF'; do
+  _i=$((_i + 1))
+  _pat=$(sed -n "${_i}p" "$TT_PAT")
+  printf 'before\n%s\nafter\n' "$_spec" > "$SCRATCH/tt-plant-$_i.md"
+  if printf '%s\n' "$_spec" | grep -qE -e "$_pat"; then ok "no_text_transport control: pattern $_i fires on its specimen"
+  else bad "no_text_transport control: pattern $_i fires on its specimen" "pattern '$_pat' missed '$_spec' — dead pattern"; fi
+  if tt_guard "$SCRATCH/tt-plant-$_i.md" >/dev/null; then bad "no_text_transport control: a planted copy ($_i) fails the guard" "guard passed it"
+  else ok "no_text_transport control: a planted copy ($_i) fails the guard"; fi
+done
+printf '%s\n' "sh '/p/aria-surface.sh' --file '/tmp/task.md'" \
+  'sh "${CLAUDE_PLUGIN_ROOT}/scripts/aria-surface.sh" --git-range '"'"'main..HEAD'"'" \
+  'ARIA SURFACE — "/p/aria-surface.sh"' '"<task-notification"' > "$SCRATCH/tt-clean.md"
+if tt_guard "$SCRATCH/tt-clean.md" >/dev/null; then ok "no_text_transport control: the reference forms pass the guard"
+else bad "no_text_transport control: the reference forms pass the guard" "guard over-matches a legitimate form"; fi
+# shellcheck disable=SC2046
+if tt_guard $(cat "$TT_SCOPE"); then ok "no_text_transport_anywhere: no instruction file composes free text into a shell command ($N_TT files)"
+else bad "no_text_transport_anywhere: no instruction file composes free text into a shell command" "see the file:line hits above"; fi
+
+# --- digest_within_bound (AC5) -------------------------------------------------------------------
+_db=$(wc -c < "$DIGEST" | tr -d ' ')
+if [ "${_db:-99999}" -le 26198 ]; then ok "digest_within_bound: aria-rules.md is $_db bytes (bound 26,198)"
+else bad "digest_within_bound: aria-rules.md is within 26,198 bytes" "$_db bytes"; fi
+# Branch (b) — "run the ARIA SURFACE command on the task text" — is gone from the canonical digest,
+# and the directive names hooks as the source everywhere they run (D5).
+if printf '%s' "$BLOCK" | grep -qF 'run the `ARIA SURFACE` command'; then
+  bad "digest: branch (b) (run ARIA SURFACE on the task text) is gone" "still present"
+else ok "digest: branch (b) (run ARIA SURFACE on the task text) is gone"; fi
+if printf '%s' "$BLOCK" | grep -qF 'injection wherever a hook runs'; then ok "digest: the injection is the source wherever a hook runs"
+else bad "digest: the injection is the source wherever a hook runs" "phrase absent"; fi
 
 # F2: spec AC1 — every port's lib-index-match.sh and aria-surface.sh is a PORT-LEDGER surface and the
 # drift checker reports it. Row must be present AND ok (a missing row is the failure this guards).

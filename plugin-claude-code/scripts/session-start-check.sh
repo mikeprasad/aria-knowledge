@@ -468,14 +468,14 @@ if ls "$HOME"/.claude/aria-statusline-state-*.json >/dev/null 2>&1; then
 "
 fi
 
-# Surfacing CLI command. The digest is installed under ~/.claude/rules and cannot know where this
-# plugin lives, so the ARIA ACTIVE CONTEXT directive runs whatever command this line names. The
-# path is quoted (the desktop app installs under a path containing a space). The task text goes on
-# stdin through a QUOTED heredoc: inside double quotes on a command line, backticks and $(...) in
-# untrusted task text would run. ⛔ This string is double-quoted shell: keep backticks and dollar
-# signs out of the prose below, or they run HERE.
+# Surfacing CLI path. Skills (/prospect, /retrospect Step 0.5) cannot know where this plugin lives,
+# so they run whatever path this line names, passing it REFERENCES only (--file, --git-range) —
+# never task text. The line is path-only: no command template, so no instruction anywhere tells a
+# model to put free text on a command line. The path is quoted (the desktop app installs under a
+# path containing a space). ⛔ This string is double-quoted shell: keep backticks and dollar signs
+# out of it, or they run HERE.
 if [ "$KT_ACTIVE_SURFACING" = "true" ] && [ -f "$KT_KNOWLEDGE_FOLDER/index.md" ] && [ -f "$SCRIPT_DIR/aria-surface.sh" ]; then
-  MODEL_MESSAGES="${MODEL_MESSAGES}ARIA SURFACE — run: sh \"${SCRIPT_DIR}/aria-surface.sh\" - <<'ARIA_TASK' — then the task text on its own lines (drop any line that is exactly ARIA_TASK), then a line holding only ARIA_TASK; never put the text in quotes on the command line, where shell syntax in it would run.
+  MODEL_MESSAGES="${MODEL_MESSAGES}ARIA SURFACE — \"${SCRIPT_DIR}/aria-surface.sh\"
 "
 fi
 
