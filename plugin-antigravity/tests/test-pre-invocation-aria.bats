@@ -61,6 +61,41 @@ r4_user_input() { # STEP CONTENT — one USER_INPUT record in the measured schem
     '{type:"USER_INPUT", content:$c, source:"USER_EXPLICIT", status:"DONE", step_index:$s, created_at:"2026-11-08T00:01:00Z"}'
 }
 
+# r4_wrapped_bin — a copy of the plugin's bin/ (hook + libs from the CURRENT tree) at
+# $SURF/plug, whose kt_index_match (a) appends one line to $KT_TEST_MATCH_COUNTER when set,
+# and (b) plants a symlink $KT_TEST_PLANT_LINK → $KT_TEST_PLANT_TARGET when set — i.e.
+# AFTER the hook's early state check and BEFORE it records the step, which is the only
+# way a static test can put a link where the hook is about to write. Sets H to the hook.
+r4_wrapped_bin() {
+  P="$SURF/plug"
+  mkdir -p "$P/bin/antigravity"
+  cp "${BATS_TEST_DIRNAME}"/../bin/antigravity/*.sh "$P/bin/antigravity/"
+  cp "${BATS_TEST_DIRNAME}/../bin/config.sh" "${BATS_TEST_DIRNAME}/../bin/lib-index-match.sh" \
+     "${BATS_TEST_DIRNAME}/../bin/lib-prompt-surface.sh" "$P/bin/"
+  cat >> "$P/bin/lib-index-match.sh" <<'WRAP'
+eval "_r4_counted_$(declare -f kt_index_match)"
+kt_index_match() {
+  [ -n "${KT_TEST_MATCH_COUNTER:-}" ] && printf 'x\n' >> "$KT_TEST_MATCH_COUNTER"
+  [ -n "${KT_TEST_PLANT_LINK:-}" ] && ln -s "$KT_TEST_PLANT_TARGET" "$KT_TEST_PLANT_LINK" 2>/dev/null
+  _r4_counted_kt_index_match "$@"
+}
+WRAP
+  H="$P/bin/antigravity/pre-invocation-aria.sh"
+}
+
+# r4_farm — $SURF/farm: every tool in the system bin dirs except jq.
+r4_farm() {
+  FARM="$SURF/farm"; mkdir -p "$FARM"
+  for d in /usr/bin /bin /usr/sbin /sbin; do
+    for b in "$d"/*; do
+      n=${b##*/}
+      [ "$n" = jq ] && continue
+      [ -e "$FARM/$n" ] || ln -s "$b" "$FARM/$n" 2>/dev/null || true
+    done
+  done
+  ! (PATH="$FARM"; command -v jq >/dev/null 2>&1) || false
+}
+
 @test "wrapper output is valid JSON for any invocationNum" {
   PAYLOAD='{"conversationId":"abc","workspacePaths":["/tmp"],"transcriptPath":"/tmp/t.jsonl","artifactDirectoryPath":"/tmp/art","invocationNum":5,"initialNumSteps":10}'
   result=$(echo "$PAYLOAD" | bash "$WRAPPER" 2>/dev/null)
@@ -323,19 +358,10 @@ logged() { grep -q -- " antigravity $1\$" "$HOOKLOG" 2>/dev/null; }
 
 @test "R4 nofire_turn_ranked_once: a decided turn (nofire, nothing-new) is ranked at most once" {
   r4_configure
-  # A copy of the plugin's bin/ whose kt_index_match counts its calls: ranking is observed
-  # directly, not inferred from an empty output.
-  P="$SURF/plug"
-  mkdir -p "$P/bin/antigravity"
-  cp "${BATS_TEST_DIRNAME}"/../bin/antigravity/*.sh "$P/bin/antigravity/"
-  cp "${BATS_TEST_DIRNAME}/../bin/config.sh" "${BATS_TEST_DIRNAME}/../bin/lib-index-match.sh" \
-     "${BATS_TEST_DIRNAME}/../bin/lib-prompt-surface.sh" "$P/bin/"
-  cat >> "$P/bin/lib-index-match.sh" <<'WRAP'
-eval "_r4_counted_$(declare -f kt_index_match)"
-kt_index_match() { printf 'x\n' >> "$KT_TEST_MATCH_COUNTER"; _r4_counted_kt_index_match "$@"; }
-WRAP
+  # kt_index_match counts its calls: ranking is observed directly, not inferred from an
+  # empty output.
+  r4_wrapped_bin
   export KT_TEST_MATCH_COUNTER="$SURF/matches"
-  H="$P/bin/antigravity/pre-invocation-aria.sh"
   ranked() { if [ -f "$KT_TEST_MATCH_COUNTER" ]; then wc -l < "$KT_TEST_MATCH_COUNTER" | tr -d ' '; else echo 0; fi; }
   # nofire: words that match no tag.
   C="${RUN_ID}F"
@@ -413,16 +439,104 @@ WRAP
   logged 'surface lib-missing'
 }
 
-@test "R4 jq_missing_logged: no jq → the existing deny output, plus one debug-log line" {
-  FARM="$SURF/farm"; mkdir -p "$FARM"
-  for d in /usr/bin /bin /usr/sbin /sbin; do
-    for b in "$d"/*; do
-      n=${b##*/}
-      [ "$n" = jq ] && continue
-      [ -e "$FARM/$n" ] || ln -s "$b" "$FARM/$n" 2>/dev/null || true
-    done
+@test "R4 model_file_link_refused: a planted model-file link is replaced, never written through" {
+  r4_configure
+  cp "$FIXTURE" "$SURF/t.jsonl"
+  printf 'keep\n' > "$SURF/sentinel"
+  ln -s "$SURF/sentinel" "$SURF/aria-ag-model.last"
+  r4_payload "${RUN_ID}ML" "$SURF/t.jsonl" 3 "model-z-9"
+  r4_run
+  [ "$(cat "$SURF/sentinel")" = "keep" ]
+  logged 'capture modelName=model-z-9'
+  [ ! -L "$SURF/aria-ag-model.last" ]
+  [ "$(cat "$SURF/aria-ag-model.last")" = "model-z-9" ]
+}
+
+@test "R4 state_dangling_link_refused: a link planted at the state path mid-run is not written through" {
+  r4_configure
+  r4_wrapped_bin
+  C="${RUN_ID}SD"
+  r4_user_input 4 "hello there friend" > "$SURF/t.jsonl"   # nofire: the hook records the step
+  r4_payload "$C" "$SURF/t.jsonl" 3
+  KT_TEST_PLANT_LINK="$SURF/aria-ag-surfaced-$C" KT_TEST_PLANT_TARGET="$SURF/planted-state" \
+    bash "$H" < "$SURF/in" > "$SURF/out" 2>/dev/null
+  [ "$(cat "$SURF/out")" = "{}" ]
+  [ -L "$SURF/aria-ag-surfaced-$C" ]        # instrument check: the link was planted
+  [ ! -e "$SURF/planted-state" ]            # never created through the link
+  logged 'state refused'                    # and the turn was not recorded
+}
+
+@test "R4 marker_existing_link_refused: a marker linked to an existing file is never written; the line still logs" {
+  r4_configure
+  printf 'keep\n' > "$SURF/sentinel"
+  C="${RUN_ID}MK"
+  ln -s "$SURF/sentinel" "$SURF/aria-ag-logged-$C.unreadable"
+  r4_payload "$C" "$SURF/missing.jsonl" 3
+  r4_run; r4_run
+  [ "$(cat "$SURF/sentinel")" = "keep" ]
+  [ "$(grep -c ' antigravity transcript unreadable$' "$HOOKLOG")" = "2" ]
+}
+
+@test "R4 foreign_marker_does_not_silence: only a regular marker file of ours counts as logged" {
+  r4_configure
+  # A non-regular marker (a directory of ours) does not silence the line.
+  C="${RUN_ID}FD"
+  mkdir "$SURF/aria-ag-logged-$C.unreadable"
+  r4_payload "$C" "$SURF/missing.jsonl" 3
+  r4_run
+  [ "$(grep -c ' antigravity transcript unreadable$' "$HOOKLOG")" = "1" ]
+  # A marker owned by someone else does not either: a hard link to a root-owned file on
+  # the same filesystem (macOS permits it; skipped where the OS refuses).
+  C2="${RUN_ID}FM"
+  m="$SURF/aria-ag-logged-$C2.unreadable"
+  for f in /private/var/log/install.log /private/var/log/system.log /etc/passwd; do
+    ln "$f" "$m" 2>/dev/null && break
   done
-  ! (PATH="$FARM"; command -v jq >/dev/null 2>&1) || false
+  [ -f "$m" ] && [ ! -O "$m" ] || skip "cannot create a non-owned file in $SURF on this OS"
+  r4_payload "$C2" "$SURF/missing.jsonl" 3
+  r4_run
+  [ "$(grep -c ' antigravity transcript unreadable$' "$HOOKLOG")" = "2" ]
+}
+
+@test "R4 config_error_logged_once: an invalid config is logged once per conversation, no ranking" {
+  r4_configure
+  cat > "$CACHE_DIR/aria-knowledge.local.md" <<CFG
+---
+knowledge_folder: relative/kf
+active_knowledge_surfacing: true
+---
+CFG
+  cp "$FIXTURE" "$SURF/t.jsonl"
+  r4_payload "${RUN_ID}CE" "$SURF/t.jsonl" 3
+  r4_run; r4_run
+  [ "$(cat "$SURF/out")" = "{}" ]
+  [ "$(grep -c ' antigravity surface config$' "$HOOKLOG")" = "1" ]
+}
+
+@test "R4 debug_log_link_refused: the hook's own log writes never follow a link" {
+  r4_farm
+  r4_payload "${RUN_ID}DL" "$SURF/missing.jsonl" 3
+  # jq missing (the header's write): a log linked to an existing file is not appended to.
+  printf 'keep\n' > "$SURF/sentinel"
+  ln -s "$SURF/sentinel" "$HOOKLOG"
+  PATH="$FARM" /bin/bash "$WRAPPER" < "$SURF/in" > "$SURF/out" 2>/dev/null || true
+  grep -q '"decision":"deny"' "$SURF/out"
+  [ "$(cat "$SURF/sentinel")" = "keep" ]
+  # A dangling log link: its target is never created.
+  rm -f "$HOOKLOG"
+  ln -s "$SURF/planted-log" "$HOOKLOG"
+  PATH="$FARM" /bin/bash "$WRAPPER" < "$SURF/in" > "$SURF/out" 2>/dev/null || true
+  [ ! -e "$SURF/planted-log" ]
+  # lib missing (responsibility 4's write): same.
+  P="$SURF/plug"
+  mkdir -p "$P/bin/antigravity"
+  cp "${BATS_TEST_DIRNAME}"/../bin/antigravity/*.sh "$P/bin/antigravity/"
+  bash "$P/bin/antigravity/pre-invocation-aria.sh" < "$SURF/in" > "$SURF/out" 2>/dev/null
+  [ ! -e "$SURF/planted-log" ]
+}
+
+@test "R4 jq_missing_logged: no jq → the existing deny output, plus one debug-log line" {
+  r4_farm
   r4_payload "${RUN_ID}J" "$SURF/missing.jsonl" 3
   rc=0
   PATH="$FARM" /bin/bash "$WRAPPER" < "$SURF/in" > "$SURF/out" 2>/dev/null || rc=$?

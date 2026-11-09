@@ -17,13 +17,25 @@
 
 set -uo pipefail
 
+# ag_debug_log STEP REASON — one `<UTC> antigravity <step> <reason>` line in the surfacing
+# debug log, for the two failures that happen before lib-prompt-surface.sh (and its
+# kt_ps_log) is loaded. An absent log is created exclusively (set -C: O_EXCL, so a link
+# planted in the meantime makes the create fail); the line is then appended only to a
+# regular file of ours that is not a link. Never stdout.
+ag_debug_log() {
+  local lf="${KT_SURFACE_CACHE_DIR:-${TMPDIR:-/tmp}}/aria-surface-hook.log"
+  if [ ! -e "$lf" ] && [ ! -L "$lf" ]; then ( set -C; : > "$lf" ) 2>/dev/null; fi
+  if [ -L "$lf" ] || [ ! -f "$lf" ] || [ ! -O "$lf" ]; then return 0; fi
+  printf '%s antigravity %s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown-time)" \
+    "$1" "$2" >> "$lf" 2>/dev/null
+  return 0
+}
+
 # C3: lib-antigravity-input.sh denies and exits when jq is missing, before
-# responsibility 4 can say why. Record it in the surfacing debug log first
-# (a symlinked log is refused). Output and exit status stay the lib's.
+# responsibility 4 can say why. Record it in the surfacing debug log first.
+# Output and exit status stay the lib's.
 if ! command -v jq >/dev/null 2>&1; then
-  _ag_lf="${KT_SURFACE_CACHE_DIR:-${TMPDIR:-/tmp}}/aria-surface-hook.log"
-  [ -L "$_ag_lf" ] || printf '%s antigravity input jq-missing\n' \
-    "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown-time)" >> "$_ag_lf" 2>/dev/null
+  ag_debug_log input jq-missing
 fi
 
 LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -440,6 +452,7 @@ fi
 #            (delivered, nothing-new, nofire), so a user turn is ranked at most once. An
 #            error records nothing, so it is retried. A symlinked or foreign state file
 #            is refused (and nothing is injected, since it could not be recorded).
+#            The file is append-only: a lost race between writers only re-ranks a turn.
 #   - ledger: /tmp/aria-active-<sanitised conversationId>, the same ledger as the
 #            other hosts. It records delivered paths only, and only after the hook
 #            output carrying the step was written (the lib's ledger contract); the
@@ -457,9 +470,7 @@ AG_SURFACE_STEP=""
 ag_surface() {
   local dir="${KT_SURFACE_CACHE_DIR:-${TMPDIR:-/tmp}}"
   if [ ! -f "$CLAUDE_PLUGIN_ROOT/bin/lib-prompt-surface.sh" ]; then
-    local lf="$dir/aria-surface-hook.log"
-    [ -L "$lf" ] || printf '%s antigravity surface lib-missing\n' \
-      "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown-time)" >> "$lf" 2>/dev/null
+    ag_debug_log surface lib-missing
     return 0
   fi
   KT_PS_SCRIPT_DIR="$CLAUDE_PLUGIN_ROOT/bin"
@@ -470,25 +481,30 @@ ag_surface() {
   # shellcheck source=../lib-prompt-surface.sh
   . "$CLAUDE_PLUGIN_ROOT/bin/lib-prompt-surface.sh"
 
-  # Housekeeping, once per conversation: state files and log-once markers older than
-  # 24 h, ours only.
+  # Housekeeping, once per conversation: state files, log-once markers and model-file
+  # temps older than 24 h, ours only.
   if [ "$INVOCATION_NUM" = "0" ]; then
-    find "$dir" -maxdepth 1 \( -name 'aria-ag-surfaced-*' -o -name 'aria-ag-logged-*' \) \
-      -user "${USER:-$(id -u)}" -mmin +1440 -exec rm -f {} + 2>/dev/null
+    find "$dir" -maxdepth 1 \( -name 'aria-ag-surfaced-*' -o -name 'aria-ag-logged-*' \
+      -o -name '.aria-ag-model.*' \) -user "${USER:-$(id -u)}" -mmin +1440 -exec rm -f {} + 2>/dev/null
   fi
 
-  # C2: the model name, logged when it differs from the last one logged. The small state
-  # files here are written in place, only after a check that they are not links and are
-  # ours (spec C4: every fork counts on this path; same check-then-write class as the
-  # ledger's own append).
+  # C2: the model name, logged when it differs from the last one logged. The last value is
+  # read only from a regular file of ours that is not a link; the new one is written to a
+  # temp file in the same directory and renamed over the name — rename replaces a planted
+  # link, it never writes through one (as the lib's config cache does).
   local model last="" mf="$dir/aria-ag-model.last"
   model=$(jq -r '(.modelName // "") | tostring | gsub("[^A-Za-z0-9._+:/-]"; "") | .[0:60]' \
     <<<"$ARIA_HOOK_INPUT" 2>/dev/null) || model=""
-  if [ -n "$model" ] && [ ! -L "$mf" ] && { [ ! -e "$mf" ] || { [ -f "$mf" ] && [ -O "$mf" ]; }; }; then
-    [ -f "$mf" ] && { IFS= read -r last < "$mf" 2>/dev/null || :; }
+  if [ -n "$model" ]; then
+    if [ -f "$mf" ] && [ -O "$mf" ] && [ ! -L "$mf" ]; then
+      IFS= read -r last < "$mf" 2>/dev/null || :
+    fi
     if [ "$model" != "$last" ]; then
       kt_ps_log antigravity capture "modelName=$model"
-      printf '%s\n' "$model" > "$mf" 2>/dev/null
+      local mt
+      if mt=$(mktemp "$dir/.aria-ag-model.XXXXXX" 2>/dev/null); then
+        { printf '%s\n' "$model" > "$mt" && mv -f "$mt" "$mf"; } 2>/dev/null || rm -f "$mt" 2>/dev/null
+      fi
     fi
   fi
 
@@ -501,10 +517,13 @@ ag_surface() {
   local sid
   sid=$(kt_ps_sanitize_id "$ARIA_CONVERSATION_ID")
   [ -n "$sid" ] || { kt_ps_log antigravity input no-conversation-id; return 0; }
+  # m1: an invalid config persists across every model call — logged once per
+  # conversation, and nothing is ranked.
+  if [ -n "$KT_CONFIG_ERROR" ]; then ag_log_once "$dir" "$sid" surface config; return 0; fi
   local tp="$ARIA_TRANSCRIPT_PATH"
-  [ -n "$tp" ] || { ag_log_once "$dir" "$sid" no-transcript-path; return 0; }
+  [ -n "$tp" ] || { ag_log_once "$dir" "$sid" transcript no-transcript-path; return 0; }
   if [ ! -f "$tp" ] || [ ! -r "$tp" ]; then
-    ag_log_once "$dir" "$sid" unreadable; return 0
+    ag_log_once "$dir" "$sid" transcript unreadable; return 0
   fi
 
   # One jq call over the last 400 lines (gate-2 G3). Line 1 is a status; on "ok", line 2
@@ -577,25 +596,33 @@ ag_surface() {
   AG_SURFACE_STATE=$state
 }
 
-# ag_record_step STATE STEP — append STEP as processed. The file is checked again first
-# (not a link, ours); a planted link is never written through.
+# ag_record_step STATE STEP — append STEP as processed. An absent state file is created
+# exclusively (set -C: O_EXCL, so a link planted in the meantime makes the create fail;
+# the existence test first only keeps an existing FIFO or device from being opened). The
+# line is then appended only to a regular file of ours that is not a link; anything else
+# is logged and the step is not recorded (fail safe: the turn may be ranked again). Append,
+# never rewrite, so concurrent writers lose no lines.
 ag_record_step() {
-  if [ -L "$1" ] || { [ -e "$1" ] && { [ ! -f "$1" ] || [ ! -O "$1" ]; }; }; then
+  if [ ! -e "$1" ] && [ ! -L "$1" ]; then ( set -C; : > "$1" ) 2>/dev/null; fi
+  if [ -L "$1" ] || [ ! -f "$1" ] || [ ! -O "$1" ]; then
     kt_ps_log antigravity state refused; return 0
   fi
   printf '%s\n' "$2" >> "$1" 2>/dev/null || kt_ps_log antigravity state write-failed
 }
 
-# ag_log_once DIR SID REASON — a transcript failure persists for the whole conversation and
-# PreInvocation fires before every model call, so it is logged once per (conversation,
-# reason): marker DIR/aria-ag-logged-<SID>.<REASON>. A marker that is a link is never
-# created through (the line is logged and nothing is written).
+# ag_log_once DIR SID STEP REASON — a failure that persists for the whole conversation
+# (missing transcript, invalid config) would otherwise be logged before every model call,
+# so it is logged once per (conversation, reason): marker DIR/aria-ag-logged-<SID>.<REASON>.
+# Only a regular marker file of ours that is not a link counts as "already logged"; any
+# other file at that name (a link, a directory, someone else's file) logs the line again
+# and nothing is written. The marker is created exclusively (set -C: O_EXCL), and only
+# when nothing exists at the name (set -C opens an existing FIFO or device without O_EXCL).
 ag_log_once() {
-  local m="$1/aria-ag-logged-$2.$3"
-  if [ -L "$m" ]; then kt_ps_log antigravity transcript "$3"; return 0; fi
-  [ -e "$m" ] && return 0
-  kt_ps_log antigravity transcript "$3"
-  : > "$m" 2>/dev/null
+  local m="$1/aria-ag-logged-$2.$4"
+  if [ -f "$m" ] && [ -O "$m" ] && [ ! -L "$m" ]; then return 0; fi
+  kt_ps_log antigravity "$3" "$4"
+  if [ ! -e "$m" ] && [ ! -L "$m" ]; then ( set -C; : > "$m" ) 2>/dev/null; fi
+  return 0
 }
 
 # After the output was written: record what was delivered, then the step as processed.
