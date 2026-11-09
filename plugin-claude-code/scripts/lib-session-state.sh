@@ -873,6 +873,54 @@ kt_ss_read_live_prompt() {
   return 0
 }
 
+# Call kt_ss_ledger_add and report whether ITS entry is on disk: 0 yes, 1 no. Shared by
+# kt_ss_ledger_demote_active and kt_ss_ledger_add_file; same arguments as kt_ss_ledger_add.
+#
+# ⛔ THE CHECK IS A COUNT, NOT A PRESENCE TEST (fix round 1). Lines starting `### <sid> · <at> · ` are
+# counted before and after the add, and the count must RISE BY ONE. A presence test was a data-loss
+# path: a prompt that quotes its own header at column 0 sits in the active slot, so the header is
+# "present" before anything is written -- with the add failing silently, demote_active returned 0 and
+# consume_active cleared the slot, leaving the prompt in neither place (measured by review).
+# ⛔ A LEVEL COUNT IS ACCEPTED ONLY WHEN THE IDENTICAL BLOCK WAS ON DISK BEFORE THE ADD. That is
+# kt_ss_ledger_add's RC-3 skip, by design, and it is how a re-run looks: a /handoff whose rewrite was
+# aborted, or a consume_active retried after exit 2. Refusing it would answer "did not land -- stop"
+# to every retry. The block is rebuilt here in kt_ss_ledger_add's exact format; if the two drift, the
+# re-run arm (tests/repros/session-state.sh Y9) goes red. A prompt cannot contain its own full block
+# (the block contains the prompt), so the pre-check cannot be satisfied from inside the active slot.
+kt_ss_ledger_add_verified() {
+  _ss_av_f="$1/SESSION.md"; _ss_av_h="### $2 · $3 · "
+  [ -f "$_ss_av_f" ] || return 1
+  _ss_av_blkf="$_ss_av_f.$$.vblk"
+  printf '%s' "### $2 · $3 · handoff · unconsumed
+- focus: $4
+- next: $5
+- prompt:
+$6
+<!-- aria:entry-end -->
+" > "$_ss_av_blkf" 2>/dev/null
+  _ss_av_had=1
+  if [ -s "$_ss_av_blkf" ] && awk '
+      NR == FNR { b[++bn] = $0; next }
+                { L[FNR] = $0; tn = FNR }
+      END {
+        for (i = 1; i <= tn - bn + 1; i++) {
+          ok = 1
+          for (j = 1; j <= bn; j++) if (L[i + j - 1] != b[j]) { ok = 0; break }
+          if (ok) exit 0
+        }
+        exit 1
+      }' "$_ss_av_blkf" "$_ss_av_f" 2>/dev/null; then
+    _ss_av_had=0
+  fi
+  rm -f "$_ss_av_blkf" 2>/dev/null
+  _ss_av_n0=$(awk -v h="$_ss_av_h" 'index($0, h) == 1 { n++ } END { print n + 0 }' "$_ss_av_f" 2>/dev/null)
+  kt_ss_ledger_add "$@"
+  _ss_av_n1=$(awk -v h="$_ss_av_h" 'index($0, h) == 1 { n++ } END { print n + 0 }' "$_ss_av_f" 2>/dev/null)
+  [ "${_ss_av_n1:-0}" -eq $(( ${_ss_av_n0:-0} + 1 )) ] && return 0
+  [ "$_ss_av_had" -eq 0 ] && [ "${_ss_av_n1:-0}" -eq "${_ss_av_n0:-0}" ] && return 0
+  return 1
+}
+
 # Demote the ACTIVE prompt into `## Pending handoffs` as `unconsumed`, reading EVERY value from the
 # file itself. Called by /handoff 3f and /wrapup Step 6.5 before their full rewrite, and by
 # kt_ss_ledger_consume_active.
@@ -904,9 +952,9 @@ kt_ss_read_live_prompt() {
 #
 # ⛔ VERIFY THE DEMOTE LANDED. kt_ss_ledger_add returns 0 whether or not it wrote -- every failure path
 # in it ends `return 0` -- so its exit code carries no information about the entry being on disk.
-# The check is a header STARTING `### <sid> · <at> · `, not a `### ` line merely containing the sid:
-# a pending entry left by an earlier handoff of the same session would satisfy a sid-only check after
-# a silent discard. Bound: an older entry with the same sid AND at would still satisfy it.
+# kt_ss_ledger_add_verified decides it by COUNTING headers that start `### <sid> · <at> · ` before
+# and after the add (see its comment): a presence test is fooled by a header the prompt quotes inside
+# the active slot, and by an older entry of the same session.
 kt_ss_ledger_demote_active() {
   _ss_dm_root="$1"; _ss_dm_caller="$2"
   _ss_dm_f="$_ss_dm_root/SESSION.md"
@@ -927,10 +975,7 @@ kt_ss_ledger_demote_active() {
     _ss_dm_focus="⚠ sid is a post-edit-check.sh HOOK ARTIFACT, not attribution — $_ss_dm_focus"
   fi
 
-  kt_ss_ledger_add "$_ss_dm_root" "$_ss_dm_sid" "$_ss_dm_at" "$_ss_dm_focus" "$_ss_dm_next" "$_ss_dm_body"
-
-  if ! awk -v h="### $_ss_dm_sid · $_ss_dm_at · " 'index($0, h) == 1 { found = 1 }
-                                                   END { exit(found ? 0 : 1) }' "$_ss_dm_f" 2>/dev/null; then
+  if ! kt_ss_ledger_add_verified "$_ss_dm_root" "$_ss_dm_sid" "$_ss_dm_at" "$_ss_dm_focus" "$_ss_dm_next" "$_ss_dm_body"; then
     printf 'kt_ss_ledger_demote_active: the demote of %s@%s did not land; the active slot was left in place.\n' "$_ss_dm_sid" "$_ss_dm_at" >&2
     return 3
   fi
@@ -955,7 +1000,8 @@ kt_ss_ledger_demote_active() {
 #   1  refused, nothing written: an empty sid or at, or the entry file is missing, a symlink, not a
 #      regular file, not owned by the caller, or its first three lines are not `focus:`, `next:`,
 #      `prompt:` in that order
-#   3  the entry did not land (kt_ss_ledger_add returns 0 either way), or there is no SESSION.md
+#   3  the entry did not land (kt_ss_ledger_add returns 0 either way; kt_ss_ledger_add_verified counts
+#      the header before and after), or there is no SESSION.md
 # ⛔ A SYMLINK, AND A FILE THE CALLER DOES NOT OWN, ARE REFUSED: the path comes from a model, and either
 # would let content the session never wrote (a planted file in a shared temp dir) become a stored prompt.
 # The body keeps every byte after line 3 except trailing newlines, which command substitution strips;
@@ -976,10 +1022,7 @@ kt_ss_ledger_add_file() {
   _ss_af_next=$(sed -n '2s/^next:[[:space:]]*//p' "$_ss_af_e")
   _ss_af_body=$(sed '1,3d' "$_ss_af_e")
 
-  kt_ss_ledger_add "$_ss_af_root" "$_ss_af_sid" "$_ss_af_at" "$_ss_af_focus" "$_ss_af_next" "$_ss_af_body"
-
-  if ! awk -v h="### $_ss_af_sid · $_ss_af_at · " 'index($0, h) == 1 { found = 1 }
-                                                   END { exit(found ? 0 : 1) }' "$_ss_af_root/SESSION.md" 2>/dev/null; then
+  if ! kt_ss_ledger_add_verified "$_ss_af_root" "$_ss_af_sid" "$_ss_af_at" "$_ss_af_focus" "$_ss_af_next" "$_ss_af_body"; then
     printf 'kt_ss_ledger_add_file: the entry for %s@%s did not land in %s/SESSION.md.\n' "$_ss_af_sid" "$_ss_af_at" "$_ss_af_root" >&2
     return 3
   fi

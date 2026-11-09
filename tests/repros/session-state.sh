@@ -584,7 +584,7 @@ _ss_fnsum() {
 # (2.58.0) demote_active + add_file are the two entry points /handoff and /wrapup now call instead of
 # a model-composed kt_ss_ledger_add; consume_active joined because it now delegates its demote to
 # demote_active, so it is edited in four ports at once like the rest of this list.
-_SS_PARITY_FNS="kt_ss_ledger_add kt_ss_ledger_prune kt_ss_ledger_demote_active kt_ss_ledger_add_file kt_ss_ledger_consume_active"
+_SS_PARITY_FNS="kt_ss_ledger_add kt_ss_ledger_prune kt_ss_ledger_demote_active kt_ss_ledger_add_file kt_ss_ledger_consume_active kt_ss_ledger_add_verified"
 _SS_P1="$REPO_ROOT/plugin-claude-code/scripts/lib-session-state.sh"
 _SS_P2="$REPO_ROOT/plugin-antigravity/bin/lib-session-state.sh"
 _SS_P3="$REPO_ROOT/plugin-cursor-template/scripts/aria/lib-session-state.sh"
@@ -1237,6 +1237,8 @@ done
 #   Y5 add_file stores a hostile body verbatim with its focus/next, nothing executes
 #   Y6 add_file refuses a symlinked entry file      Y7 add_file refuses bad headers / args
 #   Y8 add_file verifies its write landed (exit 3 when kt_ss_ledger_add is neutered)
+#   Y3b/Y8b a header QUOTED inside the active slot is not proof of landing (fix round 1)
+#   Y9 an idempotent re-run (RC-3 byte-identical skip) still reads as landed (fix round 1)
 YD="$TMP/y"
 _y_tok='aria-handoff: proj-a/tok-sid@2026-11-01T00:00:00Z'
 _y_hdr_tok='### tok-sid · 2026-11-01T00:00:00Z · handoff · unconsumed'
@@ -1305,6 +1307,21 @@ _y_arms() {  # $1 tag. The caller has sourced ONE port's lib into this subshell.
     echo "BAD Y3 demote_active_verifies_landed -- exits '$rr' (want '3 3'), or a file changed"
   fi
 
+  # Y3b (fix round 1) -- the prompt quotes its OWN entry header at column 0, inside the active slot.
+  # A landing check that accepts that header ANYWHERE in the file reads it as proof the demote landed,
+  # and consume_active then clears the slot: the prompt is gone from both places.
+  { printf '%s\n' '```' "$_y_tok" 'Y3b body'; printf '%s\n' "$_y_hdr_tok" '```'; } > "$b/p3b"
+  _y_slot "$b/d3b" "$b/p3b"; _y_slot "$b/d3bc" "$b/p3b"
+  rr=$( ( kt_ss_ledger_add() { return 0; }
+          x=0; kt_ss_ledger_demote_active "$b/d3b" >/dev/null 2>&1 || x=$?
+          y=0; kt_ss_ledger_consume_active "$b/d3bc" resumer 2026-11-03T00:00:00Z "$_y_tok" >/dev/null 2>&1 || y=$?
+          printf '%s %s' "$x" "$y" ) ) || true
+  if [ "$rr" = "3 3" ] && cmp -s "$b/d3b/before.md" "$b/d3b/SESSION.md" && cmp -s "$b/d3bc/before.md" "$b/d3bc/SESSION.md"; then
+    echo "OK Y3b demote_active_landing_ignores_a_quoted_header"
+  else
+    echo "BAD Y3b demote_active_landing_ignores_a_quoted_header -- exits '$rr' (want '3 3'), slot $(cmp -s "$b/d3bc/before.md" "$b/d3bc/SESSION.md" && echo kept || echo CHANGED)"
+  fi
+
   printf '%s\n' '```' 'Y4 tokenless prompt' '```' > "$b/p4"
   printf '%s\n' '```' "$_y_tok" 'Y4 token prompt' '```' > "$b/p4t"
   _y_slot "$b/d4a" "$b/p4"; _y_slot "$b/d4b" "$b/p4"; _y_slot "$b/d4c" "$b/p4t"
@@ -1357,6 +1374,28 @@ _y_arms() {  # $1 tag. The caller has sourced ONE port's lib into this subshell.
           printf '%s' "$x" ) ) || true
   if [ "$rr" = "3" ] && cmp -s "$b/d8/before.md" "$b/d8/SESSION.md"; then echo "OK Y8 add_file_verifies_landed"
   else echo "BAD Y8 add_file_verifies_landed -- exit '$rr' (want 3), or the ledger changed"; fi
+
+  # Y8b (fix round 1) -- same, for add_file: the active slot already shows the header it would write.
+  printf '%s\n' '```' 'incumbent prompt quoting' '### my-sid · 2026-11-03T00:00:00Z · handoff · unconsumed' '```' > "$b/p8b"
+  _y_slot "$b/d8b" "$b/p8b"
+  rr=$( ( kt_ss_ledger_add() { return 0; }
+          x=0; kt_ss_ledger_add_file "$b/d8b" my-sid 2026-11-03T00:00:00Z "$b/e5" >/dev/null 2>&1 || x=$?
+          printf '%s' "$x" ) ) || true
+  if [ "$rr" = "3" ] && cmp -s "$b/d8b/before.md" "$b/d8b/SESSION.md"; then echo "OK Y8b add_file_landing_ignores_a_quoted_header"
+  else echo "BAD Y8b add_file_landing_ignores_a_quoted_header -- exit '$rr' (want 3), or the ledger changed"; fi
+
+  # Y9 (fix round 1) -- an idempotent RE-RUN is not a failed write. kt_ss_ledger_add skips a byte-identical
+  # block by design (RC-3), so the stored count stays level; that must still read as landed, or a
+  # /handoff whose rewrite was aborted, or a consume_active retried after exit 2, is blocked forever.
+  _y_hostile "$b/M9" > "$b/p9"; _y_slot "$b/d9" "$b/p9"
+  r1=0; kt_ss_ledger_demote_active "$b/d9" >/dev/null 2>&1 || r1=$?
+  r2=0; kt_ss_ledger_demote_active "$b/d9" >/dev/null 2>&1 || r2=$?
+  r3=0; kt_ss_ledger_add_file "$b/d9" my-sid 2026-11-03T00:00:00Z "$b/e5" >/dev/null 2>&1 || r3=$?
+  r4=0; kt_ss_ledger_add_file "$b/d9" my-sid 2026-11-03T00:00:00Z "$b/e5" >/dev/null 2>&1 || r4=$?
+  n1=$(awk -v h="$_y_hdr_tok" '$0 == h { n++ } END { print n + 0 }' "$b/d9/SESSION.md")
+  n2=$(grep -c '^### my-sid · 2026-11-03T00:00:00Z · ' "$b/d9/SESSION.md" || true)
+  if [ "$r1$r2$r3$r4" = "0000" ] && [ "$n1" -eq 1 ] && [ "$n2" -eq 1 ]; then echo "OK Y9 idempotent_rerun_reads_as_landed"
+  else echo "BAD Y9 idempotent_rerun_reads_as_landed -- exits $r1$r2$r3$r4 (want 0000), stored headers $n1/$n2 (want 1/1)"; fi
 }
 _Y_SEEN=0
 for _yd in plugin-claude-code/scripts plugin-antigravity/bin plugin-cursor-template/scripts/aria plugin-openai-codex/bin; do
@@ -1373,7 +1412,7 @@ for _yd in plugin-claude-code/scripts plugin-antigravity/bin plugin-cursor-templ
 $_yout
 YOUT
   _yn=$(printf '%s\n' "$_yout" | grep -c '^OK ' || true)
-  [ "$_yn" -eq 8 ] || bad "Y coverage $_yd" "only $_yn of 8 arms passed -- see the lines above"
+  [ "$_yn" -eq 11 ] || bad "Y coverage $_yd" "only $_yn of 11 arms passed -- see the lines above"
 done
 [ "$_Y_SEEN" -eq 4 ] && ok "Y coverage: all 4 carrying ports exercised" \
   || bad "Y coverage" "only $_Y_SEEN of 4 port libs found"
