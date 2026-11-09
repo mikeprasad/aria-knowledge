@@ -201,6 +201,10 @@ kt_artifact_filter_ledger() {
   _kt_ledger="$1"
   [ -z "$_kt_ledger" ] && return 0
   [ ! -f "$_kt_ledger" ] && return 0
+  # A link, a non-regular file or a file this user does not own at the ledger's predictable /tmp name is
+  # not ours (final fix wave F7): never read it, never write through it.
+  [ -L "$_kt_ledger" ] && return 0
+  [ ! -O "$_kt_ledger" ] && return 0
   [ ! -s "$_kt_ledger" ] && return 0
   [ "$KT_ARTIFACTS_COUNT" -eq 0 ] && return 0
 
@@ -232,5 +236,9 @@ kt_artifact_record_ledger() {
   _kt_ledger="$1"
   [ -z "$_kt_ledger" ] && return 0
   [ "$KT_ARTIFACTS_COUNT" -eq 0 ] && return 0
+  # A link, a non-regular file or a file this user does not own at the ledger's predictable /tmp name is
+  # not ours (final fix wave F7): never write through it.
+  [ -L "$_kt_ledger" ] && return 0
+  if [ -e "$_kt_ledger" ]; then [ -f "$_kt_ledger" ] && [ -O "$_kt_ledger" ] || return 0; fi
   printf '%s' "$KT_ARTIFACT_PATHS" >> "$_kt_ledger" 2>/dev/null
 }

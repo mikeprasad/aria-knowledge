@@ -157,6 +157,27 @@ ps_body() {
   r "core_commit_filters_like_commit_paths: kt_ps_commit records only plain relative paths" \
     "projects/proj-a/hooks.md|projects/proj-c/a..b.md|" "$(tr '\n' '|' < "$T/ledger-k")"
 
+  # --- core_ledger_link_refused (final fix wave (a)+F7) ------------------------------------------
+  # The ledger lives at a predictable /tmp/aria-active-<id>. A link planted there must neither be
+  # READ (kt_match_filter_ledger: a planted list would silently suppress surfacing) nor WRITTEN
+  # through (_kt_ps_append_kept: an append would land in whatever the link names).
+  printf '%s\n' $EXP > "$T/planted-ledger"; PLANTED=$(cksum < "$T/planted-ledger")
+  ln -s "$T/planted-ledger" "$T/ledger-link"
+  ps_call "$CFG" "$T/cache" "$PROMPT_PAY" "$T/ledger-link"
+  r "core_ledger_link_refused: a symlinked ledger is not read (still injects)" injected "$PS_STATUS"
+  r "core_ledger_link_refused: nothing is appended through the link" "$PLANTED" "$(cksum < "$T/planted-ledger")"
+  r "core_ledger_link_refused: the link itself is left a link" 1 "$( [ -L "$T/ledger-link" ] && echo 1 || echo 0)"
+  # Control: the SAME list as a regular file is honoured — so the arm above refuses the link, not
+  # the list.
+  cp "$T/planted-ledger" "$T/ledger-regular"
+  ps_call "$CFG" "$T/cache" "$PROMPT_PAY" "$T/ledger-regular"
+  r "core_ledger_link_refused: control — the same list as a regular file filters" nothing-new "$PS_STATUS"
+  # The in-flow check above cannot fail on its own while the filter still reads the link (nothing is
+  # delivered, so nothing is committed). Drive the writer directly.
+  : > "$T/planted-empty"; ln -s "$T/planted-empty" "$T/ledger-link2"
+  ( ps_src "$CFG" || exit 1; KT_PS_PENDING='projects/proj-a/hooks.md'; kt_ps_commit "$T/ledger-link2" ) 2>/dev/null
+  r "core_ledger_link_refused: kt_ps_commit does not write through a link" 0 "$(wc -c < "$T/planted-empty" | tr -d ' ')"
+
   # --- core_unsafe_entries_never_surfaced: delivered must equal recordable -----------------
   # An index entry that is not a plain relative path (absolute, or with a `..` segment) is
   # dropped BEFORE it enters the injection: it could never be recorded, so delivering it would
@@ -327,7 +348,7 @@ ps_body() {
 PS_RESULTS=$(ps_body)
 
 # Every `r` call in ps_body reports exactly once; raise this when adding a check.
-PS_EXPECTED=55
+PS_EXPECTED=60
 PS_GOT=0
 PS_TAB=$(printf '\t')
 PS_OLD_IFS=$IFS

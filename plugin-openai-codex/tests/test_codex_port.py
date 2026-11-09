@@ -642,6 +642,97 @@ def test_user_prompt_submit_is_silent_when_the_cli_is_missing_or_fails() -> None
             assert output == {}, (mode, output)
 
 
+def test_user_prompt_submit_survives_an_unencodable_prompt() -> None:
+    # F4 (final fix wave): the prompt goes to the CLI on stdin as text. A lone surrogate (valid in a
+    # JSON \u escape, invalid in UTF-8) and a non-UTF-8 locale both made the encode raise a
+    # UnicodeEncodeError -- a ValueError, which the OSError/SubprocessError handler did not catch --
+    # so the hook crashed instead of ranking. Both must still rank the rest of the prompt.
+    prompt = "fix the payments webhooks flow"
+    cases = {
+        "lone surrogate": (prompt + " \ud800", {}),
+        "C locale, non-ASCII": (
+            prompt + " café",
+            {"LC_ALL": "C", "LANG": "C", "PYTHONUTF8": "0", "PYTHONCOERCECLOCALE": "0"},
+        ),
+    }
+    for label, (text, extra) in cases.items():
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            config = _surfacing_setup(root)
+            env = {"KT_CONFIG": str(config), "TMPDIR": tmp, **extra}
+            output = run_hook("user-prompt-submit", _prompt_payload(root, text), env=env)
+            ctx = output["hookSpecificOutput"]["additionalContext"]
+            assert "ARIA ACTIVE" in ctx and "payments" in ctx, (label, ctx[:200])
+
+
+def test_active_ledger_link_is_neither_read_nor_written() -> None:
+    # F7 + (a) (final fix wave): the ledger lives at a predictable /tmp/aria-active-<session key>.
+    # A link planted there must not filter the surfaced files (a read) or receive the record (a write).
+    prompt = "fix the payments webhooks flow"
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        config = _surfacing_setup(root)
+        env = {"KT_CONFIG": str(config), "TMPDIR": tmp}
+        ledger = Path("/tmp") / f"aria-active-session-{root.name}"
+        # The hook also keeps a 30 s per-session cooldown; clear it before each run so a silent run
+        # is attributable to the ledger, never to the cooldown.
+        cooldown = Path("/tmp") / f"aria-context-session-{root.name}"
+        planted = root / "planted-ledger"
+
+        def run(expect_json: bool = True) -> dict[str, object]:
+            cooldown.unlink(missing_ok=True)
+            return run_hook("user-prompt-submit", _prompt_payload(root, prompt), env=env, expect_json=expect_json)
+
+        try:
+            if ledger.is_symlink() or ledger.exists():
+                ledger.unlink()
+            first = run()
+            assert "ARIA ACTIVE" in first["hookSpecificOutput"]["additionalContext"], first
+            recorded = ledger.read_text(encoding="utf-8")
+            assert recorded.strip(), "control: a regular ledger records the surfaced files"
+            # Control: the same regular ledger filters a repeat (nothing new to surface).
+            run(expect_json=False)
+            planted.write_text(recorded, encoding="utf-8")
+            ledger.unlink()
+            ledger.symlink_to(planted)
+            linked = run()
+            assert "ARIA ACTIVE" in linked["hookSpecificOutput"]["additionalContext"], linked
+            assert planted.read_text(encoding="utf-8") == recorded, "an append went through the link"
+            assert ledger.is_symlink(), "the link was replaced"
+        finally:
+            if ledger.is_symlink() or ledger.exists():
+                ledger.unlink()
+            cooldown.unlink(missing_ok=True)
+
+
+def test_post_compact_does_not_list_a_linked_ledger() -> None:
+    # F7 (final fix wave): post-compact-check.sh shows the ledger's lines to the model.
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        knowledge = root / "knowledge"
+        knowledge.mkdir()
+        config = root / "aria-config.md"
+        write_config(config, knowledge)
+        sid = f"codex-f7-{root.name}"
+        ledger = Path("/tmp") / f"aria-active-{sid}"
+        planted = root / "planted"
+        planted.write_text("planted/through-a-link.md\n", encoding="utf-8")
+        payload = {"hook_event_name": "PostCompact", "session_id": sid}
+        try:
+            if ledger.is_symlink() or ledger.exists():
+                ledger.unlink()
+            ledger.symlink_to(planted)
+            out = json.dumps(run_hook("post-compact", payload, env={"KT_CONFIG": str(config), "TMPDIR": tmp}))
+            assert "planted/through-a-link.md" not in out, out[:300]
+            ledger.unlink()
+            ledger.write_text("regular/ledger-entry.md\n", encoding="utf-8")
+            out = json.dumps(run_hook("post-compact", payload, env={"KT_CONFIG": str(config), "TMPDIR": tmp}))
+            assert "regular/ledger-entry.md" in out, "control: a regular ledger is listed"
+        finally:
+            if ledger.is_symlink() or ledger.exists():
+                ledger.unlink()
+
+
 def test_codex_hook_carries_no_ranking_logic() -> None:
     source = read(PORT_ROOT / "bin" / "codex-hook.py")
     for retired in ("def tokenize(", "def index_section(", "len(tags) < 2", "ARIA ACTIVE - "):

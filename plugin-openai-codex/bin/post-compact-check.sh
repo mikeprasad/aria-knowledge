@@ -40,7 +40,8 @@ fi
 # Only fires if active mode is enabled, ledger exists, and has entries.
 if [ "$KT_ACTIVE_SURFACING" = "true" ] && [ -n "$SESSION_ID" ]; then
   LEDGER="/tmp/aria-active-${SESSION_ID}"
-  if [ -f "$LEDGER" ] && [ -s "$LEDGER" ]; then
+  # F7 (final fix wave): the name is predictable, so only a regular file this user owns, never a link.
+  if [ -f "$LEDGER" ] && [ -s "$LEDGER" ] && [ ! -L "$LEDGER" ] && [ -O "$LEDGER" ]; then
     LEDGER_COUNT=$(wc -l < "$LEDGER" | tr -d ' ')
     # Format the first 5 paths into a compact list. Compaction is expensive
     # to recover from; even 5 file Reads is cheaper than re-discovering the

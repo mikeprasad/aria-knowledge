@@ -481,6 +481,10 @@ kt_match_filter_ledger() {
   _kt_ledger="$1"
   [ -z "$_kt_ledger" ] && return 0
   [ ! -f "$_kt_ledger" ] && return 0
+  # A link, a non-regular file or a file this user does not own at the ledger's predictable /tmp name is
+  # not ours (final fix wave F7): never read it, never write through it.
+  [ -L "$_kt_ledger" ] && return 0
+  [ ! -O "$_kt_ledger" ] && return 0
   [ ! -s "$_kt_ledger" ] && return 0
   [ -z "$KT_MATCH_FILES_TMP" ] && return 0
   [ ! -f "$KT_MATCH_FILES_TMP" ] && return 0

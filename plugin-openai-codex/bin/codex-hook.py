@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 import re
+import stat
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -322,13 +323,17 @@ def active_context_matches(prompt: str, knowledge_folder: Path) -> tuple[list[st
             ["sh", str(cli), "-"],
             input=prompt,
             text=True,
+            # F4 (final fix wave): a lone surrogate from a JSON \u escape, or a non-UTF-8 locale,
+            # made the encode raise UnicodeEncodeError (a ValueError) and crashed the hook.
+            encoding="utf-8",
+            errors="replace",
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
             env=env,
             timeout=3,
             check=False,
         )
-    except (OSError, subprocess.SubprocessError):
+    except (OSError, subprocess.SubprocessError, ValueError):
         return [], []
     if proc.returncode != 0:
         return [], []
@@ -353,7 +358,21 @@ def codemap_artifact_message(start: Path, config: dict[str, str]) -> tuple[str, 
     )
 
 
+def ledger_is_ours(ledger: Path) -> bool:
+    """F7 + (a) (final fix wave): the ledger name is predictable (/tmp/aria-active-<key>), so a link,
+    a non-regular file or a file another user owns is never read or written through."""
+    try:
+        st = os.lstat(ledger)
+    except FileNotFoundError:
+        return True
+    except OSError:
+        return False
+    return stat.S_ISREG(st.st_mode) and st.st_uid == os.getuid()
+
+
 def ledger_filter(items: list[str], ledger: Path) -> list[str]:
+    if not ledger_is_ours(ledger):
+        return items
     if not ledger.exists() or not ledger.read_text(errors="ignore").strip():
         return items
     seen = set(ledger.read_text(errors="ignore").splitlines())
@@ -361,7 +380,7 @@ def ledger_filter(items: list[str], ledger: Path) -> list[str]:
 
 
 def ledger_record(items: list[str], ledger: Path) -> None:
-    if not items:
+    if not items or not ledger_is_ours(ledger):
         return
     with ledger.open("a", encoding="utf-8") as fp:
         for item in items:

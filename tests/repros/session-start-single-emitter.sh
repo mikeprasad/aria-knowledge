@@ -85,6 +85,16 @@ case "$(ctx "$TMP/compact.json")" in
 esac
 check "AC3 compact context leads with the rules pointer" "yes" "$_lead"
 check "AC3 compact context carries ARIA CONFIG" "yes" "$(has "$(ctx "$TMP/compact.json")" 'ARIA CONFIG —')"
+# F7 (final fix wave): the compact block lists the ledger's lines to the model, so a LINK planted at
+# the ledger's predictable name must not be read. run() sends session id sse-$$.
+F7L="/tmp/aria-active-sse-$$"; rm -f "$F7L"
+printf 'planted/through-a-link.md\n' > "$TMP/f7-planted"; ln -s "$TMP/f7-planted" "$F7L"
+run "$H" "$CFG" compact "$TMP/f7-link.json"
+check "F7 compact does not list a symlinked ledger" "no" "$(has "$(ctx "$TMP/f7-link.json")" 'planted/through-a-link.md')"
+rm -f "$F7L"; printf 'regular/ledger-entry.md\n' > "$F7L"
+run "$H" "$CFG" compact "$TMP/f7-reg.json"
+check "F7 control: a regular ledger is listed" "yes" "$(has "$(ctx "$TMP/f7-reg.json")" 'regular/ledger-entry.md')"
+rm -f "$F7L"
 
 # --- First run (no audit log): welcome banner AND model context ---------------------------
 KF1="$TMP/kf1"; mk_kf "$KF1" "" ""; CFG1="$TMP/cfg1.md"; mk_cfg "$CFG1" "$KF1"
@@ -136,6 +146,15 @@ check "AC6 the ledger records the map once" "1" \
 runp "$WS/projx" "$TMP/proj2.json"
 check "AC6 a second run in the same session is deduplicated" "no" \
   "$(has "$(ctx "$TMP/proj2.json")" '[aria] Loaded CODEMAP directory')"
+# F7 (final fix wave): the ledger name is predictable, so a LINK planted there must be neither read
+# (the dedup above would then silently suppress the load) nor appended to (the write would land in
+# whatever the link names). The planted target holds exactly the real ledger's content.
+cp "/tmp/aria-active-$SID" "$TMP/ta-planted"; TA_SUM=$(cksum < "$TMP/ta-planted")
+rm -f "/tmp/aria-active-$SID"; ln -s "$TMP/ta-planted" "/tmp/aria-active-$SID"
+runp "$WS/projx" "$TMP/proj-link.json"
+check "F7 tracked artifacts ignore a symlinked ledger (the load still fires)" "yes" \
+  "$(has "$(ctx "$TMP/proj-link.json")" '[aria] Loaded CODEMAP directory for projx')"
+check "F7 tracked artifacts do not append through the link" "$TA_SUM" "$(cksum < "$TMP/ta-planted")"
 rm -f "/tmp/aria-active-$SID"
 
 # --- Latent defects the routing change made model-visible (retrospect 2026-10-29) --------

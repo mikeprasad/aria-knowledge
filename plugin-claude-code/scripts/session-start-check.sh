@@ -293,7 +293,8 @@ if [ "$HOOK_SOURCE" = "compact" ]; then
   # Active-surfacing ledger: knowledge files surfaced earlier this session.
   if [ "$KT_ACTIVE_SURFACING" = "true" ] && [ -n "$SESSION_ID" ]; then
     LEDGER="/tmp/aria-active-${SESSION_ID}"
-    if [ -s "$LEDGER" ]; then
+    # F7 (final fix wave): the name is predictable, so only a regular file this user owns, never a link.
+    if [ -s "$LEDGER" ] && [ ! -L "$LEDGER" ] && [ -f "$LEDGER" ] && [ -O "$LEDGER" ]; then
       LEDGER_COUNT=$(wc -l < "$LEDGER" | tr -d ' ')
       LEDGER_LIST=$(head -5 "$LEDGER" | sed 's/^/  - /' | tr '\n' ';' | sed 's/;$//;s/;/ /g')
       COMPACT_BLOCK="${COMPACT_BLOCK}ARIA ACTIVE — Compaction wiped context. ${LEDGER_COUNT} knowledge file(s) were previously surfaced this session: ${LEDGER_LIST}. Re-Read the relevant ones (prefer recently-active topic; skip if no longer applicable) and summarize what reloaded in 1-2 sentences before continuing. Ledger preserved at ${LEDGER}.

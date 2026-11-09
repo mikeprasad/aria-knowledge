@@ -295,6 +295,10 @@ _kt_ps_plain_rel() {
 # stdin and appends, in one write, only those _kt_ps_plain_rel accepts. Ledger lines are
 # shown to the model again (session start after compaction), so nothing else may reach it.
 _kt_ps_append_kept() { # LEDGER
+  # A link, a non-regular file or a file this user does not own at the ledger's predictable /tmp name is
+  # not ours (final fix wave F7): never write through it.
+  [ -L "$1" ] && return 0
+  if [ -e "$1" ]; then [ -f "$1" ] && [ -O "$1" ] || return 0; fi
   _kt_ps_add=""
   while IFS= read -r _kt_ps_l || [ -n "$_kt_ps_l" ]; do
     _kt_ps_plain_rel "$_kt_ps_l" || continue
