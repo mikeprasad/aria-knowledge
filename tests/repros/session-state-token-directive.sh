@@ -48,10 +48,18 @@ chk "fallback word trigger retained"         "If no token is present"
 # copy of the directive must say both, or a resuming session calls the old three-argument form and
 # gets a refusal it has no instruction for. Four copies: two digests (section-scoped as above) and
 # the Codex and Cursor hooks, which carry the directive as one inline SESSION STATE string.
+# Final fix wave (F2): the token is copied from the user's PASTED text, so it must never be composed
+# into a shell command. Every copy names the _file forms, tells the model to write the token to a NEW
+# file with its file-write tool, and no longer carries the token-taking call shape at all.
 b6() { # $1 = label, $2 = text
-  for _n in 'kt_ss_ledger_consume_active <project_root>' '<now UTC> <the same token>' 'never consume whatever is now active'; do
+  for _n in 'kt_ss_ledger_token_locate_file <project_root>' 'kt_ss_ledger_consume_active_file <project_root>' \
+            'file-write tool' 'never consume whatever is now active'; do
     if printf '%s' "$2" | grep -qF -- "$_n"; then printf '  PASS  B6 %s — %s\n' "$1" "$_n"
     else printf '  FAIL  B6 %s — missing: %s\n' "$1" "$_n"; fail=1; fi
+  done
+  for _n in 'kt_ss_ledger_token_locate <' 'kt_ss_ledger_consume_active <' 'with the same token'; do
+    if printf '%s' "$2" | grep -qF -- "$_n"; then printf '  FAIL  B6 %s — still carries: %s\n' "$1" "$_n"; fail=1
+    else printf '  PASS  B6 %s — retired form absent: %s\n' "$1" "$_n"; fi
   done
 }
 b6 "claude-code digest" "$section"

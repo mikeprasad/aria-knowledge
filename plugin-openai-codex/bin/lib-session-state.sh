@@ -872,7 +872,10 @@ kt_ss_read_live_prompt() {
 kt_ss_ledger_add_verified() {
   _ss_av_f="$1/SESSION.md"; _ss_av_h="### $2 · $3 · "
   [ -f "$_ss_av_f" ] || return 1
-  _ss_av_blkf="$_ss_av_f.$$.vblk"
+  # The compare block is a private temp file (final fix wave, F6). It used to be $root/SESSION.md.$$.vblk:
+  # a predictable name inside the user's project tree, often a tracked one, left behind by a crash.
+  # No temp file -> nothing was added, which IS "did not land": the caller keeps the active slot.
+  _ss_av_blkf=$(mktemp "${TMPDIR:-/tmp}/aria-ss-vblk.XXXXXX" 2>/dev/null) || return 1
   printf '%s' "### $2 · $3 · handoff · unconsumed
 - focus: $4
 - next: $5
@@ -1086,7 +1089,7 @@ kt_ss_ledger_consume_active() {
   _ss_trim=""
   [ "$_ss_tok" = "$_ss_exp" ] && _ss_trim=$(kt_ss_read_live_prompt "$_ss_root")
   if [ -z "$_ss_trim" ]; then
-    printf 'kt_ss_ledger_consume_active: refused — the active slot does not hold %s@%s (it holds %s). A peer wrote or moved a prompt after you located it: re-run kt_ss_ledger_token_locate with the same token.\n' \
+    printf 'kt_ss_ledger_consume_active: refused — the active slot does not hold %s@%s (it holds %s). A peer wrote or moved a prompt after you located it: locate it again and act on the new result.\n' \
       "$_ss_sid" "$_ss_at" "$(if [ -n "$_ss_tok" ]; then printf '%s' "$_ss_tok" | tr '|' '@'; else printf '(no token)'; fi)" >&2
     return 2
   fi
@@ -1111,7 +1114,7 @@ kt_ss_ledger_consume_active() {
     return 3
   fi
   if [ "$_ss_drc" -ne 0 ] || [ "$_ss_dout" != "$_ss_sid@$_ss_at" ]; then
-    printf 'kt_ss_ledger_consume_active: the active slot changed before it could be demoted (expected %s@%s, demoted "%s"); it was left in place. Re-run kt_ss_ledger_token_locate with the same token.\n' "$_ss_sid" "$_ss_at" "$_ss_dout" >&2
+    printf 'kt_ss_ledger_consume_active: the active slot changed before it could be demoted (expected %s@%s, demoted "%s"); it was left in place. Locate it again and act on the new result.\n' "$_ss_sid" "$_ss_at" "$_ss_dout" >&2
     return 2
   fi
 
@@ -1150,4 +1153,47 @@ kt_ss_ledger_consume_active() {
   fi
   rm -f "$_ss_tmp" 2>/dev/null
   return 0
+}
+
+# The resume token, read from a FILE (2.58.0, final fix wave F2). The SESSION STATE directive used to
+# tell the model to run kt_ss_ledger_token_locate / kt_ss_ledger_consume_active with the token as a
+# shell argument -- and the token is copied from the user's PASTED opener, so third-party text was
+# composed into a command (`$(…)` or a backtick after the at would RUN). Now the model writes the token
+# alone to a NEW file with its file-write tool and passes the path:
+#   kt_ss_ledger_token_locate_file   <root> <token file>
+#   kt_ss_ledger_consume_active_file <root> <by> <now> <token file>
+# <by> and <now> are id-shaped (a session id, a UTC timestamp) and stay arguments.
+# The file must be a regular file the caller owns, not a symlink, and hold exactly ONE line:
+#   aria-handoff: <project>/<sid>@<at>     project, sid: [A-Za-z0-9._-]+     at: [0-9TZ:.+-]+
+# The shape is checked here, in code, before the token reaches anything else; the old functions are
+# then called in-process, so nothing is re-composed into a command.
+#   1  refused, nothing read beyond the check and nothing written: no path, a missing path, a symlink,
+#      not a regular file, not owned by the caller, not exactly one line, or any other token shape
+#   otherwise the wrapped function's own result (locate: 0 with its line or nothing; consume: 0-3)
+# ⛔ A SYMLINK AND A FILE THE CALLER DOES NOT OWN ARE REFUSED, as in kt_ss_ledger_add_file: the path
+# comes from a model, and a planted file in a shared temp dir must not choose which prompt is consumed.
+_kt_ss_token_from_file() {  # <caller name> <token file> -> the token line on stdout, or exit 1
+  _ss_tf="$2"
+  if [ -z "$_ss_tf" ] || [ -L "$_ss_tf" ] || [ ! -f "$_ss_tf" ] || [ ! -O "$_ss_tf" ] \
+     || [ "$(awk 'END { print NR }' "$_ss_tf" 2>/dev/null)" != 1 ] \
+     || ! grep -Eqx 'aria-handoff: [A-Za-z0-9._-]+/[A-Za-z0-9._-]+@[0-9TZ:.+-]+' "$_ss_tf" 2>/dev/null; then
+    printf '%s: refused — pass a regular file you own (not a symlink) holding exactly one line, aria-handoff: <project>/<sid>@<at> (got "%s").\n' "$1" "$_ss_tf" >&2
+    return 1
+  fi
+  sed -n '1p' "$_ss_tf"
+}
+
+kt_ss_ledger_token_locate_file() {
+  _ss_tlf_tok=$(_kt_ss_token_from_file kt_ss_ledger_token_locate_file "$2") || return 1
+  kt_ss_ledger_token_locate "$1" "$_ss_tlf_tok"
+}
+
+kt_ss_ledger_consume_active_file() {
+  _ss_caf_tok=$(_kt_ss_token_from_file kt_ss_ledger_consume_active_file "$4") || return 1
+  _ss_caf_rc=0
+  kt_ss_ledger_consume_active "$1" "$2" "$3" "$_ss_caf_tok" || _ss_caf_rc=$?
+  if [ "$_ss_caf_rc" -eq 2 ]; then
+    printf 'kt_ss_ledger_consume_active_file: locate again with kt_ss_ledger_token_locate_file on the same token file, then act on the new result.\n' >&2
+  fi
+  return "$_ss_caf_rc"
 }

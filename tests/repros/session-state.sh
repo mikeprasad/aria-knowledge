@@ -584,7 +584,8 @@ _ss_fnsum() {
 # (2.58.0) demote_active + add_file are the two entry points /handoff and /wrapup now call instead of
 # a model-composed kt_ss_ledger_add; consume_active joined because it now delegates its demote to
 # demote_active, so it is edited in four ports at once like the rest of this list.
-_SS_PARITY_FNS="kt_ss_ledger_add kt_ss_ledger_prune kt_ss_ledger_demote_active kt_ss_ledger_add_file kt_ss_ledger_consume_active kt_ss_ledger_add_verified"
+# (final fix wave) the token-file helpers joined: a model reaches locate/consume only through them.
+_SS_PARITY_FNS="kt_ss_ledger_add kt_ss_ledger_prune kt_ss_ledger_demote_active kt_ss_ledger_add_file kt_ss_ledger_consume_active kt_ss_ledger_add_verified _kt_ss_token_from_file kt_ss_ledger_token_locate_file kt_ss_ledger_consume_active_file"
 _SS_P1="$REPO_ROOT/plugin-claude-code/scripts/lib-session-state.sh"
 _SS_P2="$REPO_ROOT/plugin-antigravity/bin/lib-session-state.sh"
 _SS_P3="$REPO_ROOT/plugin-cursor-template/scripts/aria/lib-session-state.sh"
@@ -1433,6 +1434,107 @@ YOUT
 done
 [ "$_Y_SEEN" -eq 4 ] && ok "Y coverage: all 4 carrying ports exercised" \
   || bad "Y coverage" "only $_Y_SEEN of 4 port libs found"
+
+# --- Z: the resume token reaches the ledger through a FILE, never a shell argument (final fix wave) --
+# The SESSION STATE directive used to tell the model to run
+#   kt_ss_ledger_token_locate <root> <token>  /  kt_ss_ledger_consume_active <root> <by> <now> <token>
+# with the token copied from the user's PASTED text -- third-party text composed into a shell command.
+# The _file forms read the token from a file the model wrote with its file-write tool, refuse a link /
+# non-regular / foreign file, check the token's shape in code, and call the old functions in-process.
+#   Z1 a hostile token (shape-invalid: `$(…)` after the at) via file -> both refused (1), no marker,
+#      no output, ledger byte-identical
+#   Z2 a valid token via file gives exactly the old call's result (locate output; consume exit + file)
+#   Z3 refused (1, untouched): a symlinked file, two lines, an empty file, a directory, a missing path,
+#      a bare token without the `aria-handoff:` prefix
+#   Z4 consume_active's own refusals pass through: a well-formed token naming a different prompt -> 2
+#   Z5 (F6) kt_ss_ledger_add_verified builds its compare block in $TMPDIR, never beside SESSION.md
+ZD="$TMP/z"
+_z_arms() {  # $1 tag. The caller has sourced ONE port's lib into this subshell.
+  b="$ZD/$1"; mkdir -p "$b"
+  printf '%s\n' '```' "$_y_tok" 'Z resume body' '```' > "$b/p"
+
+  _y_slot "$b/d1" "$b/p"
+  printf 'aria-handoff: proj-a/tok-sid@2026-11-01T00:00:00Z$(touch %s)\n' "$b/MZ1" > "$b/hostile"
+  r1=0; o1=$(kt_ss_ledger_token_locate_file "$b/d1" "$b/hostile" 2>/dev/null) || r1=$?
+  r2=0; o2=$(kt_ss_ledger_consume_active_file "$b/d1" resumer 2026-11-03T00:00:00Z "$b/hostile" 2>/dev/null) || r2=$?
+  if [ "$r1$r2" = "11" ] && [ -z "$o1$o2" ] && [ ! -e "$b/MZ1" ] && cmp -s "$b/d1/before.md" "$b/d1/SESSION.md"; then
+    echo "OK Z1 hostile_token_file_refused"
+  else
+    echo "BAD Z1 hostile_token_file_refused -- exits $r1$r2 (want 11) out='$o1$o2' marker=$([ -e "$b/MZ1" ] && echo CREATED || echo none)"
+  fi
+
+  _y_slot "$b/d2a" "$b/p"; _y_slot "$b/d2b" "$b/p"
+  printf '%s\n' "$_y_tok" > "$b/tok"
+  la=$(kt_ss_ledger_token_locate "$b/d2a" "$_y_tok" 2>/dev/null)
+  lb=$(kt_ss_ledger_token_locate_file "$b/d2a" "$b/tok" 2>/dev/null)
+  ca=0; kt_ss_ledger_consume_active "$b/d2a" resumer 2026-11-03T00:00:00Z "$_y_tok" >/dev/null 2>&1 || ca=$?
+  cb=0; kt_ss_ledger_consume_active_file "$b/d2b" resumer 2026-11-03T00:00:00Z "$b/tok" >/dev/null 2>&1 || cb=$?
+  if [ -n "$la" ] && [ "$la" = "$lb" ] && [ "$ca$cb" = "00" ] && cmp -s "$b/d2a/SESSION.md" "$b/d2b/SESSION.md"; then
+    echo "OK Z2 token_file_equals_the_old_call"
+  else
+    echo "BAD Z2 token_file_equals_the_old_call -- locate '$la' vs '$lb', consume exits $ca$cb (want 00), files $(cmp -s "$b/d2a/SESSION.md" "$b/d2b/SESSION.md" && echo same || echo DIFFER)"
+  fi
+
+  _y_slot "$b/d3" "$b/p"
+  ln -s "$b/tok" "$b/tok-link"
+  printf '%s\nsecond line\n' "$_y_tok" > "$b/tok-2"; : > "$b/tok-empty"; mkdir -p "$b/tok-dir"
+  printf 'proj-a/tok-sid@2026-11-01T00:00:00Z\n' > "$b/tok-bare"
+  zr=""
+  for f in "$b/tok-link" "$b/tok-2" "$b/tok-empty" "$b/tok-dir" "$b/tok-missing" "$b/tok-bare"; do
+    x=0; xo=$(kt_ss_ledger_token_locate_file "$b/d3" "$f" 2>/dev/null) || x=$?
+    y=0; kt_ss_ledger_consume_active_file "$b/d3" resumer 2026-11-03T00:00:00Z "$f" >/dev/null 2>&1 || y=$?
+    [ -n "$xo" ] && x="${x}+out"
+    zr="$zr$x$y "
+  done
+  if [ "$zr" = "11 11 11 11 11 11 " ] && cmp -s "$b/d3/before.md" "$b/d3/SESSION.md"; then
+    echo "OK Z3 bad_token_files_refused"
+  else
+    echo "BAD Z3 bad_token_files_refused -- exits '$zr' (want six '11'), or the ledger changed"
+  fi
+
+  _y_slot "$b/d4" "$b/p"
+  printf 'aria-handoff: proj-a/other-sid@2026-11-01T00:00:00Z\n' > "$b/tok-other"
+  r=0; kt_ss_ledger_consume_active_file "$b/d4" resumer 2026-11-03T00:00:00Z "$b/tok-other" >/dev/null 2>"$b/e4" || r=$?
+  if [ "$r" -eq 2 ] && cmp -s "$b/d4/before.md" "$b/d4/SESSION.md" && grep -q 'kt_ss_ledger_token_locate_file' "$b/e4"; then
+    echo "OK Z4 consume_refusal_passes_through"
+  else
+    echo "BAD Z4 consume_refusal_passes_through -- exit $r (want 2), or the ledger changed, or stderr does not name the _file re-locate"
+  fi
+
+  _y_slot "$b/d5" "$b/p"; mkdir -p "$b/td5"
+  { printf 'focus: f\nnext: n\nprompt:\n'; cat "$b/p"; } > "$b/e5"
+  ( rm() { :; }; TMPDIR="$b/td5"; export TMPDIR
+    kt_ss_ledger_add_file "$b/d5" my-sid 2026-11-03T00:00:00Z "$b/e5" >/dev/null 2>&1 ) || true
+  nroot=$(ls -a "$b/d5" | grep -c 'vblk' || true)
+  ntmp=$(ls -a "$b/td5" | grep -c 'vblk' || true)
+  if [ "$nroot" -eq 0 ] && [ "$ntmp" -ge 1 ]; then
+    echo "OK Z5 verify_block_lives_in_tmpdir"
+  else
+    echo "BAD Z5 verify_block_lives_in_tmpdir -- vblk files beside SESSION.md: $nroot (want 0), in TMPDIR: $ntmp (want >=1, the rm-stub control)"
+  fi
+}
+_Z_SEEN=0
+for _zd in plugin-claude-code/scripts plugin-antigravity/bin plugin-cursor-template/scripts/aria plugin-openai-codex/bin; do
+  _zf="$REPO_ROOT/$_zd/lib-session-state.sh"
+  [ -f "$_zf" ] || { bad "Z $_zd" "lib-session-state.sh missing -- a guard with no subject"; continue; }
+  _Z_SEEN=$((_Z_SEEN + 1))
+  # The suite sourced the CANONICAL lib at the top, so its new helpers are already defined here: drop
+  # them first, or a port that lacks them would borrow canonical's and pass (measured: it did).
+  _zout=$( ( unset -f _kt_ss_token_from_file kt_ss_ledger_token_locate_file kt_ss_ledger_consume_active_file
+             . "$_zf"; _z_arms "$(printf '%s' "$_zd" | tr '/' '_')" ) 2>&1 ) || true
+  while IFS= read -r _zl; do
+    case "$_zl" in
+      "OK "*)  ok "$_zd: ${_zl#OK }" ;;
+      "BAD "*) _zn=${_zl#BAD }; bad "$_zd: ${_zn%% -- *}" "${_zn#* -- }" ;;
+    esac
+  done <<ZOUT
+$_zout
+ZOUT
+  _zn=$(printf '%s\n' "$_zout" | grep -c '^OK ' || true)
+  [ "$_zn" -eq 5 ] || bad "Z coverage $_zd" "only $_zn of 5 arms passed -- see the lines above"
+done
+[ "$_Z_SEEN" -eq 4 ] && ok "Z coverage: all 4 carrying ports exercised" \
+  || bad "Z coverage" "only $_Z_SEEN of 4 port libs found"
 
 printf "\n%d passed, %d failed\n" "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
