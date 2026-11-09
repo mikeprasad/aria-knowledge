@@ -517,5 +517,9 @@ kt_match_record_ledger() {
   [ -z "$_kt_ledger" ] && return 0
   [ -z "$KT_MATCH_FILES_TMP" ] && return 0
   [ ! -f "$KT_MATCH_FILES_TMP" ] && return 0
+  # A link, a non-regular file or a file this user does not own at the ledger's predictable /tmp name is
+  # not ours (final fix wave residual): never write through it.
+  [ -L "$_kt_ledger" ] && return 0
+  if [ -e "$_kt_ledger" ]; then [ -f "$_kt_ledger" ] && [ -O "$_kt_ledger" ] || return 0; fi
   awk -F ' — ' '{print $1}' "$KT_MATCH_FILES_TMP" >> "$_kt_ledger" 2>/dev/null
 }

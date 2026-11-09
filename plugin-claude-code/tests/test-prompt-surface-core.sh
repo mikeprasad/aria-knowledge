@@ -177,6 +177,17 @@ ps_body() {
   : > "$T/planted-empty"; ln -s "$T/planted-empty" "$T/ledger-link2"
   ( ps_src "$CFG" || exit 1; KT_PS_PENDING='projects/proj-a/hooks.md'; kt_ps_commit "$T/ledger-link2" ) 2>/dev/null
   r "core_ledger_link_refused: kt_ps_commit does not write through a link" 0 "$(wc -c < "$T/planted-empty" | tr -d ' ')"
+  # Residual (scoped re-review): the bash-cd and task-context hooks record through
+  # kt_match_record_ledger, a second writer onto the same ledger.
+  printf 'projects/proj-a/hooks.md — d\n' > "$T/rec-matches"
+  : > "$T/rec-target"; ln -s "$T/rec-target" "$T/rec-link"; : > "$T/rec-regular"
+  # ps_src does not define kt_match_record_ledger (the core loads the matcher lazily); the control
+  # below is what showed that — source the matcher lib directly.
+  ( ps_src "$CFG" || exit 1; . "$PS_SD/lib-index-match.sh" || exit 1; KT_MATCH_FILES_TMP="$T/rec-matches"
+    kt_match_record_ledger "$T/rec-link"; kt_match_record_ledger "$T/rec-regular" ) 2>/dev/null
+  r "core_ledger_link_refused: kt_match_record_ledger does not write through a link" 0 "$(wc -c < "$T/rec-target" | tr -d ' ')"
+  r "core_ledger_link_refused: control — kt_match_record_ledger records into a regular ledger" \
+    "projects/proj-a/hooks.md|" "$(tr '\n' '|' < "$T/rec-regular")"
 
   # --- core_unsafe_entries_never_surfaced: delivered must equal recordable -----------------
   # An index entry that is not a plain relative path (absolute, or with a `..` segment) is
@@ -348,7 +359,7 @@ ps_body() {
 PS_RESULTS=$(ps_body)
 
 # Every `r` call in ps_body reports exactly once; raise this when adding a check.
-PS_EXPECTED=60
+PS_EXPECTED=62
 PS_GOT=0
 PS_TAB=$(printf '\t')
 PS_OLD_IFS=$IFS
