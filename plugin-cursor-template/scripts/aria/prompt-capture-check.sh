@@ -49,7 +49,14 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" 2>/dev/null && pwd)" || exit 0
 INPUT=""
 if (exec 3<&0) 2>/dev/null; then INPUT=$(cat 2>/dev/null); fi
 
-[ -f "$SCRIPT_DIR/lib-prompt-surface.sh" ] || exit 0
+# Without the lib there is no kt_ps_log either, so this one failure is logged inline, to the
+# same debug log and in the same shape (a symlinked log is refused, as kt_ps_log does).
+if [ ! -f "$SCRIPT_DIR/lib-prompt-surface.sh" ]; then
+  _pcc_lf="${KT_SURFACE_CACHE_DIR:-${TMPDIR:-/tmp}}/aria-surface-hook.log"
+  [ -L "$_pcc_lf" ] || printf '%s cursor capture lib-missing\n' \
+    "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown-time)" >> "$_pcc_lf" 2>/dev/null
+  exit 0
+fi
 KT_PS_SCRIPT_DIR=$SCRIPT_DIR
 KT_PS_RUNTIME=cursor
 . "$SCRIPT_DIR/lib-prompt-surface.sh"
@@ -128,8 +135,10 @@ KT_CONFIG="${KT_CONFIG:-$KT_ROOT/.cursor/aria-knowledge.local.md}"
 _pcc_base="$_pcc_dir/aria-cursor-pending-${_pcc_conv}=${_pcc_gen}"
 
 # --- G2, part 1: this conversation's older pair goes (its generation can no longer
-# receive a postToolUse). rm on a symlink removes the link only.
+# receive a postToolUse). rm on a symlink removes the link only. A `.claim.<pid>` file belongs
+# to an inject still delivering that generation, so it is left alone.
 for _pcc_f in "$_pcc_dir/aria-cursor-pending-${_pcc_conv}="*; do
+  case $_pcc_f in *.claim.*) continue ;; esac
   { [ -e "$_pcc_f" ] || [ -L "$_pcc_f" ]; } && rm -f "$_pcc_f" 2>/dev/null
 done
 
@@ -149,11 +158,12 @@ fi
 # --- G2, part 2: pairs older than 24 h go, for any conversation, at most once an hour.
 # The stamp's mtime is the time the next prune may run (set one hour ahead each time), and
 # the .text just written carries the current time — so "due" is one shell test, no
-# process. A missing, linked or foreign stamp counts as due. find is limited to our files.
+# process. A missing, linked or foreign stamp counts as due. find is limited to our files, and
+# also takes mktemp orphans (`.aria-cursor-pending.*`) left by a capture killed before its mv.
 _pcc_stamp="$_pcc_dir/aria-cursor-prune.stamp"
 if [ ! -e "$_pcc_stamp" ] || [ -L "$_pcc_stamp" ] || [ ! -O "$_pcc_stamp" ] \
    || [ "$_pcc_base.text" -nt "$_pcc_stamp" ]; then
-  find "$_pcc_dir" -maxdepth 1 -name 'aria-cursor-pending-*' -user "${USER:-$(id -u)}" -mmin +1440 \
+  find "$_pcc_dir" -maxdepth 1 \( -name 'aria-cursor-pending-*' -o -name '.aria-cursor-pending.*' \) -user "${USER:-$(id -u)}" -mmin +1440 \
     -exec rm -f {} + 2>/dev/null
   _pcc_next=$(date -v+1H +%Y%m%d%H%M.%S 2>/dev/null || date -d '+1 hour' +%Y%m%d%H%M.%S 2>/dev/null)
   if _pcc_write "$_pcc_stamp" "" && [ -n "$_pcc_next" ]; then

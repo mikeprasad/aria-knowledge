@@ -302,6 +302,100 @@ cap "${RUN_ID}O" g2 "$P_PAY" "8.8.8-once"
 vo=$(grep -c 'cursor_version=8\.8\.8-once$' "$HOOKLOG" 2>/dev/null)
 if [ "${vo:-0}" -eq 1 ]; then ok "version_logged_once"; else bad "version_logged_once" "logged ${vo:-0} times"; fi
 
+# --- capture_missing_index_silent (D6) ------------------------------------------------------
+# A config whose knowledge folder has no index: the prompt still continues, the debug log
+# says no-index, and no pair is stored.
+REPO2="$SCRATCH/repo2"; mkdir -p "$REPO2/.cursor" "$SCRATCH/kf-noindex"
+printf -- '---\nknowledge_folder: %s\nactive_knowledge_surfacing: true\n---\n' "$SCRATCH/kf-noindex" \
+  > "$REPO2/.cursor/aria-knowledge.local.md"
+n0=$(grep -c ' cursor surface no-index$' "$HOOKLOG" 2>/dev/null)
+jq -cn --arg c "${RUN_ID}N" --arg p "$P_PAY" --arg r "$REPO2" \
+  '{conversation_id:$c, generation_id:"g1", prompt:$p, cursor_version:"1.7.2", workspace_roots:[$r]}' > "$SCRATCH/in"
+hook "$CAP"
+n1=$(grep -c ' cursor surface no-index$' "$HOOKLOG" 2>/dev/null)
+if [ "$(out)" = "$CONT" ] && [ $((n1 - n0)) -eq 1 ] && [ ! -e "$(pend "${RUN_ID}N" g1).text" ] \
+   && [ ! -e "$(pend "${RUN_ID}N" g1).paths" ]; then
+  ok "capture_missing_index_silent"
+else
+  bad "capture_missing_index_silent" "out='$(out)' no-index lines +$((n1 - n0)) pair=$( [ -e "$(pend "${RUN_ID}N" g1).text" ] && echo y || echo n)"
+fi
+
+# --- inject_failures_keep_pair (D6) ---------------------------------------------------------
+# A pending pair exists; postToolUse input that cannot be read (malformed, empty, no jq)
+# must print {}, record nothing, and leave the pair for the next tool call.
+C="${RUN_ID}K"
+cap "$C" g1 "$P_PAY"
+r=""
+for kind in malformed empty nojq; do
+  case $kind in
+    malformed) printf 'not json {' > "$SCRATCH/in" ;;
+    empty)     : > "$SCRATCH/in" ;;
+    nojq)      jq -cn --arg c "$C" '{conversation_id:$c, generation_id:"g1"}' > "$SCRATCH/in" ;;
+  esac
+  if [ "$kind" = nojq ]; then
+    (cd "$REPO" && PATH="$FARM" HOME="$SCRATCH/home" KT_CONFIG= KT_ROOT= bash "$INJ" < "$SCRATCH/in" > "$SCRATCH/out" 2>/dev/null)
+  else
+    hook "$INJ"
+  fi
+  [ "$(out)" = "{}" ] && [ ! -e "$(ledger "$C")" ] && [ -f "$(pend "$C" g1).text" ] \
+    && [ -f "$(pend "$C" g1).paths" ] || r="$r $kind(out='$(out)' ledger=$( [ -e "$(ledger "$C")" ] && echo y || echo n) pair=$( [ -f "$(pend "$C" g1).text" ] && echo y || echo n))"
+done
+if [ -z "$r" ]; then ok "inject_failures_keep_pair"; else bad "inject_failures_keep_pair" "$r"; fi
+
+# --- newer_capture_spares_inflight_claim (m1) -----------------------------------------------
+# An inject for g1 that has claimed its text (renamed to .claim.<pid>) is still delivering;
+# a capture for g2 in the same conversation must not delete the claim under it.
+C="${RUN_ID}M"
+printf 'in flight\n' > "$(pend "$C" g1).text.claim.4242"
+cap "$C" g2 "$P_PAY"
+if [ -f "$(pend "$C" g1).text.claim.4242" ] && [ -f "$(pend "$C" g2).text" ]; then
+  ok "newer_capture_spares_inflight_claim"
+else
+  bad "newer_capture_spares_inflight_claim" "claim=$( [ -f "$(pend "$C" g1).text.claim.4242" ] && echo kept || echo gone) new pair=$( [ -f "$(pend "$C" g2).text" ] && echo y || echo n)"
+fi
+
+# --- claim_restored_only_with_paths (m1) ----------------------------------------------------
+# A failed emit puts the claim back only if its .paths still exists (a newer capture may have
+# replaced the pair); otherwise the claim is deleted, never restored as a text with no paths.
+C="${RUN_ID}Z"
+cap "$C" g1 "$P_PAY"; rm -f "$(pend "$C" g1).paths"
+jq -cn --arg c "$C" '{conversation_id:$c, generation_id:"g1"}' > "$SCRATCH/in"
+(cd "$REPO" && HOME="$SCRATCH/home" KT_CONFIG= KT_ROOT= bash "$INJ" < "$SCRATCH/in" >&- 2>/dev/null)
+zt=$( [ -e "$(pend "$C" g1).text" ] && echo restored || echo none )
+zc=$(ls "$CACHE" | grep -c "^aria-cursor-pending-${C}=g1\.text\.claim\.")
+if [ "$zt" = none ] && [ "$zc" -eq 0 ] && [ ! -e "$(ledger "$C")" ]; then
+  ok "claim_restored_only_with_paths"
+else
+  bad "claim_restored_only_with_paths" "text=$zt claims left=$zc ledger=$( [ -e "$(ledger "$C")" ] && echo y || echo n)"
+fi
+
+# --- capture_lib_missing_logged (m2) --------------------------------------------------------
+NOLIB="$SCRATCH/nolib"; mkdir -p "$NOLIB"; cp "$CAP" "$NOLIB/prompt-capture-check.sh"
+payload "${RUN_ID}B" g1 "$P_PAY" > "$SCRATCH/in"
+n0=$(grep -c ' cursor capture lib-missing$' "$HOOKLOG" 2>/dev/null)
+hook "$NOLIB/prompt-capture-check.sh"
+n1=$(grep -c ' cursor capture lib-missing$' "$HOOKLOG" 2>/dev/null)
+if [ "$(out)" = "$CONT" ] && [ $((n1 - n0)) -eq 1 ]; then
+  ok "capture_lib_missing_logged"
+else
+  bad "capture_lib_missing_logged" "out='$(out)' lib-missing lines +$((n1 - n0))"
+fi
+
+# --- prune_removes_orphan_tmp (m3) ----------------------------------------------------------
+# A capture killed between mktemp and mv leaves .aria-cursor-pending.XXXXXX; the 24 h prune
+# removes those too (a fresh one is left alone: it may be a write in progress).
+printf 'x\n' > "$CACHE/.aria-cursor-pending.OLDxyz"; touch -t "$old" "$CACHE/.aria-cursor-pending.OLDxyz"
+printf 'x\n' > "$CACHE/.aria-cursor-pending.NEWxyz"
+touch -t "$old" "$STAMP" 2>/dev/null
+cap "${RUN_ID}P2" g1 "$P_PAY"
+po=$( [ -e "$CACHE/.aria-cursor-pending.OLDxyz" ] && echo kept || echo gone )
+pn=$( [ -e "$CACHE/.aria-cursor-pending.NEWxyz" ] && echo kept || echo gone )
+if [ "$po" = gone ] && [ "$pn" = kept ]; then
+  ok "prune_removes_orphan_tmp"
+else
+  bad "prune_removes_orphan_tmp" "old orphan=$po fresh=$pn"
+fi
+
 # --- hooks_json_registered -------------------------------------------------------------
 HJ="$TPL/.cursor/hooks.json"
 b=$(jq -r '[.hooks.beforeSubmitPrompt[]?.command] | index("bash scripts/aria/prompt-capture-check.sh") != null' "$HJ" 2>/dev/null)
@@ -314,7 +408,7 @@ else
 fi
 
 # --- every arm reported ------------------------------------------------------------------
-EXPECTED=12
+EXPECTED=18
 if [ $((PASS + FAIL)) -eq "$EXPECTED" ]; then ok "every_arm_reported"; else bad "every_arm_reported" "$((PASS + FAIL)) of $EXPECTED"; fi
 
 printf '\n%s passed, %s failed\n' "$PASS" "$FAIL"
