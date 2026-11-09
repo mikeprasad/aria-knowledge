@@ -19,7 +19,7 @@
 # Any other `--option` (including the `--file=x` form) is `unavailable: unknown
 # option <name>`, never a silent empty result.
 # Positional text and `-` (stdin) remain for PROGRAMS that exec this without a
-# shell (codex-hook.py passes an argv list): `-` reads the text from stdin, so
+# shell (codex-hook.py passes the prompt on stdin with `-`): `-` reads the text from stdin, so
 # does no argument when stdin is not a terminal. ⛔ A model must not put text on
 # a command line or in a heredoc to this script — in double quotes, backticks and
 # $(...) RUN and $VAR expands; use a reference instead.
