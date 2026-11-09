@@ -77,10 +77,35 @@ eval "_r4_counted_$(declare -f kt_index_match)"
 kt_index_match() {
   [ -n "${KT_TEST_MATCH_COUNTER:-}" ] && printf 'x\n' >> "$KT_TEST_MATCH_COUNTER"
   [ -n "${KT_TEST_PLANT_LINK:-}" ] && ln -s "$KT_TEST_PLANT_TARGET" "$KT_TEST_PLANT_LINK" 2>/dev/null
+  [ -n "${KT_TEST_PLANT_FIFO:-}" ] && mkfifo "$KT_TEST_PLANT_FIFO" 2>/dev/null
   _r4_counted_kt_index_match "$@"
 }
 WRAP
   H="$P/bin/antigravity/pre-invocation-aria.sh"
+}
+
+# r4_run_bounded SECONDS CMD... — runs CMD with stdin $SURF/in and stdout $SURF/out in the
+# background; sets BOUNDED=ok if it finished within SECONDS, else BOUNDED=hung. On a hang
+# every FIFO under $SURF is opened read-write (which never blocks) to release a writer
+# stuck opening it, then the run is killed — so a hang fails the arm instead of the suite.
+r4_run_bounded() {
+  local secs=$1; shift
+  "$@" < "$SURF/in" > "$SURF/out" 2>/dev/null &
+  local p=$! i=0
+  BOUNDED=ok
+  while kill -0 "$p" 2>/dev/null; do
+    i=$((i + 1))
+    if [ "$i" -gt $((secs * 10)) ]; then
+      BOUNDED=hung
+      for f in "$SURF"/* "$SURF"/.??*; do
+        [ -p "$f" ] && { exec 9<>"$f"; exec 9>&-; }
+      done
+      kill "$p" 2>/dev/null
+      break
+    fi
+    sleep 0.1
+  done
+  wait "$p" 2>/dev/null || true
 }
 
 # r4_farm — $SURF/farm: every tool in the system bin dirs except jq.
@@ -533,6 +558,62 @@ CFG
   cp "${BATS_TEST_DIRNAME}"/../bin/antigravity/*.sh "$P/bin/antigravity/"
   bash "$P/bin/antigravity/pre-invocation-aria.sh" < "$SURF/in" > "$SURF/out" 2>/dev/null
   [ ! -e "$SURF/planted-log" ]
+}
+
+@test "R4 fifo_at_create_does_not_hang: a FIFO at a name the hook creates never blocks it" {
+  r4_configure
+  r4_wrapped_bin
+  # State file: a FIFO planted mid-run (after the early state check), on a nofire turn,
+  # which records the step.
+  C="${RUN_ID}FS"
+  r4_user_input 4 "hello there friend" > "$SURF/t.jsonl"
+  r4_payload "$C" "$SURF/t.jsonl" 3
+  r4_run_bounded 5 env KT_TEST_PLANT_FIFO="$SURF/aria-ag-surfaced-$C" bash "$H"
+  [ "$BOUNDED" = ok ]
+  [ "$(cat "$SURF/out")" = "{}" ]
+  [ -p "$SURF/aria-ag-surfaced-$C" ]          # instrument check: the FIFO was planted
+  logged 'state refused'                      # and nothing was recorded through it
+  # Log-once marker: a FIFO planted before the run.
+  C2="${RUN_ID}FK"
+  mkfifo "$SURF/aria-ag-logged-$C2.unreadable"
+  r4_payload "$C2" "$SURF/missing.jsonl" 3
+  r4_run_bounded 5 bash "$WRAPPER"
+  [ "$BOUNDED" = ok ]
+  [ "$(cat "$SURF/out")" = "{}" ]
+  [ -p "$SURF/aria-ag-logged-$C2.unreadable" ]
+  logged 'transcript unreadable'
+  # Debug log, written before the lib loads (jq missing): a FIFO planted before the run.
+  r4_farm
+  rm -f "$HOOKLOG"
+  mkfifo "$HOOKLOG"
+  r4_run_bounded 5 env PATH="$FARM" /bin/bash "$WRAPPER"
+  [ "$BOUNDED" = ok ]
+  grep -q '"decision":"deny"' "$SURF/out"
+  [ -p "$HOOKLOG" ]
+  # Every failed create removed its temp.
+  [ -z "$(ls -A "$SURF" | grep '^\.aria-ag-new\.' || true)" ]
+}
+
+@test "R4 marker_dir_link_not_entered: a create name that is a symlink to a directory gets nothing inside it" {
+  r4_configure
+  mkdir "$SURF/elsewhere"
+  C="${RUN_ID}DK"
+  ln -s "$SURF/elsewhere" "$SURF/aria-ag-logged-$C.unreadable"
+  r4_payload "$C" "$SURF/missing.jsonl" 3
+  r4_run
+  [ -z "$(ls -A "$SURF/elsewhere")" ]
+  logged 'transcript unreadable'
+}
+
+@test "R4 orphan_new_temp_pruned: create temps older than 24 h go on invocationNum 0" {
+  r4_configure
+  : > "$SURF/.aria-ag-new.OLD123"
+  touch -t 202001010000 "$SURF/.aria-ag-new.OLD123"
+  : > "$SURF/.aria-ag-new.NEW123"
+  r4_payload "${RUN_ID}O" "$SURF/missing.jsonl" 0
+  r4_run
+  [ ! -e "$SURF/.aria-ag-new.OLD123" ]
+  [ -e "$SURF/.aria-ag-new.NEW123" ]
 }
 
 @test "R4 jq_missing_logged: no jq → the existing deny output, plus one debug-log line" {

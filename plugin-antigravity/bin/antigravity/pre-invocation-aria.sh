@@ -17,14 +17,29 @@
 
 set -uo pipefail
 
+# ag_create_new NAME — make NAME a new, empty regular file of ours, or fail (status 1)
+# because something already exists there. A temp file is made in NAME's directory and
+# hard-linked to NAME with the POSIX `link` utility, i.e. link(2): it fails on ANY existing
+# name — file, directory, symlink (dangling or not), FIFO, device — and never opens or
+# follows what is there, so nothing planted can redirect or block it. (Not `ln`: given a
+# symlink to a directory, `ln` creates the file INSIDE that directory. Not `set -C`:
+# noclobber opens an existing FIFO without O_EXCL and blocks.) The temp name is removed
+# either way; one left by a killed run is pruned after 24 h.
+ag_create_new() {
+  local t rc
+  t=$(mktemp "${1%/*}/.aria-ag-new.XXXXXX" 2>/dev/null) || return 1
+  link "$t" "$1" 2>/dev/null; rc=$?
+  rm -f "$t" 2>/dev/null
+  return $rc
+}
+
 # ag_debug_log STEP REASON — one `<UTC> antigravity <step> <reason>` line in the surfacing
 # debug log, for the two failures that happen before lib-prompt-surface.sh (and its
-# kt_ps_log) is loaded. An absent log is created exclusively (set -C: O_EXCL, so a link
-# planted in the meantime makes the create fail); the line is then appended only to a
-# regular file of ours that is not a link. Never stdout.
+# kt_ps_log) is loaded. An absent log is created with ag_create_new; the line is then
+# appended only to a regular file of ours that is not a link. Never stdout.
 ag_debug_log() {
   local lf="${KT_SURFACE_CACHE_DIR:-${TMPDIR:-/tmp}}/aria-surface-hook.log"
-  if [ ! -e "$lf" ] && [ ! -L "$lf" ]; then ( set -C; : > "$lf" ) 2>/dev/null; fi
+  ag_create_new "$lf"
   if [ -L "$lf" ] || [ ! -f "$lf" ] || [ ! -O "$lf" ]; then return 0; fi
   printf '%s antigravity %s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown-time)" \
     "$1" "$2" >> "$lf" 2>/dev/null
@@ -481,11 +496,12 @@ ag_surface() {
   # shellcheck source=../lib-prompt-surface.sh
   . "$CLAUDE_PLUGIN_ROOT/bin/lib-prompt-surface.sh"
 
-  # Housekeeping, once per conversation: state files, log-once markers and model-file
-  # temps older than 24 h, ours only.
+  # Housekeeping, once per conversation: state files, log-once markers and model-file /
+  # create temps older than 24 h, ours only.
   if [ "$INVOCATION_NUM" = "0" ]; then
     find "$dir" -maxdepth 1 \( -name 'aria-ag-surfaced-*' -o -name 'aria-ag-logged-*' \
-      -o -name '.aria-ag-model.*' \) -user "${USER:-$(id -u)}" -mmin +1440 -exec rm -f {} + 2>/dev/null
+      -o -name '.aria-ag-model.*' -o -name '.aria-ag-new.*' \) \
+      -user "${USER:-$(id -u)}" -mmin +1440 -exec rm -f {} + 2>/dev/null
   fi
 
   # C2: the model name, logged when it differs from the last one logged. The last value is
@@ -597,13 +613,12 @@ ag_surface() {
 }
 
 # ag_record_step STATE STEP — append STEP as processed. An absent state file is created
-# exclusively (set -C: O_EXCL, so a link planted in the meantime makes the create fail;
-# the existence test first only keeps an existing FIFO or device from being opened). The
-# line is then appended only to a regular file of ours that is not a link; anything else
-# is logged and the step is not recorded (fail safe: the turn may be ranked again). Append,
-# never rewrite, so concurrent writers lose no lines.
+# with ag_create_new (fails harmlessly when one exists). The line is then appended only to
+# a regular file of ours that is not a link; anything else is logged and the step is not
+# recorded (fail safe: the turn may be ranked again). Append, never rewrite, so concurrent
+# writers lose no lines.
 ag_record_step() {
-  if [ ! -e "$1" ] && [ ! -L "$1" ]; then ( set -C; : > "$1" ) 2>/dev/null; fi
+  ag_create_new "$1"
   if [ -L "$1" ] || [ ! -f "$1" ] || [ ! -O "$1" ]; then
     kt_ps_log antigravity state refused; return 0
   fi
@@ -615,13 +630,12 @@ ag_record_step() {
 # so it is logged once per (conversation, reason): marker DIR/aria-ag-logged-<SID>.<REASON>.
 # Only a regular marker file of ours that is not a link counts as "already logged"; any
 # other file at that name (a link, a directory, someone else's file) logs the line again
-# and nothing is written. The marker is created exclusively (set -C: O_EXCL), and only
-# when nothing exists at the name (set -C opens an existing FIFO or device without O_EXCL).
+# and nothing is written. The marker is created with ag_create_new.
 ag_log_once() {
   local m="$1/aria-ag-logged-$2.$4"
   if [ -f "$m" ] && [ -O "$m" ] && [ ! -L "$m" ]; then return 0; fi
   kt_ps_log antigravity "$3" "$4"
-  if [ ! -e "$m" ] && [ ! -L "$m" ]; then ( set -C; : > "$m" ) 2>/dev/null; fi
+  ag_create_new "$m"
   return 0
 }
 
