@@ -192,17 +192,28 @@ for f in "$(pend "${RUN_ID}Q" gq).text" "$(pend "${RUN_ID}Q" gq).paths" \
   printf 'x\n' > "$f"
 done
 touch -t "$old" "$(pend "${RUN_ID}Q" gq).text" "$(pend "${RUN_ID}Q" gq).paths" "$CACHE/unrelated-old.txt"
+# The 24 h prune runs at most once an hour; earlier arms already ran it, so make it due
+# (the stamp's mtime is when the next prune may run).
+STAMP="$CACHE/aria-cursor-prune.stamp"
+[ -e "$STAMP" ] && touch -t "$old" "$STAMP"
 cap "$C" gnew "$P_PAY"
 s_stale=$( [ -e "$(pend "${RUN_ID}Q" gq).text" ] || [ -e "$(pend "${RUN_ID}Q" gq).paths" ] && echo kept || echo gone )
 s_fresh=$( [ -e "$(pend "${RUN_ID}F" gf).text" ] && [ -e "$(pend "${RUN_ID}F" gf).paths" ] && echo kept || echo gone )
 s_same=$( [ -e "$(pend "$C" gold).text" ] || [ -e "$(pend "$C" gold).paths" ] && echo kept || echo gone )
 s_unrel=$( [ -e "$CACHE/unrelated-old.txt" ] && echo kept || echo gone )
 s_new=$( [ -e "$(pend "$C" gnew).text" ] && echo present || echo absent )
+# Throttle: a second fired capture inside the hour does not prune; once due, it does.
+printf 'x\n' > "$(pend "${RUN_ID}R" gr).text"; touch -t "$old" "$(pend "${RUN_ID}R" gr).text"
+cap "${RUN_ID}T" g1 "$P_PAY"
+s_thr=$( [ -e "$(pend "${RUN_ID}R" gr).text" ] && echo kept || echo gone )
+touch -t "$old" "$STAMP" 2>/dev/null
+cap "${RUN_ID}T" g2 "$P_PAY"
+s_due=$( [ -e "$(pend "${RUN_ID}R" gr).text" ] && echo kept || echo gone )
 if [ -n "$old" ] && [ "$s_stale" = gone ] && [ "$s_fresh" = kept ] && [ "$s_same" = gone ] \
-   && [ "$s_unrel" = kept ] && [ "$s_new" = present ]; then
+   && [ "$s_unrel" = kept ] && [ "$s_new" = present ] && [ "$s_thr" = kept ] && [ "$s_due" = gone ]; then
   ok "stale_pending_pruned"
 else
-  bad "stale_pending_pruned" "stale-other=$s_stale fresh-other=$s_fresh same-conv-older=$s_same unrelated=$s_unrel new=$s_new"
+  bad "stale_pending_pruned" "stale-other=$s_stale fresh-other=$s_fresh same-conv-older=$s_same unrelated=$s_unrel new=$s_new within-hour=$s_thr once-due=$s_due"
 fi
 
 # --- cursor_version_logged -----------------------------------------------------------
@@ -251,6 +262,46 @@ else
   bad "capture_silent_without_jq" "rc=$hook_rc out='$(out)' jq-missing lines +$((n1 - n0)) pending=$( [ -e "$(pend "$C" g1).text" ] && echo y || echo n)"
 fi
 
+# --- root_from_workspace_roots -----------------------------------------------------------
+# The repo root comes from workspace_roots[0] when it names a directory holding .cursor/;
+# git is only the fallback. With no git on PATH and a cwd outside any repo, a valid root
+# still captures. A root without .cursor/ must be rejected and fall back to git: with git
+# on PATH and cwd in the repo it still captures (an unchecked root would find no config).
+GFARM="$SCRATCH/gfarm"; mkdir -p "$GFARM"
+for d in /usr/bin /bin /usr/sbin /sbin; do
+  for b in "$d"/*; do
+    n=${b##*/}
+    [ "$n" = git ] && continue
+    [ -e "$GFARM/$n" ] || ln -s "$b" "$GFARM/$n" 2>/dev/null
+  done
+done
+NOCUR="$SCRATCH/nocursor"; mkdir -p "$NOCUR"
+wr_cap() { # CONV GEN ROOT MODE(nogit|git)
+  jq -cn --arg c "$1" --arg g "$2" --arg p "$P_PAY" --arg r "$3" \
+    '{conversation_id:$c, generation_id:$g, prompt:$p, cursor_version:"1.7.2", workspace_roots:[$r]}' > "$SCRATCH/in"
+  if [ "$4" = nogit ]; then
+    (cd "$SCRATCH/tmp" && PATH="$GFARM" HOME="$SCRATCH/home" KT_CONFIG= KT_ROOT= bash "$CAP" < "$SCRATCH/in" > "$SCRATCH/out" 2>/dev/null)
+  else
+    (cd "$REPO" && HOME="$SCRATCH/home" KT_CONFIG= KT_ROOT= bash "$CAP" < "$SCRATCH/in" > "$SCRATCH/out" 2>/dev/null)
+  fi
+}
+wr_cap "${RUN_ID}W" g1 "$REPO" nogit
+w1=$( [ -e "$(pend "${RUN_ID}W" g1).text" ] && echo stored || echo none ); w1o=$(out)
+wr_cap "${RUN_ID}W" g2 "$NOCUR" git
+w2=$( [ -e "$(pend "${RUN_ID}W" g2).text" ] && echo stored || echo none )
+if [ "$w1" = stored ] && [ "$w1o" = "$CONT" ] && [ "$w2" = stored ] \
+   && ! (PATH="$GFARM"; command -v git >/dev/null 2>&1); then
+  ok "root_from_workspace_roots"
+else
+  bad "root_from_workspace_roots" "valid root: $w1 (out '$w1o'); root without .cursor/ (git fallback): $w2"
+fi
+
+# --- version_logged_once -------------------------------------------------------------------
+cap "${RUN_ID}O" g1 "$P_PAY" "8.8.8-once"
+cap "${RUN_ID}O" g2 "$P_PAY" "8.8.8-once"
+vo=$(grep -c 'cursor_version=8\.8\.8-once$' "$HOOKLOG" 2>/dev/null)
+if [ "${vo:-0}" -eq 1 ]; then ok "version_logged_once"; else bad "version_logged_once" "logged ${vo:-0} times"; fi
+
 # --- hooks_json_registered -------------------------------------------------------------
 HJ="$TPL/.cursor/hooks.json"
 b=$(jq -r '[.hooks.beforeSubmitPrompt[]?.command] | index("bash scripts/aria/prompt-capture-check.sh") != null' "$HJ" 2>/dev/null)
@@ -263,7 +314,7 @@ else
 fi
 
 # --- every arm reported ------------------------------------------------------------------
-EXPECTED=10
+EXPECTED=12
 if [ $((PASS + FAIL)) -eq "$EXPECTED" ]; then ok "every_arm_reported"; else bad "every_arm_reported" "$((PASS + FAIL)) of $EXPECTED"; fi
 
 printf '\n%s passed, %s failed\n' "$PASS" "$FAIL"
