@@ -149,6 +149,14 @@ ps_body() {
   r "core_commit_paths_rejects_bad_lines: a paths file holding a NUL byte is refused whole" \
     0 "$(wc -c < "$T/ledger-n" | tr -d ' ')"
 
+  # --- core_commit_filters_like_commit_paths: the in-process commit uses the same filter ----
+  : > "$T/ledger-k"
+  ( ps_src "$CFG" || exit 1
+    KT_PS_PENDING=$(printf 'projects/proj-a/hooks.md\n/abs/outside.md\nprojects/../up.md\nprojects/cr.md\r\nprojects/proj-c/a..b.md')
+    kt_ps_commit "$T/ledger-k" ) 2>/dev/null
+  r "core_commit_filters_like_commit_paths: kt_ps_commit records only plain relative paths" \
+    "projects/proj-a/hooks.md|projects/proj-c/a..b.md|" "$(tr '\n' '|' < "$T/ledger-k")"
+
   # --- hook flow: the Claude Code adapter commits only after its emission succeeded ----
   HH="$T/hhome"; mk_cfg "$HH/.claude/aria-knowledge.local.md" "$KF"; mkdir -p "$T/cache-h"
   PCC="$PS_SD/prompt-context-check.sh"
@@ -292,7 +300,7 @@ ps_body() {
 PS_RESULTS=$(ps_body)
 
 # Every `r` call in ps_body reports exactly once; raise this when adding a check.
-PS_EXPECTED=49
+PS_EXPECTED=50
 PS_GOT=0
 PS_TAB=$(printf '\t')
 PS_OLD_IFS=$IFS

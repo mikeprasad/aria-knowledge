@@ -35,7 +35,8 @@
 #                                text names, one per line. It does NOT record the ledger.
 #                                Every error:<step> also appends one line to the debug log.
 #   kt_ps_commit LEDGER          appends KT_PS_PENDING to LEDGER, then clears it (a second
-#                                call adds nothing).
+#                                call adds nothing). Same line filter as kt_ps_commit_paths
+#                                (one shared function): only plain relative paths are kept.
 #   kt_ps_commit_paths LEDGER FILE  appends FILE's non-blank lines to LEDGER. For a host that
 #                                delivers in a LATER process: store KT_PS_PENDING in a file at
 #                                rank time, commit from it once delivered. A FILE that is a
@@ -269,9 +270,29 @@ kt_ps_surface() {
 
 # --- record what was DELIVERED --------------------------------------------------
 # Separate from kt_ps_surface on purpose: see "The ledger contract" in the header.
+
+# _kt_ps_append_kept LEDGER — the ONE ledger-line filter, shared by both commits. Reads
+# lines on stdin and appends, in one write, only plain knowledge-folder-relative paths:
+# a line that is empty, holds a control character (CR and tab included), starts with `/`,
+# or has a `..` segment is dropped. Ledger lines are shown to the model again (session
+# start after compaction), so nothing else may reach the file.
+_kt_ps_append_kept() { # LEDGER
+  _kt_ps_add=""
+  while IFS= read -r _kt_ps_l || [ -n "$_kt_ps_l" ]; do
+    case $_kt_ps_l in
+      ''|/*|..|../*|*/../*|*/..|*[[:cntrl:]]*) continue ;;
+    esac
+    _kt_ps_add="$_kt_ps_add$_kt_ps_l$_kt_ps_nl"
+  done
+  [ -n "$_kt_ps_add" ] && printf '%s' "$_kt_ps_add" >> "$1" 2>/dev/null
+  return 0
+}
+
 kt_ps_commit() { # LEDGER
   [ -n "${1:-}" ] && [ -n "${KT_PS_PENDING:-}" ] || return 0
-  printf '%s\n' "$KT_PS_PENDING" >> "$1" 2>/dev/null
+  _kt_ps_append_kept "$1" <<KT_PS_PENDING_EOF
+$KT_PS_PENDING
+KT_PS_PENDING_EOF
   KT_PS_PENDING=""
   return 0
 }
@@ -284,13 +305,5 @@ kt_ps_commit_paths() { # LEDGER FILE
   _kt_ps_n1=$(wc -c < "$2" 2>/dev/null) || return 0
   _kt_ps_n2=$(LC_ALL=C tr -d '\000' < "$2" 2>/dev/null | wc -c) || return 0
   [ "$_kt_ps_n1" -eq "$_kt_ps_n2" ] 2>/dev/null || return 0
-  _kt_ps_add=""
-  while IFS= read -r _kt_ps_l || [ -n "$_kt_ps_l" ]; do
-    case $_kt_ps_l in
-      ''|/*|..|../*|*/../*|*/..|*[[:cntrl:]]*) continue ;;
-    esac
-    _kt_ps_add="$_kt_ps_add$_kt_ps_l$_kt_ps_nl"
-  done < "$2"
-  [ -n "$_kt_ps_add" ] && printf '%s' "$_kt_ps_add" >> "$1" 2>/dev/null
-  return 0
+  _kt_ps_append_kept "$1" < "$2"
 }
