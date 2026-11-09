@@ -83,9 +83,10 @@ second, and nothing in the model, the migration or your endpoint will mention it
 # every consumer, minus vendored code and migrations
 grep -rn --include='*.<ext>' --exclude-dir='<vendor_dir>' --exclude-dir=migrations -e '<SYMBOL>' .
 
-# of those, which sit inside an authorization decision? (same line holds both; tests and migrations out)
-git grep -niE -e '<SYMBOL>' --and -e 'allow|permission|access|authoriz|can_view|visibility|entitle' \
-  -- '*.<ext>' ':(exclude)*test*' ':(exclude)*migration*'
+# of those, which sit inside an authorization decision? (same line holds both; tests and migrations
+# out; --untracked so new, not-yet-committed code is searched too)
+git grep --untracked -niE -e '<SYMBOL>' --and -e 'allow|permission|access|authoriz|can_view|visibility|entitle' \
+  -- '*.<ext>' ':(exclude,icase)*test*' ':(exclude,icase)*migration*'
 ```
 
 1. Run it **before** writing the endpoint, not after.

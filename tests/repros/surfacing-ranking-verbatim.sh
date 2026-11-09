@@ -547,6 +547,37 @@ for _spec in \
   else ok "skills_use_references: $_n names no runtime-specific write tool"; fi
 done
 
+# --- preflight_authz_census_reaches_working_tree (fix round 2) -----------------------------------
+# /preflight runs BEFORE a commit, when the newest consumer is often untracked. The authz census was
+# a working-tree `grep -rn`; round 1 made it a `git grep`, which searches TRACKED files only and so
+# missed exactly that consumer. Each preflight copy's git-grep command is RUN in a fixture repo
+# (placeholders filled in): an untracked consumer must appear, and a `Tests/` path (capital T — the
+# old filter was case-insensitive) and a migration path must not.
+PF="$SCRATCH/pf-repo"; mkdir -p "$PF/src" "$PF/Tests" "$PF/lib"
+(
+  cd "$PF" && git init -q . \
+  && printf 'Widget allow\n' > src/a.py && printf 'Widget allow\n' > Tests/t.py \
+  && printf 'Widget allow\n' > lib/migration_x.py \
+  && git add src/a.py Tests/t.py lib/migration_x.py \
+  && git -c user.email=t@example.invalid -c user.name=t commit -qm init \
+  && printf 'Widget permission\n' > src/untracked.py
+) >/dev/null 2>&1
+for _n in plugin-claude-code/skills/preflight/SKILL.md plugin-antigravity/skills/preflight/SKILL.md \
+          plugin-openai-codex/skills/preflight/SKILL.md plugin-cursor-template/.cursor/rules/aria-commands.mdc; do
+  _cmd=$(awk '/^git grep / { c = $0; if (c ~ /\\$/) { sub(/\\$/, "", c); getline n; c = c n } print c; exit }' "$ROOT/$_n" \
+    | sed 's/<SYMBOL>/Widget/g; s/<ext>/py/g')
+  if [ -z "$_cmd" ]; then bad "preflight_authz_census: $_n carries a git-grep census command" "none found"; continue; fi
+  _out=$( cd "$PF" && sh -c "$_cmd" 2>&1 )
+  case "$_out" in *src/a.py*) ok "preflight_authz_census: $_n — control: the tracked consumer appears" ;;
+    *) bad "preflight_authz_census: $_n — control: the tracked consumer appears" "got: $(printf '%s' "$_out" | head -c 160)" ;; esac
+  case "$_out" in *src/untracked.py*) ok "preflight_authz_census: $_n — an UNTRACKED consumer appears" ;;
+    *) bad "preflight_authz_census: $_n — an UNTRACKED consumer appears" "missing (tracked files only?)" ;; esac
+  case "$_out" in *Tests/*) bad "preflight_authz_census: $_n — a Tests/ path is excluded (case-insensitive)" "Tests/t.py listed" ;;
+    *) ok "preflight_authz_census: $_n — a Tests/ path is excluded (case-insensitive)" ;; esac
+  case "$_out" in *migration*) bad "preflight_authz_census: $_n — a migration path is excluded" "listed" ;;
+    *) ok "preflight_authz_census: $_n — a migration path is excluded" ;; esac
+done
+
 # --- no_text_transport_anywhere (AC1, D6) --------------------------------------------------------
 # No instruction a model loads may tell it to compose a shell command carrying free text. The guard
 # is a CLASS guard over every tracked instruction surface in every port: all Markdown/.mdc under the
@@ -586,10 +617,18 @@ function check(s,    t, t2, hasq, rest, a, ok) {
     if (t ~ /<</ && t2 ~ />/) bad("C heredoc with a redirect")
     if (hasq && s ~ /(^|[^A-Za-z0-9_])printf[ \t]/) bad("E printf with a quoted placeholder")
   }
-  rest = s
-  while (match(rest, /(^|[^A-Za-z0-9_.\/-])(sh|bash|zsh|dash)[ \t]+/)) {
+  scan_inv(s, RE_INV_SH)    # sh / bash / zsh / dash, with or without a path prefix (/bin/sh)
+  scan_inv(s, RE_INV_SRC)   # `. script` / `source script` run the CLI in the current shell
+}
+# D: after each invocation, the script token must be the CLI (a placeholder, a whole-variable token,
+# or a token naming aria-surface.sh) for the allowlist to apply; then only --file '…' / --git-range '…'
+# may follow, up to the end of the span or line or a `;` `&` `|` `)` boundary.
+function scan_inv(rest, re,    a, ok, nx) {
+  while (match(rest, re)) {
     rest = substr(rest, RSTART + RLENGTH)
     if (!match(rest, RE_SCRIPT)) continue
+    nx = substr(rest, RLENGTH + 1, 1)
+    if (nx != "" && nx !~ /[ \t;&|)`]/) continue   # `<plugin>/scripts/x.sh`: a path PREFIX, not the CLI
     a = substr(rest, RLENGTH + 1); ok = 1
     while (1) {
       sub(/^[ \t]+/, "", a)
@@ -605,7 +644,9 @@ BEGIN {
   RE_A = "<<-?[ \t]*[\"" q "]?ARIA_TASK"
   RE_QPH = "(\"<[^<>\"]*>\"|" q "<[^<>" q "]*>" q ")"
   RE_QLIT = "(\"[^\"]*\"|" q "[^" q "]*" q ")"
-  RE_SCRIPT = "^(\"<[^<>\"]*>\"|" q "<[^<>" q "]*>" q "|\"[^\"]*aria-surface\\.sh\"|" q "[^" q "]*aria-surface\\.sh" q "|[^ \t`\"" q "]*aria-surface\\.sh)"
+  RE_INV_SH = "(^|[^A-Za-z0-9_.-])([^ \t`\"" q "]*/)?(sh|bash|zsh|dash)[ \t]+"
+  RE_INV_SRC = "(^|[;&|(` \t])(\\.|source)[ \t]+"
+  RE_SCRIPT = "^(\"<[^<>\"]*>\"|" q "<[^<>" q "]*>" q "|<[^<>]+>|\"\\$[A-Za-z_][A-Za-z0-9_]*\"|\"\\$[{][^}\"]*[}]\"|\"[^\"]*aria-surface\\.sh\"|" q "[^" q "]*aria-surface\\.sh" q "|[^ \t`\"" q "]*aria-surface\\.sh)"
   RE_ARG = "^--(file|git-range)[ \t]+" q "[^" q "]*" q
 }
 FNR == 1 { fence = 0 }
@@ -671,6 +712,10 @@ cat > /tmp/q.md <<'Q'
 echo '<goal sentence>' > /tmp/q.md && sh '<path>' --file /tmp/q.md
 cat <<'ARIA_TASK'
 printf '%s\t%s\t%s\n' "$(date +%H:%M)" "<VERDICT>" "<scope>"
+/bin/sh '<path>' '<the goal>'
+sh "$ARIA_SURFACE" '<the goal>'
+sh <path> "<the goal>"
+. '<path>' '<goal>'
 PLANTS
 cat > "$SCRATCH/tt-must-pass.txt" <<'CLEAN'
 sh '<path>' --file '<file path>'
