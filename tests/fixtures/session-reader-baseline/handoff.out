@@ -1,0 +1,17 @@
+== kt_ss_ledger_candidates
+9d8e7f6a|2026-06-11T16:00:00Z|unconsumed|active
+== kt_ss_read_live_prompt
+```
+Continue the aria-atlas hardening. First run:
+
+```bash
+npm test
+```
+
+Then proceed to T3.
+```== kt_ss_read_active_token
+== kt_ss_read_active_sid
+9d8e7f6a
+== kt_ss_read_active_at
+2026-06-11T16:00:00Z
+== kt_ss_ledger_token_locate

@@ -585,7 +585,8 @@ _ss_fnsum() {
 # a model-composed kt_ss_ledger_add; consume_active joined because it now delegates its demote to
 # demote_active, so it is edited in four ports at once like the rest of this list.
 # (final fix wave) the token-file helpers joined: a model reaches locate/consume only through them.
-_SS_PARITY_FNS="kt_ss_ledger_add kt_ss_ledger_prune kt_ss_ledger_demote_active kt_ss_ledger_add_file kt_ss_ledger_consume_active kt_ss_ledger_add_verified _kt_ss_token_from_file kt_ss_ledger_token_locate_file kt_ss_ledger_consume_active_file"
+# (2.58.0 Task 0) the six ledger READERS joined; measured identical in all 4 ports at 1260af0.
+_SS_PARITY_FNS="kt_ss_ledger_add kt_ss_ledger_prune kt_ss_ledger_demote_active kt_ss_ledger_add_file kt_ss_ledger_consume_active kt_ss_ledger_add_verified _kt_ss_token_from_file kt_ss_ledger_token_locate_file kt_ss_ledger_consume_active_file kt_ss_ledger_mark_consumed kt_ss_ledger_mark_superseded kt_ss_ledger_candidates kt_ss_ledger_token_locate kt_ss_read_live_prompt kt_ss_read_active_token"
 _SS_P1="$REPO_ROOT/plugin-claude-code/scripts/lib-session-state.sh"
 _SS_P2="$REPO_ROOT/plugin-antigravity/bin/lib-session-state.sh"
 _SS_P3="$REPO_ROOT/plugin-cursor-template/scripts/aria/lib-session-state.sh"
@@ -1535,6 +1536,67 @@ ZOUT
 done
 [ "$_Z_SEEN" -eq 4 ] && ok "Z coverage: all 4 carrying ports exercised" \
   || bad "Z coverage" "only $_Z_SEEN of 4 port libs found"
+
+# --- AH: NON-REGRESSION GUARDS written BEFORE the 2.58.0 behaviour changes (Task 0) --------------------
+# ⚠ These are GUARDS, not fix tests: every arm is EXPECTED GREEN on the untouched tree and is meant to
+# STAY green through the later tasks. A red AH arm after a later task means that task changed something
+# it was not supposed to.
+#
+# AH0  positive control: the fixture glob found >= 9 files and every recorded .out is non-empty — a
+#      guard over zero files is a gate with no subject.
+# AH1  each reader's output on a scratch copy of every vendored contract fixture equals the .out
+#      recorded with the canonical lib at 1260af0, byte for byte (cmp).
+# AH2  the cursor and codex SESSION STATE directive line, with every AH_EMITTER_SENTENCE removed, has
+#      the cksum measured at 3e44761 — so Task 5 may APPEND the sentence and nothing else may move.
+#      Removal is by awk index(), never a regex: the sentence holds `.` and `;`.
+AH_EMITTER_SENTENCE='A stored prompt line that begins with one backslash before ##, ###, a code fence or the entry-end terminator line is escaped; read it without that one backslash. '
+_ah_dump() {
+  printf '== kt_ss_ledger_candidates\n';   kt_ss_ledger_candidates "$1"
+  printf '== kt_ss_read_live_prompt\n';    kt_ss_read_live_prompt "$1"
+  printf '== kt_ss_read_active_token\n';   kt_ss_read_active_token "$1"
+  printf '== kt_ss_read_active_sid\n';     kt_ss_read_active_sid "$1"
+  printf '== kt_ss_read_active_at\n';      kt_ss_read_active_at "$1"
+  printf '== kt_ss_ledger_token_locate\n'; kt_ss_ledger_token_locate "$1" 'aria-handoff: proj-a/none@none'
+}
+_AH_FIX="$REPO_ROOT/tests/fixtures/session-contract-vendored"
+_AH_BASE="$REPO_ROOT/tests/fixtures/session-reader-baseline"
+_AH_N=0; _AH_EMPTY=0
+for _ahf in "$_AH_FIX"/*.SESSION.md; do
+  [ -f "$_ahf" ] || continue
+  _AH_N=$((_AH_N + 1))
+  _ahb=$(basename "$_ahf" .SESSION.md)
+  [ -s "$_AH_BASE/$_ahb.out" ] || _AH_EMPTY=$((_AH_EMPTY + 1))
+  mkdir -p "$TMP/ah/$_ahb"; cp "$_ahf" "$TMP/ah/$_ahb/SESSION.md"
+  _ah_dump "$TMP/ah/$_ahb" > "$TMP/ah/$_ahb.got" 2>&1 || true
+  if cmp -s "$TMP/ah/$_ahb.got" "$_AH_BASE/$_ahb.out"; then
+    ok "AH1 $_ahb: reader output equals the recorded baseline"
+  else
+    bad "AH1 $_ahb" "reader output differs from tests/fixtures/session-reader-baseline/$_ahb.out"
+  fi
+done
+if [ "$_AH_N" -ge 9 ] && [ "$_AH_EMPTY" -eq 0 ]; then
+  ok "AH0 positive control: $_AH_N fixtures found, every baseline .out non-empty"
+else
+  bad "AH0 positive control" "fixtures found: $_AH_N (want >= 9), empty baselines: $_AH_EMPTY (want 0)"
+fi
+
+# cksum literals measured at 3e44761 (git show <rev>:<file> | grep 'SESSION STATE —' | cksum):
+#   cursor 399152793 (4109 bytes)   codex 1316696697 (4057 bytes)
+_ah_directive_sum() {
+  [ -f "$1" ] || { printf 'MISSING'; return 0; }
+  grep 'SESSION STATE —' "$1" \
+    | awk -v s="$AH_EMITTER_SENTENCE" '{ out = ""; while ((i = index($0, s)) > 0) { out = out substr($0, 1, i - 1); $0 = substr($0, i + length(s)) } print out $0 }' \
+    | cksum | awk '{print $1}'
+}
+for _ahp in "cursor:plugin-cursor-template/scripts/aria:399152793" "codex:plugin-openai-codex/bin:1316696697"; do
+  _ahn=${_ahp%%:*}; _ahr=${_ahp#*:}; _ahd=${_ahr%:*}; _ahw=${_ahr##*:}
+  _ahg=$(_ah_directive_sum "$REPO_ROOT/$_ahd/session-start-check.sh")
+  if [ "$_ahg" = "$_ahw" ]; then
+    ok "AH2 $_ahn SESSION STATE directive (sentence removed) cksum is the 3e44761 value $_ahw"
+  else
+    bad "AH2 $_ahn" "directive cksum $_ahg, want $_ahw (3e44761) — the SESSION STATE string changed beyond AH_EMITTER_SENTENCE"
+  fi
+done
 
 printf "\n%d passed, %d failed\n" "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
