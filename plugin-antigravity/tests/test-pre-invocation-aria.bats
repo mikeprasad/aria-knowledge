@@ -14,6 +14,8 @@ setup() {
   # The hook's /tmp sweeps reach the real /tmp (they start at "/tmp/"); every test sweeps a scratch
   # dir instead (KT_TMP_SWEEP_ROOT is the test-only override).
   export KT_TMP_SWEEP_ROOT="$SURF/sweep-tmp"; mkdir -p "$KT_TMP_SWEEP_ROOT"
+  # 2.58.0: hook state resolves under this per-test scratch base (KT_STATE_BASE), never the real temp dir.
+  export KT_STATE_BASE="$SURF/state-base"; mkdir -p "$KT_STATE_BASE"
   HOOKLOG="$SURF/aria-surface-hook.log"
   FIXTURE="${BATS_TEST_DIRNAME}/fixtures/transcript-user-input.jsonl"
   # The ledger path is fixed by contract (/tmp/aria-active-<id>), so every id carries RUN_ID.

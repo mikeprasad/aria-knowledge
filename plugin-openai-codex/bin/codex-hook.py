@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import errno
 import hashlib
 import json
 import os
@@ -356,6 +357,105 @@ def codemap_artifact_message(start: Path, config: dict[str, str]) -> tuple[str, 
         f"[aria] CODEMAP available at {codemap}. Consider reading its Directory section before broad exploration. ",
         [str(codemap)],
     )
+
+
+# --- The private per-user state directory (2.58.0) ---------------------------------------------
+# Same contract as kt_state_* in lib-state-key.sh (tests/repros/state-dir-resolver.sh pins the two):
+# <first set, non-empty of KT_STATE_BASE, XDG_RUNTIME_DIR, TMPDIR, (Darwin) DARWIN_USER_TEMP_DIR,
+# /tmp; trailing "/" stripped>/aria-knowledge-<uid>, created 0700 and checked once. Any failure
+# refuses and never tries the next base. Reasons are the shell's strings, verbatim.
+
+_ARIA_STATE_ACL_XATTRS = ("system.posix_acl_access", "system.posix_acl_default", "system.nfs4_acl", "system.richacl")
+
+
+def aria_state_base() -> str:
+    for key in ("KT_STATE_BASE", "XDG_RUNTIME_DIR", "TMPDIR"):
+        value = os.environ.get(key)
+        if value:
+            return value.rstrip("/")
+    base = ""
+    if sys.platform == "darwin":
+        try:
+            base = os.confstr(65537) or ""  # _CS_DARWIN_USER_TEMP_DIR; Python has no symbolic name
+        except (ValueError, OSError):
+            base = ""
+    return (base or "/tmp").rstrip("/")
+
+
+def _aria_state_has_acl(path: str) -> bool:
+    """True when the directory carries an ACL, or when that cannot be ruled out (fail safe)."""
+    listxattr = getattr(os, "listxattr", None)
+    if listxattr is not None:
+        try:
+            names = listxattr(path, follow_symlinks=False)
+        except OSError as exc:
+            # No xattr support on this filesystem means no ACL can be stored there.
+            return exc.errno not in (getattr(errno, "ENOTSUP", -1), getattr(errno, "EOPNOTSUPP", -1))
+        return any(name in _ARIA_STATE_ACL_XATTRS for name in names)
+    # No listxattr (macOS, BSD): the same single `ls` read the shell resolver makes. macOS hides "+"
+    # behind "@" when an xattr is present; `-e` prints one extra line per ACL entry. Where -e is
+    # unknown, fall back to -ldn and refuse an "@" whose ACL could not be read.
+    def ls(flags: str) -> subprocess.CompletedProcess[str] | None:
+        try:
+            return subprocess.run(["ls", flags, path], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                                  text=True, encoding="utf-8", errors="replace", check=False)
+        except OSError:
+            return None
+
+    with_e = True
+    out = ls("-lden")
+    if out is None or out.returncode != 0:
+        with_e = False
+        out = ls("-ldn")
+        if out is None or out.returncode != 0:
+            return True
+    lines = out.stdout.rstrip("\n").split("\n")
+    mode = lines[0].split(" ", 1)[0]
+    return len(lines) > 1 or mode.endswith("+") or (mode.endswith("@") and not with_e)
+
+
+def aria_state_resolve() -> tuple[Path | None, str]:
+    uid = os.getuid()
+    d = f"{aria_state_base()}/aria-knowledge-{uid}"
+    try:
+        os.lstat(d)
+    except FileNotFoundError:
+        try:
+            os.mkdir(d, 0o700)
+        except FileExistsError:
+            pass
+        except OSError:
+            pass  # re-checked below
+        else:
+            try:
+                os.chmod(d, 0o700)  # parity with `mkdir -m 700`, which ignores the umask
+            except OSError:
+                pass  # the mode check below refuses it
+    except OSError:
+        pass
+    try:
+        st = os.lstat(d)
+    except OSError:
+        return None, "not created"
+    if stat.S_ISLNK(st.st_mode):
+        return None, "is a link"
+    if not stat.S_ISDIR(st.st_mode):
+        return None, "not a directory"
+    if st.st_uid != uid:
+        return None, "not owned by you"
+    if stat.S_IMODE(st.st_mode) != 0o700 or _aria_state_has_acl(d):
+        return None, "mode not 700"
+    return Path(d), ""
+
+
+def aria_state_dir() -> Path | None:
+    return aria_state_resolve()[0]
+
+
+def aria_state_path(state_dir: Path | None, name: str) -> Path | None:
+    if state_dir is None or name in ("", ".", "..") or "/" in name:
+        return None
+    return state_dir / name
 
 
 def ledger_is_ours(ledger: Path) -> bool:

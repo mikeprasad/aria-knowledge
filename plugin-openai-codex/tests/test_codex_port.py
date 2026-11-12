@@ -959,6 +959,162 @@ def test_pre_compact_capture_uses_the_random_tail_of_the_thread_id() -> None:
         assert len(names) == 1 and names[0].endswith("_0000aaaa.md"), names
 
 
+# --- 2.58.0: the private per-user state directory (aria_state_*) ---------------------------------
+# Same contract as kt_state_* in lib-state-key.sh; tests/repros/state-dir-resolver.sh pins the two
+# against each other (R_parity_py). Every test resolves under its own scratch KT_STATE_BASE.
+
+class _StateEnv:
+    """Set KT_STATE_BASE (and unset XDG_RUNTIME_DIR) for one block; restore everything after."""
+
+    def __init__(self, base: Path, **extra: str | None) -> None:
+        self.values: dict[str, str | None] = {"KT_STATE_BASE": str(base), "XDG_RUNTIME_DIR": None}
+        self.values.update(extra)
+        self.saved: dict[str, str | None] = {}
+
+    def __enter__(self) -> None:
+        for key, value in self.values.items():
+            self.saved[key] = os.environ.get(key)
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+
+    def __exit__(self, *exc: object) -> None:
+        for key, value in self.saved.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+
+
+def _state_name() -> str:
+    return f"aria-knowledge-{os.getuid()}"
+
+
+def test_state_dir_accepts_a_fresh_base_with_mode_700() -> None:
+    hook = load_hook_module()
+    with tempfile.TemporaryDirectory() as tmp, _StateEnv(Path(tmp)):
+        d, reason = hook.aria_state_resolve()
+        assert reason == "" and d == Path(tmp) / _state_name(), (d, reason)
+        st = os.lstat(d)
+        assert (st.st_mode & 0o7777) == 0o700 and st.st_uid == os.getuid()
+        assert hook.aria_state_dir() == d
+
+
+def test_state_dir_refuses_link() -> None:
+    hook = load_hook_module()
+    with tempfile.TemporaryDirectory() as tmp, _StateEnv(Path(tmp) / "base"):
+        target = Path(tmp) / "target"
+        target.mkdir(mode=0o700)
+        (Path(tmp) / "base").mkdir()
+        (Path(tmp) / "base" / _state_name()).symlink_to(target)
+        assert hook.aria_state_resolve() == (None, "is a link")
+        assert hook.aria_state_dir() is None
+
+
+def test_state_dir_refuses_mode_755() -> None:
+    hook = load_hook_module()
+    with tempfile.TemporaryDirectory() as tmp, _StateEnv(Path(tmp)):
+        d = Path(tmp) / _state_name()
+        d.mkdir()
+        os.chmod(d, 0o755)
+        assert hook.aria_state_resolve() == (None, "mode not 700")
+        assert (os.lstat(d).st_mode & 0o777) == 0o755, "refusal must not chmod the directory"
+
+
+def test_state_dir_refuses_file_at_name() -> None:
+    hook = load_hook_module()
+    with tempfile.TemporaryDirectory() as tmp, _StateEnv(Path(tmp)):
+        (Path(tmp) / _state_name()).write_text("", encoding="utf-8")
+        assert hook.aria_state_resolve() == (None, "not a directory")
+
+
+def test_state_dir_refuses_unwritable_parent() -> None:
+    if os.getuid() == 0:
+        print("SKIP test_state_dir_refuses_unwritable_parent: root ignores mode 500")
+        return
+    hook = load_hook_module()
+    with tempfile.TemporaryDirectory() as tmp:
+        base = Path(tmp) / "ro"
+        base.mkdir()
+        os.chmod(base, 0o500)
+        try:
+            with _StateEnv(base):
+                assert hook.aria_state_resolve() == (None, "not created")
+        finally:
+            os.chmod(base, 0o700)
+
+
+def test_state_dir_refuses_foreign_owner() -> None:
+    hook = load_hook_module()
+    real_getuid = os.getuid
+    fake = real_getuid() + 1
+    with tempfile.TemporaryDirectory() as tmp, _StateEnv(Path(tmp)):
+        hook.os.getuid = lambda: fake  # the module's os is the global os module
+        try:
+            d, reason = hook.aria_state_resolve()
+        finally:
+            hook.os.getuid = real_getuid
+        assert (d, reason) == (None, "not owned by you"), (d, reason)
+        assert (Path(tmp) / f"aria-knowledge-{fake}").is_dir()
+
+
+def test_state_dir_mode_is_exact_under_umask() -> None:
+    hook = load_hook_module()
+    with tempfile.TemporaryDirectory() as tmp, _StateEnv(Path(tmp)):
+        old = os.umask(0o777)
+        try:
+            d, reason = hook.aria_state_resolve()
+        finally:
+            os.umask(old)
+        assert reason == "" and d is not None, reason
+        assert (os.lstat(d).st_mode & 0o7777) == 0o700
+
+
+def test_state_dir_never_falls_through() -> None:
+    hook = load_hook_module()
+    with tempfile.TemporaryDirectory() as tmp:
+        broken = Path(tmp) / "broken"
+        broken.mkdir()
+        (broken / _state_name()).write_text("", encoding="utf-8")
+        healthy_xdg = Path(tmp) / "xdg"
+        healthy_tmp = Path(tmp) / "tmpdir"
+        healthy_xdg.mkdir()
+        healthy_tmp.mkdir()
+        with _StateEnv(broken, XDG_RUNTIME_DIR=str(healthy_xdg), TMPDIR=str(healthy_tmp)):
+            assert hook.aria_state_resolve() == (None, "not a directory")
+        assert list(healthy_xdg.iterdir()) == [] and list(healthy_tmp.iterdir()) == []
+
+
+def test_state_dir_refuses_acl() -> None:
+    """G2-1: an ACL can grant access the mode bits do not show, so it is refused (fail safe)."""
+    hook = load_hook_module()
+    with tempfile.TemporaryDirectory() as tmp, _StateEnv(Path(tmp)):
+        d = Path(tmp) / _state_name()
+        d.mkdir(mode=0o700)
+        if sys.platform == "darwin":
+            cmd = ["chmod", "+a", "everyone allow list", str(d)]
+        else:
+            cmd = ["setfacl", "-m", "u:nobody:rx", str(d)]
+        try:
+            set_ok = subprocess.run(cmd, stderr=subprocess.DEVNULL, check=False).returncode == 0
+        except OSError:
+            set_ok = False
+        if not set_ok:
+            print("SKIP test_state_dir_refuses_acl: cannot set an ACL here")
+            return
+        assert hook.aria_state_resolve() == (None, "mode not 700")
+
+
+def test_state_path_refuses_slash_dot_empty() -> None:
+    hook = load_hook_module()
+    d = Path("/nonexistent-state-dir")
+    for name in ("a/../../x", "..", ".", "", "a/b"):
+        assert hook.aria_state_path(d, name) is None, name
+    assert hook.aria_state_path(None, "aria-active-x") is None
+    assert hook.aria_state_path(d, "aria-active-x") == d / "aria-active-x"
+
+
 if __name__ == "__main__":
     failures = 0
     for name, fn in sorted(globals().items()):

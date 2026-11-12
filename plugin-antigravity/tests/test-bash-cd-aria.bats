@@ -1,6 +1,8 @@
 #!/usr/bin/env bats
 
 setup() {
+  # 2.58.0: hook state resolves under a per-test scratch base (KT_STATE_BASE), never the real temp dir.
+  export KT_STATE_BASE="${BATS_TEST_TMPDIR}/state-base"; mkdir -p "$KT_STATE_BASE"
   WRAPPER="${BATS_TEST_DIRNAME}/../bin/antigravity/bash-cd-aria.sh"
 }
 

@@ -10,7 +10,11 @@ cd "$SCRIPT_DIR"
 # repro runs sweeps a scratch dir instead (KT_TMP_SWEEP_ROOT is the test-only override).
 KT_TMP_SWEEP_ROOT=$(mktemp -d "${TMPDIR:-/tmp}/aria-sweep-root.XXXXXX")
 export KT_TMP_SWEEP_ROOT
-trap 'rm -rf "$KT_TMP_SWEEP_ROOT"' EXIT
+# 2.58.0: hook state lives in <base>/aria-knowledge-<uid> (lib-state-key.sh); every hook a repro runs
+# resolves it under this scratch base (KT_STATE_BASE is the test-only override), never the real one.
+KT_STATE_BASE=$(mktemp -d "${TMPDIR:-/tmp}/aria-state-base.XXXXXX")
+export KT_STATE_BASE
+trap 'rm -rf "$KT_TMP_SWEEP_ROOT" "$KT_STATE_BASE"' EXIT
 
 TOTAL_PASS=0
 TOTAL_FAIL=0

@@ -12,6 +12,9 @@ export TMPDIR="$TMP/tmpdir"; mkdir -p "$TMPDIR"
 # 2.58.0: the session-start sweeps now reach the real /tmp (they start at "/tmp/"), so every hook a
 # test runs sweeps a scratch dir instead (KT_TMP_SWEEP_ROOT is the test-only override).
 export KT_TMP_SWEEP_ROOT="$TMP/sweep-tmp"; mkdir -p "$KT_TMP_SWEEP_ROOT"
+# 2.58.0: hook state lives in <base>/aria-knowledge-<uid> (lib-state-key.sh); every hook a test runs
+# resolves it under this scratch base (KT_STATE_BASE is the test-only override), never the real one.
+export KT_STATE_BASE="$TMP/state-base"; mkdir -p "$KT_STATE_BASE"
 # Real-rules guard (2026-10-25): session-start-check.sh writes $HOME/.claude/rules/,
 # so a test that does not isolate HOME overwrites the developer's live rules files.
 # Compare both files' bytes before and after the whole run.

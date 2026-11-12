@@ -6,5 +6,9 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # dir instead (KT_TMP_SWEEP_ROOT is the test-only override).
 KT_TMP_SWEEP_ROOT=$(mktemp -d "${TMPDIR:-/tmp}/aria-sweep-root.XXXXXX")
 export KT_TMP_SWEEP_ROOT
-trap 'rm -rf "$KT_TMP_SWEEP_ROOT"' EXIT
+# 2.58.0: hook state lives in <base>/aria-knowledge-<uid>; the suite resolves it under this scratch
+# base (KT_STATE_BASE is the test-only override), never the real one.
+KT_STATE_BASE=$(mktemp -d "${TMPDIR:-/tmp}/aria-state-base.XXXXXX")
+export KT_STATE_BASE
+trap 'rm -rf "$KT_TMP_SWEEP_ROOT" "$KT_STATE_BASE"' EXIT
 python3 "$SCRIPT_DIR/test_codex_port.py"
