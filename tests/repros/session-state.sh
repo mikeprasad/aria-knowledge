@@ -1629,16 +1629,18 @@ else
   bad "AH3" "matched-token reader output differs from tests/fixtures/session-reader-token/baseline.out (or the baseline holds < 7 rows)"
 fi
 
-# --- AG: the readers AGREE with the region walker (2.58.0 Task 1a) ------------------------------------
+# --- AG: the readers AND the writers AGREE with the region walker (2.58.0 Task 1a + 1b) ----------------
 # One hostile fixture: fenced and unfenced structural lines in ACTIVE, OTHER and inside entries.
 # AG(1) the lines kt_ss_read_live_prompt returns == the walker's ACTIVE lines (blank edges trimmed the
-#       same way), and kt_ss_read_active_token == the first `aria-handoff:` line in the walker's ACTIVE.
+#       same way), and kt_ss_read_active_token == the first `aria-handoff:` line in the walker's ACTIVE;
+#       and (Task 1b) kt_ss_ledger_prune leaves every walker ACTIVE line untouched.
 # AG(2) the pending rows kt_ss_ledger_candidates prints == the walker's LEDGER entry_header lines
 #       carrying a word-bounded `unconsumed`; and for every `mk-*` marker line inside an entry,
 #       kt_ss_ledger_token_locate attributes it to the entry the walker says owns it (R_ENTRY).
-# ⚠ GREEN BY DESIGN in Task 1a: the readers ARE the walker now, so these pin the agreement rather than
-# repair it. The prune clause of AG(1) and AG(3) (marks) land with Task 1b, which converts the writers;
-# on this tree prune still walks fence-blind and would disagree.
+#       (Task 1b, carried (ii)) p4 carries exactly TWO ` · ` and IS an entry header; the p5 line carries
+#       exactly ONE and is NOT -- it is body of p4. Together they pin kt_is_entry_header's `n >= 2`.
+# AG(3) (Task 1b) mark_consumed / mark_superseded on a sid present both as a real LEDGER header and as
+#       fenced content inside another entry change exactly one line: the real header.
 _AG="$TMP/ag"; mkdir -p "$_AG"
 cat > "$_AG/SESSION.md" <<'AG_FIXTURE'
 ---
@@ -1661,6 +1663,7 @@ sessionId: fm-sid
 aria-handoff: proj-a/ag-act@2026-07-03T00:00:00Z
 ## Pending handoffs
 ### f1 · 2026-01-01T00:00:00Z · handoff · unconsumed
+### f2 · 2026-01-01T00:00:00Z · handoff · consumed
 <!-- aria:entry-end -->
 ```
 ### g1 · 2026-01-02T00:00:00Z · handoff · unconsumed
@@ -1674,6 +1677,7 @@ mk-p1a
 ```
 ## Next session prompt
 ### inner · 2026-02-01T00:00:00Z · handoff · unconsumed
+### p3 · 2026-06-04T00:00:00Z · handoff · unconsumed
 mk-p1f
 <!-- aria:entry-end -->
 ```
@@ -1687,6 +1691,12 @@ mk-p1f
 - prompt: mk-p3a
 ### p3b · 2026-06-05T00:00:00Z · handoff · unconsumed
 - prompt: mk-p3b
+<!-- aria:entry-end -->
+
+### p4 · 2026-06-06T00:00:00Z · unconsumed
+- prompt: mk-p4a
+### p5 · unconsumed
+mk-p5a
 <!-- aria:entry-end -->
 
 ## Archived sessions
@@ -1712,12 +1722,25 @@ if [ "$_AG_TOK" = "ag-act|2026-07-03T00:00:00Z" ] && [ "$_AG_TOK" = "$_AG_WALK_T
 else
   bad "AG(1) read_active_token" "reader '$_AG_TOK' vs walker '$_AG_WALK_TOK' (want ag-act|2026-07-03T00:00:00Z)"
 fi
+# AG(1) prune clause (Task 1b): the fenced `### f2 · … · consumed` + terminator in ACTIVE are prompt
+# content. A fence-blind prune reaped them (spec §1 F1).
+_AG_WALK_ACTIVE_ALL=$(awk "$(_kt_ss_awk_regions)"'{ k = kt_region($0) } R_SEC == "ACTIVE" { print }' "$_AG/SESSION.md")
+mkdir -p "$TMP/ag-pr"; cp "$_AG/SESSION.md" "$TMP/ag-pr/SESSION.md"
+kt_ss_ledger_prune "$TMP/ag-pr"
+_AG_PR_ACTIVE=$(awk "$(_kt_ss_awk_regions)"'{ k = kt_region($0) } R_SEC == "ACTIVE" { print }' "$TMP/ag-pr/SESSION.md")
+if [ -n "$_AG_WALK_ACTIVE_ALL" ] && [ "$_AG_PR_ACTIVE" = "$_AG_WALK_ACTIVE_ALL" ] && ! grep -q '^### p2 ' "$TMP/ag-pr/SESSION.md"; then
+  ok "AG(1) kt_ss_ledger_prune leaves every walker ACTIVE line untouched (and still reaps the consumed p2)"
+else
+  bad "AG(1) prune" "prune changed the walker's ACTIVE lines, or did not reap p2"
+fi
 _AG_WALK_HDR=$(awk "$(_kt_ss_awk_regions)"'{ k = kt_region($0) } k == "entry_header" && R_SEC == "LEDGER" && /(^|[^a-z])unconsumed([^a-z]|$)/ { n = split(substr($0, 5), f, " · "); print f[1] "|" f[2] "|unconsumed|pending" }' "$_AG/SESSION.md")
 _AG_CAND=$(kt_ss_ledger_candidates "$_AG" | grep '|pending$')
-if [ "$(printf '%s\n' "$_AG_CAND" | grep -c .)" -eq 3 ] && [ "$_AG_CAND" = "$_AG_WALK_HDR" ]; then
-  ok "AG(2) kt_ss_ledger_candidates pending rows == the walker's LEDGER entry headers (p1, p3, p3b)"
+if [ "$(printf '%s\n' "$_AG_CAND" | grep -c .)" -eq 4 ] && [ "$_AG_CAND" = "$_AG_WALK_HDR" ] \
+   && printf '%s\n' "$_AG_CAND" | grep -q '^p4|2026-06-06T00:00:00Z|unconsumed|pending$' \
+   && ! printf '%s\n' "$_AG_CAND" | grep -q '^p5|'; then
+  ok "AG(2) kt_ss_ledger_candidates pending rows == the walker's LEDGER entry headers (p1, p3, p3b, p4; not p5)"
 else
-  bad "AG(2) candidates" "reader rows [$(printf '%s' "$_AG_CAND" | tr '\n' ' ')] vs walker [$(printf '%s' "$_AG_WALK_HDR" | tr '\n' ' ')] (want 3)"
+  bad "AG(2) candidates" "reader rows [$(printf '%s' "$_AG_CAND" | tr '\n' ' ')] vs walker [$(printf '%s' "$_AG_WALK_HDR" | tr '\n' ' ')] (want 4: p1 p3 p3b p4)"
 fi
 # Walker attribution of every mk-* marker: <marker> <sid>|<at>|<status>|<pending|archived>
 _AG_WALK_MK=$(awk "$(_kt_ss_awk_regions)"'
@@ -1729,15 +1752,360 @@ _AG_WALK_MK=$(awk "$(_kt_ss_awk_regions)"'
     print substr($0, RSTART, RLENGTH) " " hs[R_ENTRY] "|" st[R_ENTRY] "|" src
   }' "$_AG/SESSION.md")
 _AG_MK_N=0; _AG_MK_BAD=""
-for _agm in mk-p1a mk-p1f mk-p2a mk-p3a mk-p3b mk-z1a; do
+for _agm in mk-p1a mk-p1f mk-p2a mk-p3a mk-p3b mk-p4a mk-p5a mk-z1a; do
   _agw=$(printf '%s\n' "$_AG_WALK_MK" | awk -v m="$_agm" '$1 == m { print $2; exit }')
   _agr=$(kt_ss_ledger_token_locate "$_AG" "$_agm")
   if [ -n "$_agw" ] && [ "$_agr" = "$_agw" ]; then _AG_MK_N=$((_AG_MK_N + 1)); else _AG_MK_BAD="$_AG_MK_BAD $_agm(reader=$_agr walker=$_agw)"; fi
 done
-if [ "$_AG_MK_N" -eq 6 ]; then
-  ok "AG(2) kt_ss_ledger_token_locate attributes all 6 in-entry markers to the walker's owning entry"
+_AG_P5=$(kt_ss_ledger_token_locate "$_AG" mk-p5a)
+if [ "$_AG_MK_N" -eq 8 ] && [ "$_AG_P5" = "p4|2026-06-06T00:00:00Z|unconsumed|pending" ]; then
+  ok "AG(2) kt_ss_ledger_token_locate attributes all 8 in-entry markers to the walker's owning entry (mk-p5a -> p4)"
 else
-  bad "AG(2) token_locate" "disagreement:$_AG_MK_BAD"
+  bad "AG(2) token_locate" "disagreement:$_AG_MK_BAD (mk-p5a -> '$_AG_P5', want p4)"
+fi
+# AG(3): p3's header exists for real in LEDGER AND as fenced content inside p1. Exactly one line may move.
+_ag_diffn() { awk 'NR == FNR { a[FNR] = $0; n = FNR; next } { if (!(FNR in a) || a[FNR] != $0) d++; m = FNR } END { if (m != n) d += 1000; print d + 0 }' "$1" "$2"; }
+_AG_P3LN=$(awk "$(_kt_ss_awk_regions)"'{ k = kt_region($0) } k == "entry_header" && R_SEC == "LEDGER" && index($0, "### p3 · ") == 1 { print FNR; exit }' "$_AG/SESSION.md")
+for _agv in consumed superseded; do
+  mkdir -p "$TMP/ag-m-$_agv"; cp "$_AG/SESSION.md" "$TMP/ag-m-$_agv/SESSION.md"
+  "kt_ss_ledger_mark_$_agv" "$TMP/ag-m-$_agv" p3 2026-07-09T00:00:00Z ag3 2026-06-04T00:00:00Z
+  _agd=$(_ag_diffn "$_AG/SESSION.md" "$TMP/ag-m-$_agv/SESSION.md")
+  _agl=$(sed -n "${_AG_P3LN}p" "$TMP/ag-m-$_agv/SESSION.md")
+  if [ "$_agd" -eq 1 ] && printf '%s\n' "$_agl" | grep -q '^### p3 · 2026-06-04T00:00:00Z · handoff · consumed 2026-07-09T00:00:00Z by ag3'; then
+    ok "AG(3) kt_ss_ledger_mark_$_agv rewrites only the real LEDGER header, not its fenced copy (1 line changed)"
+  else
+    bad "AG(3) mark_$_agv" "$_agd line(s) changed (want 1: the real header at line $_AG_P3LN, now '$_agl')"
+  fi
+done
+
+# --- AB..AF (2.58.0 Task 1b, spec §1 F1-F4): every WRITER acts only where the readers look ------------
+_wk_lines() { awk "$(_kt_ss_awk_regions)""$1" "$2"; }
+# Lines a walker says are a terminator or a fence line OUTSIDE any entry -- leaked structure.
+_wk_orphans() { _wk_lines '{ k = kt_region($0) } R_ENTRY == 0 && R_SEC != "ACTIVE" && ($0 == "<!-- aria:entry-end -->" || $0 ~ /^```/) { n++ } END { print n + 0 }' "$1"; }
+
+# AB (F1): a consumed-looking header quoted inside the fenced ACTIVE prompt is prompt content.
+_AB="$TMP/ab"; mkdir -p "$_AB"
+cat > "$_AB/SESSION.md" <<'AB_FIX'
+---
+lastEvent: handoff
+at: 2026-07-01T00:00:00Z
+sessionId: ab-fm
+---
+
+## Next session prompt
+
+```
+aria-handoff: proj-a/ab-act@2026-07-01T00:00:00Z
+### f1 · 2026-01-01T00:00:00Z · handoff · consumed
+ab-tail-1
+ab-tail-2
+```
+
+## Pending handoffs
+
+### ab-live · 2026-06-01T00:00:00Z · handoff · unconsumed
+- prompt: ab-live-body
+<!-- aria:entry-end -->
+AB_FIX
+_AB_ACT0=$(_wk_lines '{ k = kt_region($0) } R_SEC == "ACTIVE" { print }' "$_AB/SESSION.md")
+_AB_C0=$(kt_ss_ledger_candidates "$_AB")
+kt_ss_ledger_prune "$_AB"
+_AB_ACT1=$(_wk_lines '{ k = kt_region($0) } R_SEC == "ACTIVE" { print }' "$_AB/SESSION.md")
+_AB_C1=$(kt_ss_ledger_candidates "$_AB")
+if [ "$_AB_ACT1" = "$_AB_ACT0" ] && printf '%s\n' "$_AB_ACT1" | grep -q '^ab-tail-2$'; then
+  ok "AB prune leaves the fenced ACTIVE prompt byte-identical (quoted consumed header is content)"
+else
+  bad "AB prune ACTIVE" "the ACTIVE region changed under prune"
+fi
+if [ "$_AB_C1" = "$_AB_C0" ] && [ "$(printf '%s\n' "$_AB_C1" | grep -c .)" -eq 2 ]; then
+  ok "AB candidates identical before/after prune (2 rows)"
+else
+  bad "AB candidates" "before [$(printf '%s' "$_AB_C0" | tr '\n' ' ')] after [$(printf '%s' "$_AB_C1" | tr '\n' ' ')]"
+fi
+
+# AC (F2): the same prompt also quotes a raw terminator; consume it, then prune.
+_AC="$TMP/ac"; mkdir -p "$_AC"
+cat > "$_AC/SESSION.md" <<'AC_FIX'
+---
+lastEvent: handoff
+at: 2026-07-01T00:00:00Z
+sessionId: ac-fm
+---
+
+## Next session prompt
+
+```
+aria-handoff: proj-a/ac-act@2026-07-01T00:00:00Z
+### f1 · 2026-01-01T00:00:00Z · handoff · consumed
+ac-tail-1
+<!-- aria:entry-end -->
+ac-tail-2
+```
+
+## Pending handoffs
+
+### ac-live · 2026-06-01T00:00:00Z · handoff · unconsumed
+- prompt: ac-live-body
+<!-- aria:entry-end -->
+AC_FIX
+_ac_rc=0; kt_ss_ledger_consume_active "$_AC" acby 2026-07-02T00:00:00Z "aria-handoff: proj-a/ac-act@2026-07-01T00:00:00Z" 2>/dev/null || _ac_rc=$?
+kt_ss_ledger_prune "$_AC"
+_AC_C=$(kt_ss_ledger_candidates "$_AC")
+_AC_OR=$(_wk_orphans "$_AC/SESSION.md")
+if [ "$_ac_rc" -eq 0 ] && printf '%s\n' "$_AC_C" | grep -q '^ac-live|2026-06-01T00:00:00Z|unconsumed|pending$' \
+   && [ "$(printf '%s\n' "$_AC_C" | grep -c .)" -eq 1 ] && [ "$_AC_OR" -eq 0 ] && ! grep -q 'ac-tail' "$_AC/SESSION.md"; then
+  ok "AC consume+prune: the live pending entry is still the only candidate, nothing leaked (0 orphan terminators/fences)"
+else
+  bad "AC consume+prune" "rc=$_ac_rc candidates [$(printf '%s' "$_AC_C" | tr '\n' ' ')] orphans=$_AC_OR"
+fi
+
+# AD (F3): the active prompt QUOTES the anchor heading (fenced, indented, bold). The demote must land
+# under the REAL heading. ⚠ Raw `grep -c '^## Pending handoffs$'` reads 2 here until Task 2's write
+# escape: the quoted line is stored verbatim, fenced, inside the consumed entry's body. The walker count
+# is the instrument that separates a heading from a quotation, so that is what is asserted.
+_AD="$TMP/ad"; mkdir -p "$_AD"
+cat > "$_AD/SESSION.md" <<'AD_FIX'
+---
+lastEvent: handoff
+at: 2026-07-01T00:00:00Z
+sessionId: ad-fm
+---
+
+## Next session prompt
+
+```
+aria-handoff: proj-a/ad-act@2026-07-02T00:00:00Z
+## Pending handoffs
+  ## Pending handoffs
+**## Pending handoffs**
+ad-quote-tail
+```
+
+## Pending handoffs
+
+### ad-live · 2026-06-01T00:00:00Z · handoff · unconsumed
+- prompt: ad-live-body
+<!-- aria:entry-end -->
+AD_FIX
+_ad_rc=0; kt_ss_ledger_consume_active "$_AD" adby 2026-07-03T00:00:00Z "aria-handoff: proj-a/ad-act@2026-07-02T00:00:00Z" 2>/dev/null || _ad_rc=$?
+_AD_LOC=$(kt_ss_ledger_token_locate "$_AD" "aria-handoff: proj-a/ad-act@2026-07-02T00:00:00Z")
+_AD_HDR=$(_wk_lines '{ k = kt_region($0) } k == "entry_header" && R_SEC == "LEDGER" && index($0, "### ad-act · 2026-07-02T00:00:00Z · handoff · consumed ") == 1 { n++ } END { print n + 0 }' "$_AD/SESSION.md")
+_AD_H=$(_wk_lines '{ k = kt_region($0) } k == "heading" && R_SEC == "LEDGER" { n++ } END { print n + 0 }' "$_AD/SESSION.md")
+_AD_OR=$(_wk_orphans "$_AD/SESSION.md")
+if [ "$_ad_rc" -eq 0 ] && [ "$_AD_LOC" = "ad-act|2026-07-02T00:00:00Z|terminal|pending" ] && [ "$_AD_HDR" -eq 1 ] \
+   && [ "$_AD_H" -eq 1 ] && [ "$_AD_OR" -eq 0 ] && [ -z "$(kt_ss_read_live_prompt "$_AD")" ]; then
+  ok "AD consume_active with a quoted anchor lands the consumed entry under the real heading (1 LEDGER heading, 0 orphans)"
+else
+  bad "AD consume_active" "rc=$_ad_rc locate='$_AD_LOC' consumed-headers=$_AD_HDR ledger-headings=$_AD_H orphans=$_AD_OR"
+fi
+
+# AD2 (Review Focus 2): the tolerant anchor set. (a) and (b) are NON-REGRESSION (green before 1b);
+# (c) the indented heading is NEW behaviour -- column 0 is required, so add appends a fresh section.
+_ad2() {  # <dir> <anchor line, printf-%s> -> builds the file
+  mkdir -p "$1"
+  printf -- '---\nlastEvent: handoff\n---\n\n## Where we left off\n\n%s\n\nad2-after-anchor\n' "$2" > "$1/SESSION.md"
+}
+_ad2_landed() {  # <dir> -> 0 when ad2-new is an entry in LEDGER directly under a canonical heading
+  _wk_lines '{ k = kt_region($0) } k == "heading" && R_SEC == "LEDGER" { h = FNR }
+             k == "entry_header" && R_SEC == "LEDGER" && index($0, "### ad2-new · ") == 1 { e = FNR }
+             END { exit !(h > 0 && e == h + 2) }' "$1/SESSION.md"
+}
+_ad2 "$TMP/ad2a" '**## Pending Handoffs**'
+kt_ss_ledger_add "$TMP/ad2a" ad2-new 2026-07-04T00:00:00Z f n p
+if _ad2_landed "$TMP/ad2a" && [ "$(grep -c '^## Pending handoffs$' "$TMP/ad2a/SESSION.md")" -eq 1 ] && ! grep -q 'Handoffs' "$TMP/ad2a/SESSION.md"; then
+  ok "AD2(a) non-regression: a bold anchor is used and canonicalised to '## Pending handoffs'"
+else
+  bad "AD2(a)" "bold anchor not used/canonicalised"
+fi
+_ad2 "$TMP/ad2b" '### pending handoffs  '
+kt_ss_ledger_add "$TMP/ad2b" ad2-new 2026-07-04T00:00:00Z f n p
+if _ad2_landed "$TMP/ad2b" && [ "$(grep -c '^## Pending handoffs$' "$TMP/ad2b/SESSION.md")" -eq 1 ] && ! grep -qi '^### pending handoffs' "$TMP/ad2b/SESSION.md"; then
+  ok "AD2(b) non-regression: '### pending handoffs  ' is used and canonicalised"
+else
+  bad "AD2(b)" "level-3 / trailing-space anchor not used/canonicalised"
+fi
+_ad2 "$TMP/ad2c" '  ## Pending handoffs'
+kt_ss_ledger_add "$TMP/ad2c" ad2-new 2026-07-04T00:00:00Z f n p
+if _ad2_landed "$TMP/ad2c" && [ "$(grep -c '^  ## Pending handoffs$' "$TMP/ad2c/SESSION.md")" -eq 1 ] \
+   && [ "$(grep -c '^## Pending handoffs$' "$TMP/ad2c/SESSION.md")" -eq 1 ] \
+   && [ "$(grep -n '^## Pending handoffs$' "$TMP/ad2c/SESSION.md" | cut -d: -f1)" -gt "$(grep -n 'ad2-after-anchor' "$TMP/ad2c/SESSION.md" | cut -d: -f1)" ]; then
+  ok "AD2(c) new behaviour: an indented heading is NOT an anchor -- add appends a fresh section at EOF, indented line untouched"
+else
+  bad "AD2(c)" "the indented line was used as an anchor (or the EOF section is missing)"
+fi
+
+# AE (census shape): a consumed entry whose prompt holds, fenced, two entry-shaped headers and two raw
+# terminators. A fence-blind prune reaps to the first inner terminator and resurrects the rest.
+_AE="$TMP/ae"; mkdir -p "$_AE"
+cat > "$_AE/SESSION.md" <<'AE_FIX'
+---
+lastEvent: handoff
+---
+
+## Pending handoffs
+
+### ae-c · 2026-06-01T00:00:00Z · handoff · consumed 2026-06-02T00:00:00Z by x
+- prompt:
+```
+### ae-x1 · 2026-01-03T00:00:00Z · handoff · unconsumed
+ae-x1-body
+<!-- aria:entry-end -->
+### ae-x2 · 2026-01-04T00:00:00Z · handoff · unconsumed
+<!-- aria:entry-end -->
+```
+<!-- aria:entry-end -->
+
+### ae-live · 2026-06-05T00:00:00Z · handoff · unconsumed
+- prompt: ae-live-body
+<!-- aria:entry-end -->
+AE_FIX
+_AE_C0=$(kt_ss_ledger_candidates "$_AE" | sort)
+kt_ss_ledger_prune "$_AE"
+_AE_C1=$(kt_ss_ledger_candidates "$_AE" | sort)
+_AE_PH=$(printf '%s\n' "$_AE_C1" | grep . | while IFS= read -r _r; do printf '%s\n' "$_AE_C0" | grep -qxF "$_r" || echo x; done | grep -c x || true)
+_AE_OR=$(_wk_orphans "$_AE/SESSION.md")
+if [ "$_AE_PH" -eq 0 ] && [ "$_AE_OR" -eq 0 ] && printf '%s\n' "$_AE_C1" | grep -q '^ae-live|' && ! grep -q 'ae-x1' "$_AE/SESSION.md"; then
+  ok "AE prune of a consumed entry with fenced inner headers/terminators: 0 phantoms, 0 orphans, live kept"
+else
+  bad "AE prune" "phantoms=$_AE_PH orphans=$_AE_OR after [$(printf '%s' "$_AE_C1" | tr '\n' ' ')]"
+fi
+
+# AE2 (fallback, NON-REGRESSION on "never deletes more than the old prune"): an entry whose fence-aware
+# walk never closes because its fence is ODD is LEFT IN PLACE, header to EOF (K2, ruled 2026-11-11).
+# The old rule ended it at the first fence-blind terminator and re-exposed what the open fence quotes as
+# live entries -- measured on the real corpus: 36 phantoms in 6 files. Asserted: the entry's lines are
+# byte-identical, 0 phantoms, no orphan terminator added, and every line the 3e44761 library keeps is
+# still present in order (so the new prune deletes a subset of what the old one deleted).
+_AE2="$TMP/ae2"; mkdir -p "$_AE2/new" "$_AE2/old"
+cat > "$_AE2/new/SESSION.md" <<'AE2_FIX'
+---
+lastEvent: handoff
+---
+
+## Pending handoffs
+
+### ae2-live · 2026-06-01T00:00:00Z · handoff · unconsumed
+- prompt: ae2-live-body
+<!-- aria:entry-end -->
+
+### ae2-c · 2026-06-02T00:00:00Z · handoff · consumed 2026-06-03T00:00:00Z by x
+- prompt:
+```
+ae2 unclosed fence text
+## ae2 heading after
+### ae2-l2 · 2026-06-04T00:00:00Z · handoff · unconsumed
+ae2-more
+<!-- aria:entry-end -->
+AE2_FIX
+cp "$_AE2/new/SESSION.md" "$_AE2/old/SESSION.md"
+cp "$_AE2/new/SESSION.md" "$TMP/ae2.before"
+_AE2_C0=$(kt_ss_ledger_candidates "$_AE2/new" | sort)
+_AE2_O0=$(_wk_orphans "$_AE2/new/SESSION.md")
+if git -C "$REPO_ROOT" show 3e44761:plugin-claude-code/scripts/lib-session-state.sh > "$TMP/old-lib.sh" 2>/dev/null && [ -s "$TMP/old-lib.sh" ]; then
+  ( . "$TMP/old-lib.sh"; kt_ss_ledger_prune "$_AE2/old" )
+  kt_ss_ledger_prune "$_AE2/new"
+  _AE2_C1=$(kt_ss_ledger_candidates "$_AE2/new" | sort)
+  _AE2_PH=$(printf '%s\n' "$_AE2_C1" | grep . | while IFS= read -r _r; do printf '%s\n' "$_AE2_C0" | grep -qxF "$_r" || echo x; done | grep -c x || true)
+  _AE2_O1=$(_wk_orphans "$_AE2/new/SESSION.md")
+  _AE2_TAILB=$(sed -n '/^### ae2-c /,$p' "$TMP/ae2.before")
+  _AE2_TAILA=$(sed -n '/^### ae2-c /,$p' "$_AE2/new/SESSION.md")
+  # Ordered subsequence: every line the old library kept appears in the new output, in order.
+  _AE2_SUB=$(awk 'NR == FNR { o[++on] = $0; next } { if (j < on && $0 == o[j + 1]) j++ } END { if (j == on) { print "y" } else { print "n" } }' "$_AE2/old/SESSION.md" "$_AE2/new/SESSION.md")
+  if [ -n "$_AE2_TAILB" ] && [ "$_AE2_TAILA" = "$_AE2_TAILB" ] && [ "$_AE2_PH" -eq 0 ] && [ "$_AE2_O1" -le "$_AE2_O0" ] \
+     && [ "$_AE2_SUB" = y ] && printf '%s\n' "$_AE2_C1" | grep -q '^ae2-live|'; then
+    ok "AE2 non-regression: an odd-fence open-at-EOF entry is left in place (0 phantoms, no orphan added, deletes a subset of 3e44761)"
+  else
+    bad "AE2 fallback" "entry-unchanged=$([ "$_AE2_TAILA" = "$_AE2_TAILB" ] && echo y || echo n) phantoms=$_AE2_PH orphans $_AE2_O0->$_AE2_O1 old-kept-subset=$_AE2_SUB"
+  fi
+else
+  bad "AE2 reference" "could not extract the 3e44761 library -- a reference arm with no reference is not a pass"
+fi
+
+# AF (F4): a byte-identical block that sits OUTSIDE the ledger (archived, or quoted in the active fence)
+# is not the ledger entry. add must write it, add_verified must see the LEDGER count rise.
+_af_blk() {  # the exact block kt_ss_ledger_add writes for af-act
+  printf '### af-act · 2026-07-05T00:00:00Z · handoff · unconsumed\n- focus: af-focus\n- next: af-next\n- prompt:\naria-handoff: proj-a/af-act@2026-07-05T00:00:00Z\naf plain prompt line\n<!-- aria:entry-end -->\n'
+}
+_AF_P='aria-handoff: proj-a/af-act@2026-07-05T00:00:00Z
+af plain prompt line'
+_af_ledger_n() { _wk_lines '{ k = kt_region($0) } k == "entry_header" && R_SEC == "LEDGER" && index($0, "### af-act · 2026-07-05T00:00:00Z · ") == 1 { n++ } END { print n + 0 }' "$1/SESSION.md"; }
+_af_file() {  # <dir> <active body: "fence" | "prompt"> <put block under Pending: 0|1>
+  mkdir -p "$1"
+  {
+    printf -- '---\nlastEvent: handoff\ncurrentFocus: af-focus\nnextAction: af-next\n---\n\n## Next session prompt\n\n'
+    if [ "$2" = fence ]; then printf '```\n'; _af_blk; printf '```\n'; else printf '%s\n' "$_AF_P"; fi
+    printf '\n## Pending handoffs\n\n'
+    [ "$3" = 1 ] && { _af_blk; printf '\n'; }
+    printf '## Archived sessions\n\n'; _af_blk
+  } > "$1/SESSION.md"
+}
+_af_file "$TMP/af-add" fence 0
+kt_ss_ledger_add "$TMP/af-add" af-act 2026-07-05T00:00:00Z af-focus af-next "$_AF_P"
+_AF_N=$(_af_ledger_n "$TMP/af-add")
+[ "$_AF_N" -eq 1 ] && ok "AF kt_ss_ledger_add writes the entry under Pending despite archived + active-fence copies" \
+  || bad "AF add" "Pending holds $_AF_N af-act entries (want 1) -- an out-of-ledger copy suppressed the write"
+_af_file "$TMP/af-av" fence 0
+_AF_N0=$(_af_ledger_n "$TMP/af-av"); _af_rc=0
+kt_ss_ledger_add_verified "$TMP/af-av" af-act 2026-07-05T00:00:00Z af-focus af-next "$_AF_P" || _af_rc=$?
+_AF_N1=$(_af_ledger_n "$TMP/af-av")
+[ "$_af_rc" -eq 0 ] && [ "$_AF_N1" -eq $((_AF_N0 + 1)) ] \
+  && ok "AF kt_ss_ledger_add_verified returns 0 because the LEDGER header count rose by 1 ($_AF_N0 -> $_AF_N1)" \
+  || bad "AF add_verified" "rc=$_af_rc LEDGER count $_AF_N0 -> $_AF_N1 (want rc 0 and +1)"
+_af_file "$TMP/af-ca" prompt 0
+_AF_ARCH0=$(_wk_lines '{ k = kt_region($0) } R_SEC == "ARCH" { print }' "$TMP/af-ca/SESSION.md")
+_af_crc=0; kt_ss_ledger_consume_active "$TMP/af-ca" afby 2026-07-06T00:00:00Z "aria-handoff: proj-a/af-act@2026-07-05T00:00:00Z" 2>/dev/null || _af_crc=$?
+_AF_ARCH1=$(_wk_lines '{ k = kt_region($0) } R_SEC == "ARCH" { print }' "$TMP/af-ca/SESSION.md")
+_AF_CN=$(_wk_lines '{ k = kt_region($0) } k == "entry_header" && R_SEC == "LEDGER" && index($0, "### af-act · 2026-07-05T00:00:00Z · handoff · consumed 2026-07-06T00:00:00Z by afby") == 1 { n++ } END { print n + 0 }' "$TMP/af-ca/SESSION.md")
+_AF_UN=$(_wk_lines '{ k = kt_region($0) } k == "entry_header" && R_SEC == "LEDGER" { n++ } END { print n + 0 }' "$TMP/af-ca/SESSION.md")
+if [ "$_af_crc" -eq 0 ] && [ "$_AF_CN" -eq 1 ] && [ "$_AF_UN" -eq 1 ] && [ -n "$_AF_ARCH0" ] && [ "$_AF_ARCH1" = "$_AF_ARCH0" ]; then
+  ok "AF consume_active: exactly one consumed entry under Pending, the archived copy byte-identical"
+else
+  bad "AF consume_active" "rc=$_af_crc consumed-in-Pending=$_AF_CN entries-in-Pending=$_AF_UN archive-unchanged=$([ "$_AF_ARCH1" = "$_AF_ARCH0" ] && echo y || echo n)"
+fi
+# AF0 positive control (Y9 behaviour): the same block already UNDER Pending -> nothing written, rc 0.
+_af_file "$TMP/af0" prompt 1
+cp "$TMP/af0/SESSION.md" "$TMP/af0.before"
+_af0_rc=0; kt_ss_ledger_add_verified "$TMP/af0" af-act 2026-07-05T00:00:00Z af-focus af-next "$_AF_P" || _af0_rc=$?
+if [ "$_af0_rc" -eq 0 ] && cmp -s "$TMP/af0.before" "$TMP/af0/SESSION.md"; then
+  ok "AF0 control: the block already under Pending -> add writes nothing, add_verified returns 0"
+else
+  bad "AF0 control" "rc=$_af0_rc, file changed=$(cmp -s "$TMP/af0.before" "$TMP/af0/SESSION.md" && echo n || echo y)"
+fi
+
+# AI (carried (i), Task 1a review): a file whose front matter opens on line 1 and NEVER closes. Every
+# reader treats it as all front matter (no live prompt), so kt_ss_mark_inprogress used to enter its
+# front-matter rewrite and rewrite the first at:/sessionId:/lastEvent: line ANYWHERE in the file.
+_AI="$TMP/ai"; mkdir -p "$_AI"
+printf -- '---\nlastEvent: handoff\ncurrentFocus: ai-focus\n\n## Notes\n\nai body line\nat: ai-body-at\nsessionId: ai-body-sid\n' > "$_AI/SESSION.md"
+cp "$_AI/SESSION.md" "$TMP/ai.before"
+kt_ss_mark_inprogress "$_AI" ai-sid mipr
+cmp -s "$TMP/ai.before" "$_AI/SESSION.md" \
+  && ok "AI mark_inprogress refuses a never-closed front matter (file byte-identical)" \
+  || bad "AI mark_inprogress" "rewrote a file whose front matter never closes"
+# AI control: the same file with its front matter CLOSED is marked as usual (the refusal is scoped).
+mkdir -p "$TMP/ai2"
+printf -- '---\nlastEvent: handoff\ncurrentFocus: ai-focus\n---\n\n## Notes\n\nai body line\nat: ai-body-at\nsessionId: ai-body-sid\n' > "$TMP/ai2/SESSION.md"
+kt_ss_mark_inprogress "$TMP/ai2" ai-sid mipr
+if grep -q '^sessionId: ai-sid$' "$TMP/ai2/SESSION.md" && grep -q '^at: ai-body-at$' "$TMP/ai2/SESSION.md"; then
+  ok "AI control: a closed front matter is still marked, and the body's at: line is untouched"
+else
+  bad "AI control" "a closed front matter was not marked (or its body was rewritten)"
+fi
+
+# AJ (carried (iii)): an ACTIVE slot holding only an empty fence pair is NO active prompt.
+_aj() {  # <dir> <fence content line or empty>
+  mkdir -p "$1"
+  { printf -- '---\nlastEvent: wrapup\nat: 2026-07-01T00:00:00Z\nsessionId: aj-fm\n---\n\n## Next session prompt\n\n```\n'
+    [ -n "$2" ] && printf '%s\n' "$2"
+    printf '```\n\n## Pending handoffs\n\n### aj-live · 2026-06-01T00:00:00Z · handoff · unconsumed\n- prompt: aj\n<!-- aria:entry-end -->\n'; } > "$1/SESSION.md"
+}
+_aj "$TMP/aj" ""
+_aj "$TMP/aj-c" "aj real prompt line"
+if ! kt_ss_ledger_candidates "$TMP/aj" | grep -q '|active$' && [ "$(kt_ss_ledger_candidates "$TMP/aj" | grep -c .)" -eq 1 ] \
+   && kt_ss_ledger_candidates "$TMP/aj-c" | grep -q '^aj-fm|2026-07-01T00:00:00Z|unconsumed|active$'; then
+  ok "AJ an empty fence pair in ACTIVE yields no |active row (control: one prompt line does)"
+else
+  bad "AJ empty fence" "candidates on an empty fence pair: [$(kt_ss_ledger_candidates "$TMP/aj" | tr '\n' ' ')]"
 fi
 
 printf "\n%d passed, %d failed\n" "$PASS" "$FAIL"
