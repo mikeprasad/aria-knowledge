@@ -93,7 +93,7 @@ kt_ss_mark_inprogress() {
     # docs/superpowers/plans/2026-10-29-inprogress-mark-respects-live-handoff.md (bound C2).
     :
   elif [ -f "$_ss_file" ] && IFS= read -r _ss_first < "$_ss_file" && [ "$_ss_first" = "---" ] \
-       && ! awk 'NR > 1 && $0 == "---" { f = 1; exit } END { exit (f ? 0 : 1) }' "$_ss_file" 2>/dev/null; then
+       && ! awk 'NR > 1 && $0 == "---" { f = 1; exit } END { if (f) { exit 0 } else { exit 1 } }' "$_ss_file" 2>/dev/null; then
     # ⛔ REFUSED (2.58.0): the front matter opens on line 1 and NEVER closes. Every reader (the region
     # walker) treats such a file as all front matter, so kt_ss_read_live_prompt reports no prompt and
     # control used to fall into the rewrite below -- whose `infm == 1` state then never ends, so it
@@ -557,6 +557,14 @@ kt_ss_ledger_prune() {
   #     The old rule ended it at the first fence-blind terminator and re-exposed the entries its prompt
   #     quotes inside that open fence -- measured on the real corpus: 36 phantom candidates in 6 files.
   #     Leaving it deletes less than the old prune, never more. Arm AE2.
+  # ⛔ AMBIGUOUS (fix round 1): an entry whose pass-1 span holds a FENCED well-formed `unconsumed`
+  # header cannot be bounded without crossing another entry -- a later live entry whose prompt also opens
+  # a fence returns the count to even, and ITS terminator then closes this one, so reaping would delete
+  # that live entry (the old prune kept it; CRLF loses it the same way, closing at the next header). Such
+  # an entry is LEFT IN PLACE, exactly like the odd case. Arms AK, AK2.
+  # ⛔ The even-parity fallback applies the old rule only while pass 2 is in LEDGER or ARCH; front
+  # matter, ACTIVE and other sections print unconditionally (arm AL) -- the old rule reaped a consumed
+  # header quoted in the active prompt when the ledger sat above it, which is F1 again.
   awk "$(_kt_ss_awk_regions)"'
     function old_hdr(s,    n) { n = gsub(/ · /, " · ", s); return (n >= 2) }
     function is_consumed(s) { return (s ~ /(^|[^a-z])consumed([^a-z]|$)/) }
@@ -578,6 +586,7 @@ kt_ss_ledger_prune() {
       k = kt_region($0)
       if (k == "entry_header") KT_HASTERM[FNR] = 1
       else if (k == "terminator") HT[R_ENTRY] = 1
+      else if (k == "body" && R_FENCED == 1 && kt_is_entry_header($0) && $0 ~ /(^|[^a-z])unconsumed([^a-z]|$)/) AMB[R_ENTRY] = 1
       next
     }
 
@@ -591,10 +600,11 @@ kt_ss_ledger_prune() {
     {
       keep = old_keep($0)
       k = kt_region($0)
-      if (fb) { if (keep || FBODD) print; next }
+      if (fb) { if (keep || fbkeep || (R_SEC != "LEDGER" && R_SEC != "ARCH")) print; next }
       if (k == "entry_header") {
-        if (FNR in FB) { fb = 1; if (keep || FBODD) print; next }
+        if (FNR in FB) { fb = 1; fbkeep = 0; if (FBODD || (FNR in AMB)) fbkeep = 1; if (keep || fbkeep) print; next }
         drop = is_consumed($0)
+        if (FNR in AMB) drop = 0
         if (!drop) print
         next
       }

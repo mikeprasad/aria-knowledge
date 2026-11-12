@@ -1964,8 +1964,10 @@ kt_ss_ledger_prune "$_AE"
 _AE_C1=$(kt_ss_ledger_candidates "$_AE" | sort)
 _AE_PH=$(printf '%s\n' "$_AE_C1" | grep . | while IFS= read -r _r; do printf '%s\n' "$_AE_C0" | grep -qxF "$_r" || echo x; done | grep -c x || true)
 _AE_OR=$(_wk_orphans "$_AE/SESSION.md")
-if [ "$_AE_PH" -eq 0 ] && [ "$_AE_OR" -eq 0 ] && printf '%s\n' "$_AE_C1" | grep -q '^ae-live|' && ! grep -q 'ae-x1' "$_AE/SESSION.md"; then
-  ok "AE prune of a consumed entry with fenced inner headers/terminators: 0 phantoms, 0 orphans, live kept"
+# (fix round 1) the entry's prompt quotes live-looking headers in a fence, so its end cannot be fixed
+# without crossing another entry: it is AMBIGUOUS and left in place (AK). Asserted: retained, not reaped.
+if [ "$_AE_PH" -eq 0 ] && [ "$_AE_OR" -eq 0 ] && printf '%s\n' "$_AE_C1" | grep -q '^ae-live|' && grep -q '^### ae-c ' "$_AE/SESSION.md"; then
+  ok "AE prune of a consumed entry with fenced inner headers/terminators: 0 phantoms, 0 orphans, live kept, ambiguous entry retained"
 else
   bad "AE prune" "phantoms=$_AE_PH orphans=$_AE_OR after [$(printf '%s' "$_AE_C1" | tr '\n' ' ')]"
 fi
@@ -2106,6 +2108,93 @@ if ! kt_ss_ledger_candidates "$TMP/aj" | grep -q '|active$' && [ "$(kt_ss_ledger
   ok "AJ an empty fence pair in ACTIVE yields no |active row (control: one prompt line does)"
 else
   bad "AJ empty fence" "candidates on an empty fence pair: [$(kt_ss_ledger_candidates "$TMP/aj" | tr '\n' ' ')]"
+fi
+
+# AK / AK2 (fix round 1, I1): a consumed entry e1 whose prompt opens a fence it never closes, followed by
+# an older LIVE entry l1 whose prompt does the same. Pass 1's in-entry fence count is back to even inside
+# l1, so l1's terminator would close e1 and pass 2 would reap l1 with it -- deleting a live handoff the
+# old prune kept. An entry whose span holds a FENCED well-formed `unconsumed` header cannot be bounded
+# without crossing another entry, so it is AMBIGUOUS and left in place. AK2 is the CRLF form, where no
+# terminator matches and e1 would close only at l0's header.
+_ak_fix() {  # <dir> <lf|crlf>
+  mkdir -p "$1"
+  cat > "$1/SESSION.md.lf" <<'AK_FIX'
+## Pending handoffs
+
+### e1 · 2026-01-02T00:00:00Z · handoff · consumed 2026-01-03T00:00:00Z by x
+- prompt:
+```
+e1 prompt with unclosed fence
+<!-- aria:entry-end -->
+
+### l1 · 2026-01-01T00:00:00Z · handoff · unconsumed
+- prompt:
+```
+l1 prompt also unclosed
+<!-- aria:entry-end -->
+
+### l0 · 2025-12-01T00:00:00Z · handoff · unconsumed
+- prompt: plain
+<!-- aria:entry-end -->
+AK_FIX
+  if [ "$2" = crlf ]; then awk '{ printf "%s\r\n", $0 }' "$1/SESSION.md.lf" > "$1/SESSION.md"; else cp "$1/SESSION.md.lf" "$1/SESSION.md"; fi
+  rm -f "$1/SESSION.md.lf"
+}
+for _akm in lf crlf; do
+  _akd="$TMP/ak-$_akm"; _ak_fix "$_akd/new" "$_akm"; _ak_fix "$_akd/old" "$_akm"
+  _akn="AK"; [ "$_akm" = crlf ] && _akn="AK2"
+  if [ -s "$TMP/old-lib.sh" ]; then
+    ( . "$TMP/old-lib.sh"; KT_SS_RECEIPTS="$_akd/old-receipts"; kt_ss_ledger_prune "$_akd/old" )
+    kt_ss_ledger_prune "$_akd/new"
+    _akl1=$(grep -c '^### l1 · 2026-01-01T00:00:00Z · handoff · unconsumed' "$_akd/new/SESSION.md" || true)
+    # Fragment match: $TMP may carry a doubled slash from TMPDIR, the receipt a pwd-derived path.
+    _akrc=$(grep -cF "/ak-$_akm/new/SESSION.md|l1|" "$KT_SS_RECEIPTS" 2>/dev/null || true)
+    _aksub=$(awk 'NR == FNR { o[++on] = $0; next } { if (j < on && $0 == o[j + 1]) j++ } END { if (j == on) { print "y" } else { print "n" } }' "$_akd/old/SESSION.md" "$_akd/new/SESSION.md")
+    if [ "$_akl1" -eq 1 ] && [ "$_akrc" -eq 0 ] && [ "$_aksub" = y ]; then
+      ok "$_akn ($_akm) a consumed entry that cannot be bounded is left in place: live l1 survives, no receipt names l1, old output is a subsequence"
+    else
+      bad "$_akn ($_akm)" "l1 headers=$_akl1 receipts naming l1=$_akrc old-kept-subset=$_aksub"
+    fi
+  else
+    bad "$_akn reference" "no 3e44761 library extracted (AE2 extracts it) -- a reference arm with no reference is not a pass"
+  fi
+done
+
+# AL (fix round 1, m2): the EVEN-parity open-at-EOF fallback runs the old fence-blind rule -- but only
+# inside LEDGER/ARCH. Here the ledger sits ABOVE `## Next session prompt`, the last entry e1 is consumed
+# and unterminated, and the active prompt quotes a consumed header in a fence: the old rule reaped it
+# with the prompt tail (F1 again). Front matter, ACTIVE and other sections must print unconditionally.
+_AL="$TMP/al"; mkdir -p "$_AL"
+cat > "$_AL/SESSION.md" <<'AL_FIX'
+## Pending handoffs
+
+### l1 · 2026-01-03T00:00:00Z · handoff · unconsumed
+- prompt: live
+<!-- aria:entry-end -->
+
+### e1 · 2026-01-02T00:00:00Z · handoff · consumed 2026-01-03T00:00:00Z by x
+- focus: unterminated last entry
+
+## Next session prompt
+
+```
+aria-handoff: proj-a/al-act@2026-02-02T00:00:00Z
+### f1 · 2026-01-01T00:00:00Z · handoff · consumed
+quoted line A
+quoted line B
+```
+
+## Notes
+keep
+AL_FIX
+_AL_A0=$(_wk_lines '{ k = kt_region($0) } R_SEC == "ACTIVE" || R_SEC == "OTHER" { print }' "$_AL/SESSION.md")
+kt_ss_ledger_prune "$_AL"
+_AL_A1=$(_wk_lines '{ k = kt_region($0) } R_SEC == "ACTIVE" || R_SEC == "OTHER" { print }' "$_AL/SESSION.md")
+if [ "$_AL_A1" = "$_AL_A0" ] && printf '%s\n' "$_AL_A1" | grep -q '^quoted line B$' && ! grep -q '^### e1 ' "$_AL/SESSION.md" \
+   && grep -q '^### l1 ' "$_AL/SESSION.md"; then
+  ok "AL the even-parity fallback stays in the ledger: ACTIVE and Notes byte-identical, e1 still reaped, l1 kept"
+else
+  bad "AL fallback scope" "ACTIVE/OTHER changed under the open-at-EOF fallback (or e1 not reaped / l1 lost)"
 fi
 
 printf "\n%d passed, %d failed\n" "$PASS" "$FAIL"
