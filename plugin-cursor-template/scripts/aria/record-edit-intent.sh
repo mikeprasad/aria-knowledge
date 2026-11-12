@@ -22,6 +22,21 @@
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$SCRIPT_DIR/config.sh"
+# Hook debug log at a fixed /tmp name (spec §5): aria_hook_dbg builds the line first, creates the
+# log only with kt_create_new, and appends only when it is a regular file of ours that is not a
+# link (lib-tracked-artifacts.sh only defines functions; without it nothing is logged).
+# KT_HOOK_DEBUG_LOG is a TEST-ONLY override of the path. Identical in pre-edit-check.sh,
+# post-edit-check.sh, capture-task-boundary.sh and record-edit-intent.sh
+# (tests/repros/safe-create-census.sh CC1).
+. "$SCRIPT_DIR/lib-tracked-artifacts.sh" 2>/dev/null || true
+ARIA_HOOK_DEBUG_LOG=${KT_HOOK_DEBUG_LOG:-/tmp/aria-hook-debug.log}
+aria_hook_dbg() {
+  _ahd_l="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null) $*"
+  [ -e "$ARIA_HOOK_DEBUG_LOG" ] || [ -L "$ARIA_HOOK_DEBUG_LOG" ] || kt_create_new "$ARIA_HOOK_DEBUG_LOG" 2>/dev/null || :
+  kt_is_ours "$ARIA_HOOK_DEBUG_LOG" 2>/dev/null || return 0
+  printf '%s\n' "$_ahd_l" >> "$ARIA_HOOK_DEBUG_LOG" 2>/dev/null
+  return 0
+}
 
 FILE_PATH="${1:-${ARIA_FILE_PATH:-${ARIA_FILEPATH:-}}}"
 MARKER_TYPE="${2:-${ARIA_RULE22_MARKER:-rule22-low}}"
@@ -57,5 +72,5 @@ printf '{"sessionId":"%s","filePath":"%s","timestamp":%s,"timestampIso":"%s","ma
   "$esc_sid" "$esc_fp" "$NOW_EPOCH" "$NOW_ISO" "$esc_marker" "$esc_rat" \
   > "$OUT"
 
-echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) $0 wrote intent for $FILE_PATH ($MARKER_TYPE)" >> /tmp/aria-hook-debug.log 2>/dev/null
+aria_hook_dbg "$0 wrote intent for $FILE_PATH ($MARKER_TYPE)"
 exit 0

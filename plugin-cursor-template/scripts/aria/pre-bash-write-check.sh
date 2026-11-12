@@ -34,10 +34,19 @@ print(json.dumps({"tool_input": {"command": cmd}}))
 [ -z "$TARGETS" ] && exit 0
 
 _bw_sid=$(printf '%s' "$INPUT" | grep -oE '"(sessionId|session_id|conversation_id)"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed 's/.*:[[:space:]]*"//;s/"$//')
+# The ledger's name is predictable (spec §5): it is created only by kt_create_new and appended to
+# only when it is a regular file of ours that is not a link (lib-tracked-artifacts.sh only defines
+# functions; without it nothing is recorded).
 if [ -n "$_bw_sid" ]; then
-  printf '%s\n' "$TARGETS" | while IFS= read -r _t; do
-    [ -n "$_t" ] && printf '%s\n' "$_t" >> "${TMPDIR:-/tmp}/aria-r22-bypass-$_bw_sid" 2>/dev/null || true
-  done
+  _bw_rec=$(printf '%s\n' "$TARGETS" | grep -v '^$')
+  _bw_f="${TMPDIR:-/tmp}/aria-r22-bypass-$_bw_sid"
+  . "$(dirname "$0")/lib-tracked-artifacts.sh" 2>/dev/null || true
+  if [ -n "$_bw_rec" ]; then
+    [ -e "$_bw_f" ] || [ -L "$_bw_f" ] || kt_create_new "$_bw_f" 2>/dev/null || :
+    if kt_is_ours "$_bw_f" 2>/dev/null; then
+      printf '%s\n' "$_bw_rec" >> "$_bw_f" 2>/dev/null || true
+    fi
+  fi
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"

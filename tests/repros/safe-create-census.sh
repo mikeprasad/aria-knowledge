@@ -2,7 +2,9 @@
 # safe-create-census.sh — spec §5 Decision C / AC5: every shell write onto a predictable-name file
 # (/tmp/aria-active-<sid>, the surfacing debug log aria-surface-hook.log, Antigravity's
 # aria-ag-surfaced-* state and aria-ag-logged-* markers, post-edit-check.sh's
-# /tmp/aria-session-inprogress-<sid>) goes through the shared safe create, and
+# /tmp/aria-session-inprogress-<sid>, and — fix round 2 — the hook markers
+# ${TMPDIR}/aria-r22-bypass-<sid> and ${TMPDIR}/aria-preflight-skipped-<sid> and Cursor's
+# /tmp/aria-hook-debug.log) goes through the shared safe create, and
 # the helper pair is one body everywhere it is defined.
 #
 # Arms:
@@ -11,7 +13,8 @@
 #        lines, while guarded writes, /dev/null and fd redirects in the same file are not; and a
 #        variable whose assignment names a predictable file is followed to its write.
 #   CC1  kt_create_new and kt_is_ours: one definition per library copy, and the extracted function
-#        text (comments kept) has one cksum across all 11 copies. A MISSING copy fails.
+#        text (comments kept) has one cksum across all 11 copies. A MISSING copy fails. CC1b: the
+#        same for Cursor's aria_hook_dbg across its 4 hook scripts.
 #   CC2  the 4 lib-tracked-artifacts.sh copies are byte-identical (the other two libraries are
 #        pinned in surfacing-ranking-verbatim.sh).
 #   CC3  lib-tracked-artifacts.sh is side-effect-free at source time (the Antigravity hook sources
@@ -51,7 +54,7 @@ plugin-openai-codex/bin/lib-tracked-artifacts.sh"
 # --- the CC4 scanner ---------------------------------------------------------------------------
 # cc_scan FILE... — prints `FILE:LINE: text` for every unguarded write onto a predictable name, and
 # on stderr one `examined N` line per file (the number of such writes it looked at).
-CC_NAMES='aria-active-|aria-surface-hook\.log|aria-ag-surfaced-|aria-ag-logged-|aria-session-inprogress-'
+CC_NAMES='aria-active-|aria-surface-hook\.log|aria-ag-surfaced-|aria-ag-logged-|aria-session-inprogress-|aria-r22-bypass-|aria-preflight-skipped-|aria-hook-debug\.log'
 cc_scan() {
   for _cs_f in "$@"; do
     # Variables assigned a predictable name anywhere in this file (shell has no other scope rule
@@ -157,6 +160,29 @@ if [ "$(printf '%s\n' "$CC0C" | grep -c .)" = 1 ] && printf '%s\n' "$CC0C" | gre
   ok "CC0 control: the in-progress ledger name is covered (unguarded append reported, guarded one not)"
 else bad "CC0 control: the in-progress ledger name is covered" "got: $CC0C"; fi
 
+# The hook markers (fix round 2), each in its writer's own shape: lines 2, 6 and 10 are the
+# unguarded appends and must be the only ones reported (the guard is on the previous line, which is
+# the census's contract).
+cat > "$SCRATCH/control-markers.sh" <<'CTRL'
+_bw_f="${TMPDIR:-/tmp}/aria-r22-bypass-$_bw_sid"
+printf '%s\n' "$_bw_rec" >> "$_bw_f" 2>/dev/null || true
+if kt_is_ours "$_bw_f" 2>/dev/null; then
+  printf '%s\n' "$_bw_rec" >> "$_bw_f" 2>/dev/null || true
+fi
+printf '%s\n' "$_pf_line" >> "${TMPDIR:-/tmp}/aria-preflight-skipped-$SESSION_ID" 2>/dev/null || true
+kt_is_ours "$_pf_f" || exit 0
+printf '%s\n' "$_pf_line" >> "${TMPDIR:-/tmp}/aria-preflight-skipped-$SESSION_ID" 2>/dev/null || true
+:
+echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) $0 fired" >> /tmp/aria-hook-debug.log 2>/dev/null
+kt_is_ours /tmp/aria-hook-debug.log || exit 0
+echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) $0 fired" >> /tmp/aria-hook-debug.log 2>/dev/null
+CTRL
+CC0M=$(cc_scan "$SCRATCH/control-markers.sh" 2>/dev/null)
+if [ "$(printf '%s\n' "$CC0M" | grep -c .)" = 3 ] && printf '%s\n' "$CC0M" | grep -q ':2: ' \
+   && printf '%s\n' "$CC0M" | grep -q ':6: ' && printf '%s\n' "$CC0M" | grep -q ':10: '; then
+  ok "CC0 control: the r22-bypass, preflight-skipped and hook-debug names are covered (3 unguarded reported, guarded not)"
+else bad "CC0 control: the r22-bypass, preflight-skipped and hook-debug names are covered" "got: $CC0M"; fi
+
 # --- CC1 helper body parity --------------------------------------------------------------------
 # cc_extract FILE NAME — the function's text from its opening line to its closing `}`.
 cc_extract() {
@@ -178,6 +204,20 @@ for CC_FN in kt_create_new kt_is_ours; do
   if [ -z "$CC_BAD" ]; then ok "CC1 $CC_FN: one definition per copy, one body across all 11 libraries ($CC_REF)"
   else bad "CC1 $CC_FN: one definition per copy, one body across all 11 libraries" "$CC_BAD"; fi
 done
+
+# CC1b — Cursor's aria_hook_dbg: one definition per hook script, one body across the four.
+CC_REF=""; CC_BAD=""
+for CC_L in pre-edit-check.sh post-edit-check.sh capture-task-boundary.sh record-edit-intent.sh; do
+  CC_P="$ROOT/plugin-cursor-template/scripts/aria/$CC_L"
+  if [ ! -f "$CC_P" ]; then CC_BAD="$CC_BAD $CC_L(missing-file)"; continue; fi
+  CC_N=$(grep -c "^aria_hook_dbg() *{" "$CC_P")
+  if [ "$CC_N" != 1 ]; then CC_BAD="$CC_BAD $CC_L(defs=$CC_N)"; continue; fi
+  CC_SUM=$(cc_extract "$CC_P" aria_hook_dbg | cksum)
+  if [ -z "$CC_REF" ]; then CC_REF=$CC_SUM
+  elif [ "$CC_SUM" != "$CC_REF" ]; then CC_BAD="$CC_BAD $CC_L(differs)"; fi
+done
+if [ -z "$CC_BAD" ]; then ok "CC1b aria_hook_dbg: one definition per Cursor hook, one body across the 4 ($CC_REF)"
+else bad "CC1b aria_hook_dbg: one definition per Cursor hook, one body across the 4" "$CC_BAD"; fi
 
 # --- CC2 tracked-artifacts byte identity -------------------------------------------------------
 CC_REF=$(cksum < "$ROOT/plugin-claude-code/scripts/lib-tracked-artifacts.sh" 2>/dev/null)

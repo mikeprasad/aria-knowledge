@@ -206,8 +206,16 @@ fi
 # Recorded at warn time as well as deny time: a warning the model ignores otherwise
 # leaves no trace, and an ignored gate is precisely the failure this exists to catch.
 # /wrapup and /handoff can report the skips afterwards.
-printf '%s\t%s\n' "$(date +%H:%M 2>/dev/null || echo '?')" "$UNCHECKED" \
-  >> "${TMPDIR:-/tmp}/aria-preflight-skipped-$SESSION_ID" 2>/dev/null || true
+# The marker's name is predictable (spec §5): the line is built first, the file is created only by
+# kt_create_new, and appended to only when it is a regular file of ours that is not a link
+# (lib-tracked-artifacts.sh only defines functions; without it nothing is recorded).
+_pf_line=$(printf '%s\t%s' "$(date +%H:%M 2>/dev/null || echo '?')" "$UNCHECKED")
+_pf_f="${TMPDIR:-/tmp}/aria-preflight-skipped-$SESSION_ID"
+. "$SCRIPT_DIR/lib-tracked-artifacts.sh" 2>/dev/null || true
+[ -e "$_pf_f" ] || [ -L "$_pf_f" ] || kt_create_new "$_pf_f" 2>/dev/null || :
+if kt_is_ours "$_pf_f" 2>/dev/null; then
+  printf '%s\n' "$_pf_line" >> "$_pf_f" 2>/dev/null || true
+fi
 
 MSG="PREFLIGHT: no preflight recorded this session for $N changed file(s): $UNCHECKED. Before reporting this as done, consider /preflight — P1 requirements diff, P2 consumer census, P3 reachability, P4 census bound, P5 non-vacuity, P6 mutation. If a check does not apply, say which and why; skipping silently is the failure mode."
 

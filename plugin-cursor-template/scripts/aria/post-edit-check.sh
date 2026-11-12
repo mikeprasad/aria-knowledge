@@ -10,9 +10,24 @@
 INPUT=$(cat)
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$SCRIPT_DIR/config.sh"
+# Hook debug log at a fixed /tmp name (spec §5): aria_hook_dbg builds the line first, creates the
+# log only with kt_create_new, and appends only when it is a regular file of ours that is not a
+# link (lib-tracked-artifacts.sh only defines functions; without it nothing is logged).
+# KT_HOOK_DEBUG_LOG is a TEST-ONLY override of the path. Identical in pre-edit-check.sh,
+# post-edit-check.sh, capture-task-boundary.sh and record-edit-intent.sh
+# (tests/repros/safe-create-census.sh CC1).
+. "$SCRIPT_DIR/lib-tracked-artifacts.sh" 2>/dev/null || true
+ARIA_HOOK_DEBUG_LOG=${KT_HOOK_DEBUG_LOG:-/tmp/aria-hook-debug.log}
+aria_hook_dbg() {
+  _ahd_l="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null) $*"
+  [ -e "$ARIA_HOOK_DEBUG_LOG" ] || [ -L "$ARIA_HOOK_DEBUG_LOG" ] || kt_create_new "$ARIA_HOOK_DEBUG_LOG" 2>/dev/null || :
+  kt_is_ours "$ARIA_HOOK_DEBUG_LOG" 2>/dev/null || return 0
+  printf '%s\n' "$_ahd_l" >> "$ARIA_HOOK_DEBUG_LOG" 2>/dev/null
+  return 0
+}
 
 # Debug log: confirms hook fires (Cursor port verification)
-echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) $0 fired" >> /tmp/aria-hook-debug.log 2>/dev/null
+aria_hook_dbg "$0 fired"
 
 # Cursor uses camelCase; fallback to snake_case during testing
 FILE_PATH=$(echo "$INPUT" | grep -o '"filePath":"[^"]*"' | head -1 | sed 's/"filePath":"//;s/"//')
@@ -28,13 +43,13 @@ if [ -f "$INTENT_FILE" ] && [ -n "$FILE_PATH" ]; then
   INTENT_FP=$(grep -o '"filePath":"[^"]*"' "$INTENT_FILE" 2>/dev/null | head -1 | sed 's/"filePath":"//;s/"$//')
   INTENT_MARKER=$(grep -o '"marker":"[^"]*"' "$INTENT_FILE" 2>/dev/null | head -1 | sed 's/"marker":"//;s/"$//')
   if [ "$INTENT_FP" = "$FILE_PATH" ]; then
-    echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) $0 consumed intent marker ($INTENT_MARKER) for $FILE_PATH" >> /tmp/aria-hook-debug.log 2>/dev/null
+    aria_hook_dbg "$0 consumed intent marker ($INTENT_MARKER) for $FILE_PATH"
     rm -f "$INTENT_FILE" 2>/dev/null
   else
-    echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) $0 intent marker mismatch (had=$INTENT_FP, edited=$FILE_PATH) — left in place" >> /tmp/aria-hook-debug.log 2>/dev/null
+    aria_hook_dbg "$0 intent marker mismatch (had=$INTENT_FP, edited=$FILE_PATH) — left in place"
   fi
 else
-  echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) $0 no intent marker present for $FILE_PATH" >> /tmp/aria-hook-debug.log 2>/dev/null
+  aria_hook_dbg "$0 no intent marker present for $FILE_PATH"
 fi
 
 # Planning paths where abbreviated scope check is permitted

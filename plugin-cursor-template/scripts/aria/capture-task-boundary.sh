@@ -20,8 +20,23 @@
 INPUT=$(cat 2>/dev/null || true)
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$SCRIPT_DIR/config.sh"
+# Hook debug log at a fixed /tmp name (spec §5): aria_hook_dbg builds the line first, creates the
+# log only with kt_create_new, and appends only when it is a regular file of ours that is not a
+# link (lib-tracked-artifacts.sh only defines functions; without it nothing is logged).
+# KT_HOOK_DEBUG_LOG is a TEST-ONLY override of the path. Identical in pre-edit-check.sh,
+# post-edit-check.sh, capture-task-boundary.sh and record-edit-intent.sh
+# (tests/repros/safe-create-census.sh CC1).
+. "$SCRIPT_DIR/lib-tracked-artifacts.sh" 2>/dev/null || true
+ARIA_HOOK_DEBUG_LOG=${KT_HOOK_DEBUG_LOG:-/tmp/aria-hook-debug.log}
+aria_hook_dbg() {
+  _ahd_l="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null) $*"
+  [ -e "$ARIA_HOOK_DEBUG_LOG" ] || [ -L "$ARIA_HOOK_DEBUG_LOG" ] || kt_create_new "$ARIA_HOOK_DEBUG_LOG" 2>/dev/null || :
+  kt_is_ours "$ARIA_HOOK_DEBUG_LOG" 2>/dev/null || return 0
+  printf '%s\n' "$_ahd_l" >> "$ARIA_HOOK_DEBUG_LOG" 2>/dev/null
+  return 0
+}
 
-echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) $0 fired" >> /tmp/aria-hook-debug.log 2>/dev/null
+aria_hook_dbg "$0 fired"
 
 # Skip silently if no knowledge folder is configured — there's nowhere to write.
 if [ "$KT_CONFIGURED" != "true" ] || [ -z "$KT_KNOWLEDGE_FOLDER" ] || [ ! -d "$KT_KNOWLEDGE_FOLDER" ]; then
@@ -67,8 +82,8 @@ fi
 
 # Recent debug log — last 40 lines, capped to ~4 KB
 DEBUG_LOG=""
-if [ -f /tmp/aria-hook-debug.log ]; then
-  DEBUG_LOG=$(tail -n 40 /tmp/aria-hook-debug.log 2>/dev/null | head -c 4096)
+if kt_is_ours "$ARIA_HOOK_DEBUG_LOG" 2>/dev/null; then
+  DEBUG_LOG=$(tail -n 40 "$ARIA_HOOK_DEBUG_LOG" 2>/dev/null | head -c 4096)
 fi
 
 {
@@ -86,6 +101,6 @@ fi
   printf '\n## recent /tmp/aria-hook-debug.log (last 40 lines, truncated)\n\n```\n%s\n```\n' "$DEBUG_LOG"
 } > "$OUT" 2>/dev/null
 
-echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) $0 wrote $OUT" >> /tmp/aria-hook-debug.log 2>/dev/null
+aria_hook_dbg "$0 wrote $OUT"
 
 exit 0
