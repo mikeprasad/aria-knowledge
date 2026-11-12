@@ -305,7 +305,9 @@ FULL='Resume the arc.
 - a file
 Continue.'
 kt_ss_ledger_add "$MD" "OLD-A" "2026-07-30T00:00:00Z" "focus" "next" "$FULL"
-grep -q '^## Read first$' "$MD/SESSION.md" \
+# (2.58.0 Task 2) A stored column-0 "## " line is escaped on write (spec §3), so full fidelity is the
+# ESCAPED form, which the reference decoder turns back into "## Read first".
+grep -q '^\\## Read first$' "$MD/SESSION.md" \
   && ok "M1 full multi-line prompt stored uncollapsed" || bad "M1 fidelity" "prompt was collapsed or dropped"
 grep -q 'Continue\.' "$MD/SESSION.md" \
   && ok "M1 prompt tail preserved" || bad "M1 tail" "prompt truncated"
@@ -316,9 +318,11 @@ grep -q '^<!-- aria:entry-end -->$' "$MD/SESSION.md" \
 
 # M3: THE LEAK. A consumed block whose prompt contains a column-0 "## " must be removed
 # whole -- no residue. This is the assertion that goes RED against boundary-inference.
+# The residue check matches "Read first" in ANY form: a raw-only grep would pass vacuously now that the
+# line is stored escaped.
 kt_ss_ledger_mark_consumed "$MD" "OLD-A" "2026-07-30T01:00:00Z" "tester"
 kt_ss_ledger_prune "$MD"
-if grep -q 'Continue\.' "$MD/SESSION.md" || grep -q '^## Read first$' "$MD/SESSION.md"; then
+if grep -q 'Continue\.' "$MD/SESSION.md" || grep -q 'Read first' "$MD/SESSION.md"; then
   bad "M3 prune leak" "consumed block left residue behind (boundary inference failed)"
 else
   ok "M3 consumed block pruned whole, no residue"
@@ -331,7 +335,7 @@ kt_ss_ledger_add "$MD" "OLD-B" "2026-07-30T02:00:00Z" "focus" "next" "$FULL"
 kt_ss_ledger_prune "$MD"
 grep -q 'OLD-B' "$MD/SESSION.md" \
   && ok "M4 unconsumed block survives prune" || bad "M4 unconsumed" "prune dropped an unconsumed handoff"
-grep -q '^## Read first$' "$MD/SESSION.md" \
+grep -q '^\\## Read first$' "$MD/SESSION.md" \
   && ok "M4 unconsumed keeps full fidelity through prune" || bad "M4 fidelity" "prompt degraded"
 
 # M5: the section is named for what it holds -- pending work, not history.
@@ -587,7 +591,8 @@ _ss_fnsum() {
 # (final fix wave) the token-file helpers joined: a model reaches locate/consume only through them.
 # (2.58.0 Task 0) the six ledger READERS joined; measured identical in all 4 ports at 1260af0.
 # (2.58.0 Task 1a) _kt_ss_awk_regions joined: the one region walker every ledger program splices in.
-_SS_PARITY_FNS="_kt_ss_awk_regions kt_ss_ledger_add kt_ss_ledger_prune kt_ss_ledger_demote_active kt_ss_ledger_add_file kt_ss_ledger_consume_active kt_ss_ledger_add_verified _kt_ss_token_from_file kt_ss_ledger_token_locate_file kt_ss_ledger_consume_active_file kt_ss_ledger_mark_consumed kt_ss_ledger_mark_superseded kt_ss_ledger_candidates kt_ss_ledger_token_locate kt_ss_read_live_prompt kt_ss_read_active_token"
+# (2.58.0 Task 2) _kt_ss_entry_block joined: the one entry builder add and add_verified both write with.
+_SS_PARITY_FNS="_kt_ss_awk_regions _kt_ss_entry_block kt_ss_ledger_add kt_ss_ledger_prune kt_ss_ledger_demote_active kt_ss_ledger_add_file kt_ss_ledger_consume_active kt_ss_ledger_add_verified _kt_ss_token_from_file kt_ss_ledger_token_locate_file kt_ss_ledger_consume_active_file kt_ss_ledger_mark_consumed kt_ss_ledger_mark_superseded kt_ss_ledger_candidates kt_ss_ledger_token_locate kt_ss_read_live_prompt kt_ss_read_active_token"
 _SS_P1="$REPO_ROOT/plugin-claude-code/scripts/lib-session-state.sh"
 _SS_P2="$REPO_ROOT/plugin-antigravity/bin/lib-session-state.sh"
 _SS_P3="$REPO_ROOT/plugin-cursor-template/scripts/aria/lib-session-state.sh"
@@ -1267,9 +1272,13 @@ _y_slot() {  # $1 dir, $2 prompt file -- the front matter DISAGREES with the tok
   } > "$1/SESSION.md"
   cp "$1/SESSION.md" "$1/before.md"
 }
-_y_stored() {  # $1 file, $2 exact header line -> that entry's stored prompt, verbatim
+# (2.58.0 Task 2) THE REFERENCE DECODER -- test-only, never shipped (spec §3: no code path returns a stored
+# body). Removes ONE leading backslash from a line matching ^\\+(## |### |```|<!-- aria:entry-end -->$),
+# the inverse of _kt_ss_entry_block's encode. Arms AA..AA5 prove decode(encode(x)) == x.
+_ss_ref_decode() { LC_ALL=C awk '/^\\+(## |### |```|<!-- aria:entry-end -->$)/ { $0 = substr($0, 2) } { print }'; }
+_y_stored() {  # $1 file, $2 exact header line -> that entry's stored prompt, DECODED (the original text)
   awk -v h="$2" '$0 == h { f = 1; next } f && $0 == "- prompt:" { p = 1; next }
-                 p && $0 == "<!-- aria:entry-end -->" { exit } p { print }' "$1"
+                 p && $0 == "<!-- aria:entry-end -->" { exit } p { print }' "$1" | _ss_ref_decode
 }
 _y_field() {  # $1 file, $2 exact header line, $3 key -> the value of that entry's "- key: " line
   awk -v h="$2" -v k="- $3: " '$0 == h { f = 1; next }
@@ -1853,19 +1862,21 @@ kt_ss_ledger_prune "$_AC"
 _AC_C=$(kt_ss_ledger_candidates "$_AC")
 _AC_OR=$(_wk_orphans "$_AC/SESSION.md")
 if [ "$_ac_rc" -eq 0 ] && printf '%s\n' "$_AC_C" | grep -q '^ac-live|2026-06-01T00:00:00Z|unconsumed|pending$' \
-   && [ "$(printf '%s\n' "$_AC_C" | grep -c .)" -eq 1 ] && [ "$_AC_OR" -eq 0 ] && grep -q '^ac-tail-2$' "$_AC/SESSION.md"; then
-  # (fix round 3) the demoted prompt quotes a header and a terminator inside a fence, so the old prune
-  # would end the entry inside that fence: by the parity rule it is ambiguous and RETAINED whole -- no
-  # leak, no orphan, never reaped by prune. Asserted: retained (the brief's two assertions unchanged).
-  ok "AC consume+prune: the live pending entry is still the only candidate, nothing leaked (0 orphan terminators/fences), ambiguous entry retained whole"
+   && [ "$(printf '%s\n' "$_AC_C" | grep -c .)" -eq 1 ] && [ "$_AC_OR" -eq 0 ] \
+   && ! grep -q 'ac-tail-2' "$_AC/SESSION.md" && ! grep -q '^### ac-act ' "$_AC/SESSION.md"; then
+  # (fix round 3) Under 1b alone the demoted prompt was stored raw -- a quoted header and terminator inside
+  # a fence -- so the parity rule kept it as ambiguous. (Task 2) consume_active now writes through the
+  # escaping builder, so the stored body holds no structural line and the consumed entry is REAPED whole;
+  # the parity-rule retention is a pre-2.58.0 trade only. The brief's two assertions are unchanged.
+  ok "AC consume+prune: the live pending entry is still the only candidate, nothing leaked (0 orphan terminators/fences), the new consumed entry reaped whole"
 else
   bad "AC consume+prune" "rc=$_ac_rc candidates [$(printf '%s' "$_AC_C" | tr '\n' ' ')] orphans=$_AC_OR"
 fi
 
 # AD (F3): the active prompt QUOTES the anchor heading (fenced, indented, bold). The demote must land
-# under the REAL heading. ⚠ Raw `grep -c '^## Pending handoffs$'` reads 2 here until Task 2's write
-# escape: the quoted line is stored verbatim, fenced, inside the consumed entry's body. The walker count
-# is the instrument that separates a heading from a quotation, so that is what is asserted.
+# under the REAL heading. Both instruments are asserted: the walker count (which separates a heading
+# from a quotation) and, since Task 2's write escape, a raw `grep -c '^## Pending handoffs$'` -- the
+# quoted line is now stored as `\## Pending handoffs`, so raw grep also reads 1 (it read 2 before).
 _AD="$TMP/ad"; mkdir -p "$_AD"
 cat > "$_AD/SESSION.md" <<'AD_FIX'
 ---
@@ -1895,11 +1906,12 @@ _AD_LOC=$(kt_ss_ledger_token_locate "$_AD" "aria-handoff: proj-a/ad-act@2026-07-
 _AD_HDR=$(_wk_lines '{ k = kt_region($0) } k == "entry_header" && R_SEC == "LEDGER" && index($0, "### ad-act · 2026-07-02T00:00:00Z · handoff · consumed ") == 1 { n++ } END { print n + 0 }' "$_AD/SESSION.md")
 _AD_H=$(_wk_lines '{ k = kt_region($0) } k == "heading" && R_SEC == "LEDGER" { n++ } END { print n + 0 }' "$_AD/SESSION.md")
 _AD_OR=$(_wk_orphans "$_AD/SESSION.md")
+_AD_RAW=$(grep -c '^## Pending handoffs$' "$_AD/SESSION.md" || true)
 if [ "$_ad_rc" -eq 0 ] && [ "$_AD_LOC" = "ad-act|2026-07-02T00:00:00Z|terminal|pending" ] && [ "$_AD_HDR" -eq 1 ] \
-   && [ "$_AD_H" -eq 1 ] && [ "$_AD_OR" -eq 0 ] && [ -z "$(kt_ss_read_live_prompt "$_AD")" ]; then
-  ok "AD consume_active with a quoted anchor lands the consumed entry under the real heading (1 LEDGER heading, 0 orphans)"
+   && [ "$_AD_H" -eq 1 ] && [ "$_AD_RAW" -eq 1 ] && [ "$_AD_OR" -eq 0 ] && [ -z "$(kt_ss_read_live_prompt "$_AD")" ]; then
+  ok "AD consume_active with a quoted anchor lands the consumed entry under the real heading (1 LEDGER heading by walker AND raw grep, 0 orphans)"
 else
-  bad "AD consume_active" "rc=$_ad_rc locate='$_AD_LOC' consumed-headers=$_AD_HDR ledger-headings=$_AD_H orphans=$_AD_OR"
+  bad "AD consume_active" "rc=$_ad_rc locate='$_AD_LOC' consumed-headers=$_AD_HDR ledger-headings=$_AD_H raw-grep-headings=$_AD_RAW orphans=$_AD_OR"
 fi
 
 # AD2 (Review Focus 2): the tolerant anchor set. (a) and (b) are NON-REGRESSION (green before 1b);
@@ -2361,6 +2373,107 @@ for _aqm in lf crlf; do
     bad "$_aqn ($_aqm)" "lines the old prune kept were deleted (old-kept-subset=$_aqsub)"
   fi
 done
+
+# --- AA..AA5 (2.58.0 Task 2, spec §3): one entry builder escapes structural prompt lines on write ---------
+# A stored prompt line matching ^\\*(## |### |```|<!-- aria:entry-end -->$) gets ONE leading backslash
+# (mbox-style, injective). No decoder ships in the library: this suite carries the REFERENCE decoder
+# (_ss_ref_decode, defined before block Y) and proves decode(encode(x)) == x.
+_aa_decode() { _ss_ref_decode; }
+_aa_hdr='### aa · 2026-01-01T00:00:00Z · handoff · unconsumed'
+_aa_tok='aria-handoff: proj-a/aa@2026-01-01T00:00:00Z'
+_aa_mk() {  # <dir> -> a fresh SESSION.md whose last line is the `## Pending handoffs` heading
+  mkdir -p "$1"
+  printf -- '---\nlastEvent: handoff\n---\n\n## Where we left off\n\naa-body\n\n## Pending handoffs\n' > "$1/SESSION.md"
+}
+printf '%s\n' '### f · 2026-01-01T00:00:00Z · handoff · consumed' '### f · 2026-01-01T00:00:00Z · handoff · unconsumed' \
+  '## Pending handoffs' '## Where we left off' '<!-- aria:entry-end -->' '```' '\## x' '\\```' "$_aa_tok" > "$TMP/aa-prompt"
+awk '{ printf "%s\r\n", $0 }' "$TMP/aa-prompt" > "$TMP/aa-prompt-crlf"
+# The `- prompt:` line of the aa entry (the hostile prompt holds no such line, so the first one is ours).
+_aa_p() { awk -v h="$_aa_hdr" '$0 == h { f = 1 } f && $0 == "- prompt:" { print FNR; exit }' "$1"; }
+# Walker verdict over the stored prompt lines p+1..p+n: "<non-body lines>|<terminator at p+n+1>".
+_aa_walk() {  # <file> <p> <n>
+  awk -v p="$2" -v n="$3" "$(_kt_ss_awk_regions)"'
+    { k = kt_region($0) }
+    FNR > p && FNR <= p + n && (k != "body" || R_ENTRY != p - 3) { nb++ }
+    FNR == p + n + 1 && k == "terminator" { t = 1 }
+    END { print (nb + 0) "|" (t + 0) }' "$1"
+}
+_aa_stored() { awk -v p="$2" -v n="$3" 'FNR > p && FNR <= p + n' "$1"; }  # <file> <p> <n>
+
+# AA: the hostile prompt, LF.
+_AA="$TMP/aa"; _aa_mk "$_AA"
+kt_ss_ledger_add "$_AA" aa 2026-01-01T00:00:00Z aa-focus aa-next "$(cat "$TMP/aa-prompt")"
+_aa_n=$(grep -c '' "$TMP/aa-prompt"); _AA_P=$(_aa_p "$_AA/SESSION.md")
+_AA_W=$(_aa_walk "$_AA/SESSION.md" "${_AA_P:-0}" "$_aa_n")
+[ "$_AA_W" = "0|1" ] && ok "AA(1) every stored prompt line is body of the aa entry; its terminator closes it" \
+  || bad "AA(1) walker" "non-body|terminator = $_AA_W (want 0|1), prompt line ${_AA_P:-none}"
+_aa_stored "$_AA/SESSION.md" "${_AA_P:-0}" "$_aa_n" | _aa_decode > "$TMP/aa-dec"
+cmp -s "$TMP/aa-dec" "$TMP/aa-prompt" && ok "AA(2) reference decode of the stored prompt is byte-identical to the input" \
+  || bad "AA(2) round trip" "decoded stored prompt differs from the input"
+_AA_C=$(kt_ss_ledger_candidates "$_AA"); _AA_L=$(kt_ss_ledger_token_locate "$_AA" "$_aa_tok")
+if [ "$(printf '%s\n' "$_AA_C" | grep -c .)" -eq 1 ] && [ "$_AA_C" = "aa|2026-01-01T00:00:00Z|unconsumed|pending" ] \
+   && [ "$_AA_L" = "aa|2026-01-01T00:00:00Z|unconsumed|pending" ]; then
+  ok "AA(3) exactly one candidate, and the token locates the aa entry |pending"
+else
+  bad "AA(3) candidates/locate" "candidates [$(printf '%s' "$_AA_C" | tr '\n' ' ')] locate '$_AA_L'"
+fi
+
+# AA2 (Review Focus 1): the same prompt with CRLF line ends.
+_AA2="$TMP/aa2"; _aa_mk "$_AA2"
+kt_ss_ledger_add "$_AA2" aa 2026-01-01T00:00:00Z aa-focus aa-next "$(cat "$TMP/aa-prompt-crlf")"
+_AA2_P=$(_aa_p "$_AA2/SESSION.md")
+_aa_stored "$_AA2/SESSION.md" "${_AA2_P:-0}" "$_aa_n" | _aa_decode > "$TMP/aa2-dec"
+_AA2_C=$(kt_ss_ledger_candidates "$_AA2")
+if cmp -s "$TMP/aa2-dec" "$TMP/aa-prompt-crlf" && [ "$(printf '%s\n' "$_AA2_C" | grep -c .)" -eq 1 ] \
+   && [ "$(_aa_walk "$_AA2/SESSION.md" "${_AA2_P:-0}" "$_aa_n")" = "0|1" ]; then
+  ok "AA2 the CRLF prompt round-trips byte-identically, stays body, and yields 1 candidate"
+else
+  bad "AA2 CRLF" "round trip $(cmp -s "$TMP/aa2-dec" "$TMP/aa-prompt-crlf" && echo same || echo DIFFERS), candidates [$(printf '%s' "$_AA2_C" | tr '\n' ' ')]"
+fi
+
+# AA3 (Review Focus 3): an empty prompt keeps the 3e44761 block format exactly -- NON-REGRESSION (green on
+# 841ef44 too); a prompt that is exactly ``` stores \``` and decodes back -- NEW.
+_AA3="$TMP/aa3"; _aa_mk "$_AA3"
+kt_ss_ledger_add "$_AA3" aa 2026-01-01T00:00:00Z aa-focus aa-next ""
+awk -v h="$_aa_hdr" '$0 == h { f = 1 } f { print } f && $0 == "<!-- aria:entry-end -->" { exit }' "$_AA3/SESSION.md" > "$TMP/aa3-blk"
+printf '%s\n' "$_aa_hdr" '- focus: aa-focus' '- next: aa-next' '- prompt:' '' '<!-- aria:entry-end -->' > "$TMP/aa3-want"
+cmp -s "$TMP/aa3-blk" "$TMP/aa3-want" && ok "AA3 (non-regression) an empty prompt stores the 3e44761 block byte-for-byte" \
+  || bad "AA3 empty prompt" "stored block differs from the 3e44761 format"
+_AA3F="$TMP/aa3f"; _aa_mk "$_AA3F"
+kt_ss_ledger_add "$_AA3F" aa 2026-01-01T00:00:00Z aa-focus aa-next '```'
+_AA3F_P=$(_aa_p "$_AA3F/SESSION.md")
+_AA3F_S=$(_aa_stored "$_AA3F/SESSION.md" "${_AA3F_P:-0}" 1)
+if [ "$_AA3F_S" = '\```' ] && [ "$(printf '%s\n' "$_AA3F_S" | _aa_decode)" = '```' ]; then
+  ok "AA3 a prompt that is exactly a fence stores \\\`\`\` and decodes back"
+else
+  bad "AA3 fence prompt" "stored '$_AA3F_S' (want \\\`\`\`)"
+fi
+
+# AA4: the AA prompt through kt_ss_ledger_add_verified returns 0 and the LEDGER entry-header count (every
+# sid, walker-counted) rises by exactly 1 -- the quoted headers are not entries.
+_aa_lh() { _wk_lines '{ k = kt_region($0) } k == "entry_header" && R_SEC == "LEDGER" { n++ } END { print n + 0 }' "$1"; }
+_AA4="$TMP/aa4"; _aa_mk "$_AA4"; _aa4_0=$(_aa_lh "$_AA4/SESSION.md")
+_aa4_rc=0; kt_ss_ledger_add_verified "$_AA4" aa 2026-01-01T00:00:00Z aa-focus aa-next "$(cat "$TMP/aa-prompt")" || _aa4_rc=$?
+_aa4_1=$(_aa_lh "$_AA4/SESSION.md")
+if [ "$_aa4_rc" -eq 0 ] && [ "$_aa4_1" -eq $((_aa4_0 + 1)) ]; then
+  ok "AA4 add_verified lands the hostile prompt (rc 0) and the LEDGER header count rises by exactly 1"
+else
+  bad "AA4 add_verified" "rc=$_aa4_rc LEDGER headers $_aa4_0 -> $_aa4_1 (want +1)"
+fi
+
+# AA5: Task 1b's prune keeps a consumed PRE-2.58.0 entry whose prompt holds a raw structural line. That
+# trade must not reach NEW entries: written through kt_ss_ledger_add and marked consumed, it IS reaped.
+_AA5="$TMP/aa5"; _aa_mk "$_AA5"
+kt_ss_ledger_add "$_AA5" aa 2026-01-01T00:00:00Z aa-focus aa-next "$(cat "$TMP/aa-prompt")"
+kt_ss_ledger_mark_consumed "$_AA5" aa 2026-01-02T00:00:00Z aa-by 2026-01-01T00:00:00Z
+kt_ss_ledger_prune "$_AA5"
+_AA5_LEFT=$(grep -c -e 'proj-a/aa@' -e '^### aa ' -e 'Where we left off' -e '^\\' "$_AA5/SESSION.md" || true)
+_AA5_OR=$(_wk_orphans "$_AA5/SESSION.md")
+if [ "$_AA5_LEFT" -eq 1 ] && [ "$_AA5_OR" -eq 0 ] && [ -z "$(kt_ss_ledger_candidates "$_AA5")" ] && grep -q '^aa-body$' "$_AA5/SESSION.md"; then
+  ok "AA5 a consumed entry written with a hostile prompt is reaped whole by prune (no retention, 0 orphans)"
+else
+  bad "AA5 prune of a new hostile entry" "matching lines left=$_AA5_LEFT (want 1: the real heading) orphans=$_AA5_OR"
+fi
 
 printf "\n%d passed, %d failed\n" "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

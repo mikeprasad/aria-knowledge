@@ -199,19 +199,46 @@ kt_ss_mark_inprogress() {
 # which the atlas parser ignores (it stops at the first "## " after the prompt).
 # All three helpers write via temp-file + mv and swallow errors (return 0).
 
+# Build ONE ledger entry block on STDOUT -- the only place its format is written (2.58.0, spec §3).
+#   _kt_ss_entry_block <sid> <at> <focus> <next> <prompt>
+# Output, exactly: the header, `- focus:`, `- next:`, `- prompt:`, the ENCODED prompt (one line per
+# prompt line, newline-terminated), then the terminator line and its newline.
+# ⛔ REDIRECT IT TO A FILE AND SPLICE WITH `cat`; NEVER CAPTURE IT WITH $( ) -- command substitution strips
+# the trailing newline and the block would then fuse with the next line. kt_ss_ledger_add and
+# kt_ss_ledger_add_verified both call this, so the block they compare is the block that is written.
+#
+# ENCODE: a prompt line matching ^\\*(## |### |```|<!-- aria:entry-end -->$) at column 0 gets ONE leading
+# backslash. That is mbox `>From ` quoting, so it is injective: a line already starting `\## ` becomes
+# `\\## ` and decodes back. The decoder (remove one leading backslash from a line matching ^\\+(…)) ships
+# nowhere -- no code path returns a stored body -- and lives in tests/repros/session-state.sh as the
+# reference that proves the round trip. Why: a stored prompt line that LOOKS structural (a heading, an
+# entry header, a fence, the terminator) was structural to some reader, and a terminator written inside a
+# body is forgeable. After encoding, no column-0 prompt line can start with any of them.
+# NOT encoded: focus/next (always behind `- focus: ` / `- next: `), `aria-handoff:` token lines (found by
+# substring), indented lines, `#### ` and deeper, `~~~`. `\` is the CommonMark escape, so a raw read of
+# SESSION.md (a model resuming, a human) still shows the original text.
+# LC_ALL=C keeps the pass byte-exact whatever bytes the prompt holds. The empty prompt stores one empty
+# line, exactly the pre-2.58.0 format.
+_kt_ss_entry_block() {
+  printf '### %s · %s · handoff · unconsumed\n- focus: %s\n- next: %s\n- prompt:\n' "$1" "$2" "$3" "$4"
+  printf '%s\n' "$5" | LC_ALL=C awk '/^\\*(## |### |```|<!-- aria:entry-end -->$)/ { printf "\\" } { print }'
+  printf '<!-- aria:entry-end -->\n'
+}
+
 # Prepend a ### block under "## Prior sessions" (created if absent). Newest-first.
 kt_ss_ledger_add() {
   _ss_f="$1/SESSION.md"; _ss_sid="$2"; _ss_at="$3"; _ss_focus="$4"; _ss_next="$5"; _ss_prompt="$6"
   [ -f "$_ss_f" ] || return 0
-  _ss_blk="### $_ss_sid · $_ss_at · handoff · unconsumed
-- focus: $_ss_focus
-- next: $_ss_next
-- prompt:
-$_ss_prompt
-<!-- aria:entry-end -->
-"
   _ss_tmp="$_ss_f.$$.tmp"
   _ss_blkf="$_ss_f.$$.blk"
+  # (2.58.0) The block is built ONCE, by the shared builder, into a FILE that serves the RC-3 compare and
+  # the splice below -- never a string and never $( ) (that strips its trailing newline). A block always
+  # has its header, so an empty file means it could not be written: write nothing.
+  _kt_ss_entry_block "$_ss_sid" "$_ss_at" "$_ss_focus" "$_ss_next" "$_ss_prompt" > "$_ss_blkf" 2>/dev/null
+  if [ ! -s "$_ss_blkf" ]; then
+    rm -f "$_ss_blkf" 2>/dev/null
+    return 0
+  fi
 
   # RC-3: skip ONLY a byte-identical block. There was no idempotency guard at all before this.
   #
@@ -238,7 +265,6 @@ $_ss_prompt
   # ledger entry -- a whole-file window skipped the write on such a copy and the caller then reported
   # it landed (spec §1 F4, arm AF). kt_region is called only on the TARGET (the block file `next`s
   # first), and resets itself on the target's first record.
-  printf '%s' "$_ss_blk" > "$_ss_blkf" 2>/dev/null
   if [ -s "$_ss_blkf" ] && awk "$(_kt_ss_awk_regions)"'
       NR == FNR { b[++bn] = $0; next }
                 { L[FNR] = $0; tn = FNR; k = kt_region($0); if (k == "entry_header" && R_SEC == "LEDGER") S[FNR] = 1 }
@@ -254,7 +280,6 @@ $_ss_prompt
     rm -f "$_ss_blkf" 2>/dev/null
     return 0
   fi
-  rm -f "$_ss_blkf" 2>/dev/null
   # Grandfathering: an existing legacy '## Prior sessions' heading keeps receiving entries
   # so old files are never orphaned; anything new lands under '## Pending handoffs'.
   # RC-2: resolve the anchor ONCE, tolerantly, to a LINE NUMBER + canonical family name.
@@ -334,15 +359,15 @@ $_ss_prompt
       FNR == n { print can > h; print "" > h; next }
                { print     > t }
     ' h="$_ss_head" t="$_ss_tail" "$_ss_f" 2>/dev/null
-    { cat "$_ss_head" 2>/dev/null; printf '%s' "$_ss_blk"; cat "$_ss_tail" 2>/dev/null; } > "$_ss_tmp" 2>/dev/null && mv "$_ss_tmp" "$_ss_f" 2>/dev/null
+    { cat "$_ss_head" 2>/dev/null; cat "$_ss_blkf"; cat "$_ss_tail" 2>/dev/null; } > "$_ss_tmp" 2>/dev/null && mv "$_ss_tmp" "$_ss_f" 2>/dev/null
     rm -f "$_ss_head" "$_ss_tail" 2>/dev/null
   else
     # append a new heading + block at EOF. '## Pending handoffs' is deliberate: these are
     # still-valid prompts awaiting use, not history -- naming them "prior" is what made a
     # writer read demotion as a downgrade and skip rather than demote.
-    { cat "$_ss_f"; printf '\n## Pending handoffs\n\n%s' "$_ss_blk"; } > "$_ss_tmp" 2>/dev/null && mv "$_ss_tmp" "$_ss_f" 2>/dev/null
+    { cat "$_ss_f"; printf '\n## Pending handoffs\n\n'; cat "$_ss_blkf"; } > "$_ss_tmp" 2>/dev/null && mv "$_ss_tmp" "$_ss_f" 2>/dev/null
   fi
-  rm -f "$_ss_tmp" 2>/dev/null
+  rm -f "$_ss_tmp" "$_ss_blkf" 2>/dev/null
   return 0
 }
 
@@ -1053,8 +1078,10 @@ kt_ss_read_live_prompt() {
 # ⛔ A LEVEL COUNT IS ACCEPTED ONLY WHEN THE IDENTICAL BLOCK WAS ON DISK BEFORE THE ADD. That is
 # kt_ss_ledger_add's RC-3 skip, by design, and it is how a re-run looks: a /handoff whose rewrite was
 # aborted, or a consume_active retried after exit 2. Refusing it would answer "did not land -- stop"
-# to every retry. The block is rebuilt here in kt_ss_ledger_add's exact format; if the two drift, the
-# re-run arm (tests/repros/session-state.sh Y9) goes red. A prompt cannot contain its own full block
+# to every retry. The block comes from _kt_ss_entry_block, the builder kt_ss_ledger_add writes with, so the
+# two cannot drift (the re-run arm, tests/repros/session-state.sh Y9, still pins it). Since 2.58.0 a prompt
+# line quoting a header is stored escaped, so the expected rise is 1 in practice -- it is still MEASURED
+# from the built block rather than assumed. A prompt cannot contain its own full block
 # (the block contains the prompt), so the pre-check cannot be satisfied from inside the active slot.
 kt_ss_ledger_add_verified() {
   _ss_av_f="$1/SESSION.md"; _ss_av_h="### $2 · $3 · "
@@ -1063,13 +1090,9 @@ kt_ss_ledger_add_verified() {
   # a predictable name inside the user's project tree, often a tracked one, left behind by a crash.
   # No temp file -> nothing was added, which IS "did not land": the caller keeps the active slot.
   _ss_av_blkf=$(mktemp "${TMPDIR:-/tmp}/aria-ss-vblk.XXXXXX" 2>/dev/null) || return 1
-  printf '%s' "### $2 · $3 · handoff · unconsumed
-- focus: $4
-- next: $5
-- prompt:
-$6
-<!-- aria:entry-end -->
-" > "$_ss_av_blkf" 2>/dev/null
+  # (2.58.0) The SAME builder kt_ss_ledger_add writes with -- no second, hand-typed format to drift. The
+  # expected rise below is walked over this exact output, escaped prompt lines included.
+  _kt_ss_entry_block "$2" "$3" "$4" "$5" "$6" > "$_ss_av_blkf" 2>/dev/null
   # ⛔ (2.58.0) BOTH THE WINDOW AND THE COUNTS ARE THE REGION WALKER'S LEDGER ENTRY HEADERS, the same
   # scope kt_ss_ledger_add uses. A whole-file count and window let a copy under `## Archived …` or in
   # the active fence satisfy "landed" while nothing was written to the ledger (spec §1 F4, arm AF).
