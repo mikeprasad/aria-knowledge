@@ -14,7 +14,8 @@ setup() {
   # The hook's /tmp sweeps reach the real /tmp (they start at "/tmp/"); every test sweeps a scratch
   # dir instead (KT_TMP_SWEEP_ROOT is the test-only override).
   export KT_TMP_SWEEP_ROOT="$SURF/sweep-tmp"; mkdir -p "$KT_TMP_SWEEP_ROOT"
-  # 2.58.0: hook state resolves under this per-test scratch base (KT_STATE_BASE), never the real temp dir.
+  # 2.58.0: hook state resolves under KT_STATE_BASE, never in the user's real state directory. The base
+  # lives in this test's mktemp dir (SURF, under $TMPDIR), which teardown removes.
   export KT_STATE_BASE="$SURF/state-base"; mkdir -p "$KT_STATE_BASE"
   HOOKLOG="$SURF/aria-surface-hook.log"
   FIXTURE="${BATS_TEST_DIRNAME}/fixtures/transcript-user-input.jsonl"

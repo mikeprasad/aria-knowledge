@@ -383,7 +383,7 @@ def aria_state_base() -> str:
 
 
 def _aria_state_acl_reason(path: str) -> str:
-    """"" when the directory has no ACL; "has an ACL" when one is seen; "mode not 700" when the
+    """"" when the directory has no ACL; "has an ACL" when one is seen; "permissions not verifiable" when the
     check itself could not be made (fail safe: the permissions are unconfirmed)."""
     listxattr = getattr(os, "listxattr", None)
     if listxattr is not None:
@@ -393,7 +393,7 @@ def _aria_state_acl_reason(path: str) -> str:
             # No xattr support on this filesystem means no ACL can be stored there.
             if exc.errno in (getattr(errno, "ENOTSUP", -1), getattr(errno, "EOPNOTSUPP", -1)):
                 return ""
-            return "mode not 700"
+            return "permissions not verifiable"
         return "has an ACL" if any(name in _ARIA_STATE_ACL_XATTRS for name in names) else ""
     # No listxattr (macOS, BSD): the same single `ls` read the shell resolver makes. macOS hides "+"
     # behind "@" when an xattr is present; `-e` prints one extra line per ACL entry. Where -e is
@@ -411,13 +411,13 @@ def _aria_state_acl_reason(path: str) -> str:
         with_e = False
         out = ls("-ldn")
         if out is None or out.returncode != 0:
-            return "mode not 700"
+            return "permissions not verifiable"
     lines = out.stdout.rstrip("\n").split("\n")
     mode = lines[0].split(" ", 1)[0]
     if len(lines) > 1 or mode.endswith("+"):
         return "has an ACL"
     if mode.endswith("@") and not with_e:
-        return "mode not 700"
+        return "permissions not verifiable"
     return ""
 
 

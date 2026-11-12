@@ -7,7 +7,8 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 KT_TMP_SWEEP_ROOT=$(mktemp -d "${TMPDIR:-/tmp}/aria-sweep-root.XXXXXX")
 export KT_TMP_SWEEP_ROOT
 # 2.58.0: hook state lives in <base>/aria-knowledge-<uid>; the suite resolves it under this scratch
-# base (KT_STATE_BASE is the test-only override), never the real one.
+# base (KT_STATE_BASE is the test-only override), never in the user's real state directory. The base
+# itself is a unique mktemp dir under $TMPDIR, removed by the trap.
 KT_STATE_BASE=$(mktemp -d "${TMPDIR:-/tmp}/aria-state-base.XXXXXX")
 export KT_STATE_BASE
 trap 'rm -rf "$KT_TMP_SWEEP_ROOT" "$KT_STATE_BASE"' EXIT

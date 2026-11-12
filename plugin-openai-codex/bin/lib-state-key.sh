@@ -41,8 +41,8 @@ except Exception:
 #
 #   kt_state_resolve   sets KT_STATE_DIR (path or empty) and KT_STATE_REASON (empty, or one of
 #                      "not created", "not a directory", "is a link", "not owned by you",
-#                      "mode not 700", "has an ACL"); returns 0/1. Runs in the caller's shell
-#                      (no subshell).
+#                      "mode not 700", "has an ACL", "permissions not verifiable"); returns
+#                      0/1. Runs in the caller's shell (no subshell).
 #   kt_state_dir       kt_state_resolve, then prints the directory; exit 1 and silent on failure.
 #   kt_state_path N    prints "$KT_STATE_DIR/N"; exit 1, nothing printed, when no directory was
 #                      resolved or N is empty, ".", ".." or contains "/".
@@ -54,8 +54,9 @@ except Exception:
 # BSD ls print "+" after the mode for an ACL; macOS prints "@" instead when the directory also has
 # an extended attribute (a fresh directory often does), hiding the "+". So the one ls read is
 # `ls -lden`, which on macOS prints one extra line per ACL entry; where -e is unknown it falls back
-# to `ls -ldn` and refuses an "@" it could not check, as "mode not 700" (no ACL was seen; the
-# permissions are unconfirmed). A "." (SELinux context) is accepted.
+# to `ls -ldn`. An "@" it could not check, or an ls read that fails, is refused as "permissions not
+# verifiable" — never "mode not 700", which would be false for a 0700 dir and invite a useless
+# chmod. A "." (SELinux context) is accepted.
 #
 # Resolution is per process: an inherited KT_STATE_DIR is never trusted.
 KT_STATE_DIR=
@@ -101,6 +102,7 @@ kt_state_resolve() {
   # and there an "@" mode is refused because its ACL could not be read.
   _kt_e=1
   _kt_l=$(ls -lden "$_kt_d" 2>/dev/null) || { _kt_e=; _kt_l=$(ls -ldn "$_kt_d" 2>/dev/null); }
+  if [ -z "$_kt_l" ]; then KT_STATE_REASON='permissions not verifiable'; return 1; fi
   case $_kt_l in *"$_kt_nl"*) _kt_acl=1 ;; *) _kt_acl= ;; esac
   _kt_l=${_kt_l%%"$_kt_nl"*}
   # Split the ls line on spaces (runs collapse) without globbing it; restore the caller's IFS and -f.
@@ -113,7 +115,7 @@ kt_state_resolve() {
   if [ "${3-}" != "$_kt_uid" ]; then KT_STATE_REASON='not owned by you'; return 1; fi
   case ${1-} in
     drwx------|drwx------.) ;;
-    drwx------@) [ -n "$_kt_e" ] || { KT_STATE_REASON='mode not 700'; return 1; } ;;
+    drwx------@) [ -n "$_kt_e" ] || { KT_STATE_REASON='permissions not verifiable'; return 1; } ;;
     drwx------+|drwx------.+) KT_STATE_REASON='has an ACL'; return 1 ;;
     *) KT_STATE_REASON='mode not 700'; return 1 ;;
   esac

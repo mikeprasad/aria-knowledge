@@ -11,7 +11,8 @@
 # aria-state.sh (the CLI, 4 copies), aria_state_* in the Codex hook (Python, parity arms).
 #
 # Every arm runs in its own scratch base under a mktemp root, with KT_STATE_BASE / TMPDIR /
-# XDG_RUNTIME_DIR set explicitly, so nothing is ever created in the real /tmp or $TMPDIR.
+# XDG_RUNTIME_DIR set explicitly, so no state directory is ever created in the user's real one. The
+# scratch root itself is a unique mktemp dir under $TMPDIR, removed by the EXIT trap.
 #
 # Declared before running on the pre-resolver tree (7644150): every arm RED (functions and the
 # CLI absent) except two GUARDS that are green by construction there: R_parity_sh_lib (the four
@@ -199,6 +200,24 @@ if [ -n "$IS_DARWIN" ]; then
 else
   skip R_xattr_only_accepted "not Darwin"
 fi
+
+# --- R_unverifiable: when the permissions cannot be read, say so (never "mode not 700") -----------
+# (a) `ls` fails outright; (b, Darwin) only `ls -lden` fails, so an "@" mode cannot be checked for
+# an ACL. Both dirs are a perfect 0700 dir of ours, so "mode not 700" would be false there.
+LSF="$ROOT/stub-ls-fail"; mkdir "$LSF"; printf '#!/bin/sh\nexit 1\n' > "$LSF/ls"; chmod +x "$LSF/ls"
+b=$(newbase unv-a); mkdir -m 700 "$b/$NAME"
+ra=$(env -u XDG_RUNTIME_DIR PATH="$LSF:$PATH" KT_STATE_BASE="$b" TMPDIR="$GUARD" sh -c "$PROBE" _ "$L")
+rb="1||permissions not verifiable"
+if [ -n "$IS_DARWIN" ]; then
+  LSE="$ROOT/stub-ls-no-e"; mkdir "$LSE"
+  printf '#!/bin/sh\n[ "$1" = -lden ] && exit 1\nexec /bin/ls "$@"\n' > "$LSE/ls"; chmod +x "$LSE/ls"
+  b=$(newbase unv-b); mkdir -m 700 "$b/$NAME"
+  if xattr -w user.aria-probe 1 "$b/$NAME" 2>/dev/null; then
+    rb=$(env -u XDG_RUNTIME_DIR PATH="$LSE:$PATH" KT_STATE_BASE="$b" TMPDIR="$GUARD" sh -c "$PROBE" _ "$L")
+  fi
+fi
+if [ "$ra" = "1||permissions not verifiable" ] && [ "$rb" = "1||permissions not verifiable" ]; then ok R_unverifiable
+else bad R_unverifiable "ls-fails '$ra' | no-e '$rb'"; fi
 
 # --- R_parity_sh_lib (GUARD) / R_parity_sh_cli: one cksum per file set (C X U G) ------------------
 sums() { for p in plugin-claude-code/scripts plugin-openai-codex/bin plugin-cursor-template/scripts/aria plugin-antigravity/bin; do

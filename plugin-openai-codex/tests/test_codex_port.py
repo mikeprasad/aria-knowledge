@@ -1106,6 +1106,31 @@ def test_state_dir_refuses_acl() -> None:
         assert hook.aria_state_resolve() == (None, "has an ACL")
 
 
+def test_state_dir_unverifiable_permissions() -> None:
+    """When the ACL check cannot be made, the reason says so — "mode not 700" would be false for
+    a 0700 dir and invite a useless chmod. Forced here by an xattr read that fails with EIO."""
+    import errno as _errno
+
+    hook = load_hook_module()
+
+    def failing_listxattr(*_args: object, **_kwargs: object) -> list[str]:
+        raise OSError(_errno.EIO, "simulated xattr read failure")
+
+    had = hasattr(hook.os, "listxattr")
+    saved = getattr(hook.os, "listxattr", None)
+    with tempfile.TemporaryDirectory() as tmp, _StateEnv(Path(tmp)):
+        (Path(tmp) / _state_name()).mkdir(mode=0o700)
+        hook.os.listxattr = failing_listxattr  # the module's os is the global os module
+        try:
+            result = hook.aria_state_resolve()
+        finally:
+            if had:
+                hook.os.listxattr = saved
+            else:
+                del hook.os.listxattr
+        assert result == (None, "permissions not verifiable"), result
+
+
 def test_state_path_refuses_slash_dot_empty() -> None:
     hook = load_hook_module()
     d = Path("/nonexistent-state-dir")
