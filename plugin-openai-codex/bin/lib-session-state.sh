@@ -538,14 +538,18 @@ kt_ss_ledger_prune() {
   #     The old rule ended it at the first fence-blind terminator and re-exposed the entries its prompt
   #     quotes inside that open fence -- measured on the real corpus: 36 phantom candidates in 6 files.
   #     Leaving it deletes less than the old prune, never more. Arm AE2.
-  # ⛔ AMBIGUOUS (fix rounds 1-2): an entry whose pass-1 span holds a FENCED well-formed header that is
-  # NOT word-bounded `consumed` cannot be bounded without crossing another entry -- a later entry whose
-  # prompt also opens a fence returns the count to even, and ITS terminator then closes this one, so
-  # reaping would delete that entry (the old prune kept every non-consumed header; CRLF loses it the same
-  # way, closing at the next header). Such an entry is LEFT IN PLACE, exactly like the odd case. Arms AK,
-  # AK2, AM. The hidden header must lie INSIDE the entry: for an entry that pass 1 did not see terminated,
-  # it must come before the first unfenced "## " after the header, where pass 2 ends that entry -- a quote
-  # in a later section does not make it ambiguous (arm AN).
+  # ⛔ AMBIGUOUS (fix round 3, the parity rule): a CONSUMED entry is reaped only where its walker end is
+  # the old prune's end too. For each one, pass 1 finds where the OLD prune would end it -- its first
+  # fence-blind terminator or well-formed header (any "### " in a file with no terminator at all), or a
+  # "## " before that unless the first boundary is a terminator -- and the in-entry fence count there.
+  # ODD there means the walker's end lies further on, past lines the old prune kept: a later entry whose
+  # prompt also opens a fence returns the count to even and ITS terminator closes this one (arms AK, AK2,
+  # AM, AO -- including a malformed or non-consumed middle entry, which header-hunting missed). The old
+  # prune ending it at a heading while the walker sees it TERMINATED is the same mismatch at even parity.
+  # Such an entry is LEFT IN PLACE, like the odd-at-EOF case. An entry whose fences balance before its own
+  # "## " boundary is still reaped (arm AN).
+  # ⚠ The cost: a consumed entry whose prompt quotes a header or a terminator inside a fence is never
+  # reaped by this function, even when its fences balance (arms AC, AE).
   # ⛔ The even-parity fallback applies the old rule only while pass 2 is in LEDGER or ARCH; front
   # matter, ACTIVE and other sections print unconditionally (arm AL) -- the old rule reaped a consumed
   # header quoted in the active prompt when the ledger sat above it, which is F1 again.
@@ -567,11 +571,18 @@ kt_ss_ledger_prune() {
     NR == FNR {
       if ($0 ~ /^### / && old_hdr($0)) ocur = FNR
       else if ($0 == "<!-- aria:entry-end -->") { oterm = 1; if (ocur) ohasterm[ocur] = 1; ocur = 0 }
+      pent = KT_ENT; pe = KT_EFENCE
+      if (pent > 0) {
+        if (!(pent in TL)) {
+          if ($0 == "<!-- aria:entry-end -->") { TL[pent] = FNR; TP[pent] = pe; TT[pent] = 1 }
+          else if ($0 ~ /^### / && old_hdr($0)) { TL[pent] = FNR; TP[pent] = pe }
+        }
+        if (!(pent in TL3) && $0 ~ /^### /) { TL3[pent] = FNR; TP3[pent] = pe }
+        if (!(pent in HL) && $0 ~ /^## /) { HL[pent] = FNR; HP[pent] = pe }
+      }
       k = kt_region($0)
-      if (k == "entry_header") KT_HASTERM[FNR] = 1
+      if (k == "entry_header") { KT_HASTERM[FNR] = 1; if (is_consumed($0)) CONS[FNR] = 1 }
       else if (k == "terminator") HT[R_ENTRY] = 1
-      else if (k == "body" && R_FENCED == 1 && kt_is_entry_header($0) && !is_consumed($0)) { if (!(R_ENTRY in AMBL)) AMBL[R_ENTRY] = FNR }
-      else if (k == "body" && R_FENCED == 0 && $0 ~ /^## / && !(R_ENTRY in FH)) FH[R_ENTRY] = FNR
       next
     }
 
@@ -580,7 +591,13 @@ kt_ss_ledger_prune() {
       if (KT_ENT > 0) { FB[KT_ENT] = 1; if (KT_EFENCE == 1) FBODD = 1 }
       for (x in KT_HASTERM) delete KT_HASTERM[x]
       for (x in HT) KT_HASTERM[x] = 1
-      for (x in AMBL) if ((x in HT) || !(x in FH) || AMBL[x] < FH[x]) AMB[x] = 1
+      for (x in CONS) {
+        pt = 0; pp = 0; tt = 0
+        if (oterm) { if (x in TL) { pt = TL[x]; pp = TP[x]; if (x in TT) tt = 1 } }
+        else if (x in TL3) { pt = TL3[x]; pp = TP3[x] }
+        if (!tt && (x in HL) && (pt == 0 || HL[x] < pt)) { pt = HL[x]; pp = HP[x]; if ((x in HT) && pp == 0) pp = 1 }
+        if (pt > 0 && pp == 1) AMB[x] = 1
+      }
     }
 
     {

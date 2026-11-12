@@ -1853,8 +1853,11 @@ kt_ss_ledger_prune "$_AC"
 _AC_C=$(kt_ss_ledger_candidates "$_AC")
 _AC_OR=$(_wk_orphans "$_AC/SESSION.md")
 if [ "$_ac_rc" -eq 0 ] && printf '%s\n' "$_AC_C" | grep -q '^ac-live|2026-06-01T00:00:00Z|unconsumed|pending$' \
-   && [ "$(printf '%s\n' "$_AC_C" | grep -c .)" -eq 1 ] && [ "$_AC_OR" -eq 0 ] && ! grep -q 'ac-tail' "$_AC/SESSION.md"; then
-  ok "AC consume+prune: the live pending entry is still the only candidate, nothing leaked (0 orphan terminators/fences)"
+   && [ "$(printf '%s\n' "$_AC_C" | grep -c .)" -eq 1 ] && [ "$_AC_OR" -eq 0 ] && grep -q '^ac-tail-2$' "$_AC/SESSION.md"; then
+  # (fix round 3) the demoted prompt quotes a header and a terminator inside a fence, so the old prune
+  # would end the entry inside that fence: by the parity rule it is ambiguous and RETAINED whole -- no
+  # leak, no orphan, never reaped by prune. Asserted: retained (the brief's two assertions unchanged).
+  ok "AC consume+prune: the live pending entry is still the only candidate, nothing leaked (0 orphan terminators/fences), ambiguous entry retained whole"
 else
   bad "AC consume+prune" "rc=$_ac_rc candidates [$(printf '%s' "$_AC_C" | tr '\n' ' ')] orphans=$_AC_OR"
 fi
@@ -2259,6 +2262,68 @@ if cmp -s "$_AN/old/SESSION.md" "$_AN/new/SESSION.md" && ! grep -q '^### e1 ' "$
   ok "AN a fenced header in a LATER section does not make an unterminated entry ambiguous: reaped exactly as the old prune does"
 else
   bad "AN ambiguity scope" "the unterminated consumed entry was kept (or the Notes quote was touched)"
+fi
+
+# AO (fix round 3): the ROOT signal. A consumed entry whose in-entry fence count is ODD where the old
+# prune would end it cannot be bounded: the walker's end lies further on, past lines the old prune kept.
+# Here the next "entry" is malformed (one ` · `), so there is no well-formed header to find -- the
+# header-hunting predicate missed it and r1's lines were deleted. The parity rule keeps e1 in place.
+_AO="$TMP/ao"; mkdir -p "$_AO/new" "$_AO/old"
+cat > "$_AO/new/SESSION.md" <<'AO_FIX'
+## Pending handoffs
+
+### e1 · 2026-01-02T00:00:00Z · handoff · consumed 2026-01-03T00:00:00Z by x
+- prompt:
+```
+e1 unclosed
+<!-- aria:entry-end -->
+
+### r1 · 2026-01-01T00:00:00Z
+- prompt:
+```
+r1 unclosed
+<!-- aria:entry-end -->
+
+### l0 · 2025-12-01T00:00:00Z · handoff · unconsumed
+<!-- aria:entry-end -->
+AO_FIX
+cp "$_AO/new/SESSION.md" "$_AO/old/SESSION.md"
+( . "$TMP/old-lib.sh"; KT_SS_RECEIPTS="$_AO/old-receipts"; kt_ss_ledger_prune "$_AO/old" )
+kt_ss_ledger_prune "$_AO/new"
+_AO_SUB=$(awk 'NR == FNR { o[++on] = $0; next } { if (j < on && $0 == o[j + 1]) j++ } END { if (j == on) { print "y" } else { print "n" } }' "$_AO/old/SESSION.md" "$_AO/new/SESSION.md")
+if [ "$_AO_SUB" = y ] && grep -q '^r1 unclosed$' "$_AO/new/SESSION.md" && grep -q '^### l0 ' "$_AO/new/SESSION.md"; then
+  ok "AO a consumed entry whose fence is open where the old prune ends it stays in place (malformed r1 kept; old output is a subsequence)"
+else
+  bad "AO parity rule" "lines the old prune kept were deleted (old-kept-subset=$_AO_SUB)"
+fi
+
+# AP (fix round 3): the parity rule's second clause. A TERMINATED consumed entry whose prompt has an
+# unfenced "## " before a fenced header: the old prune ends it at that heading (its first fence-blind
+# boundary is the header, not a terminator) and keeps the rest, while the walker reaps to the terminator.
+# Same mismatch at even parity -> the entry is left in place, so nothing the old prune kept is deleted.
+_AP="$TMP/ap"; mkdir -p "$_AP/new" "$_AP/old"
+cat > "$_AP/new/SESSION.md" <<'AP_FIX'
+## Pending handoffs
+
+### e1 · 2026-01-02T00:00:00Z · handoff · consumed 2026-01-03T00:00:00Z by x
+- prompt:
+## ap sub heading
+```
+### x1 · 2026-01-01T00:00:00Z · handoff · unconsumed
+```
+<!-- aria:entry-end -->
+
+### l0 · 2025-12-01T00:00:00Z · handoff · unconsumed
+<!-- aria:entry-end -->
+AP_FIX
+cp "$_AP/new/SESSION.md" "$_AP/old/SESSION.md"
+( . "$TMP/old-lib.sh"; KT_SS_RECEIPTS="$_AP/old-receipts"; kt_ss_ledger_prune "$_AP/old" )
+kt_ss_ledger_prune "$_AP/new"
+_AP_SUB=$(awk 'NR == FNR { o[++on] = $0; next } { if (j < on && $0 == o[j + 1]) j++ } END { if (j == on) { print "y" } else { print "n" } }' "$_AP/old/SESSION.md" "$_AP/new/SESSION.md")
+if [ "$_AP_SUB" = y ] && grep -q '^### x1 ' "$_AP/new/SESSION.md" && grep -q '^### l0 ' "$_AP/new/SESSION.md"; then
+  ok "AP a terminated consumed entry the old prune ends at a heading stays in place (old output is a subsequence)"
+else
+  bad "AP parity rule (heading clause)" "lines the old prune kept were deleted (old-kept-subset=$_AP_SUB)"
 fi
 
 printf "\n%d passed, %d failed\n" "$PASS" "$FAIL"
