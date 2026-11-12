@@ -504,8 +504,10 @@ fi
 # transcript-format change that parses cleanly but shifts semantics (the
 # "confident no" deadlock the plain unknown-guard cannot catch). Disabled when
 # no session key resolved or there is no private state directory (BREAKER_STATE
-# empty) — falls straight through to deny; it never degrades into allowing.
-if [ -n "$BREAKER_STATE" ]; then
+# empty) — falls straight through to deny; it never degrades into allowing. A name
+# that exists but is not a regular file (a FIFO would block the write and the
+# killed hook would print nothing, which reads as allow) also counts as no state.
+if [ -n "$BREAKER_STATE" ] && { [ -f "$BREAKER_STATE" ] || { [ ! -e "$BREAKER_STATE" ] && [ ! -L "$BREAKER_STATE" ]; }; }; then
   DENY_COUNT=0
   [ -f "$BREAKER_STATE" ] && DENY_COUNT=$(cat "$BREAKER_STATE" 2>/dev/null)
   case "$DENY_COUNT" in *[!0-9]*|"") DENY_COUNT=0 ;; esac

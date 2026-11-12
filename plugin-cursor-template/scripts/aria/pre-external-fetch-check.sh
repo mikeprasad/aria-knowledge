@@ -48,6 +48,9 @@ SESSION_ID=$(printf '%s' "$INPUT" | grep -o '"sessionId":"[^"]*"' | head -1 | se
 # same site forever. The session id goes through kt_state_path, which refuses one with a "/".
 kt_state_resolve || exit 0
 EF_DENY_FILE=$(kt_state_path "aria-extfetch-denies-${SESSION_ID}$(kt_agent_suffix "$INPUT")") || exit 0
+# A name that exists but is not a regular file is no usable state (a FIFO would block the write):
+# allow, as with no state directory.
+{ [ -f "$EF_DENY_FILE" ] || { [ ! -e "$EF_DENY_FILE" ] && [ ! -L "$EF_DENY_FILE" ]; }; } || exit 0
 
 # Every path that lets a fetch through clears the breaker counter, so three
 # consecutive denials means three with nothing allowed in between.
@@ -194,7 +197,9 @@ case "$KT_EXTERNAL_FETCH_MAX_HITS" in ''|*[!0-9]*) KT_EXTERNAL_FETCH_MAX_HITS=8 
 
 # --- one-shot gate ----------------------------------------------------------
 COOLDOWN_FILE=$(kt_state_path "aria-extfetch-${SESSION_ID}-${EF_KEY}") || exit 0
-[ -f "$COOLDOWN_FILE" ] && exit 0
+# Already asked this session — or a name there that is not a regular file (no usable state, and a
+# FIFO would block the write below): allow.
+{ [ -e "$COOLDOWN_FILE" ] || [ -L "$COOLDOWN_FILE" ]; } && exit 0
 
 # C2 — deny-rate circuit breaker, mirroring pre-edit-check.sh's v2.30.0
 # mechanism. Three consecutive denials with no intervening allowed fetch

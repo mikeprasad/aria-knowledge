@@ -206,15 +206,19 @@ if [ -n "$MATCHED" ]; then
   # session MARKER above stays session-level on purpose — a preflight that ran in
   # this session counts for its subagents too. ($BREAKER is computed above MARKER, so the
   # compliant exit can reset it.)
-  if [ -n "$BREAKER" ]; then
-    COUNT=$(cat "$BREAKER" 2>/dev/null || echo 0)
+  # A name that exists but is not a regular file counts as no state: a FIFO would block the read,
+  # and a killed hook prints nothing, which reads as allow.
+  if [ -n "$BREAKER" ] && { [ -f "$BREAKER" ] || { [ ! -e "$BREAKER" ] && [ ! -L "$BREAKER" ]; }; }; then
+    COUNT=0
+    [ -f "$BREAKER" ] && COUNT=$(cat "$BREAKER" 2>/dev/null || echo 0)
     COUNT=$((COUNT + 1))
     printf '%s' "$COUNT" > "$BREAKER" 2>/dev/null || true
     TALLY="(Denial $COUNT of 3 before this gate degrades to a warning.)"
   else
-    # No state directory (D3): the breaker cannot count, so it never trips.
+    # No usable state (D3): no state directory, or a non-file at the breaker name. The breaker
+    # cannot count, so it never trips.
     COUNT=1
-    TALLY="(The private state directory is unavailable, so this gate cannot count denials and will not degrade.)"
+    TALLY="(The private state directory is unavailable or unusable, so this gate cannot count denials and will not degrade.)"
   fi
 
   if [ "$COUNT" -le 3 ]; then

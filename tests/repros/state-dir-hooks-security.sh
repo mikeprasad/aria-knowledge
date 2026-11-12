@@ -269,5 +269,35 @@ printf 't\tPASS\tfixture\n' > "$TMPDIR/aria-preflight-repo-$REPO_HASH"
 commit_in s9roX; hrun 10 "$GOOD" "$X/pre-commit-preflight-check.sh" KT_CONFIG="$R/pf-deny.md"
 check "S9 [X preflight]: a repo marker at the old TMPDIR location is ignored" "1" "$(has '"deny"' "$HOUT")"
 
+# --- S10 breakers_non_file_is_no_state (fix round 1) ------------------------------------------
+# A name in the state dir that exists but is not a regular file (here a FIFO, which blocks an open
+# for read or write) counts as NO state: the hook must return within a bounded time, the Rule 22 and
+# preflight gates still DENY (never DEGRADED), and the fetch gate allows (its D3 behaviour). A hung
+# hook is killed by the harness and prints nothing, which reads as allow — so a hang IS a fail-open.
+for P in C G; do
+  eval "PD=\$$P"; fresh_tmp; rm -rf "$SD"; mkdir -p -m 700 "$SD"
+  mkfifo "$SD/aria-r22-denies-s10$P"
+  edit_in "s10$P" "$NC" "$NCID"; hrun 5 "$GOOD" "$PD/pre-edit-check.sh" KT_CONFIG="$R/none.md"
+  check "S10 breakers_non_file_is_no_state [$P r22]: FIFO at the breaker → bounded, denied" "ok|deny" "$HR|$(r22v)"
+done
+for P in C X U G; do
+  eval "PD=\$$P"; fresh_tmp; rm -rf "$SD"; mkdir -p -m 700 "$SD"
+  mkfifo "$SD/aria-preflight-denies-s10$P"
+  commit_in "s10$P"; hrun 5 "$GOOD" "$PD/pre-commit-preflight-check.sh" KT_CONFIG="$R/pf-deny.md"
+  check "S10 breakers_non_file_is_no_state [$P preflight]: FIFO at the breaker → bounded, denied, not degraded" \
+    "ok|1|0" "$HR|$(has '"deny"' "$HOUT")|$(has DEGRADED "$HOUT")"
+done
+for P in C X U G; do
+  eval "PD=\$$P"; fresh_tmp; rm -rf "$SD"; mkdir -p -m 700 "$SD"
+  mkfifo "$SD/aria-extfetch-denies-s10$P"
+  fetch_in https://alpha.example/a "s10$P"; hrun 5 "$GOOD" "$PD/pre-external-fetch-check.sh" KT_CONFIG="$R/ef-on.md"
+  check "S10 breakers_non_file_is_no_state [$P fetch breaker]: FIFO at the breaker → bounded, allowed" \
+    "ok|0" "$HR|$(has '"deny"' "$HOUT")"
+  mkfifo "$SD/aria-extfetch-s10c$P-alpha.example"
+  fetch_in https://alpha.example/a "s10c$P"; hrun 5 "$GOOD" "$PD/pre-external-fetch-check.sh" KT_CONFIG="$R/ef-on.md"
+  check "S10 breakers_non_file_is_no_state [$P fetch cooldown]: FIFO at the cooldown → bounded, allowed" \
+    "ok|0" "$HR|$(has '"deny"' "$HOUT")"
+done
+
 printf "\n%d passed, %d failed\n" "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
