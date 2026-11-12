@@ -92,7 +92,12 @@ if [ "$KT_SESSION_STATE" = "true" ] && [ -n "$FILE_PATH" ] && [ "$(basename "$FI
       SS_KEY=$(printf '%s' "${SS_TP:-nosession}" | cksum | cut -d' ' -f1)
     fi
     SS_LEDGER="/tmp/aria-session-inprogress-${SS_KEY}"
-    if ! { [ -f "$SS_LEDGER" ] && grep -qxF "$SS_ROOT" "$SS_LEDGER" 2>/dev/null; }; then
+    # The ledger's /tmp name is predictable (spec §5): it is read and appended to only when it is
+    # a regular file of ours that is not a link, and created only by kt_create_new, from
+    # lib-tracked-artifacts.sh (which only defines functions). Without that lib nothing is
+    # recorded, so the idempotent mark below simply runs again on the next edit.
+    . "$SCRIPT_DIR/lib-tracked-artifacts.sh" 2>/dev/null || true
+    if ! { kt_is_ours "$SS_LEDGER" 2>/dev/null && grep -qxF "$SS_ROOT" "$SS_LEDGER" 2>/dev/null; }; then
       # ⛔ THE EDIT-TIME AUTO-CONSUME WAS REMOVED 2026-09-17 (Mike's ruling: "no new post
       # or pre edit hook checks; the only hooks for this should be on session start").
       # DO NOT REINSTATE IT, in any narrowed form. It called
@@ -112,7 +117,10 @@ if [ "$KT_SESSION_STATE" = "true" ] && [ -n "$FILE_PATH" ] && [ "$(basename "$FI
       # scripts/session-start-check.sh and rules/aria-rules.md (SESSION STATE).
       SS_AUTHOR=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" 2>/dev/null | grep '^author_tag:' | sed 's/^author_tag: *//')
       kt_ss_mark_inprogress "$SS_ROOT" "$SS_SID" "$SS_AUTHOR" 2>/dev/null || true
-      printf '%s\n' "$SS_ROOT" >> "$SS_LEDGER" 2>/dev/null || true
+      [ -e "$SS_LEDGER" ] || [ -L "$SS_LEDGER" ] || kt_create_new "$SS_LEDGER" 2>/dev/null || :
+      if kt_is_ours "$SS_LEDGER" 2>/dev/null; then
+        printf '%s\n' "$SS_ROOT" >> "$SS_LEDGER" 2>/dev/null || true
+      fi
     fi
   fi
 fi

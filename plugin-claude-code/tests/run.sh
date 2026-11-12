@@ -9,6 +9,9 @@ trap 'rm -rf "$TMP"' EXIT
 # there — against the REAL TMPDIR that deleted every live session's fetch cooldowns and
 # breaker counters on each run. Guarded by tests/repros/plugin-suite-leaves-real-tmpdir-alone.sh.
 export TMPDIR="$TMP/tmpdir"; mkdir -p "$TMPDIR"
+# 2.58.0: the session-start sweeps now reach the real /tmp (they start at "/tmp/"), so every hook a
+# test runs sweeps a scratch dir instead (KT_TMP_SWEEP_ROOT is the test-only override).
+export KT_TMP_SWEEP_ROOT="$TMP/sweep-tmp"; mkdir -p "$KT_TMP_SWEEP_ROOT"
 # Real-rules guard (2026-10-25): session-start-check.sh writes $HOME/.claude/rules/,
 # so a test that does not isolate HOME overwrites the developer's live rules files.
 # Compare both files' bytes before and after the whole run.

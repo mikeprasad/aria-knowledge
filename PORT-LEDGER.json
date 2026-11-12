@@ -42,7 +42,7 @@
   "openai-codex": {
     "version": "2.57.9-codex.0",
     "parity_target": "2.57.9",
-    "last_parity_pass": "2026-11-09",
+    "last_parity_pass": "2026-11-12",
     "sla": "undeclared",
     "surfaces": {
       "plugin-openai-codex/skills/aria-assist/SKILL.md": "8d29cb9c3b5f955c6f2a93ea73c662587fb320f40ac610f769421530abddd683",
@@ -88,27 +88,27 @@
       "plugin-openai-codex/template/rules/user-examples.md": "5f5e0f1a6c76b939ca045f49c2fae7f9763348731217d0a035ebdecf14bb57d0",
       "plugin-openai-codex/template/rules/user-rules.md": "ec5d843ab1494c0949f4cfcbdbfdc677c013187fcdd42ab90c2147de703c057d",
       "plugin-openai-codex/template/rules/working-rules.md": "58511d31bc9d03232b26e9c5afb79461ce851f6f4ad099c38a4c8b882d0c4d7f",
-      "plugin-openai-codex/bin/lib-index-match.sh": "6c3cf99a697b07c5005b0f461bc971b84ce1897265c2d53ac3f2f691bfd8c3db",
+      "plugin-openai-codex/bin/lib-index-match.sh": "e4bc5b82e8f2119d8019bacc6de3754fc99d1b595c0ffd034108cf288046e131",
       "plugin-openai-codex/bin/aria-surface.sh": "c2b1d4aa2827ed53816df22cdfe0ff8b591581c4edce05d414648e6f3ded5768"
     }
   },
   "cursor-template": {
     "version": "2.57.9-cursor.0",
     "parity_target": "2.57.9",
-    "last_parity_pass": "2026-11-09",
+    "last_parity_pass": "2026-11-12",
     "sla": "undeclared",
     "surfaces": {
       "plugin-cursor-template/.cursor/rules/aria-commands.mdc": "18ea8095eff5610befb7203645fd49ca95f4b73317a7802568d224dadf0533b4",
       "plugin-cursor-template/knowledge/rules/working-rules.md": "58511d31bc9d03232b26e9c5afb79461ce851f6f4ad099c38a4c8b882d0c4d7f",
-      "plugin-cursor-template/scripts/aria/lib-index-match.sh": "6c3cf99a697b07c5005b0f461bc971b84ce1897265c2d53ac3f2f691bfd8c3db",
+      "plugin-cursor-template/scripts/aria/lib-index-match.sh": "e4bc5b82e8f2119d8019bacc6de3754fc99d1b595c0ffd034108cf288046e131",
       "plugin-cursor-template/scripts/aria/aria-surface.sh": "c2b1d4aa2827ed53816df22cdfe0ff8b591581c4edce05d414648e6f3ded5768",
-      "plugin-cursor-template/scripts/aria/lib-prompt-surface.sh": "5b364d87ea8c6394f8ca08d83218d083401077c2cd7b4ff31582dcdedd390869"
+      "plugin-cursor-template/scripts/aria/lib-prompt-surface.sh": "8dc529d4e18a7e52a86be28a72b3ce677b263565e6c379ee37ee9dc23c1616bc"
     }
   },
   "antigravity": {
     "version": "2.57.9",
     "parity_target": "2.57.9",
-    "last_parity_pass": "2026-11-09",
+    "last_parity_pass": "2026-11-12",
     "sla": "undeclared",
     "surfaces": {
       "plugin-antigravity/skills/aria-assist/SKILL.md": "38441e11a1a7a544ce60544e8313020e87525afc819c9f9ad396a859deb708fc",
@@ -148,9 +148,9 @@
       "plugin-antigravity/skills/stitch/SKILL.md": "19de4e6ff0a6870cfd9279caf6849f1488ae45b65ee7ee469290327983c8b8bd",
       "plugin-antigravity/skills/sync-decisions/SKILL.md": "3a04bc8ba7307c3f35aecccd56842251730a9bfde5886f66065893a5dba1aae6",
       "plugin-antigravity/skills/wrapup/SKILL.md": "004d25a442b42c7fe176df645b0be3acff5b3e17cadef5e6f702580319f6364e",
-      "plugin-antigravity/bin/lib-index-match.sh": "6c3cf99a697b07c5005b0f461bc971b84ce1897265c2d53ac3f2f691bfd8c3db",
+      "plugin-antigravity/bin/lib-index-match.sh": "e4bc5b82e8f2119d8019bacc6de3754fc99d1b595c0ffd034108cf288046e131",
       "plugin-antigravity/bin/aria-surface.sh": "c2b1d4aa2827ed53816df22cdfe0ff8b591581c4edce05d414648e6f3ded5768",
-      "plugin-antigravity/bin/lib-prompt-surface.sh": "5b364d87ea8c6394f8ca08d83218d083401077c2cd7b4ff31582dcdedd390869"
+      "plugin-antigravity/bin/lib-prompt-surface.sh": "8dc529d4e18a7e52a86be28a72b3ce677b263565e6c379ee37ee9dc23c1616bc"
     }
   }
 }

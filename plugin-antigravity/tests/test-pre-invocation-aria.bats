@@ -11,6 +11,9 @@ setup() {
   # KT_SURFACE_CACHE_DIR: one fresh dir per test, never the user's TMPDIR.
   SURF="$(mktemp -d "${BATS_TMPDIR}/ag-surf.XXXXXX")"
   export KT_SURFACE_CACHE_DIR="$SURF"
+  # The hook's /tmp sweeps reach the real /tmp (they start at "/tmp/"); every test sweeps a scratch
+  # dir instead (KT_TMP_SWEEP_ROOT is the test-only override).
+  export KT_TMP_SWEEP_ROOT="$SURF/sweep-tmp"; mkdir -p "$KT_TMP_SWEEP_ROOT"
   HOOKLOG="$SURF/aria-surface-hook.log"
   FIXTURE="${BATS_TEST_DIRNAME}/fixtures/transcript-user-input.jsonl"
   # The ledger path is fixed by contract (/tmp/aria-active-<id>), so every id carries RUN_ID.
@@ -20,7 +23,6 @@ setup() {
 teardown() {
   rm -rf "$CACHE_DIR" "$SURF" 2>/dev/null || true
   rm -f /tmp/aria-active-"${RUN_ID}"* 2>/dev/null || true
-  rm -f /tmp/.aria-new."${RUN_ID}"* 2>/dev/null || true
 }
 
 # --- Responsibility 4 helpers (spec D4: rank the newest USER_INPUT in code) ---------
@@ -682,15 +684,23 @@ SHIM
   [ -e "$SURF/.aria-new.NEW123" ]
 }
 
-@test "R4 tmp_new_temp_pruned: a ledger create temp older than 24 h in /tmp goes on invocationNum 0" {
-  # The session ledger lives in /tmp, so its create temp does too. On macOS /tmp is a symlink,
-  # which find does not follow as a start point unless it is written /tmp/.
+@test "R4 tmp_sweeps_reach_a_symlinked_root: stale ledgers and create temps in /tmp go on invocationNum 0" {
+  # The session ledgers and their create temps live in /tmp. On macOS /tmp is a symlink, which find
+  # does not follow as a start point unless it is written with a trailing slash. The sweep root is
+  # a symlink to a scratch dir here (KT_TMP_SWEEP_ROOT, test-only), so the real /tmp is untouched.
   r4_configure
-  : > "/tmp/.aria-new.${RUN_ID}OLD"
-  touch -t 202001010000 "/tmp/.aria-new.${RUN_ID}OLD"
+  mkdir -p "$SURF/realtmp"; ln -s "$SURF/realtmp" "$SURF/tmplink"
+  export KT_TMP_SWEEP_ROOT="$SURF/tmplink"
+  for n in "aria-active-${RUN_ID}OLD" "aria-session-inprogress-${RUN_ID}OLD" ".aria-new.${RUN_ID}OLD"; do
+    : > "$SURF/realtmp/$n"; touch -t 202001010000 "$SURF/realtmp/$n"
+  done
+  : > "$SURF/realtmp/aria-active-${RUN_ID}NEW"
   r4_payload "${RUN_ID}T" "$SURF/missing.jsonl" 0
   r4_run
-  [ ! -e "/tmp/.aria-new.${RUN_ID}OLD" ]
+  [ ! -e "$SURF/realtmp/aria-active-${RUN_ID}OLD" ]
+  [ ! -e "$SURF/realtmp/aria-session-inprogress-${RUN_ID}OLD" ]
+  [ ! -e "$SURF/realtmp/.aria-new.${RUN_ID}OLD" ]
+  [ -e "$SURF/realtmp/aria-active-${RUN_ID}NEW" ]
 }
 
 @test "R4 legacy_ag_new_temp_still_pruned: a pre-2.58.0 .aria-ag-new.* leftover still goes on invocationNum 0" {

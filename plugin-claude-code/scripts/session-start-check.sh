@@ -64,17 +64,22 @@ emit_and_exit() { emit; exit 0; }
 # unrelated edits. Safe no-op if no manifest exists or jq is unavailable.
 kt_batch_clear_stale 1800
 
+# Every sweep below starts at "$_kt_tmp/" WITH the slash. On macOS /tmp is a symlink and find
+# does not follow a symlinked start point, so `find /tmp -maxdepth 1 ...` matched nothing and these
+# sweeps never ran there (measured 2026-11-12: 0 of 372 aria-active-* files seen; 372 with /tmp/).
+# KT_TMP_SWEEP_ROOT is a TEST-ONLY override of the root (default /tmp): suites set it to a scratch
+# dir so they never sweep the real /tmp.
+_kt_tmp=${KT_TMP_SWEEP_ROOT:-/tmp}
 # Clear stale active-surfacing ledgers (>1 day old) from prior sessions.
 # The ledger is session-scoped (fresh per session per D4), so anything older
 # than ~24h is debris from crashed/abandoned sessions. Safe no-op if none exist.
-find /tmp -maxdepth 1 -name 'aria-active-*' -mtime +1 -delete 2>/dev/null
+find "$_kt_tmp/" -maxdepth 1 -name 'aria-active-*' -mtime +1 -delete 2>/dev/null
 # Clear stale session-inprogress ledgers (>1 day) from prior/crashed sessions
 # (written by post-edit-check.sh's first-edit in-progress marking, v2.23.0).
-find /tmp -maxdepth 1 -name 'aria-session-inprogress-*' -mtime +1 -delete 2>/dev/null
+find "$_kt_tmp/" -maxdepth 1 -name 'aria-session-inprogress-*' -mtime +1 -delete 2>/dev/null
 # Clear create temps (>24 h) that a killed writer left behind: kt_create_new makes them beside
-# the session ledger (/tmp) and the surfacing debug log (the cache dir). Ours only. The start point
-# is `/tmp/`, not `/tmp`: on macOS /tmp is a symlink and find does not follow a symlinked start.
-find /tmp/ "${KT_SURFACE_CACHE_DIR:-${TMPDIR:-/tmp}}" -maxdepth 1 -name '.aria-new.*' -user "$(id -u)" -mmin +1440 -exec rm -f {} + 2>/dev/null
+# the session ledger (/tmp) and the surfacing debug log (the cache dir). Ours only.
+find "$_kt_tmp/" "${KT_SURFACE_CACHE_DIR:-${TMPDIR:-/tmp}}/" -maxdepth 1 -name '.aria-new.*' -user "$(id -u)" -mmin +1440 -exec rm -f {} + 2>/dev/null
 
 # If config file exists but failed validation, report the specific error
 if [ -n "$KT_CONFIG_ERROR" ]; then

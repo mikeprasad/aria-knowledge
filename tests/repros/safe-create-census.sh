@@ -1,7 +1,8 @@
 #!/bin/sh
 # safe-create-census.sh — spec §5 Decision C / AC5: every shell write onto a predictable-name file
 # (/tmp/aria-active-<sid>, the surfacing debug log aria-surface-hook.log, Antigravity's
-# aria-ag-surfaced-* state and aria-ag-logged-* markers) goes through the shared safe create, and
+# aria-ag-surfaced-* state and aria-ag-logged-* markers, post-edit-check.sh's
+# /tmp/aria-session-inprogress-<sid>) goes through the shared safe create, and
 # the helper pair is one body everywhere it is defined.
 #
 # Arms:
@@ -50,7 +51,7 @@ plugin-openai-codex/bin/lib-tracked-artifacts.sh"
 # --- the CC4 scanner ---------------------------------------------------------------------------
 # cc_scan FILE... — prints `FILE:LINE: text` for every unguarded write onto a predictable name, and
 # on stderr one `examined N` line per file (the number of such writes it looked at).
-CC_NAMES='aria-active-|aria-surface-hook\.log|aria-ag-surfaced-|aria-ag-logged-'
+CC_NAMES='aria-active-|aria-surface-hook\.log|aria-ag-surfaced-|aria-ag-logged-|aria-session-inprogress-'
 cc_scan() {
   for _cs_f in "$@"; do
     # Variables assigned a predictable name anywhere in this file (shell has no other scope rule
@@ -140,6 +141,21 @@ CTRL
 CC0B=$(cc_scan "$SCRATCH/control-var.sh" 2>/dev/null | grep -c .)
 if [ "$CC0B" = 1 ]; then ok "CC0 control: a variable assigned a predictable name is followed to its write"
 else bad "CC0 control: a variable assigned a predictable name is followed to its write" "reported $CC0B (want 1)"; fi
+# The in-progress ledger, in post-edit-check.sh's own shape (top level, not in a function): the
+# unguarded append is reported, the guarded one is not.
+cat > "$SCRATCH/control-inprogress.sh" <<'CTRL'
+SS_LEDGER="/tmp/aria-session-inprogress-${SS_KEY}"
+if true; then
+  printf '%s\n' "$SS_ROOT" >> "$SS_LEDGER" 2>/dev/null || true
+  if kt_is_ours "$SS_LEDGER" 2>/dev/null; then
+    printf '%s\n' "$SS_ROOT" >> "$SS_LEDGER" 2>/dev/null || true
+  fi
+fi
+CTRL
+CC0C=$(cc_scan "$SCRATCH/control-inprogress.sh" 2>/dev/null)
+if [ "$(printf '%s\n' "$CC0C" | grep -c .)" = 1 ] && printf '%s\n' "$CC0C" | grep -q ':3: '; then
+  ok "CC0 control: the in-progress ledger name is covered (unguarded append reported, guarded one not)"
+else bad "CC0 control: the in-progress ledger name is covered" "got: $CC0C"; fi
 
 # --- CC1 helper body parity --------------------------------------------------------------------
 # cc_extract FILE NAME — the function's text from its opening line to its closing `}`.

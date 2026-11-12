@@ -6,6 +6,12 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
 
+# 2.58.0: the session-start sweeps now reach the real /tmp (they start at "/tmp/"), so every hook a
+# repro runs sweeps a scratch dir instead (KT_TMP_SWEEP_ROOT is the test-only override).
+KT_TMP_SWEEP_ROOT=$(mktemp -d "${TMPDIR:-/tmp}/aria-sweep-root.XXXXXX")
+export KT_TMP_SWEEP_ROOT
+trap 'rm -rf "$KT_TMP_SWEEP_ROOT"' EXIT
+
 TOTAL_PASS=0
 TOTAL_FAIL=0
 FAILED_SUITES=""

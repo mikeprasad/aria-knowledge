@@ -5,6 +5,9 @@
 #   kept  _kt_ps_append_kept           (via kt_ps_commit)       → /tmp/aria-active-<sid>
 #   match kt_match_record_ledger       (lib-index-match.sh)     → /tmp/aria-active-<sid>
 #   art   kt_artifact_record_ledger    (lib-tracked-artifacts.sh) → /tmp/aria-active-<sid>
+# plus post-edit-check.sh's /tmp/aria-session-inprogress-<sid> (fix round 1, R3; RED on 696e819 for
+# its link, FIFO and window arms) and session-start-check.sh's sweeps, run with the test-only
+# KT_TMP_SWEEP_ROOT pointing at a scratch dir reached through a symlink (R2; RED on 696e819).
 #
 # Sourced by tests/run.sh under `set -eu`. Same protocol as test-prompt-surface-core.sh: the body
 # runs in a SUBSHELL with its own EXIT trap and prints one `name<TAB>expected<TAB>actual` line per
@@ -34,7 +37,10 @@ SC_SD="$(cd "$(dirname "$0")/../scripts" && pwd)"
 sc_body() {
   set +e +u
   T="${TMPDIR:-/tmp}/aria-sc-$$"
-  trap 'chmod -R u+rwx "$T" 2>/dev/null; rm -rf "$T"; rm -f "/tmp/.aria-new.scOLD$$"' EXIT
+  # The post-edit arms need the in-progress ledger's real /tmp name (it is fixed by contract), so
+  # they use a unique fake session id; nothing else here touches /tmp.
+  SC_PE_SID="scpe$$x$(od -An -N4 -tx4 /dev/urandom 2>/dev/null | tr -d ' ')"
+  trap 'chmod -R u+rwx "$T" 2>/dev/null; rm -rf "$T"; rm -f /tmp/aria-session-inprogress-"$SC_PE_SID"* 2>/dev/null' EXIT
   rm -rf "$T"; mkdir -p "$T/home" "$T/tmpdir" "$T/bin-mk" "$T/bin-date" "$T/bin-link"
 
   r() { printf '%s\t%s\t%s\n' "$1" "$2" "$3"; }
@@ -243,30 +249,67 @@ SHIM
   RC=$(fs "$T" "$T/fs4/z")
   r "safe_create_fail_safe: an existing file → rc|content" "1|keep" "$RC|$(cat "$T/fs4/z")"
 
+  # --- safe_create_post_edit (spec §5, fix round 1 R3) ---------------------------------------------
+  # post-edit-check.sh records "this session already marked this project in progress" in
+  # /tmp/aria-session-inprogress-<session id>, a predictable name it used to append to with a plain
+  # `>>` and no ownership check. RED on 696e819 for the link, FIFO and window arms; the positive
+  # arm is a guard (it also proves the scratch project really reaches the write).
+  mkdir -p "$T/pe/proj" "$T/pe/kf" "$T/pe/home"
+  printf '# p\n' > "$T/pe/proj/PROGRESS.md"; printf 'x\n' > "$T/pe/proj/a.txt"
+  printf -- '---\nknowledge_folder: %s\nsession_state: true\n---\n' "$T/pe/kf" > "$T/pe/cfg.md"
+  # pe_run SUFFIX [ENV…] — one post-edit run for session id $SC_PE_SID<SUFFIX>, bounded.
+  pe_run() {
+    _pe_sid="$SC_PE_SID$1"; shift
+    printf '{"session_id":"%s","tool_input":{"file_path":"%s"}}' "$_pe_sid" "$T/pe/proj/a.txt" > "$T/pe/in.json"
+    printf 'sh "$1" < "$2"\n' > "$T/pe/run.sh"
+    sc_bounded 5 env HOME="$T/pe/home" KT_CONFIG="$T/pe/cfg.md" TMPDIR="$T/tmpdir" "$@" \
+      sh "$T/pe/run.sh" "$SC_SD/post-edit-check.sh" "$T/pe/in.json"
+  }
+  PEL="/tmp/aria-session-inprogress-${SC_PE_SID}"
+  # Positive: no plant → the ledger is created, regular and ours, holding the project root once
+  # (and a second edit does not add it again).
+  pe_run p; pe_run p
+  r "safe_create_post_edit: no plant → regular-ours|root-recorded-once|bounded" "1|1|ok" \
+    "$( [ -f "${PEL}p" ] && [ ! -L "${PEL}p" ] && [ -O "${PEL}p" ] && echo 1 || echo 0)|$(grep -cxF "$T/pe/proj" "${PEL}p" 2>/dev/null)|$SC_BOUNDED"
+  # A link to a file planted at the name: never written through.
+  printf 'keep\n' > "$T/pe/l.tgt"; ln -s "$T/pe/l.tgt" "${PEL}l"
+  pe_run l
+  r "safe_create_post_edit: a planted link → target-intact|still-link|bounded" "1|1|ok" \
+    "$( [ "$(cat "$T/pe/l.tgt")" = keep ] && echo 1 || echo 0)|$( [ -L "${PEL}l" ] && echo 1 || echo 0)|$SC_BOUNDED"
+  # A FIFO planted at the name: never opened.
+  mkfifo "${PEL}f"
+  pe_run f
+  r "safe_create_post_edit: a planted FIFO → bounded|still-fifo" "ok|1" "$SC_BOUNDED|$( [ -p "${PEL}f" ] && echo 1 || echo 0)"
+  # A link planted in the create window (the mktemp shim above): harmless.
+  printf 'keep\n' > "$T/pe/w.tgt"; rm -f "$T/fired"
+  pe_run w PATH="$T/bin-mk:$PATH" SC_WIN_FIRED="$T/fired" SC_WIN_NAME="${PEL}w" SC_WIN_KIND=link \
+    SC_WIN_TGT="$T/pe/w.tgt"
+  r "safe_create_post_edit: a link planted in the create window → shim-fired|target-intact|bounded" "1|1|ok" \
+    "$( [ -e "$T/fired" ] && echo 1 || echo 0)|$( [ "$(cat "$T/pe/w.tgt")" = keep ] && echo 1 || echo 0)|$SC_BOUNDED"
+
   # --- safe_create_sweep -----------------------------------------------------------------------
-  # session-start-check.sh removes create temps older than 24 h from the surfacing cache dir.
-  mkdir -p "$T/cache"
+  # session-start-check.sh sweeps stale aria files from /tmp and the surfacing cache dir. Its /tmp
+  # root is overridden (KT_TMP_SWEEP_ROOT, test-only) to a scratch dir reached through a SYMLINK, as
+  # macOS /tmp is: `find <link> -maxdepth 1` does not follow a symlinked start point, which is why
+  # the sweeps never ran on macOS before fix round 1 (R2). The real /tmp is never swept here.
+  mkdir -p "$T/cache" "$T/realtmp"; ln -s "$T/realtmp" "$T/tmplink"
   : > "$T/cache/.aria-new.OLD123"; touch -t 202001010000 "$T/cache/.aria-new.OLD123"
   : > "$T/cache/.aria-new.NEW123"
+  for _sw in aria-active-scOLD aria-session-inprogress-scOLD .aria-new.scOLD; do
+    : > "$T/realtmp/$_sw"; touch -t 202001010000 "$T/realtmp/$_sw"
+  done
+  : > "$T/realtmp/aria-active-scNEW"
   HOME="$T/home" KT_CONFIG="$T/home/absent.local.md" KT_SURFACE_CACHE_DIR="$T/cache" \
-    TMPDIR="$T/tmpdir" sh "$SC_SD/session-start-check.sh" </dev/null >/dev/null 2>&1
-  r "safe_create_sweep: a 2020 .aria-new.* goes, a fresh one stays → old|new" "0|1" \
+    KT_TMP_SWEEP_ROOT="$T/tmplink" TMPDIR="$T/tmpdir" sh "$SC_SD/session-start-check.sh" </dev/null >/dev/null 2>&1
+  r "safe_create_sweep: cache dir — a 2020 .aria-new.* goes, a fresh one stays → old|new" "0|1" \
     "$( [ -e "$T/cache/.aria-new.OLD123" ] && echo 1 || echo 0)|$( [ -e "$T/cache/.aria-new.NEW123" ] && echo 1 || echo 0)"
-  # The /tmp half: a ledger's create temp sits in /tmp itself. On macOS /tmp is a SYMLINK, and
-  # `find /tmp -maxdepth 1` does not follow a symlinked start point, so it would see nothing. A
-  # uniquely named, 2020-dated temp of ours (not a ledger) is planted there and must go.
-  SC_TMPOLD="/tmp/.aria-new.scOLD$$"
-  : > "$SC_TMPOLD" && touch -t 202001010000 "$SC_TMPOLD"
-  HOME="$T/home" KT_CONFIG="$T/home/absent.local.md" KT_SURFACE_CACHE_DIR="$T/cache" \
-    TMPDIR="$T/tmpdir" sh "$SC_SD/session-start-check.sh" </dev/null >/dev/null 2>&1
-  r "safe_create_sweep: a 2020 /tmp/.aria-new.* goes (/tmp may be a symlink)" 0 \
-    "$( [ -e "$SC_TMPOLD" ] && echo 1 || echo 0)"
-  rm -f "$SC_TMPOLD"
+  r "safe_create_sweep: /tmp root through a symlink — stale active|inprogress|create-temp go, fresh active stays" \
+    "0|0|0|1" "$( [ -e "$T/realtmp/aria-active-scOLD" ] && echo 1 || echo 0)|$( [ -e "$T/realtmp/aria-session-inprogress-scOLD" ] && echo 1 || echo 0)|$( [ -e "$T/realtmp/.aria-new.scOLD" ] && echo 1 || echo 0)|$( [ -e "$T/realtmp/aria-active-scNEW" ] && echo 1 || echo 0)"
 }
 SC_RESULTS=$(sc_body)
 
 # Every `r` call in sc_body reports exactly once; raise this when adding a check.
-SC_EXPECTED=39
+SC_EXPECTED=43
 SC_GOT=0
 SC_TAB=$(printf '\t')
 SC_OLD_IFS=$IFS

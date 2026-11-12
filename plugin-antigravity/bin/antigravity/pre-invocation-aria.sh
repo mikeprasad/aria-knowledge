@@ -81,8 +81,11 @@ if [ "$INVOCATION_NUM" = "0" ]; then
   if command -v kt_batch_clear_stale >/dev/null 2>&1; then
     kt_batch_clear_stale 1800
   fi
-  find /tmp -maxdepth 1 -name 'aria-active-*' -mtime +1 -delete 2>/dev/null || true
-  find /tmp -maxdepth 1 -name 'aria-session-inprogress-*' -mtime +1 -delete 2>/dev/null || true
+  # Start at "<root>/" WITH the slash: on macOS /tmp is a symlink and find does not follow a
+  # symlinked start point, so `find /tmp -maxdepth 1 ...` matched nothing (measured 2026-11-12).
+  # KT_TMP_SWEEP_ROOT is a TEST-ONLY override of the root (default /tmp).
+  find "${KT_TMP_SWEEP_ROOT:-/tmp}/" -maxdepth 1 -name 'aria-active-*' -mtime +1 -delete 2>/dev/null || true
+  find "${KT_TMP_SWEEP_ROOT:-/tmp}/" -maxdepth 1 -name 'aria-session-inprogress-*' -mtime +1 -delete 2>/dev/null || true
 
   # 2. Dynamic message building
   MESSAGES=""
@@ -491,13 +494,13 @@ ag_surface() {
   # Housekeeping, once per conversation: state files, log-once markers and model-file /
   # create temps older than 24 h, ours only. `.aria-new.*` is kt_create_new's temp (here and in
   # /tmp, where the session ledger lives); `.aria-ag-new.*` is the pre-2.58.0 name, kept so a
-  # leftover from an older release is still removed. `/tmp/`, not `/tmp`: on macOS /tmp is a
-  # symlink and find does not follow a symlinked start point.
+  # leftover from an older release is still removed. Each start point ends in `/`: on macOS /tmp
+  # is a symlink and find does not follow a symlinked start point (KT_TMP_SWEEP_ROOT: test-only).
   if [ "$INVOCATION_NUM" = "0" ]; then
-    find "$dir" -maxdepth 1 \( -name 'aria-ag-surfaced-*' -o -name 'aria-ag-logged-*' \
+    find "$dir/" -maxdepth 1 \( -name 'aria-ag-surfaced-*' -o -name 'aria-ag-logged-*' \
       -o -name '.aria-ag-model.*' -o -name '.aria-new.*' -o -name '.aria-ag-new.*' \) \
       -user "${USER:-$(id -u)}" -mmin +1440 -exec rm -f {} + 2>/dev/null
-    find /tmp/ -maxdepth 1 -name '.aria-new.*' \
+    find "${KT_TMP_SWEEP_ROOT:-/tmp}/" -maxdepth 1 -name '.aria-new.*' \
       -user "${USER:-$(id -u)}" -mmin +1440 -exec rm -f {} + 2>/dev/null
   fi
 
