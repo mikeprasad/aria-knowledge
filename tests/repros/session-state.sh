@@ -2326,5 +2326,41 @@ else
   bad "AP parity rule (heading clause)" "lines the old prune kept were deleted (old-kept-subset=$_AP_SUB)"
 fi
 
+# AQ / AQ2 (fix round 4): a ledger with NO exact terminator (legacy, or any CRLF ledger). The old prune
+# ends a consumed entry at its first `### ` of any shape; when that line is a plain sub-heading rather
+# than a well-formed entry header, the walker (which closes only at well-formed headers) would reap the
+# sub-heading and its note, which the old prune kept. A non-entry heading at the old boundary therefore
+# makes the entry ambiguous, and it stays.
+_aq_fix() {  # <dir> <lf|crlf>
+  mkdir -p "$1"
+  cat > "$1/SESSION.md.lf" <<'AQ_FIX'
+## Prior sessions
+
+### e1 · 2026-01-02T00:00:00Z · handoff · consumed
+- focus: legacy
+### Subheading kept by old
+note text kept by old
+### l1 · 2026-01-01T00:00:00Z · handoff · unconsumed
+- focus: live
+
+## Notes
+keep
+AQ_FIX
+  if [ "$2" = crlf ]; then awk '{ printf "%s\r\n", $0 }' "$1/SESSION.md.lf" > "$1/SESSION.md"; else cp "$1/SESSION.md.lf" "$1/SESSION.md"; fi
+  rm -f "$1/SESSION.md.lf"
+}
+for _aqm in lf crlf; do
+  _aqd="$TMP/aq-$_aqm"; _aq_fix "$_aqd/new" "$_aqm"; _aq_fix "$_aqd/old" "$_aqm"
+  _aqn="AQ"; [ "$_aqm" = crlf ] && _aqn="AQ2"
+  ( . "$TMP/old-lib.sh"; KT_SS_RECEIPTS="$_aqd/old-receipts"; kt_ss_ledger_prune "$_aqd/old" )
+  kt_ss_ledger_prune "$_aqd/new"
+  _aqsub=$(awk 'NR == FNR { o[++on] = $0; next } { if (j < on && $0 == o[j + 1]) j++ } END { if (j == on) { print "y" } else { print "n" } }' "$_aqd/old/SESSION.md" "$_aqd/new/SESSION.md")
+  if [ "$_aqsub" = y ] && grep -q '^note text kept by old' "$_aqd/new/SESSION.md" && grep -q '^### l1 ' "$_aqd/new/SESSION.md"; then
+    ok "$_aqn ($_aqm) a non-entry heading at the old boundary keeps the consumed entry (old output is a subsequence)"
+  else
+    bad "$_aqn ($_aqm)" "lines the old prune kept were deleted (old-kept-subset=$_aqsub)"
+  fi
+done
+
 printf "\n%d passed, %d failed\n" "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

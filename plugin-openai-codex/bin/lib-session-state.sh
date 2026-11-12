@@ -546,6 +546,8 @@ kt_ss_ledger_prune() {
   # prompt also opens a fence returns the count to even and ITS terminator closes this one (arms AK, AK2,
   # AM, AO -- including a malformed or non-consumed middle entry, which header-hunting missed). The old
   # prune ending it at a heading while the walker sees it TERMINATED is the same mismatch at even parity.
+  # In a file with no terminator, an old boundary that is a plain "### " sub-heading (not a well-formed
+  # entry header) is the same mismatch: the old prune stops there, the walker does not (arms AQ, AQ2).
   # Such an entry is LEFT IN PLACE, like the odd-at-EOF case. An entry whose fences balance before its own
   # "## " boundary is still reaped (arm AN).
   # ⚠ The cost: a consumed entry whose prompt quotes a header or a terminator inside a fence is never
@@ -577,7 +579,7 @@ kt_ss_ledger_prune() {
           if ($0 == "<!-- aria:entry-end -->") { TL[pent] = FNR; TP[pent] = pe; TT[pent] = 1 }
           else if ($0 ~ /^### / && old_hdr($0)) { TL[pent] = FNR; TP[pent] = pe }
         }
-        if (!(pent in TL3) && $0 ~ /^### /) { TL3[pent] = FNR; TP3[pent] = pe }
+        if (!(pent in TL3) && $0 ~ /^### /) { TL3[pent] = FNR; TP3[pent] = pe; if (!kt_is_entry_header($0)) TN3[pent] = 1 }
         if (!(pent in HL) && $0 ~ /^## /) { HL[pent] = FNR; HP[pent] = pe }
       }
       k = kt_region($0)
@@ -594,7 +596,7 @@ kt_ss_ledger_prune() {
       for (x in CONS) {
         pt = 0; pp = 0; tt = 0
         if (oterm) { if (x in TL) { pt = TL[x]; pp = TP[x]; if (x in TT) tt = 1 } }
-        else if (x in TL3) { pt = TL3[x]; pp = TP3[x] }
+        else if (x in TL3) { pt = TL3[x]; pp = TP3[x]; if (x in TN3) pp = 1 }
         if (!tt && (x in HL) && (pt == 0 || HL[x] < pt)) { pt = HL[x]; pp = HP[x]; if ((x in HT) && pp == 0) pp = 1 }
         if (pt > 0 && pp == 1) AMB[x] = 1
       }
