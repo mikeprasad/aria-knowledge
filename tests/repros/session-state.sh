@@ -2197,5 +2197,69 @@ else
   bad "AL fallback scope" "ACTIVE/OTHER changed under the open-at-EOF fallback (or e1 not reaped / l1 lost)"
 fi
 
+# AM (fix round 2, a): AMBIGUOUS keys on ANY fenced well-formed header that is not word-bounded
+# `consumed` -- the old prune kept every such header. A swallowed middle entry whose status was
+# hand-written (`RETIRED`) must survive like a live one.
+_AM="$TMP/am"; mkdir -p "$_AM/new" "$_AM/old"
+cat > "$_AM/new/SESSION.md" <<'AM_FIX'
+## Pending handoffs
+
+### e1 · 2026-01-02T00:00:00Z · handoff · consumed 2026-01-03T00:00:00Z by x
+- prompt:
+```
+e1 unclosed
+<!-- aria:entry-end -->
+
+### r1 · 2026-01-01T00:00:00Z · handoff · RETIRED
+- prompt:
+```
+r1 unclosed
+<!-- aria:entry-end -->
+
+### l0 · 2025-12-01T00:00:00Z · handoff · unconsumed
+- prompt: plain
+<!-- aria:entry-end -->
+AM_FIX
+cp "$_AM/new/SESSION.md" "$_AM/old/SESSION.md"
+( . "$TMP/old-lib.sh"; KT_SS_RECEIPTS="$_AM/old-receipts"; kt_ss_ledger_prune "$_AM/old" )
+kt_ss_ledger_prune "$_AM/new"
+_AM_R1=$(grep -c '^### r1 · ' "$_AM/new/SESSION.md" || true)
+_AM_RC=$(grep -cF "/am/new/SESSION.md|r1|" "$KT_SS_RECEIPTS" 2>/dev/null || true)
+_AM_SUB=$(awk 'NR == FNR { o[++on] = $0; next } { if (j < on && $0 == o[j + 1]) j++ } END { if (j == on) { print "y" } else { print "n" } }' "$_AM/old/SESSION.md" "$_AM/new/SESSION.md")
+if [ "$_AM_R1" -eq 1 ] && [ "$_AM_RC" -eq 0 ] && [ "$_AM_SUB" = y ]; then
+  ok "AM a fenced non-consumed header (RETIRED) also makes an entry ambiguous: r1 survives, no receipt, old output is a subsequence"
+else
+  bad "AM ambiguous predicate" "r1 headers=$_AM_R1 receipts naming r1=$_AM_RC old-kept-subset=$_AM_SUB"
+fi
+
+# AN (fix round 2, b): the ambiguity must lie INSIDE the entry. A legacy consumed entry with no
+# terminator ends at the next section heading; a fence in `## Notes` below it quoting an unconsumed
+# header is not part of it, so the entry is reaped exactly as the old prune reaps it.
+_AN="$TMP/an"; mkdir -p "$_AN/new" "$_AN/old"
+cat > "$_AN/new/SESSION.md" <<'AN_FIX'
+## Pending handoffs
+
+### l1 · 2026-01-03T00:00:00Z · handoff · unconsumed
+- prompt: live
+<!-- aria:entry-end -->
+
+### e1 · 2026-01-02T00:00:00Z · handoff · consumed 2026-01-03T00:00:00Z by x
+- focus: legacy unterminated
+
+## Notes
+
+```
+### q1 · 2026-01-01T00:00:00Z · handoff · unconsumed
+```
+AN_FIX
+cp "$_AN/new/SESSION.md" "$_AN/old/SESSION.md"
+( . "$TMP/old-lib.sh"; KT_SS_RECEIPTS="$_AN/old-receipts"; kt_ss_ledger_prune "$_AN/old" )
+kt_ss_ledger_prune "$_AN/new"
+if cmp -s "$_AN/old/SESSION.md" "$_AN/new/SESSION.md" && ! grep -q '^### e1 ' "$_AN/new/SESSION.md" && grep -q '^### q1 ' "$_AN/new/SESSION.md"; then
+  ok "AN a fenced header in a LATER section does not make an unterminated entry ambiguous: reaped exactly as the old prune does"
+else
+  bad "AN ambiguity scope" "the unterminated consumed entry was kept (or the Notes quote was touched)"
+fi
+
 printf "\n%d passed, %d failed\n" "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

@@ -562,11 +562,14 @@ kt_ss_ledger_prune() {
   #     The old rule ended it at the first fence-blind terminator and re-exposed the entries its prompt
   #     quotes inside that open fence -- measured on the real corpus: 36 phantom candidates in 6 files.
   #     Leaving it deletes less than the old prune, never more. Arm AE2.
-  # ⛔ AMBIGUOUS (fix round 1): an entry whose pass-1 span holds a FENCED well-formed `unconsumed`
-  # header cannot be bounded without crossing another entry -- a later live entry whose prompt also opens
-  # a fence returns the count to even, and ITS terminator then closes this one, so reaping would delete
-  # that live entry (the old prune kept it; CRLF loses it the same way, closing at the next header). Such
-  # an entry is LEFT IN PLACE, exactly like the odd case. Arms AK, AK2.
+  # ⛔ AMBIGUOUS (fix rounds 1-2): an entry whose pass-1 span holds a FENCED well-formed header that is
+  # NOT word-bounded `consumed` cannot be bounded without crossing another entry -- a later entry whose
+  # prompt also opens a fence returns the count to even, and ITS terminator then closes this one, so
+  # reaping would delete that entry (the old prune kept every non-consumed header; CRLF loses it the same
+  # way, closing at the next header). Such an entry is LEFT IN PLACE, exactly like the odd case. Arms AK,
+  # AK2, AM. The hidden header must lie INSIDE the entry: for an entry that pass 1 did not see terminated,
+  # it must come before the first unfenced "## " after the header, where pass 2 ends that entry -- a quote
+  # in a later section does not make it ambiguous (arm AN).
   # ⛔ The even-parity fallback applies the old rule only while pass 2 is in LEDGER or ARCH; front
   # matter, ACTIVE and other sections print unconditionally (arm AL) -- the old rule reaped a consumed
   # header quoted in the active prompt when the ledger sat above it, which is F1 again.
@@ -591,7 +594,8 @@ kt_ss_ledger_prune() {
       k = kt_region($0)
       if (k == "entry_header") KT_HASTERM[FNR] = 1
       else if (k == "terminator") HT[R_ENTRY] = 1
-      else if (k == "body" && R_FENCED == 1 && kt_is_entry_header($0) && $0 ~ /(^|[^a-z])unconsumed([^a-z]|$)/) AMB[R_ENTRY] = 1
+      else if (k == "body" && R_FENCED == 1 && kt_is_entry_header($0) && !is_consumed($0)) { if (!(R_ENTRY in AMBL)) AMBL[R_ENTRY] = FNR }
+      else if (k == "body" && R_FENCED == 0 && $0 ~ /^## / && !(R_ENTRY in FH)) FH[R_ENTRY] = FNR
       next
     }
 
@@ -600,6 +604,7 @@ kt_ss_ledger_prune() {
       if (KT_ENT > 0) { FB[KT_ENT] = 1; if (KT_EFENCE == 1) FBODD = 1 }
       for (x in KT_HASTERM) delete KT_HASTERM[x]
       for (x in HT) KT_HASTERM[x] = 1
+      for (x in AMBL) if ((x in HT) || !(x in FH) || AMBL[x] < FH[x]) AMB[x] = 1
     }
 
     {
