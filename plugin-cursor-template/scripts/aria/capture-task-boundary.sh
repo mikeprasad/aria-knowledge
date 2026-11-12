@@ -12,7 +12,7 @@
 #   - git branch + `git status --short` + changed files + `git diff --stat`
 #   - active batch manifest, if present
 #   - config path + knowledge_folder
-#   - recent /tmp/aria-hook-debug.log lines
+#   - recent hook debug log lines (from the private state directory)
 #
 # All long sections (status, diff, log) are truncated to bounded byte sizes.
 # Fail-open: never block, never error to stdout/stderr in a way Cursor sees.
@@ -20,15 +20,21 @@
 INPUT=$(cat 2>/dev/null || true)
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$SCRIPT_DIR/config.sh"
-# Hook debug log at a fixed /tmp name (spec §5): aria_hook_dbg builds the line first, creates the
-# log only with kt_create_new, and appends only when it is a regular file of ours that is not a
-# link (lib-tracked-artifacts.sh only defines functions; without it nothing is logged).
-# KT_HOOK_DEBUG_LOG is a TEST-ONLY override of the path. Identical in pre-edit-check.sh,
-# post-edit-check.sh, capture-task-boundary.sh and record-edit-intent.sh
-# (tests/repros/safe-create-census.sh CC1).
+# Hook debug log (spec §5; 2.58.0 D4): <state dir>/aria-hook-debug.log, in the private per-user state
+# directory from lib-state-key.sh. With no state directory nothing is logged (spec D3) and the
+# path is empty. aria_hook_dbg builds the line first, creates the log only with kt_create_new,
+# and appends only when it is a regular file of ours that is not a link (lib-tracked-artifacts.sh
+# only defines functions; without it nothing is logged). KT_HOOK_DEBUG_LOG is a TEST-ONLY override
+# of the path. Identical in pre-edit-check.sh, post-edit-check.sh, capture-task-boundary.sh and
+# record-edit-intent.sh (tests/repros/safe-create-census.sh CC1b).
 . "$SCRIPT_DIR/lib-tracked-artifacts.sh" 2>/dev/null || true
-ARIA_HOOK_DEBUG_LOG=${KT_HOOK_DEBUG_LOG:-/tmp/aria-hook-debug.log}
+. "$SCRIPT_DIR/lib-state-key.sh" 2>/dev/null || true
+ARIA_HOOK_DEBUG_LOG=${KT_HOOK_DEBUG_LOG:-}
+if [ -z "$ARIA_HOOK_DEBUG_LOG" ] && kt_state_resolve 2>/dev/null; then
+  ARIA_HOOK_DEBUG_LOG=$(kt_state_path aria-hook-debug.log) || ARIA_HOOK_DEBUG_LOG=
+fi
 aria_hook_dbg() {
+  [ -n "$ARIA_HOOK_DEBUG_LOG" ] || return 0
   _ahd_l="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null) $*"
   [ -e "$ARIA_HOOK_DEBUG_LOG" ] || [ -L "$ARIA_HOOK_DEBUG_LOG" ] || kt_create_new "$ARIA_HOOK_DEBUG_LOG" 2>/dev/null || :
   kt_is_ours "$ARIA_HOOK_DEBUG_LOG" 2>/dev/null || return 0
@@ -82,7 +88,9 @@ fi
 
 # Recent debug log — last 40 lines, capped to ~4 KB
 DEBUG_LOG=""
-if kt_is_ours "$ARIA_HOOK_DEBUG_LOG" 2>/dev/null; then
+if [ -z "$ARIA_HOOK_DEBUG_LOG" ]; then
+  DEBUG_LOG="(state directory unavailable)"
+elif kt_is_ours "$ARIA_HOOK_DEBUG_LOG" 2>/dev/null; then
   DEBUG_LOG=$(tail -n 40 "$ARIA_HOOK_DEBUG_LOG" 2>/dev/null | head -c 4096)
 fi
 
@@ -98,7 +106,7 @@ fi
   printf '\n## changed files\n\n```\n%s\n```\n' "$GIT_CHANGED"
   printf '\n## git diff --stat (truncated)\n\n```\n%s\n```\n' "$GIT_DIFFSTAT"
   printf '\n## active batch manifest\n\n```\n%s\n```\n' "$BATCH_INFO"
-  printf '\n## recent /tmp/aria-hook-debug.log (last 40 lines, truncated)\n\n```\n%s\n```\n' "$DEBUG_LOG"
+  printf '\n## recent hook debug log (last 40 lines, truncated)\n\n```\n%s\n```\n' "$DEBUG_LOG"
 } > "$OUT" 2>/dev/null
 
 aria_hook_dbg "$0 wrote $OUT"

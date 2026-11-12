@@ -4,9 +4,10 @@
 # only when kt_is_ours says it is a regular file of ours that is not a link:
 #   bypass    <state dir>/aria-r22-bypass-<sid>        pre-bash-write-check.sh (claude-code, codex, cursor)
 #   preflight <state dir>/aria-preflight-skipped-<sid> pre-commit-preflight-check.sh (4 ports)
-#   dbg       /tmp/aria-hook-debug.log               cursor pre-edit / post-edit / capture-task-boundary /
-#                                                    record-edit-intent (path via the test-only
-#                                                    KT_HOOK_DEBUG_LOG, so the real file is never touched)
+#   dbg       <state dir>/aria-hook-debug.log      cursor pre-edit / post-edit / capture-task-boundary /
+#                                                    record-edit-intent (the shipped default path, with the
+#                                                    test-only KT_HOOK_DEBUG_LOG unset; one fixed name, so
+#                                                    wr_name clears it before each case)
 # Arms per writer:
 #   positive  nothing planted → the file is created, regular, ours, and holds the line (guard)
 #   link      a link to a file planted at the name → target unchanged, name still a link
@@ -89,14 +90,14 @@ wr() {
       printf '{"session_id":"%s","tool_input":{"command":"cd %s && git commit -m x"}}' "$_w_sid" "$REPO" > "$T/in"
       bounded 10 env KT_CONFIG="$T/none.md" "$@" sh "$DIR/$_w_h/pre-commit-preflight-check.sh" ;;
     dbg)
-      mkdir -p "$T/dbg-$_w_c"; NAME="$T/dbg-$_w_c/aria-hook-debug.log"
+      NAME="$SD/aria-hook-debug.log"
       printf '{"filePath":"%s"}' "$WORK/f" > "$T/in"
       _w_s="$DIR/plugin-cursor-template/scripts/aria/$_w_h"
       if [ "$_w_h" = record-edit-intent.sh ]; then
-        bounded 10 env KT_CONFIG="$T/none.md" KT_HOOK_DEBUG_LOG="$NAME" KT_EDIT_INTENT_FILE="$T/intent-$_w_c.json" \
+        bounded 10 env -u KT_HOOK_DEBUG_LOG KT_CONFIG="$T/none.md" KT_EDIT_INTENT_FILE="$T/intent-$_w_c.json" \
           "$@" sh "$_w_s" "$WORK/f" rule22-low
       else
-        bounded 10 env KT_CONFIG="$T/none.md" KT_HOOK_DEBUG_LOG="$NAME" KT_EDIT_INTENT_FILE="$T/intent-$_w_c.json" \
+        bounded 10 env -u KT_HOOK_DEBUG_LOG KT_CONFIG="$T/none.md" KT_EDIT_INTENT_FILE="$T/intent-$_w_c.json" \
           "$@" sh "$_w_s"
       fi ;;
   esac
@@ -105,7 +106,8 @@ wr() {
 # arms KIND HOOK LABEL — the four arms for one writer.
 arms() {
   _a_k=$1; _a_h=$2; _a_l=$3; _a_n=$(printf '%s' "$_a_l" | tr -c 'A-Za-z0-9' 'x')
-  # positive
+  # positive (wr_name clears the fixed dbg name another case left behind)
+  wr_name "$_a_k" "${_a_n}p" >/dev/null
   wr "$_a_k" "$_a_h" "${_a_n}p"
   check "$_a_l positive: created regular, ours, holding a line; bounded" "1|1|ok" \
     "$( [ -f "$NAME" ] && [ ! -L "$NAME" ] && [ -O "$NAME" ] && echo 1 || echo 0)|$( [ -s "$NAME" ] && echo 1 || echo 0)|$BOUNDED"
@@ -127,11 +129,11 @@ arms() {
   check "$_a_l link planted in the create window: shim fired, target intact, bounded" "1|keep|ok" \
     "$( [ -e "$T/fired" ] && echo 1 || echo 0)|$(cat "$T/${_a_n}w.tgt" | tr '\n' ' ' | sed 's/ $//')|$BOUNDED"
 }
-wr_name() { # KIND CASE → the name wr will write (the dbg dir is created here, as wr does)
+wr_name() { # KIND CASE → the name wr will write (the fixed dbg name is cleared here first)
   case $1 in
     bypass) echo "$SD/aria-r22-bypass-hm$2" ;;
     preflight) echo "$SD/aria-preflight-skipped-hm$2" ;;
-    dbg) mkdir -p "$T/dbg-$2"; echo "$T/dbg-$2/aria-hook-debug.log" ;;
+    dbg) rm -f "$SD/aria-hook-debug.log"; echo "$SD/aria-hook-debug.log" ;;
   esac
 }
 
@@ -147,18 +149,18 @@ done
 
 # capture-task-boundary.sh also READS the debug log into its boundary note: never through a link.
 printf 'SECRET-TARGET-LINE\n' > "$T/ctb.tgt"
-mkdir -p "$T/kf" "$T/dbg-ctbread"; ln -s "$T/ctb.tgt" "$T/dbg-ctbread/aria-hook-debug.log"
+mkdir -p "$T/kf"; rm -f "$SD/aria-hook-debug.log"; ln -s "$T/ctb.tgt" "$SD/aria-hook-debug.log"
 printf -- '---\nknowledge_folder: %s\n---\n' "$T/kf" > "$T/ctb.md"
 printf '{}' > "$T/in"
-bounded 10 env KT_CONFIG="$T/ctb.md" KT_HOOK_DEBUG_LOG="$T/dbg-ctbread/aria-hook-debug.log" \
+bounded 10 env -u KT_HOOK_DEBUG_LOG KT_CONFIG="$T/ctb.md" \
   sh "$DIR/plugin-cursor-template/scripts/aria/capture-task-boundary.sh"
 check "dbg[capture-task-boundary.sh] reads no linked log into its note" "0" \
   "$(grep -rl 'SECRET-TARGET-LINE' "$T/kf" 2>/dev/null | grep -c .)"
 # Control: the same content as a regular log of ours IS read into the note — so the arm above
 # refuses the link, rather than passing because no note was written.
-mkdir -p "$T/kf2" "$T/dbg-ctbctl"; cp "$T/ctb.tgt" "$T/dbg-ctbctl/aria-hook-debug.log"
+mkdir -p "$T/kf2"; rm -f "$SD/aria-hook-debug.log"; cp "$T/ctb.tgt" "$SD/aria-hook-debug.log"
 printf -- '---\nknowledge_folder: %s\n---\n' "$T/kf2" > "$T/ctb2.md"
-bounded 10 env KT_CONFIG="$T/ctb2.md" KT_HOOK_DEBUG_LOG="$T/dbg-ctbctl/aria-hook-debug.log" \
+bounded 10 env -u KT_HOOK_DEBUG_LOG KT_CONFIG="$T/ctb2.md" \
   sh "$DIR/plugin-cursor-template/scripts/aria/capture-task-boundary.sh"
 check "dbg[capture-task-boundary.sh] control: a regular log of ours is read into the note" "1" \
   "$(grep -rl 'SECRET-TARGET-LINE' "$T/kf2" 2>/dev/null | grep -c .)"

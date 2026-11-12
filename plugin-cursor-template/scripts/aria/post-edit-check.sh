@@ -10,15 +10,21 @@
 INPUT=$(cat)
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$SCRIPT_DIR/config.sh"
-# Hook debug log at a fixed /tmp name (spec §5): aria_hook_dbg builds the line first, creates the
-# log only with kt_create_new, and appends only when it is a regular file of ours that is not a
-# link (lib-tracked-artifacts.sh only defines functions; without it nothing is logged).
-# KT_HOOK_DEBUG_LOG is a TEST-ONLY override of the path. Identical in pre-edit-check.sh,
-# post-edit-check.sh, capture-task-boundary.sh and record-edit-intent.sh
-# (tests/repros/safe-create-census.sh CC1).
+# Hook debug log (spec §5; 2.58.0 D4): <state dir>/aria-hook-debug.log, in the private per-user state
+# directory from lib-state-key.sh. With no state directory nothing is logged (spec D3) and the
+# path is empty. aria_hook_dbg builds the line first, creates the log only with kt_create_new,
+# and appends only when it is a regular file of ours that is not a link (lib-tracked-artifacts.sh
+# only defines functions; without it nothing is logged). KT_HOOK_DEBUG_LOG is a TEST-ONLY override
+# of the path. Identical in pre-edit-check.sh, post-edit-check.sh, capture-task-boundary.sh and
+# record-edit-intent.sh (tests/repros/safe-create-census.sh CC1b).
 . "$SCRIPT_DIR/lib-tracked-artifacts.sh" 2>/dev/null || true
-ARIA_HOOK_DEBUG_LOG=${KT_HOOK_DEBUG_LOG:-/tmp/aria-hook-debug.log}
+. "$SCRIPT_DIR/lib-state-key.sh" 2>/dev/null || true
+ARIA_HOOK_DEBUG_LOG=${KT_HOOK_DEBUG_LOG:-}
+if [ -z "$ARIA_HOOK_DEBUG_LOG" ] && kt_state_resolve 2>/dev/null; then
+  ARIA_HOOK_DEBUG_LOG=$(kt_state_path aria-hook-debug.log) || ARIA_HOOK_DEBUG_LOG=
+fi
 aria_hook_dbg() {
+  [ -n "$ARIA_HOOK_DEBUG_LOG" ] || return 0
   _ahd_l="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null) $*"
   [ -e "$ARIA_HOOK_DEBUG_LOG" ] || [ -L "$ARIA_HOOK_DEBUG_LOG" ] || kt_create_new "$ARIA_HOOK_DEBUG_LOG" 2>/dev/null || :
   kt_is_ours "$ARIA_HOOK_DEBUG_LOG" 2>/dev/null || return 0
@@ -36,7 +42,7 @@ FILE_PATH=$(echo "$INPUT" | grep -o '"filePath":"[^"]*"' | head -1 | sed 's/"fil
 # Edit-intent marker handling. If a marker exists and matches the file just
 # edited, log the consumption and remove the file so subsequent edits must
 # record fresh intent. Mismatches are logged but not removed (they belong to
-# a different file/session). Logged to /tmp/aria-hook-debug.log only — never
+# a different file/session). Logged to the hook debug log only — never
 # emitted in agentMessage so we don't confuse the scope-check format.
 INTENT_FILE="${KT_EDIT_INTENT_FILE:-$KT_ROOT/.cursor/aria-edit-intent.json}"
 if [ -f "$INTENT_FILE" ] && [ -n "$FILE_PATH" ]; then
@@ -125,21 +131,40 @@ if [ "$KT_SESSION_STATE" = "true" ] && [ -n "$FILE_PATH" ] && [ "$(basename "$FI
       [ -z "$SS_TP" ] && SS_TP=$(echo "$INPUT" | grep -o '"transcript_path":"[^"]*"' | head -1 | sed 's/"transcript_path":"//;s/"//')
       SS_KEY=$(printf '%s' "${SS_TP:-nosession}" | cksum | cut -d' ' -f1)
     fi
-    SS_LEDGER="/tmp/aria-session-inprogress-${SS_KEY}"
-    # The ledger's /tmp name is predictable (spec §5): it is read and appended to only when it is
-    # a regular file of ours that is not a link, and created only by kt_create_new, from
-    # lib-tracked-artifacts.sh (which only defines functions). Without that lib nothing is
-    # recorded, so the idempotent mark below simply runs again on the next edit.
+    # 2.58.0: the once-per-(session, project) cache lives in the private per-user state directory
+    # (lib-state-key.sh); the id goes through kt_state_path, which refuses one with a "/". It is read
+    # and appended to only when it is a regular file of ours that is not a link, and created only by
+    # kt_create_new, from lib-tracked-artifacts.sh (which only defines functions).
+    # With no usable cache — no state directory (spec D3), a refused id, or that lib missing — the
+    # project is marked ANYWAY, guarded by one read of SESSION.md: when its front matter already
+    # reads lastEvent: in-progress under THIS session id the mark is skipped, so the file is written
+    # once, not on every edit (the mark refreshes `at:`, so re-running it is not byte-idempotent).
+    SS_LEDGER=
+    . "$SCRIPT_DIR/lib-state-key.sh" 2>/dev/null || true
+    if kt_state_resolve 2>/dev/null; then
+      SS_LEDGER=$(kt_state_path "aria-session-inprogress-${SS_KEY}") || SS_LEDGER=
+    fi
     . "$SCRIPT_DIR/lib-tracked-artifacts.sh" 2>/dev/null || true
-    if ! { kt_is_ours "$SS_LEDGER" 2>/dev/null && grep -qxF "$SS_ROOT" "$SS_LEDGER" 2>/dev/null; }; then
+    if [ -n "$SS_LEDGER" ] && kt_is_ours "$SS_LEDGER" 2>/dev/null && grep -qxF "$SS_ROOT" "$SS_LEDGER" 2>/dev/null; then
+      :   # this session already marked this project
+    elif [ -z "$SS_LEDGER" ] && [ -n "$SS_SID" ] && [ -f "$SS_ROOT/SESSION.md" ] && awk -v sid="$SS_SID" '
+        NR == 1 { if ($0 != "---") exit 1; next }
+        $0 == "---" { ok = (le == "in-progress" && si == sid); done = 1; exit }
+        !gle && /^lastEvent:/ { le = $0; sub(/^lastEvent:[ ]*/, "", le); gle = 1 }
+        !gsi && /^sessionId:/ { si = $0; sub(/^sessionId:[ ]*/, "", si); gsi = 1 }
+        END { exit (done && ok) ? 0 : 1 }' "$SS_ROOT/SESSION.md" 2>/dev/null; then
+      :   # no cache, and SESSION.md already carries this session's mark
+    else
       # Consume a prior handoff before flipping to in-progress (latch-clear on resume).
       # (v2.53.2 parity) Handoff consumption is NOT inferred from an edit — it happens only on
       # the session-start resume path, keyed on an aria-handoff token in the opener.
       SS_AUTHOR=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" 2>/dev/null | grep '^author_tag:' | sed 's/^author_tag: *//')
       kt_ss_mark_inprogress "$SS_ROOT" "$SS_SID" "$SS_AUTHOR" 2>/dev/null || true
-      [ -e "$SS_LEDGER" ] || [ -L "$SS_LEDGER" ] || kt_create_new "$SS_LEDGER" 2>/dev/null || :
-      if kt_is_ours "$SS_LEDGER" 2>/dev/null; then
-        printf '%s\n' "$SS_ROOT" >> "$SS_LEDGER" 2>/dev/null || true
+      if [ -n "$SS_LEDGER" ]; then
+        [ -e "$SS_LEDGER" ] || [ -L "$SS_LEDGER" ] || kt_create_new "$SS_LEDGER" 2>/dev/null || :
+        if kt_is_ours "$SS_LEDGER" 2>/dev/null; then
+          printf '%s\n' "$SS_ROOT" >> "$SS_LEDGER" 2>/dev/null || true
+        fi
       fi
     fi
   fi

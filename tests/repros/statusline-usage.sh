@@ -13,11 +13,12 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 METER="$ROOT/plugin-claude-code/scripts/statusline-meter.sh"
 INJECT="$ROOT/plugin-claude-code/scripts/usage-threshold-inject.sh"
 TMP=$(mktemp -d)
-# usage-threshold-inject keys its anti-spam band file off session_id in /tmp
-# (correct production behavior). Use a per-PID session prefix so repeated runs of
-# this repro never inherit a prior run's recorded band, and clean them on exit.
+# usage-threshold-inject keys its anti-spam band file off session_id in the private state dir
+# (2.58.0), resolved here under the scratch dir via KT_STATE_BASE, so the real per-user state dir is
+# never written. The per-PID session prefix stays, so cases never share a recorded band.
 SP="repro-$$"
-trap 'rm -rf "$TMP"; rm -f /tmp/aria-usage-warn-${SP}-* 2>/dev/null' EXIT
+trap 'rm -rf "$TMP"' EXIT
+export KT_STATE_BASE="$TMP/state-base"; mkdir -p "$KT_STATE_BASE"
 PASS=0; FAIL=0
 # ESC built at runtime: BSD sed (macOS) does not interpret a literal \033 escape
 # in the pattern, so '\033\[...' is an inert no-op there. Inject the byte instead.

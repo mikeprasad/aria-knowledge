@@ -29,8 +29,17 @@ if [ -z "$SESSION_ID" ]; then
   exit 0
 fi
 
-# Check cooldown — skip if last fire was less than 30 seconds ago
-COOLDOWN_FILE="/tmp/aria-context-${SESSION_ID}"
+# Check cooldown — skip if last fire was less than 30 seconds ago.
+# 2.58.0: the cooldown lives in the private per-user state directory (lib-state-key.sh). With no
+# directory (spec D3) nothing is surfaced: without a cooldown every task dispatch would repeat it.
+# The id goes through kt_state_path, which refuses one with a "/". Only a regular file that is not
+# a link is read (a FIFO would block the read); anything else at the name is no state: emit nothing.
+. "$SCRIPT_DIR/lib-state-key.sh"
+kt_state_resolve || exit 0
+COOLDOWN_FILE=$(kt_state_path "aria-context-${SESSION_ID}") || exit 0
+if [ -L "$COOLDOWN_FILE" ] || { [ -e "$COOLDOWN_FILE" ] && [ ! -f "$COOLDOWN_FILE" ]; }; then
+  exit 0
+fi
 if [ -f "$COOLDOWN_FILE" ]; then
   LAST_FIRE=$(cat "$COOLDOWN_FILE" 2>/dev/null)
   NOW=$(date +%s)

@@ -25,7 +25,8 @@
 #   - no metric has entered a HIGHER alert band than already warned this session
 #
 # Anti-spam: alerts are gated by 5-point bands tracked per session in
-# /tmp/aria-usage-warn-<session_id>. A metric warns once on entering a band,
+# <state dir>/aria-usage-warn-<session_id> (the private per-user directory from lib-state-key.sh;
+# with none, no alert is emitted — spec D3). A metric warns once on entering a band,
 # again only on a higher band (80 -> 85 -> 90), and is rearmed when it drops
 # back below threshold (e.g. after /compact or a 5-hour-window reset).
 
@@ -56,7 +57,14 @@ esac
 [ "$THRESH" -lt 1 ] && exit 0
 [ "$THRESH" -gt 100 ] && exit 0
 
-WARNFILE="/tmp/aria-usage-warn-${SID}"
+# 2.58.0: the band file lives in the private per-user state directory (lib-state-key.sh). With no
+# directory (spec D3) no alert is emitted: without the bands it would repeat on every prompt. The
+# id goes through kt_state_path, which refuses one with a "/". Only a regular file that is not a link
+# is usable (a FIFO would block the read and the write); anything else at the name is no state.
+. "$SCRIPT_DIR/lib-state-key.sh"
+kt_state_resolve || exit 0
+WARNFILE=$(kt_state_path "aria-usage-warn-${SID}") || exit 0
+if [ -L "$WARNFILE" ] || { [ -e "$WARNFILE" ] && [ ! -f "$WARNFILE" ]; }; then exit 0; fi
 
 ctx=$(jq -r '.context_pct // empty' "$STATE" 2>/dev/null)
 five=$(jq -r '.five_hour_pct // empty' "$STATE" 2>/dev/null)

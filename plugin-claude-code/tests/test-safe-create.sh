@@ -5,7 +5,7 @@
 #   kept  _kt_ps_append_kept           (via kt_ps_commit)       → /tmp/aria-active-<sid>
 #   match kt_match_record_ledger       (lib-index-match.sh)     → /tmp/aria-active-<sid>
 #   art   kt_artifact_record_ledger    (lib-tracked-artifacts.sh) → /tmp/aria-active-<sid>
-# plus post-edit-check.sh's /tmp/aria-session-inprogress-<sid> (fix round 1, R3; RED on 696e819 for
+# plus post-edit-check.sh's <state dir>/aria-session-inprogress-<sid> (fix round 1, R3; RED on 696e819 for
 # its link, FIFO and window arms) and session-start-check.sh's sweeps, run with the test-only
 # KT_TMP_SWEEP_ROOT pointing at a scratch dir reached through a symlink (R2; RED on 696e819).
 #
@@ -37,10 +37,10 @@ SC_SD="$(cd "$(dirname "$0")/../scripts" && pwd)"
 sc_body() {
   set +e +u
   T="${TMPDIR:-/tmp}/aria-sc-$$"
-  # The post-edit arms need the in-progress ledger's real /tmp name (it is fixed by contract), so
-  # they use a unique fake session id; nothing else here touches /tmp.
+  # The post-edit arms' in-progress cache lives in the private state dir (2.58.0), resolved under a
+  # scratch KT_STATE_BASE in $T, so nothing here touches /tmp or the real per-user state dir.
   SC_PE_SID="scpe$$x$(od -An -N4 -tx4 /dev/urandom 2>/dev/null | tr -d ' ')"
-  trap 'chmod -R u+rwx "$T" 2>/dev/null; rm -rf "$T"; rm -f /tmp/aria-session-inprogress-"$SC_PE_SID"* 2>/dev/null' EXIT
+  trap 'chmod -R u+rwx "$T" 2>/dev/null; rm -rf "$T"' EXIT
   rm -rf "$T"; mkdir -p "$T/home" "$T/tmpdir" "$T/bin-mk" "$T/bin-date" "$T/bin-link"
 
   r() { printf '%s\t%s\t%s\n' "$1" "$2" "$3"; }
@@ -251,10 +251,12 @@ SHIM
 
   # --- safe_create_post_edit (spec §5, fix round 1 R3) ---------------------------------------------
   # post-edit-check.sh records "this session already marked this project in progress" in
-  # /tmp/aria-session-inprogress-<session id>, a predictable name it used to append to with a plain
-  # `>>` and no ownership check. RED on 696e819 for the link, FIFO and window arms; the positive
+  # <state dir>/aria-session-inprogress-<session id> (/tmp before 2.58.0), a predictable name it used
+  # to append to with a plain `>>` and no ownership check. RED on 696e819 for the link, FIFO and
+  # window arms; the positive
   # arm is a guard (it also proves the scratch project really reaches the write).
-  mkdir -p "$T/pe/proj" "$T/pe/kf" "$T/pe/home"
+  mkdir -p "$T/pe/proj" "$T/pe/kf" "$T/pe/home" "$T/pe/sb"
+  mkdir -m 700 "$T/pe/sb/aria-knowledge-$(id -u)"
   printf '# p\n' > "$T/pe/proj/PROGRESS.md"; printf 'x\n' > "$T/pe/proj/a.txt"
   printf -- '---\nknowledge_folder: %s\nsession_state: true\n---\n' "$T/pe/kf" > "$T/pe/cfg.md"
   # pe_run SUFFIX [ENV…] — one post-edit run for session id $SC_PE_SID<SUFFIX>, bounded.
@@ -262,10 +264,10 @@ SHIM
     _pe_sid="$SC_PE_SID$1"; shift
     printf '{"session_id":"%s","tool_input":{"file_path":"%s"}}' "$_pe_sid" "$T/pe/proj/a.txt" > "$T/pe/in.json"
     printf 'sh "$1" < "$2"\n' > "$T/pe/run.sh"
-    sc_bounded 5 env HOME="$T/pe/home" KT_CONFIG="$T/pe/cfg.md" TMPDIR="$T/tmpdir" "$@" \
+    sc_bounded 5 env HOME="$T/pe/home" KT_CONFIG="$T/pe/cfg.md" TMPDIR="$T/tmpdir" KT_STATE_BASE="$T/pe/sb" "$@" \
       sh "$T/pe/run.sh" "$SC_SD/post-edit-check.sh" "$T/pe/in.json"
   }
-  PEL="/tmp/aria-session-inprogress-${SC_PE_SID}"
+  PEL="$T/pe/sb/aria-knowledge-$(id -u)/aria-session-inprogress-${SC_PE_SID}"
   # Positive: no plant → the ledger is created, regular and ours, holding the project root once
   # (and a second edit does not add it again).
   pe_run p; pe_run p

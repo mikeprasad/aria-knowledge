@@ -8,8 +8,9 @@
 # the path. Returns silently (exit 0, no output) on any unfit input —
 # non-cd commands, paths we can't parse, no index, threshold not met.
 #
-# Cooldown: per-project-per-session via /tmp/aria-bashcd-{session_id}-{key}
-# so repeated cd into the same project doesn't re-prompt.
+# Cooldown: per-project-per-session via <state dir>/aria-bashcd-{session_id}-{key}
+# so repeated cd into the same project doesn't re-prompt. The state dir is the private per-user
+# directory from lib-state-key.sh; with none (spec D3) the hook emits nothing.
 #
 # Ledger: in active mode, surfaced paths get appended to /tmp/aria-active-
 # {session_id} for cross-trigger dedup (read by post-compact, filtered by
@@ -77,8 +78,14 @@ SESSION_ID=$(printf '%s' "$INPUT" | grep -o '"sessionId":"[^"]*"' | head -1 | se
 
 # Per-project-per-session cooldown — same project shouldn't re-prompt.
 PROJECT_KEY=$(printf '%s' "$CD_PATH" | tr '/' '_')
-COOLDOWN_FILE="/tmp/aria-bashcd-${SESSION_ID}-${PROJECT_KEY}"
-[ -f "$COOLDOWN_FILE" ] && exit 0
+# 2.58.0: the cooldown lives in the private per-user state directory (lib-state-key.sh). With no
+# directory (spec D3) the reminder is NOT emitted: without a cooldown it would repeat on every cd.
+# The id goes through kt_state_path, which refuses one with a "/". Any entry at the name — the
+# cooldown, or a non-file a FIFO write would block on — means emit nothing.
+. "$SCRIPT_DIR/lib-state-key.sh"
+kt_state_resolve || exit 0
+COOLDOWN_FILE=$(kt_state_path "aria-bashcd-${SESSION_ID}-${PROJECT_KEY}") || exit 0
+{ [ -e "$COOLDOWN_FILE" ] || [ -L "$COOLDOWN_FILE" ]; } && exit 0
 
 # Match
 INDEX_FILE="$KT_KNOWLEDGE_FOLDER/index.md"
