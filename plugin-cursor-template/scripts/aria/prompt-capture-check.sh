@@ -50,11 +50,16 @@ INPUT=""
 if (exec 3<&0) 2>/dev/null; then INPUT=$(cat 2>/dev/null); fi
 
 # Without the lib there is no kt_ps_log either, so this one failure is logged inline, to the
-# same debug log and in the same shape (a symlinked log is refused, as kt_ps_log does).
+# same debug log and in the same shape, through the same safe create kt_ps_log uses
+# (kt_create_new / kt_is_ours from lib-tracked-artifacts.sh, which only defines functions).
+# Without that lib too, nothing is written.
 if [ ! -f "$SCRIPT_DIR/lib-prompt-surface.sh" ]; then
   _pcc_lf="${KT_SURFACE_CACHE_DIR:-${TMPDIR:-/tmp}}/aria-surface-hook.log"
-  [ -L "$_pcc_lf" ] || printf '%s cursor capture lib-missing\n' \
-    "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown-time)" >> "$_pcc_lf" 2>/dev/null
+  _pcc_line="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown-time) cursor capture lib-missing"
+  . "$SCRIPT_DIR/lib-tracked-artifacts.sh" 2>/dev/null || exit 0
+  [ -e "$_pcc_lf" ] || [ -L "$_pcc_lf" ] || kt_create_new "$_pcc_lf" || :
+  kt_is_ours "$_pcc_lf" || exit 0
+  printf '%s\n' "$_pcc_line" >> "$_pcc_lf" 2>/dev/null
   exit 0
 fi
 KT_PS_SCRIPT_DIR=$SCRIPT_DIR

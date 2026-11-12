@@ -20,6 +20,7 @@ setup() {
 teardown() {
   rm -rf "$CACHE_DIR" "$SURF" 2>/dev/null || true
   rm -f /tmp/aria-active-"${RUN_ID}"* 2>/dev/null || true
+  rm -f /tmp/.aria-new."${RUN_ID}"* 2>/dev/null || true
 }
 
 # --- Responsibility 4 helpers (spec D4: rank the newest USER_INPUT in code) ---------
@@ -71,7 +72,8 @@ r4_wrapped_bin() {
   mkdir -p "$P/bin/antigravity"
   cp "${BATS_TEST_DIRNAME}"/../bin/antigravity/*.sh "$P/bin/antigravity/"
   cp "${BATS_TEST_DIRNAME}/../bin/config.sh" "${BATS_TEST_DIRNAME}/../bin/lib-index-match.sh" \
-     "${BATS_TEST_DIRNAME}/../bin/lib-prompt-surface.sh" "$P/bin/"
+     "${BATS_TEST_DIRNAME}/../bin/lib-prompt-surface.sh" \
+     "${BATS_TEST_DIRNAME}/../bin/lib-tracked-artifacts.sh" "$P/bin/"
   cat >> "$P/bin/lib-index-match.sh" <<'WRAP'
 eval "_r4_counted_$(declare -f kt_index_match)"
 kt_index_match() {
@@ -457,7 +459,10 @@ logged() { grep -q -- " antigravity $1\$" "$HOOKLOG" 2>/dev/null; }
   P="$SURF/plug"
   mkdir -p "$P/bin/antigravity"
   cp "${BATS_TEST_DIRNAME}"/../bin/antigravity/*.sh "$P/bin/antigravity/"
-  cp "${BATS_TEST_DIRNAME}/../bin/config.sh" "${BATS_TEST_DIRNAME}/../bin/lib-index-match.sh" "$P/bin/"
+  # The debug-log write uses the shared safe create in lib-tracked-artifacts.sh (spec §5), which
+  # ships beside it; only lib-prompt-surface.sh is missing here.
+  cp "${BATS_TEST_DIRNAME}/../bin/config.sh" "${BATS_TEST_DIRNAME}/../bin/lib-index-match.sh" \
+     "${BATS_TEST_DIRNAME}/../bin/lib-tracked-artifacts.sh" "$P/bin/"
   r4_payload "${RUN_ID}L" "$SURF/t.jsonl" 3
   bash "$P/bin/antigravity/pre-invocation-aria.sh" < "$SURF/in" > "$SURF/out" 2>/dev/null
   [ "$(cat "$SURF/out")" = "{}" ]
@@ -591,7 +596,7 @@ CFG
   grep -q '"decision":"deny"' "$SURF/out"
   [ -p "$HOOKLOG" ]
   # Every failed create removed its temp.
-  [ -z "$(ls -A "$SURF" | grep '^\.aria-ag-new\.' || true)" ]
+  [ -z "$(ls -A "$SURF" | grep '^\.aria-new\.' || true)" ]
 }
 
 @test "R4 marker_dir_link_not_entered: a create name that is a symlink to a directory gets nothing inside it" {
@@ -629,13 +634,13 @@ CFG
 @test "R4 plant_in_create_window_is_harmless: a name planted between the fast path and link is never opened or entered" {
   r4_configure
   # A mktemp shim plants at the create name when it is asked for the helper's temp, i.e.
-  # AFTER ag_create_new's existence test and BEFORE its link call — the only window left.
+  # AFTER kt_create_new's existence test and BEFORE its link call — the only window left.
   mkdir "$SURF/shim" "$SURF/elsewhere"
   real=$(command -v mktemp)
   cat > "$SURF/shim/mktemp" <<SHIM
 #!/bin/sh
 case "\$*" in
-  *.aria-ag-new.*)
+  *.aria-new.*)
     if [ -n "\${KT_TEST_WINDOW_NAME:-}" ] && [ ! -e "\$KT_TEST_WINDOW_NAME" ] && [ ! -L "\$KT_TEST_WINDOW_NAME" ]; then
       case "\${KT_TEST_WINDOW_PLANT:-}" in
         fifo) mkfifo "\$KT_TEST_WINDOW_NAME" ;;
@@ -663,18 +668,48 @@ SHIM
   [ -L "$SURF/aria-ag-surfaced-$C2" ]
   [ -z "$(ls -A "$SURF/elsewhere")" ]
   [ "$(grep -c ' antigravity state refused$' "$HOOKLOG")" = "2" ]
-  [ -z "$(ls -A "$SURF" | grep '^\.aria-ag-new\.' || true)" ]
+  [ -z "$(ls -A "$SURF" | grep '^\.aria-new\.' || true)" ]
 }
 
 @test "R4 orphan_new_temp_pruned: create temps older than 24 h go on invocationNum 0" {
   r4_configure
+  : > "$SURF/.aria-new.OLD123"
+  touch -t 202001010000 "$SURF/.aria-new.OLD123"
+  : > "$SURF/.aria-new.NEW123"
+  r4_payload "${RUN_ID}O" "$SURF/missing.jsonl" 0
+  r4_run
+  [ ! -e "$SURF/.aria-new.OLD123" ]
+  [ -e "$SURF/.aria-new.NEW123" ]
+}
+
+@test "R4 tmp_new_temp_pruned: a ledger create temp older than 24 h in /tmp goes on invocationNum 0" {
+  # The session ledger lives in /tmp, so its create temp does too. On macOS /tmp is a symlink,
+  # which find does not follow as a start point unless it is written /tmp/.
+  r4_configure
+  : > "/tmp/.aria-new.${RUN_ID}OLD"
+  touch -t 202001010000 "/tmp/.aria-new.${RUN_ID}OLD"
+  r4_payload "${RUN_ID}T" "$SURF/missing.jsonl" 0
+  r4_run
+  [ ! -e "/tmp/.aria-new.${RUN_ID}OLD" ]
+}
+
+@test "R4 legacy_ag_new_temp_still_pruned: a pre-2.58.0 .aria-ag-new.* leftover still goes on invocationNum 0" {
+  r4_configure
   : > "$SURF/.aria-ag-new.OLD123"
   touch -t 202001010000 "$SURF/.aria-ag-new.OLD123"
   : > "$SURF/.aria-ag-new.NEW123"
-  r4_payload "${RUN_ID}O" "$SURF/missing.jsonl" 0
+  r4_payload "${RUN_ID}L" "$SURF/missing.jsonl" 0
   r4_run
   [ ! -e "$SURF/.aria-ag-new.OLD123" ]
   [ -e "$SURF/.aria-ag-new.NEW123" ]
+}
+
+@test "R4 create_helper_is_shared: the hook uses the libraries' kt_create_new, sourced before its first log write" {
+  [ "$(grep -c 'ag_create_new' "$WRAPPER")" = "0" ]
+  src=$(grep -n '^[^#]*\. .*lib-tracked-artifacts\.sh' "$WRAPPER" | head -1 | cut -d: -f1)
+  first=$(grep -n '^[^#]*ag_debug_log [a-z]' "$WRAPPER" | grep -v 'ag_debug_log()' | head -1 | cut -d: -f1)
+  [ -n "$src" ] && [ -n "$first" ]
+  [ "$src" -lt "$first" ]
 }
 
 @test "R4 jq_missing_logged: no jq → the existing deny output, plus one debug-log line" {

@@ -24,6 +24,10 @@ find /tmp -maxdepth 1 -name 'aria-active-*' -mtime +1 -delete 2>/dev/null
 # Clear stale session-inprogress ledgers (>1 day) from prior/crashed sessions
 # (written by codex-hook.py's first-edit in-progress marking, v2.24.2-codex.0).
 find /tmp -maxdepth 1 -name 'aria-session-inprogress-*' -mtime +1 -delete 2>/dev/null
+# Clear create temps (>24 h) that a killed writer left behind: kt_create_new makes them beside
+# the session ledger (/tmp) and the surfacing debug log (the cache dir). Ours only. The start point
+# is `/tmp/`, not `/tmp`: on macOS /tmp is a symlink and find does not follow a symlinked start.
+find /tmp/ "${KT_SURFACE_CACHE_DIR:-${TMPDIR:-/tmp}}" -maxdepth 1 -name '.aria-new.*' -user "$(id -u)" -mmin +1440 -exec rm -f {} + 2>/dev/null
 
 # If config file exists but failed validation, report the specific error
 if [ -n "$KT_CONFIG_ERROR" ]; then

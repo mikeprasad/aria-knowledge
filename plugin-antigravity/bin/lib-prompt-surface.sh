@@ -76,16 +76,47 @@ KT_PS_STATUS=""
 _kt_ps_nl='
 '
 
+# --- safe create (spec §5) -----------------------------------------------------
+# kt_create_new NAME — make NAME a new, empty regular file of ours (status 0), or fail (status 1)
+# because something already exists there in any form, mktemp failed, or `link` is missing or
+# failed. A temp file is made in NAME's directory and hard-linked to NAME with the POSIX `link`
+# utility (link(2)), which fails on ANY existing name — file, directory, symlink (dangling or
+# not), FIFO — and never opens or follows it. Not `ln`: given a symlink to a directory, `ln`
+# creates the file INSIDE that directory. Not `set -C`: noclobber opens an existing FIFO without
+# O_EXCL and blocks. The temp is removed either way; one left by a killed run is swept after 24 h
+# (session-start-check.sh; Antigravity's housekeeping).
+# kt_is_ours NAME — true iff NAME is not a link, is a regular file, and is owned by the caller.
+# Every writer of a predictable name: compute the content, then
+#   [ -e "$N" ] || [ -L "$N" ] || kt_create_new "$N" || :
+#   kt_is_ours "$N" || return 0
+#   <append to "$N">        (the very next line: no command in between)
+# The existence test keeps steady state fork-free; a name planted after it only makes `link`
+# fail. Bound: once created the file is ours, and in a sticky (/tmp) or private directory no
+# other user can replace it before the append; in a non-sticky world-writable directory nothing
+# at this layer helps. Identical in lib-prompt-surface.sh, lib-index-match.sh and
+# lib-tracked-artifacts.sh (11 copies), pinned by tests/repros/safe-create-census.sh CC1.
+kt_create_new() {
+  if [ -e "$1" ] || [ -L "$1" ]; then return 1; fi
+  case $1 in */*) _kt_cn_d=${1%/*}; [ -n "$_kt_cn_d" ] || _kt_cn_d=/ ;; *) _kt_cn_d=. ;; esac
+  _kt_cn_t=$(mktemp "$_kt_cn_d/.aria-new.XXXXXX" 2>/dev/null) || return 1
+  _kt_cn_rc=0; link "$_kt_cn_t" "$1" 2>/dev/null || _kt_cn_rc=1
+  rm -f "$_kt_cn_t" 2>/dev/null
+  return $_kt_cn_rc
+}
+kt_is_ours() { [ ! -L "$1" ] && [ -f "$1" ] && [ -O "$1" ]; }
+
 # --- debug log ----------------------------------------------------------------
-# Failures only, never stdout, never model context (spec C3). A planted symlink or a
-# file owned by someone else is refused, so a shared /tmp cannot redirect the append.
+# Failures only, never stdout, never model context (spec C3). The line is built first (the
+# `date` fork included); only then is the log created with kt_create_new and appended to, and
+# only when it is a regular file of ours that is not a link — so a shared /tmp can neither
+# redirect, block nor plant into the append.
 kt_ps_log() {
   _kt_ps_logf="${KT_SURFACE_CACHE_DIR:-${TMPDIR:-/tmp}}/aria-surface-hook.log"
-  [ -L "$_kt_ps_logf" ] && return 0
-  if [ -e "$_kt_ps_logf" ] && [ ! -O "$_kt_ps_logf" ]; then return 0; fi
   _kt_ps_ts=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null) || _kt_ps_ts="unknown-time"
   _kt_ps_line=$(printf '%s %s %s %s' "$_kt_ps_ts" "${1:-unknown}" "${2:-unknown}" "${3:-unknown}" \
     | tr '\r\n' '  ' 2>/dev/null)
+  [ -e "$_kt_ps_logf" ] || [ -L "$_kt_ps_logf" ] || kt_create_new "$_kt_ps_logf" || :
+  kt_is_ours "$_kt_ps_logf" || return 0
   printf '%s\n' "$_kt_ps_line" >> "$_kt_ps_logf" 2>/dev/null
   return 0
 }
@@ -295,16 +326,17 @@ _kt_ps_plain_rel() {
 # stdin and appends, in one write, only those _kt_ps_plain_rel accepts. Ledger lines are
 # shown to the model again (session start after compaction), so nothing else may reach it.
 _kt_ps_append_kept() { # LEDGER
-  # A link, a non-regular file or a file this user does not own at the ledger's predictable /tmp name is
-  # not ours (final fix wave F7): never write through it.
-  [ -L "$1" ] && return 0
-  if [ -e "$1" ]; then [ -f "$1" ] && [ -O "$1" ] || return 0; fi
   _kt_ps_add=""
   while IFS= read -r _kt_ps_l || [ -n "$_kt_ps_l" ]; do
     _kt_ps_plain_rel "$_kt_ps_l" || continue
     _kt_ps_add="$_kt_ps_add$_kt_ps_l$_kt_ps_nl"
   done
-  [ -n "$_kt_ps_add" ] && printf '%s' "$_kt_ps_add" >> "$1" 2>/dev/null
+  [ -n "$_kt_ps_add" ] || return 0
+  # The ledger's /tmp name is predictable: it is created only by kt_create_new, and appended to
+  # only when it is a regular file of ours that is not a link (final fix wave F7, spec §5).
+  [ -e "$1" ] || [ -L "$1" ] || kt_create_new "$1" || :
+  kt_is_ours "$1" || return 0
+  printf '%s' "$_kt_ps_add" >> "$1" 2>/dev/null
   return 0
 }
 

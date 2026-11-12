@@ -17,37 +17,25 @@
 
 set -uo pipefail
 
-# ag_create_new NAME — make NAME a new, empty regular file of ours, or fail (status 1)
-# because something already exists there. A temp file is made in NAME's directory and
-# hard-linked to NAME with the POSIX `link` utility, i.e. link(2): it fails on ANY existing
-# name — file, directory, symlink (dangling or not), FIFO, device — and never opens or
-# follows what is there, so nothing planted can redirect or block it. (Not `ln`: given a
-# symlink to a directory, `ln` creates the file INSIDE that directory. Not `set -C`:
-# noclobber opens an existing FIFO without O_EXCL and blocks.) The temp name is removed
-# either way; one left by a killed run is pruned after 24 h.
-# Fast path: when anything already exists at NAME, return without forking (the common
-# case — the file was created on an earlier call). This test is safe: it opens nothing,
-# a name planted after it only makes `link` fail, and every caller still checks the file
-# (regular, ours, not a link) before it appends.
-ag_create_new() {
-  local t rc
-  if [ -e "$1" ] || [ -L "$1" ]; then return 1; fi
-  t=$(mktemp "${1%/*}/.aria-ag-new.XXXXXX" 2>/dev/null) || return 1
-  link "$t" "$1" 2>/dev/null; rc=$?
-  rm -f "$t" 2>/dev/null
-  return $rc
-}
+LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# The shared safe create (kt_create_new / kt_is_ours, spec §5) — one body in every library that
+# writes a predictable name. lib-tracked-artifacts.sh has no top-level statement, so sourcing it
+# only defines functions (tests/repros/safe-create-census.sh CC3); it is loaded here, before the
+# first debug-log write below. If it is missing, every create and write here is refused.
+# shellcheck source=../lib-tracked-artifacts.sh
+. "$LIB_DIR/../lib-tracked-artifacts.sh" 2>/dev/null || true
 
 # ag_debug_log STEP REASON — one `<UTC> antigravity <step> <reason>` line in the surfacing
 # debug log, for the two failures that happen before lib-prompt-surface.sh (and its
-# kt_ps_log) is loaded. An absent log is created with ag_create_new; the line is then
-# appended only to a regular file of ours that is not a link. Never stdout.
+# kt_ps_log) is loaded. The line is built first; an absent log is then created with
+# kt_create_new, and the line is appended only to a regular file of ours that is not a link.
+# Never stdout.
 ag_debug_log() {
-  local lf="${KT_SURFACE_CACHE_DIR:-${TMPDIR:-/tmp}}/aria-surface-hook.log"
-  ag_create_new "$lf"
-  if [ -L "$lf" ] || [ ! -f "$lf" ] || [ ! -O "$lf" ]; then return 0; fi
-  printf '%s antigravity %s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown-time)" \
-    "$1" "$2" >> "$lf" 2>/dev/null
+  local lf="${KT_SURFACE_CACHE_DIR:-${TMPDIR:-/tmp}}/aria-surface-hook.log" line
+  line="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown-time) antigravity $1 $2"
+  [ -e "$lf" ] || [ -L "$lf" ] || kt_create_new "$lf" 2>/dev/null || :
+  kt_is_ours "$lf" 2>/dev/null || return 0
+  printf '%s\n' "$line" >> "$lf" 2>/dev/null
   return 0
 }
 
@@ -58,7 +46,6 @@ if ! command -v jq >/dev/null 2>&1; then
   ag_debug_log input jq-missing
 fi
 
-LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=./lib-antigravity-input.sh
 source "$LIB_DIR/lib-antigravity-input.sh"
 
@@ -502,10 +489,15 @@ ag_surface() {
   . "$CLAUDE_PLUGIN_ROOT/bin/lib-prompt-surface.sh"
 
   # Housekeeping, once per conversation: state files, log-once markers and model-file /
-  # create temps older than 24 h, ours only.
+  # create temps older than 24 h, ours only. `.aria-new.*` is kt_create_new's temp (here and in
+  # /tmp, where the session ledger lives); `.aria-ag-new.*` is the pre-2.58.0 name, kept so a
+  # leftover from an older release is still removed. `/tmp/`, not `/tmp`: on macOS /tmp is a
+  # symlink and find does not follow a symlinked start point.
   if [ "$INVOCATION_NUM" = "0" ]; then
     find "$dir" -maxdepth 1 \( -name 'aria-ag-surfaced-*' -o -name 'aria-ag-logged-*' \
-      -o -name '.aria-ag-model.*' -o -name '.aria-ag-new.*' \) \
+      -o -name '.aria-ag-model.*' -o -name '.aria-new.*' -o -name '.aria-ag-new.*' \) \
+      -user "${USER:-$(id -u)}" -mmin +1440 -exec rm -f {} + 2>/dev/null
+    find /tmp/ -maxdepth 1 -name '.aria-new.*' \
       -user "${USER:-$(id -u)}" -mmin +1440 -exec rm -f {} + 2>/dev/null
   fi
 
@@ -618,15 +610,13 @@ ag_surface() {
 }
 
 # ag_record_step STATE STEP — append STEP as processed. An absent state file is created
-# with ag_create_new (fails harmlessly when one exists). The line is then appended only to
-# a regular file of ours that is not a link; anything else is logged and the step is not
-# recorded (fail safe: the turn may be ranked again). Append, never rewrite, so concurrent
+# with kt_create_new (fails harmlessly when anything exists there). The line is then appended
+# only to a regular file of ours that is not a link; anything else is logged and the step is
+# not recorded (fail safe: the turn may be ranked again). Append, never rewrite, so concurrent
 # writers lose no lines.
 ag_record_step() {
-  ag_create_new "$1"
-  if [ -L "$1" ] || [ ! -f "$1" ] || [ ! -O "$1" ]; then
-    kt_ps_log antigravity state refused; return 0
-  fi
+  [ -e "$1" ] || [ -L "$1" ] || kt_create_new "$1" || :
+  if ! kt_is_ours "$1"; then kt_ps_log antigravity state refused; return 0; fi
   printf '%s\n' "$2" >> "$1" 2>/dev/null || kt_ps_log antigravity state write-failed
 }
 
@@ -635,12 +625,12 @@ ag_record_step() {
 # so it is logged once per (conversation, reason): marker DIR/aria-ag-logged-<SID>.<REASON>.
 # Only a regular marker file of ours that is not a link counts as "already logged"; any
 # other file at that name (a link, a directory, someone else's file) logs the line again
-# and nothing is written. The marker is created with ag_create_new.
+# and nothing is written. The marker is created with kt_create_new.
 ag_log_once() {
   local m="$1/aria-ag-logged-$2.$4"
-  if [ -f "$m" ] && [ -O "$m" ] && [ ! -L "$m" ]; then return 0; fi
+  if kt_is_ours "$m"; then return 0; fi
   kt_ps_log antigravity "$3" "$4"
-  ag_create_new "$m"
+  [ -e "$m" ] || [ -L "$m" ] || kt_create_new "$m" || :
   return 0
 }
 

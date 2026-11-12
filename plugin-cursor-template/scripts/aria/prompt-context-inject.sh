@@ -36,11 +36,16 @@ set -- "$_pci_dir"/aria-cursor-pending-*.text
 [ -e "$1" ] || [ -L "$1" ] || _pci_none
 
 # Without the lib there is no kt_ps_log either, so this one failure is logged inline, to the
-# same debug log and in the same shape (a symlinked log is refused, as kt_ps_log does).
+# same debug log and in the same shape, through the same safe create kt_ps_log uses
+# (kt_create_new / kt_is_ours from lib-tracked-artifacts.sh, which only defines functions).
+# Without that lib too, nothing is written.
 if [ ! -f "$SCRIPT_DIR/lib-prompt-surface.sh" ]; then
   _pci_lf="$_pci_dir/aria-surface-hook.log"
-  [ -L "$_pci_lf" ] || printf '%s cursor inject lib-missing\n' \
-    "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown-time)" >> "$_pci_lf" 2>/dev/null
+  _pci_line="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown-time) cursor inject lib-missing"
+  . "$SCRIPT_DIR/lib-tracked-artifacts.sh" 2>/dev/null || _pci_none
+  [ -e "$_pci_lf" ] || [ -L "$_pci_lf" ] || kt_create_new "$_pci_lf" || :
+  kt_is_ours "$_pci_lf" || _pci_none
+  printf '%s\n' "$_pci_line" >> "$_pci_lf" 2>/dev/null
   _pci_none
 fi
 KT_PS_SCRIPT_DIR=$SCRIPT_DIR

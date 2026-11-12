@@ -370,7 +370,10 @@ else
 fi
 
 # --- capture_lib_missing_logged (m2) --------------------------------------------------------
+# Only lib-prompt-surface.sh is missing; the inline log line goes through the shared safe create
+# in lib-tracked-artifacts.sh (spec §5), so that lib sits beside the hook as it does on install.
 NOLIB="$SCRATCH/nolib"; mkdir -p "$NOLIB"; cp "$CAP" "$NOLIB/prompt-capture-check.sh"
+cp "$(dirname "$CAP")/lib-tracked-artifacts.sh" "$NOLIB/"
 payload "${RUN_ID}B" g1 "$P_PAY" > "$SCRATCH/in"
 n0=$(grep -c ' cursor capture lib-missing$' "$HOOKLOG" 2>/dev/null)
 hook "$NOLIB/prompt-capture-check.sh"
@@ -379,6 +382,18 @@ if [ "$(out)" = "$CONT" ] && [ $((n1 - n0)) -eq 1 ]; then
   ok "capture_lib_missing_logged"
 else
   bad "capture_lib_missing_logged" "out='$(out)' lib-missing lines +$((n1 - n0))"
+fi
+# --- capture_no_libs_writes_nothing ---------------------------------------------------------
+# Neither lib: no safe create is available, so nothing is written (fail safe) and the hook's
+# output is unchanged.
+NOLIB2="$SCRATCH/nolib2"; mkdir -p "$NOLIB2"; cp "$CAP" "$NOLIB2/prompt-capture-check.sh"
+n0=$(grep -c ' cursor capture lib-missing$' "$HOOKLOG" 2>/dev/null)
+hook "$NOLIB2/prompt-capture-check.sh"
+n1=$(grep -c ' cursor capture lib-missing$' "$HOOKLOG" 2>/dev/null)
+if [ "$(out)" = "$CONT" ] && [ $((n1 - n0)) -eq 0 ]; then
+  ok "capture_no_libs_writes_nothing"
+else
+  bad "capture_no_libs_writes_nothing" "out='$(out)' lib-missing lines +$((n1 - n0))"
 fi
 
 # --- prune_removes_orphan_tmp (m3) ----------------------------------------------------------
@@ -408,7 +423,7 @@ else
 fi
 
 # --- every arm reported ------------------------------------------------------------------
-EXPECTED=18
+EXPECTED=19
 if [ $((PASS + FAIL)) -eq "$EXPECTED" ]; then ok "every_arm_reported"; else bad "every_arm_reported" "$((PASS + FAIL)) of $EXPECTED"; fi
 
 printf '\n%s passed, %s failed\n' "$PASS" "$FAIL"
