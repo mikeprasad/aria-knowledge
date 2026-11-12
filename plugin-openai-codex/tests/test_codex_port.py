@@ -341,13 +341,14 @@ def test_pre_tool_use_shell_records_in_place_write_to_bypass_ledger() -> None:
                     "tool_input": {"command": command},
                     "last_assistant_message": "No marker here.",
                 },
-                env={"TMPDIR": str(ledger_dir)},
+                # 2.58.0: the ledger lives in <base>/aria-knowledge-<uid>; KT_STATE_BASE outranks TMPDIR.
+                env={"TMPDIR": str(ledger_dir), "KT_STATE_BASE": str(ledger_dir)},
                 expect_json=expect_json,
             )
             hso = out.get("hookSpecificOutput", {}) if isinstance(out, dict) else {}
             return hso.get("additionalContext", "") if isinstance(hso, dict) else ""
 
-        ledger = ledger_dir / f"aria-r22-bypass-{sid}"
+        ledger = ledger_dir / f"aria-knowledge-{os.getuid()}" / f"aria-r22-bypass-{sid}"
         context = call("sed -i '' 's/a/b/' bin/config.sh", True)
         assert "in place" in context and "bin/config.sh" in context
         assert ledger.read_text(encoding="utf-8").strip() == "bin/config.sh"

@@ -76,8 +76,13 @@ SESSION_KEY=$(printf '%s' "$SESSION_KEY" | tr -cd 'A-Za-z0-9._-')
 # The suffix is empty on the main thread, so its key is unchanged.
 . "$SCRIPT_DIR/lib-state-key.sh"
 AGENT_SUFFIX=$(kt_agent_suffix "$INPUT")
+# 2.58.0: every state name below lives in the private per-user state directory (lib-state-key.sh),
+# so a name another local user plants in a shared temp dir is never read. With no directory (spec
+# D3) the breaker cannot count and never trips — an unmarked edit is still DENIED — and the carrier
+# and anchor are neither recorded nor read, so the transcript alone decides (tail mode).
+kt_state_resolve || :
 BREAKER_STATE=""
-[ -n "$SESSION_KEY" ] && BREAKER_STATE="${TMPDIR:-/tmp}/aria-r22-denies-${SESSION_KEY}${AGENT_SUFFIX}"
+[ -n "$SESSION_KEY" ] && BREAKER_STATE=$(kt_state_path "aria-r22-denies-${SESSION_KEY}${AGENT_SUFFIX}")
 
 # v2.54.1: inside a subagent, read the subagent's OWN transcript. The harness passes
 # the PARENT's transcript_path, which never contains a subagent's calls; those are in
@@ -98,6 +103,7 @@ fi
 # Claude Code branch only; the antigravity step_index branch never records carriers.
 PROMPT_ID=""
 CARRIER_STATE=""
+ANCHOR_STATE=""
 PREV_ANCHOR=""
 if [ -z "$STEP_INDEX" ] && [ -n "$SESSION_KEY" ]; then
   PROMPT_ID=$(printf '%s' "$INPUT" | python3 -c 'import json, sys
@@ -105,15 +111,18 @@ try:
     print(json.load(sys.stdin).get("prompt_id") or "")
 except Exception:
     print("")' 2>/dev/null)
-  CARRIER_STATE="${TMPDIR:-/tmp}/aria-r22-carrier-${SESSION_KEY}${AGENT_SUFFIX}"
+  # Both names are empty when there is no state directory (D3): nothing is recorded or read.
+  CARRIER_STATE=$(kt_state_path "aria-r22-carrier-${SESSION_KEY}${AGENT_SUFFIX}")
   # v2.57.3: previous-edit anchor for tail mode. Read the previous edit's id, then
   # record this one (atomic) — on every check, whatever its outcome (ADR 062 counts edits).
-  ANCHOR_STATE="${TMPDIR:-/tmp}/aria-r22-lastedit-${SESSION_KEY}${AGENT_SUFFIX}"
-  if [ -f "$ANCHOR_STATE" ]; then
-    PREV_ANCHOR=$(tr -cd 'A-Za-z0-9_-' < "$ANCHOR_STATE" 2>/dev/null)
-  fi
-  if [ -n "$TOOL_USE_ID" ]; then
-    printf '%s' "$TOOL_USE_ID" > "$ANCHOR_STATE.$$" 2>/dev/null && mv -f "$ANCHOR_STATE.$$" "$ANCHOR_STATE" 2>/dev/null
+  ANCHOR_STATE=$(kt_state_path "aria-r22-lastedit-${SESSION_KEY}${AGENT_SUFFIX}")
+  if [ -n "$ANCHOR_STATE" ]; then
+    if [ -f "$ANCHOR_STATE" ]; then
+      PREV_ANCHOR=$(tr -cd 'A-Za-z0-9_-' < "$ANCHOR_STATE" 2>/dev/null)
+    fi
+    if [ -n "$TOOL_USE_ID" ]; then
+      printf '%s' "$TOOL_USE_ID" > "$ANCHOR_STATE.$$" 2>/dev/null && mv -f "$ANCHOR_STATE.$$" "$ANCHOR_STATE" 2>/dev/null
+    fi
   fi
 fi
 
@@ -494,7 +503,8 @@ fi
 # fail-open-LOUD philosophy as the "unknown" branch above, extended to cover a
 # transcript-format change that parses cleanly but shifts semantics (the
 # "confident no" deadlock the plain unknown-guard cannot catch). Disabled when
-# no session key resolved (BREAKER_STATE empty) — falls straight through to deny.
+# no session key resolved or there is no private state directory (BREAKER_STATE
+# empty) — falls straight through to deny; it never degrades into allowing.
 if [ -n "$BREAKER_STATE" ]; then
   DENY_COUNT=0
   [ -f "$BREAKER_STATE" ] && DENY_COUNT=$(cat "$BREAKER_STATE" 2>/dev/null)

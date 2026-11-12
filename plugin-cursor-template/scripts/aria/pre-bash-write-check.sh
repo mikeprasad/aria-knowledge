@@ -10,8 +10,8 @@
 #
 # Cursor delivers the command at the TOP LEVEL of the payload; the resolver reads
 # tool_input.command, so the payload is reshaped before it is handed over.
-# WARN-ONLY by design: it records each target to ${TMPDIR}/aria-r22-bypass-<sessionId>
-# (read by /handoff and /wrapup) and never denies.
+# WARN-ONLY by design: it records each target to aria-r22-bypass-<sessionId> in the private state
+# directory (lib-state-key.sh; read by /handoff and /wrapup) and never denies.
 
 INPUT=$(cat)
 case "$INPUT" in
@@ -34,14 +34,21 @@ print(json.dumps({"tool_input": {"command": cmd}}))
 [ -z "$TARGETS" ] && exit 0
 
 _bw_sid=$(printf '%s' "$INPUT" | grep -oE '"(sessionId|session_id|conversation_id)"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed 's/.*:[[:space:]]*"//;s/"$//')
-# The ledger's name is predictable (spec §5): it is created only by kt_create_new and appended to
-# only when it is a regular file of ours that is not a link (lib-tracked-artifacts.sh only defines
+# 2.58.0: the ledger lives in the private per-user state directory (lib-state-key.sh). The id goes
+# through kt_state_path, which refuses one containing "/", so it can never address a path; with no
+# directory (spec D3) nothing is recorded and the warning below is still emitted. Inside the
+# directory it is still created only by kt_create_new and appended to only when it is a regular
+# file of ours that is not a link (a second guard, spec D2; lib-tracked-artifacts.sh only defines
 # functions; without it nothing is recorded).
 if [ -n "$_bw_sid" ]; then
   _bw_rec=$(printf '%s\n' "$TARGETS" | grep -v '^$')
-  _bw_f="${TMPDIR:-/tmp}/aria-r22-bypass-$_bw_sid"
+  _bw_f=
+  if [ -f "$(dirname "$0")/lib-state-key.sh" ]; then
+    . "$(dirname "$0")/lib-state-key.sh"
+    kt_state_resolve && _bw_f=$(kt_state_path "aria-r22-bypass-$_bw_sid")
+  fi
   . "$(dirname "$0")/lib-tracked-artifacts.sh" 2>/dev/null || true
-  if [ -n "$_bw_rec" ]; then
+  if [ -n "$_bw_rec" ] && [ -n "$_bw_f" ]; then
     [ -e "$_bw_f" ] || [ -L "$_bw_f" ] || kt_create_new "$_bw_f" 2>/dev/null || :
     if kt_is_ours "$_bw_f" 2>/dev/null; then
       printf '%s\n' "$_bw_rec" >> "$_bw_f" 2>/dev/null || true

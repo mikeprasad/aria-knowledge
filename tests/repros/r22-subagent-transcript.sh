@@ -26,6 +26,10 @@ SUBT="toolu_sub_1"
 
 export TMPDIR=$(mktemp -d)
 trap 'rm -rf "$TMPDIR"' EXIT
+# 2.58.0: hook state lives in <base>/aria-knowledge-<uid> (lib-state-key.sh). This suite pins the
+# base inside its own scratch TMPDIR, so the state names below are read in SD, never in TMPDIR.
+export KT_STATE_BASE="$TMPDIR/state-base"; SD="$KT_STATE_BASE/aria-knowledge-$(id -u)"
+mkdir -p "$KT_STATE_BASE"; mkdir -m 700 "$SD"
 PASS=0; FAIL=0
 ok()  { printf "PASS  %s\n" "$1"; PASS=$((PASS + 1)); }
 bad() { printf "FAIL  %s — %s\n" "$1" "$2"; FAIL=$((FAIL + 1)); }
@@ -103,10 +107,10 @@ SID2="sub-sess-2"
 for n in 1 2 3; do verdict "$(edit_in "$SID2" d4c "$TMPDIR/nomark.jsonl" "$SUBT")" >/dev/null; done
 v4=$(verdict "$(edit_in "$SID2" d4c "$TMPDIR/nomark.jsonl" "$SUBT")")
 vp=$(verdict "$(edit_in "$SID2" - "$TMPDIR/nomark.jsonl" "$SUBT")")
-if [ "$v4" = "degraded" ] && [ "$vp" = "deny" ] && [ -f "$TMPDIR/aria-r22-denies-$SID2.agent-d4c" ]; then
+if [ "$v4" = "degraded" ] && [ "$vp" = "deny" ] && [ -f "$SD/aria-r22-denies-$SID2.agent-d4c" ]; then
   ok "S6a-agent-breaker-does-not-open-parents"
 else
-  bad "S6a-agent-breaker-does-not-open-parents" "agent 4th=$v4 parent=$vp files: $(ls "$TMPDIR" | grep denies | tr '\n' ' ')"
+  bad "S6a-agent-breaker-does-not-open-parents" "agent 4th=$v4 parent=$vp files: $(ls "$SD" | grep denies | tr '\n' ' ')"
 fi
 
 printf "\n%d passed, %d failed\n" "$PASS" "$FAIL"

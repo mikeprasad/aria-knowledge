@@ -108,21 +108,33 @@ done
 SESSION_ID=$(printf '%s' "$INPUT" | grep -o '"session_id":"[^"]*"' | head -1 | sed 's/"session_id":"//;s/"$//')
 [ -z "$SESSION_ID" ] && exit 0
 
-MARKER="${TMPDIR:-/tmp}/aria-preflight-$SESSION_ID"
+# 2.58.0: the breaker and both markers live in the private per-user state directory
+# (lib-state-key.sh), so a counter or a FIFO another local user plants in a shared temp dir is never
+# read. With no directory (spec D3) the markers read as absent and the breaker never trips: every
+# code commit gets the no-marker response. The session id goes through kt_state_path, which refuses
+# one with a "/".
+BREAKER=""
+MARKER=""
+REPO_MARKER=""
 REPO_TOP=$(git -C "$REPO_DIR" rev-parse --show-toplevel 2>/dev/null)
 [ -z "$REPO_TOP" ] && REPO_TOP="$REPO_DIR"
 REPO_HASH=$(printf '%s' "$REPO_TOP" | cksum 2>/dev/null | cut -d' ' -f1)
-REPO_MARKER="${TMPDIR:-/tmp}/aria-preflight-repo-$REPO_HASH"
+if [ -f "$SCRIPT_DIR/lib-state-key.sh" ]; then
+  . "$SCRIPT_DIR/lib-state-key.sh"
+  if kt_state_resolve; then
+    BREAKER=$(kt_state_path "aria-preflight-denies-$SESSION_ID$(kt_agent_suffix "$INPUT" 2>/dev/null)")
+    MARKER=$(kt_state_path "aria-preflight-$SESSION_ID")
+    [ -n "$REPO_HASH" ] && REPO_MARKER=$(kt_state_path "aria-preflight-repo-$REPO_HASH")
+  fi
+fi
 # A recorded preflight -- of any verdict -- satisfies the gate. Recording a FAIL and
 # proceeding anyway is a legitimate, visible choice; the failure this guards against
 # is not running the checks at all.
 # A compliant commit also resets this agent's breaker (v2.57.9): the contract is three
 # CONSECUTIVE denials with no compliant commit between them. Codex has TWO compliant exits
 # (session marker and per-repo marker); both reset, or one leaves the counter stale.
-[ -f "$SCRIPT_DIR/lib-state-key.sh" ] && . "$SCRIPT_DIR/lib-state-key.sh"
-BREAKER="${TMPDIR:-/tmp}/aria-preflight-denies-$SESSION_ID$(kt_agent_suffix "$INPUT" 2>/dev/null)"
-[ -s "$MARKER" ] && { rm -f "$BREAKER" 2>/dev/null; exit 0; }
-[ -n "$REPO_HASH" ] && [ -s "$REPO_MARKER" ] && { rm -f "$BREAKER" 2>/dev/null; exit 0; }
+[ -n "$MARKER" ] && [ -s "$MARKER" ] && { [ -n "$BREAKER" ] && rm -f "$BREAKER" 2>/dev/null; exit 0; }
+[ -n "$REPO_MARKER" ] && [ -s "$REPO_MARKER" ] && { [ -n "$BREAKER" ] && rm -f "$BREAKER" 2>/dev/null; exit 0; }
 
 UNCHECKED=$(printf '%s' "$CODE_FILES" | tr ' ' '\n' | grep -v '^$' | head -5 | tr '\n' ' ')
 N=$(printf '%s' "$CODE_FILES" | tr ' ' '\n' | grep -cv '^$')
@@ -188,12 +200,19 @@ if [ -n "$MATCHED" ]; then
   # session MARKER above stays session-level on purpose — a preflight that ran in
   # this session counts for its subagents too. ($BREAKER is computed above the compliant
   # exits, so they can reset it.)
-  COUNT=$(cat "$BREAKER" 2>/dev/null || echo 0)
-  COUNT=$((COUNT + 1))
-  printf '%s' "$COUNT" > "$BREAKER" 2>/dev/null || true
+  if [ -n "$BREAKER" ]; then
+    COUNT=$(cat "$BREAKER" 2>/dev/null || echo 0)
+    COUNT=$((COUNT + 1))
+    printf '%s' "$COUNT" > "$BREAKER" 2>/dev/null || true
+    TALLY="(Denial $COUNT of 3 before this gate degrades to a warning.)"
+  else
+    # No state directory (D3): the breaker cannot count, so it never trips.
+    COUNT=1
+    TALLY="(The private state directory is unavailable, so this gate cannot count denials and will not degrade.)"
+  fi
 
   if [ "$COUNT" -le 3 ]; then
-    REASON="PREFLIGHT REQUIRED — no preflight recorded this session for $N changed file(s): $UNCHECKED. Run /preflight, or record an explicit skip with a reason. $WHY (Denial $COUNT of 3 before this gate degrades to a warning.)"
+    REASON="PREFLIGHT REQUIRED — no preflight recorded this session for $N changed file(s): $UNCHECKED. Run /preflight, or record an explicit skip with a reason. $WHY $TALLY"
     printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"%s"}}\n' "$REASON"
     exit 0
   fi
@@ -206,15 +225,20 @@ fi
 # Recorded at warn time as well as deny time: a warning the model ignores otherwise
 # leaves no trace, and an ignored gate is precisely the failure this exists to catch.
 # /wrapup and /handoff can report the skips afterwards.
-# The marker's name is predictable (spec §5): the line is built first, the file is created only by
-# kt_create_new, and appended to only when it is a regular file of ours that is not a link
-# (lib-tracked-artifacts.sh only defines functions; without it nothing is recorded).
+# 2.58.0: the record lives in the private per-user state directory (lib-state-key.sh); with no
+# directory (spec D3) nothing is recorded and the warning below is still emitted. Inside the
+# directory the line is built first, the file is created only by kt_create_new, and appended to
+# only when it is a regular file of ours that is not a link (a second guard, spec D2;
+# lib-tracked-artifacts.sh only defines functions; without it nothing is recorded).
 _pf_line=$(printf '%s\t%s' "$(date +%H:%M 2>/dev/null || echo '?')" "$UNCHECKED")
-_pf_f="${TMPDIR:-/tmp}/aria-preflight-skipped-$SESSION_ID"
+_pf_f=
+[ -n "${KT_STATE_DIR:-}" ] && _pf_f=$(kt_state_path "aria-preflight-skipped-$SESSION_ID" 2>/dev/null)
 . "$SCRIPT_DIR/lib-tracked-artifacts.sh" 2>/dev/null || true
-[ -e "$_pf_f" ] || [ -L "$_pf_f" ] || kt_create_new "$_pf_f" 2>/dev/null || :
-if kt_is_ours "$_pf_f" 2>/dev/null; then
-  printf '%s\n' "$_pf_line" >> "$_pf_f" 2>/dev/null || true
+if [ -n "$_pf_f" ]; then
+  [ -e "$_pf_f" ] || [ -L "$_pf_f" ] || kt_create_new "$_pf_f" 2>/dev/null || :
+  if kt_is_ours "$_pf_f" 2>/dev/null; then
+    printf '%s\n' "$_pf_line" >> "$_pf_f" 2>/dev/null || true
+  fi
 fi
 
 MSG="PREFLIGHT: no preflight recorded this session for $N changed file(s): $UNCHECKED. Before reporting this as done, consider /preflight — P1 requirements diff, P2 consumer census, P3 reachability, P4 census bound, P5 non-vacuity, P6 mutation. If a check does not apply, say which and why; skipping silently is the failure mode."

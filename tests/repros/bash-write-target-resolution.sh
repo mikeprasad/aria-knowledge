@@ -39,6 +39,10 @@ export TMPDIR=$(mktemp -d)
 WORK=$(mktemp -d "$REPO_ROOT/tests/.bwchk-work.XXXXXX")
 TMPFIX="/tmp/aria-bwchk-fixture-$$.py"
 trap 'rm -rf "$TMPDIR" "$WORK" "$TMPFIX"' EXIT
+# 2.58.0: hook state lives in <base>/aria-knowledge-<uid> (lib-state-key.sh). This suite pins the
+# base inside its own scratch TMPDIR, so the state names below are read in SD, never in TMPDIR.
+export KT_STATE_BASE="$TMPDIR/state-base"; SD="$KT_STATE_BASE/aria-knowledge-$(id -u)"
+mkdir -p "$KT_STATE_BASE"; mkdir -m 700 "$SD"
 
 # Real fixtures — see the header note on silent-for-its-own-reason.
 printf 'a\n' > "$WORK/f"
@@ -147,7 +151,7 @@ fi
 
 # --- AC9: the session-scoped bypass ledger. Keyed by session id IN THE FILENAME, so cross-session
 # attribution is unrepresentable rather than filtered.
-LEDGER="$TMPDIR/aria-r22-bypass-$SID"
+LEDGER="$SD/aria-r22-bypass-$SID"
 rm -f "$LEDGER"
 payload "sed -i '' s/a/b/ $WORK/f" | sh "$HOOK" >/dev/null 2>&1 || true
 if [ -f "$LEDGER" ]; then n_fire=$(wc -l < "$LEDGER" | tr -d ' '); else n_fire=0; fi

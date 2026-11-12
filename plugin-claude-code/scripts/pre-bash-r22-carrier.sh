@@ -29,7 +29,15 @@ case "$INPUT" in
   *) exit 0 ;;
 esac
 
-printf '%s' "$INPUT" | ARIA_R22_TMP="${TMPDIR:-/tmp}" python3 -c '
+# 2.58.0: the record lives in the private per-user state directory (lib-state-key.sh), so a record
+# another local user plants in a shared temp dir can never authorise an edit. With no directory
+# (spec D3) nothing is recorded and pre-edit-check.sh decides from the transcript (tail mode).
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+[ -f "$SCRIPT_DIR/lib-state-key.sh" ] || exit 0
+. "$SCRIPT_DIR/lib-state-key.sh"
+kt_state_resolve || exit 0
+
+printf '%s' "$INPUT" | ARIA_R22_TMP="$KT_STATE_DIR" python3 -c '
 import json, os, re, sys, time
 try:
     d = json.load(sys.stdin)

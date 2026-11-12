@@ -2,8 +2,8 @@
 # hook-markers-safe-create.sh — spec §5, Task 3 fix round 2 (Rule 38: close the class). Every hook
 # that appends to a predictable-name marker or log creates it only with kt_create_new and appends
 # only when kt_is_ours says it is a regular file of ours that is not a link:
-#   bypass    ${TMPDIR}/aria-r22-bypass-<sid>        pre-bash-write-check.sh (claude-code, codex, cursor)
-#   preflight ${TMPDIR}/aria-preflight-skipped-<sid> pre-commit-preflight-check.sh (4 ports)
+#   bypass    <state dir>/aria-r22-bypass-<sid>        pre-bash-write-check.sh (claude-code, codex, cursor)
+#   preflight <state dir>/aria-preflight-skipped-<sid> pre-commit-preflight-check.sh (4 ports)
 #   dbg       /tmp/aria-hook-debug.log               cursor pre-edit / post-edit / capture-task-boundary /
 #                                                    record-edit-intent (path via the test-only
 #                                                    KT_HOOK_DEBUG_LOG, so the real file is never touched)
@@ -14,7 +14,8 @@
 #   window    a mktemp shim plants a link at the name when asked for the create temp (after the
 #             existence test, before `link`) → shim fired (the instrument check), target unchanged
 # RED on 9a50ca8: link (write-through), fifo (hang) and window (no create step, the shim never
-# fires) for every writer. Everything runs under a scratch TMPDIR and HOME.
+# fires) for every writer. Everything runs under a scratch TMPDIR, HOME and state base (2.58.0: the
+# bypass and preflight names live in <base>/aria-knowledge-<uid>, lib-state-key.sh).
 
 DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 PASS=0
@@ -31,6 +32,8 @@ trap 'chmod -R u+rwx "$T" 2>/dev/null; rm -rf "$T" "$WORK"' EXIT
 REAL_MKTEMP=$(command -v mktemp)
 export TMPDIR="$T/tmp" HOME="$T/home"
 mkdir -p "$TMPDIR" "$HOME" "$T/shim"
+export KT_STATE_BASE="$T/state-base"; SD="$KT_STATE_BASE/aria-knowledge-$(id -u)"
+mkdir -p "$KT_STATE_BASE"; mkdir -m 700 "$SD"
 printf 'x\n' > "$WORK/f"
 
 # A staged code file, so the preflight hook reaches its warn path (gate defaults to warn).
@@ -77,12 +80,12 @@ wr() {
   _w_sid="hm$_w_c"
   case $_w_k in
     bypass)
-      NAME="$TMPDIR/aria-r22-bypass-$_w_sid"
+      NAME="$SD/aria-r22-bypass-$_w_sid"
       python3 -c 'import json,sys;print(json.dumps({"tool_input":{"command":sys.argv[1]},"session_id":sys.argv[2]}))' \
         "sed -i '' s/a/b/ $WORK/f" "$_w_sid" > "$T/in"
       bounded 10 env KT_CONFIG="$T/none.md" "$@" sh "$DIR/$_w_h/pre-bash-write-check.sh" ;;
     preflight)
-      NAME="$TMPDIR/aria-preflight-skipped-$_w_sid"
+      NAME="$SD/aria-preflight-skipped-$_w_sid"
       printf '{"session_id":"%s","tool_input":{"command":"cd %s && git commit -m x"}}' "$_w_sid" "$REPO" > "$T/in"
       bounded 10 env KT_CONFIG="$T/none.md" "$@" sh "$DIR/$_w_h/pre-commit-preflight-check.sh" ;;
     dbg)
@@ -126,8 +129,8 @@ arms() {
 }
 wr_name() { # KIND CASE → the name wr will write (the dbg dir is created here, as wr does)
   case $1 in
-    bypass) echo "$TMPDIR/aria-r22-bypass-hm$2" ;;
-    preflight) echo "$TMPDIR/aria-preflight-skipped-hm$2" ;;
+    bypass) echo "$SD/aria-r22-bypass-hm$2" ;;
+    preflight) echo "$SD/aria-preflight-skipped-hm$2" ;;
     dbg) mkdir -p "$T/dbg-$2"; echo "$T/dbg-$2/aria-hook-debug.log" ;;
   esac
 }
