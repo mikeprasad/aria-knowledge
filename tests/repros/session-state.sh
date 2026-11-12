@@ -586,7 +586,8 @@ _ss_fnsum() {
 # demote_active, so it is edited in four ports at once like the rest of this list.
 # (final fix wave) the token-file helpers joined: a model reaches locate/consume only through them.
 # (2.58.0 Task 0) the six ledger READERS joined; measured identical in all 4 ports at 1260af0.
-_SS_PARITY_FNS="kt_ss_ledger_add kt_ss_ledger_prune kt_ss_ledger_demote_active kt_ss_ledger_add_file kt_ss_ledger_consume_active kt_ss_ledger_add_verified _kt_ss_token_from_file kt_ss_ledger_token_locate_file kt_ss_ledger_consume_active_file kt_ss_ledger_mark_consumed kt_ss_ledger_mark_superseded kt_ss_ledger_candidates kt_ss_ledger_token_locate kt_ss_read_live_prompt kt_ss_read_active_token"
+# (2.58.0 Task 1a) _kt_ss_awk_regions joined: the one region walker every ledger program splices in.
+_SS_PARITY_FNS="_kt_ss_awk_regions kt_ss_ledger_add kt_ss_ledger_prune kt_ss_ledger_demote_active kt_ss_ledger_add_file kt_ss_ledger_consume_active kt_ss_ledger_add_verified _kt_ss_token_from_file kt_ss_ledger_token_locate_file kt_ss_ledger_consume_active_file kt_ss_ledger_mark_consumed kt_ss_ledger_mark_superseded kt_ss_ledger_candidates kt_ss_ledger_token_locate kt_ss_read_live_prompt kt_ss_read_active_token"
 _SS_P1="$REPO_ROOT/plugin-claude-code/scripts/lib-session-state.sh"
 _SS_P2="$REPO_ROOT/plugin-antigravity/bin/lib-session-state.sh"
 _SS_P3="$REPO_ROOT/plugin-cursor-template/scripts/aria/lib-session-state.sh"
@@ -599,6 +600,12 @@ for _fn in $_SS_PARITY_FNS; do
   _N4=$(_ss_fnsum "$_SS_P4" "$_fn")
   if [ "$_N1" = MISSING ] || [ "$_N2" = MISSING ] || [ "$_N3" = MISSING ] || [ "$_N4" = MISSING ]; then
     bad "N port parity ($_fn)" "a carrying port path is MISSING (cc=$_N1 ag=$_N2 cu=$_N3 cx=$_N4) — a skip-when-absent arm is a gate with no subject"
+  elif [ "$_N1" = 4294967295 ]; then
+    # (2.58.0 Task 1a) 4294967295 is the cksum of EMPTY input: no function by that name in the
+    # canonical port. Four empty extracts compare equal, so without this a misspelt or fused name in
+    # _SS_PARITY_FNS reads as parity -- measured: a dropped space fused add+prune into one name and
+    # both left the parity set with every N arm still green.
+    bad "N port parity ($_fn)" "$_fn extracts EMPTY from the canonical port — not a function name there"
   elif [ "$_N1" = "$_N2" ] && [ "$_N2" = "$_N3" ] && [ "$_N3" = "$_N4" ]; then
     ok "N $_fn is identical across all 4 carrying ports (comment-normalised cksum)"
   else
@@ -1597,6 +1604,141 @@ for _ahp in "cursor:plugin-cursor-template/scripts/aria:399152793" "codex:plugin
     bad "AH2 $_ahn" "directive cksum $_ahg, want $_ahw (3e44761) — the SESSION STATE string changed beyond AH_EMITTER_SENTENCE"
   fi
 done
+
+# AH3  GUARD (non-regression, Task 1a): AH1 pins token_locate only on its NO-MATCH path, because no
+#      vendored fixture carries an `aria-handoff:` token. This pins the MATCHED paths -- active,
+#      pending, terminal, archived -- plus candidates, read_active_token and read_live_prompt, on one
+#      token-bearing fixture, against output recorded with the canonical lib at a0e4493 (before the
+#      readers moved onto the region walker). Expected GREEN before and after; red = a reader changed.
+_ah3_dump() {
+  printf '== kt_ss_ledger_candidates\n'; kt_ss_ledger_candidates "$1"
+  printf '== kt_ss_read_active_token\n'; kt_ss_read_active_token "$1"
+  printf '== kt_ss_read_live_prompt\n'; kt_ss_read_live_prompt "$1"; printf '\n'
+  for _ah3t in 'aria-handoff: proj-a/act-sid@2026-07-02T00:00:00Z' 'aria-handoff: proj-a/pend-sid@2026-06-30T00:00:00Z' \
+               'aria-handoff: proj-a/done-sid@2026-06-29T00:00:00Z' 'aria-handoff: proj-b/arch-sid@2026-06-01T00:00:00Z' \
+               'aria-handoff: proj-a/none@none'; do
+    printf '== kt_ss_ledger_token_locate %s\n' "$_ah3t"; kt_ss_ledger_token_locate "$1" "$_ah3t"
+  done
+}
+_AH3_DIR="$REPO_ROOT/tests/fixtures/session-reader-token"
+mkdir -p "$TMP/ah3"; cp "$_AH3_DIR/token-match.SESSION.md" "$TMP/ah3/SESSION.md"
+_ah3_dump "$TMP/ah3" > "$TMP/ah3.got" 2>&1 || true
+if [ "$(grep -c '|' "$_AH3_DIR/baseline.out")" -ge 7 ] && cmp -s "$TMP/ah3.got" "$_AH3_DIR/baseline.out"; then
+  ok "AH3 GUARD: matched-token reader output equals the a0e4493 baseline (active, pending, terminal, archived)"
+else
+  bad "AH3" "matched-token reader output differs from tests/fixtures/session-reader-token/baseline.out (or the baseline holds < 7 rows)"
+fi
+
+# --- AG: the readers AGREE with the region walker (2.58.0 Task 1a) ------------------------------------
+# One hostile fixture: fenced and unfenced structural lines in ACTIVE, OTHER and inside entries.
+# AG(1) the lines kt_ss_read_live_prompt returns == the walker's ACTIVE lines (blank edges trimmed the
+#       same way), and kt_ss_read_active_token == the first `aria-handoff:` line in the walker's ACTIVE.
+# AG(2) the pending rows kt_ss_ledger_candidates prints == the walker's LEDGER entry_header lines
+#       carrying a word-bounded `unconsumed`; and for every `mk-*` marker line inside an entry,
+#       kt_ss_ledger_token_locate attributes it to the entry the walker says owns it (R_ENTRY).
+# ⚠ GREEN BY DESIGN in Task 1a: the readers ARE the walker now, so these pin the agreement rather than
+# repair it. The prune clause of AG(1) and AG(3) (marks) land with Task 1b, which converts the writers;
+# on this tree prune still walks fence-blind and would disagree.
+_AG="$TMP/ag"; mkdir -p "$_AG"
+cat > "$_AG/SESSION.md" <<'AG_FIXTURE'
+---
+lastEvent: handoff
+at: 2026-07-01T00:00:00Z
+sessionId: fm-sid
+---
+
+## Notes
+
+### n1 · 2026-01-01T00:00:00Z · handoff · unconsumed
+```
+## Pending handoffs
+### q1 · 2026-01-01T00:00:00Z · handoff · unconsumed
+```
+
+## Next session prompt
+
+```
+aria-handoff: proj-a/ag-act@2026-07-03T00:00:00Z
+## Pending handoffs
+### f1 · 2026-01-01T00:00:00Z · handoff · unconsumed
+<!-- aria:entry-end -->
+```
+### g1 · 2026-01-02T00:00:00Z · handoff · unconsumed
+plain active line
+
+## Pending handoffs
+
+### p1 · 2026-06-01T00:00:00Z · handoff · unconsumed
+- prompt:
+mk-p1a
+```
+## Next session prompt
+### inner · 2026-02-01T00:00:00Z · handoff · unconsumed
+mk-p1f
+<!-- aria:entry-end -->
+```
+<!-- aria:entry-end -->
+
+### p2 · 2026-06-02T00:00:00Z · handoff · consumed 2026-06-03T00:00:00Z by x
+- prompt: mk-p2a
+<!-- aria:entry-end -->
+
+### p3 · 2026-06-04T00:00:00Z · handoff · unconsumed
+- prompt: mk-p3a
+### p3b · 2026-06-05T00:00:00Z · handoff · unconsumed
+- prompt: mk-p3b
+<!-- aria:entry-end -->
+
+## Archived sessions
+
+### z1 · 2026-05-01T00:00:00Z · handoff · unconsumed
+- prompt: mk-z1a
+<!-- aria:entry-end -->
+AG_FIXTURE
+_ag_trim() { sed -e '/./,$!d' | sed -e ':a' -e '/^[[:space:]]*$/{$d;N;ba' -e '}'; }
+_AG_WALK_ACTIVE=$(awk "$(_kt_ss_awk_regions)"'{ k = kt_region($0) } R_SEC == "ACTIVE" && k != "heading" { print }' "$_AG/SESSION.md" | _ag_trim)
+_AG_LIVE=$(kt_ss_read_live_prompt "$_AG")
+if [ -n "$_AG_LIVE" ] && [ "$_AG_LIVE" = "$_AG_WALK_ACTIVE" ] \
+   && printf '%s\n' "$_AG_LIVE" | grep -q '^plain active line$' \
+   && [ "$(printf '%s\n' "$_AG_LIVE" | grep -c '^```')" -eq 2 ]; then
+  ok "AG(1) kt_ss_read_live_prompt returns exactly the walker's ACTIVE lines (fenced ## and ### kept as content)"
+else
+  bad "AG(1) read_live_prompt" "reader and walker disagree on the ACTIVE lines (or the positive controls failed)"
+fi
+_AG_WALK_TOK=$(awk "$(_kt_ss_awk_regions)"'{ k = kt_region($0) } R_SEC == "ACTIVE" && k != "heading" && /^aria-handoff:/ { l = $0; sub(/^aria-handoff:[[:space:]]*/, "", l); sub(/^[^\/]*\//, "", l); i = index(l, "@"); print substr(l, 1, i - 1) "|" substr(l, i + 1); exit }' "$_AG/SESSION.md")
+_AG_TOK=$(kt_ss_read_active_token "$_AG")
+if [ "$_AG_TOK" = "ag-act|2026-07-03T00:00:00Z" ] && [ "$_AG_TOK" = "$_AG_WALK_TOK" ]; then
+  ok "AG(1) kt_ss_read_active_token == the walker's first ACTIVE token ($_AG_TOK)"
+else
+  bad "AG(1) read_active_token" "reader '$_AG_TOK' vs walker '$_AG_WALK_TOK' (want ag-act|2026-07-03T00:00:00Z)"
+fi
+_AG_WALK_HDR=$(awk "$(_kt_ss_awk_regions)"'{ k = kt_region($0) } k == "entry_header" && R_SEC == "LEDGER" && /(^|[^a-z])unconsumed([^a-z]|$)/ { n = split(substr($0, 5), f, " · "); print f[1] "|" f[2] "|unconsumed|pending" }' "$_AG/SESSION.md")
+_AG_CAND=$(kt_ss_ledger_candidates "$_AG" | grep '|pending$')
+if [ "$(printf '%s\n' "$_AG_CAND" | grep -c .)" -eq 3 ] && [ "$_AG_CAND" = "$_AG_WALK_HDR" ]; then
+  ok "AG(2) kt_ss_ledger_candidates pending rows == the walker's LEDGER entry headers (p1, p3, p3b)"
+else
+  bad "AG(2) candidates" "reader rows [$(printf '%s' "$_AG_CAND" | tr '\n' ' ')] vs walker [$(printf '%s' "$_AG_WALK_HDR" | tr '\n' ' ')] (want 3)"
+fi
+# Walker attribution of every mk-* marker: <marker> <sid>|<at>|<status>|<pending|archived>
+_AG_WALK_MK=$(awk "$(_kt_ss_awk_regions)"'
+  { k = kt_region($0) }
+  k == "entry_header" { n = split(substr($0, 5), f, " · "); hs[FNR] = f[1] "|" f[2]
+                        if ($0 ~ /(^|[^a-z])unconsumed([^a-z]|$)/) { st[FNR] = "unconsumed" } else { st[FNR] = "terminal" } }
+  R_ENTRY > 0 && match($0, /mk-[a-z0-9]+/) {
+    src = "pending"; if (R_SEC == "ARCH") src = "archived"
+    print substr($0, RSTART, RLENGTH) " " hs[R_ENTRY] "|" st[R_ENTRY] "|" src
+  }' "$_AG/SESSION.md")
+_AG_MK_N=0; _AG_MK_BAD=""
+for _agm in mk-p1a mk-p1f mk-p2a mk-p3a mk-p3b mk-z1a; do
+  _agw=$(printf '%s\n' "$_AG_WALK_MK" | awk -v m="$_agm" '$1 == m { print $2; exit }')
+  _agr=$(kt_ss_ledger_token_locate "$_AG" "$_agm")
+  if [ -n "$_agw" ] && [ "$_agr" = "$_agw" ]; then _AG_MK_N=$((_AG_MK_N + 1)); else _AG_MK_BAD="$_AG_MK_BAD $_agm(reader=$_agr walker=$_agw)"; fi
+done
+if [ "$_AG_MK_N" -eq 6 ]; then
+  ok "AG(2) kt_ss_ledger_token_locate attributes all 6 in-entry markers to the walker's owning entry"
+else
+  bad "AG(2) token_locate" "disagreement:$_AG_MK_BAD"
+fi
 
 printf "\n%d passed, %d failed\n" "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
