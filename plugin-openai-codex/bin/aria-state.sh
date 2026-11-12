@@ -5,7 +5,7 @@
 #
 # Prints "<state dir>/<name>" and exits 0. When there is no usable state directory it prints
 # "aria-state: <reason>" to stderr and exits 1 (reasons: not created, not a directory, is a link,
-# not owned by you, mode not 700); a name that is empty, ".", ".." or contains "/" gives
+# not owned by you, mode not 700, has an ACL); a name that is empty, ".", ".." or contains "/" gives
 # "aria-state: invalid name", exit 1. Any other usage: a usage line on stderr, exit 2.
 #
 # Skills use it to write state where the hooks read it, never a guessed temp path. The location

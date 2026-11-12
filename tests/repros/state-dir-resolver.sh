@@ -180,11 +180,11 @@ b=$(newbase acl); mkdir -m 700 "$b/$NAME"
 if [ -n "$IS_DARWIN" ]; then
   if chmod +a "everyone allow list" "$b/$NAME" 2>/dev/null; then
     r=$(in_base "$b" "$PROBE")
-    [ "$r" = "1||mode not 700" ] && ok R_acl || bad R_acl "got '$r' ($(ls -lden "$b/$NAME" | tr '\n' ' '))"
+    [ "$r" = "1||has an ACL" ] && ok R_acl || bad R_acl "got '$r' ($(ls -lden "$b/$NAME" | tr '\n' ' '))"
   else skip R_acl "chmod +a refused on this filesystem"; fi
 elif command -v setfacl >/dev/null 2>&1 && setfacl -m u:nobody:rx "$b/$NAME" 2>/dev/null; then
   r=$(in_base "$b" "$PROBE")
-  [ "$r" = "1||mode not 700" ] && ok R_acl || bad R_acl "got '$r'"
+  [ "$r" = "1||has an ACL" ] && ok R_acl || bad R_acl "got '$r'"
 else
   skip R_acl "no way to set an ACL here (reasoned: GNU/BSD ls print '+' after the mode)"
 fi
@@ -252,13 +252,15 @@ if [ -n "$pa_s" ] && [ "$pa_s" = "$pa_p" ] && [ "$pa_s" = "$Pa/$NAME" ] \
    && [ "$pd_s" = "$pd_p" ] \
    && [ "$rf_s" = "not a directory" ] && [ "$rf_p" = "$rf_s" ] \
    && [ "$rm_s" = "mode not 700" ] && [ "$rm_p" = "$rm_s" ] \
-   && [ "$ra_s" = "$ra_p" ]; then
+   && [ "$ra_s" = "$ra_p" ] && { [ "$ra_s" = x ] || [ "$ra_s" = "has an ACL" ]; }; then
   ok R_parity_py
 else
   bad R_parity_py "a sh='$pa_s' py='$pa_p' | b sh='$pb_s' py='$pb_p' | c sh='$pc_s' py='$pc_p' | d sh='$pd_s' py='$pd_p' | file sh='$rf_s' py='$rf_p' | 755 sh='$rm_s' py='$rm_p' | acl sh='$ra_s' py='$ra_p'"
 fi
 
-# --- R_latency (AC5): p95(resolver) − p95(bare sh) ≤ 10 ms, every resolver run must SUCCEED -------
+# --- R_latency (AC5): p50(resolver) − p50(bare sh) ≤ 10 ms, every resolver run must SUCCEED -------
+# p95 is REPORTED, not asserted (ruling 2026-11-12): at load average 8–11 the p95 tail measures the
+# machine, not the resolver — two runs read +10.1 / +14.1 ms during load spikes on an unchanged path.
 b=$(newbase lat); in_base "$b" '. "$1"; kt_state_dir' >/dev/null
 LATPY='import os, subprocess, sys, time
 lib = sys.argv[1]; n = 100
@@ -268,11 +270,12 @@ def run(cmd):
 for _ in range(n):
     t, rc = run(["sh", "-c", ". \"$1\"; kt_state_resolve", "_", lib]); res.append(t); rcs.add(rc)
     t, _ = run(["sh", "-c", ":"]); bare.append(t)
-def p95(xs):
-    xs = sorted(xs); return xs[max(0, -(-95 * len(xs) // 100) - 1)]
-pr, pb = p95(res), p95(bare)
-print(f"resolver p95 {pr:.2f} ms, bare p95 {pb:.2f} ms, added {pr - pb:.2f} ms (n={n}), resolver exits {sorted(rcs)}")
-sys.exit(0 if rcs == {0} and pr - pb <= 10 else 1)'
+def pct(xs, p):
+    xs = sorted(xs); return xs[max(0, -(-p * len(xs) // 100) - 1)]
+m50 = pct(res, 50) - pct(bare, 50)
+m95 = pct(res, 95) - pct(bare, 95)
+print(f"added p50 {m50:.2f} ms (asserted <= 10), added p95 {m95:.2f} ms (reported); resolver p50/p95 {pct(res, 50):.2f}/{pct(res, 95):.2f}, bare {pct(bare, 50):.2f}/{pct(bare, 95):.2f} (n={n}), resolver exits {sorted(rcs)}")
+sys.exit(0 if rcs == {0} and m50 <= 10 else 1)'
 lat=$(env -u XDG_RUNTIME_DIR KT_STATE_BASE="$b" TMPDIR="$GUARD" python3 -I -c "$LATPY" "$L" 2>&1); lrc=$?
 [ "$lrc" -eq 0 ] && ok "R_latency — $lat" || bad R_latency "$lat"
 

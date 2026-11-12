@@ -41,7 +41,8 @@ except Exception:
 #
 #   kt_state_resolve   sets KT_STATE_DIR (path or empty) and KT_STATE_REASON (empty, or one of
 #                      "not created", "not a directory", "is a link", "not owned by you",
-#                      "mode not 700"); returns 0/1. Runs in the caller's shell (no subshell).
+#                      "mode not 700", "has an ACL"); returns 0/1. Runs in the caller's shell
+#                      (no subshell).
 #   kt_state_dir       kt_state_resolve, then prints the directory; exit 1 and silent on failure.
 #   kt_state_path N    prints "$KT_STATE_DIR/N"; exit 1, nothing printed, when no directory was
 #                      resolved or N is empty, ".", ".." or contains "/".
@@ -49,11 +50,12 @@ except Exception:
 #                      variables are unset or empty).
 # The Codex hook (Python) implements the same contract as aria_state_*; a cross-port test pins them.
 #
-# An ACL can grant access the mode bits do not show, so it is refused as "mode not 700". GNU and
+# An ACL can grant access the mode bits do not show, so it is refused as "has an ACL". GNU and
 # BSD ls print "+" after the mode for an ACL; macOS prints "@" instead when the directory also has
 # an extended attribute (a fresh directory often does), hiding the "+". So the one ls read is
 # `ls -lden`, which on macOS prints one extra line per ACL entry; where -e is unknown it falls back
-# to `ls -ldn` and refuses an "@" it could not check. A "." (SELinux context) is accepted.
+# to `ls -ldn` and refuses an "@" it could not check, as "mode not 700" (no ACL was seen; the
+# permissions are unconfirmed). A "." (SELinux context) is accepted.
 #
 # Resolution is per process: an inherited KT_STATE_DIR is never trusted.
 KT_STATE_DIR=
@@ -112,9 +114,10 @@ kt_state_resolve() {
   case ${1-} in
     drwx------|drwx------.) ;;
     drwx------@) [ -n "$_kt_e" ] || { KT_STATE_REASON='mode not 700'; return 1; } ;;
+    drwx------+|drwx------.+) KT_STATE_REASON='has an ACL'; return 1 ;;
     *) KT_STATE_REASON='mode not 700'; return 1 ;;
   esac
-  if [ -n "$_kt_acl" ]; then KT_STATE_REASON='mode not 700'; return 1; fi
+  if [ -n "$_kt_acl" ]; then KT_STATE_REASON='has an ACL'; return 1; fi
   KT_STATE_DIR=$_kt_d
   return 0
 }

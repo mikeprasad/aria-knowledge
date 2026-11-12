@@ -1103,7 +1103,7 @@ def test_state_dir_refuses_acl() -> None:
         if not set_ok:
             print("SKIP test_state_dir_refuses_acl: cannot set an ACL here")
             return
-        assert hook.aria_state_resolve() == (None, "mode not 700")
+        assert hook.aria_state_resolve() == (None, "has an ACL")
 
 
 def test_state_path_refuses_slash_dot_empty() -> None:

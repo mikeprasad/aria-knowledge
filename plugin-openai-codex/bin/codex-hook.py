@@ -382,16 +382,19 @@ def aria_state_base() -> str:
     return (base or "/tmp").rstrip("/")
 
 
-def _aria_state_has_acl(path: str) -> bool:
-    """True when the directory carries an ACL, or when that cannot be ruled out (fail safe)."""
+def _aria_state_acl_reason(path: str) -> str:
+    """"" when the directory has no ACL; "has an ACL" when one is seen; "mode not 700" when the
+    check itself could not be made (fail safe: the permissions are unconfirmed)."""
     listxattr = getattr(os, "listxattr", None)
     if listxattr is not None:
         try:
             names = listxattr(path, follow_symlinks=False)
         except OSError as exc:
             # No xattr support on this filesystem means no ACL can be stored there.
-            return exc.errno not in (getattr(errno, "ENOTSUP", -1), getattr(errno, "EOPNOTSUPP", -1))
-        return any(name in _ARIA_STATE_ACL_XATTRS for name in names)
+            if exc.errno in (getattr(errno, "ENOTSUP", -1), getattr(errno, "EOPNOTSUPP", -1)):
+                return ""
+            return "mode not 700"
+        return "has an ACL" if any(name in _ARIA_STATE_ACL_XATTRS for name in names) else ""
     # No listxattr (macOS, BSD): the same single `ls` read the shell resolver makes. macOS hides "+"
     # behind "@" when an xattr is present; `-e` prints one extra line per ACL entry. Where -e is
     # unknown, fall back to -ldn and refuse an "@" whose ACL could not be read.
@@ -408,10 +411,14 @@ def _aria_state_has_acl(path: str) -> bool:
         with_e = False
         out = ls("-ldn")
         if out is None or out.returncode != 0:
-            return True
+            return "mode not 700"
     lines = out.stdout.rstrip("\n").split("\n")
     mode = lines[0].split(" ", 1)[0]
-    return len(lines) > 1 or mode.endswith("+") or (mode.endswith("@") and not with_e)
+    if len(lines) > 1 or mode.endswith("+"):
+        return "has an ACL"
+    if mode.endswith("@") and not with_e:
+        return "mode not 700"
+    return ""
 
 
 def aria_state_resolve() -> tuple[Path | None, str]:
@@ -443,8 +450,11 @@ def aria_state_resolve() -> tuple[Path | None, str]:
         return None, "not a directory"
     if st.st_uid != uid:
         return None, "not owned by you"
-    if stat.S_IMODE(st.st_mode) != 0o700 or _aria_state_has_acl(d):
+    if stat.S_IMODE(st.st_mode) != 0o700:
         return None, "mode not 700"
+    acl_reason = _aria_state_acl_reason(d)
+    if acl_reason:
+        return None, acl_reason
     return Path(d), ""
 
 
