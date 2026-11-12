@@ -33,7 +33,8 @@ TMP=$(mktemp -d "${TMPDIR:-/tmp}/aria-ss-test.XXXXXX")
 # Harm was bounded (receipts are advisory-only, capped at 500 lines, and keyed by absolute paths
 # that cannot collide with a real ledger) — noise and waste, not corruption. Redirected anyway.
 export KT_SS_RECEIPTS="$TMP/session-ledger-receipts"
-trap 'rm -rf "$TMP"' EXIT
+# chmod first: arm AA6 makes a directory read-only, and rm -rf cannot empty one.
+trap 'chmod -R u+w "$TMP" 2>/dev/null; rm -rf "$TMP"' EXIT
 
 # --- A: find_root walks up to nearest CLAUDE.md ---
 mkdir -p "$TMP/proj/sub/deep"
@@ -318,9 +319,37 @@ grep -q '^<!-- aria:entry-end -->$' "$MD/SESSION.md" \
 
 # M3: THE LEAK. A consumed block whose prompt contains a column-0 "## " must be removed
 # whole -- no residue. This is the assertion that goes RED against boundary-inference.
-# The residue check matches "Read first" in ANY form: a raw-only grep would pass vacuously now that the
-# line is stored escaped.
-kt_ss_ledger_mark_consumed "$MD" "OLD-A" "2026-07-30T01:00:00Z" "tester"
+# ⛔ (2.58.0 Task 2 fix round 1) THE CONSUMED ENTRY IS BUILT BY HAND IN THE RAW PRE-2.58.0 FORM. Since the
+# write escape, kt_ss_ledger_add stores `\## Read first`, so an add-written fixture holds no raw `## ` and M3
+# could no longer fail for its reason (measured by review: dropping the walker's KT_HASTERM exception or
+# prune's HT[] reddened M3 at 841ef44 and only block N at 82879e5). Entries written before 2.58.0 keep raw
+# bodies on disk, so that prune rule is still load-bearing -- this fixture is that population.
+# The residue check matches "Read first" in ANY form.
+cat > "$MD/SESSION.md" <<'M3EOF'
+---
+lastEvent: handoff
+sessionId: NEW
+---
+
+## Next session prompt
+
+ACTIVE
+
+## Pending handoffs
+
+### OLD-A · 2026-07-30T00:00:00Z · handoff · consumed 2026-07-30T01:00:00Z by tester
+- focus: focus
+- next: next
+- prompt:
+Resume the arc.
+## Read first
+- a file
+Continue.
+<!-- aria:entry-end -->
+M3EOF
+grep -q '^## Read first$' "$MD/SESSION.md" \
+  && ok "M3 control: the fixture holds the raw pre-2.58.0 column-0 \"## Read first\" before prune" \
+  || bad "M3 control" "fixture lacks the raw ## line -- M3 cannot fail for its reason"
 kt_ss_ledger_prune "$MD"
 if grep -q 'Continue\.' "$MD/SESSION.md" || grep -q 'Read first' "$MD/SESSION.md"; then
   bad "M3 prune leak" "consumed block left residue behind (boundary inference failed)"
@@ -2474,6 +2503,67 @@ if [ "$_AA5_LEFT" -eq 1 ] && [ "$_AA5_OR" -eq 0 ] && [ -z "$(kt_ss_ledger_candid
 else
   bad "AA5 prune of a new hostile entry" "matching lines left=$_AA5_LEFT (want 1: the real heading) orphans=$_AA5_OR"
 fi
+
+# AA6..AA8 (Task 2 fix round 1) -- failure paths and exact bytes, run against EVERY port's lib in a subshell.
+#   AA6 the project dir is read-only (SESSION.md itself writable): add returns 0 and leaves SESSION.md
+#       byte-identical; add_verified returns 1. NON-REGRESSION (green at 841ef44 too): it pins the outcome.
+#   AA7 prompts `x` and `x`+newline store exactly the expected block bytes. NON-REGRESSION.
+#   AA8 an EMPTY block build (shimmed builder) must never read as landed: add_verified returns 1 and the
+#       file is unchanged. Before the fix the expected rise walked to 0, n1 == n0 + 0, and it returned 0.
+_aa_port_arms() {  # $1 tag; the caller has sourced ONE port's lib into this subshell
+  b="$TMP/aap/$1"; mkdir -p "$b"
+  _aa_mk "$b/d6"; cp "$b/d6/SESSION.md" "$b/before6"
+  chmod 555 "$b/d6"
+  if ( : > "$b/d6/probe" ) 2>/dev/null; then
+    rm -f "$b/d6/probe" 2>/dev/null
+    echo "BAD AA6 readonly_dir -- instrument: a file could still be created in the 555 dir (running as root?)"
+  else
+    r1=0; kt_ss_ledger_add "$b/d6" aa 2026-01-01T00:00:00Z f n 'p' 2>/dev/null || r1=$?
+    r2=0; kt_ss_ledger_add_verified "$b/d6" aa 2026-01-01T00:00:00Z f n 'p' 2>/dev/null || r2=$?
+    if [ "$r1$r2" = "01" ] && cmp -s "$b/before6" "$b/d6/SESSION.md"; then echo "OK AA6 readonly_dir_writes_nothing_and_does_not_report_landed"
+    else echo "BAD AA6 readonly_dir -- exits add=$r1 add_verified=$r2 (want 0/1), file $(cmp -s "$b/before6" "$b/d6/SESSION.md" && echo same || echo CHANGED)"; fi
+  fi
+  chmod 755 "$b/d6"
+
+  p_nl='x
+'
+  for v in plain nl; do
+    _aa_mk "$b/d7$v"
+    if [ "$v" = plain ]; then kt_ss_ledger_add "$b/d7$v" aa 2026-01-01T00:00:00Z f n 'x'
+      printf '%s\n' "$_aa_hdr" '- focus: f' '- next: n' '- prompt:' 'x' '<!-- aria:entry-end -->' > "$b/want7$v"
+    else kt_ss_ledger_add "$b/d7$v" aa 2026-01-01T00:00:00Z f n "$p_nl"
+      printf '%s\n' "$_aa_hdr" '- focus: f' '- next: n' '- prompt:' 'x' '' '<!-- aria:entry-end -->' > "$b/want7$v"
+    fi
+    awk -v h="$_aa_hdr" '$0 == h { f = 1 } f { print } f && $0 == "<!-- aria:entry-end -->" { exit }' "$b/d7$v/SESSION.md" > "$b/got7$v"
+    if cmp -s "$b/want7$v" "$b/got7$v"; then echo "OK AA7 exact_block_bytes_$v"
+    else echo "BAD AA7 exact_block_bytes_$v -- stored block differs from the expected bytes"; fi
+  done
+
+  _aa_mk "$b/d8"; cp "$b/d8/SESSION.md" "$b/before8"
+  r=$( ( _kt_ss_entry_block() { :; }
+         x=0; kt_ss_ledger_add_verified "$b/d8" aa 2026-01-01T00:00:00Z f n 'p' >/dev/null 2>&1 || x=$?
+         printf '%s' "$x" ) ) || true
+  if [ "$r" = "1" ] && cmp -s "$b/before8" "$b/d8/SESSION.md"; then echo "OK AA8 empty_build_never_reads_as_landed"
+  else echo "BAD AA8 empty_build_never_reads_as_landed -- add_verified exit '$r' (want 1), file $(cmp -s "$b/before8" "$b/d8/SESSION.md" && echo same || echo CHANGED)"; fi
+}
+_AAP_SEEN=0
+for _ad in plugin-claude-code/scripts plugin-antigravity/bin plugin-cursor-template/scripts/aria plugin-openai-codex/bin; do
+  _af="$REPO_ROOT/$_ad/lib-session-state.sh"
+  [ -f "$_af" ] || { bad "AA6-8 $_ad" "lib-session-state.sh missing -- a guard with no subject"; continue; }
+  _AAP_SEEN=$((_AAP_SEEN + 1))
+  _aout=$( ( . "$_af"; _aa_port_arms "$(printf '%s' "$_ad" | tr '/' '_')" ) 2>&1 ) || true
+  while IFS= read -r _al; do
+    case "$_al" in
+      "OK "*)  ok "$_ad: ${_al#OK }" ;;
+      "BAD "*) _an=${_al#BAD }; bad "$_ad: ${_an%% -- *}" "${_an#* -- }" ;;
+    esac
+  done <<AAOUT
+$_aout
+AAOUT
+  _an=$(printf '%s\n' "$_aout" | grep -c '^OK ' || true)
+  [ "$_an" -eq 4 ] || bad "AA6-8 coverage $_ad" "only $_an of 4 arms passed -- see the lines above"
+done
+[ "$_AAP_SEEN" -eq 4 ] && ok "AA6-8 coverage: all 4 carrying ports exercised" || bad "AA6-8 coverage" "only $_AAP_SEEN of 4 port libs found"
 
 printf "\n%d passed, %d failed\n" "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

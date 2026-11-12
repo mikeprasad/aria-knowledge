@@ -1074,6 +1074,10 @@ kt_ss_ledger_add_verified() {
   # (2.58.0) The SAME builder kt_ss_ledger_add writes with -- no second, hand-typed format to drift. The
   # expected rise below is walked over this exact output, escaped prompt lines included.
   _kt_ss_entry_block "$2" "$3" "$4" "$5" "$6" > "$_ss_av_blkf" 2>/dev/null
+  # ⛔ AN EMPTY BUILD IS "DID NOT LAND", NEVER "LANDED". A block always has its header; empty means the
+  # build failed, and then the expected rise below walks to 0, so `n1 == n0 + 0` reported landed while
+  # nothing was written (arm AA8). Same shell [ -s ] guard kt_ss_ledger_add uses.
+  [ -s "$_ss_av_blkf" ] || { rm -f "$_ss_av_blkf" 2>/dev/null; return 1; }
   # ⛔ (2.58.0) BOTH THE WINDOW AND THE COUNTS ARE THE REGION WALKER'S LEDGER ENTRY HEADERS, the same
   # scope kt_ss_ledger_add uses. A whole-file count and window let a copy under `## Archived …` or in
   # the active fence satisfy "landed" while nothing was written to the ledger (spec §1 F4, arm AF).
