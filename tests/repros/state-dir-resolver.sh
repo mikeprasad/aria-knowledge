@@ -17,8 +17,10 @@
 # Declared before running on the pre-resolver tree (7644150): every arm RED (functions and the
 # CLI absent) except two GUARDS that are green by construction there: R_parity_sh_lib (the four
 # lib copies were already byte-identical; its own mutation proves it can go red) and
-# R_guard_tmpdir_untouched (nothing may escape into the guard TMPDIR). R_latency is red there
-# only because it also requires every timed resolver run to exit 0 — its timing alone would pass.
+# R_guard_tmpdir_untouched (nothing may escape into the guard TMPDIR). R_launch_count (added in
+# fix round 3, a cost ratchet: process launches per resolve) is red there because the resolve fails;
+# its own mutation proves it goes red on an extra launch. R_timing_report prints timings only and
+# asserts just that every timed resolve exited 0.
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO="$(cd "$SCRIPT_DIR/../.." && pwd)"
 L="$REPO/plugin-claude-code/scripts/lib-state-key.sh"
@@ -206,18 +208,21 @@ fi
 # an ACL. Both dirs are a perfect 0700 dir of ours, so "mode not 700" would be false there.
 LSF="$ROOT/stub-ls-fail"; mkdir "$LSF"; printf '#!/bin/sh\nexit 1\n' > "$LSF/ls"; chmod +x "$LSF/ls"
 b=$(newbase unv-a); mkdir -m 700 "$b/$NAME"
-ra=$(env -u XDG_RUNTIME_DIR PATH="$LSF:$PATH" KT_STATE_BASE="$b" TMPDIR="$GUARD" sh -c "$PROBE" _ "$L")
-rb="1||permissions not verifiable"
-if [ -n "$IS_DARWIN" ]; then
+r=$(env -u XDG_RUNTIME_DIR PATH="$LSF:$PATH" KT_STATE_BASE="$b" TMPDIR="$GUARD" sh -c "$PROBE" _ "$L")
+[ "$r" = "1||permissions not verifiable" ] && ok R_unverifiable_ls_fails || bad R_unverifiable_ls_fails "got '$r'"
+if [ -z "$IS_DARWIN" ]; then
+  skip R_unverifiable_no_e "not Darwin (an \"@\" mode is BSD/macOS ls only)"
+else
   LSE="$ROOT/stub-ls-no-e"; mkdir "$LSE"
   printf '#!/bin/sh\n[ "$1" = -lden ] && exit 1\nexec /bin/ls "$@"\n' > "$LSE/ls"; chmod +x "$LSE/ls"
   b=$(newbase unv-b); mkdir -m 700 "$b/$NAME"
   if xattr -w user.aria-probe 1 "$b/$NAME" 2>/dev/null; then
-    rb=$(env -u XDG_RUNTIME_DIR PATH="$LSE:$PATH" KT_STATE_BASE="$b" TMPDIR="$GUARD" sh -c "$PROBE" _ "$L")
+    r=$(env -u XDG_RUNTIME_DIR PATH="$LSE:$PATH" KT_STATE_BASE="$b" TMPDIR="$GUARD" sh -c "$PROBE" _ "$L")
+    [ "$r" = "1||permissions not verifiable" ] && ok R_unverifiable_no_e || bad R_unverifiable_no_e "got '$r'"
+  else
+    skip R_unverifiable_no_e "xattr -w refused, so no \"@\" mode to read"
   fi
 fi
-if [ "$ra" = "1||permissions not verifiable" ] && [ "$rb" = "1||permissions not verifiable" ]; then ok R_unverifiable
-else bad R_unverifiable "ls-fails '$ra' | no-e '$rb'"; fi
 
 # --- R_parity_sh_lib (GUARD) / R_parity_sh_cli: one cksum per file set (C X U G) ------------------
 sums() { for p in plugin-claude-code/scripts plugin-openai-codex/bin plugin-cursor-template/scripts/aria plugin-antigravity/bin; do
@@ -277,9 +282,49 @@ else
   bad R_parity_py "a sh='$pa_s' py='$pa_p' | b sh='$pb_s' py='$pb_p' | c sh='$pc_s' py='$pc_p' | d sh='$pd_s' py='$pd_p' | file sh='$rf_s' py='$rf_p' | 755 sh='$rm_s' py='$rm_p' | acl sh='$ra_s' py='$ra_p'"
 fi
 
-# --- R_latency (AC5): p50(resolver) − p50(bare sh) ≤ 10 ms, every resolver run must SUCCEED -------
-# p95 is REPORTED, not asserted (ruling 2026-11-12): at load average 8–11 the p95 tail measures the
-# machine, not the resolver — two runs read +10.1 / +14.1 ms during load spikes on an unchanged path.
+# --- R_launch_count (AC5, deterministic): the resolver's cost is COUNTED, not timed ---------------
+# Timing is load-sensitive (one gate run read p50 +12.03 ms on an unchanged path), so the assertion
+# is on process launches: each external the resolver can run, and common ones it must not, is a PATH
+# stub that appends its name to a counter and execs the real program. Measured 2026-11-12 (macOS,
+# `ls -lden` supported): steady resolve = 2 (id, ls), fresh create = 3 (+ mkdir), kt_state_base with
+# KT_STATE_BASE/XDG_RUNTIME_DIR/TMPDIR all unset = 2 (uname, getconf). The bound is those numbers,
+# plus one ls where `-lden` is unsupported (the GNU fallback makes a second read). Subshell forks for
+# command substitution are not counted (no exec). Positive control: the stubs must have been hit.
+CNT="$ROOT/count-stubs"; mkdir "$CNT"
+for c in id ls mkdir uname getconf chmod chown stat cat rm mv cp awk sed grep tr cut head tail find \
+         readlink realpath dirname basename touch date env xattr python3 perl; do
+  real=$(command -v "$c" 2>/dev/null) || continue
+  case $real in /*) ;; *) continue ;; esac   # a builtin wins over PATH anyway; nothing to count
+  printf '#!/bin/sh\nprintf "%%s\\n" %s >> "$ARIA_COUNT_FILE"\nexec %s "$@"\n' "$c" "$real" > "$CNT/$c"
+  chmod +x "$CNT/$c"
+done
+GNU_EXTRA=0; ls -lden "$ROOT" >/dev/null 2>&1 || GNU_EXTRA=1
+count_run() {   # count_run <label> <base-or-empty> <sh code>; prints "rc|count|names"
+  : > "$ROOT/count.$1"
+  if [ -n "$2" ]; then
+    env -u XDG_RUNTIME_DIR ARIA_COUNT_FILE="$ROOT/count.$1" PATH="$CNT:$PATH" KT_STATE_BASE="$2" TMPDIR="$GUARD" sh -c "$3" _ "$L" >/dev/null; _crc=$?
+  else
+    env -u XDG_RUNTIME_DIR -u KT_STATE_BASE -u TMPDIR ARIA_COUNT_FILE="$ROOT/count.$1" PATH="$CNT:$PATH" sh -c "$3" _ "$L" >/dev/null; _crc=$?
+  fi
+  printf '%s|%s|%s' "$_crc" "$(wc -l < "$ROOT/count.$1" | tr -d ' ')" "$(sort "$ROOT/count.$1" | tr '\n' ' ')"
+}
+b=$(newbase count)
+cf=$(count_run fresh "$b" '. "$1"; kt_state_resolve')
+cs=$(count_run steady "$b" '. "$1"; kt_state_resolve')
+cu=$(count_run unset "" '. "$1"; kt_state_base')
+max_s=$((2 + GNU_EXTRA)); max_f=$((3 + GNU_EXTRA))
+n_f=$(printf '%s' "$cf" | cut -d'|' -f2); n_s=$(printf '%s' "$cs" | cut -d'|' -f2); n_u=$(printf '%s' "$cu" | cut -d'|' -f2)
+names_s=" ${cs##*|}"
+case $names_s in *" id "*) hit_id=1 ;; *) hit_id= ;; esac
+case $names_s in *" ls "*) hit_ls=1 ;; *) hit_ls= ;; esac
+if [ "${cf%%|*}" = 0 ] && [ "${cs%%|*}" = 0 ] && [ -n "$hit_id" ] && [ -n "$hit_ls" ] \
+   && [ "$n_f" -le "$max_f" ] && [ "$n_s" -le "$max_s" ] && [ "$n_u" -le 2 ]; then
+  ok "R_launch_count — steady $n_s (<= $max_s: ${cs##*|}), fresh $n_f (<= $max_f: ${cf##*|}), base-unset $n_u (<= 2: ${cu##*|})"
+else
+  bad R_launch_count "steady '$cs' (max $max_s) | fresh '$cf' (max $max_f) | base-unset '$cu' (max 2)"
+fi
+
+# --- R_timing_report: timing is REPORTED ONLY; asserts just that every timed resolve exited 0 -------
 b=$(newbase lat); in_base "$b" '. "$1"; kt_state_dir' >/dev/null
 LATPY='import os, subprocess, sys, time
 lib = sys.argv[1]; n = 100
@@ -293,10 +338,10 @@ def pct(xs, p):
     xs = sorted(xs); return xs[max(0, -(-p * len(xs) // 100) - 1)]
 m50 = pct(res, 50) - pct(bare, 50)
 m95 = pct(res, 95) - pct(bare, 95)
-print(f"added p50 {m50:.2f} ms (asserted <= 10), added p95 {m95:.2f} ms (reported); resolver p50/p95 {pct(res, 50):.2f}/{pct(res, 95):.2f}, bare {pct(bare, 50):.2f}/{pct(bare, 95):.2f} (n={n}), resolver exits {sorted(rcs)}")
-sys.exit(0 if rcs == {0} and m50 <= 10 else 1)'
+print(f"REPORT ONLY: added p50 {m50:.2f} ms, added p95 {m95:.2f} ms; resolver p50/p95 {pct(res, 50):.2f}/{pct(res, 95):.2f}, bare {pct(bare, 50):.2f}/{pct(bare, 95):.2f} (n={n}), resolver exits {sorted(rcs)}")
+sys.exit(0 if rcs == {0} else 1)'
 lat=$(env -u XDG_RUNTIME_DIR KT_STATE_BASE="$b" TMPDIR="$GUARD" python3 -I -c "$LATPY" "$L" 2>&1); lrc=$?
-[ "$lrc" -eq 0 ] && ok "R_latency — $lat" || bad R_latency "$lat"
+[ "$lrc" -eq 0 ] && ok "R_timing_report — $lat" || bad R_timing_report "$lat"
 
 # --- nothing escaped into the guard TMPDIR ------------------------------------------------------
 [ -z "$(ls -A "$GUARD")" ] && ok R_guard_tmpdir_untouched || bad R_guard_tmpdir_untouched "$(ls -A "$GUARD" | tr '\n' ' ')"
