@@ -11,13 +11,28 @@ import re
 import stat
 import subprocess
 import sys
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 
+def write_stream(stream: Any, text: str) -> None:
+    """Write text to stdout/stderr as UTF-8 bytes. A text write encodes with the locale, so under a C
+    locale (ascii) any non-ASCII output from a legacy script raised UnicodeEncodeError and the hook
+    exited 1. Codex reads hook output as UTF-8."""
+    data = text.encode("utf-8", errors="replace")
+    buffer = getattr(stream, "buffer", None)
+    if buffer is None:
+        stream.write(data.decode("utf-8"))
+        return
+    stream.flush()
+    buffer.write(data)
+    buffer.flush()
+
+
 def emit(payload: dict[str, Any]) -> None:
-    sys.stdout.write(json.dumps(payload, separators=(",", ":")))
+    write_stream(sys.stdout, json.dumps(payload, separators=(",", ":")))
 
 
 def run_legacy_capture(script_name: str, hook_input: str, cwd: Path | None = None) -> tuple[int, str, str]:
@@ -48,9 +63,9 @@ def run_legacy_capture(script_name: str, hook_input: str, cwd: Path | None = Non
 def run_legacy(script_name: str, hook_input: str) -> int:
     returncode, stdout, stderr = run_legacy_capture(script_name, hook_input)
     if stdout:
-        sys.stdout.write(stdout)
+        write_stream(sys.stdout, stdout)
     elif stderr and returncode != 0:
-        sys.stderr.write(stderr)
+        write_stream(sys.stderr, stderr)
     return returncode
 
 
@@ -389,9 +404,11 @@ def aria_state_base() -> str:
     return (base or "/tmp").rstrip("/")
 
 
-def _aria_state_acl_reason(path: str) -> str:
-    """"" when the directory has no ACL; "has an ACL" when one is seen; "permissions not verifiable" when the
-    check itself could not be made (fail safe: the permissions are unconfirmed)."""
+def _aria_state_acl_probe(path: str) -> tuple[str, str]:
+    """(before, after): the ACL read split the way the shell resolver orders it. `before` is
+    "permissions not verifiable" when the read itself failed -- the shell's one `ls` runs before its
+    owner and mode checks, so that reason wins over both. `after` is applied only once owner and mode
+    pass: "has an ACL", "permissions not verifiable" (a macOS "@" whose ACL could not be read), or ""."""
     listxattr = getattr(os, "listxattr", None)
     if listxattr is not None:
         try:
@@ -399,17 +416,18 @@ def _aria_state_acl_reason(path: str) -> str:
         except OSError as exc:
             # No xattr support on this filesystem means no ACL can be stored there.
             if exc.errno in (getattr(errno, "ENOTSUP", -1), getattr(errno, "EOPNOTSUPP", -1)):
-                return ""
-            return "permissions not verifiable"
-        return "has an ACL" if any(name in _ARIA_STATE_ACL_XATTRS for name in names) else ""
+                return "", ""
+            return "permissions not verifiable", ""
+        return "", ("has an ACL" if any(name in _ARIA_STATE_ACL_XATTRS for name in names) else "")
     # No listxattr (macOS, BSD): the same single `ls` read the shell resolver makes. macOS hides "+"
     # behind "@" when an xattr is present; `-e` prints one extra line per ACL entry. Where -e is
-    # unknown, fall back to -ldn and refuse an "@" whose ACL could not be read.
+    # unknown (a non-zero exit), fall back to -ldn and refuse an "@" whose ACL could not be read. An
+    # empty read is refused, as the shell refuses it.
     def ls(flags: str) -> subprocess.CompletedProcess[str] | None:
         try:
             return subprocess.run(["ls", flags, path], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                                   text=True, encoding="utf-8", errors="replace", check=False)
-        except OSError:
+        except (OSError, ValueError, subprocess.SubprocessError):
             return None
 
     with_e = True
@@ -418,14 +436,16 @@ def _aria_state_acl_reason(path: str) -> str:
         with_e = False
         out = ls("-ldn")
         if out is None or out.returncode != 0:
-            return "permissions not verifiable"
+            return "permissions not verifiable", ""
+    if not out.stdout:
+        return "permissions not verifiable", ""
     lines = out.stdout.rstrip("\n").split("\n")
     mode = lines[0].split(" ", 1)[0]
-    if len(lines) > 1 or mode.endswith("+"):
-        return "has an ACL"
+    if mode.endswith("+") or len(lines) > 1:
+        return "", "has an ACL"
     if mode.endswith("@") and not with_e:
-        return "permissions not verifiable"
-    return ""
+        return "", "permissions not verifiable"
+    return "", ""
 
 
 def aria_state_resolve() -> tuple[Path | None, str]:
@@ -455,13 +475,17 @@ def aria_state_resolve() -> tuple[Path | None, str]:
         return None, "is a link"
     if not stat.S_ISDIR(st.st_mode):
         return None, "not a directory"
+    # The shell's order: its one `ls` read (which also carries the ACL) comes before owner and mode,
+    # so an unreadable result outranks both; the ACL verdict itself comes after them.
+    acl_before, acl_after = _aria_state_acl_probe(d)
+    if acl_before:
+        return None, acl_before
     if st.st_uid != uid:
         return None, "not owned by you"
     if stat.S_IMODE(st.st_mode) != 0o700:
         return None, "mode not 700"
-    acl_reason = _aria_state_acl_reason(d)
-    if acl_reason:
-        return None, acl_reason
+    if acl_after:
+        return None, acl_after
     return Path(d), ""
 
 
@@ -471,6 +495,10 @@ def aria_state_dir() -> Path | None:
 
 def aria_state_path(state_dir: Path | None, name: str) -> Path | None:
     if state_dir is None or name in ("", ".", "..") or "/" in name:
+        return None
+    try:
+        os.fsencode(name)  # a lone surrogate from a JSON \u escape names no file this system can hold
+    except ValueError:
         return None
     return state_dir / name
 
@@ -483,14 +511,14 @@ def state_read(path: Path | None) -> str | None:
         return None
     try:
         fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
-    except OSError:
+    except (OSError, ValueError):  # ValueError: a name the filesystem cannot encode
         return None
     try:
         with os.fdopen(fd, "rb") as fp:
             if not stat.S_ISREG(os.fstat(fp.fileno()).st_mode):
                 return None
             return fp.read().decode("utf-8", errors="replace")
-    except OSError:
+    except (OSError, ValueError):
         return None
 
 
@@ -500,10 +528,11 @@ def state_write(path: Path | None, text: str, *, append: bool = False) -> bool:
     with a reader is refused by fstat before any byte is written)."""
     if path is None:
         return False
+    data = text.encode("utf-8", errors="replace")  # encode first: nothing is truncated if this fails
     flags = os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK | (os.O_APPEND if append else 0)
     try:
         fd = os.open(path, flags, 0o600)
-    except OSError:
+    except (OSError, ValueError):  # ValueError: a name the filesystem cannot encode
         return False
     try:
         with os.fdopen(fd, "wb") as fp:
@@ -511,9 +540,9 @@ def state_write(path: Path | None, text: str, *, append: bool = False) -> bool:
                 return False
             if not append:
                 fp.truncate(0)
-            fp.write(text.encode("utf-8", errors="replace"))
+            fp.write(data)
         return True
-    except OSError:
+    except (OSError, ValueError):
         return False
 
 
@@ -526,7 +555,7 @@ def ledger_is_ours(ledger: Path) -> bool:
         st = os.lstat(ledger)
     except FileNotFoundError:
         return True
-    except OSError:
+    except (OSError, ValueError):  # ValueError: a name the filesystem cannot encode -- no state
         return False
     return stat.S_ISREG(st.st_mode) and st.st_uid == os.getuid()
 
@@ -561,14 +590,17 @@ def user_prompt_submit(data: dict[str, Any]) -> None:
     if not prompt.strip():
         return
 
-    # The cooldown and the session ledger live in the private state dir. No state dir (spec D3): with
-    # no cooldown and no dedupe every prompt would re-inject the same files, so surface nothing. A name
-    # aria_state_path refuses (an id holding "/") skips that name's read and write.
+    # The cooldown and the session ledger live in the private state dir. No usable state -- no state
+    # dir (spec D3), or a name aria_state_path refuses (an id holding "/" or one the filesystem cannot
+    # encode) -- means no cooldown and no dedupe, so every prompt would re-inject the same files:
+    # surface nothing, as the shell ports do.
     state_dir = aria_state_dir()
     if state_dir is None:
         return
     key = session_key(data)
     cooldown = aria_state_path(state_dir, f"aria-context-{key}")
+    if cooldown is None:
+        return
     stamp = state_read(cooldown)
     if stamp is not None:
         try:
@@ -627,14 +659,16 @@ def maybe_codemap_reminder(data: dict[str, Any], cmd: str) -> dict[str, Any] | N
     if codemap is None:
         return None
 
-    # The once-per-session cooldown lives in the private state dir. No state dir (spec D3): a reminder
-    # with no cooldown would repeat on every search, so emit nothing.
+    # The once-per-session cooldown lives in the private state dir. No state dir (spec D3), or a name
+    # aria_state_path refuses: a reminder with no cooldown would repeat on every search, so emit nothing.
     state_dir = aria_state_dir()
     if state_dir is None:
         return None
     session = str(data.get("session_id") or data.get("turn_id") or os.getpid())
     digest = hashlib.sha1(str(codemap.parent).encode()).hexdigest()[:12]
     ledger = aria_state_path(state_dir, f"aria-codex-codemap-{session}-{digest}")
+    if ledger is None:
+        return None
     if state_read(ledger) is not None:
         return None
     state_write(ledger, "seen\n")
@@ -874,7 +908,33 @@ def split_frontmatter(text: str) -> tuple[dict[str, str], str] | None:
     return fields, text[end + 5 :]
 
 
+def replace_file_bytes(path: Path, data: bytes) -> None:
+    """Replace a file's content atomically: a temp file in the same directory, then os.replace, so a
+    failure leaves the old file whole. A link at `path` is written through to its target (as a plain
+    write did), and the target keeps its mode."""
+    target = Path(os.path.realpath(path))
+    try:
+        mode = stat.S_IMODE(os.stat(target).st_mode)
+    except FileNotFoundError:
+        umask = os.umask(0)
+        os.umask(umask)
+        mode = 0o666 & ~umask
+    fd, tmp = tempfile.mkstemp(dir=str(target.parent), prefix=f".{target.name}.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "wb") as fp:
+            fp.write(data)
+        os.chmod(tmp, mode)
+        os.replace(tmp, target)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
 def mark_session_inprogress(root: Path, session_id: str, author: str) -> None:
+    """Raises OSError or ValueError, with SESSION.md untouched, when the mark cannot be written."""
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     branch = git_value(root, "rev-parse", "--abbrev-ref", "HEAD")
     head = git_value(root, "rev-parse", "--short", "HEAD")
@@ -917,7 +977,9 @@ def mark_session_inprogress(root: Path, session_id: str, author: str) -> None:
         content = "\n".join(lines) + "\n" + body
     else:
         content = "\n".join(lines) + "\n\n## Where we left off\n\n(session in progress)\n"
-    session_file.write_text(content, encoding="utf-8", errors="surrogateescape")
+    # Encode the whole file BEFORE touching it: a value surrogateescape cannot carry (a lone surrogate
+    # outside U+DC80-DCFF, e.g. from a JSON \ud800 session id) raises here, and SESSION.md stays whole.
+    replace_file_bytes(session_file, content.encode("utf-8", errors="surrogateescape"))
 
     if git_value(root, "rev-parse", "--git-dir"):
         ignored = subprocess.run(
@@ -951,7 +1013,7 @@ def maybe_mark_session_state(paths: list[str], data: dict[str, Any], config: dic
         try:
             mark_session_inprogress(root, session_id, author)
             seen.add(str(root))
-        except OSError:
+        except (OSError, ValueError):  # not marked; SESSION.md is left as it was
             continue
     state_write(ledger, "\n".join(sorted(seen)) + ("\n" if seen else ""))
 
@@ -1057,10 +1119,10 @@ def pre_tool_use(data: dict[str, Any]) -> None:
                 if context:
                     messages.append(context)
             elif stdout:
-                sys.stdout.write(stdout)
+                write_stream(sys.stdout, stdout)
                 return
             elif returncode != 0 and stderr:
-                sys.stderr.write(stderr)
+                write_stream(sys.stderr, stderr)
                 return
 
         # Record + warn on in-place writes to existing non-temp files. Warn-only by design.
@@ -1096,9 +1158,9 @@ def pre_tool_use(data: dict[str, Any]) -> None:
         if parsed:
             emit(parsed)
         elif stdout:
-            sys.stdout.write(stdout)
+            write_stream(sys.stdout, stdout)
         elif returncode != 0 and stderr:
-            sys.stderr.write(stderr)
+            write_stream(sys.stderr, stderr)
         return
 
     if is_scheduler_create_tool(short_name):
@@ -1107,9 +1169,9 @@ def pre_tool_use(data: dict[str, Any]) -> None:
         if parsed:
             emit(parsed)
         elif stdout:
-            sys.stdout.write(stdout)
+            write_stream(sys.stdout, stdout)
         elif returncode != 0 and stderr:
-            sys.stderr.write(stderr)
+            write_stream(sys.stderr, stderr)
         return
 
 

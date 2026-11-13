@@ -1355,9 +1355,10 @@ def test_no_state_dir_still_marks_session_inprogress() -> None:
 
 
 def test_state_name_with_slash_refused() -> None:
-    """GUARD (green on 42e306c, whose names lived in /tmp; mutation-proven): RF5. A session id holding
-    "/" never addresses a path outside the state dir. Directories are planted at the first path
-    component of each name, so a resolver that stopped refusing "/" WOULD reach <base>/x."""
+    """RF5: a session id holding "/" never addresses a path outside the state dir. Directories are
+    planted at the first path component of each name, so a resolver that stopped refusing "/" WOULD
+    reach <base>/x. A refused name is no usable state, so surfacing and the codemap reminder are
+    silent, as in the shell ports (fix round 1, C3); the in-progress mark still happens."""
     sid = "a/../../x"
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
@@ -1369,9 +1370,8 @@ def test_state_name_with_slash_refused() -> None:
         for name in planted:
             (sdir / name).mkdir()
         ctx = _t5_drive(project, sid, {"KT_CONFIG": str(config), "KT_STATE_BASE": str(base)})
-        # The refused name skips its own read and write; the hook still emits its context.
-        assert "ARIA ACTIVE" in ctx["prompt"], ctx
-        assert "CODEMAP exists" in ctx["shell"], ctx
+        assert "ARIA ACTIVE" not in ctx["prompt"], ctx
+        assert "CODEMAP" not in ctx["shell"], ctx
         assert "lastEvent: in-progress" in read(project / "SESSION.md")
         assert sorted(os.listdir(base)) == [_state_name()], sorted(os.listdir(base))
         for name in planted:
@@ -1549,6 +1549,11 @@ m = importlib.util.module_from_spec(spec); sys.dont_write_bytecode = True; spec.
 d, reason = m.aria_state_resolve()
 sys.stdout.write(("" if d is None else str(d)) + "\\n" + reason)"""
 
+_PARITY_PY_BASE = """import importlib.util, sys
+spec = importlib.util.spec_from_file_location("aria_codex_hook", sys.argv[1])
+m = importlib.util.module_from_spec(spec); sys.dont_write_bytecode = True; spec.loader.exec_module(m)
+sys.stdout.write(m.aria_state_base())"""
+
 _PARITY_SH = '. "$1"; kt_state_resolve; printf "%s\\n%s" "$KT_STATE_DIR" "$KT_STATE_REASON"'
 
 
@@ -1643,6 +1648,22 @@ def test_state_resolver_parity_sh_and_python() -> None:
             (stub / "ls").chmod(0o755)
             cases.append(("unverifiable", {"KT_STATE_BASE": str(b), "TMPDIR": str(guard),
                                            "PATH": f"{stub}:/usr/bin:/bin"}, "", "permissions not verifiable", False))
+            # Overlapping failures: the shell's `ls` read comes before its owner and mode checks, so an
+            # unreadable result outranks "mode not 700" in both.
+            b = nb("unverifiable-755")
+            (b / name).mkdir()
+            os.chmod(b / name, 0o755)
+            cases.append(("unverifiable + mode 755", {"KT_STATE_BASE": str(b), "TMPDIR": str(guard),
+                                                     "PATH": f"{stub}:/usr/bin:/bin"}, "", "permissions not verifiable", False))
+            # An `ls` that exits 0 and prints nothing is unreadable too.
+            b = nb("empty-ls")
+            (b / name).mkdir(mode=0o700)
+            os.chmod(b / name, 0o700)
+            empty = nb("stub-ls-empty")
+            (empty / "ls").write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            (empty / "ls").chmod(0o755)
+            cases.append(("empty ls output", {"KT_STATE_BASE": str(b), "TMPDIR": str(guard),
+                                             "PATH": f"{empty}:/usr/bin:/bin"}, "", "permissions not verifiable", False))
         try:
             for label, env, want_dir, want_reason, python_first in cases:
                 sh_out, py_out = _resolve_both(env, python_first=python_first)
@@ -1652,6 +1673,96 @@ def test_state_resolver_parity_sh_and_python() -> None:
             if ro is not None:
                 os.chmod(ro, 0o700)
         assert list(guard.iterdir()) == [], "a resolver fell through to TMPDIR"
+        # All three base variables unset: the base is the platform's (Darwin: getconf
+        # DARWIN_USER_TEMP_DIR in sh, os.confstr(65537) in Python; else /tmp). That is the user's REAL
+        # base, so only the computed base STRING is compared (kt_state_base / aria_state_base, which
+        # never mkdir) -- creation there is not exercised.
+        full = {k: v for k, v in os.environ.items() if k not in ("KT_STATE_BASE", "XDG_RUNTIME_DIR", "TMPDIR")}
+        sh_base = subprocess.run(
+            ["sh", "-c", '. "$1"; kt_state_base', "_", str(PORT_ROOT / "bin" / "lib-state-key.sh")], env=full,
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, encoding="utf-8", check=False,
+        ).stdout.strip()
+        py_base = subprocess.run(
+            [sys.executable, "-I", "-c", _PARITY_PY_BASE, str(PORT_ROOT / "bin" / "codex-hook.py")], env=full,
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, encoding="utf-8", check=False,
+        ).stdout.strip()
+        assert sh_base and sh_base == py_base, ("all unset", sh_base, py_base)
+        if sys.platform != "darwin":
+            assert sh_base == "/tmp", sh_base
+
+
+# --- Fix round 1: a session id the filesystem cannot encode, and output under a non-UTF-8 locale ----
+SESSION_BEFORE = b"---\nlastEvent: handoff\n---\n\n## Where we left off\n\nkeep this text intact.\n"
+
+
+def _surrogate_post(project: Path, env: dict[str, str]) -> None:
+    # json.dumps escapes the lone surrogate as \ud800, which the hook decodes back into one.
+    run_hook(
+        "post-tool-use",
+        {"hook_event_name": "PostToolUse", "session_id": "\ud800abc", "turn_id": "turn-t5", "cwd": str(project),
+         "tool_name": "apply_patch", "tool_input": {"command": T5_PATCH}},
+        env=env,
+    )
+
+
+def test_surrogate_session_id_without_state_dir_leaves_session_md_untouched() -> None:
+    # I1: write_text opened SESSION.md for writing (truncating it) and THEN failed to encode the lone
+    # surrogate (surrogateescape carries only U+DC80-DCFF): the hook exited 1 and SESSION.md was empty.
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        config = _t5_config(root)
+        project = _t5_project(root)
+        broken = root / "broken"
+        broken.mkdir()
+        (broken / _state_name()).write_text("", encoding="utf-8")
+        (project / "SESSION.md").write_bytes(SESSION_BEFORE)
+        _surrogate_post(project, {"KT_CONFIG": str(config), "KT_STATE_BASE": str(broken)})  # asserts exit 0
+        assert (project / "SESSION.md").read_bytes() == SESSION_BEFORE
+        assert [p.name for p in project.iterdir() if p.name.startswith(".SESSION.md.")] == [], "temp file left"
+
+
+def test_surrogate_session_id_with_state_dir_exits_0() -> None:
+    # I1: with a state dir the same id crashed earlier, in state_read (os.open on an unencodable name).
+    # The name is refused, so this is no usable state: silent, as for an id holding "/" (C3).
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        config = _t5_config(root)
+        project = _t5_project(root)
+        base = root / "state-base"
+        base.mkdir()
+        (project / "SESSION.md").write_bytes(SESSION_BEFORE)
+        env = {"KT_CONFIG": str(config), "KT_STATE_BASE": str(base)}
+        ctx = _t5_drive(project, "\ud800abc", env)  # each call asserts exit 0
+        assert "ARIA ACTIVE" not in ctx["prompt"], ctx
+        assert "CODEMAP" not in ctx["shell"], ctx
+        assert (project / "SESSION.md").read_bytes() == SESSION_BEFORE
+
+
+def test_state_helpers_treat_an_unencodable_name_as_no_state() -> None:
+    hook = load_hook_module()
+    with tempfile.TemporaryDirectory() as tmp:
+        bad = Path(tmp) / "aria-active-\ud800"
+        assert hook.state_read(bad) is None
+        assert hook.state_write(bad, "x") is False
+        assert hook.ledger_is_ours(bad) is False
+        assert hook.aria_state_path(Path(tmp), "aria-active-\ud800") is None
+        assert hook.aria_state_path(Path(tmp), "aria-active-ok") == Path(tmp) / "aria-active-ok"  # control
+
+
+def test_hook_output_survives_a_non_utf8_locale() -> None:
+    # A legacy script's non-ASCII output was written to sys.stdout with the locale's codec: under a C
+    # locale (ascii) the hook exited 1 with UnicodeEncodeError. It is now written as UTF-8 bytes.
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        (root / "bin").mkdir()
+        (root / "bin" / "session-start-check.sh").write_text(
+            'cat >/dev/null\nprintf "caf\\303\\251 \\342\\200\\224\\n"\n', encoding="utf-8")
+        env = {**os.environ, "ARIA_CODEX_PLUGIN_ROOT": str(root), "KT_STATE_BASE": tmp,
+               "LC_ALL": "C", "LANG": "C", "PYTHONUTF8": "0", "PYTHONCOERCECLOCALE": "0"}
+        proc = subprocess.run([sys.executable, str(PORT_ROOT / "bin" / "codex-hook.py"), "session-start"],
+                              input=b"{}", stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env, check=False)
+        assert proc.returncode == 0, proc.stderr.decode("utf-8", "replace")[-300:]
+        assert proc.stdout == "café —\n".encode("utf-8"), proc.stdout
 
 
 if __name__ == "__main__":
