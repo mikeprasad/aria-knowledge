@@ -230,7 +230,9 @@ printf '%s' "$WSEC" | grep -qiE 'antigravity|codex' \
 # trigger fired unnoticed. A stated retirement condition with no assertion is a wish (Rule 37); this
 # block is the assertion. Both directions, because either alone is satisfied by a deletion.
 _R_FALSE='There is no ledger to read any more'
-_R_READ='Read `${TMPDIR'
+# 2.58.0: the ledger lives in the private per-user state dir, so the read goes through the CLI that
+# names it (aria-state.sh path) — the old `${TMPDIR:-/tmp}` spelling is retired (state-dir-model-facing.sh M6).
+_R_READ='path "aria-r22-bypass-'
 _R_SEEN=0
 for _rd in plugin-claude-code plugin-antigravity plugin-openai-codex; do
   for _rs in wrapup handoff; do

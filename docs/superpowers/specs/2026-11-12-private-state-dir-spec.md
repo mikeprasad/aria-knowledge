@@ -128,6 +128,7 @@ All names keep their file names and move into `<state dir>/`:
 | `aria-surface-*.tsv`, `aria-surface-hook.log`, `aria-prompt-config.*.cache`, `aria-cursor-*`, `aria-ag-*` | `${KT_SURFACE_CACHE_DIR:-$TMPDIR}` | 11 lib copies; cursor capture/inject; Antigravity `pre-invocation-aria.sh` |
 | `aria-hook-debug.log` | `/tmp` | cursor (4 scripts via `aria_hook_dbg`) |
 | `aria-digest-<file>` | `/tmp` (skill text) | `/extract`, `/audit knowledge` in C X G + cursor `.mdc` |
+| `aria-r22-bypass-<sid>` (read), `aria-active-<sid>` (named) | `${TMPDIR:-/tmp}`, `/tmp` (skill text) | `/handoff`, `/wrapup` read the bypass ledger; `/setup` names the session ledger — C X G + cursor `.mdc` (G1-1: omitted from the first draft of this table) |
 
 `mktemp` scratch names (`aria-match-*.XXXXXX`, `aria-ss-vblk.XXXXXX`) are unpredictable and stay
 where they are. Out of class and untouched: `$HOME/.claude/*` (receipts, statusline state),
@@ -147,8 +148,13 @@ that glob (wrong session).` (105 B). The hook knows the session id, so it can na
   measured) gains `state_dir=<dir> ledger=<dir>/aria-active-<sid>` (`none` when D3 applies), on
   every SessionStart source including `compact` and `clear`. The digest clause becomes
   `Skip paths in the file named by \`ledger=\` in \`ARIA CONFIG\`.` (59 B, −46 B; no glob to warn
-  about). `/prospect` and `/retrospect` (C X G, cursor `.mdc`) point to the same field. In runtimes
-  that emit no `ARIA CONFIG` line, no hook writes a ledger either, so "none ⇒ skip nothing" holds.
+  about). `/prospect` and `/retrospect` (C X G, cursor `.mdc`) point to the same field. (G1-1)
+  Every port whose hooks write the ledger states `state_dir=` / `ledger=` in its own session-start
+  value line, named `ARIA CONFIG` in each so one skill sentence serves all ports: claude-code in its
+  existing line; Codex and Cursor `session-start-check.sh` and Antigravity's PreInvocation
+  session-start message each append a separate `ARIA CONFIG — state_dir=… ledger=…` line, keyed on
+  the id that port's own ledger writer uses. A runtime with no such line (Cowork) has no hook that
+  writes a ledger, so "none or absent ⇒ skip nothing" holds there.
 - **Write side.** A new CLI, `scripts/aria-state.sh path <name>` (C X U G), prints
   `<state dir>/<name>` or exits 1 with the D3 reason. `/preflight` runs
   `"$(… path "aria-preflight-${CLAUDE_CODE_SESSION_ID:-${CODEX_THREAD_ID:-}}")"` (empty id ⇒ refuse,

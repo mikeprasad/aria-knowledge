@@ -20,7 +20,11 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 . "$SCRIPT_DIR/../pm-helpers.sh"
 
-RETIRED='ls -t /tmp/aria-active'
+# Retired forms, one per line: the mtime-guessing idiom, and (2.58.0) the digest clause that named
+# the ledger at a /tmp path — the ledger now lives in the private state dir and the session-start hook
+# names it in `ARIA CONFIG` (`ledger=`).
+RETIRED='ls -t /tmp/aria-active
+Skip paths in /tmp/aria-active-$CLAUDE_CODE_SESSION_ID'
 
 # ---------------------------------------------------------------------------
 # A. No port may carry the retired mtime-guessing idiom.
@@ -39,16 +43,17 @@ for _port in "$ROOT"/plugin-*; do
   _pd=$(basename "$_port")
   # Does this port CARRY the subject at all? A port with no ledger block is not a subject, and
   # counting it would inflate the anti-vacuity floor into meaninglessness.
-  grep -rlq 'aria-active' "$_port" 2>/dev/null || continue
+  # (2.58.0: a body may now name the ledger only as `ledger=`, so either form makes it a subject.)
+  grep -rlqE 'aria-active|ledger=' "$_port" 2>/dev/null || continue
   _A_SEEN=$((_A_SEEN + 1))
-  _hits=$(grep -rl "$RETIRED" "$_port" 2>/dev/null | grep -v 'CHANGELOG' | tr '\n' ' ')
+  _hits=$(printf '%s\n' "$RETIRED" | grep -rlF -f - "$_port" 2>/dev/null | grep -v 'CHANGELOG' | tr '\n' ' ')
   [ -n "$_hits" ] && _A_BAD="$_A_BAD $_pd"
 done
 if [ -n "$_A_BAD" ]; then
   PM_FAIL=$((PM_FAIL+1))
   printf '  FAIL: A retired mtime-guessing idiom still present\n    ports:%s\n' "$_A_BAD"
 else
-  PM_PASS=$((PM_PASS+1)); printf '  ok: A no port carries "%s"\n' "$RETIRED"
+  PM_PASS=$((PM_PASS+1)); printf '  ok: A no port carries a retired form (%d forms)\n' "$(printf '%s\n' "$RETIRED" | grep -c .)"
 fi
 
 # ⛔ ANTI-VACUITY. Without this, the loop passes having examined NOTHING — a renamed plugin
@@ -62,8 +67,9 @@ fi
   || { PM_FAIL=$((PM_FAIL+1)); printf '  FAIL: B port coverage\n    only %d carrying port(s) examined (want >= 5) — too few subjects for check A to mean anything\n' "$_A_SEEN"; }
 
 # ---------------------------------------------------------------------------
-# C. The replacement must name the session id, and the Claude ports must name the measured
-#    variable. Guards against "fixing" this by deleting the ledger step outright.
+# C. The replacement must name where the ledger comes from. Guards against "fixing" this by deleting
+#    the ledger step outright. 2.58.0: the canonical bodies read the path the session-start hook
+#    states — `ledger=` in `ARIA CONFIG` — instead of composing one from $CLAUDE_CODE_SESSION_ID.
 # ---------------------------------------------------------------------------
 _C_SEEN=0
 _C_BAD=""
@@ -71,14 +77,14 @@ for _f in "$ROOT"/plugin-claude-code/skills/prospect/SKILL.md \
           "$ROOT"/plugin-claude-code/skills/retrospect/SKILL.md; do
   [ -f "$_f" ] || continue
   _C_SEEN=$((_C_SEEN + 1))
-  grep -qF 'CLAUDE_CODE_SESSION_ID' "$_f" || _C_BAD="$_C_BAD ${_f#$ROOT/}"
+  { grep -qF '`ledger=`' "$_f" && grep -qF '`ARIA CONFIG`' "$_f"; } || _C_BAD="$_C_BAD ${_f#$ROOT/}"
 done
 if [ "$_C_SEEN" -lt 2 ]; then
   PM_FAIL=$((PM_FAIL+1)); printf '  FAIL: C subject files\n    only %d of 2 canonical skill bodies found\n' "$_C_SEEN"
 elif [ -n "$_C_BAD" ]; then
-  PM_FAIL=$((PM_FAIL+1)); printf '  FAIL: C canonical body does not name CLAUDE_CODE_SESSION_ID\n    files:%s\n' "$_C_BAD"
+  PM_FAIL=$((PM_FAIL+1)); printf '  FAIL: C canonical body does not read the ledger from ledger= in ARIA CONFIG\n    files:%s\n' "$_C_BAD"
 else
-  PM_PASS=$((PM_PASS+1)); printf '  ok: C canonical bodies name CLAUDE_CODE_SESSION_ID (%d files)\n' "$_C_SEEN"
+  PM_PASS=$((PM_PASS+1)); printf '  ok: C canonical bodies read the ledger from ledger= in ARIA CONFIG (%d files)\n' "$_C_SEEN"
 fi
 
 # ---------------------------------------------------------------------------

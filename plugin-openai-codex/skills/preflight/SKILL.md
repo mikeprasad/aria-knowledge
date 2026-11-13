@@ -221,13 +221,27 @@ one of its last two lines — the `READY` line when the verdict is READY, the `N
 otherwise:
 
 ```bash
+_pf_sid=${CLAUDE_CODE_SESSION_ID:-${CODEX_THREAD_ID:-}}
 repo_top=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
 repo_hash=$(printf '%s' "$repo_top" | cksum | cut -d' ' -f1)
-pf_session="${TMPDIR:-/tmp}/aria-preflight-${CODEX_SESSION_ID:-${CLAUDE_SESSION_ID:-manual}}"
-pf_repo="${TMPDIR:-/tmp}/aria-preflight-repo-${repo_hash}"
-printf '%s\tREADY\n' "$(date +%H:%M)" | tee -a "$pf_session" >> "$pf_repo"
-printf '%s\tNOT READY\n' "$(date +%H:%M)" | tee -a "$pf_session" >> "$pf_repo"
+_pf_m=""
+if [ -z "$_pf_sid" ]; then
+  echo 'preflight: no session id — session marker not written'
+elif _pf_m=$(sh "${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/bin/aria-state.sh" path "aria-preflight-$_pf_sid"); then
+  echo "preflight marker: $_pf_m"
+else
+  _pf_m=""
+fi
+pf_repo=$(sh "${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/bin/aria-state.sh" path "aria-preflight-repo-${repo_hash}") && echo "preflight repo marker: $pf_repo" || pf_repo=""
+[ -n "$_pf_m" ] && printf '%s\tREADY\n' "$(date +%H:%M)" >> "$_pf_m"; [ -n "$pf_repo" ] && printf '%s\tREADY\n' "$(date +%H:%M)" >> "$pf_repo"
+[ -n "$_pf_m" ] && printf '%s\tNOT READY\n' "$(date +%H:%M)" >> "$_pf_m"; [ -n "$pf_repo" ] && printf '%s\tNOT READY\n' "$(date +%H:%M)" >> "$pf_repo"
 ```
+
+Both markers live in the private per-user state directory, named by `aria-state.sh` so they are the
+files the gate reads. If it prints an `aria-state:` reason (the state directory is unavailable, and
+why), that marker was **not** written: say so with the verdict, and never write it anywhere else. When
+your `ARIA CONFIG` line carries `state_dir=`, compare it with the directory of the printed marker
+paths; if they differ, say so — the commit gate will not see these markers.
 
 ⛔ The markers carry the verdict token only. The scope is user-supplied text and never goes into a
 shell command — it lives in the PREFLIGHT table and in the log file below.

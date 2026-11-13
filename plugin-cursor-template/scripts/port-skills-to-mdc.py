@@ -88,7 +88,7 @@ Cursor-native command backed by `scripts/aria/capture-task-boundary.sh`. Writes 
 - git branch + `git status --short` + changed files + `git diff --stat`
 - active batch manifest (if present)
 - config path + knowledge_folder
-- recent `/tmp/aria-hook-debug.log` lines
+- recent hook debug log lines (`aria-hook-debug.log` in the private per-user state directory)
 
 If you need narrative content (decisions made, insights worth keeping), use `/extract` instead — it's the right surface for capture-from-conversation.
 
@@ -104,7 +104,7 @@ Or invoke from the agent: read `.cursor/aria-knowledge.local.md` for `knowledge_
 
 - Pausing mid-task and want a self-describing record of where the working tree is.
 - About to switch branches or run a destructive operation, and want a "what was the state right before" marker.
-- Debugging hook behavior — the capture's `recent /tmp/aria-hook-debug.log` section is the cheapest way to confirm hooks are firing.
+- Debugging hook behavior — the capture's recent hook-debug-log section is the cheapest way to confirm hooks are firing.
 
 ## Limitations
 

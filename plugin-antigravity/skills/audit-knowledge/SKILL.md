@@ -236,10 +236,10 @@ Scan `{knowledge_folder}/intake/pre-compact-captures/` for `.md` files. **If the
 **Digest mode (default):** For each transcript snapshot, run the digest script to extract high-signal content before reading:
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/bin/digest-transcript.sh" "{snapshot_path}" "/tmp/aria-digest-{filename}"
+d=$(sh "${CLAUDE_PLUGIN_ROOT}/bin/aria-state.sh" path "aria-digest-{filename}") && bash "${CLAUDE_PLUGIN_ROOT}/bin/digest-transcript.sh" "{snapshot_path}" "$d" && printf '%s\n' "$d"
 ```
 
-Then read the digest file (not the raw transcript). The digest keeps all user messages (truncated at 500 chars), first/last 5 lines of each assistant turn, Insight blocks, and lines containing decision/feedback signal keywords. Tool calls and results are dropped entirely. Typical reduction: **~97% fewer tokens** vs raw transcript (~1-3K tokens per snapshot vs ~30-50K+ raw).
+Then read the digest at the path it prints (not the raw transcript). If it prints an `aria-state:` reason instead, the private state directory is unavailable: say so and why, write the digest nowhere else, and read that snapshot in Detailed mode. The digest keeps all user messages (truncated at 500 chars), first/last 5 lines of each assistant turn, Insight blocks, and lines containing decision/feedback signal keywords. Tool calls and results are dropped entirely. Typical reduction: **~97% fewer tokens** vs raw transcript (~1-3K tokens per snapshot vs ~30-50K+ raw).
 
 **Detailed mode:** Read the full transcript snapshots directly. Use this when digest mode missed something in a previous audit or when the session contained complex multi-step work where mid-response context matters. Note: a single snapshot can consume 30-50K+ context tokens, so use sparingly.
 
@@ -295,9 +295,9 @@ There is **no bare-Clear option** for subagent captures: unlike pre-compact snap
 
 **Digest mode (default):** for each capture, run:
 ```
-bash "${CLAUDE_PLUGIN_ROOT}/bin/digest-transcript.sh" "{capture_path}" "/tmp/aria-digest-{filename}"
+d=$(sh "${CLAUDE_PLUGIN_ROOT}/bin/aria-state.sh" path "aria-digest-{filename}") && bash "${CLAUDE_PLUGIN_ROOT}/bin/digest-transcript.sh" "{capture_path}" "$d" && printf '%s\n' "$d"
 ```
-Then read the digest. Extract insights/decisions/feedback/references per the standard six-bucket categorization.
+Then read the digest at the path it prints. If it prints an `aria-state:` reason instead, the private state directory is unavailable: say so and why, write the digest nowhere else, and read that capture in Detailed mode. Extract insights/decisions/feedback/references per the standard six-bucket categorization.
 
 For each reviewed capture:
 - **Approved items** → append to the appropriate backlog (insights-backlog.md / decisions-backlog.md / extraction-backlog.md), then ledger-clear the capture: create `{knowledge_folder}/archive/audit-{date}/subagent-captures/` if needed, append an entry to its `REMOVED.md` (filename + parent-session-id + agent_type + agent_id + capture-timestamp), then `rm` the capture `.md`.

@@ -239,10 +239,10 @@ Scan `{knowledge_folder}/intake/pre-compact-captures/` for `.md` files. **If the
 **Digest mode (default):** For each transcript snapshot, run the digest script to extract high-signal content before reading:
 
 ```bash
-bash "${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/bin/digest-transcript.sh" "{snapshot_path}" "/tmp/aria-digest-{filename}"
+d=$(sh "${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/bin/aria-state.sh" path "aria-digest-{filename}") && bash "${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/bin/digest-transcript.sh" "{snapshot_path}" "$d" && printf '%s\n' "$d"
 ```
 
-Then read the digest file (not the raw transcript). The digest keeps all user messages (truncated at 500 chars), first/last 5 lines of each assistant turn, Insight blocks, and lines containing decision/feedback signal keywords. Tool calls and results are dropped entirely. Typical reduction: **~97% fewer tokens** vs raw transcript (~1-3K tokens per snapshot vs ~30-50K+ raw).
+Then read the digest at the path it prints (not the raw transcript). If it prints an `aria-state:` reason instead, the private state directory is unavailable: say so and why, write the digest nowhere else, and read that snapshot in Detailed mode. The digest keeps all user messages (truncated at 500 chars), first/last 5 lines of each assistant turn, Insight blocks, and lines containing decision/feedback signal keywords. Tool calls and results are dropped entirely. Typical reduction: **~97% fewer tokens** vs raw transcript (~1-3K tokens per snapshot vs ~30-50K+ raw).
 
 **Detailed mode:** Read the full transcript snapshots directly. Use this when digest mode missed something in a previous audit or when the session contained complex multi-step work where mid-response context matters. Note: a single snapshot can consume 30-50K+ context tokens, so use sparingly.
 
@@ -303,10 +303,10 @@ There is **no bare-Clear option** for subagent captures. Unlike pre-compact snap
 **Digest mode (default):** for each capture, run:
 
 ```
-bash "${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/bin/digest-transcript.sh" "{capture_path}" "/tmp/aria-digest-{filename}"
+d=$(sh "${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/bin/aria-state.sh" path "aria-digest-{filename}") && bash "${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/bin/digest-transcript.sh" "{capture_path}" "$d" && printf '%s\n' "$d"
 ```
 
-Then read the digest (not the raw transcript). Extract findings into the standard six buckets (insights, decisions, feedback, project context, references, ideas) — same categorization as `/extract`.
+Then read the digest at the path it prints (not the raw transcript). If it prints an `aria-state:` reason instead, the private state directory is unavailable: say so and why, write the digest nowhere else, and read that capture in Detailed mode. Extract findings into the standard six buckets (insights, decisions, feedback, project context, references, ideas) — same categorization as `/extract`.
 
 **Detailed mode:** read the full capture directly. Use sparingly (a single capture can consume 30-50K+ tokens).
 

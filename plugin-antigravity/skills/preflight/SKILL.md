@@ -212,13 +212,29 @@ not.
 ## Recording
 
 **Always write the session marker — this is what the commit gate reads.** One line per run,
-appended. Run exactly one of these two lines, unchanged — the first when the verdict is READY, the
-second otherwise:
+appended, in the private per-user state directory, named by `aria-state.sh` so it is the file the
+gate reads. Run the block unchanged, keeping exactly one of its last two lines — the `READY` line
+when the verdict is READY, the `NOT READY` line otherwise:
 
 ```bash
-printf '%s\tREADY\n' "$(date +%H:%M)" >> "${TMPDIR:-/tmp}/aria-preflight-${CLAUDE_SESSION_ID}"
-printf '%s\tNOT READY\n' "$(date +%H:%M)" >> "${TMPDIR:-/tmp}/aria-preflight-${CLAUDE_SESSION_ID}"
+_pf_sid=${CLAUDE_CODE_SESSION_ID:-${CODEX_THREAD_ID:-}}
+_pf_m=""
+if [ -z "$_pf_sid" ]; then
+  echo 'preflight: no session id — marker not written'
+elif _pf_m=$(sh "${CLAUDE_PLUGIN_ROOT}/bin/aria-state.sh" path "aria-preflight-$_pf_sid"); then
+  echo "preflight marker: $_pf_m"
+else
+  _pf_m=""
+fi
+[ -n "$_pf_m" ] && printf '%s\tREADY\n' "$(date +%H:%M)" >> "$_pf_m"
+[ -n "$_pf_m" ] && printf '%s\tNOT READY\n' "$(date +%H:%M)" >> "$_pf_m"
 ```
+
+If it prints `preflight: no session id` or an `aria-state:` reason (the private state directory is
+unavailable, and why), the marker was **not** written: say so with the verdict, and never write it
+anywhere else — the gate reads only this path. When your `ARIA CONFIG` line carries `state_dir=`,
+compare it with the directory of the printed marker path; if they differ (a sandboxed shell can see a
+different temp directory from the hooks), say so — the commit gate will not see this marker.
 
 ⛔ The marker carries the verdict token only. The scope is user-supplied text and never goes into a
 shell command — it lives in the PREFLIGHT table and in the log file below.

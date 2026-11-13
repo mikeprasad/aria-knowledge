@@ -1,0 +1,238 @@
+#!/bin/sh
+# state-dir-model-facing.sh — 2.58.0 private state dir, Task 6 (spec D5 + gate amendments G1-1, G1-2).
+#
+# The hooks know where the state directory and this session's ledger are; the model does not. Every
+# port whose hooks write the ledger therefore STATES both paths in a session-start value line named
+# `ARIA CONFIG` (`state_dir=<dir|none> ledger=<path|none>`), and the skills read and write through the
+# CLI `aria-state.sh path <name>` instead of a guessed temp path. "Stated = written" is the property
+# that matters: a line naming a path no writer uses is worse than no line, because the model would
+# trust it.
+#
+#   M1 config_line_every_source      claude-code: startup / compact / clear carry the paths; the prompt
+#                                    hook writes exactly the stated ledger
+#   M2 config_line_no_state          no state dir: `none`, one user-facing line at startup, none on compact
+#   M3 ports_state_their_paths       Cursor, Codex, Antigravity: one `ARIA CONFIG` line each, ledger =
+#                                    the path that port's own writer creates for the same input
+#   M4 digest_clause                 the 59-byte clause, the 26,152-byte digest, the lock still green
+#   M5 preflight_record_block        the /preflight block: no id -> no file; id -> one READY line the
+#                                    commit gate accepts
+#   M6 skills_name_no_old_location   no skill or rules surface names /tmp/aria-… or ${TMPDIR…}/aria-…
+#   M7 descriptions_unchanged        (GUARD) no SKILL.md description moved since e24934f
+#
+# Measured on 77fa848: 19 arms red, 5 pass by design and are labelled — GUARD (M1's no-other-ledger,
+# M4's lock, M7: non-regression, not evidence the change landed) or instrument (the 59-byte constant,
+# M6's planted control: they prove the probe can fire). Hooks run from the
+# repo tree with HOME, TMPDIR, KT_STATE_BASE and KT_TMP_SWEEP_ROOT all inside one scratch dir, so no
+# run reads or writes the real /tmp, the real state dir or ~/.claude/rules.
+
+DIR="$(cd "$(dirname "$0")/../.." && pwd)"
+PASS=0
+FAIL=0
+ok()  { printf "PASS  %s\n" "$1"; PASS=$((PASS + 1)); }
+bad() { printf "FAIL  %s — %s\n" "$1" "$2"; FAIL=$((FAIL + 1)); }
+check() { if [ "$2" = "$3" ]; then ok "$1"; else bad "$1" "want [$2] got [$3]"; fi; }
+has() { case $1 in *"$2"*) echo 1 ;; *) echo 0 ;; esac; }
+count() { printf '%s' "$1" | awk -v n="$2" '{ while ((i = index($0, n)) > 0) { c++; $0 = substr($0, i + length(n)) } } END { print c + 0 }'; }
+
+command -v jq >/dev/null 2>&1 || { echo "SKIP  state-dir-model-facing: jq is required"; exit 0; }
+
+R=$(mktemp -d "${TMPDIR:-/tmp}/aria-sdmf.XXXXXX") || exit 1
+R=$(cd "$R" && pwd)
+trap 'chmod -R u+rwx "$R" 2>/dev/null; rm -rf "$R"' EXIT
+UIDN=$(id -u)
+GOOD="$R/base"; SD="$GOOD/aria-knowledge-$UIDN"
+BROKEN="$R/broken"
+mkdir -p "$GOOD" "$BROKEN" "$R/home/.claude" "$R/home/.gemini/antigravity" "$R/tmp" "$R/sweep"
+: > "$BROKEN/aria-knowledge-$UIDN"     # a regular file at the state name: reason "not a directory"
+mkdir -m 700 "$SD"
+unset XDG_RUNTIME_DIR KT_HOOK_DEBUG_LOG CLAUDE_CODE_SESSION_ID CODEX_THREAD_ID CLAUDE_SESSION_ID \
+  CLAUDE_CODE_ENTRYPOINT CLAUDE_CODE_EXECPATH __CFBundleIdentifier KT_SURFACE_CACHE_DIR
+export HOME="$R/home" TMPDIR="$R/tmp" KT_TMP_SWEEP_ROOT="$R/sweep" KT_STATE_BASE="$GOOD"
+
+C="$DIR/plugin-claude-code/scripts"
+X="$DIR/plugin-openai-codex/bin"
+U="$DIR/plugin-cursor-template/scripts/aria"
+H="$DIR/plugin-antigravity/bin/antigravity/pre-invocation-aria.sh"
+
+# Fixtures: the shared surfacing index (the prompt below fires on proj-b + payments) in a knowledge
+# folder whose audit logs say audits happened, so every port takes its normal (not first-run) path.
+KF="$R/kf"; P="$R/w/proj"
+mkdir -p "$KF/logs" "$P"
+cp "$DIR/tests/repros/fixtures/surfacing/index.md" "$KF/index.md"
+printf -- '- **Date:** 2026-11-01 — audit\n' > "$KF/logs/knowledge-audit-log.md"
+printf -- '- **Date:** 2026-11-01 — audit\n' > "$KF/logs/config-audit-log.md"
+CFG="$R/cfg.md"
+printf -- '---\nknowledge_folder: %s\nactive_knowledge_surfacing: true\nprojects_enabled: true\nprojects_list: proj-a:proj-a,proj-b:proj-b,proj-c:proj-c\n---\n' "$KF" > "$CFG"
+export KT_CONFIG="$CFG"
+Q="add the roof job to the proj-b payments tab"
+DEP="projects/proj-b/deposits.md"
+
+# run BASE OUT CMD... — CMD from cwd $P, state base BASE, stdin $R/in, stdout OUT.
+run() { _rb=$1; _ro=$2; shift 2; (cd "$P" && KT_STATE_BASE="$_rb" "$@" < "$R/in" > "$_ro" 2>/dev/null); return 0; }
+ctx() { jq -r '.hookSpecificOutput.additionalContext // empty' "$1" 2>/dev/null; }
+sysmsg() { jq -r '.systemMessage // empty' "$1" 2>/dev/null; }
+ledgers() { ls "$SD" 2>/dev/null | grep '^aria-active-' | tr '\n' ' '; }
+
+# --- M1 — claude-code: every SessionStart source states the paths; the prompt hook writes that ledger --
+for src in startup compact clear; do
+  sid="m1-$src"
+  printf '{"session_id":"%s","source":"%s"}' "$sid" "$src" > "$R/in"
+  run "$GOOD" "$R/m1.json" sh "$C/session-start-check.sh"
+  stated=$(has "$(ctx "$R/m1.json")" "state_dir=$SD ledger=$SD/aria-active-$sid.")
+  printf '{"session_id":"%s","prompt":"%s"}' "$sid" "$Q" > "$R/in"
+  run "$GOOD" "$R/m1p.json" sh "$C/prompt-context-check.sh"
+  written=$( [ -f "$SD/aria-active-$sid" ] && grep -qxF "$DEP" "$SD/aria-active-$sid" && echo 1 || echo 0)
+  check "M1 config_line_every_source[$src]: stated|written to the stated path" "1|1" "$stated|$written"
+done
+check "M1 config_line_every_source (GUARD): the prompt hook wrote no other ledger" \
+  "aria-active-m1-clear aria-active-m1-compact aria-active-m1-startup " "$(ledgers)"
+
+# --- M2 — no state directory: `none`, the reason once at startup, nothing on compact -------------------
+printf '{"session_id":"m2","source":"startup"}' > "$R/in"
+run "$BROKEN" "$R/m2s.json" sh "$C/session-start-check.sh"
+printf '{"session_id":"m2","source":"compact"}' > "$R/in"
+run "$BROKEN" "$R/m2c.json" sh "$C/session-start-check.sh"
+M2LINE='ARIA: private state directory unavailable (not a directory) — hooks are running without state.'
+check "M2 config_line_no_state: startup none|compact none|startup user line|compact has no systemMessage" \
+  "1|1|1|0" \
+  "$(has "$(ctx "$R/m2s.json")" 'state_dir=none ledger=none.')|$(has "$(ctx "$R/m2c.json")" 'state_dir=none ledger=none.')|$(has "$(sysmsg "$R/m2s.json")" "$M2LINE")|$(jq -r 'has("systemMessage")' "$R/m2c.json" 2>/dev/null | grep -c true)"
+
+# --- M3 — Cursor, Codex, Antigravity: one ARIA CONFIG line each, naming the ledger its writer uses ----
+# Every fixture carries BOTH id fields with DIFFERENT values, so a port keyed on the wrong one fails.
+# U (Cursor): conversation_id is the key of prompt-capture-check.sh + prompt-context-inject.sh.
+printf '{"conversation_id": "m3u-conv", "session_id": "m3u-sess", "hook_event_name": "sessionStart"}' > "$R/in"
+run "$GOOD" "$R/m3u.json" sh "$U/session-start-check.sh"
+um=$(jq -r '.agentMessage // empty' "$R/m3u.json" 2>/dev/null)
+printf '{"conversation_id":"m3u-conv","generation_id":"g1","session_id":"m3u-sess","prompt":"%s","workspace_roots":["%s"]}' "$Q" "$P" > "$R/in"
+run "$GOOD" "$R/m3uc.out" sh "$U/prompt-capture-check.sh"
+printf '{"conversation_id":"m3u-conv","generation_id":"g1","session_id":"m3u-sess"}' > "$R/in"
+run "$GOOD" "$R/m3ui.out" sh "$U/prompt-context-inject.sh"
+check "M3 ports_state_their_paths[U]: one line|names the conversation ledger|writer wrote it" "1|1|1" \
+  "$(count "$um" 'ARIA CONFIG —')|$(has "$um" "ARIA CONFIG — state_dir=$SD ledger=$SD/aria-active-m3u-conv.")|$(grep -qxF "$DEP" "$SD/aria-active-m3u-conv" 2>/dev/null && echo 1 || echo 0)"
+
+# X (Codex): session_id is the key of codex-hook.py's session_key (turn_id is only its fallback).
+printf '{"session_id":"m3x-sess","turn_id":"m3x-turn","source":"startup"}' > "$R/in"
+run "$GOOD" "$R/m3x.json" sh "$X/session-start-check.sh"
+xm=$(sysmsg "$R/m3x.json")
+printf '{"session_id":"m3x-sess","turn_id":"m3x-turn","prompt":"%s","cwd":"%s"}' "$Q" "$P" > "$R/in"
+run "$GOOD" "$R/m3xp.json" env ARIA_CODEX_PLUGIN_ROOT="$DIR/plugin-openai-codex" python3 -B "$X/codex-hook.py" user-prompt-submit
+check "M3 ports_state_their_paths[X]: one line|names the session ledger|writer wrote it" "1|1|1" \
+  "$(count "$xm" 'ARIA CONFIG —')|$(has "$xm" "ARIA CONFIG — state_dir=$SD ledger=$SD/aria-active-m3x-sess.")|$([ -s "$SD/aria-active-m3x-sess" ] && echo 1 || echo 0)"
+
+# H (Antigravity PreInvocation): the sanitised conversationId is responsibility 4's key. One model call
+# with invocationNum 0 runs responsibility 2 (the session-start message) and responsibility 4.
+cp "$DIR/plugin-antigravity/tests/fixtures/transcript-user-input.jsonl" "$R/t.jsonl"
+jq -cn --arg t "$R/t.jsonl" '{conversationId:"m3h-conv", session_id:"m3h-sess", workspacePaths:["/tmp"],
+  transcriptPath:$t, artifactDirectoryPath:"/tmp/art", invocationNum:0, initialNumSteps:5}' > "$R/in"
+run "$GOOD" "$R/m3h.json" bash "$H"
+hm=$(jq -r '(.injectSteps // [])[0].ephemeralMessage // empty' "$R/m3h.json" 2>/dev/null)
+check "M3 ports_state_their_paths[H]: one line|names the conversation ledger|writer wrote it" "1|1|1" \
+  "$(count "$hm" 'ARIA CONFIG —')|$(has "$hm" "ARIA CONFIG — state_dir=$SD ledger=$SD/aria-active-m3h-conv.")|$(grep -qxF "$DEP" "$SD/aria-active-m3h-conv" 2>/dev/null && echo 1 || echo 0)"
+
+# H's session-start tracked-artifact load records into that same ledger. Until 2.58.0 it keyed on a
+# session_id, which Antigravity payloads do not carry, so it never fired; it now keys on the
+# conversationId, as responsibility 4 does. (A project with a CODEMAP, matched from the cwd.)
+printf '# CODEMAP\n\n## Directory\n' > "$P/CODEMAP.md"
+CFGT="$R/cfg-ta.md"
+printf -- '---\nknowledge_folder: %s\nactive_knowledge_surfacing: true\nprojects_enabled: true\nprojects_list: fx:proj\n---\n' "$KF" > "$CFGT"
+jq -cn '{conversationId:"m3t-conv", session_id:"m3t-sess", workspacePaths:["/tmp"], transcriptPath:"/nonexistent",
+  artifactDirectoryPath:"/tmp/art", invocationNum:0, initialNumSteps:5}' > "$R/in"
+run "$GOOD" "$R/m3t.json" env KT_CONFIG="$CFGT" bash "$H"
+check "M3 ports_state_their_paths[H tracked artifacts]: instruction|recorded in the stated ledger" "1|1" \
+  "$(has "$(jq -r '(.injectSteps // [])[0].ephemeralMessage // empty' "$R/m3t.json" 2>/dev/null)" 'Loaded CODEMAP directory for fx')|$(grep -qxF "$P/CODEMAP.md" "$SD/aria-active-m3t-conv" 2>/dev/null && echo 1 || echo 0)"
+rm -f "$P/CODEMAP.md"
+
+# First-run welcome path (a knowledge folder with no audit log): U and X exit early there, and still
+# state the paths.
+KFW="$R/kf-welcome"; mkdir -p "$KFW"; cp "$KF/index.md" "$KFW/index.md"
+CFGW="$R/cfg-welcome.md"
+printf -- '---\nknowledge_folder: %s\nactive_knowledge_surfacing: true\n---\n' "$KFW" > "$CFGW"
+printf '{"conversation_id": "m3w", "session_id": "m3w-sess", "source": "startup"}' > "$R/in"
+run "$GOOD" "$R/m3wu.json" env KT_CONFIG="$CFGW" sh "$U/session-start-check.sh"
+run "$GOOD" "$R/m3wx.json" env KT_CONFIG="$CFGW" sh "$X/session-start-check.sh"
+check "M3 ports_state_their_paths[welcome]: U welcome+line|X welcome+line" "1|1|1|1" \
+  "$(has "$(jq -r '.agentMessage // empty' "$R/m3wu.json" 2>/dev/null)" 'ARIA Knowledge Active')|$(has "$(jq -r '.agentMessage // empty' "$R/m3wu.json" 2>/dev/null)" "ARIA CONFIG — state_dir=$SD ledger=$SD/aria-active-m3w.")|$(has "$(sysmsg "$R/m3wx.json")" 'ARIA Knowledge Active')|$(has "$(sysmsg "$R/m3wx.json")" "ARIA CONFIG — state_dir=$SD ledger=$SD/aria-active-m3w-sess.")"
+
+# No state dir: each port says `none` for both.
+for t in U X; do
+  case $t in
+    U) printf '{"conversation_id": "m3b", "hook_event_name": "sessionStart"}' > "$R/in"
+       run "$BROKEN" "$R/m3b.json" sh "$U/session-start-check.sh"; bm=$(jq -r '.agentMessage // empty' "$R/m3b.json" 2>/dev/null) ;;
+    X) printf '{"session_id":"m3b","source":"startup"}' > "$R/in"
+       run "$BROKEN" "$R/m3b.json" sh "$X/session-start-check.sh"; bm=$(sysmsg "$R/m3b.json") ;;
+  esac
+  check "M3 ports_state_their_paths[$t no state]: none for both" "1" "$(has "$bm" 'ARIA CONFIG — state_dir=none ledger=none.')"
+done
+jq -cn --arg t "$R/t.jsonl" '{conversationId:"m3b", workspacePaths:["/tmp"], transcriptPath:$t,
+  artifactDirectoryPath:"/tmp/art", invocationNum:0, initialNumSteps:5}' > "$R/in"
+run "$BROKEN" "$R/m3b.json" bash "$H"
+check "M3 ports_state_their_paths[H no state]: none for both" "1" \
+  "$(has "$(jq -r '(.injectSteps // [])[0].ephemeralMessage // empty' "$R/m3b.json" 2>/dev/null)" 'ARIA CONFIG — state_dir=none ledger=none.')"
+
+# --- M4 — the digest clause (G1-2) ----------------------------------------------------------------------
+DIGEST="$DIR/plugin-claude-code/rules/aria-rules.md"
+NEWCL='Skip paths in the file named by `ledger=` in `ARIA CONFIG`.'
+check "M4 digest_clause: new clause is 59 bytes (instrument)" "59" "$(printf '%s' "$NEWCL" | wc -c | tr -d ' ')"
+check "M4 digest_clause: carries the new clause|drops the old ledger name|drops the ls -t warning" "1|0|0" \
+  "$(grep -cF "$NEWCL" "$DIGEST")|$(grep -cF 'aria-active-$CLAUDE_CODE_SESSION_ID' "$DIGEST")|$(grep -cF 'never use `ls -t`' "$DIGEST")"
+dsize=$(wc -c < "$DIGEST" | tr -d ' ')
+check "M4 digest_clause: size = 26152 and within the 26198 ceiling" "26152|1" "$dsize|$([ "$dsize" -le 26198 ] && echo 1 || echo 0)"
+# The per-rule lock, run as plugin-claude-code/tests/test-aria-rules-digest.sh runs it: green with no relock.
+SRC="$DIR/plugin-claude-code/template/rules/working-rules.md"
+LOCK="$DIR/plugin-claude-code/tests/fixtures/aria-rules.digest-lock.tsv"
+. "$DIR/plugin-claude-code/tests/lib-digest-lock.sh"
+dl_bad=""; dl_n=0
+for n in $(cut -f1 "$LOCK" 2>/dev/null); do
+  dl_n=$((dl_n + 1))
+  [ "$(kt_dl_source_sha "$SRC" "$n")" = "$(awk -F'\t' -v n="$n" '$1 == n { print $2 }' "$LOCK")" ] || dl_bad="$dl_bad source:$n"
+  [ "$(kt_dl_digest_sha "$DIGEST" "$n")" = "$(awk -F'\t' -v n="$n" '$1 == n { print $3 }' "$LOCK")" ] || dl_bad="$dl_bad digest:$n"
+done
+check "M4 digest_clause (GUARD): lock rules examined > 30|lock mismatches" "1|" "$([ "$dl_n" -gt 30 ] && echo 1 || echo 0)|$dl_bad"
+
+# --- M5 — the /preflight record block (AC7, locally) ----------------------------------------------------
+PFSKILL="$DIR/plugin-claude-code/skills/preflight/SKILL.md"
+awk '/^```/ { if (inb) { if (keep) { printf "%s", buf; exit } inb = 0; buf = ""; keep = 0; next } inb = 1; next }
+     inb { buf = buf $0 "\n"; if (index($0, "aria-state.sh\" path \"aria-preflight-")) keep = 1 }' "$PFSKILL" \
+  | grep -v 'NOT READY' > "$R/pf-block.sh"
+check "M5 preflight_record_block: the block was found (instrument)" "1" "$([ -s "$R/pf-block.sh" ] && echo 1 || echo 0)"
+pf_run() { (cd "$P" && env CLAUDE_PLUGIN_ROOT="$DIR/plugin-claude-code" KT_STATE_BASE="$GOOD" "$@" sh "$R/pf-block.sh" 2>&1); }
+pf_none=$(pf_run)
+check "M5 preflight_record_block[no id]: refusal printed|no marker anywhere" "1|0" \
+  "$(has "$pf_none" 'preflight: no session id — marker not written')|$(find "$R" -name 'aria-preflight-*' 2>/dev/null | grep -c .)"
+pf_run CLAUDE_CODE_SESSION_ID=pf-x > /dev/null
+check "M5 preflight_record_block[id]: one READY line in the state dir" "1|1" \
+  "$(grep -c . "$SD/aria-preflight-pf-x" 2>/dev/null || echo 0)|$(grep -c '	READY$' "$SD/aria-preflight-pf-x" 2>/dev/null || echo 0)"
+# The commit gate reads that marker: a code commit under preflight_gate: deny is allowed for pf-x and
+# denied for a session with no marker (the positive control).
+GR="$R/gitrepo"; mkdir -p "$GR"
+(cd "$GR" && git init -q && printf 'x\n' > a.sh && git add a.sh) >/dev/null 2>&1
+GCFG="$R/gate-cfg.md"
+printf -- '---\nknowledge_folder: %s\npreflight_gate: deny\n---\n' "$KF" > "$GCFG"
+gate() { printf '{"session_id":"%s","tool_name":"Bash","tool_input":{"command":"git commit -m x"}}' "$1" > "$R/in"
+         (cd "$GR" && KT_STATE_BASE="$GOOD" KT_CONFIG="$GCFG" sh "$C/pre-commit-preflight-check.sh" < "$R/in" 2>/dev/null); }
+check "M5 preflight_record_block: gate allows pf-x|denies an unrecorded session (control)" "0|1" \
+  "$(has "$(gate pf-x)" '"deny"')|$(has "$(gate pf-none)" '"deny"')"
+
+# --- M6 — no skill or rules surface names an old state location ----------------------------------------
+m6_scan() { grep -nE '/tmp/aria-|TMPDIR[^ ]*/aria-' "$@" 2>/dev/null; }
+M6_FILES=$(ls "$DIR"/plugin-claude-code/skills/*/SKILL.md "$DIR"/plugin-openai-codex/skills/*/SKILL.md \
+  "$DIR"/plugin-antigravity/skills/*/SKILL.md "$DIR"/plugin-antigravity/overlays/skills/*/SKILL.md \
+  "$DIR"/plugin-cursor-template/.cursor/rules/*.mdc \
+  "$DIR"/plugin-claude-cowork/skills/prospect/SKILL.md "$DIR"/plugin-claude-cowork/skills/retrospect/SKILL.md \
+  "$DIR"/plugin-claude-code/rules/aria-rules.md "$DIR"/plugin-antigravity/rules/aria-rules.md 2>/dev/null)
+m6_n=$(printf '%s\n' "$M6_FILES" | grep -c .)
+printf 'a /tmp/aria-active-x\nb ${TMPDIR:-/tmp}/aria-r22-bypass-x\nc "$TMPDIR/aria-preflight-x"\nd the state directory\n' > "$R/m6-control.md"
+check "M6 skills_name_no_old_location (instrument): files examined > 100|control reports exactly 3" "1|3" \
+  "$([ "$m6_n" -gt 100 ] && echo 1 || echo 0)|$(m6_scan "$R/m6-control.md" | grep -c .)"
+check "M6 skills_name_no_old_location: hits" "" "$(m6_scan $M6_FILES | sed "s|^$DIR/||")"
+
+# --- M7 (GUARD) — no SKILL.md description changed since the base of the 2.58.0 plan ----------------------
+if git -C "$DIR" rev-parse --verify -q e24934f >/dev/null 2>&1; then
+  check "M7 descriptions_unchanged (GUARD)" "" \
+    "$(git -C "$DIR" diff e24934f -- '*SKILL.md' 2>/dev/null | grep -E '^[-+]description:')"
+else
+  echo "SKIP  M7 descriptions_unchanged: e24934f not in this checkout"
+fi
+
+printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
+[ "$FAIL" -eq 0 ]

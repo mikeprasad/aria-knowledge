@@ -163,8 +163,13 @@ digest_has() { grep -qF "$1" "$DIGEST" && echo yes || echo no; }
 # user-facing banner, which never reaches the model.
 for _vl_needle in 'PROJECT PICKER —' '`ARIA PROJECTS`' 'PROJECT CONTEXT —' '`ARIA PROJECT`' \
                   'CODEMAP FIRST —' '`ARIA CODEMAPS`' '`ARIA USAGE`' 'ARIA CONTEXT —' \
-                  'aria-active-$CLAUDE_CODE_SESSION_ID' 'never use `ls -t`'; do
+                  'Skip paths in the file named by `ledger=` in `ARIA CONFIG`.'; do
   assert_eq "digest carries: $_vl_needle" "yes" "$(digest_has "$_vl_needle")"
+done
+# 2.58.0 (spec D5): the ledger lives in the private state dir and the session-start hook names it in
+# `ARIA CONFIG`, so the digest no longer spells a /tmp path (or the glob warning that went with it).
+for _vl_gone in 'aria-active-$CLAUDE_CODE_SESSION_ID' 'never use `ls -t`'; do
+  assert_eq "digest no longer carries: $_vl_gone" "no" "$(digest_has "$_vl_gone")"
 done
 
 # ⛔ THE GATING GUARANTEE CHANGED SHAPE, AND THAT IS A REAL TRADE, NOT A BUG.

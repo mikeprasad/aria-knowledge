@@ -246,10 +246,25 @@ PRE_URULES=$(_kt_rules_sum "$INSTALLED_URULES")
 
 kt_ensure_rules_files
 
+# The private per-user state dir (lib-state-key.sh), resolved once, BEFORE the config line: the line
+# names it, and the session ledger below lives there. No state dir (spec D3): no ledger is read or
+# written, so nothing is re-surfaced after compaction and no tracked artifact is surfaced (it would
+# repeat every session start), and the human is told once why (emit() drops it on compact).
+. "$SCRIPT_DIR/lib-state-key.sh"
+kt_state_resolve || USER_MESSAGES="${USER_MESSAGES}ARIA: private state directory unavailable (${KT_STATE_REASON}) — hooks are running without state. "
+# The ledger id is the one prompt-context-check.sh writes under: session_id reduced to
+# [A-Za-z0-9._-]. The compact re-surface and the tracked-artifact load below use the same SS_LEDGER,
+# so the path the model is told is the path every writer in this port uses (stated = written).
+SS_LEDGER=""
+_ss_lsid=$(printf '%s' "$SESSION_ID" | LC_ALL=C tr -cd 'A-Za-z0-9._-')
+[ -n "$_ss_lsid" ] && SS_LEDGER=$(kt_state_path "aria-active-${_ss_lsid}") || SS_LEDGER=""
+
 # --- the resolved configuration values --------------------------------------
 # The ONLY thing a byte-identical bundled file cannot carry. Each directive's
-# condition lives in the file, keyed on these names.
-CONFIG_LINE="ARIA CONFIG — knowledge_folder=${KT_KNOWLEDGE_FOLDER} autonomy=${KT_AUTONOMY:-default} session_state=${KT_SESSION_STATE:-false} auto_capture=${KT_AUTO_CAPTURE:-true} active_surfacing=${KT_ACTIVE_SURFACING:-false}. These are the values the standing directives in ~/.claude/rules/aria-rules.md are keyed on."
+# condition lives in the file, keyed on these names. state_dir= and ledger= (2.58.0, spec D5) name
+# the private state directory and this session's surfacing ledger, or `none` (no state dir, or no
+# session id); the digest's ARIA ACTIVE CONTEXT and the skills read the ledger from here.
+CONFIG_LINE="ARIA CONFIG — knowledge_folder=${KT_KNOWLEDGE_FOLDER} autonomy=${KT_AUTONOMY:-default} session_state=${KT_SESSION_STATE:-false} auto_capture=${KT_AUTO_CAPTURE:-true} active_surfacing=${KT_ACTIVE_SURFACING:-false} state_dir=${KT_STATE_DIR:-none} ledger=${SS_LEDGER:-none}. These are the values the standing directives in ~/.claude/rules/aria-rules.md are keyed on."
 
 # --- the rules-file notice --------------------------------------------------
 # One line that carries its own instruction, because the only digest this session holds is the
@@ -285,12 +300,6 @@ fi
 MODEL_MESSAGES="${RULES_NOTICE}${CONFIG_LINE}
 "
 
-# The private per-user state dir (lib-state-key.sh), resolved once: the session ledger below
-# lives there. No state dir (spec D3): no ledger is read or written, so nothing is re-surfaced
-# after compaction and no tracked artifact is surfaced (it would repeat every session start).
-. "$SCRIPT_DIR/lib-state-key.sh"
-kt_state_resolve
-
 # --- after compaction --------------------------------------------------------
 # SessionStart with source "compact" is the ONLY hook channel that reaches the model
 # after compaction. PreCompact and PostCompact have no hookSpecificOutput variant in
@@ -307,8 +316,8 @@ if [ "$HOOK_SOURCE" = "compact" ]; then
 "
   fi
   # Active-surfacing ledger: knowledge files surfaced earlier this session.
-  if [ "$KT_ACTIVE_SURFACING" = "true" ] && [ -n "$SESSION_ID" ]; then
-    LEDGER=$(kt_state_path "aria-active-${SESSION_ID}") || LEDGER=""
+  if [ "$KT_ACTIVE_SURFACING" = "true" ] && [ -n "$SS_LEDGER" ]; then
+    LEDGER=$SS_LEDGER
     # F7 (final fix wave): only a regular file this user owns, never a link (a second guard inside
     # the private state dir, spec D2).
     if [ -n "$LEDGER" ] && [ -s "$LEDGER" ] && [ ! -L "$LEDGER" ] && [ -f "$LEDGER" ] && [ -O "$LEDGER" ]; then
@@ -352,11 +361,9 @@ fi
 # ⚠ Dead until 2026-10-25: it read the session id from "$INPUT", which this script never set,
 # so it never fired from SessionStart. INPUT is now read at the top.
 if [ "$KT_ACTIVE_SURFACING" = "true" ] && [ "$KT_PROJECTS_ENABLED" = "true" ]; then
-  TA_SESSION_ID="$SESSION_ID"
   . "$SCRIPT_DIR/lib-tracked-artifacts.sh"
   kt_artifact_compute_for_path "$PWD"
-  TA_LEDGER=""
-  [ -n "$TA_SESSION_ID" ] && TA_LEDGER=$(kt_state_path "aria-active-${TA_SESSION_ID}")
+  TA_LEDGER=$SS_LEDGER
   if [ -n "$TA_LEDGER" ] && [ "$KT_ARTIFACTS_COUNT" -gt 0 ]; then
     kt_artifact_filter_ledger "$TA_LEDGER"
     if [ "$KT_ARTIFACTS_COUNT" -gt 0 ]; then

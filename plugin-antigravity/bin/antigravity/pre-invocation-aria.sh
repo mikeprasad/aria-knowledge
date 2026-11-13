@@ -101,6 +101,15 @@ if [ "$INVOCATION_NUM" = "0" ]; then
   # 2. Dynamic message building
   MESSAGES=""
 
+  # The session ledger is the one responsibility 4 writes: <state dir>/aria-active-<conversationId
+  # reduced to [A-Za-z0-9._-]> (kt_ps_sanitize_id's charset). The tracked-artifact load below records
+  # into the same file, and the `ARIA CONFIG` line at the end of this block STATES it to the model
+  # (2.58.0, spec D5, gate amendment G1-1): stated = written. `none` with no state dir (spec D3) or no
+  # conversationId.
+  AG_SS_LEDGER=""
+  _ag_lsid=$(printf '%s' "${ARIA_CONVERSATION_ID:-}" | LC_ALL=C tr -cd 'A-Za-z0-9._-')
+  [ -n "$_ag_lsid" ] && AG_SS_LEDGER=$(kt_state_path "aria-active-${_ag_lsid}" 2>/dev/null) || AG_SS_LEDGER=""
+
   if [ "${KT_CONFIGURED:-false}" = "false" ]; then
     MESSAGES="aria-knowledge is installed but not configured. Run /setup to configure your knowledge folder and start capturing knowledge automatically. "
   elif [ -n "${KT_CONFIG_ERROR:-}" ]; then
@@ -316,15 +325,15 @@ ARIA_ACTIVE_CONTEXT
 
     # Tracked artifacts active load
     if [ "${KT_ACTIVE_SURFACING:-}" = "true" ] && [ "${KT_PROJECTS_ENABLED:-}" = "true" ]; then
-      TA_SESSION_ID=$(echo "$ARIA_HOOK_INPUT" | grep -o '"session_id":"[^"]*"' | head -1 | sed 's/"session_id":"//;s/"//' 2>/dev/null)
       if [ -f "$CLAUDE_PLUGIN_ROOT/bin/lib-tracked-artifacts.sh" ]; then
         # shellcheck source=../lib-tracked-artifacts.sh
         source "$CLAUDE_PLUGIN_ROOT/bin/lib-tracked-artifacts.sh"
         kt_artifact_compute_for_path "$PWD"
         # The ledger is in the private state dir; with none (spec D3) nothing is surfaced, since
-        # without the ledger the same instruction would repeat.
-        TA_LEDGER=""
-        [ -n "$TA_SESSION_ID" ] && TA_LEDGER=$(kt_state_path "aria-active-${TA_SESSION_ID}" 2>/dev/null)
+        # without the ledger the same instruction would repeat. Keyed on the conversationId, as
+        # responsibility 4 is: until 2.58.0 this read a session_id Antigravity payloads do not carry,
+        # so the load could never fire.
+        TA_LEDGER=$AG_SS_LEDGER
         if [ -n "$TA_LEDGER" ] && [ "${KT_ARTIFACTS_COUNT:-0}" -gt 0 ]; then
           kt_artifact_filter_ledger "$TA_LEDGER"
           if [ "$KT_ARTIFACTS_COUNT" -gt 0 ]; then
@@ -438,6 +447,10 @@ ARIA_ACTIVE_CONTEXT
         fi
       fi
     fi
+
+    # The private state dir and this conversation's ledger — a separate value line, named as in every
+    # port so one skill sentence serves all ("the file named by `ledger=` in `ARIA CONFIG`").
+    MESSAGES="${MESSAGES}ARIA CONFIG — state_dir=${KT_STATE_DIR:-none} ledger=${AG_SS_LEDGER:-none}. "
   fi
 
   if [ -n "$MESSAGES" ]; then

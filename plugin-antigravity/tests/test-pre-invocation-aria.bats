@@ -277,14 +277,15 @@ logged() { grep -q -- " antigravity $1\$" "$HOOKLOG" 2>/dev/null; }
 @test "R4 existing_responsibilities_unchanged: session-start + drain byte-identical, R4 step appended last" {
   r4_configure
   cp "$FIXTURE" "$SURF/t.jsonl"
-  # A: R4 has nothing to read.
+  # A: R4 has nothing to read. Both runs are ONE conversation: the session-start message states that
+  # conversation's ledger (ARIA CONFIG — ledger=…, 2.58.0), which differs between two conversations.
   printf '%s\n' "--- 2026-05-24T08:00:00Z stepIdx=5 error=none" "[Rule 22 Scope] PASS — sample entry" > "$LOG_FILE"
-  r4_payload "${RUN_ID}E1" "$SURF/missing.jsonl" 0
+  r4_payload "${RUN_ID}E" "$SURF/missing.jsonl" 0
   r4_run
   cp "$SURF/out" "$SURF/outA"
   # B: R4 fires.
   printf '%s\n' "--- 2026-05-24T08:00:00Z stepIdx=5 error=none" "[Rule 22 Scope] PASS — sample entry" > "$LOG_FILE"
-  r4_payload "${RUN_ID}E2" "$SURF/t.jsonl" 0
+  r4_payload "${RUN_ID}E" "$SURF/t.jsonl" 0
   r4_run
   [ "$(jq '.injectSteps | length' "$SURF/outA")" = "2" ]
   jq -r '.injectSteps[0].ephemeralMessage' "$SURF/outA" | grep -q 'RULE 22 ORDERING'
