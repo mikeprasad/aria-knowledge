@@ -8,13 +8,18 @@ modifying the cross-port test harness.
 
 from __future__ import annotations
 
+import ast
+import contextlib
+import hashlib
 import json
 import importlib.util
 import os
 import re
+import stat
 import subprocess
 import sys
 import tempfile
+import uuid
 from pathlib import Path
 
 
@@ -59,8 +64,10 @@ def run_hook(
     payload: dict[str, object],
     *,
     env: dict[str, str] | None = None,
-    expect_json: bool = True,
+    expect_json: bool | None = True,
+    timeout: float | None = None,
 ) -> dict[str, object]:
+    """expect_json=None accepts either a JSON payload or no output at all ({})."""
     hook_env = os.environ.copy()
     hook_env["ARIA_CODEX_PLUGIN_ROOT"] = str(PORT_ROOT)
     hook_env["PLUGIN_ROOT"] = str(PORT_ROOT)
@@ -74,9 +81,12 @@ def run_hook(
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         env=hook_env,
+        timeout=timeout,
         check=False,
     )
     assert proc.returncode == 0, proc.stderr
+    if expect_json is None:
+        return json.loads(proc.stdout) if proc.stdout.strip() else {}
     if not expect_json:
         assert proc.stdout.strip() == "", proc.stdout
         return {}
@@ -667,43 +677,40 @@ def test_user_prompt_submit_survives_an_unencodable_prompt() -> None:
 
 
 def test_active_ledger_link_is_neither_read_nor_written() -> None:
-    # F7 + (a) (final fix wave): the ledger lives at a predictable /tmp/aria-active-<session key>.
-    # A link planted there must not filter the surfaced files (a read) or receive the record (a write).
+    # F7 + (a) (final fix wave): the ledger name is predictable (aria-active-<session key>; in the private
+    # state dir since 2.58.0, where ledger_is_ours is the second guard, spec D2). A link planted there
+    # must not filter the surfaced files (a read) or receive the record (a write).
     prompt = "fix the payments webhooks flow"
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         config = _surfacing_setup(root)
-        env = {"KT_CONFIG": str(config), "TMPDIR": tmp}
-        ledger = Path("/tmp") / f"aria-active-session-{root.name}"
+        base = root / "state-base"
+        base.mkdir()
+        env = {"KT_CONFIG": str(config), "TMPDIR": tmp, "KT_STATE_BASE": str(base)}
+        state_dir = base / _state_name()
+        ledger = state_dir / f"aria-active-session-{root.name}"
         # The hook also keeps a 30 s per-session cooldown; clear it before each run so a silent run
         # is attributable to the ledger, never to the cooldown.
-        cooldown = Path("/tmp") / f"aria-context-session-{root.name}"
+        cooldown = state_dir / f"aria-context-session-{root.name}"
         planted = root / "planted-ledger"
 
         def run(expect_json: bool = True) -> dict[str, object]:
             cooldown.unlink(missing_ok=True)
             return run_hook("user-prompt-submit", _prompt_payload(root, prompt), env=env, expect_json=expect_json)
 
-        try:
-            if ledger.is_symlink() or ledger.exists():
-                ledger.unlink()
-            first = run()
-            assert "ARIA ACTIVE" in first["hookSpecificOutput"]["additionalContext"], first
-            recorded = ledger.read_text(encoding="utf-8")
-            assert recorded.strip(), "control: a regular ledger records the surfaced files"
-            # Control: the same regular ledger filters a repeat (nothing new to surface).
-            run(expect_json=False)
-            planted.write_text(recorded, encoding="utf-8")
-            ledger.unlink()
-            ledger.symlink_to(planted)
-            linked = run()
-            assert "ARIA ACTIVE" in linked["hookSpecificOutput"]["additionalContext"], linked
-            assert planted.read_text(encoding="utf-8") == recorded, "an append went through the link"
-            assert ledger.is_symlink(), "the link was replaced"
-        finally:
-            if ledger.is_symlink() or ledger.exists():
-                ledger.unlink()
-            cooldown.unlink(missing_ok=True)
+        first = run()
+        assert "ARIA ACTIVE" in first["hookSpecificOutput"]["additionalContext"], first
+        recorded = ledger.read_text(encoding="utf-8")
+        assert recorded.strip(), "control: a regular ledger records the surfaced files"
+        # Control: the same regular ledger filters a repeat (nothing new to surface).
+        run(expect_json=False)
+        planted.write_text(recorded, encoding="utf-8")
+        ledger.unlink()
+        ledger.symlink_to(planted)
+        linked = run()
+        assert "ARIA ACTIVE" in linked["hookSpecificOutput"]["additionalContext"], linked
+        assert planted.read_text(encoding="utf-8") == recorded, "an append went through the link"
+        assert ledger.is_symlink(), "the link was replaced"
 
 
 def test_post_compact_does_not_list_a_linked_ledger() -> None:
@@ -1147,6 +1154,504 @@ def test_state_path_refuses_slash_dot_empty() -> None:
         assert hook.aria_state_path(d, name) is None, name
     assert hook.aria_state_path(None, "aria-active-x") is None
     assert hook.aria_state_path(d, "aria-active-x") == d / "aria-active-x"
+
+
+# --- 2.58.0 Task 5: the Codex hook's own state lives in the private state dir (spec D7) -----------
+# Its four names (aria-context-, aria-active-, aria-codex-codemap-, aria-session-inprogress-codex-)
+# moved from /tmp into <KT_STATE_BASE>/aria-knowledge-<uid>; no state dir follows spec D3. Every test
+# here resolves under its own scratch base and only READS the real /tmp and $TMPDIR (to prove no leak).
+
+T5_PROMPT = "fix the payments webhooks flow"
+T5_PATCH = "*** Begin Patch\n*** Add File: src/app.py\n+print('ok')\n*** End Patch\n"
+
+
+@contextlib.contextmanager
+def _env(**values: str | None):
+    """Patch os.environ for one block (None unsets); restore everything after."""
+    saved = {key: os.environ.get(key) for key in values}
+    try:
+        for key, value in values.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+        yield
+    finally:
+        for key, value in saved.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+
+
+def _t5_key(label: str) -> str:
+    return f"session-t5{label}-{uuid.uuid4().hex[:12]}"
+
+
+def _real_tmp_names(key: str) -> list[str]:
+    """Read-only scan of the real /tmp and $TMPDIR for entries whose name carries this test's key."""
+    found: set[str] = set()
+    for d in {"/tmp", os.environ.get("TMPDIR") or "/tmp", tempfile.gettempdir()}:
+        try:
+            names = os.listdir(d)
+        except OSError:
+            continue
+        found.update(f"{d.rstrip('/')}/{n}" for n in names if key in n)
+    return sorted(found)
+
+
+def _tree_names(root: Path, key: str) -> list[str]:
+    return sorted(str(p) for p in root.rglob("*") if key in p.name)
+
+
+def _t5_config(root: Path) -> Path:
+    """The surfacing fixture plus session_state, so one config drives all four names."""
+    config = _surfacing_setup(root)
+    write_config(
+        config,
+        root / "knowledge",
+        "projects_enabled: true\nprojects_list: proj-a:proj-a,proj-b:proj-b,proj-c:proj-c\n"
+        "session_state: true\nauthor_tag: codex-t5\n",
+    )
+    return config
+
+
+def _t5_project(root: Path) -> Path:
+    project = root / "project"
+    (project / "src").mkdir(parents=True)
+    (project / "AGENTS.md").write_text("# Project\n", encoding="utf-8")
+    (project / "CODEMAP.md").write_text("# Codemap\n", encoding="utf-8")
+    return project
+
+
+def _t5_state_dir(base: Path) -> Path:
+    base.mkdir(exist_ok=True)
+    sdir = base / _state_name()
+    sdir.mkdir()
+    sdir.chmod(0o700)
+    return sdir
+
+
+def _ctx(output: object) -> str:
+    hso = output.get("hookSpecificOutput", {}) if isinstance(output, dict) else {}
+    return hso.get("additionalContext", "") if isinstance(hso, dict) else ""
+
+
+def _t5_drive(project: Path, sid: str, env: dict[str, str], *, timeout: float | None = None) -> dict[str, str]:
+    """Drive the three entry points that own the four names; return each one's additionalContext."""
+    common = {"session_id": sid, "turn_id": "turn-t5", "cwd": str(project)}
+    prompt = run_hook(
+        "user-prompt-submit",
+        {"hook_event_name": "UserPromptSubmit", "prompt": T5_PROMPT, **common},
+        env=env, expect_json=None, timeout=timeout,
+    )
+    shell = run_hook(
+        "pre-tool-use",
+        {"hook_event_name": "PreToolUse", "tool_name": "Bash", "tool_input": {"command": "rg payments"},
+         "last_assistant_message": "No marker here.", **common},
+        env=env, expect_json=None, timeout=timeout,
+    )
+    post = run_hook(
+        "post-tool-use",
+        {"hook_event_name": "PostToolUse", "tool_name": "apply_patch", "tool_input": {"command": T5_PATCH}, **common},
+        env=env, expect_json=None, timeout=timeout,
+    )
+    return {"prompt": _ctx(prompt), "shell": _ctx(shell), "post": _ctx(post)}
+
+
+def test_state_names_live_in_state_dir() -> None:
+    sid = _t5_key("names")
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        config = _t5_config(root)
+        project = _t5_project(root)
+        base = root / "state-base"
+        base.mkdir()
+        sdir = base / _state_name()
+        env = {"KT_CONFIG": str(config), "KT_STATE_BASE": str(base)}
+        ctx = _t5_drive(project, sid, env)
+        assert "ARIA ACTIVE" in ctx["prompt"], ctx
+        assert "CODEMAP exists" in ctx["shell"], ctx
+        assert "lastEvent: in-progress" in read(project / "SESSION.md")
+        listing = sorted(p.name for p in sdir.iterdir()) if sdir.is_dir() else ["<no state dir>"]
+        names = {
+            "context": sdir / f"aria-context-{sid}",
+            "active": sdir / f"aria-active-{sid}",
+            "inprogress": sdir / f"aria-session-inprogress-codex-{sid}",
+        }
+        codemaps = sorted(sdir.glob(f"aria-codex-codemap-{sid}-*"))
+        assert len(codemaps) == 1, listing
+        names["codemap"] = codemaps[0]
+        for label, path in names.items():
+            assert path.exists(), (label, listing)
+            st = os.lstat(path)
+            assert stat.S_ISREG(st.st_mode) and (st.st_mode & 0o777) == 0o600, (label, oct(st.st_mode))
+        assert str(project) in read(names["inprogress"])
+        # One ledger for both languages: the Codex SHELL post-compact hook lists what the Python hook
+        # recorded, because both resolve the same <state dir>/aria-active-<session_id>.
+        first = read(names["active"]).splitlines()[0]
+        post_compact = json.dumps(run_hook("post-compact", {"hook_event_name": "PostCompact", "session_id": sid}, env=env))
+        assert first in post_compact, post_compact[:300]
+        assert _real_tmp_names(sid) == [], _real_tmp_names(sid)
+
+
+def test_no_state_dir_skips_surfacing_and_cooldown() -> None:
+    hook = load_hook_module()
+    sid = _t5_key("nostate")
+    control_sid = _t5_key("control")
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        config = _t5_config(root)
+        project = _t5_project(root)
+        healthy = root / "healthy"
+        healthy.mkdir()
+        broken = root / "broken"
+        broken.mkdir()
+        (broken / _state_name()).write_text("", encoding="utf-8")  # spec D3: "not a directory"
+
+        def prompt(base: Path, key: str) -> dict[str, object]:
+            return run_hook(
+                "user-prompt-submit",
+                {"hook_event_name": "UserPromptSubmit", "session_id": key, "turn_id": "turn-t5",
+                 "cwd": str(project), "prompt": T5_PROMPT},
+                env={"KT_CONFIG": str(config), "KT_STATE_BASE": str(base)},
+                expect_json=None,
+            )
+
+        def codemap(base: Path, key: str) -> object:
+            with _StateEnv(base):
+                return hook.maybe_codemap_reminder({"session_id": key, "cwd": str(project)}, "rg payments")
+
+        # Controls: with a state dir, the same inputs surface and remind -- so the silence below is
+        # the missing directory, not a fixture that never fires.
+        assert "ARIA ACTIVE" in _ctx(prompt(healthy, control_sid)), "control: surfacing fires"
+        assert codemap(healthy, control_sid) is not None, "control: the codemap reminder fires"
+
+        assert prompt(broken, sid) == {}, "no state dir: no ARIA ACTIVE, no CODEMAP line, nothing"
+        assert codemap(broken, sid) is None, "no state dir: no codemap reminder"
+        assert _tree_names(root, sid) == [], _tree_names(root, sid)
+        assert _real_tmp_names(sid) == [], _real_tmp_names(sid)
+
+
+def test_no_state_dir_still_marks_session_inprogress() -> None:
+    sid = _t5_key("nostatemark")
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        config = _t5_config(root)
+        project = _t5_project(root)
+        broken = root / "broken"
+        broken.mkdir()
+        (broken / _state_name()).write_text("", encoding="utf-8")
+        run_hook(
+            "post-tool-use",
+            {"hook_event_name": "PostToolUse", "session_id": sid, "turn_id": "turn-t5", "cwd": str(project),
+             "tool_name": "apply_patch", "tool_input": {"command": T5_PATCH}},
+            env={"KT_CONFIG": str(config), "KT_STATE_BASE": str(broken)},
+        )
+        session = read(project / "SESSION.md")
+        assert "lastEvent: in-progress" in session and f"sessionId: {sid}" in session, session[:300]
+        assert _tree_names(root, sid) == [], _tree_names(root, sid)  # no in-progress cache anywhere
+        assert _real_tmp_names(sid) == [], _real_tmp_names(sid)
+
+
+def test_state_name_with_slash_refused() -> None:
+    """GUARD (green on 42e306c, whose names lived in /tmp; mutation-proven): RF5. A session id holding
+    "/" never addresses a path outside the state dir. Directories are planted at the first path
+    component of each name, so a resolver that stopped refusing "/" WOULD reach <base>/x."""
+    sid = "a/../../x"
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        config = _t5_config(root)
+        project = _t5_project(root)
+        base = root / "state-base"
+        sdir = _t5_state_dir(base)
+        planted = ["aria-context-a", "aria-active-a", "aria-session-inprogress-codex-a", "aria-codex-codemap-a"]
+        for name in planted:
+            (sdir / name).mkdir()
+        ctx = _t5_drive(project, sid, {"KT_CONFIG": str(config), "KT_STATE_BASE": str(base)})
+        # The refused name skips its own read and write; the hook still emits its context.
+        assert "ARIA ACTIVE" in ctx["prompt"], ctx
+        assert "CODEMAP exists" in ctx["shell"], ctx
+        assert "lastEvent: in-progress" in read(project / "SESSION.md")
+        assert sorted(os.listdir(base)) == [_state_name()], sorted(os.listdir(base))
+        for name in planted:
+            assert list((sdir / name).iterdir()) == [], name
+
+
+def test_fifo_at_a_state_name_is_no_state() -> None:
+    """GUARD (green on 42e306c, whose names lived in /tmp; mutation-proven): a name that exists but is
+    not a regular file is no state -- never read, never written, never blocked on (a FIFO would hang
+    a plain open forever)."""
+    sid = _t5_key("fifo")
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        config = _t5_config(root)
+        project = _t5_project(root)
+        base = root / "state-base"
+        sdir = _t5_state_dir(base)
+        digest = hashlib.sha1(str(project).encode()).hexdigest()[:12]
+        fifos = [f"aria-context-{sid}", f"aria-active-{sid}", f"aria-session-inprogress-codex-{sid}",
+                 f"aria-codex-codemap-{sid}-{digest}"]
+        for name in fifos:
+            os.mkfifo(sdir / name, 0o600)
+        ctx = _t5_drive(project, sid, {"KT_CONFIG": str(config), "KT_STATE_BASE": str(base)}, timeout=30)
+        assert "ARIA ACTIVE" in ctx["prompt"], ctx
+        assert "CODEMAP exists" in ctx["shell"], ctx
+        assert "lastEvent: in-progress" in read(project / "SESSION.md")
+        for name in fifos:
+            assert stat.S_ISFIFO(os.lstat(sdir / name).st_mode), name
+
+
+def test_run_legacy_capture_survives_a_lone_surrogate() -> None:
+    # A lone surrogate (valid in a JSON \u escape, invalid in UTF-8) made the text-mode encode raise
+    # UnicodeEncodeError and crashed the hook; the surfacing call was fixed earlier (F4), this is the
+    # same class at the legacy-script call.
+    hook = load_hook_module()
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        (root / "bin").mkdir()
+        (root / "bin" / "stub.sh").write_text("cat >/dev/null\nprintf ok\n", encoding="utf-8")
+        with _env(ARIA_CODEX_PLUGIN_ROOT=str(root)):
+            result = hook.run_legacy_capture("stub.sh", "\udcff")
+    assert isinstance(result, tuple) and result[1] == "ok", result
+
+
+def test_git_value_survives_a_missing_git() -> None:
+    # Each text subprocess degrades to its caller's empty result when the program cannot start. Each
+    # arm has a control with a working program, so the empty result is the missing program, not an
+    # earlier return.
+    hook = load_hook_module()
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        empty = root / "empty-path"
+        empty.mkdir()
+        stubs = root / "stubs"
+        stubs.mkdir()
+        (stubs / "git").write_text("#!/bin/sh\nprintf '5\\n'\n", encoding="utf-8")
+        (stubs / "git").chmod(0o755)
+        (root / "bin").mkdir()
+        (root / "bin" / "stub.sh").write_text("printf ok\n", encoding="utf-8")
+        data = {"cwd": tmp, "tool_response": {"stdout": "To origin\n   abc1234..def5678  main -> main\n"}}
+        inputs = {"command": "git push origin main"}
+        config = {"auto_retrospect": "nudge"}
+        with _env(PATH=str(stubs)):
+            assert hook.git_value(root, "rev-parse", "HEAD") == "5", "control: git_value reads git"
+            assert "AUTO-RETROSPECT" in hook.auto_retrospect_message(data, inputs, config), "control"
+        with _env(ARIA_CODEX_PLUGIN_ROOT=str(root)):
+            assert hook.run_legacy_capture("stub.sh", "{}") == (0, "ok", ""), "control: sh runs the stub"
+        with _env(PATH=str(empty), ARIA_CODEX_PLUGIN_ROOT=str(root)):
+            assert hook.git_value(root, "rev-parse", "HEAD") == ""
+            assert hook.auto_retrospect_message(data, inputs, config) == ""
+            assert hook.run_legacy_capture("stub.sh", "{}") == (0, "", "")
+
+
+def _text_runs_without_encoding(source: str) -> tuple[int, list[int]]:
+    """(subprocess.run calls examined, lines of text-mode calls that name no encoding=)."""
+    examined = 0
+    flagged: list[int] = []
+    for node in ast.walk(ast.parse(source)):
+        if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "run"
+                and isinstance(node.func.value, ast.Name) and node.func.value.id == "subprocess"):
+            continue
+        examined += 1
+        kws = {kw.arg: kw.value for kw in node.keywords if kw.arg}
+        textish = any(isinstance(kws.get(k), ast.Constant) and kws[k].value is True for k in ("text", "universal_newlines"))
+        if textish and "encoding" not in kws:
+            flagged.append(node.lineno)
+    return examined, flagged
+
+
+def test_every_text_mode_subprocess_run_names_an_encoding() -> None:
+    # Without encoding=, a text-mode run encodes with the locale: a non-UTF-8 locale or a lone
+    # surrogate raises UnicodeEncodeError inside the hook.
+    examined, flagged = _text_runs_without_encoding(read(PORT_ROOT / "bin" / "codex-hook.py"))
+    assert examined > 0, "the walker examined no subprocess.run call"
+    assert flagged == [], f"text-mode subprocess.run without encoding= at codex-hook.py lines {flagged}"
+    # Positive controls: the walker flags the shape it exists to find, and passes the fixed shape.
+    assert _text_runs_without_encoding('import subprocess\nsubprocess.run(["x"], text=True)\n') == (1, [2])
+    assert _text_runs_without_encoding('import subprocess\nsubprocess.run(["x"], universal_newlines=True)\n') == (1, [2])
+    assert _text_runs_without_encoding('import subprocess\nsubprocess.run(["x"], text=True, encoding="utf-8")\n') == (1, [])
+
+
+
+def _text_file_io_without_encoding(source: str) -> tuple[int, list[int]]:
+    """(text-mode read_text/write_text/open calls examined, lines that name no encoding=). Binary-mode
+    opens and os.open are not text I/O and are not examined."""
+    examined = 0
+    flagged: list[int] = []
+    for node in ast.walk(ast.parse(source)):
+        if not isinstance(node, ast.Call):
+            continue
+        f = node.func
+        kws = {kw.arg: kw.value for kw in node.keywords if kw.arg}
+        if isinstance(f, ast.Attribute) and f.attr in ("read_text", "write_text"):
+            pass
+        elif isinstance(f, ast.Attribute) and f.attr == "open" and not (isinstance(f.value, ast.Name) and f.value.id == "os"):
+            mode = node.args[0] if node.args else kws.get("mode")
+            if isinstance(mode, ast.Constant) and "b" in str(mode.value):
+                continue
+        elif isinstance(f, ast.Name) and f.id == "open":
+            mode = node.args[1] if len(node.args) > 1 else kws.get("mode")
+            if isinstance(mode, ast.Constant) and "b" in str(mode.value):
+                continue
+        else:
+            continue
+        examined += 1
+        if "encoding" not in kws:
+            flagged.append(node.lineno)
+    return examined, flagged
+
+
+def test_every_text_file_read_and_write_names_an_encoding() -> None:
+    # Without encoding=, Python uses the locale: under a non-UTF-8 locale a config path or a
+    # SESSION.md line with non-ASCII text is misread (and SESSION.md is rewritten without it).
+    examined, flagged = _text_file_io_without_encoding(read(PORT_ROOT / "bin" / "codex-hook.py"))
+    assert examined > 0, "the walker examined no text file I/O"
+    assert flagged == [], f"text file I/O without encoding= at codex-hook.py lines {flagged}"
+    # Positive controls.
+    assert _text_file_io_without_encoding("p.read_text()\n") == (1, [1])
+    assert _text_file_io_without_encoding("p.write_text('x')\n") == (1, [1])
+    assert _text_file_io_without_encoding("p.open('a')\n") == (1, [1])
+    assert _text_file_io_without_encoding("open('x')\n") == (1, [1])
+    assert _text_file_io_without_encoding("p.read_text(encoding='utf-8')\nopen('x', 'rb')\nos.open('x', 0)\n") == (1, [])
+
+
+def test_session_md_keeps_non_ascii_text_under_a_c_locale() -> None:
+    # The in-progress mark rewrites SESSION.md. Read with the locale and errors="ignore", a non-UTF-8
+    # locale dropped every non-ASCII character (and any undecodable byte) from the user's file.
+    sid = _t5_key("locale")
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        config = _t5_config(root)
+        project = _t5_project(root)
+        base = root / "state-base"
+        base.mkdir()
+        text = "Café — naïve résumé"
+        (project / "SESSION.md").write_bytes(
+            b"---\nlastEvent: handoff\n---\n\n## Where we left off\n\n" + text.encode("utf-8") + b"\nraw \xff byte\n"
+        )
+        env = {"KT_CONFIG": str(config), "KT_STATE_BASE": str(base),
+               "LC_ALL": "C", "LANG": "C", "PYTHONUTF8": "0", "PYTHONCOERCECLOCALE": "0"}
+        run_hook(
+            "post-tool-use",
+            {"hook_event_name": "PostToolUse", "session_id": sid, "turn_id": "turn-t5", "cwd": str(project),
+             "tool_name": "apply_patch", "tool_input": {"command": T5_PATCH}},
+            env=env,
+        )
+        after = (project / "SESSION.md").read_bytes()
+        assert b"lastEvent: in-progress" in after, "control: the mark happened"
+        assert text.encode("utf-8") in after and b"raw \xff byte" in after, after[-120:]
+
+
+_PARITY_PY = """import importlib.util, sys
+spec = importlib.util.spec_from_file_location("aria_codex_hook", sys.argv[1])
+m = importlib.util.module_from_spec(spec); sys.dont_write_bytecode = True; spec.loader.exec_module(m)
+d, reason = m.aria_state_resolve()
+sys.stdout.write(("" if d is None else str(d)) + "\\n" + reason)"""
+
+_PARITY_SH = '. "$1"; kt_state_resolve; printf "%s\\n%s" "$KT_STATE_DIR" "$KT_STATE_REASON"'
+
+
+def _resolve_both(env: dict[str, str], *, python_first: bool = False) -> tuple[str, str]:
+    full = {k: v for k, v in os.environ.items() if k not in ("KT_STATE_BASE", "XDG_RUNTIME_DIR", "TMPDIR")}
+    full.update(env)
+
+    def sh() -> str:
+        return subprocess.run(
+            ["sh", "-c", _PARITY_SH, "_", str(PORT_ROOT / "bin" / "lib-state-key.sh")], env=full,
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, encoding="utf-8", check=False,
+        ).stdout
+
+    def py() -> str:
+        return subprocess.run(
+            [sys.executable, "-I", "-c", _PARITY_PY, str(PORT_ROOT / "bin" / "codex-hook.py")], env=full,
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, encoding="utf-8", check=False,
+        ).stdout
+
+    if python_first:
+        p = py()
+        return sh(), p
+    s = sh()
+    return s, py()
+
+
+def test_state_resolver_parity_sh_and_python() -> None:
+    """GUARD (green on 42e306c; mutation-proven): given the same environment, the shell resolver
+    (lib-state-key.sh) and the Python one (codex-hook.py) print the same directory and the same
+    refusal reason, so a Codex Python hook and a Codex shell hook in one session share one directory
+    and one ledger. "not owned by you" needs a second uid and is argued, not run here (the Python
+    arm is test_state_dir_refuses_foreign_owner)."""
+    name = _state_name()
+    with tempfile.TemporaryDirectory() as tmp:
+        t = Path(tmp)
+        guard = t / "guard"  # TMPDIR in the base-override cases: a resolver that fell through would create here
+        guard.mkdir()
+        cases: list[tuple[str, dict[str, str], str, str, bool]] = []
+
+        def nb(label: str) -> Path:
+            b = t / label
+            b.mkdir()
+            return b
+
+        b = nb("fresh-sh-first")
+        cases.append(("fresh, sh creates", {"KT_STATE_BASE": f"{b}///", "TMPDIR": str(guard)}, f"{b}/{name}", "", False))
+        b = nb("fresh-py-first")
+        cases.append(("fresh, python creates", {"KT_STATE_BASE": str(b), "TMPDIR": str(guard)}, f"{b}/{name}", "", True))
+        x, x2 = nb("xdg"), nb("xdg-tmpdir")
+        cases.append(("XDG over TMPDIR", {"XDG_RUNTIME_DIR": str(x), "TMPDIR": str(x2)}, f"{x}/{name}", "", False))
+        only = nb("tmpdir-only")
+        cases.append(("TMPDIR only", {"TMPDIR": str(only)}, f"{only}/{name}", "", False))
+        b = nb("link")
+        target = t / "link-target"
+        target.mkdir(mode=0o700)
+        (b / name).symlink_to(target)
+        cases.append(("link", {"KT_STATE_BASE": str(b), "TMPDIR": str(guard)}, "", "is a link", False))
+        b = nb("file")
+        (b / name).write_text("", encoding="utf-8")
+        cases.append(("file", {"KT_STATE_BASE": str(b), "TMPDIR": str(guard)}, "", "not a directory", False))
+        b = nb("mode755")
+        (b / name).mkdir()
+        os.chmod(b / name, 0o755)
+        cases.append(("mode 755", {"KT_STATE_BASE": str(b), "TMPDIR": str(guard)}, "", "mode not 700", False))
+        cases.append(("missing parent", {"KT_STATE_BASE": str(t / "missing" / "base"), "TMPDIR": str(guard)},
+                      "", "not created", False))
+        ro = None
+        if os.getuid() != 0:
+            ro = nb("ro")
+            os.chmod(ro, 0o500)
+            cases.append(("uncreatable parent", {"KT_STATE_BASE": str(ro), "TMPDIR": str(guard)}, "", "not created", False))
+        b = nb("acl")
+        (b / name).mkdir(mode=0o700)
+        acl_cmd = (["chmod", "+a", "everyone allow list", str(b / name)] if sys.platform == "darwin"
+                   else ["setfacl", "-m", "u:nobody:rx", str(b / name)])
+        try:
+            acl_ok = subprocess.run(acl_cmd, stderr=subprocess.DEVNULL, check=False).returncode == 0
+        except OSError:
+            acl_ok = False
+        if acl_ok:
+            cases.append(("ACL", {"KT_STATE_BASE": str(b), "TMPDIR": str(guard)}, "", "has an ACL", False))
+        else:
+            print("SKIP parity ACL case: cannot set an ACL here")
+        if sys.platform == "darwin":
+            # Both read the ACL with one `ls` on macOS; a broken ls must say the permissions could not
+            # be verified in both. (Off Darwin, Python reads xattrs instead of running ls, so a broken
+            # ls is not a shared input there.)
+            b = nb("unverifiable")
+            (b / name).mkdir(mode=0o700)
+            stub = nb("stub-ls")
+            (stub / "ls").write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
+            (stub / "ls").chmod(0o755)
+            cases.append(("unverifiable", {"KT_STATE_BASE": str(b), "TMPDIR": str(guard),
+                                           "PATH": f"{stub}:/usr/bin:/bin"}, "", "permissions not verifiable", False))
+        try:
+            for label, env, want_dir, want_reason, python_first in cases:
+                sh_out, py_out = _resolve_both(env, python_first=python_first)
+                want = f"{want_dir}\n{want_reason}"
+                assert sh_out == want and py_out == want, (label, sh_out, py_out, want)
+        finally:
+            if ro is not None:
+                os.chmod(ro, 0o700)
+        assert list(guard.iterdir()) == [], "a resolver fell through to TMPDIR"
 
 
 if __name__ == "__main__":

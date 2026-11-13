@@ -25,16 +25,23 @@ def run_legacy_capture(script_name: str, hook_input: str, cwd: Path | None = Non
     script = plugin_root / "bin" / script_name
     if not script.exists():
         return 0, "", ""
-    proc = subprocess.run(
-        ["sh", str(script)],
-        input=hook_input,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        env=os.environ.copy(),
-        cwd=str(cwd) if cwd else None,
-        check=False,
-    )
+    try:
+        proc = subprocess.run(
+            ["sh", str(script)],
+            input=hook_input,
+            text=True,
+            # A lone surrogate from a JSON \u escape, or a non-UTF-8 locale, made the encode raise
+            # UnicodeEncodeError (a ValueError) and crashed the hook (as F4 found at the surfacing call).
+            encoding="utf-8",
+            errors="replace",
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=os.environ.copy(),
+            cwd=str(cwd) if cwd else None,
+            check=False,
+        )
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return 0, "", ""  # the script could not run: no output, never a crash
     return proc.returncode, proc.stdout, proc.stderr
 
 
@@ -167,7 +174,7 @@ def transcript_assistant_text(path: Path, turn_id: str) -> str:
         return ""
 
     texts: list[str] = []
-    for line in path.read_text(errors="ignore").splitlines():
+    for line in path.read_text(encoding="utf-8", errors="ignore").splitlines():
         try:
             evt = json.loads(line)
         except json.JSONDecodeError:
@@ -241,7 +248,7 @@ def read_config() -> dict[str, str]:
     path = config_path()
     if not path.exists():
         return {}
-    text = path.read_text(errors="ignore")
+    text = path.read_text(encoding="utf-8", errors="ignore")
     match = re.search(r"^---\n(.*?)\n---", text, re.S | re.M)
     if not match:
         return {}
@@ -468,9 +475,53 @@ def aria_state_path(state_dir: Path | None, name: str) -> Path | None:
     return state_dir / name
 
 
+def state_read(path: Path | None) -> str | None:
+    """The text of a state file, or None when there is no state at the name: no path (no state dir, or
+    a name aria_state_path refused), nothing there, or anything but a regular file. The open never
+    follows a link (O_NOFOLLOW) and never blocks on a FIFO (O_NONBLOCK); fstat decides."""
+    if path is None:
+        return None
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    except OSError:
+        return None
+    try:
+        with os.fdopen(fd, "rb") as fp:
+            if not stat.S_ISREG(os.fstat(fp.fileno()).st_mode):
+                return None
+            return fp.read().decode("utf-8", errors="replace")
+    except OSError:
+        return None
+
+
+def state_write(path: Path | None, text: str, *, append: bool = False) -> bool:
+    """Write (or append) a state file, created 0600. Writes nothing, and returns False, when there is
+    no path or the name holds anything but a regular file (a FIFO with no reader fails the open; one
+    with a reader is refused by fstat before any byte is written)."""
+    if path is None:
+        return False
+    flags = os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK | (os.O_APPEND if append else 0)
+    try:
+        fd = os.open(path, flags, 0o600)
+    except OSError:
+        return False
+    try:
+        with os.fdopen(fd, "wb") as fp:
+            if not stat.S_ISREG(os.fstat(fp.fileno()).st_mode):
+                return False
+            if not append:
+                fp.truncate(0)
+            fp.write(text.encode("utf-8", errors="replace"))
+        return True
+    except OSError:
+        return False
+
+
 def ledger_is_ours(ledger: Path) -> bool:
-    """F7 + (a) (final fix wave): the ledger name is predictable (/tmp/aria-active-<key>), so a link,
-    a non-regular file or a file another user owns is never read or written through."""
+    """F7 + (a) (final fix wave), kept as the second guard by spec D2: the ledger lives in the private
+    state dir (<state dir>/aria-active-<key>), where no other user can create an entry, but a link, a
+    non-regular file or a file another user owns at the name (our own mistake, or a path not routed
+    through the resolver) is still never read or written through."""
     try:
         st = os.lstat(ledger)
     except FileNotFoundError:
@@ -480,21 +531,20 @@ def ledger_is_ours(ledger: Path) -> bool:
     return stat.S_ISREG(st.st_mode) and st.st_uid == os.getuid()
 
 
-def ledger_filter(items: list[str], ledger: Path) -> list[str]:
-    if not ledger_is_ours(ledger):
+def ledger_filter(items: list[str], ledger: Path | None) -> list[str]:
+    if ledger is None or not ledger_is_ours(ledger):
         return items
-    if not ledger.exists() or not ledger.read_text(errors="ignore").strip():
+    text = state_read(ledger)
+    if not text or not text.strip():
         return items
-    seen = set(ledger.read_text(errors="ignore").splitlines())
+    seen = set(text.splitlines())
     return [item for item in items if item.split(" — ", 1)[0] not in seen and item not in seen]
 
 
-def ledger_record(items: list[str], ledger: Path) -> None:
-    if not items or not ledger_is_ours(ledger):
+def ledger_record(items: list[str], ledger: Path | None) -> None:
+    if not items or ledger is None or not ledger_is_ours(ledger):
         return
-    with ledger.open("a", encoding="utf-8") as fp:
-        for item in items:
-            fp.write(item.split(" — ", 1)[0] + "\n")
+    state_write(ledger, "".join(item.split(" — ", 1)[0] + "\n" for item in items), append=True)
 
 
 def user_prompt_submit(data: dict[str, Any]) -> None:
@@ -511,18 +561,25 @@ def user_prompt_submit(data: dict[str, Any]) -> None:
     if not prompt.strip():
         return
 
+    # The cooldown and the session ledger live in the private state dir. No state dir (spec D3): with
+    # no cooldown and no dedupe every prompt would re-inject the same files, so surface nothing. A name
+    # aria_state_path refuses (an id holding "/") skips that name's read and write.
+    state_dir = aria_state_dir()
+    if state_dir is None:
+        return
     key = session_key(data)
-    cooldown = Path("/tmp") / f"aria-context-{key}"
-    if cooldown.exists():
+    cooldown = aria_state_path(state_dir, f"aria-context-{key}")
+    stamp = state_read(cooldown)
+    if stamp is not None:
         try:
-            elapsed = int(datetime.now(timezone.utc).timestamp()) - int(cooldown.read_text(errors="ignore").strip())
+            elapsed = int(datetime.now(timezone.utc).timestamp()) - int(stamp.strip())
             if elapsed < 30:
                 return
         except ValueError:
             pass
 
     active = config_bool(config, "active_knowledge_surfacing", True)
-    ledger = Path("/tmp") / f"aria-active-{key}"
+    ledger = aria_state_path(state_dir, f"aria-active-{key}")
     tags, files = active_context_matches(prompt, knowledge_folder)
     artifacts_message, artifacts = codemap_artifact_message(cwd_from(data), config)
 
@@ -553,13 +610,10 @@ def user_prompt_submit(data: dict[str, Any]) -> None:
     if not messages:
         return
 
-    try:
-        cooldown.write_text(str(int(datetime.now(timezone.utc).timestamp())))
-        if active:
-            ledger_record(files, ledger)
-            ledger_record(artifacts, ledger)
-    except OSError:
-        pass
+    state_write(cooldown, str(int(datetime.now(timezone.utc).timestamp())))
+    if active:
+        ledger_record(files, ledger)
+        ledger_record(artifacts, ledger)
 
     emit(hook_event("UserPromptSubmit", " ".join(messages)))
 
@@ -573,15 +627,17 @@ def maybe_codemap_reminder(data: dict[str, Any], cmd: str) -> dict[str, Any] | N
     if codemap is None:
         return None
 
+    # The once-per-session cooldown lives in the private state dir. No state dir (spec D3): a reminder
+    # with no cooldown would repeat on every search, so emit nothing.
+    state_dir = aria_state_dir()
+    if state_dir is None:
+        return None
     session = str(data.get("session_id") or data.get("turn_id") or os.getpid())
     digest = hashlib.sha1(str(codemap.parent).encode()).hexdigest()[:12]
-    ledger = Path("/tmp") / f"aria-codex-codemap-{session}-{digest}"
-    if ledger.exists():
+    ledger = aria_state_path(state_dir, f"aria-codex-codemap-{session}-{digest}")
+    if state_read(ledger) is not None:
         return None
-    try:
-        ledger.write_text("seen\n")
-    except OSError:
-        pass
+    state_write(ledger, "seen\n")
 
     return hook_event(
         "PreToolUse",
@@ -622,7 +678,7 @@ def tautology_message(paths: list[str], data: dict[str, Any]) -> str:
         if not absolute.exists() or not absolute.is_file():
             continue
         try:
-            text = absolute.read_text(errors="ignore")
+            text = absolute.read_text(encoding="utf-8", errors="ignore")
         except OSError:
             continue
 
@@ -789,13 +845,18 @@ def find_session_root(path: Path) -> Path | None:
 
 
 def git_value(root: Path, *args: str) -> str:
-    proc = subprocess.run(
-        ["git", "-C", str(root), *args],
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
-        check=False,
-    )
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(root), *args],
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return ""  # no git, or a path it cannot encode: no value
     return proc.stdout.strip() if proc.returncode == 0 else ""
 
 
@@ -821,11 +882,14 @@ def mark_session_inprogress(root: Path, session_id: str, author: str) -> None:
     body = ""
     fields: dict[str, str] = {}
     if session_file.exists():
-        parsed = split_frontmatter(session_file.read_text(errors="ignore"))
+        # UTF-8 with surrogateescape round-trips every byte: a locale read (or errors="ignore") would
+        # drop what it cannot decode, and the rewrite below would then delete it from SESSION.md.
+        existing = session_file.read_text(encoding="utf-8", errors="surrogateescape")
+        parsed = split_frontmatter(existing)
         if parsed:
             fields, body = parsed
         else:
-            body = "\n" + session_file.read_text(errors="ignore")
+            body = "\n" + existing
 
     fields["lastEvent"] = "in-progress"
     fields["at"] = now
@@ -853,7 +917,7 @@ def mark_session_inprogress(root: Path, session_id: str, author: str) -> None:
         content = "\n".join(lines) + "\n" + body
     else:
         content = "\n".join(lines) + "\n\n## Where we left off\n\n(session in progress)\n"
-    session_file.write_text(content)
+    session_file.write_text(content, encoding="utf-8", errors="surrogateescape")
 
     if git_value(root, "rev-parse", "--git-dir"):
         ignored = subprocess.run(
@@ -873,8 +937,11 @@ def maybe_mark_session_state(paths: list[str], data: dict[str, Any], config: dic
     session_id = str(data.get("session_id") or data.get("turn_id") or "")
     author = config_value(config, "author_tag")
     key = session_id or hashlib.sha1(str(data.get("transcript_path") or os.getpid()).encode()).hexdigest()[:12]
-    ledger = Path("/tmp") / f"aria-session-inprogress-codex-{key}"
-    seen = set(ledger.read_text(errors="ignore").splitlines()) if ledger.exists() else set()
+    # The per-session cache of roots already marked lives in the private state dir. No state dir, or
+    # a refused name (spec D3): mark every root anyway and keep no cache.
+    ledger = aria_state_path(aria_state_dir(), f"aria-session-inprogress-codex-{key}")
+    cached = state_read(ledger)
+    seen = set(cached.splitlines()) if cached else set()
     for path in paths:
         if Path(path).name == "SESSION.md":
             continue
@@ -886,10 +953,7 @@ def maybe_mark_session_state(paths: list[str], data: dict[str, Any], config: dic
             seen.add(str(root))
         except OSError:
             continue
-    try:
-        ledger.write_text("\n".join(sorted(seen)) + ("\n" if seen else ""))
-    except OSError:
-        pass
+    state_write(ledger, "\n".join(sorted(seen)) + ("\n" if seen else ""))
 
 
 def response_text(value: Any) -> str:
@@ -926,14 +990,19 @@ def auto_retrospect_message(data: dict[str, Any], inputs: dict[str, Any], config
         return ""
     min_commits_raw = config_value(config, "retrospect_min_commits", "3")
     min_commits = int(min_commits_raw) if min_commits_raw.isdigit() else 3
-    count_proc = subprocess.run(
-        ["git", "rev-list", "--count", range_value],
-        cwd=str(cwd_from(data)),
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
-        check=False,
-    )
+    try:
+        count_proc = subprocess.run(
+            ["git", "rev-list", "--count", range_value],
+            cwd=str(cwd_from(data)),
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return ""
     if count_proc.returncode != 0 or not count_proc.stdout.strip().isdigit():
         return ""
     count = int(count_proc.stdout.strip())
@@ -975,7 +1044,7 @@ def pre_tool_use(data: dict[str, Any]) -> None:
         # backup-then-mutate, firing on a quoted `sed -i`). It was REPLACED, not removed:
         # canonical v2.48.1 decides from the RESOLVED mutation target via
         # pre-bash-write-resolve.py. Ported 2026-10-14 — it is run below with its own
-        # payload, and it is the only writer of ${TMPDIR}/aria-r22-bypass-<session_id>,
+        # payload, and it is the only writer of <state dir>/aria-r22-bypass-<session_id>,
         # the ledger /handoff and /wrapup read.
         for script in ("bash-cd-check.sh", "pre-commit-preflight-check.sh"):
             returncode, stdout, stderr = run_legacy_capture(script, compact_json(shell_payload), cwd_from(data))
