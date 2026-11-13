@@ -241,6 +241,43 @@ in_prompt f8; hrun 10 "$GOOD" "$PT/C/prompt-context-check.sh"
 check "F8 old_location_plants_ignored[C prompt]: $DEP still surfaced" "1" "$(has "$HOUT" "$KF/$DEP")"
 mv "$ST/aria-active-f8" "$R/old-plants/st-aria-active-f8"; mv "$R/tmp/aria-active-f8" "$R/old-plants/tmp-aria-active-f8"
 
+# --- F10 — X and U session start: the tracked-artifact load fires and records in the state dir ---------
+# Until fix round 1 both scripts read $INPUT without ever assigning it, and both exited on the first-run
+# welcome before the block, so neither path could fire. Normal path: a knowledge folder whose audit log
+# says an audit happened. Welcome path: the shared fixture folder, which has no audit log (first run).
+KFN="$R/kf-audited"; mkdir -p "$KFN/logs"; cp "$KF/index.md" "$KFN/index.md"
+printf -- '- **Date:** 2026-11-01 — audit\n' > "$KFN/logs/knowledge-audit-log.md"
+printf -- '- **Date:** 2026-11-01 — audit\n' > "$KFN/logs/config-audit-log.md"
+CFGN="$R/cfg-audited.md"
+printf -- '---\nknowledge_folder: %s\nactive_knowledge_surfacing: true\nprojects_enabled: true\nprojects_list: proj-a:proj-a,proj-b:proj-b,proj-c:proj-c,fx:fxproj\n---\n' "$KFN" > "$CFGN"
+WELCOME="ARIA Knowledge Active"
+# in_x SID / in_u CONV — each port's SessionStart payload. Cursor's is spaced and carries only
+# conversation_id, the key its capture/inject hooks use (sessionStart's session_id is documented as
+# the same value).
+in_x() { printf '{"session_id":"%s","source":"startup"}' "$1" > "$R/in"; }
+in_u() { printf '{"conversation_id": "%s", "hook_event_name": "sessionStart", "is_background_agent": false}' "$1" > "$R/in"; }
+for t in X U; do
+  case $t in X) inp=in_x ;; U) inp=in_u ;; esac
+  # normal path
+  $inp "f10n$t"; hrun 20 "$GOOD" "$PT/$t/$hook_ss" KT_CONFIG="$CFGN"; s1=$(has "$HOUT" "$CMSG"); w1=$(has "$HOUT" "$WELCOME")
+  hrun 20 "$GOOD" "$PT/$t/$hook_ss" KT_CONFIG="$CFGN"; s2=$(has "$HOUT" "$CMSG")
+  check "F10 session_start_tracked_artifacts[$t normal]: instruction|not a welcome|ledger lists CODEMAP|second start" "1|0|1|0" \
+    "$s1|$w1|$(inline "$SD/aria-active-f10n$t" "$P/CODEMAP.md")|$s2"
+  # first-run welcome path
+  $inp "f10w$t"; hrun 20 "$GOOD" "$PT/$t/$hook_ss"
+  check "F10 session_start_tracked_artifacts[$t welcome]: welcome|instruction|ledger lists CODEMAP" "1|1|1" \
+    "$(has "$HOUT" "$WELCOME")|$(has "$HOUT" "$CMSG")|$(inline "$SD/aria-active-f10w$t" "$P/CODEMAP.md")"
+  # no state dir: nothing surfaced, on either path (GUARD on 598d0c1, where the block never fired)
+  $inp "f10b$t"; hrun 20 "$BROKEN" "$PT/$t/$hook_ss" KT_CONFIG="$CFGN"; b1=$(has "$HOUT" "$CMSG")
+  hrun 20 "$BROKEN" "$PT/$t/$hook_ss"; b2=$(has "$HOUT" "$CMSG")
+  check "F10 session_start_tracked_artifacts[$t no state] (GUARD): normal|welcome" "0|0" "$b1|$b2"
+done
+# U: session start and prompt capture/inject write ONE ledger for one conversation.
+in_cap f10nU g1; hrun 10 "$GOOD" "$PT/U/prompt-capture-check.sh" KT_CONFIG="$CFGN"
+in_inj f10nU g1; hrun 10 "$GOOD" "$PT/U/prompt-context-inject.sh" KT_CONFIG="$CFGN"
+check "F10 session_start_tracked_artifacts[U]: one ledger holds the CODEMAP and the delivered file" "1|1" \
+  "$(inline "$SD/aria-active-f10nU" "$P/CODEMAP.md")|$(inline "$SD/aria-active-f10nU" "$DEP")"
+
 # --- F9 — census: no shipped shell script names a surfacing state file at an old location -------------
 # Code lines only (full-line comments exempt), every shell script of the four ports plus Antigravity's
 # hand-authored hook. Forms: a literal /tmp/aria-active-, and KT_SURFACE_CACHE_DIR in any use. (The

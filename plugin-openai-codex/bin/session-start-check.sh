@@ -12,6 +12,14 @@
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$SCRIPT_DIR/config.sh"
 
+# Hook input (codex-hook.py passes Codex's SessionStart payload on stdin). Read it here, before any
+# early exit. ⛔ Read stdin only when it is NOT a terminal: a bare `cat` on a terminal blocks, and
+# every caller that pipes must close the pipe. Until 2.58.0 this script never read it, so INPUT was
+# empty and the tracked-artifact block below could never fire (Claude Code fixed the same on
+# 2026-10-25).
+INPUT=""
+[ -t 0 ] || INPUT=$(cat)
+
 # Clear stale batch manifest (>30 min old) left over from crashed sessions.
 # Prevents stale manifests from silently suppressing Rule 22 on subsequent
 # unrelated edits. Safe no-op if no manifest exists or jq is unavailable.
@@ -76,6 +84,37 @@ CONFIG_LOG="$KT_KNOWLEDGE_FOLDER/logs/config-audit-log.md"
 
 MESSAGES=""
 
+# v2.16.1: tracked-artifacts active load — fires when active_knowledge_surfacing
+# is enabled AND PWD substring-matches a configured project. Surfaces CODEMAP
+# directory + (if multi-repo) STITCH with staleness annotation. Complementary
+# to the multi-project CODEMAP staleness report further down; for sessions
+# started inside a project, this gives an active-load instruction alongside that
+# report. For sessions started at ~/Projects (no project match), this silently skips.
+# 2.58.0: computed HERE, into TA_MSG, so the first-run welcome below carries it too (it used to
+# exit before reaching this block); the normal path appends it where the block used to sit.
+TA_MSG=""
+if [ "$KT_ACTIVE_SURFACING" = "true" ] && [ "$KT_PROJECTS_ENABLED" = "true" ]; then
+  # The ledger key is session_id, as codex's other ledger writers and readers use it (codex-hook.py
+  # session_key, bash-cd-check.sh, task-context-check.sh). Whitespace-tolerant: JSON may space it.
+  TA_SESSION_ID=$(printf '%s' "$INPUT" | grep -oE '"session_id"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 \
+    | sed 's/.*:[[:space:]]*"//;s/"$//')
+  . "$SCRIPT_DIR/lib-tracked-artifacts.sh"
+  kt_artifact_compute_for_path "$PWD"
+  # The session ledger lives in the private per-user state dir (lib-state-key.sh). No state dir
+  # (spec D3): no instruction and nothing recorded — without the ledger it would repeat.
+  . "$SCRIPT_DIR/lib-state-key.sh"
+  kt_state_resolve
+  TA_LEDGER=""
+  [ -n "$TA_SESSION_ID" ] && TA_LEDGER=$(kt_state_path "aria-active-${TA_SESSION_ID}")
+  if [ -n "$TA_LEDGER" ] && [ "$KT_ARTIFACTS_COUNT" -gt 0 ]; then
+    kt_artifact_filter_ledger "$TA_LEDGER"
+    if [ "$KT_ARTIFACTS_COUNT" -gt 0 ]; then
+      kt_artifact_record_ledger "$TA_LEDGER"
+      TA_MSG=$KT_ARTIFACTS_INSTRUCTION
+    fi
+  fi
+fi
+
 # First-run detection — show welcome instead of audit prompts for new users
 IS_FIRST_RUN=false
 if [ -f "$KNOWLEDGE_LOG" ]; then
@@ -87,7 +126,7 @@ else
 fi
 
 if [ "$IS_FIRST_RUN" = "true" ]; then
-  MESSAGES="ARIA Knowledge Active: Auto insights collection, Rule 22 logic on edits, context surfacing, audit prompts, and precompact capture. Run /help for commands, see QUICKSTART.md for more."
+  MESSAGES="ARIA Knowledge Active: Auto insights collection, Rule 22 logic on edits, context surfacing, audit prompts, and precompact capture. Run /help for commands, see QUICKSTART.md for more.${TA_MSG:+ $TA_MSG}"
   MESSAGES_ESCAPED=$(kt_json_escape "$MESSAGES")
   echo '{"systemMessage":"'"$MESSAGES_ESCAPED"'"}'
   echo "$(date +%Y-%m-%dT%H:%M:%S) session-start-check: first-run welcome" >> "$KT_KNOWLEDGE_FOLDER/logs/hook-debug.log" 2>/dev/null
@@ -291,32 +330,8 @@ if [ "$KT_PROJECTS_ENABLED" = "true" ] && [ "$KT_SESSION_START_PROJECT_PICKER" =
   fi
 fi
 
-# v2.16.1: tracked-artifacts active load — fires when active_knowledge_surfacing
-# is enabled AND PWD substring-matches a configured project. Surfaces CODEMAP
-# directory + (if multi-repo) STITCH with staleness annotation. Complementary
-# to the existing multi-project CODEMAP staleness report below (line 258+);
-# for sessions started inside a project, this gives an active-load instruction
-# alongside that report. For sessions started at ~/Projects (no project match),
-# this silently skips and the existing block continues unchanged.
-if [ "$KT_ACTIVE_SURFACING" = "true" ] && [ "$KT_PROJECTS_ENABLED" = "true" ]; then
-  # session_id needed for ledger path
-  TA_SESSION_ID=$(echo "$INPUT" | grep -o '"session_id":"[^"]*"' | head -1 | sed 's/"session_id":"//;s/"//' 2>/dev/null)
-  . "$SCRIPT_DIR/lib-tracked-artifacts.sh"
-  kt_artifact_compute_for_path "$PWD"
-  # The session ledger lives in the private per-user state dir (lib-state-key.sh). No state dir
-  # (spec D3): no instruction and nothing recorded — without the ledger it would repeat.
-  . "$SCRIPT_DIR/lib-state-key.sh"
-  kt_state_resolve
-  TA_LEDGER=""
-  [ -n "$TA_SESSION_ID" ] && TA_LEDGER=$(kt_state_path "aria-active-${TA_SESSION_ID}")
-  if [ -n "$TA_LEDGER" ] && [ "$KT_ARTIFACTS_COUNT" -gt 0 ]; then
-    kt_artifact_filter_ledger "$TA_LEDGER"
-    if [ "$KT_ARTIFACTS_COUNT" -gt 0 ]; then
-      kt_artifact_record_ledger "$TA_LEDGER"
-      MESSAGES="${MESSAGES}${KT_ARTIFACTS_INSTRUCTION}"
-    fi
-  fi
-fi
+# Tracked artifacts (computed before first-run detection; see TA_MSG above).
+MESSAGES="${MESSAGES}${TA_MSG}"
 
 # SESSION.md re-entry offer (ported in 2.24.2-codex.0) — flag-gated on
 # session_state. SessionStart fires before the project is always clear, so this
