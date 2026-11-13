@@ -1,6 +1,7 @@
 # 2.59.0 spec — `/auto` and `/prospect` adoptions from a field report
 
-**Status:** spec, pre-`/prospect`. **Target:** canonical 2.59.0 (+ Cowork 1.8.4). **Base:** built on the
+**Status:** spec, `/prospect` 2026-11-12 = PROCEED-WITH-CHANGES; amendments A1–A7 + AC7 applied below
+(log: `knowledge/logs/prospect/2026-11-12-file-aria-2590-auto-prospect-adoption-spec.md`). **Target:** canonical 2.59.0 (+ Cowork 1.8.4). **Base:** built on the
 released 2.58.0 — this branch was cut from local `main` for the docs only and is rebased onto `main`
 after `v2.58.0` is tagged. No source edit lands before that rebase.
 
@@ -59,9 +60,17 @@ four context-free reads then found 5 BLOCKERs those passes had let through.
 **`/prospect --cold`** (Step 3.6, after 3.5, before the report). One round:
 1. The plan must be a file. Scope `file` → that file. Otherwise write the plan the scope resolved to a
    new, uniquely named file in the runtime's scratchpad (file-write tool, never a shell redirect).
-2. Spawn **one** fresh subagent whose prompt is exactly the template below, filled with an environment
-   line and the path — nothing else. ⛔ No goal, ticket, background, project name or "this is about X":
-   any of those rebuilds the writer's context and voids the check.
+2. Spawn **one** subagent whose prompt is exactly the template below, filled with an environment line
+   and the path — nothing else. ⛔ No goal, ticket, background, project name or "this is about X": any of
+   those rebuilds the writer's context and voids the check.
+   ⛔ **The prompt is not the only context (A1).** Per Claude Code's docs (read 2026-11-12, host 2.1.323),
+   a default or custom subagent loads CLAUDE.md and the whole memory hierarchy at startup; the built-in
+   **Plan** and **Explore** agents skip CLAUDE.md and git status. In Claude Code, dispatch the built-in
+   **Plan** agent (it also has no Edit/Write; Explore reads excerpts, and a cold read needs the whole
+   file). A runtime with no instruction-free agent type runs with what it has, and the report states what
+   that reader loaded — it never calls the read context-free when it is not.
+   **Capability, not intent (A2).** "Read only" in a prompt constrains nothing, and Plan keeps Bash. Record
+   `git status --porcelain` before and after the round; any change is a finding and the round is flagged.
    > Your environment: `<what the implementer will have, or "none">`. Read only. Read this file:
    > `<path>`. Then produce: 1. The exact steps you would execute, in order. 2. Everything you cannot
    > reach or resolve. 3. Every place where two instructions conflict. 4. Any content a reader acting
@@ -74,8 +83,9 @@ four context-free reads then found 5 BLOCKERs those passes had let through.
 3. **Findings are leads.** Check each against the plan before it counts. A confirmed BLOCKER sets that
    step's §4.3 action to not-PROCEED, and §4.8's overall verdict cannot be PROCEED while one stands.
    A finding refuted on checking is listed with the refutation.
-4. §4.8 prints a **Cold read** block: round number, environment line used, findings by rank with
-   confirmed/refuted, and the dispatched prompt's character count (evidence it carried only the template).
+4. §4.8 prints a **Cold read** block: round number, subagent type, environment line used, findings by
+   rank with confirmed/refuted, the `git status` before/after result, and the dispatched prompt's
+   character count (evidence it carried only the template).
 
 **`/auto … cold` / `cold=<N>`.** At every `/prospect` the arc runs, pass `--cold` and repeat rounds after
 applying amendments, until a round finds **no confirmed BLOCKER** or `N` rounds have run (default 4,
@@ -90,9 +100,14 @@ walkthrough and the Step 0.5 contract, so a mis-parse is visible before any work
   the contract states "~1 subagent per round, up to N rounds per prospect".
 - Opt-in only. No mode turns it on implicitly.
 
-**Where.** `prospect/SKILL.md`: frontmatter `argument-hint` + description, Step 0 modifier list, new
-Step 3.6, §4.3, §4.8, Step 8 validation gates. `auto/SKILL.md`: `argument-hint`, description, Step 0
-modifiers + worked cases, Step 0¾ config axis, Step 0.5 contract line, Step 1 arc steps 3 and 5, Step 5.
+**Where.** `prospect/SKILL.md`: frontmatter `argument-hint` and `allowed-tools` (+ `Agent`, A3 —
+`allowed-tools` pre-approves and never restricts, so without it `--cold` can stall on a permission
+prompt), Step 0 modifier list, new Step 3.6, §4.3, §4.8, Step 8 validation gates. `auto/SKILL.md`:
+`argument-hint`, Step 0 modifiers + worked cases, Step 0¾ config axis, Step 0.5 contract line, Step 1 arc
+steps 3 and 5, Step 5.
+⛔ **No frontmatter `description` changes (A4).** `/auto`'s is 1,005 chars against claude.ai's 1,024
+per-skill cap, and Gate B (summed descriptions) had 709 B of headroom on local `main`. `argument-hint` is
+not counted by Gate B. Re-measure both after the rebase.
 
 ### R2 — A receipt for every command the plan hands over
 
@@ -121,8 +136,9 @@ job is to prove another part of the plan worked (a pin, a count, a probe) — ra
 the next move is to offer SHRINK or KILL for that step, with what removing it costs, before another fix
 round. Existing verdict vocabulary; this adds only the trigger.
 
-**Where.** `auto/SKILL.md` Step 1 arc step 3 (the amendment loop). `prospect/SKILL.md` §4.8, reading the
-previous prospect log for the same target from `knowledge/logs/prospect/` when one exists.
+**Where.** `auto/SKILL.md` Step 1 arc step 3 (the amendment loop) **only (A5)**. `/auto` is the one place
+rounds repeat and are counted; a standalone `/prospect` has no reliable key to its previous round (its log
+frontmatter names no reviewed source), so the `/prospect` half was falsified at the gate and dropped.
 
 ### R4 — Regenerate, then diff identifiers
 
@@ -141,8 +157,9 @@ does not proceed. Collection is early and in one place; asking stays one at a ti
 Distinct from the D7 ledger: D7 records decisions the agent made but could not validate; this table
 lists decisions the agent must not make at all.
 
-**Where.** `auto/SKILL.md` Step 1 arc step 2. `prospect/SKILL.md` §4.9: a step depending on an
-unanswered row is DEFER, citing the row.
+**Where.** `auto/SKILL.md` Step 1 arc step 2. `prospect/SKILL.md` §4.3 (A6 — §4.3 is where Actions are
+assigned; §4.9 is the process pre-mortem and assigns none): a step depending on an unanswered row is
+DEFER, citing the row.
 
 ### R6 — A base that moves under the plan
 
@@ -187,7 +204,8 @@ any residual asks, and the log path. The full report is still written to the log
 **Today (counted 2026-11-12, `/usr/bin/grep -oE 'feedback_[a-z0-9_]+'` per file):** 7 in each port's
 `prospect/SKILL.md` (×4), 3 in each port's `retrospect/SKILL.md` (×4), 10 in the Cursor
 `aria-commands.mdc`, 1 in `plugin-claude-code/tests/test-aria-rules-digest.sh` (a comment). The report
-named only `/prospect`'s seven.
+named only `/prospect`'s seven. ⚠ (A7) 2.58.0 edits these same skills, so these counts are a local-`main`
+snapshot: re-census after the rebase, and AC1 is a grep-to-zero with a firing control, never a count.
 
 **Wanted.** Each cited name is replaced by the plain rule it stood for (e.g. "per
 `feedback_per_item_review_cadence`" → "one ask at a time unless the user asks for a batch"). Then
@@ -242,6 +260,12 @@ Each names the check that can fail it.
   (Tier / First identified / summary / Detection cues / Why / Counter-discipline).
 - **AC6 (gates).** Full plugin suite, hygiene gate (incl. the private list and every commit message),
   port-drift check: bare exit 0.
+- **AC7 (reviewer identity).** Step 3.6's text names the Claude Code subagent type (Plan) with its host
+  version stamp, and the Cold read block's fields include the subagent type and the `git status`
+  before/after result; a repro asserts both in every port carrying the step.
+- **Port Task 0 (measure first).** Before any port's text is written, read each runtime's current docs
+  (Codex, Cowork, Antigravity) for whether it can start a subagent and what that subagent loads; record
+  the answer with the runtime version. Unknown ⇒ that port prints the not-run line.
 
 **Success signal — live, owed after release (cannot be shown by a repro):**
 - L1: `/prospect file <a real plan> --cold` dispatches a subagent whose prompt is only the template
