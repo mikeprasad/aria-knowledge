@@ -28,9 +28,19 @@ trap 'chmod -R u+w "$SCRATCH" 2>/dev/null; rm -rf "$SCRATCH"' EXIT
 mkdir -p "$SCRATCH/tmp" "$SCRATCH/home" "$SCRATCH/cache"
 TMPDIR="$SCRATCH/tmp"; export TMPDIR
 HOME="$SCRATCH/home"; export HOME
-# The parse cache lives here, not in TMPDIR, so no_temp_files_left still
-# means "no stray temp files" and the cache arms own their directories.
-KT_SURFACE_CACHE_DIR="$SCRATCH/cache"; export KT_SURFACE_CACHE_DIR
+# The parse cache lives in the private state dir (2.58.0), here under a scratch KT_STATE_BASE, not
+# in TMPDIR, so no_temp_files_left still means "no stray temp files" and the cache arms own their
+# bases. The lib reads the dir the CALLER resolved (lib-state-key.sh), as every hook does.
+unset XDG_RUNTIME_DIR
+KT_STATE_BASE="$SCRATCH/cache"; export KT_STATE_BASE
+# shellcheck disable=SC1090
+. "$REPO_ROOT/plugin-claude-code/scripts/lib-state-key.sh"
+kt_state_resolve
+UIDN=$(id -u)
+# use_base DIR — the state dir becomes <DIR>/aria-knowledge-<uid>, resolved as a hook run would.
+use_base() { KT_STATE_BASE=$1; export KT_STATE_BASE; mkdir -p "$1" 2>/dev/null; kt_state_resolve; }
+# sdir DIR — the state dir under base DIR.
+sdir() { printf '%s/aria-knowledge-%s' "$1" "$UIDN"; }
 KT_KNOWLEDGE_FOLDER="$FIX"; export KT_KNOWLEDGE_FOLDER
 
 # projects_list comes from the fixture config, extracted the way config.sh does
@@ -237,20 +247,21 @@ sum_of() { cksum < "$1" | cut -d' ' -f1-2; }
 
 # --- cache_built_on_first_call --- one match writes the cache, named from the
 # cksum of the index PATH, its first line naming the cksum of the index CONTENT;
-# a second (warm) call answers the same. With KT_SURFACE_CACHE_DIR unset the
-# cache goes to TMPDIR.
+# a second (warm) call answers the same. With no state dir resolved there is no
+# cache at all (nothing written in TMPDIR) and the answer is the same.
 C1="$SCRATCH/cache-built"; mkdir -p "$C1"
-_saved_cd=$KT_SURFACE_CACHE_DIR; KT_SURFACE_CACHE_DIR="$C1"
-c1_file="$C1/aria-surface-$(idx_key "$FIX/index.md").tsv"
+_saved_cd=$KT_STATE_BASE; use_base "$C1"
+c1_file="$(sdir "$C1")/aria-surface-$(idx_key "$FIX/index.md").tsv"
 kt_index_match "$MAINQ"; c1_cold=$(ranked); kt_match_cleanup
 c1_exists=no; [ -f "$c1_file" ] && c1_exists=yes
 c1_head=""; [ -f "$c1_file" ] && IFS= read -r c1_head < "$c1_file"
 kt_index_match "$MAINQ"; c1_warm=$(ranked); kt_match_cleanup
-KT_SURFACE_CACHE_DIR=$_saved_cd
+use_base "$_saved_cd"
 mkdir -p "$SCRATCH/tmp2"
-c1_default=$( unset KT_SURFACE_CACHE_DIR; TMPDIR="$SCRATCH/tmp2"; export TMPDIR
-  kt_index_match "$MAINQ"; kt_match_cleanup
-  [ -f "$SCRATCH/tmp2/aria-surface-$(idx_key "$FIX/index.md").tsv" ] && echo yes || echo no )
+c1_default=$( KT_STATE_DIR=; TMPDIR="$SCRATCH/tmp2"; export TMPDIR
+  kt_index_match "$MAINQ"; _c1n=$(ranked); kt_match_cleanup
+  if [ -z "$(find "$SCRATCH/tmp2" -name 'aria-surface-*' 2>/dev/null)" ] && [ "$_c1n" = "$MAIN_EXPECT" ]; then
+    echo yes; else echo no; fi )
 case "$c1_head" in *" $(sum_of "$FIX/index.md")") c1_keyed=yes ;; *) c1_keyed=no ;; esac
 if [ "$c1_exists" = yes ] && [ "$c1_keyed" = yes ] && [ "$c1_default" = yes ] \
    && [ "$c1_cold" = "$MAIN_EXPECT" ] && [ "$c1_warm" = "$MAIN_EXPECT" ]; then
@@ -265,15 +276,15 @@ fi
 # is needed because the key is the content, not the mtime.
 KF="$SCRATCH/kf"; cp -R "$FIX" "$KF"
 C2="$SCRATCH/cache-inval"; mkdir -p "$C2"
-_saved_kf=$KT_KNOWLEDGE_FOLDER; KT_KNOWLEDGE_FOLDER="$KF"; KT_SURFACE_CACHE_DIR="$C2"
-c2_file="$C2/aria-surface-$(idx_key "$KF/index.md").tsv"
+_saved_kf=$KT_KNOWLEDGE_FOLDER; KT_KNOWLEDGE_FOLDER="$KF"; use_base "$C2"
+c2_file="$(sdir "$C2")/aria-surface-$(idx_key "$KF/index.md").tsv"
 kt_index_match "gadgets and webhooks"; c2_before=$KT_MATCH_COUNT; kt_match_cleanup
 c2_head1=""; [ -f "$c2_file" ] && IFS= read -r c2_head1 < "$c2_file"
 awk '/^## Other Tags/ { print "### gadgets"; print "- references/gadget-guide.md — Gadget guide"; print "" } { print }' \
   "$FIX/index.md" > "$KF/index.md"
 kt_index_match "gadgets and webhooks"; c2_tags=$KT_MATCH_TAGS; c2_got=$(ranked); kt_match_cleanup
 c2_head2=""; [ -f "$c2_file" ] && IFS= read -r c2_head2 < "$c2_file"
-KT_KNOWLEDGE_FOLDER=$_saved_kf; KT_SURFACE_CACHE_DIR=$_saved_cd
+KT_KNOWLEDGE_FOLDER=$_saved_kf; use_base "$_saved_cd"
 c2_want="references/gadget-guide.md projects/proj-a/hooks.md references/webhook-basics.md"
 case "$c2_head2" in *" $(sum_of "$KF/index.md")") c2_keyed=yes ;; *) c2_keyed=no ;; esac
 if [ "$c2_before" -eq 0 ] && [ -n "$c2_head1" ] && [ "$c2_head1" != "$c2_head2" ] && [ "$c2_keyed" = yes ] \
@@ -291,14 +302,14 @@ if [ "$(id -u)" -eq 0 ]; then
   printf "SKIP  cache_survives_unwritable_dir — running as root, a read-only dir does not stop writes\n"
 else
   C3="$SCRATCH/cache-ro"; mkdir -p "$C3"; chmod 555 "$C3"
-  KT_SURFACE_CACHE_DIR="$C3"
+  use_base "$C3"
   kt_index_match "$MAINQ"; c3_rc=$?; c3_main=$(ranked); kt_match_cleanup
   kt_index_match "check webhooks and payments"; c3_rc2=$?; c3_rar=$(ranked); kt_match_cleanup
   c3_files_ro=$(find "$C3" -type f | wc -l | tr -d ' ')
-  chmod 755 "$C3"
+  chmod 755 "$C3"; kt_state_resolve     # the next hook run resolves again
   kt_index_match "$MAINQ"; kt_match_cleanup
-  c3_built=no; [ -f "$C3/aria-surface-$(idx_key "$FIX/index.md").tsv" ] && c3_built=yes
-  KT_SURFACE_CACHE_DIR=$_saved_cd
+  c3_built=no; [ -f "$(sdir "$C3")/aria-surface-$(idx_key "$FIX/index.md").tsv" ] && c3_built=yes
+  use_base "$_saved_cd"
   c3_rar_want="projects/proj-c/billing-1.md projects/proj-a/hooks.md references/webhook-basics.md projects/proj-c/billing-2.md projects/proj-c/billing-3.md"
   if [ "$c3_rc" -eq 0 ] && [ "$c3_rc2" -eq 0 ] && [ "$c3_main" = "$MAIN_EXPECT" ] && [ "$c3_rar" = "$c3_rar_want" ] \
      && [ "$c3_files_ro" -eq 0 ] && [ "$c3_built" = yes ]; then
@@ -321,10 +332,10 @@ awk '/^### payments/ { print "### aaa-shift"; for (i = 1; i <= 6; i++) print "- 
   "$FIX/index.md" > "$KF5S/index.md"
 C5="$SCRATCH/cache-swap"; C5S="$SCRATCH/cache-swap-src"; mkdir -p "$C5" "$C5S"
 _saved_kf=$KT_KNOWLEDGE_FOLDER
-KT_KNOWLEDGE_FOLDER="$KF5S"; KT_SURFACE_CACHE_DIR="$C5S"
+KT_KNOWLEDGE_FOLDER="$KF5S"; use_base "$C5S"
 kt_index_match "$MAINQ"; kt_match_cleanup
 c5_shifted=$(kt_index_cache_path)
-KT_KNOWLEDGE_FOLDER="$KF5"; KT_SURFACE_CACHE_DIR="$C5"
+KT_KNOWLEDGE_FOLDER="$KF5"; use_base "$C5"
 kt_index_match "$MAINQ"; c5_clean=$(ranked); c5_clean_tags=$KT_MATCH_TAGS; kt_match_cleanup
 C5_TARGET=$(kt_index_cache_path)
 C5_SWAP="$SCRATCH/swap-pending.tsv"; cp "$c5_shifted" "$C5_SWAP"
@@ -337,7 +348,7 @@ _kt_index_cache_plan() {
 kt_index_match "$MAINQ"; c5_got=$(ranked); c5_tags=$KT_MATCH_TAGS; kt_match_cleanup
 c5_swapped=no; [ ! -f "$C5_SWAP" ] && c5_swapped=yes
 eval "$(sed -n '/^_kt_index_cache_plan() {/,/^}/p' "$LIB")"
-KT_KNOWLEDGE_FOLDER=$_saved_kf; KT_SURFACE_CACHE_DIR=$_saved_cd
+KT_KNOWLEDGE_FOLDER=$_saved_kf; use_base "$_saved_cd"
 if [ -n "$c5_shifted" ] && [ "$c5_clean" = "$MAIN_EXPECT" ] && [ "$c5_swapped" = yes ] \
    && [ "$c5_got" = "$c5_clean" ] && [ "$c5_tags" = "$c5_clean_tags" ]; then
   ok "cache_swap_mid_query_is_consistent"
@@ -346,7 +357,7 @@ else
 fi
 
 # --- aria-surface.sh CLI arms --- the script is run as a subprocess with HOME,
-# TMPDIR and KT_SURFACE_CACHE_DIR already isolated above. The config is written
+# TMPDIR and KT_STATE_BASE already isolated above. The config is written
 # in the format config.sh parses (YAML-ish front matter between --- lines); the
 # committed fixture config.md has no knowledge_folder, so it is not used here.
 CLI="$REPO_ROOT/plugin-claude-code/scripts/aria-surface.sh"
@@ -425,12 +436,12 @@ _saved_kf=$KT_KNOWLEDGE_FOLDER; _saved_pl=$KT_PROJECTS_LIST
 # CACHE path ranks dense queries; a fallback rescuing a broken cache path would
 # mask it.
 _kt_index_cache_select_awk() { return 1; }
-KT_KNOWLEDGE_FOLDER="$KFM"; KT_SURFACE_CACHE_DIR="$SCRATCH/cache-many"; mkdir -p "$KT_SURFACE_CACHE_DIR"
+KT_KNOWLEDGE_FOLDER="$KFM"; use_base "$SCRATCH/cache-many"
 kt_index_match "$mq_all"; m_all_n=$KT_MATCH_COUNT; m_all_t=$(printf '%s' "$KT_MATCH_TAGS" | wc -w | tr -d ' '); m_all=$(ranked); kt_match_cleanup
 kt_index_match "$mq_odd"; m_odd_n=$KT_MATCH_COUNT; m_odd=$(ranked); kt_match_cleanup
 KT_PROJECTS_LIST="$mp_list"
 kt_index_match "$mq_proj"; m_proj_n=$KT_MATCH_COUNT; m_proj_t=$(printf '%s' "$KT_MATCH_TAGS" | wc -w | tr -d ' '); m_proj=$(ranked); kt_match_cleanup
-KT_KNOWLEDGE_FOLDER=$_saved_kf; KT_PROJECTS_LIST=$_saved_pl; KT_SURFACE_CACHE_DIR=$_saved_cd
+KT_KNOWLEDGE_FOLDER=$_saved_kf; KT_PROJECTS_LIST=$_saved_pl; use_base "$_saved_cd"
 unset -f _kt_index_cache_select_awk
 eval "$(sed -n '/^_kt_index_cache_select_awk() {/,/^}/p' "$LIB")"
 m_all_want="references/n011.md references/n012.md references/n013.md references/n014.md references/n015.md"
@@ -488,13 +499,13 @@ KFR="$SCRATCH/kfr"; mkdir -p "$KFR"
   printf '\n### beta\n- references/cand-a.md — Candidate A\n'
   for i in 1 2 3 4 5 6 7 8; do printf -- '- references/beta-%d.md — Filler %d\n' "$i" "$i"; done
 } > "$KFR/index.md"
-_saved_kf=$KT_KNOWLEDGE_FOLDER; KT_KNOWLEDGE_FOLDER="$KFR"; KT_SURFACE_CACHE_DIR="$SCRATCH/cache-rar"; mkdir -p "$KT_SURFACE_CACHE_DIR"
+_saved_kf=$KT_KNOWLEDGE_FOLDER; KT_KNOWLEDGE_FOLDER="$KFR"; use_base "$SCRATCH/cache-rar"
 kt_index_match "alpha beta gamma delta"; r_got=$(ranked); kt_match_cleanup
 _kt_index_cache_select_sed() { return 1; }
 kt_index_match "alpha beta gamma delta"; r_fb=$(ranked); kt_match_cleanup
 unset -f _kt_index_cache_select_sed
 eval "$(sed -n '/^_kt_index_cache_select_sed() {/,/^}/p' "$LIB")"
-KT_KNOWLEDGE_FOLDER=$_saved_kf; KT_SURFACE_CACHE_DIR=$_saved_cd
+KT_KNOWLEDGE_FOLDER=$_saved_kf; use_base "$_saved_cd"
 r_want="references/cand-a.md references/cand-b.md references/alpha-1.md references/gamma-1.md references/gamma-2.md"
 if [ "$r_got" = "$r_want" ]; then ok "rarest_tag_is_min_not_max"
 else bad "rarest_tag_is_min_not_max" "got '$r_got' want '$r_want' (fallback path '$r_fb')"; fi
@@ -506,7 +517,7 @@ else bad "rarest_tag_is_min_not_max" "got '$r_got' want '$r_want' (fallback path
 # run (the failure is detected and the next attempt answers). The query's
 # groups (payments, webhooks) are not adjacent, so the cut drops one.
 C6="$SCRATCH/cache-trunc"; mkdir -p "$C6"
-KT_SURFACE_CACHE_DIR="$C6"
+use_base "$C6"
 kt_index_match "check webhooks and payments"; t_clean=$(ranked); kt_match_cleanup
 T6="$SCRATCH/truncate-once"; : > "$T6"
 eval "$(sed -n '/^_kt_index_cache_plan() {/,/^}/p' "$LIB" | sed '1s/^_kt_index_cache_plan()/_kt_orig_plan()/')"
@@ -516,7 +527,7 @@ _kt_index_cache_plan() {
 kt_index_match "check webhooks and payments"; t_got=$(ranked); kt_match_cleanup
 t_fired=no; [ ! -f "$T6" ] && t_fired=yes
 eval "$(sed -n '/^_kt_index_cache_plan() {/,/^}/p' "$LIB")"
-KT_SURFACE_CACHE_DIR=$_saved_cd
+use_base "$_saved_cd"
 t_want="projects/proj-c/billing-1.md projects/proj-a/hooks.md references/webhook-basics.md projects/proj-c/billing-2.md projects/proj-c/billing-3.md"
 if [ "$t_fired" = yes ] && [ "$t_clean" = "$t_want" ] && [ "$t_got" = "$t_clean" ]; then ok "cache_truncated_plan_is_a_failure"
 else bad "cache_truncated_plan_is_a_failure" "fired $t_fired clean '$t_clean' got '$t_got'"; fi
@@ -526,7 +537,7 @@ else bad "cache_truncated_plan_is_a_failure" "fired $t_fired clean '$t_clean' go
 # as "nothing matched". Expected values are declared per arm. Seen RED on 224c8b8
 # (the variable did not exist, so every arm read empty).
 st_check() { if [ "$2" = "$3" ]; then ok "match_status: $1 → $2"; else bad "match_status: $1 → $2" "got '${3}'"; fi; }
-_st_kf=$KT_KNOWLEDGE_FOLDER; _st_cd=$KT_SURFACE_CACHE_DIR; _st_tmp=$TMPDIR
+_st_kf=$KT_KNOWLEDGE_FOLDER; _st_cd=$KT_STATE_BASE; _st_tmp=$TMPDIR
 kt_index_match "$MAINQ"; st_check "a query that fires" ok "$KT_MATCH_STATUS"; kt_match_cleanup
 kt_index_match "nothing relevant here at all"; st_check "a query below the firing rule" nofire "$KT_MATCH_STATUS"; kt_match_cleanup
 kt_index_match ""; st_check "an empty query" nofire "$KT_MATCH_STATUS"
@@ -534,7 +545,7 @@ KT_KNOWLEDGE_FOLDER=""; kt_index_match "$MAINQ"; st_check "no knowledge folder" 
 mkdir -p "$SCRATCH/kf-noindex"; KT_KNOWLEDGE_FOLDER="$SCRATCH/kf-noindex"
 kt_index_match "$MAINQ"; st_check "no index.md" error:no-index "$KT_MATCH_STATUS"
 mkdir -p "$SCRATCH/kf-unreadable"; cp "$FIX/index.md" "$SCRATCH/kf-unreadable/index.md"; chmod 000 "$SCRATCH/kf-unreadable/index.md"
-KT_KNOWLEDGE_FOLDER="$SCRATCH/kf-unreadable"; KT_SURFACE_CACHE_DIR="$SCRATCH/cache-unr"; mkdir -p "$KT_SURFACE_CACHE_DIR"
+KT_KNOWLEDGE_FOLDER="$SCRATCH/kf-unreadable"; use_base "$SCRATCH/cache-unr"
 kt_index_match "$MAINQ"; st_check "an unreadable index.md" error:index-unreadable "$KT_MATCH_STATUS"; kt_match_cleanup
 chmod 644 "$SCRATCH/kf-unreadable/index.md"
 KT_KNOWLEDGE_FOLDER=$_st_kf
@@ -542,18 +553,18 @@ KT_KNOWLEDGE_FOLDER=$_st_kf
 # fresh cache dir so no earlier cache can answer.
 eval "$(sed -n '/^_kt_index_cache_snapshot_build() {/,/^}/p' "$LIB" | sed '1s/^_kt_index_cache_snapshot_build()/_kt_orig_snap()/')"
 _kt_index_cache_snapshot_build() { return 1; }
-KT_SURFACE_CACHE_DIR="$SCRATCH/cache-mf"; mkdir -p "$KT_SURFACE_CACHE_DIR"
+use_base "$SCRATCH/cache-mf"
 kt_index_match "$MAINQ"; st_check "every cache and uncached build failing" error:match-failed "$KT_MATCH_STATUS"; st_mf_n=$KT_MATCH_COUNT; kt_match_cleanup
 eval "$(sed -n '/^_kt_index_cache_snapshot_build() {/,/^}/p' "$LIB")"
-KT_SURFACE_CACHE_DIR=$_st_cd
+use_base "$_st_cd"
 [ "$st_mf_n" = 0 ] && ok "match_status: a failed build still reports KT_MATCH_COUNT 0" || bad "match_status: a failed build still reports KT_MATCH_COUNT 0" "got '$st_mf_n'"
 TMPDIR="$SCRATCH/no-such-tmpdir"
 kt_index_match "$MAINQ"; st_check "mktemp failing (TMPDIR missing)" error:mktemp "$KT_MATCH_STATUS"
 TMPDIR=$_st_tmp
 # Control for the build wrap: after restoring the real build the same query fires.
-KT_SURFACE_CACHE_DIR="$SCRATCH/cache-mf"
+use_base "$SCRATCH/cache-mf"
 kt_index_match "$MAINQ"; st_check "control: the restored build answers again" ok "$KT_MATCH_STATUS"; kt_match_cleanup
-KT_SURFACE_CACHE_DIR=$_st_cd
+use_base "$_st_cd"
 
 # --- cli_unavailable (I1) --- each setup failure or matcher error prints ONE line
 # `unavailable: <reason>`, exit 0; only nofire prints nothing (cli_silent_when_not_fired).
@@ -573,7 +584,7 @@ cli_un "no index.md" "unavailable: matcher error: no-index" HOME="$CUN" KT_CONFI
 CUU="$SCRATCH/cuunr"; mkdir -p "$CUU/.claude"
 printf -- '---\nknowledge_folder: %s\n---\n' "$SCRATCH/kf-unreadable" > "$CUU/.claude/aria-knowledge.local.md"
 chmod 000 "$SCRATCH/kf-unreadable/index.md"
-cli_un "an unreadable index.md" "unavailable: matcher error: index-unreadable" HOME="$CUU" KT_CONFIG= KT_KNOWLEDGE_FOLDER= KT_SURFACE_CACHE_DIR="$SCRATCH/cache-unr"
+cli_un "an unreadable index.md" "unavailable: matcher error: index-unreadable" HOME="$CUU" KT_CONFIG= KT_KNOWLEDGE_FOLDER= KT_STATE_BASE="$SCRATCH/cache-unr"
 chmod 644 "$SCRATCH/kf-unreadable/index.md"
 cli_un "mktemp failing (TMPDIR missing)" "unavailable: matcher error: mktemp" HOME="$CLIHOME" KT_CONFIG= KT_KNOWLEDGE_FOLDER= TMPDIR="$SCRATCH/no-such-tmpdir"
 # Control: the same harness with a working config prints the ranking, not `unavailable:`.

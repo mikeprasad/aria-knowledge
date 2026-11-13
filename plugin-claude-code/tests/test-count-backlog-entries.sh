@@ -93,8 +93,9 @@ assert_eq "count-backlog: unknown mode exits 2" "2" "$CB_RC"
 
 # --- session-start-check.sh consumes the counter (the audit TRIGGER) ---
 # Until 2026-09-29 no test covered the hook's count or its prompt text at all. Threshold 3,
-# cadence huge so only the entry-count tier can fire. ⚠ The hook also prunes /tmp aria-active-*
-# files older than a day, exactly as every real session start does.
+# cadence huge so only the entry-count tier can fire. ⚠ The hook also runs its session-start sweeps
+# and resolves its state dir, exactly as every real session start does — under this runner's
+# scratch KT_TMP_SWEEP_ROOT and KT_STATE_BASE (tests/run.sh), never the real /tmp or state dir.
 CB_HK="${TMPDIR:-/tmp}/aria-cb-$$/hook"
 mkdir -p "$CB_HK/intake" "$CB_HK/logs"
 printf '# Log\n\n## Last Audit\n- **Date:** 2026-09-20 (pass)\n' > "$CB_HK/logs/knowledge-audit-log.md"

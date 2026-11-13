@@ -24,14 +24,25 @@ LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # first debug-log write below. If it is missing, every create and write here is refused.
 # shellcheck source=../lib-tracked-artifacts.sh
 . "$LIB_DIR/../lib-tracked-artifacts.sh" 2>/dev/null || true
+# The private per-user state dir (2.58.0, lib-state-key.sh): the session ledger, the debug log and
+# the surfaced / logged / model markers live there. Resolved once per run. With none (spec D3)
+# responsibility 4 and the tracked-artifacts load inject nothing and nothing is logged; the other
+# responsibilities are unaffected. Without the lib, kt_state_path is undefined and every name is
+# refused, which is the same "no state" outcome.
+if [ -f "$LIB_DIR/../lib-state-key.sh" ]; then
+  # shellcheck source=../lib-state-key.sh
+  . "$LIB_DIR/../lib-state-key.sh"
+  set +u; kt_state_resolve; set -u
+fi
 
 # ag_debug_log STEP REASON — one `<UTC> antigravity <step> <reason>` line in the surfacing
 # debug log, for the two failures that happen before lib-prompt-surface.sh (and its
 # kt_ps_log) is loaded. The line is built first; an absent log is then created with
 # kt_create_new, and the line is appended only to a regular file of ours that is not a link.
-# Never stdout.
+# Never stdout. No state dir: nothing is written.
 ag_debug_log() {
-  local lf="${KT_SURFACE_CACHE_DIR:-${TMPDIR:-/tmp}}/aria-surface-hook.log" line
+  local lf line
+  lf=$(kt_state_path aria-surface-hook.log 2>/dev/null) || return 0
   line="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown-time) antigravity $1 $2"
   [ -e "$lf" ] || [ -L "$lf" ] || kt_create_new "$lf" 2>/dev/null || :
   kt_is_ours "$lf" 2>/dev/null || return 0
@@ -310,8 +321,11 @@ ARIA_ACTIVE_CONTEXT
         # shellcheck source=../lib-tracked-artifacts.sh
         source "$CLAUDE_PLUGIN_ROOT/bin/lib-tracked-artifacts.sh"
         kt_artifact_compute_for_path "$PWD"
-        if [ -n "$TA_SESSION_ID" ] && [ "${KT_ARTIFACTS_COUNT:-0}" -gt 0 ]; then
-          TA_LEDGER="/tmp/aria-active-${TA_SESSION_ID}"
+        # The ledger is in the private state dir; with none (spec D3) nothing is surfaced, since
+        # without the ledger the same instruction would repeat.
+        TA_LEDGER=""
+        [ -n "$TA_SESSION_ID" ] && TA_LEDGER=$(kt_state_path "aria-active-${TA_SESSION_ID}" 2>/dev/null)
+        if [ -n "$TA_LEDGER" ] && [ "${KT_ARTIFACTS_COUNT:-0}" -gt 0 ]; then
           kt_artifact_filter_ledger "$TA_LEDGER"
           if [ "$KT_ARTIFACTS_COUNT" -gt 0 ]; then
             kt_artifact_record_ledger "$TA_LEDGER"
@@ -456,14 +470,18 @@ fi
 #            a user turn is type "USER_INPUT" with string content). Read by jq one line
 #            at a time; a malformed line is skipped. The content is untrusted text: it
 #            reaches the matcher only as a jq output and an argv item.
+#   - state: every name below lives in the private per-user state dir (lib-state-key.sh,
+#            spec D4), named with kt_state_path. With no state dir (spec D3) this injects
+#            nothing and logs nothing: without the ledger and the step record it would
+#            re-inject the same files on every model call.
 #   - once:  per conversation, per step_index — state file
-#            ${KT_SURFACE_CACHE_DIR:-${TMPDIR:-/tmp}}/aria-ag-surfaced-<sanitised conversationId>,
+#            <state dir>/aria-ag-surfaced-<sanitised conversationId>,
 #            one PROCESSED step_index per line: recorded on every decided outcome
 #            (delivered, nothing-new, nofire), so a user turn is ranked at most once. An
 #            error records nothing, so it is retried. A symlinked or foreign state file
 #            is refused (and nothing is injected, since it could not be recorded).
 #            The file is append-only: a lost race between writers only re-ranks a turn.
-#   - ledger: /tmp/aria-active-<sanitised conversationId>, the same ledger as the
+#   - ledger: <state dir>/aria-active-<sanitised conversationId>, the same ledger as the
 #            other hosts. It records delivered paths only, and only after the hook
 #            output carrying the step was written (the lib's ledger contract); the
 #            delivered step is marked processed at the same point. A failure before
@@ -478,7 +496,11 @@ fi
 # any of this: it only appends one step to INJECT_STEPS_JSON.
 AG_SURFACE_STEP=""
 ag_surface() {
-  local dir="${KT_SURFACE_CACHE_DIR:-${TMPDIR:-/tmp}}"
+  # No state dir (spec D3): inject nothing, log nothing. The directory itself (for find and
+  # mktemp) is taken from one name kt_state_path builds; every file is named with kt_state_path.
+  local mf dir
+  mf=$(kt_state_path aria-ag-model.last 2>/dev/null) || return 0
+  dir=${mf%/*}
   if [ ! -f "$CLAUDE_PLUGIN_ROOT/bin/lib-prompt-surface.sh" ]; then
     ag_debug_log surface lib-missing
     return 0
@@ -492,8 +514,9 @@ ag_surface() {
   . "$CLAUDE_PLUGIN_ROOT/bin/lib-prompt-surface.sh"
 
   # Housekeeping, once per conversation: state files, log-once markers and model-file /
-  # create temps older than 24 h, ours only. `.aria-new.*` is kt_create_new's temp (here and in
-  # /tmp, where the session ledger lives); `.aria-ag-new.*` is the pre-2.58.0 name, kept so a
+  # create temps older than 24 h, ours only, in the state dir. `.aria-new.*` is kt_create_new's
+  # temp (here, and in /tmp where the session ledger lived before 2.58.0); `.aria-ag-new.*` is
+  # the pre-2.58.0 name, kept so a
   # leftover from an older release is still removed. Each start point ends in `/`: on macOS /tmp
   # is a symlink and find does not follow a symlinked start point (KT_TMP_SWEEP_ROOT: test-only).
   if [ "$INVOCATION_NUM" = "0" ]; then
@@ -506,9 +529,11 @@ ag_surface() {
 
   # C2: the model name, logged when it differs from the last one logged. The last value is
   # read only from a regular file of ours that is not a link; the new one is written to a
-  # temp file in the same directory and renamed over the name — rename replaces a planted
-  # link, it never writes through one (as the lib's config cache does).
-  local model last="" mf="$dir/aria-ag-model.last"
+  # temp file in the same directory and renamed over the name ($mf, named at the top). ⚠ The
+  # rename is not a safe replace of whatever sits there: `mv -f` onto a directory (or a link to
+  # one) moves the temp INTO it (measured), so a name that exists and is not a regular file is
+  # not written. Inside the private state dir only our own mistake can put one there.
+  local model last=""
   model=$(jq -r '(.modelName // "") | tostring | gsub("[^A-Za-z0-9._+:/-]"; "") | .[0:60]' \
     <<<"$ARIA_HOOK_INPUT" 2>/dev/null) || model=""
   if [ -n "$model" ]; then
@@ -518,7 +543,7 @@ ag_surface() {
     if [ "$model" != "$last" ]; then
       kt_ps_log antigravity capture "modelName=$model"
       local mt
-      if mt=$(mktemp "$dir/.aria-ag-model.XXXXXX" 2>/dev/null); then
+      if { [ ! -e "$mf" ] || [ -f "$mf" ]; } && mt=$(mktemp "$dir/.aria-ag-model.XXXXXX" 2>/dev/null); then
         { printf '%s\n' "$model" > "$mt" && mv -f "$mt" "$mf"; } 2>/dev/null || rm -f "$mt" 2>/dev/null
       fi
     fi
@@ -535,11 +560,11 @@ ag_surface() {
   [ -n "$sid" ] || { kt_ps_log antigravity input no-conversation-id; return 0; }
   # m1: an invalid config persists across every model call — logged once per
   # conversation, and nothing is ranked.
-  if [ -n "$KT_CONFIG_ERROR" ]; then ag_log_once "$dir" "$sid" surface config; return 0; fi
+  if [ -n "$KT_CONFIG_ERROR" ]; then ag_log_once "$sid" surface config; return 0; fi
   local tp="$ARIA_TRANSCRIPT_PATH"
-  [ -n "$tp" ] || { ag_log_once "$dir" "$sid" transcript no-transcript-path; return 0; }
+  [ -n "$tp" ] || { ag_log_once "$sid" transcript no-transcript-path; return 0; }
   if [ ! -f "$tp" ] || [ ! -r "$tp" ]; then
-    ag_log_once "$dir" "$sid" transcript unreadable; return 0
+    ag_log_once "$sid" transcript unreadable; return 0
   fi
 
   # One jq call over the last 400 lines (gate-2 G3). Line 1 is a status; on "ok", line 2
@@ -574,7 +599,8 @@ ag_surface() {
   case $rest in *"$nl"*) content=${rest#*"$nl"} ;; esac
   content=${content%.}
 
-  local state="$dir/aria-ag-surfaced-$sid"
+  local state
+  state=$(kt_state_path "aria-ag-surfaced-$sid" 2>/dev/null) || return 0
   if [ -L "$state" ] || { [ -e "$state" ] && { [ ! -f "$state" ] || [ ! -O "$state" ]; }; }; then
     kt_ps_log antigravity state refused; return 0
   fi
@@ -596,7 +622,7 @@ ag_surface() {
     *) text=$content ;;
   esac
   [ -n "$text" ] || { ag_record_step "$state" "$step"; return 0; }   # nofire: nothing typed
-  AG_SURFACE_LEDGER="/tmp/aria-active-$sid"
+  AG_SURFACE_LEDGER=$(kt_state_path "aria-active-$sid" 2>/dev/null) || return 0
   kt_ps_surface "$text" "$AG_SURFACE_LEDGER" >/dev/null
   if [ -z "$KT_PS_TEXT" ]; then
     case $KT_PS_STATUS in
@@ -623,16 +649,18 @@ ag_record_step() {
   printf '%s\n' "$2" >> "$1" 2>/dev/null || kt_ps_log antigravity state write-failed
 }
 
-# ag_log_once DIR SID STEP REASON — a failure that persists for the whole conversation
+# ag_log_once SID STEP REASON — a failure that persists for the whole conversation
 # (missing transcript, invalid config) would otherwise be logged before every model call,
-# so it is logged once per (conversation, reason): marker DIR/aria-ag-logged-<SID>.<REASON>.
+# so it is logged once per (conversation, reason): marker
+# <state dir>/aria-ag-logged-<SID>.<REASON>, named with kt_state_path.
 # Only a regular marker file of ours that is not a link counts as "already logged"; any
 # other file at that name (a link, a directory, someone else's file) logs the line again
 # and nothing is written. The marker is created with kt_create_new.
 ag_log_once() {
-  local m="$1/aria-ag-logged-$2.$4"
+  local m
+  m=$(kt_state_path "aria-ag-logged-$1.$3" 2>/dev/null) || { kt_ps_log antigravity "$2" "$3"; return 0; }
   if kt_is_ours "$m"; then return 0; fi
-  kt_ps_log antigravity "$3" "$4"
+  kt_ps_log antigravity "$2" "$3"
   [ -e "$m" ] || [ -L "$m" ] || kt_create_new "$m" || :
   return 0
 }

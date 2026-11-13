@@ -77,9 +77,10 @@ find "$_kt_tmp/" -maxdepth 1 -name 'aria-active-*' -mtime +1 -delete 2>/dev/null
 # Clear stale session-inprogress ledgers (>1 day) from prior/crashed sessions
 # (written by post-edit-check.sh's first-edit in-progress marking, v2.23.0).
 find "$_kt_tmp/" -maxdepth 1 -name 'aria-session-inprogress-*' -mtime +1 -delete 2>/dev/null
-# Clear create temps (>24 h) that a killed writer left behind: kt_create_new makes them beside
-# the session ledger (/tmp) and the surfacing debug log (the cache dir). Ours only.
-find "$_kt_tmp/" "${KT_SURFACE_CACHE_DIR:-${TMPDIR:-/tmp}}/" -maxdepth 1 -name '.aria-new.*' -user "$(id -u)" -mmin +1440 -exec rm -f {} + 2>/dev/null
+# Clear create temps (>24 h) that a killed writer left behind: before 2.58.0 kt_create_new made
+# them beside the session ledger (/tmp) and the surfacing debug log ($TMPDIR). Ours only. Since
+# 2.58.0 both names live in the private state dir, which is swept separately.
+find "$_kt_tmp/" "${TMPDIR:-/tmp}/" -maxdepth 1 -name '.aria-new.*' -user "$(id -u)" -mmin +1440 -exec rm -f {} + 2>/dev/null
 
 # If config file exists but failed validation, report the specific error
 if [ -n "$KT_CONFIG_ERROR" ]; then
@@ -284,6 +285,12 @@ fi
 MODEL_MESSAGES="${RULES_NOTICE}${CONFIG_LINE}
 "
 
+# The private per-user state dir (lib-state-key.sh), resolved once: the session ledger below
+# lives there. No state dir (spec D3): no ledger is read or written, so nothing is re-surfaced
+# after compaction and no tracked artifact is surfaced (it would repeat every session start).
+. "$SCRIPT_DIR/lib-state-key.sh"
+kt_state_resolve
+
 # --- after compaction --------------------------------------------------------
 # SessionStart with source "compact" is the ONLY hook channel that reaches the model
 # after compaction. PreCompact and PostCompact have no hookSpecificOutput variant in
@@ -301,9 +308,10 @@ if [ "$HOOK_SOURCE" = "compact" ]; then
   fi
   # Active-surfacing ledger: knowledge files surfaced earlier this session.
   if [ "$KT_ACTIVE_SURFACING" = "true" ] && [ -n "$SESSION_ID" ]; then
-    LEDGER="/tmp/aria-active-${SESSION_ID}"
-    # F7 (final fix wave): the name is predictable, so only a regular file this user owns, never a link.
-    if [ -s "$LEDGER" ] && [ ! -L "$LEDGER" ] && [ -f "$LEDGER" ] && [ -O "$LEDGER" ]; then
+    LEDGER=$(kt_state_path "aria-active-${SESSION_ID}") || LEDGER=""
+    # F7 (final fix wave): only a regular file this user owns, never a link (a second guard inside
+    # the private state dir, spec D2).
+    if [ -n "$LEDGER" ] && [ -s "$LEDGER" ] && [ ! -L "$LEDGER" ] && [ -f "$LEDGER" ] && [ -O "$LEDGER" ]; then
       LEDGER_COUNT=$(wc -l < "$LEDGER" | tr -d ' ')
       LEDGER_LIST=$(head -5 "$LEDGER" | sed 's/^/  - /' | tr '\n' ';' | sed 's/;$//;s/;/ /g')
       COMPACT_BLOCK="${COMPACT_BLOCK}ARIA ACTIVE — Compaction wiped context. ${LEDGER_COUNT} knowledge file(s) were previously surfaced this session: ${LEDGER_LIST}. Re-Read the relevant ones (prefer recently-active topic; skip if no longer applicable) and summarize what reloaded in 1-2 sentences before continuing. Ledger preserved at ${LEDGER}.
@@ -347,8 +355,9 @@ if [ "$KT_ACTIVE_SURFACING" = "true" ] && [ "$KT_PROJECTS_ENABLED" = "true" ]; t
   TA_SESSION_ID="$SESSION_ID"
   . "$SCRIPT_DIR/lib-tracked-artifacts.sh"
   kt_artifact_compute_for_path "$PWD"
-  if [ -n "$TA_SESSION_ID" ] && [ "$KT_ARTIFACTS_COUNT" -gt 0 ]; then
-    TA_LEDGER="/tmp/aria-active-${TA_SESSION_ID}"
+  TA_LEDGER=""
+  [ -n "$TA_SESSION_ID" ] && TA_LEDGER=$(kt_state_path "aria-active-${TA_SESSION_ID}")
+  if [ -n "$TA_LEDGER" ] && [ "$KT_ARTIFACTS_COUNT" -gt 0 ]; then
     kt_artifact_filter_ledger "$TA_LEDGER"
     if [ "$KT_ARTIFACTS_COUNT" -gt 0 ]; then
       kt_artifact_record_ledger "$TA_LEDGER"

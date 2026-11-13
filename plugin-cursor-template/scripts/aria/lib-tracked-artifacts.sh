@@ -201,8 +201,10 @@ kt_artifact_filter_ledger() {
   _kt_ledger="$1"
   [ -z "$_kt_ledger" ] && return 0
   [ ! -f "$_kt_ledger" ] && return 0
-  # A link, a non-regular file or a file this user does not own at the ledger's predictable /tmp name is
-  # not ours (final fix wave F7): never read it, never write through it.
+  # A link, a non-regular file or a file this user does not own at the ledger's name is not ours
+  # (final fix wave F7): never read it, never write through it. The ledger lives in the private
+  # state dir (lib-state-key.sh), where only our own mistake can put one there; kept as a second
+  # guard (spec D2).
   [ -L "$_kt_ledger" ] && return 0
   [ ! -O "$_kt_ledger" ] && return 0
   [ ! -s "$_kt_ledger" ] && return 0
@@ -265,8 +267,9 @@ kt_artifact_record_ledger() {
   _kt_ledger="$1"
   [ -z "$_kt_ledger" ] && return 0
   [ "$KT_ARTIFACTS_COUNT" -eq 0 ] && return 0
-  # The ledger's /tmp name is predictable: it is created only by kt_create_new, and appended to
-  # only when it is a regular file of ours that is not a link (final fix wave F7, spec §5).
+  # The ledger (in the private state dir) is created only by kt_create_new, and appended to only
+  # when it is a regular file of ours that is not a link (final fix wave F7, spec §5; kept as a
+  # second guard, spec D2).
   [ -e "$_kt_ledger" ] || [ -L "$_kt_ledger" ] || kt_create_new "$_kt_ledger" || :
   kt_is_ours "$_kt_ledger" || return 0
   printf '%s' "$KT_ARTIFACT_PATHS" >> "$_kt_ledger" 2>/dev/null

@@ -6,8 +6,10 @@
 # line per check; the parent replays them through assert_eq and asserts the count, so a body
 # that dies partway fails instead of silently reporting fewer checks.
 #
-# Every lib call runs in its own subshell with HOME, TMPDIR, KT_CONFIG and KT_SURFACE_CACHE_DIR
-# isolated, and with a ledger path inside the test dir (never /tmp/aria-active-*).
+# Every lib call runs in its own subshell with HOME, TMPDIR, KT_CONFIG and KT_STATE_BASE isolated
+# (the second ps_call argument is that BASE: the lib's caches and debug log live in
+# <BASE>/aria-knowledge-<uid>, the private state dir, since 2.58.0), and with a ledger path inside
+# the test dir. Nothing here touches /tmp.
 
 PS_SD="$(cd "$(dirname "$0")/../scripts" && pwd)"
 PS_LIB="$PS_SD/lib-prompt-surface.sh"
@@ -25,10 +27,12 @@ ps_has_line() { # TEXT LINE → 1 if LINE is one of TEXT's lines
 ps_body() {
   set +e +u
   T="${TMPDIR:-/tmp}/aria-psc-$$"
-  # The hook-flow arms run the real hook, which writes /tmp/aria-active-<session id>.
   RUN_ID="psc-$$-$(od -An -N4 -tx4 /dev/urandom 2>/dev/null | tr -d ' ')"
-  trap 'rm -rf "$T"; rm -f /tmp/aria-active-"$RUN_ID"-* 2>/dev/null' EXIT
+  trap 'rm -rf "$T"' EXIT
   rm -rf "$T"; mkdir -p "$T/tmpdir" "$T/cache"
+  UIDN=$(id -u)
+  # mksd BASE — a fresh state base with its state dir already made (mode 700), to plant in.
+  mksd() { rm -rf "$1"; mkdir -p "$1"; mkdir -m 700 "$1/aria-knowledge-$UIDN"; }
 
   r() { printf '%s\t%s\t%s\n' "$1" "$2" "$3"; }
 
@@ -51,17 +55,19 @@ ps_body() {
   KF="$T/kf"; mk_kf "$KF"
   CFG="$T/cfg/main.local.md"; mk_cfg "$CFG" "$KF"
 
-  # ps_call CONFIG CACHE-DIR TEXT LEDGER — sources the lib in a fresh subshell, runs
+  # ps_call CONFIG STATE-BASE TEXT LEDGER — sources the lib in a fresh subshell, resolves the
+  # state dir under STATE-BASE (as every hook does before its first lib call), runs
   # kt_ps_surface, then (as an adapter does once it has delivered) kt_ps_commit — unless
   # PS_NOCOMMIT=1. Sets PS_STATUS (empty if the lib could not run); stdout → $T/out;
   # KT_PS_PENDING → $T/pending.
   ps_call() {
     rm -f "$T/out" "$T/status" "$T/pending"
     (
-      HOME="$T/home"; KT_CONFIG=$1; KT_SURFACE_CACHE_DIR=$2; TMPDIR="$T/tmpdir"
-      export HOME KT_CONFIG KT_SURFACE_CACHE_DIR TMPDIR
+      HOME="$T/home"; KT_CONFIG=$1; KT_STATE_BASE=$2; TMPDIR="$T/tmpdir"
+      export HOME KT_CONFIG KT_STATE_BASE TMPDIR
       KT_PS_SCRIPT_DIR="$PS_SD"; KT_PS_RUNTIME=core-test
       . "$PS_LIB" || exit 1
+      . "$PS_SD/lib-state-key.sh" || exit 1; kt_state_resolve
       kt_ps_surface "$3" "$4" > "$T/out" 2>"$T/err"
       printf '%s' "$KT_PS_STATUS" > "$T/status"
       printf '%s' "${KT_PS_PENDING:-}" > "$T/pending"
@@ -75,8 +81,8 @@ ps_body() {
   ps_fn() {
     ( KT_PS_SCRIPT_DIR="$PS_SD"; . "$PS_LIB" || exit 1; "$@" ) 2>/dev/null
   }
-  inodes() { ls -i "$1" 2>/dev/null | grep 'aria-prompt-config' | awk '{print $1}' | sort | tr '\n' ' '; }
-  ncache() { ls "$1" 2>/dev/null | grep -c '^aria-prompt-config.*\.cache$'; }
+  inodes() { ls -i "$1/aria-knowledge-$UIDN" 2>/dev/null | grep 'aria-prompt-config' | awk '{print $1}' | sort | tr '\n' ' '; }
+  ncache() { ls "$1/aria-knowledge-$UIDN" 2>/dev/null | grep -c '^aria-prompt-config.*\.cache$'; }
 
   PROMPT_PAY="how do we handle payments for proj-b deposits"
 
@@ -103,10 +109,10 @@ ps_body() {
   # delivers later (Cursor's postToolUse) must not mark as seen what the model never got.
   # ps_src CONFIG — inside a subshell: isolated env + the lib sourced.
   ps_src() {
-    HOME="$T/home"; KT_CONFIG=$1; KT_SURFACE_CACHE_DIR="$T/cache"; TMPDIR="$T/tmpdir"
-    export HOME KT_CONFIG KT_SURFACE_CACHE_DIR TMPDIR
+    HOME="$T/home"; KT_CONFIG=$1; KT_STATE_BASE="$T/cache"; TMPDIR="$T/tmpdir"
+    export HOME KT_CONFIG KT_STATE_BASE TMPDIR
     KT_PS_SCRIPT_DIR="$PS_SD"; KT_PS_RUNTIME=core-test
-    . "$PS_LIB"
+    . "$PS_LIB" && . "$PS_SD/lib-state-key.sh" && { kt_state_resolve; :; }
   }
   printf 'references/seed-entry.md\n' > "$T/ledger-c"; SEED=$(cksum < "$T/ledger-c")
   PS_NOCOMMIT=1; ps_call "$CFG" "$T/cache" "$PROMPT_PAY" "$T/ledger-c"; PS_NOCOMMIT=
@@ -158,7 +164,8 @@ ps_body() {
     "projects/proj-a/hooks.md|projects/proj-c/a..b.md|" "$(tr '\n' '|' < "$T/ledger-k")"
 
   # --- core_ledger_link_refused (final fix wave (a)+F7) ------------------------------------------
-  # The ledger lives at a predictable /tmp/aria-active-<id>. A link planted there must neither be
+  # The ledger lives at <state dir>/aria-active-<id> (before 2.58.0, a predictable /tmp name). The
+  # guard stays as a second one inside the private dir (spec D2). A link planted there must neither be
   # READ (kt_match_filter_ledger: a planted list would silently suppress surfacing) nor WRITTEN
   # through (_kt_ps_append_kept: an append would land in whatever the link names).
   printf '%s\n' $EXP > "$T/planted-ledger"; PLANTED=$(cksum < "$T/planted-ledger")
@@ -200,7 +207,7 @@ ps_body() {
     "$PS_FIXTURE" > "$KU/index.md"
   CFGU="$T/cfg/unsafe.local.md"; mk_cfg "$CFGU" "$KU"
   KC="$T/kc"; mk_kf "$KC"; CFGC="$T/cfg/clean.local.md"; mk_cfg "$CFGC" "$KC"
-  mkdir -p "$T/cache-u" "$T/cache-c"
+  mksd "$T/cache-u"; mksd "$T/cache-c"
   ps_call "$CFGU" "$T/cache-u" "$PROMPT_PAY" "$T/ledger-u"; U1=$(out | sed "s|$KU/|KF/|g")
   ps_call "$CFGC" "$T/cache-c" "$PROMPT_PAY" "$T/ledger-cc"
   ps_call "$CFGU" "$T/cache-u" "$PROMPT_PAY" "$T/ledger-u"; U2=$(out | sed "s|$KU/|KF/|g"); U2S=$PS_STATUS
@@ -212,31 +219,31 @@ ps_body() {
   r "core_unsafe_entries_never_surfaced: second call matches the clean fixture (output, status)" \
     "$(printf '%s' "$C2" | cksum)|$C2S" "$(printf '%s' "$U2" | cksum)|$U2S"
   r "core_unsafe_entries_never_surfaced: the drop is logged as dropped-unsafe-entry" \
-    1 "$( [ "$(grep -c ' surface dropped-unsafe-entry$' "$T/cache-u/aria-surface-hook.log" 2>/dev/null)" -ge 1 ] && echo 1 || echo 0)"
+    1 "$( [ "$(grep -c ' surface dropped-unsafe-entry$' "$T/cache-u/aria-knowledge-$UIDN/aria-surface-hook.log" 2>/dev/null)" -ge 1 ] && echo 1 || echo 0)"
   r "core_unsafe_entries_never_surfaced: the ledger never holds them" \
     0 "$(grep -c -e '^/abs' -e 'escape\.md' "$T/ledger-u" 2>/dev/null)"
 
   # --- hook flow: the Claude Code adapter commits only after its emission succeeded ----
-  HH="$T/hhome"; mk_cfg "$HH/.claude/aria-knowledge.local.md" "$KF"; mkdir -p "$T/cache-h"
+  HH="$T/hhome"; mk_cfg "$HH/.claude/aria-knowledge.local.md" "$KF"; mksd "$T/cache-h"
   PCC="$PS_SD/prompt-context-check.sh"
   hook_run() { # SID [PATH-PREFIX]
     jq -n --arg s "$1" --arg p "$PROMPT_PAY" \
       '{session_id:$s, prompt:$p, hook_event_name:"UserPromptSubmit"}' > "$T/hin.json"
-    env HOME="$HH" TMPDIR="$T/tmpdir" KT_SURFACE_CACHE_DIR="$T/cache-h" KT_CONFIG= \
+    env HOME="$HH" TMPDIR="$T/tmpdir" KT_STATE_BASE="$T/cache-h" KT_CONFIG= \
       PATH="${2:+$2:}$PATH" sh "$PCC" < "$T/hin.json" > "$T/hout" 2>/dev/null
   }
   hook_run "$RUN_ID-ok"
   r "hook: a delivered injection is recorded" "1|1" \
-    "$(grep -c '^{"hookSpecificOutput"' "$T/hout")|$(grep -cx 'projects/proj-b/deposits.md' "/tmp/aria-active-$RUN_ID-ok" 2>/dev/null)"
+    "$(grep -c '^{"hookSpecificOutput"' "$T/hout")|$(grep -cx 'projects/proj-b/deposits.md' "$T/cache-h/aria-knowledge-$UIDN/aria-active-$RUN_ID-ok" 2>/dev/null)"
   # A jq shim that fails ONLY the emission call (`jq -cn …`); extraction still works.
   mkdir -p "$T/jqshim"
   printf '#!/bin/sh\ncase " $* " in *" -cn "*) exit 1 ;; esac\nexec "%s" "$@"\n' "$(command -v jq)" > "$T/jqshim/jq"
   chmod +x "$T/jqshim/jq"
   hook_run "$RUN_ID-fail" "$T/jqshim"
   r "hook: a failed emission prints nothing and records nothing" "0|0" \
-    "$(wc -c < "$T/hout" | tr -d ' ')|$( [ -e "/tmp/aria-active-$RUN_ID-fail" ] && echo 1 || echo 0)"
+    "$(wc -c < "$T/hout" | tr -d ' ')|$( [ -e "$T/cache-h/aria-knowledge-$UIDN/aria-active-$RUN_ID-fail" ] && echo 1 || echo 0)"
   r "hook: the failed run reached emission (logged emit jq-failed)" 1 \
-    "$(grep -c ' claude-code emit jq-failed$' "$T/cache-h/aria-surface-hook.log" 2>/dev/null)"
+    "$(grep -c ' claude-code emit jq-failed$' "$T/cache-h/aria-knowledge-$UIDN/aria-surface-hook.log" 2>/dev/null)"
 
   # --- nofire: words that rank nothing ------------------------------------------
   ps_call "$CFG" "$T/cache" "zebra quantum lattice" "$T/ledger-nf"
@@ -274,12 +281,12 @@ ps_body() {
   # --- core_failure_logged -----------------------------------------------------------
   KN="$T/kf-noindex"; mk_kf "$KN" no-index
   CFGNI="$T/cfg/noindex.local.md"; mk_cfg "$CFGNI" "$KN"
-  rm -rf "$T/cache-f"; mkdir -p "$T/cache-f"
+  mksd "$T/cache-f"
   ps_call "$CFGNI" "$T/cache-f" "$PROMPT_PAY" "$T/ledger-f"
   case "$PS_STATUS" in error:?*) h=1 ;; *) h=0 ;; esac
   r "core_failure_logged: index missing — status is error:<step>" "1|error:no-index" "$h|$PS_STATUS"
   r "core_failure_logged: nothing on stdout" 0 "$(outsize)"
-  LOGF="$T/cache-f/aria-surface-hook.log"
+  LOGF="$T/cache-f/aria-knowledge-$UIDN/aria-surface-hook.log"
   r "core_failure_logged: exactly one line in the debug log" 1 "$(wc -l < "$LOGF" 2>/dev/null | tr -d ' ')"
   r "core_failure_logged: line is <UTC> <runtime> <step> <reason>" 1 \
     "$(grep -cE '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z core-test surface no-index$' "$LOGF" 2>/dev/null)"
@@ -311,7 +318,7 @@ ps_body() {
   KB="$T/kf-b"; mk_kf "$KB"
   CFGA="$T/cfg/a.local.md"; mk_cfg "$CFGA" "$KF"
   CFGB="$T/cfg/b.local.md"; mk_cfg "$CFGB" "$KB"
-  rm -rf "$T/cache-2"; mkdir -p "$T/cache-2"
+  mksd "$T/cache-2"
   ps_call "$CFGA" "$T/cache-2" "$PROMPT_PAY" "$T/ledger-2a1"; A1=$(out)
   ps_call "$CFGB" "$T/cache-2" "$PROMPT_PAY" "$T/ledger-2b1"; B1=$(out)
   I1=$(inodes "$T/cache-2")
@@ -330,9 +337,9 @@ ps_body() {
   # and no longer reach the cache this lib reads. These arms plant the name it actually uses.
   PK=$(printf '%s' "$CFG" | cksum | awk '{print $1}')
   KEYED="aria-prompt-config.$PK.cache"
-  rm -rf "$T/cache-l"; mkdir -p "$T/cache-l"
+  mksd "$T/cache-l"
   printf 'touch "%s"\n' "$T/sym-marker" > "$T/evil.sh"; cp "$T/evil.sh" "$T/evil.orig"
-  ln -s "$T/evil.sh" "$T/cache-l/$KEYED"
+  ln -s "$T/evil.sh" "$T/cache-l/aria-knowledge-$UIDN/$KEYED"
   ps_call "$CFG" "$T/cache-l" "$PROMPT_PAY" "$T/ledger-l"
   r "core_cache_symlink_refused: never executed (no marker)" 0 "$( [ -e "$T/sym-marker" ] && echo 1 || echo 0)"
   r "core_cache_symlink_refused: output still correct" 1 "$(ps_has_line "$(out)" "- $KF/projects/proj-b/deposits.md")"
@@ -343,15 +350,15 @@ ps_body() {
   VKEY="$(printf '%s\n' "$VKEY" | sed -n 1p) | $(printf '%s\n' "$VKEY" | sed -n 2p)"
   printf '%s\n' "aria-prompt-config 1" "$VKEY" true "" "$KS" true true \
     "proj-a:proj-a,proj-b:proj-b,proj-c:proj-c" end > "$T/planted.dat"
-  rm -rf "$T/cache-v"; mkdir -p "$T/cache-v"
-  ln -s "$T/planted.dat" "$T/cache-v/$KEYED"
+  mksd "$T/cache-v"
+  ln -s "$T/planted.dat" "$T/cache-v/aria-knowledge-$UIDN/$KEYED"
   ps_call "$CFG" "$T/cache-v" "$PROMPT_PAY" "$T/ledger-v"
   r "core_cache_symlink_refused: planted data behind a link is not used" "1|0" \
     "$(ps_has_line "$(out)" "- $KF/projects/proj-b/deposits.md")|$(out | grep -cF -- "$KS/")"
   # Control: the SAME data as a regular file at the same name IS used — so the arm above is
   # refusing the link, not rejecting a malformed entry.
-  rm -rf "$T/cache-w"; mkdir -p "$T/cache-w"
-  cp "$T/planted.dat" "$T/cache-w/$KEYED"
+  mksd "$T/cache-w"
+  cp "$T/planted.dat" "$T/cache-w/aria-knowledge-$UIDN/$KEYED"
   ps_call "$CFG" "$T/cache-w" "$PROMPT_PAY" "$T/ledger-w"
   r "core_cache_symlink_refused: control — the same data as a regular file is used" 1 \
     "$(ps_has_line "$(out)" "- $KS/projects/proj-b/deposits.md")"

@@ -147,5 +147,41 @@ else
   PM_PASS=$((PM_PASS+1)); printf '  ok: G directive names a resolvable ledger path\n'
 fi
 
+# ---------------------------------------------------------------------------
+# H. The hooks name the ledger in the private state dir (2.58.0). Every shell script that keys a
+#    ledger on a session id builds the name with `kt_state_path "aria-active-…"`; none spells a
+#    literal `/tmp/aria-active-` (a reader and a writer on different paths silently disable the
+#    dedup). Full-line comments are exempt; the legacy /tmp sweeps use 'aria-active-*' under a
+#    variable root and are not this form.
+# ---------------------------------------------------------------------------
+_H_SEEN=0; _H_BAD=""; _H_OLD=""
+for _f in "$ROOT"/plugin-claude-code/scripts/prompt-context-check.sh \
+          "$ROOT"/plugin-claude-code/scripts/bash-cd-check.sh \
+          "$ROOT"/plugin-claude-code/scripts/task-context-check.sh \
+          "$ROOT"/plugin-claude-code/scripts/session-start-check.sh \
+          "$ROOT"/plugin-openai-codex/bin/bash-cd-check.sh \
+          "$ROOT"/plugin-openai-codex/bin/task-context-check.sh \
+          "$ROOT"/plugin-openai-codex/bin/session-start-check.sh \
+          "$ROOT"/plugin-openai-codex/bin/post-compact-check.sh \
+          "$ROOT"/plugin-cursor-template/scripts/aria/bash-cd-check.sh \
+          "$ROOT"/plugin-cursor-template/scripts/aria/task-context-check.sh \
+          "$ROOT"/plugin-cursor-template/scripts/aria/session-start-check.sh \
+          "$ROOT"/plugin-cursor-template/scripts/aria/prompt-capture-check.sh \
+          "$ROOT"/plugin-cursor-template/scripts/aria/prompt-context-inject.sh \
+          "$ROOT"/plugin-antigravity/bin/bash-cd-check.sh \
+          "$ROOT"/plugin-antigravity/bin/antigravity/pre-invocation-aria.sh; do
+  [ -f "$_f" ] || continue
+  _H_SEEN=$((_H_SEEN + 1))
+  grep -qF 'kt_state_path "aria-active-' "$_f" || _H_BAD="$_H_BAD ${_f#$ROOT/}"
+  awk '/^[[:space:]]*#/ { next } /\/tmp\/aria-active-/ { f = 1 } END { exit !f }' "$_f" && _H_OLD="$_H_OLD ${_f#$ROOT/}"
+done
+if [ "$_H_SEEN" -lt 15 ]; then
+  PM_FAIL=$((PM_FAIL+1)); printf '  FAIL: H subject files\n    only %d of 15 ledger sites found\n' "$_H_SEEN"
+elif [ -n "$_H_BAD$_H_OLD" ]; then
+  PM_FAIL=$((PM_FAIL+1)); printf '  FAIL: H a hook names the ledger outside the state dir\n    no kt_state_path:%s\n    literal /tmp:%s\n' "$_H_BAD" "$_H_OLD"
+else
+  PM_PASS=$((PM_PASS+1)); printf '  ok: H all %d ledger sites name it with kt_state_path\n' "$_H_SEEN"
+fi
+
 pm_summary
 exit "$PM_FAIL"

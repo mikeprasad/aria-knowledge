@@ -39,9 +39,14 @@ fi
 # Block 2: active-surfacing ledger re-surface (v2.15.0+).
 # Only fires if active mode is enabled, ledger exists, and has entries.
 if [ "$KT_ACTIVE_SURFACING" = "true" ] && [ -n "$SESSION_ID" ]; then
-  LEDGER="/tmp/aria-active-${SESSION_ID}"
-  # F7 (final fix wave): the name is predictable, so only a regular file this user owns, never a link.
-  if [ -f "$LEDGER" ] && [ -s "$LEDGER" ] && [ ! -L "$LEDGER" ] && [ -O "$LEDGER" ]; then
+  # The ledger lives in the private per-user state dir (lib-state-key.sh). No state dir (spec D3):
+  # nothing to re-surface.
+  . "$SCRIPT_DIR/lib-state-key.sh"
+  kt_state_resolve
+  LEDGER=$(kt_state_path "aria-active-${SESSION_ID}") || LEDGER=""
+  # F7 (final fix wave): only a regular file this user owns, never a link (a second guard inside
+  # the private state dir, spec D2).
+  if [ -n "$LEDGER" ] && [ -f "$LEDGER" ] && [ -s "$LEDGER" ] && [ ! -L "$LEDGER" ] && [ -O "$LEDGER" ]; then
     LEDGER_COUNT=$(wc -l < "$LEDGER" | tr -d ' ')
     # Format the first 5 paths into a compact list. Compaction is expensive
     # to recover from; even 5 file Reads is cheaper than re-discovering the

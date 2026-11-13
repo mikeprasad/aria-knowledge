@@ -88,8 +88,8 @@
       "plugin-openai-codex/template/rules/user-examples.md": "5f5e0f1a6c76b939ca045f49c2fae7f9763348731217d0a035ebdecf14bb57d0",
       "plugin-openai-codex/template/rules/user-rules.md": "ec5d843ab1494c0949f4cfcbdbfdc677c013187fcdd42ab90c2147de703c057d",
       "plugin-openai-codex/template/rules/working-rules.md": "58511d31bc9d03232b26e9c5afb79461ce851f6f4ad099c38a4c8b882d0c4d7f",
-      "plugin-openai-codex/bin/lib-index-match.sh": "e4bc5b82e8f2119d8019bacc6de3754fc99d1b595c0ffd034108cf288046e131",
-      "plugin-openai-codex/bin/aria-surface.sh": "c2b1d4aa2827ed53816df22cdfe0ff8b591581c4edce05d414648e6f3ded5768"
+      "plugin-openai-codex/bin/lib-index-match.sh": "c6816301ee9cf48804b7778789cde1e50339feeca6a7a5fc4df126d4e631d3e1",
+      "plugin-openai-codex/bin/aria-surface.sh": "08d9dbec24b1020fc8e88d9cc64cb6098a3f68ae7d2f4396dae6da5bd7da27d4"
     }
   },
   "cursor-template": {
@@ -100,9 +100,9 @@
     "surfaces": {
       "plugin-cursor-template/.cursor/rules/aria-commands.mdc": "18ea8095eff5610befb7203645fd49ca95f4b73317a7802568d224dadf0533b4",
       "plugin-cursor-template/knowledge/rules/working-rules.md": "58511d31bc9d03232b26e9c5afb79461ce851f6f4ad099c38a4c8b882d0c4d7f",
-      "plugin-cursor-template/scripts/aria/lib-index-match.sh": "e4bc5b82e8f2119d8019bacc6de3754fc99d1b595c0ffd034108cf288046e131",
-      "plugin-cursor-template/scripts/aria/aria-surface.sh": "c2b1d4aa2827ed53816df22cdfe0ff8b591581c4edce05d414648e6f3ded5768",
-      "plugin-cursor-template/scripts/aria/lib-prompt-surface.sh": "8dc529d4e18a7e52a86be28a72b3ce677b263565e6c379ee37ee9dc23c1616bc"
+      "plugin-cursor-template/scripts/aria/lib-index-match.sh": "c6816301ee9cf48804b7778789cde1e50339feeca6a7a5fc4df126d4e631d3e1",
+      "plugin-cursor-template/scripts/aria/aria-surface.sh": "08d9dbec24b1020fc8e88d9cc64cb6098a3f68ae7d2f4396dae6da5bd7da27d4",
+      "plugin-cursor-template/scripts/aria/lib-prompt-surface.sh": "6902ec066b8d521bf3765ae6a8f57d4d9d112abfcb71d4a6a9baced021d5a9f8"
     }
   },
   "antigravity": {
@@ -148,9 +148,9 @@
       "plugin-antigravity/skills/stitch/SKILL.md": "19de4e6ff0a6870cfd9279caf6849f1488ae45b65ee7ee469290327983c8b8bd",
       "plugin-antigravity/skills/sync-decisions/SKILL.md": "3a04bc8ba7307c3f35aecccd56842251730a9bfde5886f66065893a5dba1aae6",
       "plugin-antigravity/skills/wrapup/SKILL.md": "004d25a442b42c7fe176df645b0be3acff5b3e17cadef5e6f702580319f6364e",
-      "plugin-antigravity/bin/lib-index-match.sh": "e4bc5b82e8f2119d8019bacc6de3754fc99d1b595c0ffd034108cf288046e131",
-      "plugin-antigravity/bin/aria-surface.sh": "c2b1d4aa2827ed53816df22cdfe0ff8b591581c4edce05d414648e6f3ded5768",
-      "plugin-antigravity/bin/lib-prompt-surface.sh": "8dc529d4e18a7e52a86be28a72b3ce677b263565e6c379ee37ee9dc23c1616bc"
+      "plugin-antigravity/bin/lib-index-match.sh": "c6816301ee9cf48804b7778789cde1e50339feeca6a7a5fc4df126d4e631d3e1",
+      "plugin-antigravity/bin/aria-surface.sh": "08d9dbec24b1020fc8e88d9cc64cb6098a3f68ae7d2f4396dae6da5bd7da27d4",
+      "plugin-antigravity/bin/lib-prompt-surface.sh": "6902ec066b8d521bf3765ae6a8f57d4d9d112abfcb71d4a6a9baced021d5a9f8"
     }
   }
 }

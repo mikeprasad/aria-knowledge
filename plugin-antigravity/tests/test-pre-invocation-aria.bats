@@ -7,24 +7,29 @@ setup() {
   CACHE_FILE="$CACHE_DIR/.last-transcript-path"
   LOG_FILE="$CACHE_DIR/aria-knowledge-scope-check.log"
   mkdir -p "$CACHE_DIR" 2>/dev/null || true
-  # Responsibility 4 (spec D4) keeps its state, config cache and debug log under
-  # KT_SURFACE_CACHE_DIR: one fresh dir per test, never the user's TMPDIR.
+  # One fresh scratch dir per test. TMPDIR points inside it, so nothing this test runs (the hook's
+  # mktemp scratch included) writes the user's real TMPDIR.
   SURF="$(mktemp -d "${BATS_TMPDIR}/ag-surf.XXXXXX")"
-  export KT_SURFACE_CACHE_DIR="$SURF"
+  export TMPDIR="$SURF/tmp"; mkdir -p "$TMPDIR"
   # The hook's /tmp sweeps reach the real /tmp (they start at "/tmp/"); every test sweeps a scratch
   # dir instead (KT_TMP_SWEEP_ROOT is the test-only override).
   export KT_TMP_SWEEP_ROOT="$SURF/sweep-tmp"; mkdir -p "$KT_TMP_SWEEP_ROOT"
   # 2.58.0: hook state resolves under KT_STATE_BASE, never in the user's real state directory. The base
   # lives in this test's mktemp dir (SURF, under $TMPDIR), which teardown removes.
   export KT_STATE_BASE="$SURF/state-base"; mkdir -p "$KT_STATE_BASE"
-  HOOKLOG="$SURF/aria-surface-hook.log"
+  # Responsibility 4's state — the session ledger, the surfaced / logged / model markers, the config
+  # cache and the debug log — lives in the private state dir (2.58.0; KT_SURFACE_CACHE_DIR is retired).
+  # Created here, mode 700 as the resolver requires, so a test can plant in it before the hook runs.
+  SD="$KT_STATE_BASE/aria-knowledge-$(id -u)"; mkdir -m 700 "$SD"
+  HOOKLOG="$SD/aria-surface-hook.log"
   FIXTURE="${BATS_TEST_DIRNAME}/fixtures/transcript-user-input.jsonl"
-  # The ledger path is fixed by contract (/tmp/aria-active-<id>), so every id carries RUN_ID.
+  # Every conversation id carries RUN_ID (pre-2.58.0 hooks wrote the ledger to /tmp; see teardown).
   RUN_ID="agpi$$t${BATS_TEST_NUMBER}x$(od -An -N4 -tx4 /dev/urandom 2>/dev/null | tr -d ' ')"
 }
 
 teardown() {
   rm -rf "$CACHE_DIR" "$SURF" 2>/dev/null || true
+  # Pre-2.58.0 hooks wrote the ledger to the real /tmp; kept so a run against an older tree cleans up.
   rm -f /tmp/aria-active-"${RUN_ID}"* 2>/dev/null || true
 }
 
@@ -78,7 +83,8 @@ r4_wrapped_bin() {
   cp "${BATS_TEST_DIRNAME}"/../bin/antigravity/*.sh "$P/bin/antigravity/"
   cp "${BATS_TEST_DIRNAME}/../bin/config.sh" "${BATS_TEST_DIRNAME}/../bin/lib-index-match.sh" \
      "${BATS_TEST_DIRNAME}/../bin/lib-prompt-surface.sh" \
-     "${BATS_TEST_DIRNAME}/../bin/lib-tracked-artifacts.sh" "$P/bin/"
+     "${BATS_TEST_DIRNAME}/../bin/lib-tracked-artifacts.sh" \
+     "${BATS_TEST_DIRNAME}/../bin/lib-state-key.sh" "$P/bin/"
   cat >> "$P/bin/lib-index-match.sh" <<'WRAP'
 eval "_r4_counted_$(declare -f kt_index_match)"
 kt_index_match() {
@@ -104,7 +110,7 @@ r4_run_bounded() {
     i=$((i + 1))
     if [ "$i" -gt $((secs * 10)) ]; then
       BOUNDED=hung
-      for f in "$SURF"/* "$SURF"/.??*; do
+      for f in "$SURF"/* "$SURF"/.??* "$SD"/* "$SD"/.??*; do
         [ -p "$f" ] && { exec 9<>"$f"; exec 9>&-; }
       done
       kill "$p" 2>/dev/null
@@ -195,13 +201,13 @@ logged() { grep -q -- " antigravity $1\$" "$HOOKLOG" 2>/dev/null; }
   m=$(r4_active)
   has "$m" "$KF/projects/proj-b/deposits.md"
   hasnt "$m" "projects/proj-a/hooks.md"        # the OLDER USER_INPUT is not the one ranked
-  grep -qxF 'projects/proj-b/deposits.md' "/tmp/aria-active-$C"
-  grep -qxF '4' "$SURF/aria-ag-surfaced-$C"
+  grep -qxF 'projects/proj-b/deposits.md' "$SD/aria-active-$C"
+  grep -qxF '4' "$SD/aria-ag-surfaced-$C"
   # Same newest USER_INPUT on the next model call: nothing.
   r4_run
   [ "$(cat "$SURF/out")" = "{}" ]
   # With the ledger gone, the state file alone still holds it to once.
-  rm -f "/tmp/aria-active-$C"
+  rm -f "$SD/aria-active-$C"
   r4_run
   [ "$(cat "$SURF/out")" = "{}" ]
 }
@@ -216,8 +222,8 @@ logged() { grep -q -- " antigravity $1\$" "$HOOKLOG" 2>/dev/null; }
   r4_user_input 7 "webhooks retry for proj-a hooks" >> "$SURF/t.jsonl"
   r4_run
   has "$(r4_active)" "$KF/projects/proj-a/hooks.md"
-  grep -qxF '4' "$SURF/aria-ag-surfaced-$C"
-  grep -qxF '7' "$SURF/aria-ag-surfaced-$C"
+  grep -qxF '4' "$SD/aria-ag-surfaced-$C"
+  grep -qxF '7' "$SD/aria-ag-surfaced-$C"
 }
 
 @test "R4 no_user_input_silent: no USER_INPUT → {} and no log line; fires once one appears" {
@@ -250,7 +256,7 @@ logged() { grep -q -- " antigravity $1\$" "$HOOKLOG" 2>/dev/null; }
   m=$(r4_active)
   has "$m" "projects/proj-b/deposits.md"
   hasnt "$m" "projects/proj-a/hooks.md"
-  grep -qxF '4' "$SURF/aria-ag-surfaced-$C"
+  grep -qxF '4' "$SD/aria-ag-surfaced-$C"
 }
 
 @test "R4 no_transcript_logged: missing transcript → debug-log line; other outputs unchanged" {
@@ -316,14 +322,14 @@ logged() { grep -q -- " antigravity $1\$" "$HOOKLOG" 2>/dev/null; }
   cp "$FIXTURE" "$SURF/t.jsonl"
   C="${RUN_ID}S"
   printf 'keep\n' > "$SURF/target"
-  ln -s "$SURF/target" "$SURF/aria-ag-surfaced-$C"
+  ln -s "$SURF/target" "$SD/aria-ag-surfaced-$C"
   r4_payload "$C" "$SURF/t.jsonl" 3
   r4_run
   [ -z "$(r4_active)" ]
   [ "$(cat "$SURF/target")" = "keep" ]
-  [ ! -e "/tmp/aria-active-$C" ]
+  [ ! -e "$SD/aria-active-$C" ]
   logged 'state refused'
-  rm -f "$SURF/aria-ag-surfaced-$C"
+  rm -f "$SD/aria-ag-surfaced-$C"
   r4_run
   has "$(r4_active)" "projects/proj-b/deposits.md"
 }
@@ -334,12 +340,12 @@ logged() { grep -q -- " antigravity $1\$" "$HOOKLOG" 2>/dev/null; }
   C="${RUN_ID}D"
   r4_payload "$C" "$SURF/t.jsonl" 3
   bash "$WRAPPER" < "$SURF/in" >&- 2>/dev/null || true
-  [ ! -e "$SURF/aria-ag-surfaced-$C" ]
-  [ ! -e "/tmp/aria-active-$C" ]
+  [ ! -e "$SD/aria-ag-surfaced-$C" ]
+  [ ! -e "$SD/aria-active-$C" ]
   logged 'emit write-failed'
   r4_run
   has "$(r4_active)" "projects/proj-b/deposits.md"
-  grep -qxF '4' "$SURF/aria-ag-surfaced-$C"
+  grep -qxF '4' "$SD/aria-ag-surfaced-$C"
 }
 
 @test "R4 window_is_last_400_lines: a USER_INPUT older than 400 lines is not read" {
@@ -383,8 +389,8 @@ logged() { grep -q -- " antigravity $1\$" "$HOOKLOG" 2>/dev/null; }
   r4_payload "${RUN_ID}x/../sub/y" "$SURF/t.jsonl" 3
   r4_run
   has "$(r4_active)" "projects/proj-b/deposits.md"
-  grep -qxF '4' "$SURF/aria-ag-surfaced-${RUN_ID}x..suby"
-  grep -qxF 'projects/proj-b/deposits.md' "/tmp/aria-active-${RUN_ID}x..suby"
+  grep -qxF '4' "$SD/aria-ag-surfaced-${RUN_ID}x..suby"
+  grep -qxF 'projects/proj-b/deposits.md' "$SD/aria-active-${RUN_ID}x..suby"
   [ -z "$(ls -A "$SURF/sub")" ]
 }
 
@@ -405,8 +411,8 @@ logged() { grep -q -- " antigravity $1\$" "$HOOKLOG" 2>/dev/null; }
   bash "$H" < "$SURF/in" > "$SURF/out" 2>/dev/null
   [ "$(cat "$SURF/out")" = "{}" ]
   [ "$(ranked)" = "1" ]
-  grep -qxF '4' "$SURF/aria-ag-surfaced-$C"
-  [ ! -e "/tmp/aria-active-$C" ]                 # the ledger records delivered paths only
+  grep -qxF '4' "$SD/aria-ag-surfaced-$C"
+  [ ! -e "$SD/aria-active-$C" ]                 # the ledger records delivered paths only
   # nothing-new: deliver, lose only the state file (the ledger still holds the paths).
   C2="${RUN_ID}Q"
   cp "$FIXTURE" "$SURF/t2.jsonl"
@@ -414,11 +420,11 @@ logged() { grep -q -- " antigravity $1\$" "$HOOKLOG" 2>/dev/null; }
   bash "$H" < "$SURF/in" > "$SURF/out" 2>/dev/null
   has "$(r4_active)" "projects/proj-b/deposits.md"
   [ "$(ranked)" = "2" ]
-  rm -f "$SURF/aria-ag-surfaced-$C2"
+  rm -f "$SD/aria-ag-surfaced-$C2"
   bash "$H" < "$SURF/in" > "$SURF/out" 2>/dev/null
   [ "$(cat "$SURF/out")" = "{}" ]
   [ "$(ranked)" = "3" ]
-  grep -qxF '4' "$SURF/aria-ag-surfaced-$C2"
+  grep -qxF '4' "$SD/aria-ag-surfaced-$C2"
   bash "$H" < "$SURF/in" > "$SURF/out" 2>/dev/null
   [ "$(cat "$SURF/out")" = "{}" ]
   [ "$(ranked)" = "3" ]
@@ -438,7 +444,7 @@ logged() { grep -q -- " antigravity $1\$" "$HOOKLOG" 2>/dev/null; }
   [ "$(grep -c ' antigravity transcript unreadable$' "$HOOKLOG")" = "2" ]
   # A planted marker link is never created through. Dangling on purpose: `-e` follows a
   # link, so a link to an existing file already reads as "logged" and would prove nothing.
-  ln -s "$SURF/planted-target" "$SURF/aria-ag-logged-${RUN_ID}W.unreadable"
+  ln -s "$SURF/planted-target" "$SD/aria-ag-logged-${RUN_ID}W.unreadable"
   r4_payload "${RUN_ID}W" "$SURF/missing.jsonl" 3
   r4_run
   [ ! -e "$SURF/planted-target" ]
@@ -447,15 +453,15 @@ logged() { grep -q -- " antigravity $1\$" "$HOOKLOG" 2>/dev/null; }
 
 @test "R4 stale_state_pruned_on_first_call: state files older than 24 h go on invocationNum 0" {
   r4_configure
-  printf '4\n' > "$SURF/aria-ag-surfaced-${RUN_ID}old"
-  : > "$SURF/aria-ag-logged-${RUN_ID}old.unreadable"
-  touch -t 202001010000 "$SURF/aria-ag-surfaced-${RUN_ID}old" "$SURF/aria-ag-logged-${RUN_ID}old.unreadable"
-  printf '4\n' > "$SURF/aria-ag-surfaced-${RUN_ID}new"
+  printf '4\n' > "$SD/aria-ag-surfaced-${RUN_ID}old"
+  : > "$SD/aria-ag-logged-${RUN_ID}old.unreadable"
+  touch -t 202001010000 "$SD/aria-ag-surfaced-${RUN_ID}old" "$SD/aria-ag-logged-${RUN_ID}old.unreadable"
+  printf '4\n' > "$SD/aria-ag-surfaced-${RUN_ID}new"
   r4_payload "${RUN_ID}P" "$SURF/missing.jsonl" 0
   r4_run
-  [ ! -e "$SURF/aria-ag-surfaced-${RUN_ID}old" ]
-  [ ! -e "$SURF/aria-ag-logged-${RUN_ID}old.unreadable" ]
-  [ -e "$SURF/aria-ag-surfaced-${RUN_ID}new" ]
+  [ ! -e "$SD/aria-ag-surfaced-${RUN_ID}old" ]
+  [ ! -e "$SD/aria-ag-logged-${RUN_ID}old.unreadable" ]
+  [ -e "$SD/aria-ag-surfaced-${RUN_ID}new" ]
 }
 
 @test "R4 lib_missing_logged: without lib-prompt-surface.sh → logged, output unchanged" {
@@ -467,7 +473,7 @@ logged() { grep -q -- " antigravity $1\$" "$HOOKLOG" 2>/dev/null; }
   # The debug-log write uses the shared safe create in lib-tracked-artifacts.sh (spec §5), which
   # ships beside it; only lib-prompt-surface.sh is missing here.
   cp "${BATS_TEST_DIRNAME}/../bin/config.sh" "${BATS_TEST_DIRNAME}/../bin/lib-index-match.sh" \
-     "${BATS_TEST_DIRNAME}/../bin/lib-tracked-artifacts.sh" "$P/bin/"
+     "${BATS_TEST_DIRNAME}/../bin/lib-tracked-artifacts.sh" "${BATS_TEST_DIRNAME}/../bin/lib-state-key.sh" "$P/bin/"
   r4_payload "${RUN_ID}L" "$SURF/t.jsonl" 3
   bash "$P/bin/antigravity/pre-invocation-aria.sh" < "$SURF/in" > "$SURF/out" 2>/dev/null
   [ "$(cat "$SURF/out")" = "{}" ]
@@ -478,13 +484,13 @@ logged() { grep -q -- " antigravity $1\$" "$HOOKLOG" 2>/dev/null; }
   r4_configure
   cp "$FIXTURE" "$SURF/t.jsonl"
   printf 'keep\n' > "$SURF/sentinel"
-  ln -s "$SURF/sentinel" "$SURF/aria-ag-model.last"
+  ln -s "$SURF/sentinel" "$SD/aria-ag-model.last"
   r4_payload "${RUN_ID}ML" "$SURF/t.jsonl" 3 "model-z-9"
   r4_run
   [ "$(cat "$SURF/sentinel")" = "keep" ]
   logged 'capture modelName=model-z-9'
-  [ ! -L "$SURF/aria-ag-model.last" ]
-  [ "$(cat "$SURF/aria-ag-model.last")" = "model-z-9" ]
+  [ ! -L "$SD/aria-ag-model.last" ]
+  [ "$(cat "$SD/aria-ag-model.last")" = "model-z-9" ]
 }
 
 @test "R4 state_dangling_link_refused: a link planted at the state path mid-run is not written through" {
@@ -493,10 +499,10 @@ logged() { grep -q -- " antigravity $1\$" "$HOOKLOG" 2>/dev/null; }
   C="${RUN_ID}SD"
   r4_user_input 4 "hello there friend" > "$SURF/t.jsonl"   # nofire: the hook records the step
   r4_payload "$C" "$SURF/t.jsonl" 3
-  KT_TEST_PLANT_LINK="$SURF/aria-ag-surfaced-$C" KT_TEST_PLANT_TARGET="$SURF/planted-state" \
+  KT_TEST_PLANT_LINK="$SD/aria-ag-surfaced-$C" KT_TEST_PLANT_TARGET="$SURF/planted-state" \
     bash "$H" < "$SURF/in" > "$SURF/out" 2>/dev/null
   [ "$(cat "$SURF/out")" = "{}" ]
-  [ -L "$SURF/aria-ag-surfaced-$C" ]        # instrument check: the link was planted
+  [ -L "$SD/aria-ag-surfaced-$C" ]        # instrument check: the link was planted
   [ ! -e "$SURF/planted-state" ]            # never created through the link
   logged 'state refused'                    # and the turn was not recorded
 }
@@ -505,7 +511,7 @@ logged() { grep -q -- " antigravity $1\$" "$HOOKLOG" 2>/dev/null; }
   r4_configure
   printf 'keep\n' > "$SURF/sentinel"
   C="${RUN_ID}MK"
-  ln -s "$SURF/sentinel" "$SURF/aria-ag-logged-$C.unreadable"
+  ln -s "$SURF/sentinel" "$SD/aria-ag-logged-$C.unreadable"
   r4_payload "$C" "$SURF/missing.jsonl" 3
   r4_run; r4_run
   [ "$(cat "$SURF/sentinel")" = "keep" ]
@@ -516,14 +522,14 @@ logged() { grep -q -- " antigravity $1\$" "$HOOKLOG" 2>/dev/null; }
   r4_configure
   # A non-regular marker (a directory of ours) does not silence the line.
   C="${RUN_ID}FD"
-  mkdir "$SURF/aria-ag-logged-$C.unreadable"
+  mkdir "$SD/aria-ag-logged-$C.unreadable"
   r4_payload "$C" "$SURF/missing.jsonl" 3
   r4_run
   [ "$(grep -c ' antigravity transcript unreadable$' "$HOOKLOG")" = "1" ]
   # A marker owned by someone else does not either: a hard link to a root-owned file on
   # the same filesystem (macOS permits it; skipped where the OS refuses).
   C2="${RUN_ID}FM"
-  m="$SURF/aria-ag-logged-$C2.unreadable"
+  m="$SD/aria-ag-logged-$C2.unreadable"
   for f in /private/var/log/install.log /private/var/log/system.log /etc/passwd; do
     ln "$f" "$m" 2>/dev/null && break
   done
@@ -566,6 +572,7 @@ CFG
   P="$SURF/plug"
   mkdir -p "$P/bin/antigravity"
   cp "${BATS_TEST_DIRNAME}"/../bin/antigravity/*.sh "$P/bin/antigravity/"
+  cp "${BATS_TEST_DIRNAME}/../bin/lib-state-key.sh" "$P/bin/"   # the log name resolves; only the libs are gone
   bash "$P/bin/antigravity/pre-invocation-aria.sh" < "$SURF/in" > "$SURF/out" 2>/dev/null
   [ ! -e "$SURF/planted-log" ]
 }
@@ -578,19 +585,19 @@ CFG
   C="${RUN_ID}FS"
   r4_user_input 4 "hello there friend" > "$SURF/t.jsonl"
   r4_payload "$C" "$SURF/t.jsonl" 3
-  r4_run_bounded 5 env KT_TEST_PLANT_FIFO="$SURF/aria-ag-surfaced-$C" bash "$H"
+  r4_run_bounded 5 env KT_TEST_PLANT_FIFO="$SD/aria-ag-surfaced-$C" bash "$H"
   [ "$BOUNDED" = ok ]
   [ "$(cat "$SURF/out")" = "{}" ]
-  [ -p "$SURF/aria-ag-surfaced-$C" ]          # instrument check: the FIFO was planted
+  [ -p "$SD/aria-ag-surfaced-$C" ]          # instrument check: the FIFO was planted
   logged 'state refused'                      # and nothing was recorded through it
   # Log-once marker: a FIFO planted before the run.
   C2="${RUN_ID}FK"
-  mkfifo "$SURF/aria-ag-logged-$C2.unreadable"
+  mkfifo "$SD/aria-ag-logged-$C2.unreadable"
   r4_payload "$C2" "$SURF/missing.jsonl" 3
   r4_run_bounded 5 bash "$WRAPPER"
   [ "$BOUNDED" = ok ]
   [ "$(cat "$SURF/out")" = "{}" ]
-  [ -p "$SURF/aria-ag-logged-$C2.unreadable" ]
+  [ -p "$SD/aria-ag-logged-$C2.unreadable" ]
   logged 'transcript unreadable'
   # Debug log, written before the lib loads (jq missing): a FIFO planted before the run.
   r4_farm
@@ -601,14 +608,14 @@ CFG
   grep -q '"decision":"deny"' "$SURF/out"
   [ -p "$HOOKLOG" ]
   # Every failed create removed its temp.
-  [ -z "$(ls -A "$SURF" | grep '^\.aria-new\.' || true)" ]
+  [ -z "$(ls -A "$SD" | grep '^\.aria-new\.' || true)" ]
 }
 
 @test "R4 marker_dir_link_not_entered: a create name that is a symlink to a directory gets nothing inside it" {
   r4_configure
   mkdir "$SURF/elsewhere"
   C="${RUN_ID}DK"
-  ln -s "$SURF/elsewhere" "$SURF/aria-ag-logged-$C.unreadable"
+  ln -s "$SURF/elsewhere" "$SD/aria-ag-logged-$C.unreadable"
   r4_payload "$C" "$SURF/missing.jsonl" 3
   r4_run
   [ -z "$(ls -A "$SURF/elsewhere")" ]
@@ -629,10 +636,10 @@ CFG
   r4_payload "$C" "$SURF/t.jsonl" 3
   env PATH="$SURF/shim:$PATH" bash "$WRAPPER" < "$SURF/in" > "$SURF/out" 2>/dev/null
   [ "$(links)" = "1" ]                         # instrument check: the first record created the file
-  grep -qxF '4' "$SURF/aria-ag-surfaced-$C"
+  grep -qxF '4' "$SD/aria-ag-surfaced-$C"
   r4_user_input 5 "good morning friend" >> "$SURF/t.jsonl"           # nofire: records step 5
   env PATH="$SURF/shim:$PATH" bash "$WRAPPER" < "$SURF/in" > "$SURF/out" 2>/dev/null
-  grep -qxF '5' "$SURF/aria-ag-surfaced-$C"
+  grep -qxF '5' "$SD/aria-ag-surfaced-$C"
   [ "$(links)" = "1" ]                         # the second record made no create call
 }
 
@@ -661,30 +668,30 @@ SHIM
   C="${RUN_ID}WF"
   r4_payload "$C" "$SURF/t.jsonl" 3
   r4_run_bounded 5 env PATH="$SURF/shim:$PATH" KT_TEST_WINDOW_PLANT=fifo \
-    KT_TEST_WINDOW_NAME="$SURF/aria-ag-surfaced-$C" bash "$WRAPPER"
+    KT_TEST_WINDOW_NAME="$SD/aria-ag-surfaced-$C" bash "$WRAPPER"
   [ "$BOUNDED" = ok ]
-  [ -p "$SURF/aria-ag-surfaced-$C" ]           # instrument check: planted in the window
+  [ -p "$SD/aria-ag-surfaced-$C" ]           # instrument check: planted in the window
   # Symlink to a directory in the window: nothing is created inside the directory.
   C2="${RUN_ID}WD"
   r4_payload "$C2" "$SURF/t.jsonl" 3
   r4_run_bounded 5 env PATH="$SURF/shim:$PATH" KT_TEST_WINDOW_PLANT=dirlink \
-    KT_TEST_WINDOW_NAME="$SURF/aria-ag-surfaced-$C2" bash "$WRAPPER"
+    KT_TEST_WINDOW_NAME="$SD/aria-ag-surfaced-$C2" bash "$WRAPPER"
   [ "$BOUNDED" = ok ]
-  [ -L "$SURF/aria-ag-surfaced-$C2" ]
+  [ -L "$SD/aria-ag-surfaced-$C2" ]
   [ -z "$(ls -A "$SURF/elsewhere")" ]
   [ "$(grep -c ' antigravity state refused$' "$HOOKLOG")" = "2" ]
-  [ -z "$(ls -A "$SURF" | grep '^\.aria-new\.' || true)" ]
+  [ -z "$(ls -A "$SD" | grep '^\.aria-new\.' || true)" ]
 }
 
 @test "R4 orphan_new_temp_pruned: create temps older than 24 h go on invocationNum 0" {
   r4_configure
-  : > "$SURF/.aria-new.OLD123"
-  touch -t 202001010000 "$SURF/.aria-new.OLD123"
-  : > "$SURF/.aria-new.NEW123"
+  : > "$SD/.aria-new.OLD123"
+  touch -t 202001010000 "$SD/.aria-new.OLD123"
+  : > "$SD/.aria-new.NEW123"
   r4_payload "${RUN_ID}O" "$SURF/missing.jsonl" 0
   r4_run
-  [ ! -e "$SURF/.aria-new.OLD123" ]
-  [ -e "$SURF/.aria-new.NEW123" ]
+  [ ! -e "$SD/.aria-new.OLD123" ]
+  [ -e "$SD/.aria-new.NEW123" ]
 }
 
 @test "R4 tmp_sweeps_reach_a_symlinked_root: stale ledgers and create temps in /tmp go on invocationNum 0" {
@@ -708,13 +715,13 @@ SHIM
 
 @test "R4 legacy_ag_new_temp_still_pruned: a pre-2.58.0 .aria-ag-new.* leftover still goes on invocationNum 0" {
   r4_configure
-  : > "$SURF/.aria-ag-new.OLD123"
-  touch -t 202001010000 "$SURF/.aria-ag-new.OLD123"
-  : > "$SURF/.aria-ag-new.NEW123"
+  : > "$SD/.aria-ag-new.OLD123"
+  touch -t 202001010000 "$SD/.aria-ag-new.OLD123"
+  : > "$SD/.aria-ag-new.NEW123"
   r4_payload "${RUN_ID}L" "$SURF/missing.jsonl" 0
   r4_run
-  [ ! -e "$SURF/.aria-ag-new.OLD123" ]
-  [ -e "$SURF/.aria-ag-new.NEW123" ]
+  [ ! -e "$SD/.aria-ag-new.OLD123" ]
+  [ -e "$SD/.aria-ag-new.NEW123" ]
 }
 
 @test "R4 create_helper_is_shared: the hook uses the libraries' kt_create_new, sourced before its first log write" {
@@ -733,4 +740,61 @@ SHIM
   [ "$rc" = "1" ]
   grep -q '"decision":"deny"' "$SURF/out"
   logged 'input jq-missing'
+}
+
+# --- 2.58.0 private state dir (spec D3, D4) ---------------------------------------------------------
+
+@test "no state dir: responsibility 4 injects nothing and logs nothing" {
+  r4_configure
+  cp "$FIXTURE" "$SURF/t.jsonl"
+  # No state dir: a regular file at the state-dir name (deterministic refusal, "not a directory").
+  export KT_STATE_BASE="$SURF/broken-base"; mkdir -p "$KT_STATE_BASE"; : > "$KT_STATE_BASE/aria-knowledge-$(id -u)"
+  C="${RUN_ID}NS"
+  r4_payload "$C" "$SURF/t.jsonl" 3 "model-n-1"
+  r4_run
+  [ "$(cat "$SURF/out")" = "{}" ]
+  r4_payload "${C}U" "$SURF/missing.jsonl" 3           # would be logged (once) with a state dir
+  r4_run
+  [ "$(cat "$SURF/out")" = "{}" ]
+  # Nothing written anywhere: no ledger, step record, log-once marker, model file or debug log.
+  [ -z "$(find "$SURF" \( -name 'aria-active-*' -o -name 'aria-ag-*' -o -name 'aria-surface-hook.log' \) -print | head -1)" ]
+  [ ! -e "/tmp/aria-active-$C" ]
+  # Positive control in the same arm: the same payload with a healthy state dir injects.
+  export KT_STATE_BASE="$SURF/state-base"
+  r4_payload "$C" "$SURF/t.jsonl" 3
+  r4_run
+  has "$(r4_active)" "projects/proj-b/deposits.md"
+}
+
+@test "surfaced and logged markers live in the state dir" {
+  r4_configure
+  cp "$FIXTURE" "$SURF/t.jsonl"
+  C="${RUN_ID}SM"
+  r4_payload "$C" "$SURF/t.jsonl" 3 "model-s-1"
+  r4_run
+  has "$(r4_active)" "projects/proj-b/deposits.md"
+  grep -qxF '4' "$SD/aria-ag-surfaced-$C"
+  grep -qxF 'projects/proj-b/deposits.md' "$SD/aria-active-$C"
+  [ "$(cat "$SD/aria-ag-model.last")" = "model-s-1" ]
+  r4_payload "${C}U" "$SURF/missing.jsonl" 3
+  r4_run
+  [ -f "$SD/aria-ag-logged-${C}U.unreadable" ]
+  grep -q ' antigravity transcript unreadable$' "$SD/aria-surface-hook.log"
+  # ...and nowhere else: not in the test's TMPDIR or scratch dir, not in /tmp.
+  [ -z "$(find "$SURF" -path "$SD" -prune -o \( -name 'aria-active-*' -o -name 'aria-ag-*' -o -name 'aria-surface-hook.log' \) -print | head -1)" ]
+  [ ! -e "/tmp/aria-active-$C" ]
+}
+
+@test "model file name that is a directory is never entered" {
+  r4_configure
+  cp "$FIXTURE" "$SURF/t.jsonl"
+  # mv -f onto a directory moves the temp INTO it (measured), so the hook must not write there.
+  mkdir "$SD/aria-ag-model.last"
+  r4_payload "${RUN_ID}MD" "$SURF/t.jsonl" 3 "model-d-1"
+  r4_run
+  has "$(r4_active)" "projects/proj-b/deposits.md"
+  logged 'capture modelName=model-d-1'
+  [ -d "$SD/aria-ag-model.last" ]
+  [ -z "$(ls -A "$SD/aria-ag-model.last")" ]
+  [ -z "$(ls -A "$SD" | grep '^\.aria-ag-model\.' || true)" ]
 }

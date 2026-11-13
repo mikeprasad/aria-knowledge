@@ -3,8 +3,10 @@
 #
 # Delivers what prompt-capture-check.sh ranked for this generation: if a pending pair
 # exists for this conversation_id + generation_id, print {"additional_context": <text>}
-# ONCE, then record its paths in the session ledger /tmp/aria-active-<conv> and delete
+# ONCE, then record its paths in the session ledger <state dir>/aria-active-<conv> and delete
 # the pair. Otherwise print {}. See prompt-capture-check.sh for the pending-pair layout.
+# <state dir> is the private per-user state dir (lib-state-key.sh); with none (spec D3) this
+# prints {} and touches nothing — a pair in an old shared location is never delivered.
 #
 # ⚠ Known limit (spec D3): Cursor offers no prompt-time injection, so delivery waits for
 # the generation's first tool call — a prompt answered without any tool gets nothing.
@@ -20,7 +22,8 @@
 # log, never to stdout.
 #
 # Runs after EVERY tool call, so the common case — no pending pair anywhere — returns {}
-# before jq or the lib are touched. ⚠ Any undelivered pending file (any conversation)
+# before jq or the lib are touched; it costs only the state-dir resolve (2.58.0: `id -u`, one
+# `ls`, one kt_state_path subshell). ⚠ Any undelivered pending file (any conversation)
 # moves every tool call onto the slow path (jq + lib, ~20 ms) until it is delivered,
 # replaced, or pruned after 24 h.
 
@@ -31,7 +34,14 @@ if (exec 3<&0) 2>/dev/null; then INPUT=$(cat 2>/dev/null); fi
 
 _pci_none() { printf '{}\n'; exit 0; }
 
-_pci_dir=${KT_SURFACE_CACHE_DIR:-${TMPDIR:-/tmp}}
+# The pending pairs live in the private per-user state dir (lib-state-key.sh). No state dir
+# (spec D3): nothing to deliver. The directory itself (for the glob) is taken from one name
+# kt_state_path builds; every file is named with kt_state_path.
+[ -f "$SCRIPT_DIR/lib-state-key.sh" ] || _pci_none
+. "$SCRIPT_DIR/lib-state-key.sh"
+kt_state_resolve || _pci_none
+_pci_lf=$(kt_state_path aria-surface-hook.log) || _pci_none
+_pci_dir=${_pci_lf%/*}
 set -- "$_pci_dir"/aria-cursor-pending-*.text
 [ -e "$1" ] || [ -L "$1" ] || _pci_none
 
@@ -40,7 +50,6 @@ set -- "$_pci_dir"/aria-cursor-pending-*.text
 # (kt_create_new / kt_is_ours from lib-tracked-artifacts.sh, which only defines functions).
 # Without that lib too, nothing is written.
 if [ ! -f "$SCRIPT_DIR/lib-prompt-surface.sh" ]; then
-  _pci_lf="$_pci_dir/aria-surface-hook.log"
   _pci_line="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown-time) cursor inject lib-missing"
   . "$SCRIPT_DIR/lib-tracked-artifacts.sh" 2>/dev/null || _pci_none
   [ -e "$_pci_lf" ] || [ -L "$_pci_lf" ] || kt_create_new "$_pci_lf" || :
@@ -71,7 +80,7 @@ _pci_rest=${_pci_parsed#*"$_pci_nl"}
 _pci_gen=$(kt_ps_sanitize_id "${_pci_rest%%"$_pci_nl"*}")
 [ -n "$_pci_conv" ] && [ -n "$_pci_gen" ] || _pci_none
 
-_pci_base="$_pci_dir/aria-cursor-pending-${_pci_conv}=${_pci_gen}"
+_pci_base=$(kt_state_path "aria-cursor-pending-${_pci_conv}=${_pci_gen}") || _pci_none
 _pci_claim="$_pci_base.text.claim.$$"
 { [ -e "$_pci_base.text" ] || [ -L "$_pci_base.text" ]; } || _pci_none
 mv "$_pci_base.text" "$_pci_claim" 2>/dev/null || _pci_none   # another hook won the claim
@@ -114,6 +123,6 @@ if ! ( printf '%s\n' "$_pci_out" ) 2>/dev/null; then
 fi
 
 # Delivered: record exactly the paths that text named, then drop the pair.
-kt_ps_commit_paths "/tmp/aria-active-${_pci_conv}" "$_pci_base.paths"
+_pci_ledger=$(kt_state_path "aria-active-${_pci_conv}") && kt_ps_commit_paths "$_pci_ledger" "$_pci_base.paths"
 rm -f "$_pci_claim" "$_pci_base.paths" 2>/dev/null
 exit 0

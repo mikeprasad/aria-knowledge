@@ -2,7 +2,7 @@
 # prompt-context-check.sh — UserPromptSubmit hook for aria-knowledge (spec D1a).
 #
 # On every prompt: rank the knowledge index against the words the USER typed, drop
-# files this session has already surfaced (the shared ledger /tmp/aria-active-<session_id>,
+# files this session has already surfaced (the shared ledger <state dir>/aria-active-<session_id>,
 # also used by task-context-check.sh and bash-cd-check.sh), and inject the remaining
 # ranked PATHS as hookSpecificOutput.additionalContext. The model no longer runs the
 # selection algorithm itself; it reads what this hook hands it.
@@ -16,9 +16,13 @@
 # Silent to the model (no output, exit 0) unless a not-yet-surfaced file ranks. Never
 # blocks the prompt. A FAILURE — jq missing, empty or unparseable stdin, no session_id,
 # an invalid config, a missing index — also appends one line to the debug log
-# ${KT_SURFACE_CACHE_DIR:-${TMPDIR:-/tmp}}/aria-surface-hook.log (spec C3), so a dead
-# hook can be told from one that had nothing to say. Not configured, surfacing turned
-# off, and "nothing new to surface" are not failures and log nothing.
+# <state dir>/aria-surface-hook.log (spec C3), so a dead hook can be told from one that had
+# nothing to say. Not configured, surfacing turned off, and "nothing new to surface" are not
+# failures and log nothing.
+#
+# State (2.58.0): the ledger, the debug log and the caches live in the private per-user state
+# dir (lib-state-key.sh). With none (spec D3) this hook surfaces nothing and logs nothing:
+# without the ledger the same files would be injected on every prompt.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" 2>/dev/null && pwd)" || exit 0
 
@@ -34,6 +38,9 @@ if (exec 3<&0) 2>/dev/null; then INPUT=$(cat 2>/dev/null); fi
 KT_PS_SCRIPT_DIR=$SCRIPT_DIR
 KT_PS_RUNTIME=claude-code
 . "$SCRIPT_DIR/lib-prompt-surface.sh"
+# No state directory (spec D3): surface nothing and log nothing (the log is state too).
+. "$SCRIPT_DIR/lib-state-key.sh"
+kt_state_resolve || exit 0
 
 command -v jq >/dev/null 2>&1 || { kt_ps_log claude-code input jq-missing; exit 0; }
 [ -n "$INPUT" ] || { kt_ps_log claude-code input stdin-empty; exit 0; }
@@ -69,7 +76,7 @@ _pcc_text=$(printf '%s' "$_pcc_raw" | kt_ps_strip_pasted)
 # Output (C4, Claude Code 2.1.319): hookSpecificOutput.additionalContext — a top-level
 # field is ignored. The ledger is committed only once the output is printed: a file the
 # model never received must not be marked as surfaced (lib header, "The ledger contract").
-LEDGER="/tmp/aria-active-${_pcc_sid}"
+LEDGER=$(kt_state_path "aria-active-${_pcc_sid}") || exit 0
 kt_ps_surface "$_pcc_text" "$LEDGER" >/dev/null
 [ -n "$KT_PS_TEXT" ] || exit 0
 _pcc_out=$(jq -cn --arg c "$KT_PS_TEXT" \

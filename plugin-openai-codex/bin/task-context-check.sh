@@ -37,6 +37,8 @@ fi
 . "$SCRIPT_DIR/lib-state-key.sh"
 kt_state_resolve || exit 0
 COOLDOWN_FILE=$(kt_state_path "aria-context-${SESSION_ID}") || exit 0
+# The session ledger (active mode) lives in the same directory.
+LEDGER=$(kt_state_path "aria-active-${SESSION_ID}") || exit 0
 if [ -L "$COOLDOWN_FILE" ] || { [ -e "$COOLDOWN_FILE" ] && [ ! -f "$COOLDOWN_FILE" ]; }; then
   exit 0
 fi
@@ -75,8 +77,7 @@ kt_artifact_compute_for_path "$PWD"
 
 # Active-mode session ledger: filter out files/artifacts already surfaced
 # earlier in this session, so we don't re-emit the same paths on every task
-# dispatch. Passive mode skips the ledger entirely.
-LEDGER="/tmp/aria-active-${SESSION_ID}"
+# dispatch. Passive mode skips the ledger entirely. LEDGER is set beside the cooldown above.
 if [ "$KT_ACTIVE_SURFACING" = "true" ]; then
   if [ "$KT_MATCH_COUNT" -gt 0 ]; then
     kt_match_filter_ledger "$LEDGER"

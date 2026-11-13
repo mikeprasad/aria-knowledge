@@ -715,7 +715,15 @@ def test_post_compact_does_not_list_a_linked_ledger() -> None:
         config = root / "aria-config.md"
         write_config(config, knowledge)
         sid = f"codex-f7-{root.name}"
-        ledger = Path("/tmp") / f"aria-active-{sid}"
+        # 2.58.0: post-compact-check.sh reads the ledger from the private state dir
+        # (<KT_STATE_BASE>/aria-knowledge-<uid>), made here mode 700 so it can be planted first.
+        base = root / "state-base"
+        base.mkdir()
+        state_dir = base / f"aria-knowledge-{os.getuid()}"
+        state_dir.mkdir()
+        state_dir.chmod(0o700)
+        ledger = state_dir / f"aria-active-{sid}"
+        hook_env = {"KT_CONFIG": str(config), "TMPDIR": tmp, "KT_STATE_BASE": str(base)}
         planted = root / "planted"
         planted.write_text("planted/through-a-link.md\n", encoding="utf-8")
         payload = {"hook_event_name": "PostCompact", "session_id": sid}
@@ -723,11 +731,11 @@ def test_post_compact_does_not_list_a_linked_ledger() -> None:
             if ledger.is_symlink() or ledger.exists():
                 ledger.unlink()
             ledger.symlink_to(planted)
-            out = json.dumps(run_hook("post-compact", payload, env={"KT_CONFIG": str(config), "TMPDIR": tmp}))
+            out = json.dumps(run_hook("post-compact", payload, env=hook_env))
             assert "planted/through-a-link.md" not in out, out[:300]
             ledger.unlink()
             ledger.write_text("regular/ledger-entry.md\n", encoding="utf-8")
-            out = json.dumps(run_hook("post-compact", payload, env={"KT_CONFIG": str(config), "TMPDIR": tmp}))
+            out = json.dumps(run_hook("post-compact", payload, env=hook_env))
             assert "regular/ledger-entry.md" in out, "control: a regular ledger is listed"
         finally:
             if ledger.is_symlink() or ledger.exists():

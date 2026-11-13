@@ -13,8 +13,10 @@
 # paths only after Cursor has been handed the text.
 #
 # Pending pair, one per conversation (the newest generation's):
-#   ${KT_SURFACE_CACHE_DIR:-${TMPDIR:-/tmp}}/aria-cursor-pending-<conv>=<gen>.text  injection text
+#   <state dir>/aria-cursor-pending-<conv>=<gen>.text  injection text
 #   …/aria-cursor-pending-<conv>=<gen>.paths  knowledge-folder-relative paths it names
+# <state dir> is the private per-user state dir (lib-state-key.sh). With none (spec D3) this hook
+# stores nothing and logs nothing, so the inject hook has nothing to deliver.
 # <conv>/<gen> are conversation_id/generation_id reduced to kt_ps_sanitize_id's charset
 # [A-Za-z0-9._-]; `=` cannot occur in either, so "<conv>=" names one conversation exactly.
 # A new prompt replaces the conversation's older pair (that generation is over: Cursor
@@ -29,7 +31,7 @@
 # Output: ALWAYS exactly {"continue":true}, printed first so that no later failure — no
 # jq, malformed or empty stdin, a missing lib, an invalid config — can block the user's
 # prompt. Failures go to the debug log
-# ${KT_SURFACE_CACHE_DIR:-${TMPDIR:-/tmp}}/aria-surface-hook.log (spec C3), which also
+# <state dir>/aria-surface-hook.log (spec C3), which also
 # records the Cursor version each time it changes (spec C2), so a host change is
 # diagnosable without a log line per prompt.
 #
@@ -52,9 +54,12 @@ if (exec 3<&0) 2>/dev/null; then INPUT=$(cat 2>/dev/null); fi
 # Without the lib there is no kt_ps_log either, so this one failure is logged inline, to the
 # same debug log and in the same shape, through the same safe create kt_ps_log uses
 # (kt_create_new / kt_is_ours from lib-tracked-artifacts.sh, which only defines functions).
-# Without that lib too, nothing is written.
+# Without that lib too, or without a state dir (lib-state-key.sh), nothing is written.
 if [ ! -f "$SCRIPT_DIR/lib-prompt-surface.sh" ]; then
-  _pcc_lf="${KT_SURFACE_CACHE_DIR:-${TMPDIR:-/tmp}}/aria-surface-hook.log"
+  [ -f "$SCRIPT_DIR/lib-state-key.sh" ] && [ -f "$SCRIPT_DIR/lib-tracked-artifacts.sh" ] || exit 0
+  . "$SCRIPT_DIR/lib-state-key.sh"
+  kt_state_resolve || exit 0
+  _pcc_lf=$(kt_state_path aria-surface-hook.log) || exit 0
   _pcc_line="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown-time) cursor capture lib-missing"
   . "$SCRIPT_DIR/lib-tracked-artifacts.sh" 2>/dev/null || exit 0
   [ -e "$_pcc_lf" ] || [ -L "$_pcc_lf" ] || kt_create_new "$_pcc_lf" || :
@@ -65,15 +70,24 @@ fi
 KT_PS_SCRIPT_DIR=$SCRIPT_DIR
 KT_PS_RUNTIME=cursor
 . "$SCRIPT_DIR/lib-prompt-surface.sh"
+# No state directory (spec D3): store nothing and log nothing (the log is state too).
+. "$SCRIPT_DIR/lib-state-key.sh"
+kt_state_resolve || exit 0
 
 command -v jq >/dev/null 2>&1 || { kt_ps_log cursor input jq-missing; exit 0; }
 [ -n "$INPUT" ] || { kt_ps_log cursor input stdin-empty; exit 0; }
 
-_pcc_dir=${KT_SURFACE_CACHE_DIR:-${TMPDIR:-/tmp}}
+# Every name below is in the state dir. Files are named with kt_state_path; the directory itself
+# (for mktemp, the glob and find) is taken from one such name.
+_pcc_vf=$(kt_state_path aria-cursor-version.last) || exit 0
+_pcc_dir=${_pcc_vf%/*}
 
-# DEST CONTENT — temp file in the same dir, then mv: a reader never sees half a file, and
-# rename replaces a planted link instead of following it.
+# DEST CONTENT — temp file in the same dir, then mv: a reader never sees half a file. ⚠ mv is not
+# a safe replace of whatever sits at DEST: `mv -f` onto a directory (or a link to one) moves the
+# temp INTO it (measured). So a DEST that exists and is not a regular file is not written; inside
+# the private state dir only our own mistake can put one there.
 _pcc_write() {
+  if [ -e "$1" ] && [ ! -f "$1" ]; then return 1; fi
   _pcc_tmp=$(mktemp "$_pcc_dir/.aria-cursor-pending.XXXXXX" 2>/dev/null) || return 1
   if printf '%s\n' "$2" > "$_pcc_tmp" 2>/dev/null && mv -f "$_pcc_tmp" "$1" 2>/dev/null; then
     return 0
@@ -111,8 +125,7 @@ case $_pcc_rest in *"$_pcc_nl"*) _pcc_prompt=${_pcc_rest#*"$_pcc_nl"} ;; esac
 _pcc_ver=${_pcc_ver:-unknown}
 
 # --- C2: the Cursor version, logged when it differs from the last one logged. The state
-# file is read only when it is a regular file of ours (never a planted link).
-_pcc_vf="$_pcc_dir/aria-cursor-version.last"
+# file ($_pcc_vf, named above) is read only when it is a regular file of ours, never a link.
 _pcc_last=""
 if [ -f "$_pcc_vf" ] && [ ! -L "$_pcc_vf" ] && [ -O "$_pcc_vf" ]; then
   IFS= read -r _pcc_last < "$_pcc_vf" 2>/dev/null || :
@@ -137,7 +150,7 @@ if [ -z "${KT_ROOT:-}" ]; then
 fi
 KT_CONFIG="${KT_CONFIG:-$KT_ROOT/.cursor/aria-knowledge.local.md}"
 
-_pcc_base="$_pcc_dir/aria-cursor-pending-${_pcc_conv}=${_pcc_gen}"
+_pcc_base=$(kt_state_path "aria-cursor-pending-${_pcc_conv}=${_pcc_gen}") || exit 0
 
 # --- G2, part 1: this conversation's older pair goes (its generation can no longer
 # receive a postToolUse). rm on a symlink removes the link only. A `.claim.<pid>` file belongs
@@ -150,7 +163,8 @@ done
 # --- Rank (shared core). The user's own words only: pasted blocks removed.
 _pcc_text=$(printf '%s' "$_pcc_prompt" | kt_ps_strip_pasted)
 [ -n "$_pcc_text" ] || exit 0
-kt_ps_surface "$_pcc_text" "/tmp/aria-active-${_pcc_conv}" >/dev/null
+_pcc_ledger=$(kt_state_path "aria-active-${_pcc_conv}") || exit 0
+kt_ps_surface "$_pcc_text" "$_pcc_ledger" >/dev/null
 [ -n "$KT_PS_TEXT" ] || exit 0
 
 # --- Store the pending pair. Paths first, so a text file never exists without its paths.
@@ -165,7 +179,7 @@ fi
 # the .text just written carries the current time — so "due" is one shell test, no
 # process. A missing, linked or foreign stamp counts as due. find is limited to our files, and
 # also takes mktemp orphans (`.aria-cursor-pending.*`) left by a capture killed before its mv.
-_pcc_stamp="$_pcc_dir/aria-cursor-prune.stamp"
+_pcc_stamp=$(kt_state_path aria-cursor-prune.stamp) || exit 0
 if [ ! -e "$_pcc_stamp" ] || [ -L "$_pcc_stamp" ] || [ ! -O "$_pcc_stamp" ] \
    || [ "$_pcc_base.text" -nt "$_pcc_stamp" ]; then
   find "$_pcc_dir" -maxdepth 1 \( -name 'aria-cursor-pending-*' -o -name '.aria-cursor-pending.*' \) -user "${USER:-$(id -u)}" -mmin +1440 \

@@ -13,6 +13,11 @@ DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 HOOK="$DIR/plugin-claude-code/scripts/session-start-check.sh"
 MANIFEST="$DIR/plugin-claude-code/.claude-plugin/plugin.json"
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
+# The session ledger lives in the private state dir (2.58.0); this suite resolves it under its own
+# scratch base, made here (mode 700) so an arm can plant in it before the hook runs.
+unset XDG_RUNTIME_DIR
+KT_STATE_BASE="$TMP/sb"; export KT_STATE_BASE
+SD="$KT_STATE_BASE/aria-knowledge-$(id -u)"; mkdir -p "$KT_STATE_BASE"; mkdir -m 700 "$SD"
 PASS=0; FAIL=0
 ok()  { printf '  PASS  %s\n' "$1"; PASS=$((PASS+1)); }
 bad() { printf '  FAIL  %s — %s\n' "$1" "$2"; FAIL=$((FAIL+1)); }
@@ -86,8 +91,9 @@ esac
 check "AC3 compact context leads with the rules pointer" "yes" "$_lead"
 check "AC3 compact context carries ARIA CONFIG" "yes" "$(has "$(ctx "$TMP/compact.json")" 'ARIA CONFIG —')"
 # F7 (final fix wave): the compact block lists the ledger's lines to the model, so a LINK planted at
-# the ledger's predictable name must not be read. run() sends session id sse-$$.
-F7L="/tmp/aria-active-sse-$$"; rm -f "$F7L"
+# the ledger's name must not be read (a second guard inside the private state dir). run() sends
+# session id sse-$$.
+F7L="$SD/aria-active-sse-$$"; rm -f "$F7L"
 printf 'planted/through-a-link.md\n' > "$TMP/f7-planted"; ln -s "$TMP/f7-planted" "$F7L"
 run "$H" "$CFG" compact "$TMP/f7-link.json"
 check "F7 compact does not list a symlinked ledger" "no" "$(has "$(ctx "$TMP/f7-link.json")" 'planted/through-a-link.md')"
@@ -130,7 +136,7 @@ WS="$TMP/ws"; mkdir -p "$WS/projx"
 printf '# CODEMAP\n\n> Last updated: %s\n\n## Directory\n- a\n\n## 1. Section\n' "$TODAY" > "$WS/projx/CODEMAP.md"
 CFGP="$TMP/cfgp.md"
 printf -- '---\nknowledge_folder: %s\nprojects_enabled: true\nprojects_list: projx:projx\nactive_knowledge_surfacing: true\n---\n' "$KF2" > "$CFGP"
-SID="sse-ta-$$"; rm -f "/tmp/aria-active-$SID"
+SID="sse-ta-$$"; rm -f "$SD/aria-active-$SID"
 runp() { # $1 = cwd, $2 = out
   printf '{"session_id":"%s","source":"startup"}' "$SID" \
     | (cd "$1" && HOME="$H" KT_CONFIG="$CFGP" sh "$HOOK" 2>/dev/null) > "$2" || true
@@ -142,20 +148,20 @@ runp "$WS/projx" "$TMP/proj1.json"
 check "AC6 tracked artifacts fire with a session id" "yes" \
   "$(has "$(ctx "$TMP/proj1.json")" '[aria] Loaded CODEMAP directory for projx')"
 check "AC6 the ledger records the map once" "1" \
-  "$(grep -c 'projx/CODEMAP.md' "/tmp/aria-active-$SID" 2>/dev/null || echo 0)"
+  "$(grep -c 'projx/CODEMAP.md' "$SD/aria-active-$SID" 2>/dev/null || echo 0)"
 runp "$WS/projx" "$TMP/proj2.json"
 check "AC6 a second run in the same session is deduplicated" "no" \
   "$(has "$(ctx "$TMP/proj2.json")" '[aria] Loaded CODEMAP directory')"
 # F7 (final fix wave): the ledger name is predictable, so a LINK planted there must be neither read
 # (the dedup above would then silently suppress the load) nor appended to (the write would land in
 # whatever the link names). The planted target holds exactly the real ledger's content.
-cp "/tmp/aria-active-$SID" "$TMP/ta-planted"; TA_SUM=$(cksum < "$TMP/ta-planted")
-rm -f "/tmp/aria-active-$SID"; ln -s "$TMP/ta-planted" "/tmp/aria-active-$SID"
+cp "$SD/aria-active-$SID" "$TMP/ta-planted"; TA_SUM=$(cksum < "$TMP/ta-planted")
+rm -f "$SD/aria-active-$SID"; ln -s "$TMP/ta-planted" "$SD/aria-active-$SID"
 runp "$WS/projx" "$TMP/proj-link.json"
 check "F7 tracked artifacts ignore a symlinked ledger (the load still fires)" "yes" \
   "$(has "$(ctx "$TMP/proj-link.json")" '[aria] Loaded CODEMAP directory for projx')"
 check "F7 tracked artifacts do not append through the link" "$TA_SUM" "$(cksum < "$TMP/ta-planted")"
-rm -f "/tmp/aria-active-$SID"
+rm -f "$SD/aria-active-$SID"
 
 # --- Latent defects the routing change made model-visible (retrospect 2026-10-29) --------
 # (1) The CODEMAP scan takes the first 5 maps under CWD. Hidden directories are worktrees and

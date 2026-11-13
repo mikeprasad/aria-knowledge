@@ -30,9 +30,10 @@ find "$_kt_tmp/" -maxdepth 1 -name 'aria-active-*' -mtime +1 -delete 2>/dev/null
 # Clear stale session-inprogress ledgers (>1 day) from prior/crashed sessions
 # (written by post-edit-check.sh's first-edit in-progress marking, v2.23.0).
 find "$_kt_tmp/" -maxdepth 1 -name 'aria-session-inprogress-*' -mtime +1 -delete 2>/dev/null
-# Clear create temps (>24 h) that a killed writer left behind: kt_create_new makes them beside
-# the session ledger (/tmp) and the surfacing debug log (the cache dir). Ours only.
-find "$_kt_tmp/" "${KT_SURFACE_CACHE_DIR:-${TMPDIR:-/tmp}}/" -maxdepth 1 -name '.aria-new.*' -user "$(id -u)" -mmin +1440 -exec rm -f {} + 2>/dev/null
+# Clear create temps (>24 h) that a killed writer left behind: before 2.58.0 kt_create_new made
+# them beside the session ledger (/tmp) and the surfacing debug log ($TMPDIR). Ours only. Since
+# 2.58.0 both names live in the private state dir, which is swept separately.
+find "$_kt_tmp/" "${TMPDIR:-/tmp}/" -maxdepth 1 -name '.aria-new.*' -user "$(id -u)" -mmin +1440 -exec rm -f {} + 2>/dev/null
 
 # If config file exists but failed validation, report the specific error
 if [ -n "$KT_CONFIG_ERROR" ]; then
@@ -322,8 +323,13 @@ if [ "$KT_ACTIVE_SURFACING" = "true" ] && [ "$KT_PROJECTS_ENABLED" = "true" ]; t
   [ -z "$TA_SESSION_ID" ] && TA_SESSION_ID=$(echo "$INPUT" | grep -o '"session_id":"[^"]*"' | head -1 | sed 's/"session_id":"//;s/"//' 2>/dev/null)
   . "$SCRIPT_DIR/lib-tracked-artifacts.sh"
   kt_artifact_compute_for_path "$PWD"
-  if [ -n "$TA_SESSION_ID" ] && [ "$KT_ARTIFACTS_COUNT" -gt 0 ]; then
-    TA_LEDGER="/tmp/aria-active-${TA_SESSION_ID}"
+  # The session ledger lives in the private per-user state dir (lib-state-key.sh). No state dir
+  # (spec D3): no instruction and nothing recorded — without the ledger it would repeat.
+  . "$SCRIPT_DIR/lib-state-key.sh"
+  kt_state_resolve
+  TA_LEDGER=""
+  [ -n "$TA_SESSION_ID" ] && TA_LEDGER=$(kt_state_path "aria-active-${TA_SESSION_ID}")
+  if [ -n "$TA_LEDGER" ] && [ "$KT_ARTIFACTS_COUNT" -gt 0 ]; then
     kt_artifact_filter_ledger "$TA_LEDGER"
     if [ "$KT_ARTIFACTS_COUNT" -gt 0 ]; then
       kt_artifact_record_ledger "$TA_LEDGER"

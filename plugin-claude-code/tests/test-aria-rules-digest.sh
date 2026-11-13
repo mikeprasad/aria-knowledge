@@ -260,7 +260,11 @@ CMP_CFG="$APM_TMP/cmp-cfg.md"
 printf -- '---\nknowledge_folder: %s\nactive_knowledge_surfacing: true\n---\n' "$CMP_KF" > "$CMP_CFG"
 CMP_SNAP="$CMP_KF/intake/pre-compact-captures/2026-01-01_${CMP_SID8}.md"
 printf 'transcript\n' > "$CMP_SNAP"
-CMP_LEDGER="/tmp/aria-active-${CMP_SID}"
+# The ledger lives in the private state dir (2.58.0), here under the runner's scratch KT_STATE_BASE
+# (tests/run.sh); made mode 700, as the resolver requires, so it can be planted before the hook runs.
+CMP_SD="${KT_STATE_BASE:?tests/run.sh sets a scratch KT_STATE_BASE}/aria-knowledge-$(id -u)"
+[ -d "$CMP_SD" ] || mkdir -m 700 "$CMP_SD"
+CMP_LEDGER="$CMP_SD/aria-active-${CMP_SID}"
 printf '%s\n' "$CMP_KF/approaches/example-approach.md" > "$CMP_LEDGER"
 # Fixture HOME with the digest installed, because the pointer is emitted only when
 # there is something to point AT.

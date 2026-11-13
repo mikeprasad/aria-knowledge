@@ -12,9 +12,9 @@
 # so repeated cd into the same project doesn't re-prompt. The state dir is the private per-user
 # directory from lib-state-key.sh; with none (spec D3) the hook emits nothing.
 #
-# Ledger: in active mode, surfaced paths get appended to /tmp/aria-active-
+# Ledger: in active mode, surfaced paths get appended to <state dir>/aria-active-
 # {session_id} for cross-trigger dedup (read by post-compact, filtered by
-# task-context).
+# task-context). No state dir: nothing is surfaced (the cooldown above exits first).
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$SCRIPT_DIR/config.sh"
@@ -91,6 +91,8 @@ PROJECT_KEY=$(printf '%s' "$CD_PATH" | tr '/' '_')
 kt_state_resolve || exit 0
 COOLDOWN_FILE=$(kt_state_path "aria-bashcd-${SESSION_ID}-${PROJECT_KEY}") || exit 0
 { [ -e "$COOLDOWN_FILE" ] || [ -L "$COOLDOWN_FILE" ]; } && exit 0
+# The session ledger (active mode) lives in the same directory.
+LEDGER=$(kt_state_path "aria-active-${SESSION_ID}") || exit 0
 
 # Match
 INDEX_FILE="$KT_KNOWLEDGE_FOLDER/index.md"
@@ -105,7 +107,6 @@ kt_index_match "$QUERY"
 kt_artifact_compute_for_path "$CD_PATH"
 
 # Ledger filter (active mode) — applied to BOTH knowledge files and artifacts
-LEDGER="/tmp/aria-active-${SESSION_ID}"
 if [ "$KT_ACTIVE_SURFACING" = "true" ]; then
   if [ "$KT_MATCH_COUNT" -gt 0 ]; then
     kt_match_filter_ledger "$LEDGER"

@@ -17,9 +17,16 @@
 #   KT_PS_RUNTIME=<claude-code|cursor|antigravity>   # names the runtime in the debug log
 #   KT_CONFIG=${KT_CONFIG:-<this port's config.sh default>}  # see kt_ps_load_config
 #   . "$KT_PS_SCRIPT_DIR/lib-prompt-surface.sh"
+#   . "$KT_PS_SCRIPT_DIR/lib-state-key.sh"; kt_state_resolve || exit 0   # no state: surface nothing
 #   text=$(printf '%s' "$raw" | kt_ps_strip_pasted)
-#   ledger="/tmp/aria-active-$(kt_ps_sanitize_id "$sid")"
+#   ledger=$(kt_state_path "aria-active-$(kt_ps_sanitize_id "$sid")") || exit 0
 #   kt_ps_surface "$text" "$ledger" >/dev/null     # no $( ): keeps the variables below
+#
+# State (2.58.0): every name this file keeps — the debug log, the config-value cache — is built
+# with kt_state_path in the caller's private state dir (lib-state-key.sh, spec D4). When it cannot
+# name one (no state dir, or the caller never resolved) nothing is cached and nothing is logged.
+# The caller decides what "no state" means for surfacing: every hook surfaces nothing (spec D3),
+# because without the ledger the same files would be injected on every prompt.
 #   [ -n "$KT_PS_TEXT" ] || exit 0
 #   <deliver $KT_PS_TEXT in the host's shape> && kt_ps_commit "$ledger"
 #
@@ -49,8 +56,8 @@
 #                                `/`, or a `..` segment is dropped) — ledger lines are later
 #                                shown to the model.
 #   kt_ps_log RUNTIME STEP REASON  appends `<UTC> <runtime> <step> <reason>` to
-#                                ${KT_SURFACE_CACHE_DIR:-${TMPDIR:-/tmp}}/aria-surface-hook.log;
-#                                never writes stdout.
+#                                <state dir>/aria-surface-hook.log (nothing without a state
+#                                dir); never writes stdout.
 #   kt_ps_sanitize_id RAW        prints RAW with every byte outside [A-Za-z0-9._-] removed.
 #
 # The ledger contract: it records ONLY what the model was actually handed. Ranking is not
@@ -108,10 +115,10 @@ kt_is_ours() { [ ! -L "$1" ] && [ -f "$1" ] && [ -O "$1" ]; }
 # --- debug log ----------------------------------------------------------------
 # Failures only, never stdout, never model context (spec C3). The line is built first (the
 # `date` fork included); only then is the log created with kt_create_new and appended to, and
-# only when it is a regular file of ours that is not a link — so a shared /tmp can neither
-# redirect, block nor plant into the append.
+# only when it is a regular file of ours that is not a link (a second guard inside the private
+# state dir, spec D2). No state dir, or a caller that never resolved one: nothing is written.
 kt_ps_log() {
-  _kt_ps_logf="${KT_SURFACE_CACHE_DIR:-${TMPDIR:-/tmp}}/aria-surface-hook.log"
+  _kt_ps_logf=$(kt_state_path aria-surface-hook.log 2>/dev/null) || return 0
   _kt_ps_ts=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null) || _kt_ps_ts="unknown-time"
   _kt_ps_line=$(printf '%s %s %s %s' "$_kt_ps_ts" "${1:-unknown}" "${2:-unknown}" "${3:-unknown}" \
     | tr '\r\n' '  ' 2>/dev/null)
@@ -168,8 +175,9 @@ kt_ps_strip_pasted() {
 # every call and caches nothing: correct, only slower.
 #
 # The cache is DATA, never shell code: it is read back with `read`, so nothing in it
-# can execute even if the name is planted by someone else (in a shared /tmp, another
-# user can pre-create it). Layout, one value per line:
+# can execute even if something unexpected sits at the name. It lives in the private
+# state dir (2.58.0; before that, a shared temp dir where another user could pre-create
+# it). Layout, one value per line:
 #   aria-prompt-config 1 · <key> · KT_CONFIGURED · KT_CONFIG_ERROR ·
 #   KT_KNOWLEDGE_FOLDER · KT_ACTIVE_SURFACING · KT_PROJECTS_ENABLED ·
 #   KT_PROJECTS_LIST · end
@@ -200,7 +208,13 @@ kt_ps_load_config() {
     | cksum /dev/stdin "$_kt_ps_cfg" "$KT_PS_SCRIPT_DIR/config.sh" 2>/dev/null) || _kt_ps_key=""
   _kt_ps_pk=${_kt_ps_key%% *}
   case $_kt_ps_pk in ''|*[!0-9]*) _kt_ps_pk=0 ;; esac
-  _kt_ps_cache="${KT_SURFACE_CACHE_DIR:-${TMPDIR:-/tmp}}/aria-prompt-config.${_kt_ps_pk}.cache"
+  # The cache lives in the private state dir. No name (no state dir, or the caller never
+  # resolved one), or something at the name that is not a regular file (a FIFO would block the
+  # read; `mv -f` onto a directory moves the temp INTO it): no cache — config.sh every call.
+  _kt_ps_cache=$(kt_state_path "aria-prompt-config.${_kt_ps_pk}.cache" 2>/dev/null) || _kt_ps_cache=""
+  if [ -z "$_kt_ps_cache" ] || { [ -e "$_kt_ps_cache" ] && [ ! -f "$_kt_ps_cache" ]; }; then
+    _kt_ps_cache=""; _kt_ps_key=""
+  fi
   _kt_ps_key=${_kt_ps_key#*"$_kt_ps_nl"}
   # cksum prints one line per file; join the two key lines into one line.
   _kt_ps_k2=${_kt_ps_key#*"$_kt_ps_nl"}
@@ -226,8 +240,10 @@ kt_ps_load_config() {
     *"$_kt_ps_nl"*) _kt_ps_key="" ;;
   esac
   if [ -n "$_kt_ps_key" ] && [ "$KT_CONFIG" = "$_kt_ps_cfg" ]; then
-    # Temp file in the cache's own dir, then mv: rename replaces the directory entry (a
-    # planted link included) and a reader never sees half a file.
+    # Temp file in the cache's own dir, then mv: a reader never sees half a file. ⚠ mv is
+    # NOT a safe replace of whatever sits at the name: `mv -f` onto a directory (or a link to
+    # one) moves the temp INTO it (measured). That is why a non-regular entry at the name
+    # disabled the cache above; inside the private state dir only our own mistake can put one.
     _kt_ps_tmp=$(mktemp "${_kt_ps_cache%/*}/.aria-prompt-config.XXXXXX" 2>/dev/null) || _kt_ps_tmp=""
     if [ -n "$_kt_ps_tmp" ]; then
       if printf '%s\n' "$_kt_ps_hdr" "$_kt_ps_key" "$KT_CONFIGURED" "$KT_CONFIG_ERROR" \
@@ -332,8 +348,9 @@ _kt_ps_append_kept() { # LEDGER
     _kt_ps_add="$_kt_ps_add$_kt_ps_l$_kt_ps_nl"
   done
   [ -n "$_kt_ps_add" ] || return 0
-  # The ledger's /tmp name is predictable: it is created only by kt_create_new, and appended to
-  # only when it is a regular file of ours that is not a link (final fix wave F7, spec §5).
+  # The ledger (in the private state dir) is created only by kt_create_new, and appended to only
+  # when it is a regular file of ours that is not a link (final fix wave F7, spec §5; kept as a
+  # second guard, spec D2).
   [ -e "$1" ] || [ -L "$1" ] || kt_create_new "$1" || :
   kt_is_ours "$1" || return 0
   printf '%s' "$_kt_ps_add" >> "$1" 2>/dev/null

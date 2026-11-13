@@ -1,10 +1,11 @@
 # shellcheck shell=sh
 # test-safe-create.sh — the shared safe create (kt_create_new / kt_is_ours, spec §5 Decision C)
 # and the four shell writers of predictable names that use it:
-#   log   kt_ps_log                   (lib-prompt-surface.sh)  → <cache dir>/aria-surface-hook.log
-#   kept  _kt_ps_append_kept           (via kt_ps_commit)       → /tmp/aria-active-<sid>
-#   match kt_match_record_ledger       (lib-index-match.sh)     → /tmp/aria-active-<sid>
-#   art   kt_artifact_record_ledger    (lib-tracked-artifacts.sh) → /tmp/aria-active-<sid>
+#   log   kt_ps_log                   (lib-prompt-surface.sh)  → <state dir>/aria-surface-hook.log
+#   kept  _kt_ps_append_kept           (via kt_ps_commit)       → <state dir>/aria-active-<sid>
+#   match kt_match_record_ledger       (lib-index-match.sh)     → <state dir>/aria-active-<sid>
+#   art   kt_artifact_record_ledger    (lib-tracked-artifacts.sh) → <state dir>/aria-active-<sid>
+# (the private state dir since 2.58.0; before, the ledger was a predictable /tmp name)
 # plus post-edit-check.sh's <state dir>/aria-session-inprogress-<sid> (fix round 1, R3; RED on 696e819 for
 # its link, FIFO and window arms) and session-start-check.sh's sweeps, run with the test-only
 # KT_TMP_SWEEP_ROOT pointing at a scratch dir reached through a symlink (R2; RED on 696e819).
@@ -15,8 +16,8 @@
 # partway fails instead of silently reporting fewer checks.
 #
 # Every NAME lives in this test's scratch dir (never /tmp/aria-active-*), and every writer runs in
-# its own `sh -e` process (the callers run under set -e) with HOME, TMPDIR and
-# KT_SURFACE_CACHE_DIR isolated. A run that could block on a FIFO goes through sc_bounded, so a
+# its own `sh -e` process (the callers run under set -e) with HOME and TMPDIR isolated; the log
+# writer's state dir is pointed at the arm's scratch dir. A run that could block on a FIFO goes through sc_bounded, so a
 # hang fails the arm instead of the suite.
 #
 # Which arms were RED on 71b8ca8 (before the helper existed), and why:
@@ -57,8 +58,10 @@ set -e
 W=$1; N=$2
 HOME=$SC_T/home; TMPDIR=$SC_T/tmpdir; export HOME TMPDIR
 case $W in
-  log)   KT_SURFACE_CACHE_DIR=${N%/*}; export KT_SURFACE_CACHE_DIR
-         . "$SC_SD/lib-prompt-surface.sh"; kt_ps_log sc-test step reason ;;
+  log)   . "$SC_SD/lib-prompt-surface.sh"; . "$SC_SD/lib-state-key.sh"
+         # kt_ps_log names its file with kt_state_path in the RESOLVED state dir. The arm's scratch
+         # dir stands in for it: the safe create is under test here, not the resolver.
+         KT_STATE_DIR=${N%/*}; kt_ps_log sc-test step reason ;;
   kept)  . "$SC_SD/lib-prompt-surface.sh"; KT_PS_PENDING='projects/proj-a/hooks.md'; kt_ps_commit "$N" ;;
   match) . "$SC_SD/lib-index-match.sh"; KT_MATCH_FILES_TMP=$SC_T/matches; kt_match_record_ledger "$N" ;;
   art)   . "$SC_SD/lib-tracked-artifacts.sh"; KT_ARTIFACTS_COUNT=1
@@ -301,9 +304,11 @@ SHIM
     : > "$T/realtmp/$_sw"; touch -t 202001010000 "$T/realtmp/$_sw"
   done
   : > "$T/realtmp/aria-active-scNEW"
-  HOME="$T/home" KT_CONFIG="$T/home/absent.local.md" KT_SURFACE_CACHE_DIR="$T/cache" \
-    KT_TMP_SWEEP_ROOT="$T/tmplink" TMPDIR="$T/tmpdir" sh "$SC_SD/session-start-check.sh" </dev/null >/dev/null 2>&1
-  r "safe_create_sweep: cache dir — a 2020 .aria-new.* goes, a fresh one stays → old|new" "0|1" \
+  # The second root is $TMPDIR, where the surfacing debug log (and so its create temps) lived
+  # before 2.58.0; KT_SURFACE_CACHE_DIR, which could move it, is retired.
+  HOME="$T/home" KT_CONFIG="$T/home/absent.local.md" \
+    KT_TMP_SWEEP_ROOT="$T/tmplink" TMPDIR="$T/cache" sh "$SC_SD/session-start-check.sh" </dev/null >/dev/null 2>&1
+  r "safe_create_sweep: TMPDIR — a 2020 .aria-new.* goes, a fresh one stays → old|new" "0|1" \
     "$( [ -e "$T/cache/.aria-new.OLD123" ] && echo 1 || echo 0)|$( [ -e "$T/cache/.aria-new.NEW123" ] && echo 1 || echo 0)"
   r "safe_create_sweep: /tmp root through a symlink — stale active|inprogress|create-temp go, fresh active stays" \
     "0|0|0|1" "$( [ -e "$T/realtmp/aria-active-scOLD" ] && echo 1 || echo 0)|$( [ -e "$T/realtmp/aria-session-inprogress-scOLD" ] && echo 1 || echo 0)|$( [ -e "$T/realtmp/.aria-new.scOLD" ] && echo 1 || echo 0)|$( [ -e "$T/realtmp/aria-active-scNEW" ] && echo 1 || echo 0)"

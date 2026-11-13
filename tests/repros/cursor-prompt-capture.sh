@@ -7,7 +7,8 @@
 # emits it once as {"additional_context": …}, then records the paths in the session
 # ledger. Nothing the model composes reaches a shell.
 #
-# Pending pair: $KT_SURFACE_CACHE_DIR/aria-cursor-pending-<conv>=<gen>.text / .paths
+# Pending pair: <state dir>/aria-cursor-pending-<conv>=<gen>.text / .paths (the private state dir,
+# lib-state-key.sh; here under a scratch KT_STATE_BASE)
 # (`=` cannot occur in a sanitised id, so the conversation part is unambiguous).
 #
 # Run under sh or bash only. CURSOR_CAPTURE / CURSOR_INJECT override the hook paths
@@ -26,13 +27,15 @@ ok()  { printf "PASS  %s\n" "$1"; PASS=$((PASS + 1)); }
 bad() { printf "FAIL  %s — %s\n" "$1" "$2"; FAIL=$((FAIL + 1)); }
 
 SCRATCH=$(mktemp -d "${TMPDIR:-/tmp}/aria-cursor-capture-test.XXXXXX") || exit 1
-# The ledger path is fixed by contract (/tmp/aria-active-<id>), so every id carries RUN_ID.
 RUN_ID="cpc$$x$(od -An -N4 -tx4 /dev/urandom 2>/dev/null | tr -d ' ')"
-trap 'rm -rf "$SCRATCH"; rm -f /tmp/aria-active-"$RUN_ID"* 2>/dev/null' EXIT
-mkdir -p "$SCRATCH/tmp" "$SCRATCH/home" "$SCRATCH/cache"
+trap 'rm -rf "$SCRATCH"' EXIT
+mkdir -p "$SCRATCH/tmp" "$SCRATCH/home" "$SCRATCH/sb"
 TMPDIR="$SCRATCH/tmp"; export TMPDIR
-CACHE="$SCRATCH/cache"
-KT_SURFACE_CACHE_DIR="$CACHE"; export KT_SURFACE_CACHE_DIR
+unset XDG_RUNTIME_DIR
+# Every name these hooks keep lives in the private state dir (2.58.0). CACHE is that dir, made
+# here (mode 700, as the resolver requires) so an arm can plant in it before a hook runs.
+KT_STATE_BASE="$SCRATCH/sb"; export KT_STATE_BASE
+CACHE="$KT_STATE_BASE/aria-knowledge-$(id -u)"; mkdir -m 700 "$CACHE"
 HOOKLOG="$CACHE/aria-surface-hook.log"
 
 # --- knowledge folder: the fixture index + files whose bodies carry a sentinel ---
@@ -59,7 +62,7 @@ P_PAY="how do we handle payments for proj-b deposits"
 P_HOOK="webhooks retry for proj-a hooks"
 
 pend() { printf '%s/aria-cursor-pending-%s=%s' "$CACHE" "$1" "$2"; }
-ledger() { printf '/tmp/aria-active-%s' "$1"; }
+ledger() { printf '%s/aria-active-%s' "$CACHE" "$1"; }
 payload() { # CONV GEN PROMPT [VERSION]
   jq -cn --arg c "$1" --arg g "$2" --arg p "$3" --arg v "${4:-1.7.2}" \
     '{conversation_id:$c, generation_id:$g, prompt:$p, cursor_version:$v,
@@ -235,7 +238,7 @@ fi
 cap "${RUN_ID}x/../y" "g/../1" "$P_PAY"
 inj "${RUN_ID}x/../y" "g/../1"; c=$(ctx)
 if [ -n "$c" ] && [ -f "$(ledger "${RUN_ID}x..y")" ] && [ ! -e "$CACHE/y" ] \
-   && [ ! -e "/tmp/aria-active-${RUN_ID}x" ] && [ ! -e "$(pend "${RUN_ID}x" g)" ]; then
+   && [ ! -e "$(ledger "${RUN_ID}x")" ] && [ ! -e "$(pend "${RUN_ID}x" g)" ]; then
   ok "conversation_id_sanitised"
 else
   bad "conversation_id_sanitised" "ctx=$( [ -n "$c" ] && echo y || echo n) ledger x..y=$( [ -f "$(ledger "${RUN_ID}x..y")" ] && echo y || echo n)"
@@ -371,9 +374,10 @@ fi
 
 # --- capture_lib_missing_logged (m2) --------------------------------------------------------
 # Only lib-prompt-surface.sh is missing; the inline log line goes through the shared safe create
-# in lib-tracked-artifacts.sh (spec §5), so that lib sits beside the hook as it does on install.
+# in lib-tracked-artifacts.sh (spec §5), and the log is named in the state dir through
+# lib-state-key.sh (2.58.0), so both libs sit beside the hook as they do on install.
 NOLIB="$SCRATCH/nolib"; mkdir -p "$NOLIB"; cp "$CAP" "$NOLIB/prompt-capture-check.sh"
-cp "$(dirname "$CAP")/lib-tracked-artifacts.sh" "$NOLIB/"
+cp "$(dirname "$CAP")/lib-tracked-artifacts.sh" "$(dirname "$CAP")/lib-state-key.sh" "$NOLIB/"
 payload "${RUN_ID}B" g1 "$P_PAY" > "$SCRATCH/in"
 n0=$(grep -c ' cursor capture lib-missing$' "$HOOKLOG" 2>/dev/null)
 hook "$NOLIB/prompt-capture-check.sh"

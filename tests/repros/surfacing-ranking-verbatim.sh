@@ -38,6 +38,10 @@ ME='<!-- surfacing-''ranking:end -->'
 
 SCRATCH=$(mktemp -d "${TMPDIR:-/tmp}/aria-ranking-verbatim.XXXXXX") || exit 1
 trap 'rm -rf "$SCRATCH"' EXIT
+# Hook and CLI state (the ledger, caches, debug log, Antigravity markers) lives in the private state
+# dir since 2.58.0; resolve it under a scratch base so a standalone run never touches the real one.
+unset XDG_RUNTIME_DIR
+KT_STATE_BASE="$SCRATCH/state-base"; export KT_STATE_BASE; mkdir -p "$KT_STATE_BASE"
 
 # --- canonical text --------------------------------------------------------------------------
 CANON=""

@@ -21,7 +21,9 @@ SCRATCH=$(mktemp -d "${TMPDIR:-/tmp}/aria-surfacing-cli-test.XXXXXX") || exit 1
 trap 'chmod -R u+w "$SCRATCH" 2>/dev/null; rm -rf "$SCRATCH"' EXIT
 T="$SCRATCH/t"; mkdir -p "$T" "$SCRATCH/tmp" "$SCRATCH/home/.claude" "$SCRATCH/cache"
 TMPDIR="$SCRATCH/tmp"; export TMPDIR
-KT_SURFACE_CACHE_DIR="$SCRATCH/cache"; export KT_SURFACE_CACHE_DIR
+# The CLI's parse cache lives in the private state dir (2.58.0), here under a scratch base.
+unset XDG_RUNTIME_DIR
+KT_STATE_BASE="$SCRATCH/cache"; export KT_STATE_BASE
 cat > "$SCRATCH/home/.claude/aria-knowledge.local.md" <<CFG
 ---
 knowledge_folder: $FIX

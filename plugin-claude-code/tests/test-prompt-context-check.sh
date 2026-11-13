@@ -2,12 +2,13 @@
 # test-prompt-context-check.sh — scripts/prompt-context-check.sh (UserPromptSubmit surfacing hook)
 #
 # Sourced by tests/run.sh under `set -eu`. The whole body runs in a SUBSHELL with its own
-# EXIT trap (it must delete /tmp/aria-active-<fake session id>, which the hook writes to /tmp
-# regardless of TMPDIR) — a trap set at top level would replace run.sh's own cleanup trap.
+# EXIT trap (it deletes the scratch dir) — a trap set at top level would replace run.sh's own
+# cleanup trap. Since 2.58.0 the hook keeps its ledger, caches and debug log in the private state
+# dir, which every call puts under a scratch KT_STATE_BASE, so nothing here touches /tmp.
 # The subshell prints one `name<TAB>expected<TAB>actual` line per check; the parent replays
 # them through assert_eq so the counters land in run.sh.
 #
-# HOME, TMPDIR and KT_SURFACE_CACHE_DIR are isolated for every hook call. Every call runs under
+# HOME, TMPDIR and KT_STATE_BASE are isolated for every hook call. Every call runs under
 # a watchdog, so a hook that blocks on stdin reports `hung` instead of stalling the suite.
 
 PCC_HOOK="$(cd "$(dirname "$0")/../scripts" && pwd)/prompt-context-check.sh"
@@ -21,8 +22,13 @@ pcc_body() {
   T="${TMPDIR:-/tmp}/aria-pcc-$$"
   RUN_ID="pcc-test-$$-$(od -An -N4 -tx4 /dev/urandom 2>/dev/null | tr -d ' ')"
   # rm -rf: the session-id arm pre-creates a DIRECTORY under this prefix.
-  trap 'rm -rf "$T"; rm -rf /tmp/aria-active-"$RUN_ID"-* 2>/dev/null' EXIT
-  rm -rf "$T"; mkdir -p "$T/tmpdir" "$T/cache"
+  trap 'rm -rf "$T"' EXIT
+  rm -rf "$T"; mkdir -p "$T/tmpdir" "$T/sb"
+  UIDN=$(id -u)
+  # sdir BASE — the state dir the hook resolves under KT_STATE_BASE=$T/BASE.
+  sdir() { printf '%s/%s/aria-knowledge-%s' "$T" "$1" "$UIDN"; }
+  # mksd BASE — a fresh base with its state dir already made (mode 700), so a test can plant in it.
+  mksd() { rm -rf "$T/$1"; mkdir -p "$T/$1"; mkdir -m 700 "$(sdir "$1")"; }
 
   r() { printf '%s\t%s\t%s\n' "$1" "$2" "$3"; }
 
@@ -48,7 +54,8 @@ pcc_body() {
 
   # Isolated PATH without jq: a farm of links to every tool the hook and lib run.
   NJ="$T/nojq-bin"; mkdir -p "$NJ"
-  for tool in sh bash cat cksum awk sed tr sort grep mktemp wc cut head mv rm cp dirname date od env; do
+  for tool in sh bash cat cksum awk sed tr sort grep mktemp wc cut head mv rm cp dirname date od env \
+              id ls mkdir link; do
     tp=$(command -v "$tool" 2>/dev/null) && ln -s "$tp" "$NJ/$tool"
   done
 
@@ -57,9 +64,9 @@ pcc_body() {
   pcc_exec() {
     _in=$1; shift
     if [ "$_in" = closed ]; then
-      env HOME="$H" TMPDIR="$T/tmpdir" KT_SURFACE_CACHE_DIR="$T/cache" KT_CONFIG= "$@" sh "$PCC_HOOK" <&- >"$T/out" 2>"$T/err" &
+      env HOME="$H" TMPDIR="$T/tmpdir" KT_STATE_BASE="$T/sb" KT_CONFIG= "$@" sh "$PCC_HOOK" <&- >"$T/out" 2>"$T/err" &
     else
-      env HOME="$H" TMPDIR="$T/tmpdir" KT_SURFACE_CACHE_DIR="$T/cache" KT_CONFIG= "$@" sh "$PCC_HOOK" <"$_in" >"$T/out" 2>"$T/err" &
+      env HOME="$H" TMPDIR="$T/tmpdir" KT_STATE_BASE="$T/sb" KT_CONFIG= "$@" sh "$PCC_HOOK" <"$_in" >"$T/out" 2>"$T/err" &
     fi
     _pid=$!; _i=0
     while kill -0 "$_pid" 2>/dev/null; do
@@ -100,7 +107,7 @@ pcc_body() {
   r "fires: additionalContext under 10,000 chars" 1 "$( [ "${#C}" -lt 10000 ] && echo 1 || echo 0)"
   r "fires: top-level shape is only hookSpecificOutput" hookSpecificOutput "$(jq -r 'keys|join(",")' "$T/out" 2>/dev/null)"
   r "fires: ledger records the relative path" 1 \
-    "$(grep -cx 'projects/proj-b/deposits.md' "/tmp/aria-active-$(sid fire)" 2>/dev/null)"
+    "$(grep -cx 'projects/proj-b/deposits.md' "$(sdir sb)/aria-active-$(sid fire)" 2>/dev/null)"
 
   # --- pasted_block_ignored -----------------------------------------------
   NL='
@@ -155,18 +162,18 @@ pcc_body() {
   # --- config cache round-trip: a hit returns what config.sh returned -------
   KQ="$T/k f'o \"q\" \$x"; mk_kf "$KQ"
   HQ="$T/home-q"; mk_home "$HQ" "$KQ"
-  rm -rf "$T/cache-q"; mkdir -p "$T/cache-q"
-  payload "$(sid rt1)" "$PROMPT_PAY"; pcc_exec "$T/in.json" HOME="$HQ" KT_SURFACE_CACHE_DIR="$T/cache-q"
+  mksd sbq
+  payload "$(sid rt1)" "$PROMPT_PAY"; pcc_exec "$T/in.json" HOME="$HQ" KT_STATE_BASE="$T/sbq"
   OUT1=$(ctx)
-  r "roundtrip: miss writes the config cache" 1 "$(ls "$T/cache-q" | grep -c '^aria-prompt-config')"
+  r "roundtrip: miss writes the config cache" 1 "$(ls "$(sdir sbq)" | grep -c '^aria-prompt-config')"
   # A miss re-writes the cache through mv (new inode); a hit leaves it alone. Without this
   # check the round trip is unfalsifiable: an unreadable cache falls back to a correct miss.
   inode() { ls -i "$1"/aria-prompt-config.* 2>/dev/null | awk '{print $1}'; }
-  INO1=$(inode "$T/cache-q")
-  payload "$(sid rt2)" "$PROMPT_PAY"; pcc_exec "$T/in.json" HOME="$HQ" KT_SURFACE_CACHE_DIR="$T/cache-q"
+  INO1=$(inode "$(sdir sbq)")
+  payload "$(sid rt2)" "$PROMPT_PAY"; pcc_exec "$T/in.json" HOME="$HQ" KT_STATE_BASE="$T/sbq"
   OUT2=$(ctx)
   r "roundtrip: second call was served from the cache (not re-written)" "1|$INO1" \
-    "$( [ -n "$INO1" ] && echo 1 || echo 0)|$(inode "$T/cache-q")"
+    "$( [ -n "$INO1" ] && echo 1 || echo 0)|$(inode "$(sdir sbq)")"
   case "$OUT1" in *"- $KQ/projects/proj-b/deposits.md"*) h=1 ;; *) h=0 ;; esac
   r "roundtrip: miss fires with the quoted knowledge path" 1 "$h"
   # Compared by cksum: the values are multi-line and this protocol is one line per check.
@@ -176,13 +183,13 @@ pcc_body() {
 
   # --- knowledge_folder containing a plain space: round-trips through the cache ---
   KS="$T/k space"; mk_kf "$KS"; HS="$T/home-s"; mk_home "$HS" "$KS"
-  rm -rf "$T/cache-s"; mkdir -p "$T/cache-s"
-  payload "$(sid sp1)" "$PROMPT_PAY"; pcc_exec "$T/in.json" HOME="$HS" KT_SURFACE_CACHE_DIR="$T/cache-s"
+  mksd sbs
+  payload "$(sid sp1)" "$PROMPT_PAY"; pcc_exec "$T/in.json" HOME="$HS" KT_STATE_BASE="$T/sbs"
   r "space path: miss lists the spaced absolute path" 1 "$(ctx | grep -cxF -- "- $KS/projects/proj-b/deposits.md")"
-  INO1=$(inode "$T/cache-s")
-  payload "$(sid sp2)" "$PROMPT_PAY"; pcc_exec "$T/in.json" HOME="$HS" KT_SURFACE_CACHE_DIR="$T/cache-s"
+  INO1=$(inode "$(sdir sbs)")
+  payload "$(sid sp2)" "$PROMPT_PAY"; pcc_exec "$T/in.json" HOME="$HS" KT_STATE_BASE="$T/sbs"
   r "space path: second call was served from the cache (not re-written)" "1|$INO1" \
-    "$( [ -n "$INO1" ] && echo 1 || echo 0)|$(inode "$T/cache-s")"
+    "$( [ -n "$INO1" ] && echo 1 || echo 0)|$(inode "$(sdir sbs)")"
   r "space path: cache hit lists it too, with the project tag" "1|1" \
     "$(ctx | grep -cxF -- "- $KS/projects/proj-b/deposits.md")|$(ctx | grep -c 'tags: [^)]*proj-b')"
 
@@ -195,35 +202,35 @@ pcc_body() {
   # path (2.58.0 G1), derived here exactly as lib-prompt-surface.sh derives it; planting
   # the retired fixed name would leave the arm passing against a file nothing reads.
   KEYED="aria-prompt-config.$(printf '%s' "$H/.claude/aria-knowledge.local.md" | cksum | awk '{print $1}').cache"
-  rm -rf "$T/cache-l"; mkdir -p "$T/cache-l"
+  mksd sbl
   printf 'touch "%s"\n' "$T/sym-marker" > "$T/evil.sh"; cp "$T/evil.sh" "$T/evil.orig"
-  ln -s "$T/evil.sh" "$T/cache-l/aria-prompt-config.sh"
-  ln -s "$T/evil.sh" "$T/cache-l/$KEYED"
-  payload "$(sid sym)" "$PROMPT_PAY"; pcc_exec "$T/in.json" KT_SURFACE_CACHE_DIR="$T/cache-l"
+  ln -s "$T/evil.sh" "$(sdir sbl)/aria-prompt-config.sh"
+  ln -s "$T/evil.sh" "$(sdir sbl)/$KEYED"
+  payload "$(sid sym)" "$PROMPT_PAY"; pcc_exec "$T/in.json" KT_STATE_BASE="$T/sbl"
   r "symlink cache: never executed (no marker)" 0 "$( [ -e "$T/sym-marker" ] && echo 1 || echo 0)"
   r "symlink cache: hook output still correct" 1 "$(ctx | grep -cxF -- "- $KF/projects/proj-b/deposits.md")"
   r "symlink cache: link target left unmodified" 1 "$(cmp -s "$T/evil.sh" "$T/evil.orig" && echo 1 || echo 0)"
   # Variant: the link points at a VALID-LOOKING data cache (right header and key) naming a
   # different knowledge folder. Reading it would be safe from execution but would still let a
   # planted file choose which paths get injected — the -L refusal is what stops that.
-  rm -rf "$T/cache-v"; mkdir -p "$T/cache-v"
+  mksd sbv
   VKEY=$(cksum "$H/.claude/aria-knowledge.local.md" "${PCC_HOOK%/*}/config.sh")
   VKEY="$(printf '%s\n' "$VKEY" | sed -n 1p) | $(printf '%s\n' "$VKEY" | sed -n 2p)"
   printf '%s\n' "aria-prompt-config 1" "$VKEY" true "" "$KS" true true \
     "proj-a:proj-a,proj-b:proj-b,proj-c:proj-c" end > "$T/planted.dat"
-  ln -s "$T/planted.dat" "$T/cache-v/$KEYED"
-  payload "$(sid symv)" "$PROMPT_PAY"; pcc_exec "$T/in.json" KT_SURFACE_CACHE_DIR="$T/cache-v"
+  ln -s "$T/planted.dat" "$(sdir sbv)/$KEYED"
+  payload "$(sid symv)" "$PROMPT_PAY"; pcc_exec "$T/in.json" KT_STATE_BASE="$T/sbv"
   r "symlink cache: valid-looking data behind a link is not used" "1|0" \
     "$(ctx | grep -cxF -- "- $KF/projects/proj-b/deposits.md")|$(ctx | grep -cF -- "$KS/")"
 
   # --- session_id_cannot_escape_ledger_dir -------------------------------------
   # Pre-create a directory under the ledger prefix so an UNSANITISED id would resolve
   # through it: <prefix>-esc/../../…/..$T/escaped lands at $T/escaped.
-  mkdir -p "/tmp/aria-active-$RUN_ID-esc"
+  mkdir -p "$(sdir sb)/aria-active-$RUN_ID-esc"
   payload "$RUN_ID-esc/../../../../../../../..$T/escaped" "$PROMPT_PAY"; pcc_exec "$T/in.json"
-  r "session id: nothing written outside /tmp" 0 "$( [ -e "$T/escaped" ] && echo 1 || echo 0)"
-  n=0; for f in /tmp/aria-active-"$RUN_ID"-esc?*; do [ -f "$f" ] && n=$((n + 1)); done
-  r "session id: ledger is one regular file directly under /tmp" 1 "$n"
+  r "session id: nothing written outside the state dir" 0 "$( [ -e "$T/escaped" ] && echo 1 || echo 0)"
+  n=0; for f in "$(sdir sb)"/aria-active-"$RUN_ID"-esc?*; do [ -f "$f" ] && n=$((n + 1)); done
+  r "session id: ledger is one regular file directly under the state dir" 1 "$n"
 
   # --- KT_CONFIG is honoured the way config.sh honours it -------------------
   HN="$T/home-none"; mkdir -p "$HN"
@@ -260,7 +267,7 @@ pcc_body() {
   jq -n --arg s "$(sid pipe)" --arg p "$PROMPT_PAY $PAD" '{session_id:$s, prompt:$p}' > "$T/big.json"
   rm -f "$T/writer-done"
   ( cat "$T/big.json" && : > "$T/writer-done" ) \
-    | env HOME="$H" TMPDIR="$T/tmpdir" KT_SURFACE_CACHE_DIR="$T/cache" KT_CONFIG= sh "$PCC_HOOK" >"$T/out" 2>"$T/err" &
+    | env HOME="$H" TMPDIR="$T/tmpdir" KT_STATE_BASE="$T/sb" KT_CONFIG= sh "$PCC_HOOK" >"$T/out" 2>"$T/err" &
   _pid=$!; _i=0; PIPE_STATE=done
   while kill -0 "$_pid" 2>/dev/null; do
     _i=$((_i + 1)); if [ "$_i" -gt 150 ]; then kill "$_pid" 2>/dev/null; PIPE_STATE=hung; break; fi; sleep 0.1
