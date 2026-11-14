@@ -69,6 +69,16 @@ four context-free reads then found 5 BLOCKERs those passes had let through.
    **Plan** agent (it also has no Edit/Write; Explore reads excerpts, and a cold read needs the whole
    file). A runtime with no instruction-free agent type runs with what it has, and the report states what
    that reader loaded — it never calls the read context-free when it is not.
+   ⛔ **Measured 2026-11-14 (Claude Code 2.1.325) — even the Plan agent is fresh, not instruction-free.**
+   A Plan-agent cold read of this release's plan got no git status and no startup CLAUDE.md, but nested
+   `CLAUDE.md` files were injected the moment it read a file beneath them, and this plugin's own
+   `bash-cd-check.sh` hook injected five earlier prospect logs. It still found real BLOCKERs. Cost:
+   193,861 subagent tokens, 38 tool calls, 6.5 min. Two mitigations: (i) **copy the plan to a new file in
+   a scratch directory outside any repository** before dispatch, so the first read pulls in nothing; (ii)
+   the template gains a fifth item — *"5. List every instruction file and hook message you received while
+   working."* — and the Cold read block prints that list. Wording everywhere is "fresh reader", never
+   "instruction-free". Silencing this plugin's own injection hooks inside a cold read is an open question
+   for Mike, not part of 2.59.0.
    **Capability, not intent (A2).** "Read only" in a prompt constrains nothing, and Plan keeps Bash. Record
    `git status --porcelain` before and after the round; any change is a finding and the round is flagged.
    > Your environment: `<what the implementer will have, or "none">`. Read only. Read this file:
@@ -265,7 +275,15 @@ Each names the check that can fail it.
   before/after result; a repro asserts both in every port carrying the step.
 - **Port Task 0 (measure first).** Before any port's text is written, read each runtime's current docs
   (Codex, Cowork, Antigravity) for whether it can start a subagent and what that subagent loads; record
-  the answer with the runtime version. Unknown ⇒ that port prints the not-run line.
+  the answer with the runtime version. Unknown **capability** ⇒ that port prints the not-run line; known
+  capability with unknown **startup context** ⇒ it runs and the report says the reader's startup context
+  is unrecorded. **Done 2026-11-14:** Codex — `spawn_agent`; every agent loads `AGENTS.md` from the
+  project root down to the working directory (openai/codex docs, `main`, read 2026-11-14) ⇒ runs, reader
+  not instruction-free. Antigravity — `invoke_subagent` / `define_subagent` (repo `PORTING.md`, from its
+  hooks docs, date unrecorded) ⇒ runs, startup context unrecorded; its `prospect` is generated from
+  canonical with no overlay, so canonical's text must be runtime-conditional. Cowork — "no parallel
+  subagents" (its own `foundational-review` skill) ⇒ not-run line. Cursor — no subagent surface in the
+  port ⇒ not-run line.
 
 **Success signal — live, owed after release (cannot be shown by a repro):**
 - L1: `/prospect file <a real plan> --cold` dispatches a subagent whose prompt is only the template
