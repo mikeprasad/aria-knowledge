@@ -227,6 +227,8 @@ repo_hash=$(printf '%s' "$repo_top" | cksum | cut -d' ' -f1)
 _pf_m=""
 if [ -z "$_pf_sid" ]; then
   echo 'preflight: no session id — session marker not written'
+elif ! sh "${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/bin/aria-state.sh" key "$_pf_sid" > /dev/null; then
+  echo 'preflight: the session id is not one the commit gate can read — session marker not written'
 elif _pf_m=$(sh "${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/bin/aria-state.sh" path "aria-preflight-$_pf_sid"); then
   echo "preflight marker: $_pf_m"
 else
@@ -238,7 +240,9 @@ pf_repo=$(sh "${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/bin/aria-state.sh" path "ari
 ```
 
 Both markers live in the private per-user state directory, named by `aria-state.sh` so they are the
-files the gate reads. If it prints an `aria-state:` reason (the state directory is unavailable, and
+files the gate reads. If it prints `preflight: the session id is not one the commit gate can read`
+(the id holds a character outside `A-Za-z0-9._-`), the session marker was not written and only the
+repo marker counts. If it prints an `aria-state:` reason (the state directory is unavailable, and
 why), that marker was **not** written: say so with the verdict, and never write it anywhere else. When
 your `ARIA CONFIG` line carries `state_dir=`, compare it with the directory of the printed marker
 paths; if they differ, say so — the commit gate will not see these markers.

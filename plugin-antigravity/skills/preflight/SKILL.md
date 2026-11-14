@@ -221,6 +221,8 @@ _pf_sid=${CLAUDE_CODE_SESSION_ID:-${CODEX_THREAD_ID:-}}
 _pf_m=""
 if [ -z "$_pf_sid" ]; then
   echo 'preflight: no session id — marker not written'
+elif ! sh "${CLAUDE_PLUGIN_ROOT}/bin/aria-state.sh" key "$_pf_sid" > /dev/null; then
+  echo 'preflight: the session id is not one the commit gate can read — marker not written'
 elif _pf_m=$(sh "${CLAUDE_PLUGIN_ROOT}/bin/aria-state.sh" path "aria-preflight-$_pf_sid"); then
   echo "preflight marker: $_pf_m"
 else
@@ -230,8 +232,10 @@ fi
 [ -n "$_pf_m" ] && printf '%s\tNOT READY\n' "$(date +%H:%M)" >> "$_pf_m"
 ```
 
-If it prints `preflight: no session id` or an `aria-state:` reason (the private state directory is
-unavailable, and why), the marker was **not** written: say so with the verdict, and never write it
+If it prints `preflight: no session id`, `preflight: the session id is not one the commit gate can
+read` (the id holds a character outside `A-Za-z0-9._-`, so the gate keys no state for it) or an
+`aria-state:` reason (the private state directory is unavailable, and why), the marker was **not**
+written: say so with the verdict, and never write it
 anywhere else — the gate reads only this path. When your `ARIA CONFIG` line carries `state_dir=`,
 compare it with the directory of the printed marker path; if they differ (a sandboxed shell can see a
 different temp directory from the hooks), say so — the commit gate will not see this marker.

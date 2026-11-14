@@ -217,6 +217,36 @@ gate() { printf '{"session_id":"%s","tool_name":"Bash","tool_input":{"command":"
          (cd "$GR" && KT_STATE_BASE="$GOOD" KT_CONFIG="$GCFG" sh "$C/pre-commit-preflight-check.sh" < "$R/in" 2>/dev/null); }
 check "M5 preflight_record_block: gate allows pf-x|denies an unrecorded session (control)" "0|1" \
   "$(has "$(gate pf-x)" '"deny"')|$(has "$(gate pf-none)" '"deny"')"
+# Task 9 M2: the block writes a session marker only for an id the gate can read (kt_session_key_check's
+# set, through `aria-state.sh key`). Before, `ab+cd` got a marker the gate never read: written, then denied.
+PF_UUID="3b9e1c2a-7d4f-4e8a-9c1b-2f6d8e0a4b7c"
+pf_n0=$(find "$SD" -name 'aria-preflight-*' 2>/dev/null | grep -c .)
+pf_bad=$(pf_run CLAUDE_CODE_SESSION_ID='ab+cd')
+check "M5 preflight_record_block[rejected id ab+cd]: refusal printed|reason printed|no new marker in the state dir|gate still denies" "1|1|$pf_n0|1" \
+  "$(has "$pf_bad" 'preflight: the session id is not one the commit gate can read — marker not written')|$(has "$pf_bad" 'aria-state: session id not accepted')|$(find "$SD" -name 'aria-preflight-*' 2>/dev/null | grep -c .)|$(has "$(gate 'ab+cd')" '"deny"')"
+pf_run CLAUDE_CODE_SESSION_ID="$PF_UUID" > /dev/null
+check "M5 preflight_record_block[UUID]: one READY line|gate allows it" "1|0" \
+  "$(grep -c '	READY$' "$SD/aria-preflight-$PF_UUID" 2>/dev/null || echo 0)|$(has "$(gate "$PF_UUID")" '"deny"')"
+# Codex: the session marker follows the same rule; its per-repository marker is still written for any id
+# (CHANGELOG: "On Codex it also writes a per-repository marker, even when the id is empty").
+PFX="$DIR/plugin-openai-codex/skills/preflight/SKILL.md"
+awk '/^```/ { if (inb) { if (keep) { printf "%s", buf; exit } inb = 0; buf = ""; keep = 0; next } inb = 1; next }
+     inb { buf = buf $0 "\n"; if (index($0, "aria-state.sh\" path \"aria-preflight-")) keep = 1 }' "$PFX" \
+  | grep -v 'NOT READY' > "$R/pfx-block.sh"
+XB="$R/basex"; XSD="$XB/aria-knowledge-$UIDN"; mkdir -p "$XB"; mkdir -m 700 "$XSD"
+pfx_run() { (cd "$GR" && env PLUGIN_ROOT="$DIR/plugin-openai-codex" KT_STATE_BASE="$XB" "$@" sh "$R/pfx-block.sh" 2>&1); }
+pfx_bad=$(pfx_run CODEX_THREAD_ID='ab+cd')
+check "M5 preflight_record_block[codex ab+cd]: refusal printed|no session marker|repo marker written" "1|0|1" \
+  "$(has "$pfx_bad" 'preflight: the session id is not one the commit gate can read — session marker not written')|$(find "$XSD" -name 'aria-preflight-ab*' 2>/dev/null | grep -c .)|$(find "$XSD" -name 'aria-preflight-repo-*' 2>/dev/null | grep -c .)"
+pfx_run CODEX_THREAD_ID="$PF_UUID" > /dev/null
+check "M5 preflight_record_block[codex UUID]: session marker has one READY line" "1" \
+  "$(grep -c '	READY$' "$XSD/aria-preflight-$PF_UUID" 2>/dev/null || echo 0)"
+# Every port's record block checks the id through the one rule before naming the marker.
+pf_ports=""
+for f in "$PFSKILL" "$PFX" "$DIR/plugin-antigravity/skills/preflight/SKILL.md" "$DIR/plugin-cursor-template/.cursor/rules/aria-commands.mdc"; do
+  pf_ports="$pf_ports$(grep -c 'aria-state.sh" key "$_pf_sid"' "$f")"
+done
+check "M5 preflight_record_block: claude|codex|antigravity|cursor blocks each check the id once" "1111" "$pf_ports"
 
 # --- M6 — no skill or rules surface names an old state location ----------------------------------------
 m6_scan() { grep -nE '/tmp/aria-|TMPDIR[^ ]*/aria-' "$@" 2>/dev/null; }
