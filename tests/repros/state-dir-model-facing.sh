@@ -15,7 +15,9 @@
 #                                    the path that port's own writer creates for the same input
 #   M4 digest_clause                 the 59-byte clause, the 26,152-byte digest, the lock still green
 #   M5 preflight_record_block        the /preflight block: no id -> no file; id -> one READY line the
-#                                    commit gate accepts
+#                                    commit gate accepts; an id outside [A-Za-z0-9._-] -> no marker
+#   M12 skill_writes_broken_dir      /preflight block and the /extract + /audit knowledge digest lines
+#                                    (Claude Code, Codex) under a broken state dir write nothing anywhere
 #   M6 skills_name_no_old_location   no skill or rules surface names /tmp/aria-… or ${TMPDIR…}/aria-…
 #   M7 descriptions_unchanged        (GUARD) no SKILL.md description moved since e24934f
 #
@@ -247,6 +249,51 @@ for f in "$PFSKILL" "$PFX" "$DIR/plugin-antigravity/skills/preflight/SKILL.md" "
   pf_ports="$pf_ports$(grep -c 'aria-state.sh" key "$_pf_sid"' "$f")"
 done
 check "M5 preflight_record_block: claude|codex|antigravity|cursor blocks each check the id once" "1111" "$pf_ports"
+
+# --- M12 — skill state writes under a BROKEN state dir (spec D3, last row) -------------------------------
+# M5 runs the record block only against a healthy directory. D3 says a skill that cannot get the state
+# dir says why and writes nowhere else. Two broken shapes: a file at the state name ("not a directory")
+# and a directory of mode 755 ("mode not 700"). Every arm counts files under the WHOLE scratch root, so a
+# fallback to any guessed path (HOME, TMPDIR, cwd) is caught. Before this, a block that fell back to
+# $HOME/aria-preflight-<id> on resolver failure, or a digest line that did, left this suite green.
+B755="$R/base755"; mkdir -p "$B755"; mkdir -m 755 "$B755/aria-knowledge-$UIDN"
+printf '%s\n' '{"type":"user","message":{"role":"user","content":"m12 capture"}}' > "$R/m12-cap.jsonl"
+m12_n() { find "$R" -name "$1" 2>/dev/null | grep -c .; }
+for m12_b in "$BROKEN|not a directory" "$B755|mode not 700"; do
+  m12_base=${m12_b%%|*}; m12_why=${m12_b#*|}
+  m12_out=$(cd "$P" && env CLAUDE_PLUGIN_ROOT="$DIR/plugin-claude-code" KT_STATE_BASE="$m12_base" CLAUDE_CODE_SESSION_ID=m12-id sh "$R/pf-block.sh" 2>&1)
+  check "M12 preflight[$m12_why]: reason printed|no marker anywhere" "1|0" \
+    "$(has "$m12_out" "aria-state: $m12_why")|$(m12_n 'aria-preflight-m12-id*')"
+  m12_r0=$(m12_n 'aria-preflight-repo-*')
+  m12_out=$(cd "$GR" && env PLUGIN_ROOT="$DIR/plugin-openai-codex" KT_STATE_BASE="$m12_base" CODEX_THREAD_ID=m12-xid sh "$R/pfx-block.sh" 2>&1)
+  check "M12 codex preflight[$m12_why]: reason printed|no session marker|no new repo marker" "1|0|$m12_r0" \
+    "$(has "$m12_out" "aria-state: $m12_why")|$(m12_n 'aria-preflight-m12-xid*')|$(m12_n 'aria-preflight-repo-*')"
+done
+# The digest lines of /extract and /audit knowledge (Claude Code + Codex), with the placeholders filled.
+m12_i=0
+for m12_f in "$DIR/plugin-claude-code/skills/extract/SKILL.md" "$DIR/plugin-claude-code/skills/audit-knowledge/SKILL.md" \
+             "$DIR/plugin-openai-codex/skills/extract/SKILL.md" "$DIR/plugin-openai-codex/skills/audit-knowledge/SKILL.md"; do
+  m12_port=claude-code; m12_env="CLAUDE_PLUGIN_ROOT=$DIR/plugin-claude-code"
+  case $m12_f in */plugin-openai-codex/*) m12_port=codex; m12_env="PLUGIN_ROOT=$DIR/plugin-openai-codex" ;; esac
+  m12_sk=$(basename "$(dirname "$m12_f")")
+  grep -F 'aria-state.sh" path "aria-digest-' "$m12_f" > "$R/m12-lines"
+  m12_k=0
+  while IFS= read -r m12_l; do
+    m12_i=$((m12_i + 1)); m12_k=$((m12_k + 1)); m12_name="m12d$m12_i.md"
+    printf '%s\n' "$m12_l" | sed "s|{filename}|$m12_name|; s|{capture_path}|$R/m12-cap.jsonl|; s|{snapshot_path}|$R/m12-cap.jsonl|" > "$R/m12-d.sh"
+    m12_good=$(cd "$P" && env "$m12_env" KT_STATE_BASE="$GOOD" sh "$R/m12-d.sh" 2>/dev/null)
+    check "M12 $m12_port $m12_sk digest line $m12_k (control): healthy dir prints the digest path and writes it" "$SD/aria-digest-$m12_name|1" \
+      "$m12_good|$([ -s "$SD/aria-digest-$m12_name" ] && echo 1 || echo 0)"
+    rm -f "$SD/aria-digest-$m12_name"
+    for m12_b in "$BROKEN|not a directory" "$B755|mode not 700"; do
+      m12_base=${m12_b%%|*}; m12_why=${m12_b#*|}
+      m12_d0=$(m12_n 'aria-digest-*'); (cd "$P" && env "$m12_env" KT_STATE_BASE="$m12_base" sh "$R/m12-d.sh" > "$R/m12-o" 2> "$R/m12-e"); m12_rc=$?
+      check "M12 $m12_port $m12_sk digest line $m12_k [$m12_why]: non-zero exit|reason on stderr|nothing on stdout|no new digest anywhere" "1|1||$m12_d0" \
+        "$([ "$m12_rc" -ne 0 ] && echo 1 || echo 0)|$(has "$(cat "$R/m12-e")" "aria-state: $m12_why")|$(cat "$R/m12-o")|$(m12_n 'aria-digest-*')"
+    done
+  done < "$R/m12-lines"
+done
+check "M12 digest lines examined (instrument: extract 1 + audit-knowledge 2, per port)" "6" "$m12_i"
 
 # --- M6 — no skill or rules surface names an old state location ----------------------------------------
 m6_scan() { grep -nE '/tmp/aria-|TMPDIR[^ ]*/aria-' "$@" 2>/dev/null; }
