@@ -68,5 +68,37 @@ b6 "antigravity digest" "$ag_section"
 b6 "codex hook"  "$(grep 'SESSION STATE —' "$DIR/plugin-openai-codex/bin/session-start-check.sh")"
 b6 "cursor hook" "$(grep 'SESSION STATE —' "$DIR/plugin-cursor-template/scripts/aria/session-start-check.sh")"
 
+# B7 (2.58.0) — entries stored since 2.58.0 escape structural lines with one leading backslash, so
+# the model must be told to read them without it. Asserted on the RENDERED output of each hook (run
+# with an isolated HOME, a session_state: true config, a scratch state base and stdin closed), not on
+# the source line: a source grep cannot see a render that drops or duplicates the sentence. The
+# sentence is the same literal session-state.sh's AH2 strips, so the two arms agree on its text.
+# The Claude Code and Antigravity digests are NOT covered here: their resume path is the /handoff
+# skill's Step 0r, which carries its own escape note.
+AH_EMITTER_SENTENCE='A stored prompt line that begins with one backslash before ##, ###, a code fence or the entry-end terminator line is escaped; read it without that one backslash. '
+B7R=$(mktemp -d "${TMPDIR:-/tmp}/aria-ssd-b7.XXXXXX") || exit 1
+B7R=$(cd "$B7R" && pwd)
+trap 'rm -rf "$B7R"' EXIT
+mkdir -p "$B7R/home" "$B7R/base" "$B7R/tmp" "$B7R/sweep" "$B7R/kf/logs" "$B7R/w"
+printf -- '- **Date:** 2026-11-01 — audit\n' > "$B7R/kf/logs/knowledge-audit-log.md"
+printf -- '- **Date:** 2026-11-01 — audit\n' > "$B7R/kf/logs/config-audit-log.md"
+printf -- '---\nknowledge_folder: %s\nsession_state: true\n---\n' "$B7R/kf" > "$B7R/cfg.md"
+b7() { # $1 = label, $2 = hook path
+  (cd "$B7R/w" && env -u XDG_RUNTIME_DIR -u KT_STATE_DIR -u CLAUDE_CODE_SESSION_ID -u CODEX_THREAD_ID \
+    HOME="$B7R/home" TMPDIR="$B7R/tmp" KT_TMP_SWEEP_ROOT="$B7R/sweep" KT_STATE_BASE="$B7R/base" \
+    KT_CONFIG="$B7R/cfg.md" sh "$2" < /dev/null > "$B7R/out" 2>/dev/null) || true
+  _ctl=$(awk -v s='SESSION STATE —' '{ while ((i = index($0, s)) > 0) { c++; $0 = substr($0, i + length(s)) } } END { print c + 0 }' "$B7R/out")
+  _got=$(awk -v s="$AH_EMITTER_SENTENCE" '{ while ((i = index($0, s)) > 0) { c++; $0 = substr($0, i + length(s)) } } END { print c + 0 }' "$B7R/out")
+  if [ "$_ctl" -ne 1 ]; then
+    printf '  FAIL  B7 %s — control: rendered output carries %s SESSION STATE directives, want 1\n' "$1" "$_ctl"; fail=1
+  elif [ "$_got" -eq 1 ]; then
+    printf '  PASS  B7 %s — rendered SESSION STATE directive carries the escape sentence once\n' "$1"
+  else
+    printf '  FAIL  B7 %s — rendered output carries the escape sentence %s times, want 1\n' "$1" "$_got"; fail=1
+  fi
+}
+b7 "codex hook"  "$DIR/plugin-openai-codex/bin/session-start-check.sh"
+b7 "cursor hook" "$DIR/plugin-cursor-template/scripts/aria/session-start-check.sh"
+
 [ "$fail" -eq 0 ] || { echo "session-state-token-directive: FAIL"; exit 1; }
 echo "session-state-token-directive: PASS"

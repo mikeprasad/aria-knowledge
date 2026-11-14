@@ -197,8 +197,13 @@ the skills would still need another path in the other ports); hard-coding a path
 `codex-hook.py` gains `aria_state_dir()` (D1, ported; the base list and refusal rules are identical,
 pinned by a cross-port test). Its four names move into the directory: `aria-context-<key>`,
 `aria-active-<key>`, `aria-codex-codemap-<session>-<digest>`, `aria-session-inprogress-codex-<key>`.
-Plain `open`/`write_text` inside the directory; `O_NOFOLLOW`/`fstat` are not added (the directory
-check covers them); `ledger_is_ours` stays (D2). D3 behaviour applies (no dir ⇒ no cooldown, no
+~~Plain `open`/`write_text` inside the directory; `O_NOFOLLOW`/`fstat` are not added (the directory
+check covers them)~~ ⚠ **AMENDED 2026-11-12 (shipped rule, Task 5 ruling C1):** Codex reads and writes
+state only through `state_read` / `state_write`, which open with `O_NOFOLLOW | O_NONBLOCK` and let
+`fstat` decide (a regular file is used, anything else is skipped), and create files `0600`. The shell
+ports read only regular files and skip a non-file. Why the original text was wrong: a plain `open` on
+a FIFO planted at a state name hung the hook for 30 s, and the directory check cannot rule that out —
+our own mistake inside the directory can leave a non-file there (D2). `ledger_is_ours` stays (D2). D3 behaviour applies (no dir ⇒ no cooldown, no
 ledger, no surfacing; inprogress marks anyway).
 
 Carried from the old Task 4: the three text-mode `subprocess.run` calls without an encoding

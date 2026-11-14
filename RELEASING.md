@@ -89,6 +89,13 @@ cd -
 #    of the checkout it runs in, so publishing before the copy would upload older artifacts.
 ```
 
+**Where the test suites can run.** Run them with `TMPDIR` outside any project tree, and keep the
+checkout itself outside the macOS per-user temp directory (`getconf DARWIN_USER_TEMP_DIR`).
+`tests/repros/session-state.sh` finds a project root by walking up to a `CLAUDE.md` or `PROGRESS.md`
+marker, so a scratch directory inside a project resolves to that project instead of the fixture; and
+a worktree under the per-user temp directory fails 4 tests that build from the real checkout
+(measured during 2.58.0 development). Neither is a product defect.
+
 `release-worktree-finish.sh` copies every artifact to the same path in the main checkout, `cmp`s
 each copy, prints its size and checksum, and only if all of them match runs `git worktree remove`
 (never `--force`). On any failed copy, or if it finds no artifacts at all, it exits non-zero and

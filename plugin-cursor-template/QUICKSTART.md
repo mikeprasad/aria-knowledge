@@ -68,7 +68,7 @@ Scans your knowledge folder, builds `index.md` with the tag index, and flags any
 
 Shows your knowledge base health: file counts, intake backlog status, audit dates, codemap status, index health. If `/stats` works, ARIA is configured.
 
-Edit any file in the repo — you should see a `[Rule 22]` reminder in the agent's response (the `beforeFileEdit` hook firing). Check `/tmp/aria-hook-debug.log` to confirm hooks are firing.
+Edit any file in the repo — you should see a `[Rule 22]` reminder in the agent's response (the `beforeFileEdit` hook firing). Check the hook debug log to confirm hooks are firing — `sh scripts/aria/aria-state.sh path aria-hook-debug.log` prints where it is (a private per-user state directory since 2.58.0).
 
 **You're ready.** The rest of this doc explains how to use it well.
 
@@ -284,7 +284,7 @@ Drop an inline `★ Insight` block in your reply, or run `/intake` with a snippe
 
 - **Hook events** are defined in `.cursor/hooks.json`. Cursor resolves `command` paths relative to the hooks.json file location (`.cursor/`); the port uses paths relative to the repo root, which Cursor resolves correctly when scripts are at `scripts/aria/*.sh`.
 - **Path validation**: at session start, the hook reads `.cursor/aria-knowledge.local.md`. If `knowledge_folder` is not an absolute path or the folder doesn't exist, you'll see a prompt to run `/setup`.
-- **Permissions**: scripts run with the user's permissions. The port avoids destructive operations; the only writes are under the configured `knowledge_folder` and to `/tmp/aria-hook-debug.log`.
+- **Permissions**: scripts run with the user's permissions. The port avoids destructive operations; the only writes are under the configured `knowledge_folder` and in the private per-user state directory (`sh scripts/aria/aria-state.sh path <name>` prints a file's place there), which holds the hook debug log and the hooks' short-lived state.
 - **Fail-open on parse errors**: most hooks fail open. Two exceptions can **deny**: `pre-commit-preflight-check.sh` (when `preflight_gate: deny` or a deny-path/repo matches) and `pre-external-fetch-check.sh` (when `external_fetch_gate: on`). Both still fail open on unparseable input.
 - **Compaction**: there is no compaction lifecycle in Cursor. The port's `stop` hook + `capture-task-boundary.sh` substitute writes a non-transcript snapshot at task end.
 - **`/auto`**: compiled into `aria-commands.mdc`. No CronCreate, no statusline usage figure, no `self-restart` wrapper. Recurring prompts: Cursor `/loop`.

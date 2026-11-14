@@ -129,7 +129,7 @@ conflicts remained (16, each resolved by hand). Codex adaptations below survived
   Cowork gates; Codex always has a shell) is removed. ⚠ *Corrected 2026-10-25:* this bullet also said
   the `/handoff` and `/wrapup` "Rule 22 bypasses through the shell" step is a self-report because Codex
   has no writer for that ledger. That was superseded in the same pass: `codex-hook.py` runs
-  `pre-bash-write-check.sh`, which writes `${TMPDIR}/aria-r22-bypass-<session_id>`, and both skills
+  `pre-bash-write-check.sh`, which writes `<state dir>/aria-r22-bypass-<session_id>` (the private per-user state directory since 2.58.0; `bin/aria-state.sh path <name>` prints a file's place there), and both skills
   read it (covered by `test_pre_tool_use_shell_records_in_place_write_to_bypass_ledger`).
 - ✅ **Closed 2026-10-25 in 2.57.4-codex.1** (see that section). Was: `/snapshot` → `bin/save-transcript.sh` searches Claude Code's
   `~/.claude/projects`, not Codex's own session store. It now prints a `GUESSED` warning instead of

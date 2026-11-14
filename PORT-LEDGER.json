@@ -2,7 +2,7 @@
   "claude-code": {
     "version": "2.57.9",
     "parity_target": "2.57.9",
-    "last_parity_pass": "2026-11-08",
+    "last_parity_pass": "2026-11-14",
     "sla": "undeclared",
     "surfaces": {}
   },
@@ -62,7 +62,7 @@
       "plugin-openai-codex/skills/distill/SKILL.md": "89eeb1e6787350bcf5d5f12171d02506efc68b7587b6a141303c57858655e154",
       "plugin-openai-codex/skills/extract/SKILL.md": "2022318a5333217116df65f75f75c3bee33d7cb9d1ccd99da74c5f88586f4670",
       "plugin-openai-codex/skills/foundational-review/SKILL.md": "e7c94cfac614a24b847ed2df61414abb8be8196453dacb2eb7ef61a8e1a23ca3",
-      "plugin-openai-codex/skills/handoff/SKILL.md": "1c72a97abe2137310168d9b77bab1619e24a046a4c2182e1424d99750193e0d5",
+      "plugin-openai-codex/skills/handoff/SKILL.md": "348c3e14092f9e8fb245d4ba85ff9ec93134fdab3b6ac0cfae33a9f29db0abd3",
       "plugin-openai-codex/skills/help/SKILL.md": "a50371c582fc06c23df7094ef5356c42a0fd989ef6d2b7c6b74b101265eb6a0a",
       "plugin-openai-codex/skills/index/SKILL.md": "fda30e4f22554475876cbe176d0d3007896597c4df8143c9f3d156121c86dcd6",
       "plugin-openai-codex/skills/intake/SKILL.md": "6261c5017e3f68d68c25350bd73bb91834d8ee0abc2ebd1004ffeaf50bb1ca92",
@@ -98,7 +98,7 @@
     "last_parity_pass": "2026-11-14",
     "sla": "undeclared",
     "surfaces": {
-      "plugin-cursor-template/.cursor/rules/aria-commands.mdc": "5e9b0984eea70454129e4d036a1b10f6a6c7c3874b43b61d45caedc3afb08b7d",
+      "plugin-cursor-template/.cursor/rules/aria-commands.mdc": "33befd52de4948df10b9f972a0613f3a51d262c2ef2916ae62e6b28d34f4f8ac",
       "plugin-cursor-template/knowledge/rules/working-rules.md": "58511d31bc9d03232b26e9c5afb79461ce851f6f4ad099c38a4c8b882d0c4d7f",
       "plugin-cursor-template/scripts/aria/lib-index-match.sh": "c6816301ee9cf48804b7778789cde1e50339feeca6a7a5fc4df126d4e631d3e1",
       "plugin-cursor-template/scripts/aria/aria-surface.sh": "ce4bb5aee34867f354efe9a9daa958a0d259148814c7616821f0a9c8a7ce473f",
@@ -128,7 +128,7 @@
       "plugin-antigravity/skills/distill/SKILL.md": "72f35cb4637907e166ce1c771795923e86702b6ef62178e1c078fcd7dc4abb7d",
       "plugin-antigravity/skills/extract/SKILL.md": "1dea4761fe1f71d3d8736f6ac1965cf6351d4920a630fbe116347892ce97954a",
       "plugin-antigravity/skills/foundational-review/SKILL.md": "22e4e0fd73d01dddac18b04c1e7494a38ba54b141ce8076683161785b9137b02",
-      "plugin-antigravity/skills/handoff/SKILL.md": "46003a2a3ed8a0fd7909ed5271eb4e281eec90c9253752cc10264f598db45009",
+      "plugin-antigravity/skills/handoff/SKILL.md": "4dca1ae94fd7172dd94147c4e1acc19032bf39f270806592d41bc5ab42e5518e",
       "plugin-antigravity/skills/help/SKILL.md": "f25f0741bd16c9edb61db20a11c0cc2e8f61d734ef8470049b77146c26e96503",
       "plugin-antigravity/skills/index/SKILL.md": "80e36b9099596723f16009b0a8484d8292b7e8b781333e36eba9e530f7793f97",
       "plugin-antigravity/skills/intake/SKILL.md": "48903918384208abd5d80ac359ae804401bca2fc4dda3633abf53bcaa9529fa9",
