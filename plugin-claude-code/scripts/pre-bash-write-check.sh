@@ -73,6 +73,7 @@ TARGETS=$(printf '%s' "$INPUT" | python3 "$RESOLVER" 2>/dev/null)
 # kt_session_key (lib-state-key.sh): read whitespace-tolerantly, accepted only as [A-Za-z0-9._-]+ and
 # never rewritten — the key every hook in this port names this family's state with. Rejected: no key, nothing recorded.
 _bw_sid=
+KT_STATE_DIR=   # an inherited value is never trusted: only the state-dir resolver sets it
 [ -f "$(dirname "$0")/lib-state-key.sh" ] && . "$(dirname "$0")/lib-state-key.sh" \
   && _bw_sid=$(kt_session_key "$INPUT" session_id)
 # 2.58.0: the ledger lives in the private per-user state directory (lib-state-key.sh). The id goes

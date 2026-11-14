@@ -28,6 +28,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # of the path. Identical in pre-edit-check.sh, post-edit-check.sh, capture-task-boundary.sh and
 # record-edit-intent.sh (tests/repros/safe-create-census.sh CC1b).
 . "$SCRIPT_DIR/lib-tracked-artifacts.sh" 2>/dev/null || true
+KT_STATE_DIR=   # an inherited value is never trusted: only the state-dir resolver sets it
 if [ -f "$SCRIPT_DIR/lib-state-key.sh" ]; then . "$SCRIPT_DIR/lib-state-key.sh"; fi
 ARIA_HOOK_DEBUG_LOG=${KT_HOOK_DEBUG_LOG:-}
 if [ -z "$ARIA_HOOK_DEBUG_LOG" ] && kt_state_resolve 2>/dev/null; then

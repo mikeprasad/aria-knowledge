@@ -75,6 +75,7 @@ export STEP_INDEX
 # A missing lib is "no state" too, and this is the deny gate: never `exit 0` here (that fails OPEN).
 # Without the lib every kt_* call below fails (127, stderr silenced), the key, suffix, breaker,
 # carrier and anchor stay empty, and an unmarked edit is still DENIED (spec D3).
+KT_STATE_DIR=   # an inherited value is never trusted: only the state-dir resolver sets it
 if [ -f "$SCRIPT_DIR/lib-state-key.sh" ]; then . "$SCRIPT_DIR/lib-state-key.sh"; fi
 SESSION_KEY=$(kt_session_key "$INPUT" session_id 2>/dev/null)
 [ "$?" = 1 ] && [ -n "$TRANSCRIPT" ] && SESSION_KEY=$(kt_session_key_check "$(basename "$TRANSCRIPT" .jsonl 2>/dev/null)" 2>/dev/null)

@@ -121,6 +121,7 @@ done
 # no-marker response. A missing lib is the same "no state", NOT an abstain: this is a deny gate, so
 # `exit 0` here would fail OPEN. Without the lib kt_session_key fails with 127 (not 1), and the
 # commit gets the no-marker response.
+KT_STATE_DIR=   # an inherited value is never trusted: only the state-dir resolver sets it
 if [ -f "$SCRIPT_DIR/lib-state-key.sh" ]; then . "$SCRIPT_DIR/lib-state-key.sh"; fi
 SESSION_ID=$(kt_session_key "$INPUT" session_id 2>/dev/null)
 [ "$?" = 1 ] && exit 0

@@ -37,6 +37,7 @@ fi
 
 # Block 2: active-surfacing ledger re-surface (v2.15.0+).
 # Only fires if active mode is enabled, ledger exists, and has entries.
+KT_STATE_DIR=   # an inherited value is never trusted: only the state-dir resolver sets it
 if [ "$KT_ACTIVE_SURFACING" = "true" ] && [ -f "$SCRIPT_DIR/lib-state-key.sh" ]; then
   # The ledger lives in the private per-user state dir (lib-state-key.sh). No state dir (spec D3):
   # nothing to re-surface.

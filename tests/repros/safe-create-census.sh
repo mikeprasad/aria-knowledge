@@ -308,9 +308,9 @@ FNR == 1 { md = (FILENAME ~ /\.(md|mdc)$/); infence = 0; inleg = 0; nfiles++ }
   if (inleg) next
   if (line ~ /^[ \t]*#/) next
   s = line; hit = 0
-  while (match(s, /\/tmp\/aria-|\$\{TMPDIR[^}]*\}\/aria-|\$TMPDIR\/aria-|KT_SURFACE_CACHE_DIR|Path\([ \t]*["']\/tmp\/?["'][ \t]*\)|gettempdir\(\)/)) {
+  while (match(s, /\/tmp\/\.?aria-|\$\{TMPDIR[^}]*\}"?\/\.?aria-|\$TMPDIR"?\/\.?aria-|KT_SURFACE_CACHE_DIR|Path\([ \t]*["']\/tmp\/?["'][ \t]*\)|gettempdir\(\)/)) {
     tok = substr(s, RSTART); rest = substr(s, RSTART + RLENGTH)
-    match(tok, /^[^ \t"'()]*([(][)])?[^ \t"'()]*/); tok = substr(tok, 1, RLENGTH)
+    match(tok, /^[^ \t()]*([(][)])?[^ \t()]*/); tok = substr(tok, 1, RLENGTH)
     if (!(line ~ /mktemp/ && tok ~ /XXX/)) { hit = 1; break }
     s = rest
   }
@@ -373,6 +373,14 @@ T=$(mktemp "${TMPDIR:-/tmp}/aria-match-raw.XXXXXX")
 rm -f /tmp/aria-active-old
 # LEGACY-TMP-SWEEP-2.58 end
 CTRL
+# Fix round 2: TMPDIR quoted alone, and dot-prefixed names (create temps, Antigravity's model file).
+cat > "$SCRATCH/cc6/hook2.sh" <<'CTRL'
+Q="$TMPDIR"/aria-preflight-$S
+D=/tmp/.aria-new.x
+E="${TMPDIR:-/tmp}/.aria-ag-model.last"
+F="$TMPDIR"/.aria-new.y
+M=$(mktemp "$TMPDIR"/.aria-new.XXXXXX)
+CTRL
 cat > "$SCRATCH/cc6/hook.py" <<'CTRL'
 p = Path("/tmp") / "aria-x"
 q = "/tmp/aria-y"
@@ -391,18 +399,22 @@ cat > "$SCRATCH/cc6/rules/x.mdc" <<'CTRL'
 ls "$TMPDIR/aria-preflight-$ID"
 ```
 CTRL
-CC6C=$(cc6_scan "$SCRATCH/cc6/hook.sh" "$SCRATCH/cc6/hook.py" "$SCRATCH/cc6/skills/x/SKILL.md" "$SCRATCH/cc6/rules/x.mdc" 2>/dev/null | sed "s|$SCRATCH/cc6/||")
+CC6C=$(cc6_scan "$SCRATCH/cc6/hook.sh" "$SCRATCH/cc6/hook2.sh" "$SCRATCH/cc6/hook.py" "$SCRATCH/cc6/skills/x/SKILL.md" "$SCRATCH/cc6/rules/x.mdc" 2>/dev/null | sed "s|$SCRATCH/cc6/||")
 CC6_WANT='hook.sh:1:
 hook.sh:2:
 hook.sh:3:
 hook.sh:4:
+hook2.sh:1:
+hook2.sh:2:
+hook2.sh:3:
+hook2.sh:4:
 hook.py:1:
 hook.py:2:
 hook.py:3:
 skills/x/SKILL.md:4:
 rules/x.mdc:2:'
 if [ "$(printf '%s\n' "$CC6C" | sed 's/^\([^:]*:[0-9]*:\).*/\1/')" = "$CC6_WANT" ]; then
-  ok "CC0 control (CC6): each of the 9 plants (4 shell forms, 3 Python, a SKILL.md and an .mdc block) is reported exactly once; comments, the mktemp template, the marked legacy line and skill prose are not"
+  ok "CC0 control (CC6): each of the 13 plants (8 shell forms incl. quoted-alone TMPDIR and dot-prefixed names, 3 Python, a SKILL.md and an .mdc block) is reported exactly once; comments, the mktemp templates, the marked legacy line and skill prose are not"
 else
   bad "CC0 control (CC6): each plant reported exactly once, nothing else" "got:
 $CC6C"

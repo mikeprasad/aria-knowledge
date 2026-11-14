@@ -29,6 +29,7 @@ LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # responsibility 4 and the tracked-artifacts load inject nothing and nothing is logged; the other
 # responsibilities are unaffected. Without the lib, kt_state_path is undefined and every name is
 # refused, which is the same "no state" outcome.
+KT_STATE_DIR=   # an inherited value is never trusted: only the state-dir resolver sets it
 if [ -f "$LIB_DIR/../lib-state-key.sh" ]; then
   # shellcheck source=../lib-state-key.sh
   . "$LIB_DIR/../lib-state-key.sh"

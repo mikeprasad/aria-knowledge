@@ -89,6 +89,7 @@ if [ "$KT_SESSION_STATE" = "true" ] && [ -n "$FILE_PATH" ] && [ "$(basename "$FI
     # project is still marked (spec D3: "Mark anyway") with an EMPTY session id, so the mark keeps
     # SESSION.md's existing sessionId line and the raw id never reaches its front matter
     # (codex-hook.py maybe_mark_session_state applies the same rule).
+    KT_STATE_DIR=   # an inherited value is never trusted: only the state-dir resolver sets it
     if [ -f "$SCRIPT_DIR/lib-state-key.sh" ]; then . "$SCRIPT_DIR/lib-state-key.sh"; fi
     SS_SID=$(kt_session_key "$INPUT" session_id 2>/dev/null); _ss_rc=$?
     if [ -n "$SS_SID" ]; then

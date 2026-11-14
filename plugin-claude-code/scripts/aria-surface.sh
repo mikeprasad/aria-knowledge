@@ -91,6 +91,7 @@ fi
 # The parse cache lives in the private per-user state dir (lib-state-key.sh). Without one this
 # still ranks, uncached: the answer is the same, only slower. This CLI keeps no session ledger, so
 # the hooks' "no state, surface nothing" rule (spec D3: no dedupe) does not apply here.
+KT_STATE_DIR=   # an inherited value is never trusted: only the state-dir resolver sets it
 if [ -f "$SCRIPT_DIR/lib-state-key.sh" ]; then
   # shellcheck disable=SC1091
   . "$SCRIPT_DIR/lib-state-key.sh"

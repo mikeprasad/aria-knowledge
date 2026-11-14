@@ -160,13 +160,59 @@ check "L6 control: with the lib, aria-state.sh path prints the state path" "0|$L
 CODE="$R/code"; mkdir -p "$CODE"; git -C "$CODE" init -q . 2>/dev/null
 git -C "$CODE" config user.email t@t.t; git -C "$CODE" config user.name t
 echo code > "$CODE/app.py"; git -C "$CODE" add . 2>/dev/null
-for p in c u x; do
+for p in c u x g; do
   case $p in u) _sk=conversation_id ;; *) _sk=session_id ;; esac
+  case $p in g) _pf="$R/g/bin/pre-commit-preflight-check.sh" ;; *) _pf="$R/$p/pre-commit-preflight-check.sh" ;; esac
   printf '{"%s":"nl7%s","tool_input":{"command":"cd %s && git commit -m x"}}' "$_sk" "$p" "$CODE" > "$R/in"
-  nolib "pf-$p" sh "$R/$p/pre-commit-preflight-check.sh"
+  nolib "pf-$p" sh "$_pf"
   check "L7 [$p] preflight, no lib, unmarked code commit at gate=deny: still answered with deny | exit 0" "1|0" \
     "$(has "$(cat "$R/out")" '"deny"')|$(cat "$R/rc")"
 done
+
+# --- D (fix round 2): an inherited KT_STATE_DIR is never trusted --------------------------------------
+# Every run below gets KT_STATE_DIR=<decoy> in its environment. The decoy holds a 2020 file a sweep would
+# take and a "precious" file; it must end exactly as it started. With the lib removed the hook states
+# state_dir=none; with the lib it resolves its own dir under the state base (its planted 2020 file is
+# swept, or its cache / anchor written there). Red on 552c14d: H (swept the decoy, stated its path) and
+# the aria-surface CLI (wrote its parse cache into the decoy); the rest were already safe (GUARD).
+DECOY="$R/decoy"; LSD="$LB/aria-knowledge-$UIDN"
+decoy_reset() { rm -rf "$DECOY"; mkdir -p "$DECOY"; : > "$DECOY/aria-active-decoy-old"; : > "$DECOY/precious.txt"
+  touch -t 202001010000 "$DECOY/aria-active-decoy-old" "$DECOY/precious.txt"; }
+decoy_ok() { [ "$(ls -A "$DECOY" | sort | tr '\n' ' ')" = "aria-active-decoy-old precious.txt " ] && echo 1 || echo 0; }
+lsd_plant() { [ -d "$LSD" ] || mkdir -m 700 "$LSD"; : > "$LSD/aria-active-resolved-old"; touch -t 202001010000 "$LSD/aria-active-resolved-old"; }
+dsweep() { # PORT CMD-NOLIB CMD-LIB (each a script path; H runs through bash with its plugin root)
+  _p=$1
+  decoy_reset; nolib "d-$_p" env KT_STATE_DIR="$DECOY" $2
+  check "D_nolib [$_p]: inherited KT_STATE_DIR=<decoy>, no lib → decoy untouched | state_dir=none" "1|1" \
+    "$(decoy_ok)|$(has "$(cat "$R/out")" 'state_dir=none')"
+  decoy_reset; lsd_plant; withlib env KT_STATE_DIR="$DECOY" $3
+  check "D_lib [$_p]: inherited KT_STATE_DIR=<decoy>, lib present → decoy untouched | the resolved dir is stated and swept" "1|1|0" \
+    "$(decoy_ok)|$(has "$(cat "$R/lout")" "state_dir=$LSD")|$([ -e "$LSD/aria-active-resolved-old" ] && echo 1 || echo 0)"
+}
+printf '{"session_id":"nld","source":"startup"}' > "$R/in"
+dsweep C "sh $R/c/session-start-check.sh" "sh $C/session-start-check.sh"
+dsweep X "sh $R/x/session-start-check.sh" "sh $DIR/plugin-openai-codex/bin/session-start-check.sh"
+printf '{"conversation_id":"nldu","hook_event_name":"sessionStart"}' > "$R/in"
+dsweep U "sh $R/u/session-start-check.sh" "sh $DIR/plugin-cursor-template/scripts/aria/session-start-check.sh"
+cp "$DIR/plugin-antigravity/tests/fixtures/transcript-user-input.jsonl" "$R/agt.jsonl"
+jq -cn --arg t "$R/agt.jsonl" --arg w "$R/w" '{conversationId:"nldh", workspacePaths:[$w], transcriptPath:$t,
+  artifactDirectoryPath:"/x/art", invocationNum:0, initialNumSteps:5}' > "$R/in"
+dsweep H "env CLAUDE_PLUGIN_ROOT=$R/g bash $R/g/bin/antigravity/pre-invocation-aria.sh" \
+  "env CLAUDE_PLUGIN_ROOT=$DIR/plugin-antigravity bash $DIR/plugin-antigravity/bin/antigravity/pre-invocation-aria.sh"
+# State-path readers: the aria-surface CLI (its parse cache) and pre-edit (its anchor).
+cp "$DIR/tests/repros/fixtures/surfacing/index.md" "$KF/index.md"
+: > "$R/in"
+decoy_reset; nolib d-cli env KT_STATE_DIR="$DECOY" sh "$R/c/aria-surface.sh" "add the roof job to the proj-b payments tab"
+check "D_nolib [aria-surface CLI]: decoy untouched" "1" "$(decoy_ok)"
+decoy_reset; rm -rf "$LSD"; withlib env KT_STATE_DIR="$DECOY" sh "$C/aria-surface.sh" "add the roof job to the proj-b payments tab"
+check "D_lib [aria-surface CLI]: decoy untouched | the parse cache is in the resolved dir" "1|1" \
+  "$(decoy_ok)|$(ls "$LSD" 2>/dev/null | grep -c '^aria-surface-.*\.tsv$' | sed 's/^[1-9][0-9]*$/1/')"
+printf '{"session_id":"nld1","file_path":"%s/w/t.txt","transcript_path":"%s","tool_use_id":"toolu_fx_3"}' "$R" "$BASE_T" > "$R/in"
+decoy_reset; nolib d-pe env KT_STATE_DIR="$DECOY" sh "$R/c/pre-edit-check.sh"
+check "D_nolib [pre-edit]: decoy untouched | still denies" "1|1" "$(decoy_ok)|$(denies "$R/out")"
+decoy_reset; withlib env KT_STATE_DIR="$DECOY" sh "$C/pre-edit-check.sh"
+check "D_lib [pre-edit]: decoy untouched | the anchor is in the resolved dir" "1|1" \
+  "$(decoy_ok)|$([ -f "$LSD/aria-r22-lastedit-nld1" ] && echo 1 || echo 0)"
 
 # --- L8 / L9 -------------------------------------------------------------------------------------------
 # Scoped to the state library's own names. (Cursor's session-start also prints
