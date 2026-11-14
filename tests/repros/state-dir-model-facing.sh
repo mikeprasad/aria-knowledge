@@ -19,6 +19,11 @@
 #   M6 skills_name_no_old_location   no skill or rules surface names /tmp/aria-… or ${TMPDIR…}/aria-…
 #   M7 descriptions_unchanged        (GUARD) no SKILL.md description moved since e24934f
 #
+# Fix round 1 (M8-M10), measured on fbe7c8e: 11 red; the 4 M8 reject rows, M8's four-copies-identical
+# row and M9[X], M9[H] pass there by design (GUARD), plus M8's two instrument rows. Each of the 7 GUARDs
+# was seen red under one mutation of its own (strip instead of reject, accept "/", fall back on an empty
+# id, fall back past a reject, codex keyed turn_id-first, antigravity bash-cd keyed on another id, one
+# drifted copy), each restored and cmp-checked.
 # Measured on 77fa848: 19 arms red, 5 pass by design and are labelled — GUARD (M1's no-other-ledger,
 # M4's lock, M7: non-regression, not evidence the change landed) or instrument (the 59-byte constant,
 # M6's planted control: they prove the probe can fire). Hooks run from the
@@ -225,6 +230,131 @@ printf 'a /tmp/aria-active-x\nb ${TMPDIR:-/tmp}/aria-r22-bypass-x\nc "$TMPDIR/ar
 check "M6 skills_name_no_old_location (instrument): files examined > 100|control reports exactly 3" "1|3" \
   "$([ "$m6_n" -gt 100 ] && echo 1 || echo 0)|$(m6_scan "$R/m6-control.md" | grep -c .)"
 check "M6 skills_name_no_old_location: hits" "" "$(m6_scan $M6_FILES | sed "s|^$DIR/||")"
+
+# --- M8 — one session key rule: shell kt_session_key == Python session_key (fix round 1) ----------------
+# An id is accepted only as [A-Za-z0-9._-]+ and used UNCHANGED; anything else is no key (never a stripped
+# one — stripping is not injective). The first of session_id, turn_id holding a string decides.
+SK_LIB="$DIR/plugin-claude-code/scripts/lib-state-key.sh"
+U36="8f14e45f-ceea-467a-9f6e-1d2c3b4a5e6f"
+L200=$(awk 'BEGIN { for (i = 0; i < 40; i++) printf "a.b_-" }')
+{
+  printf 'uuid\t{"session_id":"%s"}\t%s\n' "$U36" "$U36"
+  printf 'spaced\t{ "session_id" : "%s", "x": 1 }\t%s\n' "$U36" "$U36"
+  printf 'plus\t{"session_id":"ab+cd"}\t\n'
+  printf 'slash\t{"session_id":"a/b"}\t\n'
+  printf 'empty\t{"session_id":""}\t\n'
+  printf 'long200\t{"session_id":"%s"}\t%s\n' "$L200" "$L200"
+  printf 'turn-only\t{"turn_id":"t-1"}\tt-1\n'
+  printf 'no-fallback-past-a-reject\t{"session_id":"ab+cd","turn_id":"t-1"}\t\n'
+} > "$R/sk-cases"
+check "M8 session_key_parity (instrument): 200-char id is 200 bytes" "200" "$(printf '%s' "$L200" | wc -c | tr -d ' ')"
+: > "$R/sk-shell"
+while IFS="$(printf '\t')" read -r lab js want; do
+  got=$(sh -c '. "$1"; kt_session_key "$2" session_id turn_id' _ "$SK_LIB" "$js" 2>/dev/null)
+  printf '%s\t%s\n' "$lab" "$got" >> "$R/sk-shell"
+  # A reject case wants "", which an absent function also prints: GUARD on fbe7c8e, not landing evidence.
+  check "M8 session_key_parity[shell $lab]${want:+}$( [ -z "$want" ] && echo " (GUARD)")" "$want" "$got"
+done < "$R/sk-cases"
+python3 -B - "$X/codex-hook.py" "$R/sk-cases" > "$R/sk-py" 2>/dev/null <<'SKPY'
+import importlib.util, json, sys
+spec = importlib.util.spec_from_file_location("codex_hook", sys.argv[1])
+m = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(m)
+for line in open(sys.argv[2], encoding="utf-8"):
+    lab, js, _want = line.rstrip("\n").split("\t")
+    print(lab + "\t" + str(m.session_key(json.loads(js))))
+SKPY
+check "M8 session_key_parity: python ran every case (instrument)" "8" "$(grep -c . "$R/sk-py")"
+check "M8 session_key_parity: shell == python on every case" "" "$(diff "$R/sk-shell" "$R/sk-py")"
+# The arm above drives ONE copy of the helper; every port sources its own. (GUARD: identical on fbe7c8e too.)
+check "M8 session_key_parity (GUARD): the four lib-state-key.sh copies are byte-identical" "1" \
+  "$(cksum "$SK_LIB" "$DIR/plugin-antigravity/bin/lib-state-key.sh" "$X/lib-state-key.sh" "$U/lib-state-key.sh" \
+     | awk '{ print $1, $2 }' | sort -u | wc -l | tr -d ' ')"
+
+# Fixture for M9/M10: a project with a CODEMAP (bash-cd and the session-start tracked-artifact load
+# both record it in the ledger), and the shared prompt that fires on proj-b + payments.
+printf '# CODEMAP\n\n## Directory\n' > "$P/CODEMAP.md"
+CFGP="$R/cfg-p.md"
+printf -- '---\nknowledge_folder: %s\nactive_knowledge_surfacing: true\nprojects_enabled: true\nprojects_list: proj-a:proj-a,proj-b:proj-b,proj-c:proj-c,fx:proj\n---\n' "$KF" > "$CFGP"
+actives() { ls "$SD" 2>/dev/null | grep '^aria-active-' | tr '\n' ' '; }
+named()   { ls "$SD" 2>/dev/null | grep -cE 'ab\+cd|abcd'; }
+wipe()    { rm -rf "$SD"; mkdir -m 700 "$SD"; }
+ag_cd()   { jq -cn --arg c "$1" --arg cmd "cd $P" '{conversationId:$c, workspacePaths:["/tmp"], transcriptPath:"/nonexistent",
+            artifactDirectoryPath:"/tmp/art", stepIdx:0, toolCall:{name:"run_command", args:{CommandLine:$cmd, Cwd:"/tmp"}}}' > "$R/in"; }
+ag_inv()  { jq -cn --arg c "$1" --arg t "$R/t.jsonl" '{conversationId:$c, workspacePaths:["/tmp"], transcriptPath:$t,
+            artifactDirectoryPath:"/tmp/art", invocationNum:0, initialNumSteps:5}' > "$R/in"; }
+AGCD="$DIR/plugin-antigravity/bin/antigravity/bash-cd-aria.sh"
+# port_run PORT ID — that port's session start (SPACED payload, both id fields where the port has two)
+# and every ledger writer it has, all for one session; sets ST (the session-start text).
+port_run() {
+  case $1 in
+    C) printf '{"session_id": "%s", "source": "startup"}' "$2" > "$R/in"
+       run "$GOOD" "$R/pr.json" env KT_CONFIG="$CFGP" sh "$C/session-start-check.sh"; ST=$(ctx "$R/pr.json")
+       printf '{"session_id": "%s", "prompt": "%s"}' "$2" "$Q" > "$R/in"; run "$GOOD" "$R/o" env KT_CONFIG="$CFGP" sh "$C/prompt-context-check.sh"
+       printf '{"command":"cd %s","session_id":"%s"}' "$P" "$2" > "$R/in"; run "$GOOD" "$R/o" env KT_CONFIG="$CFGP" sh "$C/bash-cd-check.sh"
+       printf '{"session_id":"%s","task_subject":"%s","task_description":"d"}' "$2" "$Q" > "$R/in"; run "$GOOD" "$R/o" env KT_CONFIG="$CFGP" sh "$C/task-context-check.sh" ;;
+    X) printf '{"session_id": "%s", "turn_id": "%s-turn", "source": "startup"}' "$2" "$2" > "$R/in"
+       run "$GOOD" "$R/pr.json" env KT_CONFIG="$CFGP" sh "$X/session-start-check.sh"; ST=$(sysmsg "$R/pr.json")
+       printf '{"session_id": "%s", "turn_id": "%s-turn", "prompt": "%s", "cwd": "%s"}' "$2" "$2" "$Q" "$P" > "$R/in"
+       run "$GOOD" "$R/o" env KT_CONFIG="$CFGP" ARIA_CODEX_PLUGIN_ROOT="$DIR/plugin-openai-codex" python3 -B "$X/codex-hook.py" user-prompt-submit
+       printf '{"command":"cd %s","session_id":"%s","turn_id":"%s-turn"}' "$P" "$2" "$2" > "$R/in"; run "$GOOD" "$R/o" env KT_CONFIG="$CFGP" sh "$X/bash-cd-check.sh" ;;
+    U) printf '{"conversation_id": "%s", "session_id": "%s-sess", "hook_event_name": "sessionStart"}' "$2" "$2" > "$R/in"
+       run "$GOOD" "$R/pr.json" env KT_CONFIG="$CFGP" sh "$U/session-start-check.sh"; ST=$(jq -r '.agentMessage // empty' "$R/pr.json" 2>/dev/null)
+       printf '{"conversation_id": "%s", "generation_id": "g9", "session_id": "%s-sess", "prompt": "%s", "workspace_roots": ["%s"]}' "$2" "$2" "$Q" "$P" > "$R/in"
+       run "$GOOD" "$R/o" env KT_CONFIG="$CFGP" sh "$U/prompt-capture-check.sh"
+       printf '{"conversation_id": "%s", "generation_id": "g9", "session_id": "%s-sess"}' "$2" "$2" > "$R/in"
+       run "$GOOD" "$R/o" env KT_CONFIG="$CFGP" sh "$U/prompt-context-inject.sh"
+       printf '{"command":"cd %s","conversation_id":"%s","session_id":"%s-sess"}' "$P" "$2" "$2" > "$R/in"; run "$GOOD" "$R/o" env KT_CONFIG="$CFGP" sh "$U/bash-cd-check.sh" ;;
+    H) ag_inv "$2"; run "$GOOD" "$R/pr.json" env KT_CONFIG="$CFGP" bash "$H"
+       ST=$(jq -r '(.injectSteps // [])[0].ephemeralMessage // empty' "$R/pr.json" 2>/dev/null)
+       ag_cd "$2"; run "$GOOD" "$R/o" env KT_CONFIG="$CFGP" bash "$AGCD" ;;
+  esac
+}
+
+# --- M9 — every ledger writer in a port writes ONLY the ledger that port's session start states ---------
+# Spaced session-start payloads (claude-code read only the compact form and stated `none` while its
+# prompt hook wrote a ledger), and two id fields with different values (Cursor's bash-cd keyed on
+# session_id — a second, unstated ledger). Codex and Antigravity pass on fbe7c8e (GUARD there).
+for t in C X U H; do
+  wipe; port_run "$t" "m9$(printf '%s' "$t" | tr 'CXUH' 'cxuh')"
+  sid="m9$(printf '%s' "$t" | tr 'CXUH' 'cxuh')"
+  case $t in X|H) g=" (GUARD)" ;; *) g="" ;; esac
+  check "M9 stated_eq_written_spaced[$t]$g: stated|ledgers in the state dir" "1|aria-active-$sid " \
+    "$(has "$ST" "state_dir=$SD ledger=$SD/aria-active-$sid.")|$(actives)"
+done
+
+# --- M10 — an id outside [A-Za-z0-9._-]+ names nothing: ledger=none, and no file anywhere in the state dir
+# carries it or its stripped form (the hooks used to strip it to `abcd`, or keep `ab+cd` raw).
+for t in C X U H; do
+  wipe; port_run "$t" "ab+cd"
+  check "M10 invalid_id_no_state[$t]: states ledger=none|aria-active files|files named ab+cd/abcd" "1||0" \
+    "$(has "$ST" 'ledger=none.')|$(actives)|$(named)"
+done
+rm -f "$P/CODEMAP.md"
+wipe
+
+# --- M11 — the in-progress mark under a rejected id: marked anyway (spec D3), no cache, raw id unwritten
+# A rejected id is no key, so no aria-session-inprogress-* cache; the project is still marked (D3:
+# "Mark anyway") with an empty session id, so SESSION.md keeps its prior sessionId — the raw id, or a
+# stripped one, never reaches the front matter. A valid id is the positive control (marked under it,
+# cache written). Codex's twin is plugin-openai-codex/tests test_state_name_with_slash_refused.
+MK="$R/w/mk"; mkdir -p "$MK"; : > "$MK/CLAUDE.md"; : > "$MK/a.txt"
+CFGS="$R/cfg-s.md"
+printf -- '---\nknowledge_folder: %s\nsession_state: true\n---\n' "$KF" > "$CFGS"
+mk_seed() { printf -- '---\nlastEvent: wrapup\nat: 2026-01-01T00:00:00Z\nsessionId: prior-sid\n---\nbody\n' > "$MK/SESSION.md"; }
+fm() { awk 'NR==1{next} $0=="---"{exit} {print}' "$MK/SESSION.md" | grep "^$1:" | sed "s/^$1: *//"; }
+for t in C U G; do
+  case $t in C) pe="$C/post-edit-check.sh" ;; U) pe="$U/post-edit-check.sh" ;; G) pe="$DIR/plugin-antigravity/bin/post-edit-check.sh" ;; esac
+  wipe; mk_seed
+  printf '{"file_path":"%s","session_id":"ab+cd"}' "$MK/a.txt" > "$R/in"; run "$GOOD" "$R/o" env KT_CONFIG="$CFGS" sh "$pe"
+  rej="$(fm lastEvent)|$(fm sessionId)|$(ls "$SD" 2>/dev/null | grep -c 'session-inprogress')|$(named)"
+  wipe; mk_seed
+  printf '{"file_path":"%s","session_id":"m11ok"}' "$MK/a.txt" > "$R/in"; run "$GOOD" "$R/o" env KT_CONFIG="$CFGS" sh "$pe"
+  pos="$(fm lastEvent)|$(fm sessionId)|$( [ -f "$SD/aria-session-inprogress-m11ok" ] && echo 1 || echo 0)"
+  check "M11 rejected_id_marks_anyway[$t]: rejected lastEvent|sessionId|caches|id-named files; valid lastEvent|sessionId|cache" \
+    "in-progress|prior-sid|0|0; in-progress|m11ok|1" "$rej; $pos"
+done
+wipe
 
 # --- M7 (GUARD) — no SKILL.md description changed since the base of the 2.58.0 plan ----------------------
 if git -C "$DIR" rev-parse --verify -q e24934f >/dev/null 2>&1; then

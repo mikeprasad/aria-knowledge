@@ -75,10 +75,14 @@ _pci_parsed=$(jq -r '
 $INPUT
 PCI_INPUT
 ) || { kt_ps_log cursor inject not-a-json-object; _pci_none; }
-_pci_conv=$(kt_ps_sanitize_id "${_pci_parsed%%"$_pci_nl"*}")
+# The ids name files: kt_session_key (lib-state-key.sh) on the raw input — accepted only as
+# [A-Za-z0-9._-]+ and never rewritten, the rule the capture hook stored the pair under.
+_pci_conv=${_pci_parsed%%"$_pci_nl"*}
 _pci_rest=${_pci_parsed#*"$_pci_nl"}
-_pci_gen=$(kt_ps_sanitize_id "${_pci_rest%%"$_pci_nl"*}")
+_pci_gen=${_pci_rest%%"$_pci_nl"*}
 [ -n "$_pci_conv" ] && [ -n "$_pci_gen" ] || _pci_none
+_pci_conv=$(kt_session_key "$INPUT" conversation_id) || _pci_none
+_pci_gen=$(kt_session_key "$INPUT" generation_id) || _pci_none
 
 _pci_base=$(kt_state_path "aria-cursor-pending-${_pci_conv}=${_pci_gen}") || _pci_none
 _pci_claim="$_pci_base.text.claim.$$"

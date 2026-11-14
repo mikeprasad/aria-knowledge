@@ -35,9 +35,16 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 EF_BUDGET_S="${ARIA_EF_BUDGET_S:-4}"
 EF_START=$(date +%s)
 
-SESSION_ID=$(printf '%s' "$INPUT" | grep -o '"sessionId":"[^"]*"' | head -1 | sed 's/.*"sessionId":"//;s/"$//')
-[ -z "$SESSION_ID" ] && SESSION_ID=$(printf '%s' "$INPUT" | grep -o '"session_id":"[^"]*"' | head -1 | sed 's/.*"session_id":"//;s/"$//')
-[ -z "$SESSION_ID" ] && SESSION_ID="$$"
+# kt_session_key (lib-state-key.sh): read whitespace-tolerantly, accepted only as [A-Za-z0-9._-]+ and
+# never rewritten — the key every hook in this port names this family's state with. Absent: the PID proxy, as before.
+# Rejected: no key — the gate allows (spec D3: advisory, and with no cooldown it would deny forever).
+[ -f "$SCRIPT_DIR/lib-state-key.sh" ] || exit 0
+. "$SCRIPT_DIR/lib-state-key.sh"
+SESSION_ID=$(kt_session_key "$INPUT" sessionId session_id)
+case $? in
+  1) SESSION_ID="$$" ;;
+  2) exit 0 ;;
+esac
 # Keyed per agent (v2.54.1): a subagent carries the parent's session_id, so a
 # session-only counter let three subagent denials trip the PARENT's breaker. The
 # per-surface cooldown below stays session-level on purpose ("already asked").

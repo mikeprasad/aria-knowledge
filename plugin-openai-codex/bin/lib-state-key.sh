@@ -134,3 +134,41 @@ kt_state_path() {
   case ${1-} in ''|.|..|*/*) return 1 ;; esac
   printf '%s/%s\n' "$KT_STATE_DIR" "$1"
 }
+
+# --- The session key: one accept-set, never rewritten (2.58.0 fix round 1) -----------------------------
+# Every hook in every port that names a state file after a session or conversation id derives it here,
+# so the ledger a session-start line STATES is the ledger every writer WRITES. An id is accepted only
+# when it is non-empty and every character is in [A-Za-z0-9._-]; it is then used UNCHANGED. Anything
+# else yields NO key, so that family keeps no state for the session (spec D3) — never a stripped id:
+# stripping is not injective (`a+b` and `ab` would share one ledger across two sessions). The Codex hook
+# (Python, codex-hook.py session_key) applies the identical rule; a cross-port test pins them.
+#
+#   kt_session_key_check ID      prints ID and returns 0 when it is accepted; prints nothing and
+#                                returns 1 when ID is empty, 2 when it carries any other character.
+#   kt_session_key JSON FIELD... the string value of the FIRST field present with a non-empty value,
+#                                read whitespace-tolerantly ("f":"v" and "f": "v" alike, as jq reads
+#                                them), then kt_session_key_check: 0 printed, 1 no field present,
+#                                2 present but rejected — it never falls back past a rejected field.
+#                                A value holding a JSON escape is rejected (its backslash is not in
+#                                the set); field names are literals, never caller data.
+kt_session_key_check() {
+  case ${1-} in
+    '') return 1 ;;
+    *[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-]*) return 2 ;;
+  esac
+  printf '%s' "$1"
+}
+
+kt_session_key() {
+  _kt_sk_j=${1-}
+  [ "$#" -gt 0 ] && shift
+  for _kt_sk_f in "$@"; do
+    _kt_sk_v=$(printf '%s' "$_kt_sk_j" | grep -oE "\"$_kt_sk_f\"[[:space:]]*:[[:space:]]*\"[^\"]*\"" | head -1 \
+      | sed 's/^"[^"]*"[[:space:]]*:[[:space:]]*"//;s/"$//')
+    if [ -n "$_kt_sk_v" ]; then
+      kt_session_key_check "$_kt_sk_v"
+      return $?
+    fi
+  done
+  return 1
+}

@@ -72,8 +72,12 @@ QUERY=$(printf '%s' "$QUERY" | sed 's/^ *//;s/ *$//')
 [ -z "$QUERY" ] && exit 0
 
 # Session id for cooldown + ledger
-SESSION_ID=$(echo "$INPUT" | grep -o '"session_id":"[^"]*"' | head -1 | sed 's/"session_id":"//;s/"//')
-[ -z "$SESSION_ID" ] && exit 0
+# kt_session_key (lib-state-key.sh): read whitespace-tolerantly, accepted only as [A-Za-z0-9._-]+ and
+# never rewritten — the key every hook in this port names this family's state with. Absent or rejected: no key, nothing
+# surfaced (spec D3).
+[ -f "$SCRIPT_DIR/lib-state-key.sh" ] || exit 0
+. "$SCRIPT_DIR/lib-state-key.sh"
+SESSION_ID=$(kt_session_key "$INPUT" session_id turn_id) || exit 0
 
 # Per-project-per-session cooldown — same project shouldn't re-prompt.
 PROJECT_KEY=$(printf '%s' "$CD_PATH" | tr '/' '_')

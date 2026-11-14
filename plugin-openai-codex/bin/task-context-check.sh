@@ -24,10 +24,12 @@ fi
 INPUT=$(cat)
 
 # Extract session_id for cooldown
-SESSION_ID=$(echo "$INPUT" | grep -o '"session_id":"[^"]*"' | head -1 | sed 's/"session_id":"//;s/"//')
-if [ -z "$SESSION_ID" ]; then
-  exit 0
-fi
+# kt_session_key (lib-state-key.sh): read whitespace-tolerantly, accepted only as [A-Za-z0-9._-]+ and
+# never rewritten — the key every hook in this port names this family's state with. Absent or rejected: no key, nothing
+# surfaced (spec D3).
+[ -f "$SCRIPT_DIR/lib-state-key.sh" ] || exit 0
+. "$SCRIPT_DIR/lib-state-key.sh"
+SESSION_ID=$(kt_session_key "$INPUT" session_id turn_id) || exit 0
 
 # Check cooldown — skip if last fire was less than 30 seconds ago.
 # 2.58.0: the cooldown lives in the private per-user state directory (lib-state-key.sh). With no

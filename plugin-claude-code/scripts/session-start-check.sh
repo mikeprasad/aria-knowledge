@@ -252,12 +252,14 @@ kt_ensure_rules_files
 # repeat every session start), and the human is told once why (emit() drops it on compact).
 . "$SCRIPT_DIR/lib-state-key.sh"
 kt_state_resolve || USER_MESSAGES="${USER_MESSAGES}ARIA: private state directory unavailable (${KT_STATE_REASON}) — hooks are running without state. "
-# The ledger id is the one prompt-context-check.sh writes under: session_id reduced to
-# [A-Za-z0-9._-]. The compact re-surface and the tracked-artifact load below use the same SS_LEDGER,
-# so the path the model is told is the path every writer in this port uses (stated = written).
+# The ledger id is kt_session_key (lib-state-key.sh): read whitespace-tolerantly, accepted only as
+# [A-Za-z0-9._-]+ and never rewritten — the key prompt-context-check.sh, bash-cd-check.sh and
+# task-context-check.sh write under. The compact re-surface and the tracked-artifact load below use
+# the same SS_LEDGER, so the path the model is told is the path every writer uses (stated =
+# written). Rejected or absent: ledger=none and no ledger (spec D3). (SESSION_ID above stays the
+# raw id: it only matches pre-compact-check.sh's snapshot name.)
 SS_LEDGER=""
-_ss_lsid=$(printf '%s' "$SESSION_ID" | LC_ALL=C tr -cd 'A-Za-z0-9._-')
-[ -n "$_ss_lsid" ] && SS_LEDGER=$(kt_state_path "aria-active-${_ss_lsid}") || SS_LEDGER=""
+_ss_lsid=$(kt_session_key "$INPUT" session_id) && SS_LEDGER=$(kt_state_path "aria-active-${_ss_lsid}") || SS_LEDGER=""
 
 # --- the resolved configuration values --------------------------------------
 # The ONLY thing a byte-identical bundled file cannot carry. Each directive's

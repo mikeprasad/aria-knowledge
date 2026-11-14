@@ -9,7 +9,7 @@
 #
 # Pending pair: <state dir>/aria-cursor-pending-<conv>=<gen>.text / .paths (the private state dir,
 # lib-state-key.sh; here under a scratch KT_STATE_BASE)
-# (`=` cannot occur in a sanitised id, so the conversation part is unambiguous).
+# (`=` cannot occur in an accepted id, so the conversation part is unambiguous).
 #
 # Run under sh or bash only. CURSOR_CAPTURE / CURSOR_INJECT override the hook paths
 # (used for mutation checks).
@@ -234,14 +234,18 @@ else
   bad "cursor_version_logged" "lines +$((n1 - n0)) then +$((n2 - n1)); log tail: $(tail -2 "$HOOKLOG" 2>/dev/null | tr '\n' '|')"
 fi
 
-# --- conversation_id_sanitised -------------------------------------------------------
-cap "${RUN_ID}x/../y" "g/../1" "$P_PAY"
-inj "${RUN_ID}x/../y" "g/../1"; c=$(ctx)
-if [ -n "$c" ] && [ -f "$(ledger "${RUN_ID}x..y")" ] && [ ! -e "$CACHE/y" ] \
-   && [ ! -e "$(ledger "${RUN_ID}x")" ] && [ ! -e "$(pend "${RUN_ID}x" g)" ]; then
-  ok "conversation_id_sanitised"
+# --- conversation_id_rejected (2.58.0) ------------------------------------------------
+# An id outside [A-Za-z0-9._-]+ names NOTHING (kt_session_key, lib-state-key.sh): no context, and no
+# file under the raw, stripped or path-split form. It used to be stripped to x..y, which is not
+# injective (two conversations could share one ledger).
+cap "${RUN_ID}x/../y" "g1" "$P_PAY"
+inj "${RUN_ID}x/../y" "g1"; c=$(ctx)
+named=$(ls "$CACHE" 2>/dev/null | grep -c "${RUN_ID}x")
+if [ -z "$c" ] && [ "$named" = 0 ] && [ ! -e "$CACHE/y" ] \
+   && grep -q 'conversation-id-rejected' "$HOOKLOG" 2>/dev/null; then
+  ok "conversation_id_rejected"
 else
-  bad "conversation_id_sanitised" "ctx=$( [ -n "$c" ] && echo y || echo n) ledger x..y=$( [ -f "$(ledger "${RUN_ID}x..y")" ] && echo y || echo n)"
+  bad "conversation_id_rejected" "ctx=$( [ -n "$c" ] && echo y || echo n) files naming the id=$named y=$( [ -e "$CACHE/y" ] && echo y || echo n) logged=$(grep -c 'conversation-id-rejected' "$HOOKLOG" 2>/dev/null)"
 fi
 
 # --- capture_silent_without_jq --------------------------------------------------------

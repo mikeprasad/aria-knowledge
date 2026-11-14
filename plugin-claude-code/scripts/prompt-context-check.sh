@@ -50,13 +50,14 @@ command -v jq >/dev/null 2>&1 || { kt_ps_log claude-code input jq-missing; exit 
 KT_CONFIG="${KT_CONFIG:-$HOME/.claude/aria-knowledge.local.md}"
 
 # --- Input: session id + the prompt ------------------------------------------------
-# One jq call: line 1 is the session id reduced to the filename-safe charset of
-# kt_ps_sanitize_id (it names the ledger file, and a newline in it would break this
-# framing), the rest is the prompt. Not JSON or not an object => jq fails => exit.
+# One jq call: line 1 is the session id with every newline removed (only the framing needs
+# that), the rest is the prompt. Not JSON or not an object => jq fails => exit. The KEY is then
+# kt_session_key on the raw input (lib-state-key.sh): accepted only as [A-Za-z0-9._-]+ and never
+# rewritten, the same key session-start-check.sh states in ARIA CONFIG (stated = written).
 _pcc_nl='
 '
 _pcc_parsed=$(jq -r '
-  ((.session_id // "") | tostring | gsub("[^A-Za-z0-9._-]"; "")),
+  ((.session_id // "") | tostring | gsub("[\r\n]"; "")),
   ((.prompt // "") | tostring)
 ' 2>/dev/null <<PCC_INPUT
 $INPUT
@@ -67,6 +68,7 @@ _pcc_sid=${_pcc_parsed%%"$_pcc_nl"*}
 _pcc_raw=""
 case $_pcc_parsed in *"$_pcc_nl"*) _pcc_raw=${_pcc_parsed#*"$_pcc_nl"} ;; esac
 [ -n "$_pcc_sid" ] || { kt_ps_log claude-code input no-session-id; exit 0; }
+_pcc_sid=$(kt_session_key "$INPUT" session_id) || { kt_ps_log claude-code input session-id-rejected; exit 0; }
 
 # The user's own words: pasted blocks removed. An empty result is a nofire, not a failure.
 _pcc_text=$(printf '%s' "$_pcc_raw" | kt_ps_strip_pasted)

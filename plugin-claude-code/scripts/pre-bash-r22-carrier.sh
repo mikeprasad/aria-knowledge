@@ -58,13 +58,19 @@ try:
     if not any(MARK.search(s) for s in strings(d.get("tool_input") or {})):
         sys.exit(0)
 
-    # Key sanitisation identical to the breaker key in pre-edit-check.sh
-    # (tr -cd "A-Za-z0-9._-"), with the same transcript-basename fallback.
+    # The session key follows kt_session_key (lib-state-key.sh), which pre-edit-check.sh reads the
+    # carrier with: accepted only as [A-Za-z0-9._-]+ and never rewritten (stripping let two sessions
+    # share one key); the transcript-basename fallback only when there is NO session_id. agent_id
+    # keeps the strip kt_agent_suffix applies (tests/repros/r22-carrier-side-channel.sh C12).
+    VALID = re.compile(r"[A-Za-z0-9._-]+")
+    chk = lambda s: s if isinstance(s, str) and VALID.fullmatch(s) else ""
     san = lambda s: re.sub(r"[^A-Za-z0-9._-]", "", s or "")
-    key = san(d.get("session_id"))
-    if not key:
+    sid = d.get("session_id")
+    if isinstance(sid, str) and sid != "":
+        key = chk(sid)
+    else:
         base = os.path.basename(d.get("transcript_path") or "")
-        key = san(base[:-6] if base.endswith(".jsonl") else base)
+        key = chk(base[:-6] if base.endswith(".jsonl") else base)
     if not key:
         sys.exit(0)
     agent = san(d.get("agent_id"))

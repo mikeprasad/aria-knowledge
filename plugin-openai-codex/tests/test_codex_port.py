@@ -1705,7 +1705,18 @@ def _surrogate_post(project: Path, env: dict[str, str]) -> None:
     )
 
 
-def test_surrogate_session_id_without_state_dir_leaves_session_md_untouched() -> None:
+def _assert_marked_without_the_id(project: Path) -> None:
+    # 2.58.0 fix round 1: a surrogate session_id is a REJECTED id (session_key), so the project is marked
+    # anyway (spec D3, as for "/" in test_state_name_with_slash_refused) with NO session id -- the
+    # fixture carries no sessionId line, so writing the raw id would add one. The body survives intact.
+    after = (project / "SESSION.md").read_text(encoding="utf-8")
+    assert after.startswith("---\nlastEvent: in-progress\n"), after
+    assert "keep this text intact." in after, after
+    assert "sessionId:" not in after, after
+    assert [p.name for p in project.iterdir() if p.name.startswith(".SESSION.md.")] == [], "temp file left"
+
+
+def test_surrogate_session_id_without_state_dir_marks_without_the_id() -> None:
     # I1: write_text opened SESSION.md for writing (truncating it) and THEN failed to encode the lone
     # surrogate (surrogateescape carries only U+DC80-DCFF): the hook exited 1 and SESSION.md was empty.
     with tempfile.TemporaryDirectory() as tmp:
@@ -1717,13 +1728,13 @@ def test_surrogate_session_id_without_state_dir_leaves_session_md_untouched() ->
         (broken / _state_name()).write_text("", encoding="utf-8")
         (project / "SESSION.md").write_bytes(SESSION_BEFORE)
         _surrogate_post(project, {"KT_CONFIG": str(config), "KT_STATE_BASE": str(broken)})  # asserts exit 0
-        assert (project / "SESSION.md").read_bytes() == SESSION_BEFORE
-        assert [p.name for p in project.iterdir() if p.name.startswith(".SESSION.md.")] == [], "temp file left"
+        _assert_marked_without_the_id(project)
 
 
 def test_surrogate_session_id_with_state_dir_exits_0() -> None:
     # I1: with a state dir the same id crashed earlier, in state_read (os.open on an unencodable name).
-    # The name is refused, so this is no usable state: silent, as for an id holding "/" (C3).
+    # The name is refused, so this is no usable state: silent, as for an id holding "/" (C3); the
+    # in-progress mark still happens, without the id (spec D3).
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         config = _t5_config(root)
@@ -1735,7 +1746,7 @@ def test_surrogate_session_id_with_state_dir_exits_0() -> None:
         ctx = _t5_drive(project, "\ud800abc", env)  # each call asserts exit 0
         assert "ARIA ACTIVE" not in ctx["prompt"], ctx
         assert "CODEMAP" not in ctx["shell"], ctx
-        assert (project / "SESSION.md").read_bytes() == SESSION_BEFORE
+        _assert_marked_without_the_id(project)
 
 
 def test_state_helpers_treat_an_unencodable_name_as_no_state() -> None:

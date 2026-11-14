@@ -17,8 +17,9 @@
 #   …/aria-cursor-pending-<conv>=<gen>.paths  knowledge-folder-relative paths it names
 # <state dir> is the private per-user state dir (lib-state-key.sh). With none (spec D3) this hook
 # stores nothing and logs nothing, so the inject hook has nothing to deliver.
-# <conv>/<gen> are conversation_id/generation_id reduced to kt_ps_sanitize_id's charset
-# [A-Za-z0-9._-]; `=` cannot occur in either, so "<conv>=" names one conversation exactly.
+# <conv>/<gen> are conversation_id/generation_id as kt_session_key (lib-state-key.sh) accepts them:
+# [A-Za-z0-9._-]+, never rewritten (another id names nothing); `=` cannot occur in either, so
+# "<conv>=" names one conversation exactly.
 # A new prompt replaces the conversation's older pair (that generation is over: Cursor
 # changes generation_id with every user message). Pairs older than 24 h are pruned for
 # every conversation (gate-2 G2), at most once an hour, by a capture that stores a pair —
@@ -104,8 +105,8 @@ _pcc_nl='
 '
 _pcc_parsed=$(jq -r '
   if type != "object" then error("not an object") else . end
-  | ((.conversation_id // "") | tostring | gsub("[^A-Za-z0-9._-]"; "")),
-    ((.generation_id // "") | tostring | gsub("[^A-Za-z0-9._-]"; "")),
+  | ((.conversation_id // "") | tostring | gsub("[\r\n]"; "")),
+    ((.generation_id // "") | tostring | gsub("[\r\n]"; "")),
     ((.cursor_version // "") | tostring | gsub("[^A-Za-z0-9._+-]"; "") | .[0:40]),
     ((.workspace_roots // []) | (if type == "array" then (.[0] // "") else "" end)
        | tostring | gsub("[\r\n]"; "")),
@@ -135,9 +136,12 @@ if [ "$_pcc_ver" != "$_pcc_last" ]; then
   _pcc_write "$_pcc_vf" "$_pcc_ver" || :
 fi
 
-# The ids name files; jq above already reduced them to kt_ps_sanitize_id's charset.
+# The ids name files: kt_session_key on the raw input — the rule session-start-check.sh states the
+# ledger with (stated = written). Rejected: logged, nothing stored (spec D3).
 [ -n "$_pcc_conv" ] || { kt_ps_log cursor input no-conversation-id; exit 0; }
 [ -n "$_pcc_gen" ] || { kt_ps_log cursor input no-generation-id; exit 0; }
+_pcc_conv=$(kt_session_key "$INPUT" conversation_id) || { kt_ps_log cursor input conversation-id-rejected; exit 0; }
+_pcc_gen=$(kt_session_key "$INPUT" generation_id) || { kt_ps_log cursor input generation-id-rejected; exit 0; }
 
 # --- Config location: the same expressions as config.sh's first two assignments (a
 # repo-relative config), with the root taken from the input when it is valid. Set here so

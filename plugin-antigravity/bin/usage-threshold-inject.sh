@@ -63,7 +63,11 @@ esac
 # is usable (a FIFO would block the read and the write); anything else at the name is no state.
 . "$SCRIPT_DIR/lib-state-key.sh"
 kt_state_resolve || exit 0
-WARNFILE=$(kt_state_path "aria-usage-warn-${SID}") || exit 0
+# The band file is keyed by kt_session_key (accepted only as [A-Za-z0-9._-]+, never rewritten); no
+# session_id keeps the "default" key, a rejected one leaves no key and no alert (spec D3).
+WKEY=$(kt_session_key "$INPUT" session_id)
+case $? in 1) WKEY=default ;; 2) exit 0 ;; esac
+WARNFILE=$(kt_state_path "aria-usage-warn-${WKEY}") || exit 0
 if [ -L "$WARNFILE" ] || { [ -e "$WARNFILE" ] && [ ! -f "$WARNFILE" ]; }; then exit 0; fi
 
 ctx=$(jq -r '.context_pct // empty' "$STATE" 2>/dev/null)

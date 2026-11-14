@@ -105,8 +105,14 @@ for f in $STAGED; do
 done
 [ -z "$CODE_FILES" ] && exit 0
 
-SESSION_ID=$(printf '%s' "$INPUT" | grep -o '"session_id":"[^"]*"' | head -1 | sed 's/"session_id":"//;s/"$//')
-[ -z "$SESSION_ID" ] && exit 0
+# kt_session_key (lib-state-key.sh): read whitespace-tolerantly, accepted only as [A-Za-z0-9._-]+ and
+# never rewritten — the key every hook in this port names this family's state with. No id at all (or no lib):
+# abstain, as before. Rejected: no key, so no marker and no breaker (spec D3) — the commit gets the
+# no-marker response.
+[ -f "$SCRIPT_DIR/lib-state-key.sh" ] || exit 0
+. "$SCRIPT_DIR/lib-state-key.sh"
+SESSION_ID=$(kt_session_key "$INPUT" session_id)
+[ "$?" = 1 ] && exit 0
 
 # 2.58.0: the breaker and both markers live in the private per-user state directory
 # (lib-state-key.sh), so a counter or a FIFO another local user plants in a shared temp dir is never
@@ -121,7 +127,7 @@ REPO_TOP=$(git -C "$REPO_DIR" rev-parse --show-toplevel 2>/dev/null)
 REPO_HASH=$(printf '%s' "$REPO_TOP" | cksum 2>/dev/null | cut -d' ' -f1)
 if [ -f "$SCRIPT_DIR/lib-state-key.sh" ]; then
   . "$SCRIPT_DIR/lib-state-key.sh"
-  if kt_state_resolve; then
+  if [ -n "$SESSION_ID" ] && kt_state_resolve; then
     BREAKER=$(kt_state_path "aria-preflight-denies-$SESSION_ID$(kt_agent_suffix "$INPUT" 2>/dev/null)")
     MARKER=$(kt_state_path "aria-preflight-$SESSION_ID")
     [ -n "$REPO_HASH" ] && REPO_MARKER=$(kt_state_path "aria-preflight-repo-$REPO_HASH")
@@ -236,7 +242,7 @@ fi
 # lib-tracked-artifacts.sh only defines functions; without it nothing is recorded).
 _pf_line=$(printf '%s\t%s' "$(date +%H:%M 2>/dev/null || echo '?')" "$UNCHECKED")
 _pf_f=
-[ -n "${KT_STATE_DIR:-}" ] && _pf_f=$(kt_state_path "aria-preflight-skipped-$SESSION_ID" 2>/dev/null)
+[ -n "${KT_STATE_DIR:-}" ] && [ -n "$SESSION_ID" ] && _pf_f=$(kt_state_path "aria-preflight-skipped-$SESSION_ID" 2>/dev/null)
 . "$SCRIPT_DIR/lib-tracked-artifacts.sh" 2>/dev/null || true
 if [ -n "$_pf_f" ]; then
   [ -e "$_pf_f" ] || [ -L "$_pf_f" ] || kt_create_new "$_pf_f" 2>/dev/null || :

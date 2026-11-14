@@ -307,9 +307,9 @@ ps_body() {
   r "core_strip_pasted: text without a paste passes through" "a b||c \`d\` \$(e)|" \
     "$(st "a b${NL}${NL}c \`d\` \$(e)")"
 
-  # --- core_sanitize_id -----------------------------------------------------------------
-  r "core_sanitize_id: x/../y" "x..y" "$(ps_fn kt_ps_sanitize_id 'x/../y')"
-  r "core_sanitize_id: spaces, shell and non-ASCII removed" "abc-d_e.f" "$(ps_fn kt_ps_sanitize_id 'a b$c;-d_e.f é')"
+  # --- core_sanitize_id: RETIRED 2026-11-13 --------------------------------------------------
+  # kt_ps_sanitize_id stripped bytes (non-injective) and is gone; the ledger id is kt_session_key in
+  # lib-state-key.sh, pinned by tests/repros/state-dir-model-facing.sh M8 (shell == Python).
 
   # --- core_two_configs_two_caches (G1) -------------------------------------------------------
   # Two configs naming two knowledge folders share ONE cache dir. With a single fixed cache name
@@ -366,7 +366,7 @@ ps_body() {
 PS_RESULTS=$(ps_body)
 
 # Every `r` call in ps_body reports exactly once; raise this when adding a check.
-PS_EXPECTED=62
+PS_EXPECTED=60
 PS_GOT=0
 PS_TAB=$(printf '\t')
 PS_OLD_IFS=$IFS

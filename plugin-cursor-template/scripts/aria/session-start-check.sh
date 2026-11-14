@@ -92,14 +92,11 @@ MESSAGES=""
 KT_STATE_DIR=""
 [ -f "$SCRIPT_DIR/lib-state-key.sh" ] && . "$SCRIPT_DIR/lib-state-key.sh" && kt_state_resolve
 # The ledger key is the one prompt-capture-check.sh and prompt-context-inject.sh use:
-# conversation_id, reduced to [A-Za-z0-9._-]. Cursor documents sessionStart's session_id as "the
+# conversation_id, as kt_session_key accepts it. Cursor documents sessionStart's session_id as "the
 # same as conversation_id", so it is the fallback; sessionId is kept for older payloads.
 # Whitespace-tolerant: Cursor's JSON may space it.
-for _ss_k in conversation_id session_id sessionId; do
-  SS_LEDGER_ID=$(printf '%s' "$INPUT" | grep -oE "\"$_ss_k\"[[:space:]]*:[[:space:]]*\"[^\"]*\"" | head -1 \
-    | sed 's/.*:[[:space:]]*"//;s/"$//' | LC_ALL=C tr -cd 'A-Za-z0-9._-')
-  [ -n "$SS_LEDGER_ID" ] && break
-done
+# kt_session_key: accepted only as [A-Za-z0-9._-]+, never rewritten; rejected or absent ⇒ ledger=none.
+SS_LEDGER_ID=$(kt_session_key "$INPUT" conversation_id session_id sessionId 2>/dev/null) || SS_LEDGER_ID=""
 SS_LEDGER=""
 [ -n "$SS_LEDGER_ID" ] && SS_LEDGER=$(kt_state_path "aria-active-${SS_LEDGER_ID}") || SS_LEDGER=""
 STATE_LINE="ARIA CONFIG — state_dir=${KT_STATE_DIR:-none} ledger=${SS_LEDGER:-none}. "

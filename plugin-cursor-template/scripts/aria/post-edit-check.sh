@@ -122,10 +122,17 @@ if [ "$KT_SESSION_STATE" = "true" ] && [ -n "$FILE_PATH" ] && [ "$(basename "$FI
   . "$SCRIPT_DIR/lib-session-state.sh" 2>/dev/null || true
   SS_ROOT=$(kt_ss_find_root "$FILE_PATH" 2>/dev/null) || SS_ROOT=""
   if [ -n "$SS_ROOT" ]; then
-    SS_SID=$(echo "$INPUT" | grep -o '"sessionId":"[^"]*"' | head -1 | sed 's/"sessionId":"//;s/"//')
-    [ -z "$SS_SID" ] && SS_SID=$(echo "$INPUT" | grep -o '"session_id":"[^"]*"' | head -1 | sed 's/"session_id":"//;s/"//')
+    # kt_session_key (lib-state-key.sh): accepted only as [A-Za-z0-9._-]+, never rewritten. Absent:
+    # the transcript-path hash keys the cache, as before. Rejected: no key and no cache, and the
+    # project is still marked (spec D3: "Mark anyway") with an EMPTY session id, so the mark keeps
+    # SESSION.md's existing sessionId line and the raw id never reaches its front matter
+    # (codex-hook.py maybe_mark_session_state applies the same rule).
+    . "$SCRIPT_DIR/lib-state-key.sh" 2>/dev/null || true
+    SS_SID=$(kt_session_key "$INPUT" sessionId session_id 2>/dev/null); _ss_rc=$?
     if [ -n "$SS_SID" ]; then
       SS_KEY="$SS_SID"
+    elif [ "$_ss_rc" = 2 ]; then
+      SS_KEY=""
     else
       SS_TP=$(echo "$INPUT" | grep -o '"transcriptPath":"[^"]*"' | head -1 | sed 's/"transcriptPath":"//;s/"//')
       [ -z "$SS_TP" ] && SS_TP=$(echo "$INPUT" | grep -o '"transcript_path":"[^"]*"' | head -1 | sed 's/"transcript_path":"//;s/"//')
@@ -142,7 +149,7 @@ if [ "$KT_SESSION_STATE" = "true" ] && [ -n "$FILE_PATH" ] && [ "$(basename "$FI
     SS_LEDGER=
     . "$SCRIPT_DIR/lib-state-key.sh" 2>/dev/null || true
     if kt_state_resolve 2>/dev/null; then
-      SS_LEDGER=$(kt_state_path "aria-session-inprogress-${SS_KEY}") || SS_LEDGER=
+      [ -n "$SS_KEY" ] && SS_LEDGER=$(kt_state_path "aria-session-inprogress-${SS_KEY}") || SS_LEDGER=
     fi
     . "$SCRIPT_DIR/lib-tracked-artifacts.sh" 2>/dev/null || true
     if [ -n "$SS_LEDGER" ] && kt_is_ours "$SS_LEDGER" 2>/dev/null && grep -qxF "$SS_ROOT" "$SS_LEDGER" 2>/dev/null; then

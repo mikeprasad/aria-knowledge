@@ -383,16 +383,18 @@ logged() { grep -q -- " antigravity $1\$" "$HOOKLOG" 2>/dev/null; }
   logged 'transcript no-step-index'
 }
 
-@test "R4 conversation_id_sanitised: a path-shaped conversationId names one plain file" {
+@test "R4 conversation_id_rejected: a path-shaped conversationId names nothing (2.58.0)" {
+  # kt_session_key_check (lib-state-key.sh): an id outside [A-Za-z0-9._-]+ is no key, never a
+  # stripped one (it used to become x..suby, which is not injective).
   r4_configure
   cp "$FIXTURE" "$SURF/t.jsonl"
   mkdir -p "$SURF/sub"
   r4_payload "${RUN_ID}x/../sub/y" "$SURF/t.jsonl" 3
   r4_run
-  has "$(r4_active)" "projects/proj-b/deposits.md"
-  grep -qxF '4' "$SD/aria-ag-surfaced-${RUN_ID}x..suby"
-  grep -qxF 'projects/proj-b/deposits.md' "$SD/aria-active-${RUN_ID}x..suby"
+  [ -z "$(r4_active)" ]
+  [ "$(ls "$SD" 2>/dev/null | grep -c "${RUN_ID}x")" = 0 ]
   [ -z "$(ls -A "$SURF/sub")" ]
+  logged 'input conversation-id-rejected'
 }
 
 @test "R4 nofire_turn_ranked_once: a decided turn (nofire, nothing-new) is ranked at most once" {

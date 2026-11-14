@@ -306,8 +306,26 @@ def cwd_from(data: dict[str, Any]) -> Path:
     return Path(str(raw)).expanduser()
 
 
+# The session key: the rule lib-state-key.sh kt_session_key applies in every shell port, so the
+# ledger session-start-check.sh STATES is the ledger this hook WRITES. The first of session_id,
+# turn_id holding a non-empty string is used UNCHANGED when it is [A-Za-z0-9._-]+; any other value
+# gives "" -- no key, so no state for that family (spec D3) -- and never falls back past it. Never
+# stripped: stripping is not injective (`a+b` and `ab` would share one ledger). A non-string value
+# counts as absent, as the shell extractor (strings only) reads it. tests/repros/state-dir-model-facing.sh
+# M8 pins shell == Python.
+_SESSION_KEY_RE = re.compile(r"[A-Za-z0-9._-]+")
+
+
+def session_key_check(value: Any) -> str:
+    return value if isinstance(value, str) and _SESSION_KEY_RE.fullmatch(value) else ""
+
+
 def session_key(data: dict[str, Any]) -> str:
-    return str(data.get("session_id") or data.get("turn_id") or os.getpid())
+    for field in ("session_id", "turn_id"):
+        value = data.get(field)
+        if isinstance(value, str) and value != "":
+            return session_key_check(value)
+    return ""
 
 
 def find_codemap(start: Path) -> Path | None:
@@ -598,6 +616,8 @@ def user_prompt_submit(data: dict[str, Any]) -> None:
     if state_dir is None:
         return
     key = session_key(data)
+    if not key:   # no id, or one session_key rejects: no cooldown and no ledger (spec D3)
+        return
     cooldown = aria_state_path(state_dir, f"aria-context-{key}")
     if cooldown is None:
         return
@@ -664,7 +684,9 @@ def maybe_codemap_reminder(data: dict[str, Any], cmd: str) -> dict[str, Any] | N
     state_dir = aria_state_dir()
     if state_dir is None:
         return None
-    session = str(data.get("session_id") or data.get("turn_id") or os.getpid())
+    session = session_key(data)
+    if not session:
+        return None
     digest = hashlib.sha1(str(codemap.parent).encode()).hexdigest()[:12]
     ledger = aria_state_path(state_dir, f"aria-codex-codemap-{session}-{digest}")
     if ledger is None:
@@ -996,12 +1018,21 @@ def mark_session_inprogress(root: Path, session_id: str, author: str) -> None:
 def maybe_mark_session_state(paths: list[str], data: dict[str, Any], config: dict[str, str]) -> None:
     if config_value(config, "session_state", "false") != "true":
         return
-    session_id = str(data.get("session_id") or data.get("turn_id") or "")
+    # session_key: the shared rule (lib-state-key.sh kt_session_key). A REJECTED id gives no key and no
+    # cache, and the project is still marked (spec D3: "Mark anyway") with an empty session id, so the
+    # raw id never reaches SESSION.md's front matter -- the shell post-edit hooks apply the same rule.
+    # Only a payload with neither id falls back to the transcript hash, as before.
+    session_id = session_key(data)
     author = config_value(config, "author_tag")
-    key = session_id or hashlib.sha1(str(data.get("transcript_path") or os.getpid()).encode()).hexdigest()[:12]
-    # The per-session cache of roots already marked lives in the private state dir. No state dir, or
-    # a refused name (spec D3): mark every root anyway and keep no cache.
-    ledger = aria_state_path(aria_state_dir(), f"aria-session-inprogress-codex-{key}")
+    if session_id:
+        key = session_id
+    elif any(isinstance(data.get(f), str) and data.get(f) != "" for f in ("session_id", "turn_id")):
+        key = ""
+    else:
+        key = hashlib.sha1(str(data.get("transcript_path") or os.getpid()).encode()).hexdigest()[:12]
+    # The per-session cache of roots already marked lives in the private state dir. No state dir, a
+    # refused name, or no key (spec D3): mark every root anyway and keep no cache.
+    ledger = aria_state_path(aria_state_dir(), f"aria-session-inprogress-codex-{key}") if key else None
     cached = state_read(ledger)
     seen = set(cached.splitlines()) if cached else set()
     for path in paths:

@@ -49,11 +49,16 @@ if [ -z "$CODEMAP_PATH" ]; then
 fi
 
 # Extract session_id for cooldown scoping
-SESSION_ID=$(echo "$INPUT" | grep -o '"session_id":"[^"]*"' | head -1 | sed 's/"session_id":"//;s/"//')
-if [ -z "$SESSION_ID" ]; then
-  # Fallback: use parent PID as session proxy
-  SESSION_ID="$$"
-fi
+# kt_session_key (lib-state-key.sh): read whitespace-tolerantly, accepted only as [A-Za-z0-9._-]+ and
+# never rewritten — the key every hook in this port names this family's state with. Absent: the PID proxy, as before.
+# Rejected: no key — the reminder is not emitted (spec D3: no cooldown, so it would repeat).
+[ -f "$SCRIPT_DIR/lib-state-key.sh" ] || exit 0
+. "$SCRIPT_DIR/lib-state-key.sh"
+SESSION_ID=$(kt_session_key "$INPUT" sessionId session_id)
+case $? in
+  1) SESSION_ID="$$" ;;   # Fallback: use parent PID as session proxy
+  2) exit 0 ;;
+esac
 
 # Per-project cooldown — derive project key from CODEMAP directory
 PROJECT_DIR=$(dirname "$CODEMAP_PATH")

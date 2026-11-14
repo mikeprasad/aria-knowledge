@@ -19,7 +19,8 @@
 #   . "$KT_PS_SCRIPT_DIR/lib-prompt-surface.sh"
 #   . "$KT_PS_SCRIPT_DIR/lib-state-key.sh"; kt_state_resolve || exit 0   # no state: surface nothing
 #   text=$(printf '%s' "$raw" | kt_ps_strip_pasted)
-#   ledger=$(kt_state_path "aria-active-$(kt_ps_sanitize_id "$sid")") || exit 0
+#   sid=$(kt_session_key "$INPUT" session_id) || exit 0   # lib-state-key.sh: validated, never rewritten
+#   ledger=$(kt_state_path "aria-active-$sid") || exit 0
 #   kt_ps_surface "$text" "$ledger" >/dev/null     # no $( ): keeps the variables below
 #
 # State (2.58.0): every name this file keeps — the debug log, the config-value cache — is built
@@ -58,7 +59,6 @@
 #   kt_ps_log RUNTIME STEP REASON  appends `<UTC> <runtime> <step> <reason>` to
 #                                <state dir>/aria-surface-hook.log (nothing without a state
 #                                dir); never writes stdout.
-#   kt_ps_sanitize_id RAW        prints RAW with every byte outside [A-Za-z0-9._-] removed.
 #
 # The ledger contract: it records ONLY what the model was actually handed. Ranking is not
 # delivery — Cursor ranks in beforeSubmitPrompt and delivers in a later postToolUse, which
@@ -134,11 +134,9 @@ _kt_ps_fail() { # STEP — record an error status and log it
 }
 
 # --- session id ----------------------------------------------------------------
-# The id names the ledger file, so it is reduced to a filename-safe charset: no `/`,
-# no `..` component can survive as a path (x/../y → x..y, one plain name).
-kt_ps_sanitize_id() {
-  printf '%s' "$1" | LC_ALL=C tr -cd 'A-Za-z0-9._-'
-}
+# 2.58.0: the ledger id is kt_session_key / kt_session_key_check (lib-state-key.sh) — accepted only
+# as [A-Za-z0-9._-]+ and never rewritten. kt_ps_sanitize_id, which STRIPPED every other byte, is
+# retired: stripping is not injective (`a+b` and `ab` named one ledger for two sessions).
 
 # --- input: the user's own words ---------------------------------------------------
 # Pasted text is not the user's words. Every line from one that opens a

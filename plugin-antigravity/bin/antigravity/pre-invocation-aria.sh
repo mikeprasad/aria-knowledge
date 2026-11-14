@@ -101,13 +101,15 @@ if [ "$INVOCATION_NUM" = "0" ]; then
   # 2. Dynamic message building
   MESSAGES=""
 
-  # The session ledger is the one responsibility 4 writes: <state dir>/aria-active-<conversationId
-  # reduced to [A-Za-z0-9._-]> (kt_ps_sanitize_id's charset). The tracked-artifact load below records
+  # The session ledger is the one responsibility 4 writes: <state dir>/aria-active-<conversationId>, the
+  # id as kt_session_key_check (lib-state-key.sh) accepts it — [A-Za-z0-9._-]+, never rewritten; any other
+  # id names no ledger (spec D3), the rule every canonical hook applies to the session_id this
+  # port's wrappers pass them (the same conversationId). The tracked-artifact load below records
   # into the same file, and the `ARIA CONFIG` line at the end of this block STATES it to the model
   # (2.58.0, spec D5, gate amendment G1-1): stated = written. `none` with no state dir (spec D3) or no
   # conversationId.
   AG_SS_LEDGER=""
-  _ag_lsid=$(printf '%s' "${ARIA_CONVERSATION_ID:-}" | LC_ALL=C tr -cd 'A-Za-z0-9._-')
+  _ag_lsid=$(kt_session_key_check "${ARIA_CONVERSATION_ID:-}" 2>/dev/null) || _ag_lsid=""
   [ -n "$_ag_lsid" ] && AG_SS_LEDGER=$(kt_state_path "aria-active-${_ag_lsid}" 2>/dev/null) || AG_SS_LEDGER=""
 
   if [ "${KT_CONFIGURED:-false}" = "false" ]; then
@@ -488,13 +490,13 @@ fi
 #            nothing and logs nothing: without the ledger and the step record it would
 #            re-inject the same files on every model call.
 #   - once:  per conversation, per step_index — state file
-#            <state dir>/aria-ag-surfaced-<sanitised conversationId>,
+#            <state dir>/aria-ag-surfaced-<conversationId, validated by kt_session_key_check>,
 #            one PROCESSED step_index per line: recorded on every decided outcome
 #            (delivered, nothing-new, nofire), so a user turn is ranked at most once. An
 #            error records nothing, so it is retried. A symlinked or foreign state file
 #            is refused (and nothing is injected, since it could not be recorded).
 #            The file is append-only: a lost race between writers only re-ranks a turn.
-#   - ledger: <state dir>/aria-active-<sanitised conversationId>, the same ledger as the
+#   - ledger: <state dir>/aria-active-<conversationId, validated by kt_session_key_check>, the same ledger as the
 #            other hosts. It records delivered paths only, and only after the hook
 #            output carrying the step was written (the lib's ledger contract); the
 #            delivered step is marked processed at the same point. A failure before
@@ -569,8 +571,9 @@ ag_surface() {
   fi
 
   local sid
-  sid=$(kt_ps_sanitize_id "$ARIA_CONVERSATION_ID")
-  [ -n "$sid" ] || { kt_ps_log antigravity input no-conversation-id; return 0; }
+  [ -n "$ARIA_CONVERSATION_ID" ] || { kt_ps_log antigravity input no-conversation-id; return 0; }
+  # kt_session_key_check (lib-state-key.sh): the id unchanged, or no key at all (never stripped).
+  sid=$(kt_session_key_check "$ARIA_CONVERSATION_ID" 2>/dev/null) || { kt_ps_log antigravity input conversation-id-rejected; return 0; }
   # m1: an invalid config persists across every model call — logged once per
   # conversation, and nothing is ranked.
   if [ -n "$KT_CONFIG_ERROR" ]; then ag_log_once "$sid" surface config; return 0; fi

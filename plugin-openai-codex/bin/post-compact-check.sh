@@ -22,9 +22,8 @@ if [ "$KT_AUTO_CAPTURE" = "false" ]; then
   exit 0
 fi
 
-# Parse hook input — session_id is needed for the ledger path.
+# Parse hook input — its session key names the ledger (kt_session_key, block 2).
 INPUT=$(cat)
-SESSION_ID=$(echo "$INPUT" | grep -o '"session_id":"[^"]*"' | head -1 | sed 's/"session_id":"//;s/"//')
 
 MESSAGES=""
 
@@ -38,12 +37,15 @@ fi
 
 # Block 2: active-surfacing ledger re-surface (v2.15.0+).
 # Only fires if active mode is enabled, ledger exists, and has entries.
-if [ "$KT_ACTIVE_SURFACING" = "true" ] && [ -n "$SESSION_ID" ]; then
+if [ "$KT_ACTIVE_SURFACING" = "true" ] && [ -f "$SCRIPT_DIR/lib-state-key.sh" ]; then
   # The ledger lives in the private per-user state dir (lib-state-key.sh). No state dir (spec D3):
   # nothing to re-surface.
   . "$SCRIPT_DIR/lib-state-key.sh"
   kt_state_resolve
-  LEDGER=$(kt_state_path "aria-active-${SESSION_ID}") || LEDGER=""
+  # The ledger key is kt_session_key (lib-state-key.sh), the rule codex-hook.py session_key applies:
+  # session_id then turn_id, accepted only as [A-Za-z0-9._-]+ and never rewritten.
+  LEDGER=""
+  _pc_key=$(kt_session_key "$INPUT" session_id turn_id) && LEDGER=$(kt_state_path "aria-active-${_pc_key}") || LEDGER=""
   # F7 (final fix wave): only a regular file this user owns, never a link (a second guard inside
   # the private state dir, spec D2).
   if [ -n "$LEDGER" ] && [ -f "$LEDGER" ] && [ -s "$LEDGER" ] && [ ! -L "$LEDGER" ] && [ -O "$LEDGER" ]; then

@@ -95,11 +95,8 @@ KT_STATE_DIR=""
 # The ledger key is session_id, as codex's other ledger writers and readers use it (codex-hook.py
 # session_key, bash-cd-check.sh, task-context-check.sh), then turn_id, session_key's own fallback.
 # Whitespace-tolerant: JSON may space it.
-for _ss_k in session_id turn_id; do
-  SS_LEDGER_ID=$(printf '%s' "$INPUT" | grep -oE "\"$_ss_k\"[[:space:]]*:[[:space:]]*\"[^\"]*\"" | head -1 \
-    | sed 's/.*:[[:space:]]*"//;s/"$//')
-  [ -n "$SS_LEDGER_ID" ] && break
-done
+# kt_session_key: accepted only as [A-Za-z0-9._-]+, never rewritten; rejected or absent ⇒ ledger=none.
+SS_LEDGER_ID=$(kt_session_key "$INPUT" session_id turn_id 2>/dev/null) || SS_LEDGER_ID=""
 SS_LEDGER=""
 [ -n "$SS_LEDGER_ID" ] && SS_LEDGER=$(kt_state_path "aria-active-${SS_LEDGER_ID}") || SS_LEDGER=""
 STATE_LINE="ARIA CONFIG — state_dir=${KT_STATE_DIR:-none} ledger=${SS_LEDGER:-none}. "

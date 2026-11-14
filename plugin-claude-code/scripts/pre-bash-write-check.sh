@@ -70,7 +70,11 @@ TARGETS=$(printf '%s' "$INPUT" | python3 "$RESOLVER" 2>/dev/null)
 # empty id, and the only symptom would be a ledger that quietly stops recording. A guard whose
 # failure mode is silence must not depend on an unstated formatting assumption. AC9 drives the
 # SPACED form deliberately, so this tolerance is proven rather than asserted.
-_bw_sid=$(printf '%s' "$INPUT" | grep -oE '"session_id"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed 's/.*"session_id"[[:space:]]*:[[:space:]]*"//;s/"$//')
+# kt_session_key (lib-state-key.sh): read whitespace-tolerantly, accepted only as [A-Za-z0-9._-]+ and
+# never rewritten — the key every hook in this port names this family's state with. Rejected: no key, nothing recorded.
+_bw_sid=
+[ -f "$(dirname "$0")/lib-state-key.sh" ] && . "$(dirname "$0")/lib-state-key.sh" \
+  && _bw_sid=$(kt_session_key "$INPUT" session_id)
 # 2.58.0: the ledger lives in the private per-user state directory (lib-state-key.sh). The id goes
 # through kt_state_path, which refuses one containing "/", so it can never address a path; with no
 # directory (spec D3) nothing is recorded and the warning below is still emitted. Inside the

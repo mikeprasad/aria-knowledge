@@ -224,13 +224,14 @@ pcc_body() {
     "$(ctx | grep -cxF -- "- $KF/projects/proj-b/deposits.md")|$(ctx | grep -cF -- "$KS/")"
 
   # --- session_id_cannot_escape_ledger_dir -------------------------------------
-  # Pre-create a directory under the ledger prefix so an UNSANITISED id would resolve
-  # through it: <prefix>-esc/../../…/..$T/escaped lands at $T/escaped.
+  # Pre-create a directory under the ledger prefix so an UNVALIDATED id would resolve
+  # through it: <prefix>-esc/../../…/..$T/escaped lands at $T/escaped. 2.58.0: such an id is
+  # rejected by kt_session_key (lib-state-key.sh) — no ledger at all, never a stripped one.
   mkdir -p "$(sdir sb)/aria-active-$RUN_ID-esc"
   payload "$RUN_ID-esc/../../../../../../../..$T/escaped" "$PROMPT_PAY"; pcc_exec "$T/in.json"
   r "session id: nothing written outside the state dir" 0 "$( [ -e "$T/escaped" ] && echo 1 || echo 0)"
   n=0; for f in "$(sdir sb)"/aria-active-"$RUN_ID"-esc?*; do [ -f "$f" ] && n=$((n + 1)); done
-  r "session id: ledger is one regular file directly under the state dir" 1 "$n"
+  r "session id: a path-shaped id names no ledger (rejected, not stripped)" 0 "$n"
 
   # --- KT_CONFIG is honoured the way config.sh honours it -------------------
   HN="$T/home-none"; mkdir -p "$HN"

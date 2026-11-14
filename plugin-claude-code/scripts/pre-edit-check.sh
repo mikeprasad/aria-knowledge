@@ -67,14 +67,17 @@ export STEP_INDEX
 # transcript basename. Sanitized to a safe filename. If neither resolves, the
 # breaker is disabled (BREAKER_STATE empty) and the hook degrades to its prior
 # behavior — never a shared cross-session counter.
-SESSION_ID=$(echo "$INPUT" | grep -o '"session_id":"[^"]*"' | head -1 | sed 's/"session_id":"//;s/"//')
-SESSION_KEY="$SESSION_ID"
-[ -z "$SESSION_KEY" ] && [ -n "$TRANSCRIPT" ] && SESSION_KEY=$(basename "$TRANSCRIPT" .jsonl 2>/dev/null)
-SESSION_KEY=$(printf '%s' "$SESSION_KEY" | tr -cd 'A-Za-z0-9._-')
+# 2.58.0: kt_session_key (lib-state-key.sh) — accepted only as [A-Za-z0-9._-]+, never rewritten (it
+# used to strip every other character, so `a+b` and `ab` shared one breaker). The transcript-basename
+# fallback applies only when there is NO session_id; a rejected one leaves no key, so no breaker,
+# carrier or anchor (spec D3: an unmarked edit is still denied). pre-bash-r22-carrier.sh applies the
+# same rule in Python.
+. "$SCRIPT_DIR/lib-state-key.sh"
+SESSION_KEY=$(kt_session_key "$INPUT" session_id)
+[ "$?" = 1 ] && [ -n "$TRANSCRIPT" ] && SESSION_KEY=$(kt_session_key_check "$(basename "$TRANSCRIPT" .jsonl 2>/dev/null)")
 # v2.54.1: keyed per AGENT as well. A subagent's hooks carry the parent's session_id,
 # so a session-only key let three denials inside a subagent open the PARENT's breaker.
 # The suffix is empty on the main thread, so its key is unchanged.
-. "$SCRIPT_DIR/lib-state-key.sh"
 AGENT_SUFFIX=$(kt_agent_suffix "$INPUT")
 # 2.58.0: every state name below lives in the private per-user state directory (lib-state-key.sh),
 # so a name another local user plants in a shared temp dir is never read. With no directory (spec
