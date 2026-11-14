@@ -16,7 +16,21 @@ FAIL=0
 ok()   { printf "PASS  %s\n" "$1"; PASS=$((PASS + 1)); }
 bad()  { printf "FAIL  %s — %s\n" "$1" "$2"; FAIL=$((FAIL + 1)); }
 
-TMP=$(mktemp -d "${TMPDIR:-/tmp}/aria-ss-test.XXXXXX")
+# The scratch base does NOT follow $TMPDIR. kt_ss_find_root walks up to ANY CLAUDE.md / PROGRESS.md, so
+# a TMPDIR inside a project (measured 2026-11-14: TMPDIR inside a worktree) made arms B and I3 find that
+# project and report a library defect that does not exist. The per-user temp dir (macOS) or /tmp has no
+# project above it; the check below refuses to run if the chosen base does, rather than report noise.
+_ss_base=$(getconf DARWIN_USER_TEMP_DIR 2>/dev/null) || _ss_base=
+[ -d "$_ss_base" ] || _ss_base=/tmp
+TMP=$(mktemp -d "${_ss_base%/}/aria-ss-test.XXXXXX")
+_ss_up=$(dirname "$TMP")
+while [ "$_ss_up" != / ] && [ -n "$_ss_up" ]; do
+  if [ -f "$_ss_up/CLAUDE.md" ] || [ -f "$_ss_up/PROGRESS.md" ]; then
+    printf 'FAIL  scratch base %s sits under a project marker (%s); arms B and I3 would be invalid\n' "$TMP" "$_ss_up"
+    rm -rf "$TMP"; exit 1
+  fi
+  _ss_up=$(dirname "$_ss_up")
+done
 
 # ⛔ KT_SS_RECEIPTS IS REDIRECTED INTO THE SCRATCH DIR. Without it, every kt_ss_ledger_prune call
 # below (11 of them) appends to the user's REAL receipts file at ~/.claude/session-ledger-receipts

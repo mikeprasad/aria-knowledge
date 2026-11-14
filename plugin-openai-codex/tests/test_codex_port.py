@@ -289,14 +289,29 @@ def test_pre_tool_use_ignores_stale_transcript_markers_from_previous_turns() -> 
         os.unlink(transcript)
 
 
+def _system_temp_base() -> str:
+    """The system temp root (macOS per-user temp dir, else /tmp), independent of $TMPDIR.
+
+    For a fixture whose ASSERTION depends on living under a temp root: the bash-write resolver
+    exempts /tmp and /var/folders by design, and $TMPDIR can point anywhere (measured 2026-11-14:
+    TMPDIR inside a project made the temp-exemption check below fail for a reason unrelated to
+    the hook)."""
+    try:
+        out = subprocess.run(["getconf", "DARWIN_USER_TEMP_DIR"], capture_output=True, text=True).stdout.strip()
+    except OSError:
+        out = ""
+    return out if out and os.path.isdir(out) else "/tmp"
+
+
 def test_pre_tool_use_shell_surfaces_preflight_warning() -> None:
     """Renamed 2026-08-26 when the STRING-matching pre-bash-write-check was retired.
     Its resolved-target REPLACEMENT is wired as of 2026-10-14 (see
     test_pre_tool_use_shell_records_in_place_write_to_bypass_ledger). This fixture's
     target lives under a temp directory, which the resolver exempts BY DESIGN, so
     "in place" must still be absent here — that is now a check of the temp exemption,
-    not of the hook being unwired."""
-    with tempfile.TemporaryDirectory() as tmp:
+    not of the hook being unwired. The fixture is made under the SYSTEM temp root, not
+    $TMPDIR, so the check holds wherever $TMPDIR points."""
+    with tempfile.TemporaryDirectory(dir=_system_temp_base()) as tmp:
         root = Path(tmp)
         subprocess.run(["git", "init"], cwd=root, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
         (root / "src").mkdir()

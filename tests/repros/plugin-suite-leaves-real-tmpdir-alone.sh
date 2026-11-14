@@ -14,6 +14,9 @@
 #
 # Old code, declared before running: B1-sentinels RED (the fetch sentinel is
 # deleted) · B1-no-new-entries RED (pp* files appear) · B1-suite-green green.
+# 2.58.0 arms B1-moved-names-survive and B1-no-state-dir are GUARDS (green on e380316 too): they go red
+# only if the runner stops pointing the sweep root (KT_TMP_SWEEP_ROOT) or the state base (KT_STATE_BASE)
+# away from the TMPDIR it inherits.
 set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -25,6 +28,11 @@ OUTER=$(mktemp -d)
 trap 'rm -rf "$OUTER"' EXIT
 printf 'live\n' > "$OUTER/aria-extfetch-SENTINEL"
 printf '1' > "$OUTER/aria-r22-denies-SENTINEL"
+# 2.58.0 (AC8): three names the LEGACY-TMP-SWEEP-2.58 block removes from $TMPDIR, planted 2 days old so
+# a sweep that reached the inherited TMPDIR (KT_TMP_SWEEP_ROOT not set by the runner) would delete them.
+for _s in aria-r22-lastedit-SENTINEL aria-preflight-skipped-SENTINEL aria-surface-hook.log; do
+  printf 'live\n' > "$OUTER/$_s"; touch -t 202001010000 "$OUTER/$_s"
+done
 before=$(ls -A "$OUTER" | sort)
 
 set +e
@@ -38,6 +46,17 @@ if [ -f "$OUTER/aria-extfetch-SENTINEL" ] && [ -f "$OUTER/aria-r22-denies-SENTIN
   ok "B1-sentinels-survive"
 else
   bad "B1-sentinels-survive" "left: $(printf '%s' "$after" | tr '\n' ' ')"
+fi
+if [ -f "$OUTER/aria-r22-lastedit-SENTINEL" ] && [ -f "$OUTER/aria-preflight-skipped-SENTINEL" ] \
+   && [ -f "$OUTER/aria-surface-hook.log" ]; then
+  ok "B1-moved-names-survive (the legacy sweep never reached the inherited TMPDIR)"
+else
+  bad "B1-moved-names-survive" "left: $(printf '%s' "$after" | tr '\n' ' ')"
+fi
+if [ -z "$(printf '%s\n' "$after" | grep '^aria-knowledge-')" ]; then
+  ok "B1-no-state-dir (no aria-knowledge-* state dir in the inherited TMPDIR: the runner set KT_STATE_BASE)"
+else
+  bad "B1-no-state-dir" "$(printf '%s\n' "$after" | grep '^aria-knowledge-' | tr '\n' ' ')"
 fi
 if [ "$before" = "$after" ]; then
   ok "B1-no-new-entries"

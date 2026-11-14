@@ -305,10 +305,13 @@ SHIM
   done
   : > "$T/realtmp/aria-active-scNEW"
   # The second root is $TMPDIR, where the surfacing debug log (and so its create temps) lived
-  # before 2.58.0; KT_SURFACE_CACHE_DIR, which could move it, is retired.
+  # before 2.58.0; KT_SURFACE_CACHE_DIR, which could move it, is retired. Since 2.58.0
+  # (LEGACY-TMP-SWEEP-2.58) KT_TMP_SWEEP_ROOT replaces BOTH roots, so with it set the TMPDIR the
+  # hook inherits is never swept: both planted temps stay. tests/repros/state-dir-sweeps.sh covers
+  # the $TMPDIR root's names in the override dir.
   HOME="$T/home" KT_CONFIG="$T/home/absent.local.md" \
     KT_TMP_SWEEP_ROOT="$T/tmplink" TMPDIR="$T/cache" sh "$SC_SD/session-start-check.sh" </dev/null >/dev/null 2>&1
-  r "safe_create_sweep: TMPDIR — a 2020 .aria-new.* goes, a fresh one stays → old|new" "0|1" \
+  r "safe_create_sweep: TMPDIR is not swept while KT_TMP_SWEEP_ROOT is set → old|new kept" "1|1" \
     "$( [ -e "$T/cache/.aria-new.OLD123" ] && echo 1 || echo 0)|$( [ -e "$T/cache/.aria-new.NEW123" ] && echo 1 || echo 0)"
   r "safe_create_sweep: /tmp root through a symlink — stale active|inprogress|create-temp go, fresh active stays" \
     "0|0|0|1" "$( [ -e "$T/realtmp/aria-active-scOLD" ] && echo 1 || echo 0)|$( [ -e "$T/realtmp/aria-session-inprogress-scOLD" ] && echo 1 || echo 0)|$( [ -e "$T/realtmp/.aria-new.scOLD" ] && echo 1 || echo 0)|$( [ -e "$T/realtmp/aria-active-scNEW" ] && echo 1 || echo 0)"

@@ -4,6 +4,10 @@ DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$DIR/helpers.sh"
 TMP="$(mktemp -d)"; export APM_TMP="$TMP"
 trap 'rm -rf "$TMP"' EXIT
+# 2.58.0: an ACL inherited from the caller's TMPDIR would pass down to every dir made below, and the
+# state-dir resolver refuses a dir with an ACL (spec G2-1), silencing every hook. Strip it here, once.
+chmod -N "$TMP" 2>/dev/null || :
+if command -v setfacl >/dev/null 2>&1; then setfacl -b "$TMP" 2>/dev/null || :; fi
 # v2.54.2: isolate TMPDIR for every test. Tests write hook state under
 # ${TMPDIR:-/tmp}, and test-external-fetch-gate.sh's ef_reset removes aria-extfetch-*
 # there — against the REAL TMPDIR that deleted every live session's fetch cooldowns and

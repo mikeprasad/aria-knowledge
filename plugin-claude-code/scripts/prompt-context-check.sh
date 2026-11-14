@@ -38,7 +38,9 @@ if (exec 3<&0) 2>/dev/null; then INPUT=$(cat 2>/dev/null); fi
 KT_PS_SCRIPT_DIR=$SCRIPT_DIR
 KT_PS_RUNTIME=claude-code
 . "$SCRIPT_DIR/lib-prompt-surface.sh"
-# No state directory (spec D3): surface nothing and log nothing (the log is state too).
+# No state directory (spec D3): surface nothing and log nothing (the log is state too). A missing
+# library is the same "no state": exit silently (sourcing a missing file aborts sh loudly).
+[ -f "$SCRIPT_DIR/lib-state-key.sh" ] || exit 0
 . "$SCRIPT_DIR/lib-state-key.sh"
 kt_state_resolve || exit 0
 

@@ -92,11 +92,27 @@ if [ "$INVOCATION_NUM" = "0" ]; then
   if command -v kt_batch_clear_stale >/dev/null 2>&1; then
     kt_batch_clear_stale 1800
   fi
-  # Start at "<root>/" WITH the slash: on macOS /tmp is a symlink and find does not follow a
-  # symlinked start point, so `find /tmp -maxdepth 1 ...` matched nothing (measured 2026-11-12).
-  # KT_TMP_SWEEP_ROOT is a TEST-ONLY override of the root (default /tmp).
-  find "${KT_TMP_SWEEP_ROOT:-/tmp}/" -maxdepth 1 -name 'aria-active-*' -mtime +1 -delete 2>/dev/null || true
-  find "${KT_TMP_SWEEP_ROOT:-/tmp}/" -maxdepth 1 -name 'aria-session-inprogress-*' -mtime +1 -delete 2>/dev/null || true
+  # LEGACY-TMP-SWEEP-2.58 begin — remove in the first release after 2.58.0, together with KT_TMP_SWEEP_ROOT (Rule 37)
+  # Before 2.58.0 hook state lived at predictable names in the shared /tmp and $TMPDIR. Since 2.58.0
+  # it lives in the private state dir (swept just below), so these names are only debris. Each find
+  # removes OUR entries older than 24 h, one level deep; find never follows a link it meets, so a link
+  # is removed, not its target. Start points end in "/": on macOS /tmp is a symlink and find does not
+  # follow a symlinked start point without it (measured 2026-11-12). KT_TMP_SWEEP_ROOT is a TEST-ONLY
+  # override that replaces BOTH roots, so a suite never sweeps the real /tmp or $TMPDIR.
+  find "${KT_TMP_SWEEP_ROOT:-/tmp}/" -maxdepth 1 -user "$(id -u)" -mmin +1440 \( -name 'aria-active-*' \
+    -o -name 'aria-session-inprogress-*' -o -name 'aria-bashcd-*' -o -name 'aria-codemap-*' \
+    -o -name 'aria-codex-codemap-*' -o -name 'aria-context-*' -o -name 'aria-usage-warn-*' \
+    -o -name 'aria-hook-debug.log' -o -name 'aria-digest-*' -o -name '.aria-new.*' \) -exec rm -f {} + 2>/dev/null
+  find "${KT_TMP_SWEEP_ROOT:-${TMPDIR:-/tmp}}/" -maxdepth 1 -user "$(id -u)" -mmin +1440 \( -name 'aria-r22-*' \
+    -o -name 'aria-extfetch*' -o -name 'aria-preflight*' -o -name 'aria-surface-*' -o -name 'aria-prompt-config.*' \
+    -o -name 'aria-cursor-*' -o -name 'aria-ag-*' -o -name '.aria-ag-*' -o -name '.aria-new.*' \) -exec rm -f {} + 2>/dev/null
+  # LEGACY-TMP-SWEEP-2.58 end
+  # The state dir's own sweep (spec D6): files there older than 24 h — the surfaced / logged / model
+  # markers, the ledger, caches, a killed writer's create temps (.aria-new.* and the pre-2.58.0
+  # .aria-ag-new.*). Only when it resolved; top level only; never a directory or a link (-type f).
+  if [ -n "${KT_STATE_DIR:-}" ]; then
+    find "$KT_STATE_DIR/" -mindepth 1 -maxdepth 1 -type f -mmin +1440 -exec rm -f {} + 2>/dev/null
+  fi
 
   # 2. Dynamic message building
   MESSAGES=""
@@ -528,19 +544,8 @@ ag_surface() {
   # shellcheck source=../lib-prompt-surface.sh
   . "$CLAUDE_PLUGIN_ROOT/bin/lib-prompt-surface.sh"
 
-  # Housekeeping, once per conversation: state files, log-once markers and model-file /
-  # create temps older than 24 h, ours only, in the state dir. `.aria-new.*` is kt_create_new's
-  # temp (here, and in /tmp where the session ledger lived before 2.58.0); `.aria-ag-new.*` is
-  # the pre-2.58.0 name, kept so a
-  # leftover from an older release is still removed. Each start point ends in `/`: on macOS /tmp
-  # is a symlink and find does not follow a symlinked start point (KT_TMP_SWEEP_ROOT: test-only).
-  if [ "$INVOCATION_NUM" = "0" ]; then
-    find "$dir/" -maxdepth 1 \( -name 'aria-ag-surfaced-*' -o -name 'aria-ag-logged-*' \
-      -o -name '.aria-ag-model.*' -o -name '.aria-new.*' -o -name '.aria-ag-new.*' \) \
-      -user "${USER:-$(id -u)}" -mmin +1440 -exec rm -f {} + 2>/dev/null
-    find "${KT_TMP_SWEEP_ROOT:-/tmp}/" -maxdepth 1 -name '.aria-new.*' \
-      -user "${USER:-$(id -u)}" -mmin +1440 -exec rm -f {} + 2>/dev/null
-  fi
+  # Housekeeping (state files, markers, create temps older than 24 h) runs once per conversation in
+  # responsibility 2: the state-dir sweep and, for 2.58.0 only, the legacy /tmp and $TMPDIR sweep.
 
   # C2: the model name, logged when it differs from the last one logged. The last value is
   # read only from a regular file of ours that is not a link; the new one is written to a

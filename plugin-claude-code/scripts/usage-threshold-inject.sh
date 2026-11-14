@@ -61,6 +61,8 @@ esac
 # directory (spec D3) no alert is emitted: without the bands it would repeat on every prompt. The
 # id goes through kt_state_path, which refuses one with a "/". Only a regular file that is not a link
 # is usable (a FIFO would block the read and the write); anything else at the name is no state.
+# A missing library is the same "no state": exit silently (sourcing a missing file aborts sh loudly).
+[ -f "$SCRIPT_DIR/lib-state-key.sh" ] || exit 0
 . "$SCRIPT_DIR/lib-state-key.sh"
 kt_state_resolve || exit 0
 # The band file is keyed by kt_session_key (accepted only as [A-Za-z0-9._-]+, never rewritten); no

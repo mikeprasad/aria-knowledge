@@ -17,6 +17,9 @@ setup() {
   # 2.58.0: hook state resolves under KT_STATE_BASE, never in the user's real state directory. The base
   # lives in this test's mktemp dir (SURF, under $TMPDIR), which teardown removes.
   export KT_STATE_BASE="$SURF/state-base"; mkdir -p "$KT_STATE_BASE"
+  # An ACL inherited from $TMPDIR would make the resolver refuse the state dir (spec G2-1) and
+  # silence every hook; strip it from the base so nothing created inside can inherit one.
+  chmod -N "$KT_STATE_BASE" 2>/dev/null || :; command -v setfacl >/dev/null 2>&1 && setfacl -b "$KT_STATE_BASE" 2>/dev/null || :
   # Responsibility 4's state — the session ledger, the surfaced / logged / model markers, the config
   # cache and the debug log — lives in the private state dir (2.58.0; KT_SURFACE_CACHE_DIR is retired).
   # Created here, mode 700 as the resolver requires, so a test can plant in it before the hook runs.

@@ -25,23 +25,22 @@ INPUT=""
 # unrelated edits. Safe no-op if no manifest exists or jq is unavailable.
 kt_batch_clear_stale 1800
 
-# Every sweep below starts at "$_kt_tmp/" WITH the slash. On macOS /tmp is a symlink and find
-# does not follow a symlinked start point, so `find /tmp -maxdepth 1 ...` matched nothing and these
-# sweeps never ran there (measured 2026-11-12: 0 of 372 aria-active-* files seen; 372 with /tmp/).
-# KT_TMP_SWEEP_ROOT is a TEST-ONLY override of the root (default /tmp): suites set it to a scratch
-# dir so they never sweep the real /tmp.
-_kt_tmp=${KT_TMP_SWEEP_ROOT:-/tmp}
-# Clear stale active-surfacing ledgers (>1 day old) from prior sessions.
-# The ledger is session-scoped (fresh per session per D4), so anything older
-# than ~24h is debris from crashed/abandoned sessions. Safe no-op if none exist.
-find "$_kt_tmp/" -maxdepth 1 -name 'aria-active-*' -mtime +1 -delete 2>/dev/null
-# Clear stale session-inprogress ledgers (>1 day) from prior/crashed sessions
-# (written by codex-hook.py's first-edit in-progress marking, v2.24.2-codex.0).
-find "$_kt_tmp/" -maxdepth 1 -name 'aria-session-inprogress-*' -mtime +1 -delete 2>/dev/null
-# Clear create temps (>24 h) that a killed writer left behind: before 2.58.0 kt_create_new made
-# them beside the session ledger (/tmp) and the surfacing debug log ($TMPDIR). Ours only. Since
-# 2.58.0 both names live in the private state dir, which is swept separately.
-find "$_kt_tmp/" "${TMPDIR:-/tmp}/" -maxdepth 1 -name '.aria-new.*' -user "$(id -u)" -mmin +1440 -exec rm -f {} + 2>/dev/null
+# LEGACY-TMP-SWEEP-2.58 begin — remove in the first release after 2.58.0, together with KT_TMP_SWEEP_ROOT (Rule 37)
+# Before 2.58.0 hook state lived at predictable names in the shared /tmp and $TMPDIR. Since 2.58.0 it
+# lives in the private state dir (swept below, once resolved), so these names are only debris. Each
+# find removes OUR entries older than 24 h, one level deep; find never follows a link it meets, so a
+# link is removed, not its target. Start points end in "/": on macOS /tmp is a symlink and find does
+# not follow a symlinked start point without it (measured 2026-11-12: 0 of 372 seen; 372 with /tmp/).
+# KT_TMP_SWEEP_ROOT is a TEST-ONLY override that replaces BOTH roots, so a suite never sweeps the real
+# /tmp or $TMPDIR.
+find "${KT_TMP_SWEEP_ROOT:-/tmp}/" -maxdepth 1 -user "$(id -u)" -mmin +1440 \( -name 'aria-active-*' \
+  -o -name 'aria-session-inprogress-*' -o -name 'aria-bashcd-*' -o -name 'aria-codemap-*' \
+  -o -name 'aria-codex-codemap-*' -o -name 'aria-context-*' -o -name 'aria-usage-warn-*' \
+  -o -name 'aria-hook-debug.log' -o -name 'aria-digest-*' -o -name '.aria-new.*' \) -exec rm -f {} + 2>/dev/null
+find "${KT_TMP_SWEEP_ROOT:-${TMPDIR:-/tmp}}/" -maxdepth 1 -user "$(id -u)" -mmin +1440 \( -name 'aria-r22-*' \
+  -o -name 'aria-extfetch*' -o -name 'aria-preflight*' -o -name 'aria-surface-*' -o -name 'aria-prompt-config.*' \
+  -o -name 'aria-cursor-*' -o -name 'aria-ag-*' -o -name '.aria-ag-*' -o -name '.aria-new.*' \) -exec rm -f {} + 2>/dev/null
+# LEGACY-TMP-SWEEP-2.58 end
 
 # If config file exists but failed validation, report the specific error
 if [ -n "$KT_CONFIG_ERROR" ]; then
@@ -92,6 +91,10 @@ MESSAGES=""
 # below: never inside the SESSION STATE line, nor inside ARIA SURFACE (the CLI path and nothing else).
 KT_STATE_DIR=""
 [ -f "$SCRIPT_DIR/lib-state-key.sh" ] && . "$SCRIPT_DIR/lib-state-key.sh" && kt_state_resolve
+# The state dir's own sweep (spec D6): files there older than 24 h — cooldowns, ledgers, breakers,
+# carriers, caches, a killed writer's create temps. Only when it resolved; top level only; never a
+# directory or a link (-type f).
+[ -n "$KT_STATE_DIR" ] && find "$KT_STATE_DIR/" -mindepth 1 -maxdepth 1 -type f -mmin +1440 -exec rm -f {} + 2>/dev/null
 # The ledger key is session_id, as codex's other ledger writers and readers use it (codex-hook.py
 # session_key, bash-cd-check.sh, task-context-check.sh), then turn_id, session_key's own fallback.
 # Whitespace-tolerant: JSON may space it.

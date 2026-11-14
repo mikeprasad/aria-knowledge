@@ -2,17 +2,28 @@
 set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# 2.58.0: the suite runs with its own scratch TMPDIR, stripped of any ACL it inherited (Python's
+# tempfile follows TMPDIR). The state-dir resolver refuses a directory with an ACL (spec G2-1), and an
+# inheritable ACL on the caller's TMPDIR would pass down to every dir a test makes there, silencing the
+# hooks. The REAL TMPDIR is kept for the leak arm below.
+REAL_TMPDIR=${TMPDIR:-/tmp}
+# Trailing "/" stripped first (macOS sets TMPDIR with one): an embedded "//" is kept by sh and
+# normalised by Python, which would split the shell/Python resolver parity checks.
+KT_TEST_TMP=$(mktemp -d "${REAL_TMPDIR%/}/aria-tests.XXXXXX")
+chmod -N "$KT_TEST_TMP" 2>/dev/null || :
+if command -v setfacl >/dev/null 2>&1; then setfacl -b "$KT_TEST_TMP" 2>/dev/null || :; fi
+TMPDIR=$KT_TEST_TMP
+export TMPDIR
+trap 'rm -rf "$KT_TEST_TMP"' EXIT
 # 2.58.0: the session-start sweeps now reach the real /tmp, so hooks run by this suite sweep a scratch
 # dir instead (KT_TMP_SWEEP_ROOT is the test-only override).
-KT_TMP_SWEEP_ROOT=$(mktemp -d "${TMPDIR:-/tmp}/aria-sweep-root.XXXXXX")
+KT_TMP_SWEEP_ROOT=$(mktemp -d "$TMPDIR/aria-sweep-root.XXXXXX")
 export KT_TMP_SWEEP_ROOT
 # 2.58.0: hook state lives in <base>/aria-knowledge-<uid>; the suite resolves it under this scratch
-# base (KT_STATE_BASE is the test-only override), never in the user's real state directory. The base
-# itself is a unique mktemp dir under $TMPDIR, removed by the trap.
-KT_STATE_BASE=$(mktemp -d "${TMPDIR:-/tmp}/aria-state-base.XXXXXX")
+# base (KT_STATE_BASE is the test-only override), never in the user's real state directory.
+KT_STATE_BASE=$(mktemp -d "$TMPDIR/aria-state-base.XXXXXX")
 export KT_STATE_BASE
-LEAK_DIR=$(mktemp -d "${TMPDIR:-/tmp}/aria-leak-check.XXXXXX")
-trap 'rm -rf "$KT_TMP_SWEEP_ROOT" "$KT_STATE_BASE" "$LEAK_DIR"' EXIT
+LEAK_DIR=$(mktemp -d "$TMPDIR/aria-leak-check.XXXXXX")
 
 # Leak arm (2.58.0): the suite must not create state in the real /tmp or $TMPDIR. Before 2.58.0 every
 # run left ~12 files there named for its fake session ids (session-tmp<random>, from the
@@ -32,12 +43,13 @@ if [ "$(leak_list "$LEAK_DIR/control")" != "$LEAK_DIR/control/aria-active-sessio
   echo "FAIL leak arm control: the name filter did not find the planted entry" >&2
   exit 1
 fi
-leak_list /tmp "${TMPDIR:-/tmp}" > "$LEAK_DIR/before"
+# The real /tmp, the TMPDIR this run inherited, and the scratch TMPDIR the suite runs with.
+leak_list /tmp "$REAL_TMPDIR" "$TMPDIR" > "$LEAK_DIR/before"
 
 suite_rc=0
 python3 "$SCRIPT_DIR/test_codex_port.py" || suite_rc=$?
 
-leak_list /tmp "${TMPDIR:-/tmp}" > "$LEAK_DIR/after"
+leak_list /tmp "$REAL_TMPDIR" "$TMPDIR" > "$LEAK_DIR/after"
 new=$(comm -13 "$LEAK_DIR/before" "$LEAK_DIR/after")
 if [ -n "$new" ]; then
   echo "FAIL leak arm: the suite created state in the real /tmp or \$TMPDIR:" >&2
