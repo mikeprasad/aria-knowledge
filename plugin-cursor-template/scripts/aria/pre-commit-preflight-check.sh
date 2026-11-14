@@ -77,12 +77,13 @@ done
 [ -z "$CODE_FILES" ] && exit 0
 
 # kt_session_key (lib-state-key.sh): read whitespace-tolerantly, accepted only as [A-Za-z0-9._-]+ and
-# never rewritten — the key every hook in this port names this family's state with. No id at all (or no lib):
+# never rewritten — the key every hook in this port names this family's state with. No id at all:
 # abstain, as before. Rejected: no key, so no marker and no breaker (spec D3) — the commit gets the
-# no-marker response.
-[ -f "$SCRIPT_DIR/lib-state-key.sh" ] || exit 0
-. "$SCRIPT_DIR/lib-state-key.sh"
-SESSION_ID=$(kt_session_key "$INPUT" sessionId session_id)
+# no-marker response. A missing lib is the same "no state", NOT an abstain: this is a deny gate, so
+# `exit 0` here would fail OPEN. Without the lib kt_session_key fails with 127 (not 1), and the
+# commit gets the no-marker response.
+if [ -f "$SCRIPT_DIR/lib-state-key.sh" ]; then . "$SCRIPT_DIR/lib-state-key.sh"; fi
+SESSION_ID=$(kt_session_key "$INPUT" sessionId session_id 2>/dev/null)
 [ "$?" = 1 ] && exit 0
 
 # 2.58.0: the breaker and the marker live in the private per-user state directory (lib-state-key.sh),

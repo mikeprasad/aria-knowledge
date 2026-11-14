@@ -89,7 +89,7 @@ if [ "$KT_SESSION_STATE" = "true" ] && [ -n "$FILE_PATH" ] && [ "$(basename "$FI
     # project is still marked (spec D3: "Mark anyway") with an EMPTY session id, so the mark keeps
     # SESSION.md's existing sessionId line and the raw id never reaches its front matter
     # (codex-hook.py maybe_mark_session_state applies the same rule).
-    . "$SCRIPT_DIR/lib-state-key.sh" 2>/dev/null || true
+    if [ -f "$SCRIPT_DIR/lib-state-key.sh" ]; then . "$SCRIPT_DIR/lib-state-key.sh"; fi
     SS_SID=$(kt_session_key "$INPUT" session_id 2>/dev/null); _ss_rc=$?
     if [ -n "$SS_SID" ]; then
       SS_KEY="$SS_SID"
@@ -108,7 +108,7 @@ if [ "$KT_SESSION_STATE" = "true" ] && [ -n "$FILE_PATH" ] && [ "$(basename "$FI
     # reads lastEvent: in-progress under THIS session id the mark is skipped, so the file is written
     # once, not on every edit (the mark refreshes `at:`, so re-running it is not byte-idempotent).
     SS_LEDGER=
-    . "$SCRIPT_DIR/lib-state-key.sh" 2>/dev/null || true
+    if [ -f "$SCRIPT_DIR/lib-state-key.sh" ]; then . "$SCRIPT_DIR/lib-state-key.sh"; fi
     if kt_state_resolve 2>/dev/null; then
       [ -n "$SS_KEY" ] && SS_LEDGER=$(kt_state_path "aria-session-inprogress-${SS_KEY}") || SS_LEDGER=
     fi

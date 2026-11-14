@@ -72,18 +72,21 @@ export STEP_INDEX
 # fallback applies only when there is NO session_id; a rejected one leaves no key, so no breaker,
 # carrier or anchor (spec D3: an unmarked edit is still denied). pre-bash-r22-carrier.sh applies the
 # same rule in Python.
-. "$SCRIPT_DIR/lib-state-key.sh"
-SESSION_KEY=$(kt_session_key "$INPUT" session_id)
-[ "$?" = 1 ] && [ -n "$TRANSCRIPT" ] && SESSION_KEY=$(kt_session_key_check "$(basename "$TRANSCRIPT" .jsonl 2>/dev/null)")
+# A missing lib is "no state" too, and this is the deny gate: never `exit 0` here (that fails OPEN).
+# Without the lib every kt_* call below fails (127, stderr silenced), the key, suffix, breaker,
+# carrier and anchor stay empty, and an unmarked edit is still DENIED (spec D3).
+if [ -f "$SCRIPT_DIR/lib-state-key.sh" ]; then . "$SCRIPT_DIR/lib-state-key.sh"; fi
+SESSION_KEY=$(kt_session_key "$INPUT" session_id 2>/dev/null)
+[ "$?" = 1 ] && [ -n "$TRANSCRIPT" ] && SESSION_KEY=$(kt_session_key_check "$(basename "$TRANSCRIPT" .jsonl 2>/dev/null)" 2>/dev/null)
 # v2.54.1: keyed per AGENT as well. A subagent's hooks carry the parent's session_id,
 # so a session-only key let three denials inside a subagent open the PARENT's breaker.
 # The suffix is empty on the main thread, so its key is unchanged.
-AGENT_SUFFIX=$(kt_agent_suffix "$INPUT")
+AGENT_SUFFIX=$(kt_agent_suffix "$INPUT" 2>/dev/null)
 # 2.58.0: every state name below lives in the private per-user state directory (lib-state-key.sh),
 # so a name another local user plants in a shared temp dir is never read. With no directory (spec
 # D3) the breaker cannot count and never trips — an unmarked edit is still DENIED — and the carrier
 # and anchor are neither recorded nor read, so the transcript alone decides (tail mode).
-kt_state_resolve || :
+kt_state_resolve 2>/dev/null || :
 BREAKER_STATE=""
 [ -n "$SESSION_KEY" ] && BREAKER_STATE=$(kt_state_path "aria-r22-denies-${SESSION_KEY}${AGENT_SUFFIX}")
 

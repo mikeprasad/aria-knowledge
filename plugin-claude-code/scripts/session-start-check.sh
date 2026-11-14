@@ -249,8 +249,11 @@ kt_ensure_rules_files
 # names it, and the session ledger below lives there. No state dir (spec D3): no ledger is read or
 # written, so nothing is re-surfaced after compaction and no tracked artifact is surfaced (it would
 # repeat every session start), and the human is told once why (emit() drops it on compact).
-. "$SCRIPT_DIR/lib-state-key.sh"
-kt_state_resolve || USER_MESSAGES="${USER_MESSAGES}ARIA: private state directory unavailable (${KT_STATE_REASON}) — hooks are running without state. "
+# A missing lib is "no state" too: every value line still goes out, naming none (sourcing a missing
+# file would abort sh and drop the whole session-start output).
+if [ -f "$SCRIPT_DIR/lib-state-key.sh" ]; then . "$SCRIPT_DIR/lib-state-key.sh"
+else KT_STATE_DIR=; KT_STATE_REASON='lib-state-key.sh missing'; fi
+kt_state_resolve 2>/dev/null || USER_MESSAGES="${USER_MESSAGES}ARIA: private state directory unavailable (${KT_STATE_REASON}) — hooks are running without state. "
 # The state dir's own sweep (spec D6): files there older than 24 h — cooldowns, ledgers, breakers,
 # carriers, caches, a killed writer's create temps. Only when it resolved; top level only; never a
 # directory or a link (-type f).
@@ -262,7 +265,7 @@ kt_state_resolve || USER_MESSAGES="${USER_MESSAGES}ARIA: private state directory
 # written). Rejected or absent: ledger=none and no ledger (spec D3). (SESSION_ID above stays the
 # raw id: it only matches pre-compact-check.sh's snapshot name.)
 SS_LEDGER=""
-_ss_lsid=$(kt_session_key "$INPUT" session_id) && SS_LEDGER=$(kt_state_path "aria-active-${_ss_lsid}") || SS_LEDGER=""
+_ss_lsid=$(kt_session_key "$INPUT" session_id 2>/dev/null) && SS_LEDGER=$(kt_state_path "aria-active-${_ss_lsid}" 2>/dev/null) || SS_LEDGER=""
 
 # --- the resolved configuration values --------------------------------------
 # The ONLY thing a byte-identical bundled file cannot carry. Each directive's

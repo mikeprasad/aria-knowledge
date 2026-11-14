@@ -8,12 +8,18 @@
 # not owned by you, mode not 700, has an ACL, permissions not verifiable); a name that is empty,
 # ".", ".." or contains "/" gives
 # "aria-state: invalid name", exit 1. Any other usage: a usage line on stderr, exit 2.
+# A missing lib-state-key.sh beside it: "aria-state: lib-state-key.sh missing", exit 1.
 #
 # Skills use it to write state where the hooks read it, never a guessed temp path. The location
 # rule lives in lib-state-key.sh beside this script.
 
 case $0 in */*) _aria_state_here=${0%/*} ;; *) _aria_state_here=. ;; esac
-. "$_aria_state_here/lib-state-key.sh"
+if [ -f "$_aria_state_here/lib-state-key.sh" ]; then
+  . "$_aria_state_here/lib-state-key.sh"
+else
+  echo 'aria-state: lib-state-key.sh missing' >&2
+  exit 1
+fi
 
 if [ "$#" -ne 2 ] || [ "$1" != path ]; then
   echo 'usage: aria-state.sh path <name>' >&2
