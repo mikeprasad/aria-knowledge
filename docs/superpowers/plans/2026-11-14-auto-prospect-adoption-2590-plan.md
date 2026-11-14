@@ -105,8 +105,13 @@ Repro 3/3 · plugin suite · idempotence. **Commit**
 **Test** `tests/repros/prospect-adoptions.sh` over every carrying port — `plugin-claude-code`,
 `plugin-openai-codex`, `plugin-antigravity`, `plugin-claude-cowork` `skills/prospect/SKILL.md`, and the
 prospect section of `plugin-cursor-template/.cursor/rules/aria-commands.mdc`:
+⛔ **Cursor scoping (prospect gate C2).** `aria-commands.mdc` bundles `/prospect` (from its `## /prospect`
+header) and `/retrospect` (from `## /retrospect`), and `/retrospect` also says "Three questions" and has a
+Step 3.5. Every Cursor arm first extracts the `/prospect` section — from `## /prospect` to the next line
+starting `## /` — and asserts only inside it.
 - P1 positive: `--cold` and `--summary` in Step 0's modifier list (all ports) and in `argument-hint`
-  (claude-code, codex only — `build.sh` strips `argument-hint` from Antigravity; Cowork/Cursor have none).
+  (claude-code, codex **and cowork**, whose frontmatter carries one — prospect gate C1; `build.sh` strips
+  `argument-hint` from Antigravity; Cursor's `.mdc` has no frontmatter per skill).
 - P2 positive: a `## Step 3.6` heading naming the cold read.
 - P3 positive: the template between `<!-- cold-read-template:begin -->` / `<!-- cold-read-template:end -->`
   is byte-identical across all carrying ports. Guard half: mutate one character in one port → red → restore
