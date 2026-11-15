@@ -299,3 +299,146 @@ Closes the three live holes in the census (planted FIFO at the preflight breaker
 - **G2-1 (Task 1):** the state-dir check also refuses an ACL-bearing directory — sh: the `ls -ldn` mode string ending in `+`; Python: the same `ls -ldn` read (or `os.listxattr` where available). Fail safe. Arm with `chmod +a` on a scratch dir on macOS; reasoned where the platform cannot set one.
 - **G2-2 (Task 8 / Task 10):** Cowork's reworded prospect/retrospect text ships as **Cowork 1.8.3** with 2.58.0 (Mike: "full release"). The version bump happens in Task 10, not Task 8.
 - **G2-3 (Task 9 → Task 10):** Task 9 no longer stops. **Task 10: Release 2.58.0** (Mike 2026-11-12: "ok continue with full SPPPE and then do the full release"): bump canonical + every port per RELEASING.md and CLAUDE.md (antigravity `plugin.json` by hand + `build.sh`, cursor `VERSION`, codex `.codex-plugin/plugin.json`, cowork 1.8.3); build every zip; Gate D reads every commit message; merge `release/2.58.0` → `main`; push `main` and the annotated tags `v2.58.0` + `cowork-v1.8.3`, verified by `ls-remote`; `gh release create` (canonical marked latest; cowork `--latest=false`); `publish-release.sh --apply`; verify `/releases/latest` = v2.58.0, every download byte-identical to the local build, and a fake-asset 404 control; finish the worktree with `release-worktree-finish.sh` (never `git worktree remove`); update the repo CLAUDE.md footer and the project-index row.
+
+---
+
+## 2026-11-15 amendment — Mike's rulings J1/J2/J3 (binding; runs BEFORE Task 10)
+
+Spec §8 (D8, D8a, D9, D10; AC10–AC14), prospected PROCEED-WITH-CHANGES — log
+`knowledge/logs/prospect/2026-11-15-file-aria-2580-spec-s8-rulings-additions.md` (changes applied to
+the spec). Ledger `knowledge/logs/auto/2026-11-13-aria-2580-private-state-dir-judgments.md`. Base =
+`354cb82`. Every Global Constraint above still applies (GATES per task, mutations, `cp` parity +
+`cksum` for `lib-state-key.sh` ×4, generators on a clean tree first, PORT-LEDGER per port, hygiene
+after each commit, no push). Order: 9a → 9b → 9c → 9d → 9e → Task 10.
+
+### Task 9a: Antigravity Rule 22 wrapper honours the check's deny (D8) + tests never touch real HOME (D8a)
+
+- Files: `plugin-antigravity/bin/antigravity/pre-edit-aria.sh` (H, hand-authored);
+  `plugin-antigravity/tests/test-pre-edit-aria.bats`, `test-post-edit-aria.bats`; a new census arm
+  (repo-level repro, e.g. `tests/repros/antigravity-tests-isolate-home.sh`, or a bats file — pick the
+  one `tests/run.sh` / the bats gate already runs).
+- [ ] **Step 1 (red first):** with `HOME` and `KT_STATE_BASE` in scratch and a pre-created probe flag
+  in scratch `HOME` (so the first-run probe is skipped), arms: (a) unmarked edit (Antigravity JSONL
+  transcript, `source:"MODEL"`, matching `stepIdx`, no marker) → wrapper prints
+  `"decision":"deny"`; (b) marked edit → `allow`; (c) a canonical stand-in that exits 3 → `deny`;
+  (d) a stand-in that prints non-JSON on stdout → `deny`; (e) a stand-in that prints a
+  `systemMessage` JSON → `allow` with that message as reason; (f) stderr noise from the check does
+  not change (b). Run on `354cb82`: (a), (c)-partially and (d) must be red for the stated reason
+  (record which). The stand-ins go in via a test-only override of the canonical path or a scratch
+  plugin root — do not add a production env knob unless the wrapper already has one; if none
+  exists, build a scratch copy of the plugin layout (`bin/antigravity/` + `bin/pre-edit-check.sh`
+  stand-in) and run the wrapper from it.
+- [ ] **Step 2:** wrapper: capture the check's stdout and stderr separately (`2>"$errf"`, where
+  `errf=$(mktemp)` — plain template, no `aria-` literal, so census CC6 stays green — removed by a
+  `trap … EXIT`); decide by
+  `jq` on stdout per spec D8's table; a deny reason = `permissionDecisionReason`; non-zero exit or
+  unparseable stdout → deny with a fixed reason naming which; empty + exit 0 → allow. Probe block
+  untouched. Arms green.
+- [ ] **Step 3 (D8a):** both suites export `HOME` to their scratch dir (bats `BATS_TEST_TMPDIR` or
+  `BATS_TMPDIR` subdir); census arm lists every `plugin-antigravity/tests/*.bats` that invokes a
+  `*-aria.sh` wrapper and fails on any without a scratch `HOME` — red on `354cb82` naming the two
+  suites. Before/after listing (names + mtimes) of the real `~/.gemini/antigravity/` around a full
+  `bats plugin-antigravity/tests/` run is unchanged — reported, not committed (the real dir is
+  Mike's).
+- [ ] **Step 4:** mutations — (i) revert the wrapper's deny branch to exit-code-only → arm (a) red;
+  (ii) drop `HOME` from one suite → census red naming it.
+- [ ] **Step 5:** GATES; commit (`fix(antigravity): Rule 22 wrapper honours the check's deny` /
+  `test(antigravity): suites isolate HOME` — two commits).
+
+### Task 9b: One session-key rule for shell and Codex Python (D9)
+
+- Files: `plugin-openai-codex/bin/codex-hook.py`; `tests/repros/state-dir-model-facing.sh` (M8);
+  Codex suite under `plugin-openai-codex/tests/`.
+- [ ] **Step 1 (red first):** M8 gains rows run through BOTH `kt_session_key` (all four lib copies)
+  and the Python path: `{"session_id":"Abc"}` (both reject), duplicated
+  `{"session_id":"a","session_id":"b"}` (both `a`), `"session_id" : "x"` spacing (both `x`),
+  `session_id` absent + `turn_id` present (both take `turn_id`), non-string value (both absent).
+  Escape and duplicate rows red on `354cb82`.
+- [ ] **Step 2:** Python: `session_key_raw(raw: str) -> str` implements the shell's extraction (same
+  field order, `"<f>"\s*:\s*"([^"]*)"` first textual match per field, first field present with a
+  non-empty value, never falls back past a rejected one) then `session_key_check`. Census every
+  caller by symbol (`session_key(`) — measured 4 at `354cb82` — and thread `raw` from
+  `load_input()` to each; delete the decoded-path `session_key(data)` once no caller remains (no
+  dead twin). Rows green; the Python unit tests that pinned the old function are re-pointed, not
+  deleted, and each still fails if the rule is broken.
+- [ ] **Step 3:** mutation — make Python read the decoded value again → escape row red.
+- [ ] **Step 4:** GATES; commit.
+
+### Task 9c: Split retention via `kt_state_sweep` (D10)
+
+- Files: `plugin-claude-code/scripts/lib-state-key.sh` (canonical; `cp` to cursor `scripts/aria/`,
+  codex `bin/`; antigravity via `build.sh`; `cksum` all four); the four sweeping call sites (C X U
+  session-start, H `pre-invocation-aria.sh`); `tests/repros/state-dir-sweeps.sh`.
+- [ ] **Step 1 (red first):** arms plant, in a scratch state dir, each proof name
+  (`aria-preflight-s1`, `aria-preflight-skipped-s1`, `aria-preflight-repo-123`, `aria-r22-bypass-s1`,
+  `aria-active-s1`, `aria-ag-surfaced-s1`) and churn names (`aria-preflight-denies-s1`,
+  `aria-r22-denies-s1`, `aria-codemap-s1`) at 2 days and at 31 days (`touch -t`), plus a FRESH proof
+  file, a FRESH churn file and a subdirectory aged 31 days. Expect: proof@2d kept, proof@31d removed,
+  churn@2d removed, `aria-preflight-denies-*`@2d removed, both fresh files kept, the subdirectory
+  kept, links untouched (existing W_depth / link arms keep passing). Per sweeping script.
+  "proof@2d kept" red on `354cb82`.
+- [ ] **Step 2:** `kt_state_sweep` in `lib-state-key.sh`: returns 0 doing nothing when
+  `KT_STATE_DIR` is empty; else ONE `find`, written out literally — operator precedence decides
+  correctness here (plan prospect 2026-11-15 measured the ungrouped form deleting a 2-day proof file,
+  a FRESH file, and matching a subdirectory):
+  ```sh
+  find "$KT_STATE_DIR/" -mindepth 1 -maxdepth 1 -type f \( \
+    \( \( \( -name 'aria-preflight-*' ! -name 'aria-preflight-denies-*' \) -o -name 'aria-r22-bypass-*' \
+         -o -name 'aria-active-*' -o -name 'aria-ag-surfaced-*' \) -mmin +43200 \) \
+    -o \( ! \( \( -name 'aria-preflight-*' ! -name 'aria-preflight-denies-*' \) -o -name 'aria-r22-bypass-*' \
+         -o -name 'aria-active-*' -o -name 'aria-ag-surfaced-*' \) -mmin +1440 \) \
+  \) -exec rm -f {} + 2>/dev/null
+  ```
+  (`aria-preflight-skipped-*` and `aria-preflight-repo-*` are covered by `aria-preflight-*`; keep the
+  names in one comment list that matches spec D10.) POSIX sh, no bashisms, never `-L/-H/-follow`.
+  ⚠ Probe with `/usr/bin/find` under `sh` — in Claude Code's zsh `find` is a shell function (bfs). Replace each call site's in-dir `find` with
+  `kt_state_sweep`. `cp` + `build.sh` + `cksum` ×4.
+- [ ] **Step 3:** the existing arm that plants `aria-active-indir-old` at OLD and expects removal:
+  rewrite deliberately — keep its intent (old in-dir files go) with a CHURN name, and add the
+  proof-name keep — commented `# D10 (2026-11-15): proof names keep 30 days`. Census arm: fails if
+  any of the four sweeping scripts still carries `find "$KT_STATE_DIR/"` (the only in-dir find is in
+  `lib-state-key.sh`); CC9's bare-root allowance follows the move.
+- [ ] **Step 4:** mutations — (i) drop the `! -name 'aria-preflight-denies-*'` exclusion →
+  denies@2d-removed arm red; (ii) swap `+43200` for `+1440` → proof@2d-kept red; (iii) restore an
+  inline find in one caller → census red naming it; (iv) drop the outermost `\( … \)` grouping →
+  the fresh-file arm red.
+- [ ] **Step 5:** GATES; PORT-LEDGER re-baseline for each port whose tracked lib surface changed,
+  one `--update <port>` at a time + drift check after each; commit.
+
+### Task 9d: Prose — CHANGELOG, PORTING, port notes
+
+- [ ] CHANGELOG 2.58.0: rewrite the "**Cleanup.** At session start, files older than 24 hours are
+  removed from the state directory" line (line 66 at `354cb82`) to D10's two-class rule (line 79,
+  the legacy `/tmp`/`$TMPDIR` sweep, stays 24 h and unchanged); replace the J2 placeholder (line 90 at `354cb82`; find it by text
+  `J2: pending ruling`) with a fix entry that claims the wrapper's decision only and states
+  "detection against a live Antigravity transcript is unverified — Antigravity stores conversations
+  as protobuf here, and no real hook payload has been captured; an I-check is owed"; remove the J1
+  `\uXXXX` known-limit line (find by text) and add a short "Codex keys a session exactly as the
+  shell does" line; rewrite the 24-hour sweep known limit to D10's rule incl. the macOS temp-folder
+  limit; add D8a (Antigravity tests no longer write `~/.gemini`).
+- [ ] `plugin-antigravity/PORTING.md`: under the deny-semantic row, one line — aria's wrapper honours
+  the check's deny since 2.58.0; detection in a live session unverified.
+- [ ] Re-check every claim against the code (U7): grep each named function/file/name. GATES; commit.
+
+### Task 9e: Delta review and retrospect
+
+- [ ] One fresh reviewer on the most capable model over `354cb82..HEAD` with spec §8 + this
+  amendment: verify AC10–AC14 against the CODE; re-run the four `cksum`s; confirm each red-first arm
+  was red for its stated reason and each mutation reddened the named arm; confirm no test writes
+  real `/tmp`, `$TMPDIR` or `~/.gemini`. Fix only findings that reproduce, one commit each, GATES
+  after each.
+- [ ] Invoke `/retrospect range 354cb82..HEAD` (invoke the skill — U29).
+
+### Task 10 additions
+
+- Before the version bump: strip `Claude-Session:` trailer lines from **`main..release/2.58.0`**
+  only — NOT `origin/main..HEAD` (plan prospect 2026-11-15: local `main` 448e2d7 already merges 31 of
+  the branch's commits; rewriting any of those would duplicate history at the Task 10 merge; all 13
+  trailer lines measured on the 67 branch-only commits). From inside the 2.58.0 worktree:
+  `git filter-branch --msg-filter "sed '/^Claude-Session:/d'" main..HEAD` (record the old tip
+  first). Verify, each a bare exit code: `git diff --quiet <old-tip> HEAD` (tree identical);
+  `git log origin/main..HEAD --format=%B | grep -c Claude-Session` prints 0;
+  `git merge-base --is-ancestor 448e2d7^2 HEAD` (shared commits kept their SHAs). Re-run
+  `check-public-hygiene.sh`. Keep `refs/original/` until the push is verified, then delete it.
+- After release: message the `release/2.59.0` session (worktree `.wt-2.59.0-aria-knowledge`, branched
+  from local `main` 448e2d7) to rebase onto 2.58.0 with `--onto origin/main 448e2d7`.

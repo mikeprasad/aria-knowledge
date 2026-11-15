@@ -271,3 +271,111 @@ the surfacing call). The Codex suite sets `KT_STATE_BASE` to a scratch dir and a
 1. Whether the Cowork rewording ships as Cowork 1.8.3 with 2.58.0 or rides unreleased (Cowork never
    reads the path; it is accuracy only).
 2. Whether the 26,198 B digest bound is a ceiling (this shrinks it by 46 B) or an exact pin.
+
+## 8. 2.58.0 additions — Mike's rulings 2026-11-15
+
+Ledger: `knowledge/logs/auto/2026-11-13-aria-2580-private-state-dir-judgments.md` (J1, J2, J3, all
+REVISIT). These three join the release; Task 10 waits for them.
+
+### D8 — Antigravity's Rule 22 gate reads the deny the check prints (J2 → A1)
+
+**Measured 2026-11-15:** the canonical `pre-edit-check.sh` always exits 0. An unmarked edit prints
+`{"hookSpecificOutput":{…"permissionDecision":"deny"…}}`; a marked edit prints nothing.
+`plugin-antigravity/bin/antigravity/pre-edit-aria.sh` reads only the exit code (`2>&1` into one
+variable, non-zero ⇒ deny), so both become `allow`. Rule 22 has never blocked an Antigravity edit
+since `b524c6a`, while `PORTING.md` says "Documented + fail-closed".
+
+The wrapper decides from the check's **stdout**, captured apart from stderr:
+
+| Check result | Wrapper decision |
+|---|---|
+| stdout holds `permissionDecision` = `deny` | `deny`, reason = `permissionDecisionReason` |
+| stdout holds a `systemMessage` (could-not-verify or degraded mode) | `allow`, reason = that message |
+| exit 0, stdout empty | `allow` |
+| exit non-zero, or stdout not parseable JSON | `deny` with a fixed reason naming the failure (fail closed, as `PORTING.md` states) |
+
+Parse with `jq` (the wrapper already requires it).
+
+**What D8 does NOT establish (prospect 2026-11-15):** that Rule 22 now blocks unmarked edits in a
+real Antigravity session. The canonical reader parses a JSONL transcript (`step_index`,
+`source:"MODEL"`), while Antigravity's conversations on this machine are protobuf
+(`~/.gemini/antigravity/conversations/*.pb`). If the hook's `transcriptPath` names that file the
+reader returns "could not verify" and D8 correctly maps it to allow-with-warning. No real payload has
+ever been captured (the one-shot probe was consumed by a bats run, see D8a). The CHANGELOG states
+the mechanism and names the live check as owed; it does not claim enforcement.
+
+Rejected: grepping stdout for the word `deny`
+(the reason text the model reads can contain it); making the canonical script exit non-zero on deny
+(Claude Code reads stderr on exit 2 and the canonical contract is shared by three ports).
+The one-shot first-run probe block is unchanged.
+
+### D8a — Antigravity tests never touch the real home directory
+
+`test-pre-edit-aria.bats` and `test-post-edit-aria.bats` run the wrappers without setting `HOME`, so
+they write the real `~/.gemini/antigravity/` (measured: a 376-line `aria-knowledge-scope-check.log`
+last written by this arc's test runs on 2026-11-14, and a `.aria-probe-fired` flag written on
+2026-05-24 by `test-pre-edit-aria.bats` — the probe's log carries `BATS_TEST_FILENAME`). Same class as
+AC8, one directory over (Rule 38): both suites export `HOME` to their scratch dir, and a census arm
+fails on any Antigravity bats file that runs a wrapper without it. The real files already written
+are Mike's to remove (outside the repo); removing the probe flag re-arms the real-payload capture.
+
+### D9 — One session-key rule, applied to the same bytes (J1 → "make them agree")
+
+The shell (`kt_session_key`, every shell port) takes the **first textual** `"<field>" : "<value>"` in
+the raw JSON, `[^"]*` value, then the accept set. Codex's Python (`session_key`) takes the
+**decoded** value from `json.loads`. They disagree on (a) a `\uXXXX` escape of an allowed character
+(shell rejects, Python accepts) and (b) a duplicated key (shell takes the first, `json.loads` the
+last). Closing the class: Python extracts the field from the **raw stdin text** with the shell's
+rule (same field order `session_id`, `turn_id`; same whitespace tolerance; first textual match;
+value up to the next `"`), then applies `session_key_check`. Every Python caller that keys state
+passes the raw text. Rejected: a JSON-escape decoder in POSIX sh (large, new parsing surface in a
+deny gate); "Python rejects any backslash" alone (closes (a), leaves (b)). The CHANGELOG known-limit
+line for the escape gap is removed.
+
+### D10 — Split retention: proof files 30 days, everything else 24 h (J3 → O1)
+
+"Finished" cannot be measured on three of four ports (Codex, Cursor, Antigravity register no session
+end; Claude Code's `SessionEnd` is best-effort, 1.5 s budget, not documented to fire on a kill). The
+bound that holds everywhere is how long a session can still be resumed: Claude Code deletes a
+transcript after `cleanupPeriodDays`, default 30 (docs, `code.claude.com/docs/en/claude-directory`;
+that a deleted transcript cannot be resumed is implied, not stated).
+
+- **Proof files — kept 30 days (`-mmin +43200`):** `aria-preflight-<sid>`,
+  `aria-preflight-skipped-*`, `aria-preflight-repo-*`, `aria-r22-bypass-*`, `aria-active-*`,
+  `aria-ag-surfaced-*`. `aria-preflight-denies-*` is a counter, NOT proof — excluded by name.
+- **Everything else — 24 h (`-mmin +1440`),** unchanged.
+- **One definition:** a function `kt_state_sweep` in `lib-state-key.sh` (every shell port's copy)
+  holds both lists and runs the one `find`; the four sweeping scripts (C X U session-start,
+  Antigravity `pre-invocation-aria.sh`) call it instead of their inline `find`. Same safety shape
+  as today: top level only, `-type f`, never follows links, only after `kt_state_resolve` succeeded.
+- **Stated limit:** on macOS the directory is inside the system temp folder, which macOS may clear
+  on its own (§5, unmeasured), so 30 days is the most aria keeps, not a guarantee. A preflight from
+  weeks ago is weak evidence anyway; the bound is retention, not validity.
+- The CHANGELOG known-limit line for the 24-hour cross-session sweep is rewritten to this rule.
+- The legacy `/tmp` and `$TMPDIR` sweeps (`LEGACY-TMP-SWEEP-2.58`) are unchanged.
+
+### Acceptance criteria (additions)
+
+10. **D8, red first:** an Antigravity bats/repro arm feeds the wrapper an unmarked edit and asserts
+    `"decision":"deny"` — red on `354cb82`; a marked edit asserts `allow`; a check that exits
+    non-zero and one that prints non-JSON each assert `deny`; a `systemMessage` result asserts
+    `allow` carrying the message. Every arm runs with `HOME` in scratch. The CHANGELOG placeholder at
+    line 90 becomes a fix entry that claims the wrapper's decision only and names the live
+    Antigravity check as owed; `PORTING.md` gains one line saying aria's detection is unverified in
+    a live session.
+11. **D9:** the cross-port test (M8 in `tests/repros/state-dir-model-facing.sh`) gains cases — an id
+    written with a `\u` escape, a duplicated `session_id`, `"session_id" : "x"` spacing — and shell
+    and Python give the same key or the same rejection for each; the escape and duplicate cases are
+    red on `354cb82`.
+12. **D10:** the sweep arms plant each proof name and a churn name at 2 days and at 31 days old:
+    proof at 2 days kept, proof at 31 days removed, churn at 2 days removed, `aria-preflight-denies-*`
+    at 2 days removed; red on `354cb82` for "proof at 2 days kept". A census arm fails if any of the
+    four sweeping scripts still carries its own in-dir `find` instead of `kt_state_sweep`. The
+    existing arm that plants `aria-active-indir-old` at OLD and expects it removed FLIPS under D10
+    (a proof name younger than 30 days is kept): rewrite it deliberately, labelled as a D10 change,
+    with a churn name in its place for the removal half.
+13. All five gates bare exit 0 after each; PORT-LEDGER re-baselined per port; public-hygiene clean.
+14. **D8a:** a census arm lists every `plugin-antigravity/tests/*.bats` that invokes a
+    `bin/antigravity/*-aria.sh` wrapper and fails on any without a scratch `HOME`; red on `354cb82`
+    naming `test-pre-edit-aria.bats` and `test-post-edit-aria.bats`; a full Antigravity bats run
+    leaves the real `~/.gemini/antigravity/` file list and mtimes unchanged (before/after listing).
