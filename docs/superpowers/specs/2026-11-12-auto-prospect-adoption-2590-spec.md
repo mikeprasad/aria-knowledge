@@ -104,7 +104,12 @@ Wording everywhere is "fresh reader". Never "context-free" or "instruction-free"
      implementer. This plugin does not suppress them (H4).
    - **Known gaps, printed in the block every time:** (a) the reader does not get the main session's auto
      memory (docs); (b) it gets its own short system prompt, not Claude Code's (docs); (c) SubagentStart
-     hooks reach it and not the implementer. This plugin's self-report hook is off for this type (D8).
+     hooks reach it and not the implementer. This plugin's self-report hook is off for this type (D8);
+     (d) its startup instruction files follow the session's working directory, not the plan's location,
+     so if the implementer will start somewhere else the two sets differ (docs: "A subagent starts in
+     the main conversation's current working directory"). The item-5 comparison shows it.
+   ⛔ **Step 3.6's text never names the Plan agent (S3).** Why it is not used is recorded here and in the
+   CHANGELOG; a skill that explains it gives the next reader a second option to pick.
 3. **Capability, not intent (A2).** "Read only" in a prompt constrains nothing; the reader has Bash.
    Record `git status --porcelain` before and after the round. Any change is a finding and the round is
    flagged. `git status` cannot see writes outside the repository; say so.
@@ -131,8 +136,12 @@ Wording everywhere is "fresh reader". Never "context-free" or "instruction-free"
    (evidence it carried only the template).
 
 Cost, measured 2026-11-14 with the Plan agent on a ~300-line plan: 193,861 subagent tokens, 38 tool
-calls, 6.5 min. A reader that also loads the startup instruction files costs more per round; the
-Step 0 line states the measured figure and that it is a floor.
+calls, 6.5 min. A reader that also loads the startup instruction files costs more per round, by the size
+of those files: in the author's workspace a CLAUDE.md-loading subagent carried ~215k tokens of
+always-on instructions before any work (reference note, measured 2026-09-05). The plan measures one
+round from a real workspace before release, and the Step 0 line states that figure and that it is a
+floor. The agent has no `model` key, so it runs on the session's default subagent model; a small model
+can fail under that load, and the block then reports the round as not run with the error (S6).
 
 **`/auto … cold` / `cold=<N>`.** At every `/prospect` the arc runs, pass `--cold` and repeat rounds after
 applying amendments, until a round finds **no confirmed BLOCKER** or `N` rounds have run (default 4,
@@ -315,16 +324,22 @@ Each names the check that can fail it.
 - **AC7 (reviewer identity).** Step 3.6's text names `aria-knowledge:cold-reader`, its `general-purpose`
   fallback, the docs-read date and the measured host version, and the three known gaps; the Cold read
   block's fields include subagent type, where the plan was read, the `git status` before/after result
-  and the item-5 comparison. No port names the Plan agent as the reader. A repro asserts all of it in
-  every port carrying the step.
+  and the item-5 comparison. Step 3.6 contains no "Plan agent" (case-insensitive) in any port. A repro
+  asserts all of it in every port carrying the step.
 - **AC8 (the agent file).** `plugin-claude-code/agents/cold-reader.md` exists; its frontmatter keys are
   exactly `name`, `description`, `tools`; `tools` is exactly `Read, Grep, Glob, Bash`; the description is
-  under 200 chars with no `<`, `>`, `[`, `]`; the body names no project, ticket or plan. A repro asserts
-  each, each mutation-proven; the claude.ai upload-limits repro scans `agents/*.md` descriptions too.
-- **AC9 (startup context, measured before release).** With `claude -p --plugin-dir <the built plugin>`
-  in a scratch project whose `CLAUDE.md` holds a sentinel, dispatch `aria-knowledge:cold-reader`, and
-  `Plan` as the negative control. Pass: the sentinel is in the reader's API-request record in its
-  subagent transcript and absent from Plan's. The control must fire, or the check is void.
+  under 200 chars with no `<`, `>`, `[`, `]`; the body equals one exact string pinned in the repro (S4:
+  "names no project" has no instrument, a pin does). A repro asserts each, each mutation-proven; the claude.ai upload-limits repro scans `agents/*.md` descriptions too.
+- **AC9 (startup context, measured before release).** Copy the built plugin to a scratch directory and
+  delete the `hooks` key from the copy's `plugin.json` (S5). Then `claude -p --plugin-dir <that copy>` in a
+  scratch project whose `CLAUDE.md` holds a sentinel; dispatch `aria-knowledge:cold-reader`, and `Plan` as
+  the negative control. Pass: the sentinel is in the reader's API-request record in its subagent
+  transcript and absent from Plan's (the control must fire, or the check is void), AND every file in
+  `~/.claude/rules/` has the same checksum after the run as before. ⛔ Why the copy: measured 2026-11-15
+  (2.1.325), a `--plugin-dir` plugin named `aria-knowledge` REPLACES the installed one for that run,
+  skills and hooks both. With hooks, the build's SessionStart would stamp `~/.claude/rules` 2.59.0, and the
+  installed older writer never replaces a newer stamp, so the user's live rules would stay at a
+  pre-release build until 2.59.0 is installed.
 - **Port Task 0 (measure first).** Before any port's text is written, read each runtime's current docs
   (Codex, Cowork, Antigravity) for whether it can start a subagent and what that subagent loads; record
   the answer with the runtime version. Unknown **capability** ⇒ that port prints the not-run line; known
@@ -368,8 +383,13 @@ R8 (typed discovery stage), marking every claim's origin (R9's other half), any 
 | R1 "open question for Mike" on silencing hooks | open | dropped — answered by H4 (keep them) | ruled |
 | R1 template | four items + item 5 described separately | five items in one block | same content, one source |
 | R1 Cold read block | type, env line, findings, git status, received list, char count | + where read, fallback reason, item-5 comparison, three known gaps | H4 |
-| AC7 | names Plan | names `aria-knowledge:cold-reader`; Plan forbidden as the reader | H4 |
+| AC7 | names Plan | names `aria-knowledge:cold-reader`; Step 3.6 never names the Plan agent (S3) | H4; "as the reader" was untestable |
 | AC8, AC9, L4 | — | added | the new agent file and its measured startup context |
 | L1 | "a subagent" | `aria-knowledge:cold-reader` + item-5 list | H4 |
 | Dropped: none of R2–R9, `--summary`, hygiene, patterns, AC1–AC6, L2, L3 | | | |
+
+**Re-prospected 2026-11-15** (`knowledge/logs/prospect/2026-11-15-file-aria-2590-cold-reader-fidelity-spec.md`):
+PROCEED-WITH-CHANGES. AC7 and AC9 were falsified as worded; amendments S2–S6 are applied above (gap (d),
+Step 3.6 never names Plan, exact body pin, hook-stripped AC9 copy with a rules-unchanged control, cost
+figure and model limit).
 
