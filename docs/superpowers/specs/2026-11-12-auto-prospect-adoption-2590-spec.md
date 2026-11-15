@@ -139,8 +139,9 @@ Cost, measured 2026-11-14 with the Plan agent on a ~300-line plan: 193,861 subag
 calls, 6.5 min. A reader that also loads the startup instruction files costs more per round, by the size
 of those files: in the author's workspace a CLAUDE.md-loading subagent carried ~215k tokens of
 always-on instructions before any work (reference note, measured 2026-09-05). The plan measures one
-round from a real workspace before release, and the Step 0 line states that figure and that it is a
-floor. The agent has no `model` key, so it runs on the session's default subagent model; a small model
+round from a real workspace before release and the CHANGELOG records that figure; the shipped Step 0
+line names only what drives the cost (the user's own startup instruction files plus the plan), since a
+number measured in one workspace is wrong in every other. The agent has no `model` key, so it runs on the session's default subagent model; a small model
 can fail under that load, and the block then reports the round as not run with the error (S6).
 
 **`/auto … cold` / `cold=<N>`.** At every `/prospect` the arc runs, pass `--cold` and repeat rounds after
