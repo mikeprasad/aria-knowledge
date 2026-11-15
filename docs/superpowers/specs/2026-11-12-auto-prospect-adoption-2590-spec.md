@@ -1,7 +1,10 @@
 # 2.59.0 spec — `/auto` and `/prospect` adoptions from a field report
 
 **Status:** spec, `/prospect` 2026-11-12 = PROCEED-WITH-CHANGES; amendments A1–A7 + AC7 applied below
-(log: `knowledge/logs/prospect/2026-11-12-file-aria-2590-auto-prospect-adoption-spec.md`). **Target:** canonical 2.59.0 (+ Cowork 1.8.4). **Base:** built on the
+(log: `knowledge/logs/prospect/2026-11-12-file-aria-2590-auto-prospect-adoption-spec.md`). **Revised
+2026-11-15:** the cold reader targets fidelity to the implementer's environment (H4); R1 rewritten whole
+under R4's own rule (third amendment round), identifier diff at the end; re-prospected (see the end).
+**Target:** canonical 2.59.0 (+ Cowork 1.8.4). **Base:** built on the
 released 2.58.0 — this branch was cut from local `main` for the docs only and is rebased onto `main`
 after `v2.58.0` is tagged. No source edit lands before that rebase.
 
@@ -26,6 +29,7 @@ Every row is answered; no build step waits on one. (This table is itself R5, app
 | H1 | Which proposals to adopt | The recommended set above | 2026-11-12 |
 | H2 | Name of the R1 opt-in | `cold` — `/prospect --cold`, `/auto … cold`, `cold=<N>` | 2026-11-12 |
 | H3 | Ship with 2.58.0 or after | After: 2.58.0 full release, then 2.59.0 | 2026-11-12 |
+| H4 | What the cold reader should match | The implementer's environment, minus the writer's conversation — not an empty context. Keep this plugin's hooks firing in the read; ship a read-only reviewer agent with the plugin; read the plan where it sits | 2026-11-15 |
 
 ## Agent decisions (ratify at `/prospect`)
 
@@ -41,6 +45,21 @@ Every row is answered; no build step waits on one. (This table is itself R5, app
 - [DECISION] D5 — R7 lists live peers and recent commit activity on the files the plan touches; it does
   **not** claim which session "owns" a file. No instrument measures ownership, so the skill states that
   bound instead of guessing.
+- [DECISION] D6 (2026-11-15) — in Claude Code the reader is a plugin-shipped agent,
+  `plugin-claude-code/agents/cold-reader.md`, addressed as `aria-knowledge:cold-reader`, with
+  `tools: Read, Grep, Glob, Bash` and nothing else in frontmatter beyond `name` and `description` (no
+  `omitClaudeMd`, no `model`, no `effort`). Its body says only: follow the prompt, change no file. A
+  body that describes the plan, the project or the review's purpose would rebuild the writer's context.
+  When `aria-knowledge:cold-reader` is not among the available agent types, dispatch `general-purpose`
+  (it loads the same startup files, measured below) and the Cold read block says so — it has Edit/Write,
+  so the `git status` check is the only guard on that path.
+- [DECISION] D7 (2026-11-15) — the plan is read where it sits. A scratch copy outside every repository
+  is made only when the environment line says the implementer will not have the checkout, or when the
+  plan is not yet a file (scope `session`/`todos`).
+- [DECISION] D8 (2026-11-15) — `aria-knowledge:cold-reader` is never added to
+  `subagent_selfreport_types`. That SubagentStart hook injects "surface durable findings" text the
+  implementer never receives; its default list is `Explore` only (`scripts/config.sh`), so nothing
+  changes unless a user adds the type, and `/setup` and the Cold read block do not suggest it.
 
 Census for D2/H2 (2026-11-12, `/usr/bin/grep -rnE '(--cold\b|[^a-z]cold=|--summary\b)' plugin-*`):
 no match; a positive control (`cold` in `auto/SKILL.md`) matched 5 lines, so the search ran. `/auto`
@@ -51,51 +70,69 @@ already says "cold-executable plan" (lines 174, 381) — `cold` keeps that meani
 Each item: wanted behaviour → what must hold → where. File lists name canonical
 `plugin-claude-code/skills/<name>/SKILL.md`; port propagation is its own section.
 
-### R1 — Cold read: a context-free review by a fresh agent
+### R1 — Cold read: a review by a reader with the implementer's environment and none of the writer's conversation
 
-**Why.** The agent that wrote a plan cannot judge whether a stranger could carry it out: the stranger it
-imagines shares its context. In the report, two `/prospect` passes found what the writer could see;
-four context-free reads then found 5 BLOCKERs those passes had let through.
+**Why.** The agent that wrote a plan cannot judge whether someone else could carry it out: the reader
+it imagines shares its conversation. In the report, two `/prospect` passes found what the writer could
+see; four reads by fresh agents then found 5 BLOCKERs those passes had let through.
+
+**Target: fidelity, not emptiness (H4, 2026-11-15).** The session that will carry the plan out starts
+with the user's CLAUDE.md files, their rules files and this plugin's hooks. A reader with less than that
+reports gaps the implementer would never hit and misses failures those instructions cause. So the reader
+gets the implementer's startup environment and is denied exactly one thing: the writer's conversation.
+Wording everywhere is "fresh reader". Never "context-free" or "instruction-free".
 
 **`/prospect --cold`** (Step 3.6, after 3.5, before the report). One round:
-1. The plan must be a file. Scope `file` → that file. Otherwise write the plan the scope resolved to a
-   new, uniquely named file in the runtime's scratchpad (file-write tool, never a shell redirect).
-2. Spawn **one** subagent whose prompt is exactly the template below, filled with an environment line
-   and the path — nothing else. ⛔ No goal, ticket, background, project name or "this is about X": any of
-   those rebuilds the writer's context and voids the check.
-   ⛔ **The prompt is not the only context (A1).** Per Claude Code's docs (read 2026-11-12, host 2.1.323),
-   a default or custom subagent loads CLAUDE.md and the whole memory hierarchy at startup; the built-in
-   **Plan** and **Explore** agents skip CLAUDE.md and git status. In Claude Code, dispatch the built-in
-   **Plan** agent (it also has no Edit/Write; Explore reads excerpts, and a cold read needs the whole
-   file). A runtime with no instruction-free agent type runs with what it has, and the report states what
-   that reader loaded — it never calls the read context-free when it is not.
-   ⛔ **Measured 2026-11-14 (Claude Code 2.1.325) — even the Plan agent is fresh, not instruction-free.**
-   A Plan-agent cold read of this release's plan got no git status and no startup CLAUDE.md, but nested
-   `CLAUDE.md` files were injected the moment it read a file beneath them, and this plugin's own
-   `bash-cd-check.sh` hook injected five earlier prospect logs. It still found real BLOCKERs. Cost:
-   193,861 subagent tokens, 38 tool calls, 6.5 min. Two mitigations: (i) **copy the plan to a new file in
-   a scratch directory outside any repository** before dispatch, so the first read pulls in nothing; (ii)
-   the template gains a fifth item — *"5. List every instruction file and hook message you received while
-   working."* — and the Cold read block prints that list. Wording everywhere is "fresh reader", never
-   "instruction-free". Silencing this plugin's own injection hooks inside a cold read is an open question
-   for Mike, not part of 2.59.0.
-   **Capability, not intent (A2).** "Read only" in a prompt constrains nothing, and Plan keeps Bash. Record
-   `git status --porcelain` before and after the round; any change is a finding and the round is flagged.
+1. **Where the reader reads (D7).** Scope `file` → that file, in place. Scope `session`/`todos` (no
+   file yet) → write the plan to a new, uniquely named file in the runtime's scratchpad (file-write tool,
+   never a shell redirect). If the environment line says the implementer will not have the checkout,
+   copy the plan to a new file in a scratch directory outside every repository and read that.
+2. **Who reads (D6).** Spawn **one** subagent whose prompt is exactly the template below, filled with an
+   environment line and the path, and nothing else. ⛔ No goal, ticket, background, project name or "this
+   is about X": any of those carries the writer's conversation into the read.
+   - **Claude Code:** dispatch `aria-knowledge:cold-reader` (shipped in `agents/`, tools Read, Grep, Glob,
+     Bash). If that type is not available, dispatch `general-purpose` and say so in the block.
+   - **Another runtime with a subagent tool:** use it, and the block states what that reader loads at
+     startup (Codex: `AGENTS.md` from the project root down; unknown → "startup context unrecorded").
+   - **No subagent tool:** print `Cold read: not run — this runtime cannot start a subagent`.
+   **What the Claude Code reader receives** (Claude Code docs read 2026-11-15; measured on 2.1.325):
+   - Measured 2026-11-15: a plugin-shipped agent's API request carried the project `CLAUDE.md` and the
+     user's `~/.claude/rules/*.md`. So did `general-purpose` (positive control). The built-in Plan agent's
+     request carried neither (negative control). That is why the Plan agent is not used.
+   - Docs: nested `CLAUDE.md` files load when the reader opens a file beneath them, as for the
+     implementer. Plugin hooks fire on the reader's tool calls (`PreToolUse`/`PostToolUse`), as for the
+     implementer. This plugin does not suppress them (H4).
+   - **Known gaps, printed in the block every time:** (a) the reader does not get the main session's auto
+     memory (docs); (b) it gets its own short system prompt, not Claude Code's (docs); (c) SubagentStart
+     hooks reach it and not the implementer. This plugin's self-report hook is off for this type (D8).
+3. **Capability, not intent (A2).** "Read only" in a prompt constrains nothing; the reader has Bash.
+   Record `git status --porcelain` before and after the round. Any change is a finding and the round is
+   flagged. `git status` cannot see writes outside the repository; say so.
+4. **The template.** The `cold-read-template` block is byte-identical in every port:
    > Your environment: `<what the implementer will have, or "none">`. Read only. Read this file:
    > `<path>`. Then produce: 1. The exact steps you would execute, in order. 2. Everything you cannot
    > reach or resolve. 3. Every place where two instructions conflict. 4. Any content a reader acting
-   > on it could mistake for a separate task. Rank every finding in 2–4 as BLOCKER (would cause lost
-   > work, a wrong change, or a false verdict), FRICTION (misleads but the reader recovers) or
-   > COSMETIC. The ranking matters more than the number of findings.
+   > on it could mistake for a separate task. 5. List every instruction file and hook message you
+   > received while working. Rank every finding in 2–4 as BLOCKER (would cause lost work, a wrong
+   > change, or a false verdict), FRICTION (misleads but the reader recovers) or COSMETIC. The ranking
+   > matters more than the number of findings.
 
    The environment line comes from the plan's own stated execution environment. If the plan states
-   none, use `none` and record "plan does not state its execution environment" as a finding.
-3. **Findings are leads.** Check each against the plan before it counts. A confirmed BLOCKER sets that
+   none, use `none`, read in place, and record "plan does not state its execution environment" as a
+   finding. Item 5 is the fidelity check: the block compares it with what the implementer would load
+   and names any difference.
+5. **Findings are leads.** Check each against the plan before it counts. A confirmed BLOCKER sets that
    step's §4.3 action to not-PROCEED, and §4.8's overall verdict cannot be PROCEED while one stands.
    A finding refuted on checking is listed with the refutation.
-4. §4.8 prints a **Cold read** block: round number, subagent type, environment line used, findings by
-   rank with confirmed/refuted, the `git status` before/after result, and the dispatched prompt's
-   character count (evidence it carried only the template).
+6. §4.8 prints a **Cold read** block: round number, subagent type (and why, if the fallback was used),
+   where the plan was read (in place / scratch copy and why), environment line used, findings by rank
+   with confirmed/refuted, the `git status` before/after result, the reader's item-5 list compared with
+   the implementer's expected set, the three known gaps, and the dispatched prompt's character count
+   (evidence it carried only the template).
+
+Cost, measured 2026-11-14 with the Plan agent on a ~300-line plan: 193,861 subagent tokens, 38 tool
+calls, 6.5 min. A reader that also loads the startup instruction files costs more per round; the
+Step 0 line states the measured figure and that it is a floor.
 
 **`/auto … cold` / `cold=<N>`.** At every `/prospect` the arc runs, pass `--cold` and repeat rounds after
 applying amendments, until a round finds **no confirmed BLOCKER** or `N` rounds have run (default 4,
@@ -110,14 +147,16 @@ walkthrough and the Step 0.5 contract, so a mis-parse is visible before any work
   the contract states "~1 subagent per round, up to N rounds per prospect".
 - Opt-in only. No mode turns it on implicitly.
 
-**Where.** `prospect/SKILL.md`: frontmatter `argument-hint` and `allowed-tools` (+ `Agent`, A3 —
-`allowed-tools` pre-approves and never restricts, so without it `--cold` can stall on a permission
-prompt), Step 0 modifier list, new Step 3.6, §4.3, §4.8, Step 8 validation gates. `auto/SKILL.md`:
-`argument-hint`, Step 0 modifiers + worked cases, Step 0¾ config axis, Step 0.5 contract line, Step 1 arc
-steps 3 and 5, Step 5.
-⛔ **No frontmatter `description` changes (A4).** `/auto`'s is 1,005 chars against claude.ai's 1,024
-per-skill cap, and Gate B (summed descriptions) had 709 B of headroom on local `main`. `argument-hint` is
-not counted by Gate B. Re-measure both after the rebase.
+**Where.** `plugin-claude-code/agents/cold-reader.md` (new, D6). `prospect/SKILL.md`: frontmatter
+`argument-hint` and `allowed-tools` (+ `Agent`, A3 — `allowed-tools` pre-approves and never restricts, so
+without it `--cold` can stall on a permission prompt), Step 0 modifier list, new Step 3.6, §4.3, §4.8,
+Step 8 validation gates. `auto/SKILL.md`: `argument-hint`, Step 0 modifiers + worked cases, Step 0¾
+config axis, Step 0.5 contract line, Step 1 arc steps 3 and 5, Step 5.
+⛔ **No frontmatter `description` changes to skills (A4).** `/auto`'s is 1,005 chars against claude.ai's
+1,024 per-skill cap, and Gate B (summed descriptions) had 709 B of headroom on local `main`. `argument-hint`
+is not counted by Gate B. Re-measure both after the rebase. The new agent's `description` is not a skill
+description (Gate B sums `skills/*/SKILL.md` only); it is kept under 200 chars with no `<`, `>`, `[` or `]`,
+the same precaution as skills, because no claude.ai rule for agent files is published.
 
 ### R2 — A receipt for every command the plan hands over
 
@@ -247,7 +286,10 @@ The report's other two (`command-invocation-assumed-not-verified`,
 | claude-cowork | yes | — | by hand; ships as Cowork 1.8.4 |
 | cursor-template | in `aria-commands.mdc` | in `.mdc` | `port-skills-to-mdc.py` — never hand-edit generated `.mdc` |
 
-Runtimes that cannot spawn a subagent print `Cold read: not run — this runtime cannot start a
+Only claude-code ships `agents/cold-reader.md`; `release.sh` copies the whole plugin directory, so it
+ships with no build change. Antigravity's `build.sh` copies `skills/` and `template/` only, so the agent
+does not reach it, which is correct: its runtime takes the "another runtime with a subagent tool" branch.
+Codex keeps `spawn_agent`. Runtimes that cannot spawn a subagent print `Cold read: not run — this runtime cannot start a
 subagent`; whether each port's runtime can is measured during the plan, not assumed. `PORT-LEDGER.json`
 re-baselined per port only after that port is verified — never `check-port-drift.sh --update all`.
 
@@ -270,9 +312,19 @@ Each names the check that can fail it.
   (Tier / First identified / summary / Detection cues / Why / Counter-discipline).
 - **AC6 (gates).** Full plugin suite, hygiene gate (incl. the private list and every commit message),
   port-drift check: bare exit 0.
-- **AC7 (reviewer identity).** Step 3.6's text names the Claude Code subagent type (Plan) with its host
-  version stamp, and the Cold read block's fields include the subagent type and the `git status`
-  before/after result; a repro asserts both in every port carrying the step.
+- **AC7 (reviewer identity).** Step 3.6's text names `aria-knowledge:cold-reader`, its `general-purpose`
+  fallback, the docs-read date and the measured host version, and the three known gaps; the Cold read
+  block's fields include subagent type, where the plan was read, the `git status` before/after result
+  and the item-5 comparison. No port names the Plan agent as the reader. A repro asserts all of it in
+  every port carrying the step.
+- **AC8 (the agent file).** `plugin-claude-code/agents/cold-reader.md` exists; its frontmatter keys are
+  exactly `name`, `description`, `tools`; `tools` is exactly `Read, Grep, Glob, Bash`; the description is
+  under 200 chars with no `<`, `>`, `[`, `]`; the body names no project, ticket or plan. A repro asserts
+  each, each mutation-proven; the claude.ai upload-limits repro scans `agents/*.md` descriptions too.
+- **AC9 (startup context, measured before release).** With `claude -p --plugin-dir <the built plugin>`
+  in a scratch project whose `CLAUDE.md` holds a sentinel, dispatch `aria-knowledge:cold-reader`, and
+  `Plan` as the negative control. Pass: the sentinel is in the reader's API-request record in its
+  subagent transcript and absent from Plan's. The control must fire, or the check is void.
 - **Port Task 0 (measure first).** Before any port's text is written, read each runtime's current docs
   (Codex, Cowork, Antigravity) for whether it can start a subagent and what that subagent loads; record
   the answer with the runtime version. Unknown **capability** ⇒ that port prints the not-run line; known
@@ -286,11 +338,15 @@ Each names the check that can fail it.
   port ⇒ not-run line.
 
 **Success signal — live, owed after release (cannot be shown by a repro):**
-- L1: `/prospect file <a real plan> --cold` dispatches a subagent whose prompt is only the template
-  (read from the transcript), returns ranked findings, and each is marked confirmed/refuted.
+- L1: `/prospect file <a real plan> --cold` dispatches `aria-knowledge:cold-reader` with a prompt that is
+  only the template (read from the transcript), returns ranked findings each marked confirmed/refuted,
+  and prints the item-5 list.
 - L2: `/auto plan <goal> cold=2` stops after the first BLOCKER-free round, or at 2 rounds, and says
   which.
 - L3: a runtime without subagents prints the not-run line rather than skipping silently.
+- L4: the 2.59.0 plugin zip, which now has an `agents/` directory, still installs on claude.ai. The
+  published docs restrict only `bin/` there; no agent-file rule is published, so this is unverified
+  until tried.
 
 The report's author offered the plan and spec their run produced as worked examples; those are the
 intended L1 input.
@@ -299,3 +355,21 @@ intended L1 input.
 
 R8 (typed discovery stage), marking every claim's origin (R9's other half), any change to the D7 ledger,
 §4.6 questions 1–3, or the report's ten-section shape.
+
+## Revision 2026-11-15 — identifier diff (R4)
+
+| Identifier | Before | After | Reason |
+|---|---|---|---|
+| H4 | — | added | Mike's ruling: fidelity, not emptiness |
+| D6, D7, D8 | — | added | reader type; read in place; self-report hook stays off for it |
+| R1 heading | "context-free review by a fresh agent" | "reader with the implementer's environment…" | H4 |
+| R1 step 1 | always write the plan to a file; A1 mitigation (i) always copies to scratch | read in place; copy only when the environment excludes the checkout or no file exists (D7) | H4 |
+| R1 step 2 / A1 | dispatch the built-in Plan agent | `aria-knowledge:cold-reader`, fallback `general-purpose` | Plan skips startup CLAUDE.md and rules (measured 2026-11-15) |
+| R1 "open question for Mike" on silencing hooks | open | dropped — answered by H4 (keep them) | ruled |
+| R1 template | four items + item 5 described separately | five items in one block | same content, one source |
+| R1 Cold read block | type, env line, findings, git status, received list, char count | + where read, fallback reason, item-5 comparison, three known gaps | H4 |
+| AC7 | names Plan | names `aria-knowledge:cold-reader`; Plan forbidden as the reader | H4 |
+| AC8, AC9, L4 | — | added | the new agent file and its measured startup context |
+| L1 | "a subagent" | `aria-knowledge:cold-reader` + item-5 list | H4 |
+| Dropped: none of R2–R9, `--summary`, hygiene, patterns, AC1–AC6, L2, L3 | | | |
+
