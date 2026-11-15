@@ -102,12 +102,18 @@ Wording everywhere is "fresh reader". Never "context-free" or "instruction-free"
    - Docs: nested `CLAUDE.md` files load when the reader opens a file beneath them, as for the
      implementer. Plugin hooks fire on the reader's tool calls (`PreToolUse`/`PostToolUse`), as for the
      implementer. This plugin does not suppress them (H4).
-   - **Known gaps, printed in the block every time:** (a) the reader does not get the main session's auto
-     memory (docs); (b) it gets its own short system prompt, not Claude Code's (docs); (c) SubagentStart
+   - **Known gaps, printed in the block every time:** (a) auto memory — the docs (a summary,
+     not verbatim) say subagents do not get the main session's; measured 2026-11-15 (2.1.325), a
+     `general-purpose` reader DID receive the workspace `MEMORY.md` at startup, before its first tool call.
+     AC9 measures the shipped agent; the CHANGELOG states the result, not the docs claim; (b) it gets its own short system prompt, not Claude Code's (docs); (c) SubagentStart
      hooks reach it and not the implementer. This plugin's self-report hook is off for this type (D8);
      (d) its startup instruction files follow the session's working directory, not the plan's location,
      so if the implementer will start somewhere else the two sets differ (docs: "A subagent starts in
-     the main conversation's current working directory"). The item-5 comparison shows it.
+     the main conversation's current working directory"). The item-5 comparison shows it;
+     (e) SessionStart hook output (this plugin's `ARIA CONFIG` line and rules notices) reaches the main
+     session only: measured 2026-11-15 (2.1.325), the value line appeared 3 times in the main transcript and
+     0 times in each of three subagents. It is named, not injected: passing it in the prompt would break
+     "only the template" and AC3's byte identity.
    ⛔ **Step 3.6's text never names the Plan agent (S3).** Why it is not used is recorded here and in the
    CHANGELOG; a skill that explains it gives the next reader a second option to pick.
 3. **Capability, not intent (A2).** "Read only" in a prompt constrains nothing; the reader has Bash.
@@ -132,7 +138,7 @@ Wording everywhere is "fresh reader". Never "context-free" or "instruction-free"
 6. §4.8 prints a **Cold read** block: round number, subagent type (and why, if the fallback was used),
    where the plan was read (in place / scratch copy and why), environment line used, findings by rank
    with confirmed/refuted, the `git status` before/after result, the reader's item-5 list compared with
-   the implementer's expected set, the three known gaps, and the dispatched prompt's character count
+   the implementer's expected set, the five known gaps, and the dispatched prompt's character count
    (evidence it carried only the template).
 
 Cost, measured 2026-11-14 with the Plan agent on a ~300-line plan: 193,861 subagent tokens, 38 tool
@@ -323,7 +329,7 @@ Each names the check that can fail it.
 - **AC6 (gates).** Full plugin suite, hygiene gate (incl. the private list and every commit message),
   port-drift check: bare exit 0.
 - **AC7 (reviewer identity).** Step 3.6's text names `aria-knowledge:cold-reader`, its `general-purpose`
-  fallback, the docs-read date and the measured host version, and the three known gaps; the Cold read
+  fallback, the docs-read date and the measured host version, and the five known gaps; the Cold read
   block's fields include subagent type, where the plan was read, the `git status` before/after result
   and the item-5 comparison. Step 3.6 contains no "Plan agent" (case-insensitive) in any port. A repro
   asserts all of it in every port carrying the step.
@@ -383,7 +389,7 @@ R8 (typed discovery stage), marking every claim's origin (R9's other half), any 
 | R1 step 2 / A1 | dispatch the built-in Plan agent | `aria-knowledge:cold-reader`, fallback `general-purpose` | Plan skips startup CLAUDE.md and rules (measured 2026-11-15) |
 | R1 "open question for Mike" on silencing hooks | open | dropped — answered by H4 (keep them) | ruled |
 | R1 template | four items + item 5 described separately | five items in one block | same content, one source |
-| R1 Cold read block | type, env line, findings, git status, received list, char count | + where read, fallback reason, item-5 comparison, three known gaps | H4 |
+| R1 Cold read block | type, env line, findings, git status, received list, char count | + where read, fallback reason, item-5 comparison, five known gaps | H4 |
 | AC7 | names Plan | names `aria-knowledge:cold-reader`; Step 3.6 never names the Plan agent (S3) | H4; "as the reader" was untestable |
 | AC8, AC9, L4 | — | added | the new agent file and its measured startup context |
 | L1 | "a subagent" | `aria-knowledge:cold-reader` + item-5 list | H4 |

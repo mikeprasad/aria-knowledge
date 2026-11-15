@@ -42,16 +42,17 @@ maintainer's machine with this plugin installed, started in the worktree; the ch
   SessionStart then stamps `~/.claude/rules/*` with 2.59.0, and the installed older writer never replaces a
   newer stamp, so the live rules stay at a pre-release build. Every `--plugin-dir` probe in this plan uses
   a copy with the `hooks` key removed (Task 8).
+- `$SP` = this session's scratchpad directory (the harness names it; never `/tmp`), set again in every call.
 - Suites by path: `tests/run.sh` (repo repros) · `plugin-claude-code/tests/run.sh` (plugin suite) ·
   `plugin-openai-codex/tests/run.sh` · `tests/repros/port-generation-idempotence.sh` ·
   `tests/repros/claude-ai-upload-limits.sh`.
 - No push, tag or release. The plan ends at Task 10.
 
-## Port facts (measured — the spec's measure-first port task)
+## Port facts (measured 2026-11-14/15 — done, not a task)
 
 | Port | Can start a subagent? | What the reader loads | Cold read behaviour |
 |---|---|---|---|
-| claude-code | yes — the plugin's own `aria-knowledge:cold-reader` (Task 2; tools Read, Grep, Glob, Bash) | startup CLAUDE.md and `~/.claude/rules/*.md`, like the implementer (a plugin-shipped agent, measured 2026-11-15, host 2.1.325); nested CLAUDE.md on read and plugin hooks (docs); no main auto memory, own system prompt (docs) | runs; fallback `general-purpose` if the type is absent |
+| claude-code | yes — the plugin's own `aria-knowledge:cold-reader` (Task 2; tools Read, Grep, Glob, Bash) | startup CLAUDE.md and `~/.claude/rules/*.md`, like the implementer (a plugin-shipped agent, measured 2026-11-15, host 2.1.325); nested CLAUDE.md on read and plugin hooks (docs); own system prompt (docs); no SessionStart hook output (measured 2026-11-15); main `MEMORY.md` received by `general-purpose` (measured 2026-11-15), plugin agent measured in AC9 | runs; fallback `general-purpose` if the type is absent |
 | openai-codex | yes — `spawn_agent` | `AGENTS.md` from project root to cwd (openai/codex docs, `main`, read 2026-11-14) | runs; says the reader loaded `AGENTS.md` |
 | antigravity | yes — `invoke_subagent` (repo `PORTING.md`; source date unrecorded) | unrecorded | runs; says startup context is unrecorded. Its `prospect` is generated from canonical with no overlay, so canonical's text is runtime-conditional. `build.sh` copies `skills/` and `template/` only, so `agents/` does not reach this port (correct) |
 | claude-cowork | no ("no parallel subagents", its `foundational-review` skill) | — | prints `Cold read: not run — this runtime cannot start a subagent` |
@@ -65,7 +66,8 @@ maintainer's machine with this plugin installed, started in the worktree; the ch
 2. `(cd "$WT" && git fetch origin && git rebase --onto origin/main 448e2d7)`. ⛔ Not a plain
    `git rebase origin/main`: that would replay every local-`main` commit missing from `origin/main` too.
    Expected: exactly this branch's own docs commits replay (count them first:
-   `git rev-list --count 448e2d7..HEAD`), with no conflicts. Then
+   `git rev-list --count 448e2d7..HEAD`), with no conflicts. Any conflict ⇒ `git rebase --abort`, stop,
+   record the conflicting paths, amend this plan (this branch and 2.58.0 both append to `CLAUDE.md`). Then
    `git merge-base --is-ancestor "$(git rev-parse 'v2.58.0^{commit}')" HEAD` → exit 0.
 3. Re-measure and compare:
 
@@ -80,6 +82,13 @@ maintainer's machine with this plugin installed, started in the worktree; the ch
    | `plugin-claude-code/agents/` | `ls` | absent |
    | Self-report default | `grep -n 'SELFREPORT_TYPES:-' plugin-claude-code/scripts/config.sh` | `Explore` |
    | Host version | `claude --version` | record it; 2.1.325 was the measured host |
+
+   ⛔ The table writes `\|` so the pipes render; run the commands as written here instead (a literal `\|`
+   matches nothing and exits 1 with no error):
+   ```
+   /usr/bin/grep -oE 'feedback_[a-z0-9_]+' <f> | wc -l
+   grep -nE '^## Step |^### 3\.5\.|^### 4\.' plugin-claude-code/skills/prospect/SKILL.md
+   ```
 
    After the generator row, restore only generated paths:
    `git restore --source=HEAD --worktree -- plugin-antigravity plugin-cursor-template` (the index equals
@@ -164,8 +173,8 @@ starting `## /` — and asserts only inside it. Every Step 3.6 arm likewise extr
   them), no "(Claude Code variant" text.
 - P4 positive (AC7): Step 3.6 names `aria-knowledge:cold-reader`, its `general-purpose` fallback, the stamp
   "Claude Code docs read 2026-11-15; measured on 2.1.325", the words "fresh reader", the in-place reading
-  rule (D7), and the four known gaps (auto memory · own system prompt · SubagentStart hooks · startup files
-  follow the session's working directory); the Cold read block lists subagent type, where the plan was
+  rule (D7), and the five known gaps (auto memory, as measured · own system prompt · SubagentStart hooks · startup files
+  follow the session's working directory · no SessionStart hook output); the Cold read block lists subagent type, where the plan was
   read, `git status` before/after, and the item-5 comparison.
 - P5 positive: §4.6 says "Four questions"; Q4 is the in-flight-work question.
 - P6 positive: Step 6 carries the `--summary` rule.
@@ -174,7 +183,8 @@ starting `## /` — and asserts only inside it. Every Step 3.6 arm likewise extr
 - P9 guard: inside Step 3.6, no port contains "instruction-free", "context-free" or "Plan agent"
   (case-insensitive; spec S3). Prove by inserting "the built-in Plan agent" into one port's Step 3.6 → red →
   restore.
-- P10 guard: every port's `description` is byte-unchanged from the pre-change tree. Prove by mutation.
+- P10 guard: every port with per-skill frontmatter (claude-code, codex, cowork, antigravity) keeps its
+  `description` byte-unchanged from the pre-change tree; Cursor's `.mdc` has none and is exempt. Prove by mutation.
 
 **Change (canonical `plugin-claude-code/skills/prospect/SKILL.md`).**
 1. Frontmatter: `argument-hint` gains `[--cold] [--summary]`; `allowed-tools` gains `Agent`.
@@ -189,7 +199,7 @@ starting `## /` — and asserts only inside it. Every Step 3.6 arm likewise extr
    file exists); fill the five-item template; environment line from the plan, else `none` + a finding;
    dispatch — Claude Code: `aria-knowledge:cold-reader`, else `general-purpose` and say so; another runtime
    with a subagent tool: that tool, and the block says what the reader loads (Codex: `AGENTS.md`; unrecorded
-   ⇒ say so); no subagent ⇒ the not-run line; the four known gaps; `git status --porcelain` before/after (it
+   ⇒ say so); no subagent ⇒ the not-run line; the five known gaps; `git status --porcelain` before/after (it
    cannot see writes outside the repo — say so); findings are leads, checked against the plan before they
    count. ⛔ Never name the Plan agent in this step (S3).
 6. §4.3: a confirmed cold-read BLOCKER ⇒ that step is not PROCEED; a step depending on an unanswered
@@ -197,7 +207,7 @@ starting `## /` — and asserts only inside it. Every Step 3.6 arm likewise extr
 7. §4.6: "Four questions"; Q4 per spec R6; "none found" names its instrument.
 8. §4.8: overall cannot be PROCEED while a confirmed BLOCKER stands; Cold read block (round, subagent type
    and fallback reason, where read, environment line, findings by rank confirmed/refuted, git status result,
-   item-5 list compared with the implementer's expected set, the four known gaps, prompt char count).
+   item-5 list compared with the implementer's expected set, the five known gaps, prompt char count).
 9. Step 6: `--summary` rule (spec).
 10. Step 8: gate 12 — with `--cold`, Step 3.6 ran or printed its not-run reason.
 
@@ -221,7 +231,9 @@ suite; idempotence; upload-limits. **Commit**
 - A5 positive: arc step 6 re-runs the plan's pre-execution checks and compares upstream-changed files to the plan's files.
 - A6 positive: Step 0.5 lists peer activity and says "activity, not ownership".
 - A7 positive: Step 5 says cold-read rounds count toward `agents=`.
-- A8 guard: `description` byte-unchanged. Prove by mutation.
+- A8 guard: `description` byte-unchanged (claude-code, codex, antigravity). Prove by mutation.
+- A9 positive: Cursor's `/auto` section of `aria-commands.mdc` (from `## /auto` to the next line starting
+  `## /`) lists `cold` and `cold=<N>` in its Step 0 modifiers. Red first.
 
 **Change** canonical `plugin-claude-code/skills/auto/SKILL.md` at those sections; Codex by hand; regenerate
 Antigravity and Cursor. Cowork has no `/auto`. **Verify** repro all arms; plugin + codex suites;
@@ -245,17 +257,18 @@ hand-copy to Codex, Cowork, Cursor; regenerate Antigravity. **Verify** repro; id
 
 Canonical `plugin.json` → 2.59.0; hand-bump `plugin-antigravity/plugin.json`, run `build.sh`
 (`version.txt` syncs); `plugin-openai-codex/.codex-plugin/plugin.json` → `2.59.0-codex.0`;
-`plugin-cursor-template/scripts/aria/VERSION` → `2.59.0-cursor.0`; Cowork → 1.8.4 (per Task 0 step 1).
+`plugin-cursor-template/scripts/aria/VERSION` → `2.59.0-cursor.0`; Cowork → the version Task 0 step 1
+recorded (1.8.4 if `cowork-v1.8.3` exists, else 1.8.3).
 `CHANGELOG.md` 2.59.0: each adoption, the new `aria-knowledge:cold-reader` agent, the hygiene class fix, the
 two patterns, and **Known limits**: the reader is fresh, never instruction-free, in every runtime (Claude
-Code: it loads your startup CLAUDE.md, rules and hooks like the implementer, but not the main session's
-auto memory, it has its own system prompt, and its startup files follow the session's working directory;
+Code: it loads your startup CLAUDE.md, rules and hooks like the implementer, and auto memory per Task 8's
+measurement, but not SessionStart hook output, it has its own system prompt, and its startup files follow the
+session's working directory;
 Codex: `AGENTS.md`; Antigravity: unrecorded); why the built-in Plan agent is not used (it skips startup
 CLAUDE.md and rules, measured 2026-11-15 on 2.1.325); the agent has no `model` key, so it runs on the
-default subagent model, and a small one can fail under a large instruction load; the per-round cost figure
-from Task 8; `git status` cannot see writes outside the repo; a plugin with an `agents/` directory has not
+default subagent model, and a small one can fail under a large instruction load; the line `Cost per round: measured in Task 8.` (Task 8 step 4 replaces it); `git status` cannot see writes outside the repo; a plugin with an `agents/` directory has not
 yet been installed on claude.ai (L4); descriptions deliberately unchanged, so `/auto`'s discovery text does
-not mention `cold`; live checks owed. **Commit** `chore(release): 2.59.0 versions and changelog (Cowork 1.8.4)`.
+not mention `cold`; live checks owed. **Commit** `chore(release): 2.59.0 versions and changelog (Cowork <version from Task 0>)`.
 
 ## Task 7 — Port records and ledger (after the version bump, so the ledger stamps 2.59.0)
 
@@ -265,7 +278,8 @@ not mention `cold`; live checks owed. **Commit** `chore(release): 2.59.0 version
    re-baseline only a port verified in full: **antigravity** (fully regenerated; idempotence proves it).
    **Do not** re-baseline codex, cowork or cursor this release — their hand-synced surfaces beyond
    `prospect`/`auto`/the pattern template were not verified; record that in the CHANGELOG known limits.
-   claude-code is the baseline (version only).
+   claude-code: no command — `check-port-drift.sh` treats it as the version baseline with no surfaces
+   (`claude-code) : ;;` in `port_surfaces`).
 **Commit** `docs(ports): record cold-read behaviour per runtime; re-baseline antigravity`.
 
 ## Task 8 — Full gates and the startup-context probe (AC9)
@@ -277,9 +291,15 @@ not mention `cold`; live checks owed. **Commit** `chore(release): 2.59.0 version
    If the plugin suite's real-rules guard trips, check `~/.claude/rules` mtimes for a concurrent session first.
 2. **AC9 probe** (all paths under the session scratchpad, `$SP`):
    - `cp -R "$WT/plugin-claude-code" "$SP/ak-probe"`, then delete the `hooks` key from
-     `$SP/ak-probe/.claude-plugin/plugin.json` with `python3 -I`. Expected: `grep -c '"hooks"'` on that file
-     → `0`. ⛔ Never pass the real `plugin-claude-code/` to `--plugin-dir` (Ground rules).
-   - `$SP/ak-proj/CLAUDE.md` holding one line `SENTINEL-AC9-<8 random hex>`.
+     `$SP/ak-probe/.claude-plugin/plugin.json` with `python3 -I`. Check with
+     `python3 -I -c "import json,sys; sys.exit('hooks' in json.load(open(sys.argv[1])))" "$SP/ak-probe/.claude-plugin/plugin.json"`
+     → exit 0. (Not `grep -c '"hooks"'`: `"hooks"` is also a `keywords` entry, so it reads 1 after a
+     successful deletion.) ⛔ Never pass the real `plugin-claude-code/` to `--plugin-dir` (Ground rules).
+   - `$SP/ak-proj/CLAUDE.md` holding one line `SENTINEL-AC9-<8 random hex>`, and
+     `~/.claude/projects/<slug of $SP/ak-proj>/memory/MEMORY.md` holding `MEMSENT-AC9-<8 random hex>` (the
+     slug is the project path with `/` and `.` replaced by `-`; delete that directory after the run).
+     The memory sentinel has no pass/fail: it decides gap (a)'s CHANGELOG wording (a `general-purpose`
+     reader received `MEMORY.md` on 2026-11-15, contrary to the docs summary).
    - Record line 1 and `cksum` of each `~/.claude/rules/*.md`.
    - `(cd "$SP/ak-proj" && claude -p --plugin-dir "$SP/ak-probe" --allowedTools Agent --output-format json "<dispatch aria-knowledge:cold-reader and Plan, each told: do not use any tool; quote any token beginning SENTINEL- from your startup text, or say NONE>")`.
      Expected: exit 0.
@@ -290,10 +310,13 @@ not mention `cold`; live checks owed. **Commit** `chore(release): 2.59.0 version
      without that stamp is another session's ordinary SessionStart write — record it, do not fail on it.
 3. **Cost of one real round (spec S6).** Same hook-stripped copy; cwd = the maintainer's projects root (the
    directory sessions normally start in); dispatch `aria-knowledge:cold-reader` once with the five-item
-   template on this plan file. Read the reader's input tokens from its transcript. Record it, with the host
-   version and "hooks stripped, so a floor", for the CHANGELOG.
-4. Update the CHANGELOG known-limits cost line with the figure from 3 (amend Task 6's commit only by a new
-   commit). **Commit** `docs(changelog): measured cold-read cost per round`.
+   template on this plan file. Record two numbers, with the host version and "aria's hooks stripped; other
+   plugins' and the workspace's hooks still fire": the startup load = `input_tokens` +
+   `cache_creation_input_tokens` + `cache_read_input_tokens` on the reader's FIRST assistant message in its
+   subagent transcript (⛔ `input_tokens` alone read 2 for a ~17k startup load, measured 2026-11-15), and
+   the round total = the parent's Agent result `subagent_tokens`.
+4. Replace the CHANGELOG line `Cost per round: measured in Task 8.` with the figures from 3, in a NEW commit
+   (never `git commit --amend`). **Commit** `docs(changelog): measured cold-read cost per round`.
 
 ## Task 9 — `/preflight`, then `/retrospect`
 
@@ -342,6 +365,8 @@ Do not go and fetch them.)
 | L1–L4 | after release |
 
 ## Identifier diff — v1 → v2
+
+(Task numbers in this table are v2's. v2 Task N = v3 Task N+1 from Task 2 on; see the next table.)
 
 | Identifier | v1 | v2 | Reason |
 |---|---|---|---|
@@ -394,3 +419,19 @@ Do not go and fetch them.)
 | L1 | Plan-type dispatch | `aria-knowledge:cold-reader` dispatch + item-5 comparison | H4 |
 | L4 | — | added | spec L4 |
 | Dropped: none of v2's tasks, arms or rules | | | |
+
+## Plan /prospect amendments — 2026-11-15
+
+One cold-read round on v3 (`general-purpose`, the planned fallback; template-only prompt; `git status` empty
+before and after; 354,069 subagent tokens, 28 tool calls, 5.3 min) plus the gate's own evidence pass.
+Confirmed and applied: C1 Cowork version follows Task 0 · C2 five known gaps, incl. (e) no SessionStart output
+(measured: main 3, every subagent 0) · C3 table `\|` runs literally (measured 0 vs 25 matches) · C4 hook-strip
+check read 1 after a successful deletion (keywords) · C5 cost-line placeholder · C6 cost-round label · C7 P10
+exempts Cursor; A9 adds Cursor `/auto` · C8 v1→v2 numbering note · C9 "amend" wording · C10 Port facts
+heading · C11 rebase-conflict rule · C12 claude-code ledger needs no command · C13 `$SP` defined · C14 startup
+load is three token fields · C15 gap (a) falsified for `general-purpose` (`MEMORY.md` arrived as a startup
+attachment, transcript line 6, before the first tool call at line 16); AC9 now measures the shipped agent with a
+memory sentinel. Refuted: "AC9 transcript layout unverified" (meta.json `agentType` and the
+per-agent `.jsonl` measured 2026-11-15) and "nested `claude -p` may be blocked in auto mode" (ran twice in an
+auto-mode session). Log: `knowledge/logs/prospect/2026-11-15-file-aria-2590-plan-v3.md`.
+
