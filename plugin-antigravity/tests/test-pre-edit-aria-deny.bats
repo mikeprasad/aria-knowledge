@@ -80,3 +80,13 @@ stand_in() {
   [ "$DECISION" = "allow" ]
   [ "$REASON" = "" ]
 }
+
+@test "D8 (g): valid JSON that is not an object is denied (fail closed)" {
+  make_transcript "x"
+  stand_in 'cat >/dev/null; echo "\"x\""; exit 0'
+  run_wrapper
+  [ "$DECISION" = "deny" ]
+  stand_in 'cat >/dev/null; echo 42; exit 0'
+  run_wrapper
+  [ "$DECISION" = "deny" ]
+}
