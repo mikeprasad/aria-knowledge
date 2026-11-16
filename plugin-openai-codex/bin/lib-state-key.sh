@@ -184,8 +184,12 @@ kt_session_key() {
 # Does nothing (returns 0) when KT_STATE_DIR is empty — the dir did not resolve. Only regular files
 # (-type f), top level only, no link-following (never -L/-H/-follow): a directory or a link is kept.
 # ⛔ OPERATOR PRECEDENCE decides correctness: find binds -a tighter than -o, and an implicit -a joins
-# the age tests to the name tests. The ungrouped form deletes a 2-day proof file, a FRESH file and
-# matches a directory (measured 2026-11-15). Keep the grouping exactly as written.
+# the age tests to the name tests. Keep the grouping exactly as written; there are TWO traps:
+#   - ungrouping the PROOF LIST inside a branch OVER-deletes: -mmin binds only to the last name, and in
+#     the second branch ! negates only the first sub-group, so a 2-day proof file and fresh files are
+#     deleted (measured 2026-11-15, /usr/bin/find);
+#   - dropping the OUTER group mis-binds -type f and -exec to one branch only and UNDER-deletes: 31-day
+#     proof files survive (and the churn branch loses -type f, so it also removes links).
 kt_state_sweep() {
   [ -n "${KT_STATE_DIR:-}" ] || return 0
   find "$KT_STATE_DIR/" -mindepth 1 -maxdepth 1 -type f \( \
