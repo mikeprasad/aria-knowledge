@@ -94,6 +94,22 @@ stand_in() {
   [[ "$REASON" == *"not a JSON object"* ]]
 }
 
+@test "D8 (i): a missing check denies, naming the file (a missing component still denies)" {
+  make_transcript "[Rule 22] Low Impact — probe"
+  rm -f "$ROOT/bin/pre-edit-check.sh"
+  run_wrapper
+  [ "$DECISION" = "deny" ]
+  [[ "$REASON" == *"pre-edit-check.sh"* ]]
+}
+
+@test "D8 (j): a check that is not executable denies, naming the file" {
+  make_transcript "[Rule 22] Low Impact — probe"
+  chmod -x "$ROOT/bin/pre-edit-check.sh"
+  run_wrapper
+  [ "$DECISION" = "deny" ]
+  [[ "$REASON" == *"pre-edit-check.sh"* ]]
+}
+
 @test "D8 (h): more than one JSON value on stdout is denied (fail closed)" {
   make_transcript "x"
   stand_in 'cat >/dev/null; echo "\"x\""; echo "{}"; exit 0'

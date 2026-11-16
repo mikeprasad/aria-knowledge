@@ -52,7 +52,9 @@ source "$LIB_DIR/lib-antigravity-input.sh"
 CANONICAL="$CLAUDE_PLUGIN_ROOT/bin/pre-edit-check.sh"
 
 if [ ! -x "$CANONICAL" ]; then
-  aria_emit_decision "allow" "aria-knowledge canonical pre-edit-check.sh not found at $CANONICAL; allowing without Rule 22 scan."
+  # A missing component still denies (fail closed, like a failing check): allowing here would turn a
+  # broken install into an unenforced Rule 22 with nothing to say so.
+  aria_emit_decision "deny" "aria-knowledge canonical pre-edit-check.sh is missing or not executable at $CANONICAL; denying (fail closed)."
   exit 0
 fi
 
