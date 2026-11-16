@@ -86,7 +86,7 @@ maintainer's machine with this plugin installed, started in the worktree; the ch
    ⛔ The table writes `\|` so the pipes render; run the commands as written here instead (a literal `\|`
    matches nothing and exits 1 with no error):
    ```
-   /usr/bin/grep -oE 'feedback_[a-z0-9_]+' <f> | wc -l
+   for f in $(git ls-files 'plugin-*'); do n=$(/usr/bin/grep -oE 'feedback_[a-z0-9_]+' "$f" | wc -l); [ "$n" -gt 0 ] && echo "$n $f"; done
    grep -nE '^## Step |^### 3\.5\.|^### 4\.' plugin-claude-code/skills/prospect/SKILL.md
    ```
 

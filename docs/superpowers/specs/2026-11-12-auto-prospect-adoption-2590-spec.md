@@ -341,8 +341,11 @@ Each names the check that can fail it.
   delete the `hooks` key from the copy's `plugin.json` (S5). Then `claude -p --plugin-dir <that copy>` in a
   scratch project whose `CLAUDE.md` holds a sentinel; dispatch `aria-knowledge:cold-reader`, and `Plan` as
   the negative control. Pass: the sentinel is in the reader's API-request record in its subagent
-  transcript and absent from Plan's (the control must fire, or the check is void), AND every file in
-  `~/.claude/rules/` has the same checksum after the run as before. ⛔ Why the copy: measured 2026-11-15
+  transcript and absent from Plan's (the control must fire, or the check is void), AND no file in
+  `~/.claude/rules/` is stamped 2.59.0 afterwards. (Not "unchanged checksum": every concurrent session
+  rewrites those files at its own start, so a checksum change alone is not this run's doing; record it.)
+  A second sentinel in that scratch project's auto-memory `MEMORY.md` has no pass/fail; its result decides
+  gap (a)'s wording in the CHANGELOG. ⛔ Why the copy: measured 2026-11-15
   (2.1.325), a `--plugin-dir` plugin named `aria-knowledge` REPLACES the installed one for that run,
   skills and hooks both. With hooks, the build's SessionStart would stamp `~/.claude/rules` 2.59.0, and the
   installed older writer never replaces a newer stamp, so the user's live rules would stay at a
