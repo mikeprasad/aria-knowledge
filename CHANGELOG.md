@@ -2,7 +2,7 @@
 
 All notable changes to ARIA will be documented in this file.
 
-## [Unreleased]
+## 2.58.0 — 2026-11-16
 
 **Active surfacing ranks project-first, fires on a single named project, and runs on every prompt in Claude Code.** Before this, the hooks ordered matched tags by the *length of the tag name*, the skills used first-appearance order, and the always-on directive left the order unspecified, so each session improvised one. A short project tag lost to any longer generic tag: a task naming a project and "payments" surfaced another project's payments logs.
 

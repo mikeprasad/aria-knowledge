@@ -4,6 +4,15 @@ All notable changes to aria-cowork are documented here. Format follows [Keep a C
 
 Cross-plugin parity callouts (per ADR-006) note when changes coordinate with aria-knowledge releases.
 
+## [1.8.3] — 2026-11-16
+
+**`prospect` and `retrospect` surface knowledge the way aria-knowledge 2.58.0 does.** Coordinated with aria-knowledge v2.58.0.
+
+### Changed
+
+- `prospect`, `retrospect`: Step 0.5 applies the shared ranking by hand (this runtime cannot run code) instead of the old exact-tag-count rule, so the files it loads match what aria-knowledge's ranking CLI picks for the same plan or range. The ledger filter reads the file named by `ledger=` in aria-knowledge's `ARIA CONFIG` line (its private per-user state directory) when that is visible, and keeps its in-memory fallback otherwise. Matched paths are resolved against the knowledge folder before reading, since they arrive relative.
+- `probe/README.md`: the probe 3 fixture is created with the file-write tool, not a shell heredoc.
+
 ## [1.8.2] — 2026-11-08
 
 **Catches up four months of small fixes, none of which change what a skill does.** Coordinated with aria-knowledge v2.57.9.

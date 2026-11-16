@@ -93,9 +93,9 @@
     }
   },
   "cursor-template": {
-    "version": "2.57.9-cursor.0",
-    "parity_target": "2.57.9",
-    "last_parity_pass": "2026-11-14",
+    "version": "2.58.0-cursor.0",
+    "parity_target": "2.58.0",
+    "last_parity_pass": "2026-11-16",
     "sla": "undeclared",
     "surfaces": {
       "plugin-cursor-template/.cursor/rules/aria-commands.mdc": "964acbb87a575684c96f820a1244b8dc34198d0c8115b0c59086ddea23500c4a",
@@ -106,9 +106,9 @@
     }
   },
   "antigravity": {
-    "version": "2.57.9",
-    "parity_target": "2.57.9",
-    "last_parity_pass": "2026-11-14",
+    "version": "2.58.0",
+    "parity_target": "2.58.0",
+    "last_parity_pass": "2026-11-16",
     "sla": "undeclared",
     "surfaces": {
       "plugin-antigravity/skills/aria-assist/SKILL.md": "38441e11a1a7a544ce60544e8313020e87525afc819c9f9ad396a859deb708fc",
