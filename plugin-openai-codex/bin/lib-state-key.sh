@@ -172,3 +172,27 @@ kt_session_key() {
   done
   return 1
 }
+
+# --- Split retention for the state dir (2.58.0 spec D10) ------------------------------------------
+# kt_state_sweep removes aged FILES from the top level of the resolved state dir, and it is the ONE
+# place that find is written (every sweeping hook calls it; a census fails on an inline copy).
+#   PROOF names keep 30 days (-mmin +43200): aria-preflight-* (this covers aria-preflight-skipped-* and
+#     aria-preflight-repo-*) except aria-preflight-denies-*, aria-r22-bypass-*, aria-active-*,
+#     aria-ag-surfaced-*. They are the evidence a gate ran or was bypassed; a 24 h sweep erased it.
+#   CHURN names (everything else, aria-preflight-denies-* and aria-r22-denies-* included) go at 24 h
+#     (-mmin +1440): cooldowns, breakers, carriers, caches, a killed writer's create temps.
+# Does nothing (returns 0) when KT_STATE_DIR is empty — the dir did not resolve. Only regular files
+# (-type f), top level only, no link-following (never -L/-H/-follow): a directory or a link is kept.
+# ⛔ OPERATOR PRECEDENCE decides correctness: find binds -a tighter than -o, and an implicit -a joins
+# the age tests to the name tests. The ungrouped form deletes a 2-day proof file, a FRESH file and
+# matches a directory (measured 2026-11-15). Keep the grouping exactly as written.
+kt_state_sweep() {
+  [ -n "${KT_STATE_DIR:-}" ] || return 0
+  find "$KT_STATE_DIR/" -mindepth 1 -maxdepth 1 -type f \( \
+    \( \( \( -name 'aria-preflight-*' ! -name 'aria-preflight-denies-*' \) -o -name 'aria-r22-bypass-*' \
+         -o -name 'aria-active-*' -o -name 'aria-ag-surfaced-*' \) -mmin +43200 \) \
+    -o \( ! \( \( -name 'aria-preflight-*' ! -name 'aria-preflight-denies-*' \) -o -name 'aria-r22-bypass-*' \
+         -o -name 'aria-active-*' -o -name 'aria-ag-surfaced-*' \) -mmin +1440 \) \
+  \) -exec rm -f {} + 2>/dev/null
+  return 0
+}

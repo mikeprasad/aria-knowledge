@@ -254,10 +254,9 @@ kt_ensure_rules_files
 if [ -f "$SCRIPT_DIR/lib-state-key.sh" ]; then . "$SCRIPT_DIR/lib-state-key.sh"
 else KT_STATE_DIR=; KT_STATE_REASON='lib-state-key.sh missing'; fi
 kt_state_resolve 2>/dev/null || USER_MESSAGES="${USER_MESSAGES}ARIA: private state directory unavailable (${KT_STATE_REASON}) — hooks are running without state. "
-# The state dir's own sweep (spec D6): files there older than 24 h — cooldowns, ledgers, breakers,
-# carriers, caches, a killed writer's create temps. Only when it resolved; top level only; never a
-# directory or a link (-type f).
-[ -n "$KT_STATE_DIR" ] && find "$KT_STATE_DIR/" -mindepth 1 -maxdepth 1 -type f -mmin +1440 -exec rm -f {} + 2>/dev/null
+# The state dir's own sweep (spec D6, split retention D10): kt_state_sweep in lib-state-key.sh — proof
+# names 30 days, everything else 24 h. Only when it resolved; top level only; never a directory or a link.
+[ -n "$KT_STATE_DIR" ] && kt_state_sweep
 # The ledger id is kt_session_key (lib-state-key.sh): read whitespace-tolerantly, accepted only as
 # [A-Za-z0-9._-]+ and never rewritten — the key prompt-context-check.sh, bash-cd-check.sh and
 # task-context-check.sh write under. The compact re-surface and the tracked-artifact load below use

@@ -108,11 +108,11 @@ if [ "$INVOCATION_NUM" = "0" ]; then
     -o -name 'aria-extfetch*' -o -name 'aria-preflight*' -o -name 'aria-surface-*' -o -name 'aria-prompt-config.*' \
     -o -name 'aria-cursor-*' -o -name 'aria-ag-*' -o -name '.aria-ag-*' -o -name '.aria-new.*' \) -exec rm -f {} + 2>/dev/null
   # LEGACY-TMP-SWEEP-2.58 end
-  # The state dir's own sweep (spec D6): files there older than 24 h — the surfaced / logged / model
-  # markers, the ledger, caches, a killed writer's create temps (.aria-new.* and the pre-2.58.0
-  # .aria-ag-new.*). Only when it resolved; top level only; never a directory or a link (-type f).
+  # The state dir's own sweep (spec D6, split retention D10): kt_state_sweep in lib-state-key.sh —
+  # proof names (the ledger, the surfaced marker) 30 days, the rest (logged / model markers, caches,
+  # a killed writer's create temps) 24 h. Only when it resolved; top level only; never a directory or a link.
   if [ -n "${KT_STATE_DIR:-}" ]; then
-    find "$KT_STATE_DIR/" -mindepth 1 -maxdepth 1 -type f -mmin +1440 -exec rm -f {} + 2>/dev/null
+    kt_state_sweep
   fi
 
   # 2. Dynamic message building

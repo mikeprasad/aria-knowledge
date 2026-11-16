@@ -84,6 +84,16 @@ aria-cursor-t7 aria-ag-surfaced-t7 aria-ag-logged-t7 .aria-ag-model.t7 .aria-ag-
 OLD=202001010000
 
 old() { : > "$1"; touch -t "$OLD" "$1"; }
+# aged FILE SECONDS — a file whose mtime is SECONDS in the past (BSD date -r, else GNU date -d).
+aged() {
+  _t=$(( $(date +%s) - $2 ))
+  _s=$(date -r "$_t" +%Y%m%d%H%M.%S 2>/dev/null || date -d "@$_t" +%Y%m%d%H%M.%S)
+  : > "$1"; touch -t "$_s" "$1"
+}
+D2=172800; D31=2678400
+# D10 (2026-11-15): the state dir splits retention. PROOF names keep 30 days, CHURN names 24 hours.
+PROOF_NAMES='aria-preflight-s1 aria-preflight-skipped-s1 aria-preflight-repo-123 aria-r22-bypass-s1 aria-active-s1 aria-ag-surfaced-s1'
+CHURN_NAMES='aria-preflight-denies-s1 aria-r22-denies-s1 aria-codemap-s1'
 
 # plant — the sweep root (old + fresh copies, controls) and the state dir.
 plant() {
@@ -98,7 +108,10 @@ plant() {
   old "$OUT/target"; ln -s "$OUT/target" "$SW/aria-active-link"; touch -h -t "$OLD" "$SW/aria-active-link" 2>/dev/null
   old "$OUT/dir/aria-r22-x"; ln -s "$OUT/dir" "$SW/aria-r22-linkdir"; touch -h -t "$OLD" "$SW/aria-r22-linkdir" 2>/dev/null
   mkdir -m 700 "$SD"; strip_acl "$SD"
-  old "$SD/aria-active-indir-old"; : > "$SD/aria-active-indir-new"
+  old "$SD/aria-codemap-indir-old"; : > "$SD/aria-active-indir-new"
+  for n in $PROOF_NAMES $CHURN_NAMES; do aged "$SD/${n}.d2" $D2; aged "$SD/${n}.d31" $D31; done
+  : > "$SD/aria-active-fresh"; : > "$SD/aria-codemap-fresh"
+  mkdir "$SD/aria-active-dir31"; aged "$SD/aria-active-dir31/inner" $D31; touch -t "$OLD" "$SD/aria-active-dir31"
   mkdir "$SD/olddir"; old "$SD/olddir/inner"; touch -t "$OLD" "$SD/olddir"
   old "$OUT/target2"; ln -s "$OUT/target2" "$SD/oldlink"; touch -h -t "$OLD" "$SD/oldlink" 2>/dev/null
   old "$BASE/outside-old"
@@ -121,20 +134,40 @@ verify() {
   check "W_depth [$_p]: a file inside an old matching directory is kept" "1" "$([ -e "$SW/aria-active-dir/aria-active-inner" ] && echo 1 || echo 0)"
   check "W_nofollow [$_p]: a link's target (file, and a file in a linked dir) is kept" "1|1" \
     "$([ -e "$OUT/target" ] && echo 1 || echo 0)|$([ -e "$OUT/dir/aria-r22-x" ] && echo 1 || echo 0)"
+  # D10 (2026-11-15): proof names keep 30 days. This arm kept its intent (old in-dir files go) but plants
+  # a CHURN name; a proof name at the same age is removed by the 31-day arm below, not here.
   check "W_indir [$_p]: old removed|fresh kept|subdir file kept|old link kept|beside the dir kept" "0|1|1|1|1" \
-    "$([ -e "$SD/aria-active-indir-old" ] && echo 1 || echo 0)|$([ -e "$SD/aria-active-indir-new" ] && echo 1 || echo 0)|$([ -e "$SD/olddir/inner" ] && echo 1 || echo 0)|$([ -L "$SD/oldlink" ] && echo 1 || echo 0)|$([ -e "$BASE/outside-old" ] && echo 1 || echo 0)"
+    "$([ -e "$SD/aria-codemap-indir-old" ] && echo 1 || echo 0)|$([ -e "$SD/aria-active-indir-new" ] && echo 1 || echo 0)|$([ -e "$SD/olddir/inner" ] && echo 1 || echo 0)|$([ -L "$SD/oldlink" ] && echo 1 || echo 0)|$([ -e "$BASE/outside-old" ] && echo 1 || echo 0)"
+}
+
+# verify_d10 PORT — split retention in the state dir, one result per (name, age).
+verify_d10() {
+  _p=$1; _k=""; _r=""; _f=""
+  for n in $PROOF_NAMES; do
+    [ -e "$SD/${n}.d2" ] || _k="$_k ${n}@2d"
+    [ -e "$SD/${n}.d31" ] && _r="$_r ${n}@31d"
+  done
+  for n in $CHURN_NAMES; do
+    [ -e "$SD/${n}.d2" ] && _f="$_f ${n}@2d"
+    [ -e "$SD/${n}.d31" ] && _f="$_f ${n}@31d"
+  done
+  check "W_proof2d [$_p]: every proof name at 2 days is kept (removed:$_k)" "" "$_k"
+  check "W_proof31d [$_p]: every proof name at 31 days is removed (kept:$_r)" "" "$_r"
+  check "W_churn2d [$_p]: every churn name at 2 and 31 days is removed, aria-preflight-denies-* included (kept:$_f)" "" "$_f"
+  check "W_fresh_sd [$_p]: a fresh proof file|a fresh churn file|an old proof-named subdirectory's file kept" "1|1|1" \
+    "$([ -e "$SD/aria-active-fresh" ] && echo 1 || echo 0)|$([ -e "$SD/aria-codemap-fresh" ] && echo 1 || echo 0)|$([ -e "$SD/aria-active-dir31/inner" ] && echo 1 || echo 0)"
 }
 
 runp() { (cd "$P" && "$@" < "$R/in" > "$R/out" 2>"$R/err"); }
 
-plant; printf '{"session_id":"t7c","source":"startup"}' > "$R/in"; runp sh "$C/session-start-check.sh"; verify C
-plant; printf '{"session_id":"t7x","source":"startup"}' > "$R/in"; runp sh "$X/session-start-check.sh"; verify X
-plant; printf '{"conversation_id":"t7u","hook_event_name":"sessionStart"}' > "$R/in"; runp sh "$U/session-start-check.sh"; verify U
+plant; printf '{"session_id":"t7c","source":"startup"}' > "$R/in"; runp sh "$C/session-start-check.sh"; verify C; verify_d10 C
+plant; printf '{"session_id":"t7x","source":"startup"}' > "$R/in"; runp sh "$X/session-start-check.sh"; verify X; verify_d10 X
+plant; printf '{"conversation_id":"t7u","hook_event_name":"sessionStart"}' > "$R/in"; runp sh "$U/session-start-check.sh"; verify U; verify_d10 U
 plant
 cp "$DIR/plugin-antigravity/tests/fixtures/transcript-user-input.jsonl" "$R/t.jsonl"
 jq -cn --arg t "$R/t.jsonl" --arg w "$P" --arg a "$R/art" '{conversationId:"t7h", workspacePaths:[$w],
   transcriptPath:$t, artifactDirectoryPath:$a, invocationNum:0, initialNumSteps:5}' > "$R/in"
-runp bash "$H"; verify H
+runp bash "$H"; verify H; verify_d10 H
 
 # --- W_marker / W_shape -----------------------------------------------------------------------------
 MARKED=$(cd "$DIR" && grep -rl 'LEGACY-TMP-SWEEP-2\.58' plugin-* 2>/dev/null | grep -v '/tests/' | grep -v '/\.archived/' | sort | tr '\n' ' ')
@@ -164,6 +197,25 @@ for f in $MARKED; do
   check "W_shape [$f]: the /tmp root names exactly the listed set" "$R1_WANT" "$(names 'KT_TMP_SWEEP_ROOT:-/tmp}/')"
   check "W_shape [$f]: the \$TMPDIR root names exactly the listed set" "$R2_WANT" "$(names 'TMPDIR:-/tmp}}/')"
 done
+
+# --- W_census (D10) ---------------------------------------------------------------------------------
+# The state dir's find is written once, in lib-state-key.sh (kt_state_sweep). A sweeping script that
+# carries its own copy would keep the flat 24 h retention and silently erase the proof names. The
+# positive control: the library itself must carry exactly one, or this census is reading nothing.
+_needle='find "$KT_STATE_DIR/"'
+_inline=""
+for f in plugin-claude-code/scripts/session-start-check.sh plugin-openai-codex/bin/session-start-check.sh \
+  plugin-cursor-template/scripts/aria/session-start-check.sh plugin-antigravity/bin/antigravity/pre-invocation-aria.sh; do
+  grep -qF "$_needle" "$DIR/$f" && _inline="$_inline $f"
+done
+check "W_census: no sweeping script carries an inline in-dir find (carrying:$_inline)" "" "$_inline"
+check "W_census control: lib-state-key.sh carries exactly one" "1" "$(grep -cF "$_needle" "$DIR/plugin-claude-code/scripts/lib-state-key.sh")"
+_calls=""
+for f in plugin-claude-code/scripts/session-start-check.sh plugin-openai-codex/bin/session-start-check.sh \
+  plugin-cursor-template/scripts/aria/session-start-check.sh plugin-antigravity/bin/antigravity/pre-invocation-aria.sh; do
+  grep -qE '^[^#]*kt_state_sweep' "$DIR/$f" || _calls="$_calls $f"
+done
+check "W_census: every sweeping script calls kt_state_sweep (not calling:$_calls)" "" "$_calls"
 
 # --- N_nolib / N_guard ------------------------------------------------------------------------------
 # A copy of the claude-code scripts without lib-state-key.sh. Sourcing a missing file aborts sh with

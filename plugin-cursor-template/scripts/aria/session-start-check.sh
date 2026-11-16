@@ -90,10 +90,9 @@ MESSAGES=""
 # below: never inside the SESSION STATE line, nor inside ARIA SURFACE (the CLI path and nothing else).
 KT_STATE_DIR=""
 [ -f "$SCRIPT_DIR/lib-state-key.sh" ] && . "$SCRIPT_DIR/lib-state-key.sh" && kt_state_resolve
-# The state dir's own sweep (spec D6): files there older than 24 h — cooldowns, ledgers, breakers,
-# carriers, caches, a killed writer's create temps. Only when it resolved; top level only; never a
-# directory or a link (-type f).
-[ -n "$KT_STATE_DIR" ] && find "$KT_STATE_DIR/" -mindepth 1 -maxdepth 1 -type f -mmin +1440 -exec rm -f {} + 2>/dev/null
+# The state dir's own sweep (spec D6, split retention D10): kt_state_sweep in lib-state-key.sh — proof
+# names 30 days, everything else 24 h. Only when it resolved; top level only; never a directory or a link.
+[ -n "$KT_STATE_DIR" ] && kt_state_sweep
 # The ledger key is the one prompt-capture-check.sh and prompt-context-inject.sh use:
 # conversation_id, as kt_session_key accepts it. Cursor documents sessionStart's session_id as "the
 # same as conversation_id", so it is the fallback; sessionId is kept for older payloads.
