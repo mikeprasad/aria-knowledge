@@ -155,7 +155,10 @@ verify_d10() {
   check "W_proof31d [$_p]: every proof name at 31 days is removed (kept:$_r)" "" "$_r"
   check "W_churn2d [$_p]: every churn name at 2 and 31 days is removed, aria-preflight-denies-* included (kept:$_f)" "" "$_f"
   # Catches OVER-deletion (an ungrouped proof list, a dropped age test) — not an outer-grouping error (that is W_proof31d / W_indir).
-  check "W_fresh_sd [$_p]: a fresh proof file|a fresh churn file|an old proof-named subdirectory's file kept" "1|1|1" \
+  # The third value guards a dropped -maxdepth/-mindepth: `inner` is an old file with a non-proof (churn)
+  # name inside a directory, so only a find that descends reaches and removes it. It does NOT guard -type f
+  # (rm -f never removes a directory, so the directory itself survives with or without it; links are W_indir's).
+  check "W_fresh_sd [$_p]: a fresh proof file|a fresh churn file|an old churn-named file inside a subdirectory kept (depth bound)" "1|1|1" \
     "$([ -e "$SD/aria-active-fresh" ] && echo 1 || echo 0)|$([ -e "$SD/aria-codemap-fresh" ] && echo 1 || echo 0)|$([ -e "$SD/aria-active-dir31/inner" ] && echo 1 || echo 0)"
 }
 
