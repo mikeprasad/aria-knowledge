@@ -95,7 +95,7 @@ KT_STATE_DIR=""
 # names 30 days, everything else 24 h. Only when it resolved; top level only; never a directory or a link.
 [ -n "$KT_STATE_DIR" ] && kt_state_sweep
 # The ledger key is session_id, as codex's other ledger writers and readers use it (codex-hook.py
-# session_key, bash-cd-check.sh, task-context-check.sh), then turn_id, session_key's own fallback.
+# session_key_raw, bash-cd-check.sh, task-context-check.sh), then turn_id, session_key_raw's own fallback.
 # Whitespace-tolerant: JSON may space it.
 # kt_session_key: accepted only as [A-Za-z0-9._-]+, never rewritten; rejected or absent ⇒ ledger=none.
 SS_LEDGER_ID=$(kt_session_key "$INPUT" session_id turn_id 2>/dev/null) || SS_LEDGER_ID=""

@@ -117,7 +117,7 @@ run "$GOOD" "$R/m3ui.out" sh "$U/prompt-context-inject.sh"
 check "M3 ports_state_their_paths[U]: one line|names the conversation ledger|writer wrote it" "1|1|1" \
   "$(count "$um" 'ARIA CONFIG —')|$(has "$um" "ARIA CONFIG — state_dir=$SD ledger=$SD/aria-active-m3u-conv.")|$(grep -qxF "$DEP" "$SD/aria-active-m3u-conv" 2>/dev/null && echo 1 || echo 0)"
 
-# X (Codex): session_id is the key of codex-hook.py's session_key (turn_id is only its fallback).
+# X (Codex): session_id is the key of codex-hook.py's session_key_raw (turn_id is only its fallback).
 printf '{"session_id":"m3x-sess","turn_id":"m3x-turn","source":"startup"}' > "$R/in"
 run "$GOOD" "$R/m3x.json" sh "$X/session-start-check.sh"
 xm=$(sysmsg "$R/m3x.json")
@@ -371,6 +371,27 @@ raw, _data = m.load_input()
 print(m.session_key_raw(raw))' "$X/codex-hook.py" < "$R/skb-$lab" 2>/dev/null)
   check "M8b raw_bytes_cr[shell $lab]" "$want" "$sgot"
   check "M8b raw_bytes_cr[python $lab]: stdin read keeps CR, same key as the shell" "$want" "$pgot"
+done
+# M8c: Task 9e. Under a UTF-8 locale macOS grep's [[:space:]] also matches U+00A0 (non-breaking space), while
+# Python's blank class is [ \t\v\f\r]: the shell read {"session_id"<NBSP>:"x"} as x, Python as "". The shell
+# side now runs byte/ASCII-oriented (LC_ALL=C), and is driven here UNDER a UTF-8 locale so a dropped LC_ALL=C
+# turns it red. Both spacings (before and after the colon); both sides must reject.
+NB=$(printf '\302\240')
+check "M8c nbsp (instrument): a UTF-8 grep reads U+00A0 as [[:space:]]" "1" \
+  "$(printf 'a%sb\n' "$NB" | LC_ALL=en_US.UTF-8 grep -c 'a[[:space:]]b')"
+printf '{"session_id"%s:"x"}' "$NB" > "$R/skc-before"
+printf '{"session_id":%s"x"}' "$NB" > "$R/skc-after"
+for lab in before after; do
+  sgot=$(LC_ALL=en_US.UTF-8 sh -c '. "$1"; kt_session_key "$(cat "$2")" session_id turn_id' _ "$SK_LIB" "$R/skc-$lab" 2>/dev/null)
+  pgot=$(python3 -B -c '
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("codex_hook", sys.argv[1])
+m = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(m)
+raw, _data = m.load_input()
+print(m.session_key_raw(raw))' "$X/codex-hook.py" < "$R/skc-$lab" 2>/dev/null)
+  check "M8c nbsp_${lab}_colon[python]: U+00A0 is not a blank, no key" "" "$pgot"
+  check "M8c nbsp_${lab}_colon[shell, UTF-8 locale]: no key, same as python" "" "$sgot"
 done
 # The arm above drives ONE copy of the helper; every port sources its own. (GUARD: identical on fbe7c8e too.)
 check "M8 session_key_parity (GUARD): the four lib-state-key.sh copies are byte-identical" "1" \

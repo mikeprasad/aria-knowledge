@@ -43,7 +43,7 @@ if [ "$KT_ACTIVE_SURFACING" = "true" ] && [ -f "$SCRIPT_DIR/lib-state-key.sh" ];
   # nothing to re-surface.
   . "$SCRIPT_DIR/lib-state-key.sh"
   kt_state_resolve
-  # The ledger key is kt_session_key (lib-state-key.sh), the rule codex-hook.py session_key applies:
+  # The ledger key is kt_session_key (lib-state-key.sh), the rule codex-hook.py session_key_raw applies:
   # session_id then turn_id, accepted only as [A-Za-z0-9._-]+ and never rewritten.
   LEDGER=""
   _pc_key=$(kt_session_key "$INPUT" session_id turn_id) && LEDGER=$(kt_state_path "aria-active-${_pc_key}") || LEDGER=""

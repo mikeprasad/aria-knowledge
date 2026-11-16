@@ -141,7 +141,7 @@ kt_state_path() {
 # when it is non-empty and every character is in [A-Za-z0-9._-]; it is then used UNCHANGED. Anything
 # else yields NO key, so that family keeps no state for the session (spec D3) — never a stripped id:
 # stripping is not injective (`a+b` and `ab` would share one ledger across two sessions). The Codex hook
-# (Python, codex-hook.py session_key) applies the identical rule; a cross-port test pins them.
+# (Python, codex-hook.py session_key_raw) applies the identical rule; a cross-port test pins them.
 #
 #   kt_session_key_check ID      prints ID and returns 0 when it is accepted; prints nothing and
 #                                returns 1 when ID is empty, 2 when it carries any other character.
@@ -163,8 +163,10 @@ kt_session_key() {
   _kt_sk_j=${1-}
   [ "$#" -gt 0 ] && shift
   for _kt_sk_f in "$@"; do
-    _kt_sk_v=$(printf '%s' "$_kt_sk_j" | grep -oE "\"$_kt_sk_f\"[[:space:]]*:[[:space:]]*\"[^\"]*\"" | head -1 \
-      | sed 's/^"[^"]*"[[:space:]]*:[[:space:]]*"//;s/"$//')
+    # LC_ALL=C: byte/ASCII classes only. Under a UTF-8 locale macOS grep's [[:space:]] also matches U+00A0,
+    # which Python's blank class ([ \t\v\f\r]) does not, so the two ports would key one input differently.
+    _kt_sk_v=$(printf '%s' "$_kt_sk_j" | LC_ALL=C grep -oE "\"$_kt_sk_f\"[[:space:]]*:[[:space:]]*\"[^\"]*\"" | head -1 \
+      | LC_ALL=C sed 's/^"[^"]*"[[:space:]]*:[[:space:]]*"//;s/"$//')
     if [ -n "$_kt_sk_v" ]; then
       kt_session_key_check "$_kt_sk_v"
       return $?

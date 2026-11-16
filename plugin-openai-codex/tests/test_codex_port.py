@@ -1722,7 +1722,7 @@ def _surrogate_post(project: Path, env: dict[str, str]) -> None:
 
 
 def _assert_marked_without_the_id(project: Path) -> None:
-    # 2.58.0 fix round 1: a surrogate session_id is a REJECTED id (session_key), so the project is marked
+    # 2.58.0 fix round 1: a surrogate session_id is a REJECTED id (session_key_raw), so the project is marked
     # anyway (spec D3, as for "/" in test_state_name_with_slash_refused) with NO session id -- the
     # fixture carries no sessionId line, so writing the raw id would add one. The body survives intact.
     after = (project / "SESSION.md").read_text(encoding="utf-8")

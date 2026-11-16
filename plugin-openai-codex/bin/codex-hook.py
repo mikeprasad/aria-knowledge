@@ -639,7 +639,7 @@ def user_prompt_submit(raw: str, data: dict[str, Any]) -> None:
     if state_dir is None:
         return
     key = session_key_raw(raw)
-    if not key:   # no id, or one session_key rejects: no cooldown and no ledger (spec D3)
+    if not key:   # no id, or one session_key_raw rejects: no cooldown and no ledger (spec D3)
         return
     cooldown = aria_state_path(state_dir, f"aria-context-{key}")
     if cooldown is None:
