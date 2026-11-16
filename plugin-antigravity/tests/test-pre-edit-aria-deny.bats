@@ -41,7 +41,8 @@ stand_in() {
   make_transcript "no marker here"
   run_wrapper
   [ "$DECISION" = "deny" ]
-  [ -n "$REASON" ]
+  # The check's own deny text, not a wrapper fail-closed reason (which a broken parse would also give).
+  [[ "$REASON" == *"compliance block missing"* ]]
 }
 
 @test "D8 (b): marked edit is allowed" {

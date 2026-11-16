@@ -3,6 +3,9 @@
 setup() {
   # D8a: the wrappers write under $HOME/.gemini/antigravity; never the real one.
   export HOME="${BATS_TEST_TMPDIR}/home"; mkdir -p "$HOME"
+  # Skip the wrapper's one-shot first-run probe (scratch HOME only). Without the flag every test takes
+  # the probe branch, prints a fixed allow, and never reaches the wrapper's real logic (vacuous suite).
+  mkdir -p "$HOME/.gemini/antigravity"; touch "$HOME/.gemini/antigravity/.aria-probe-fired"
   # 2.58.0: hook state resolves under KT_STATE_BASE, never in the user's real state directory. The base
   # lives in bats' per-test dir under $TMPDIR, which bats removes.
   export KT_STATE_BASE="${BATS_TEST_TMPDIR}/state-base"; mkdir -p "$KT_STATE_BASE"
