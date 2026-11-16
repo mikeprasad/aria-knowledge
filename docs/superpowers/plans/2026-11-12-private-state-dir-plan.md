@@ -350,7 +350,7 @@ after each commit, no push). Order: 9a → 9b → 9c → 9d → 9e → Task 10.
 - Files: `plugin-openai-codex/bin/codex-hook.py`; `tests/repros/state-dir-model-facing.sh` (M8);
   Codex suite under `plugin-openai-codex/tests/`.
 - [ ] **Step 1 (red first):** M8 gains rows run through BOTH `kt_session_key` (all four lib copies)
-  and the Python path: `{"session_id":"Abc"}` (both reject), duplicated
+  and the Python path: `{"session_id":"\u0041bc"}` (both reject), duplicated
   `{"session_id":"a","session_id":"b"}` (both `a`), `"session_id" : "x"` spacing (both `x`),
   `session_id` absent + `turn_id` present (both take `turn_id`), non-string value (both absent).
   Escape and duplicate rows red on `354cb82`.
