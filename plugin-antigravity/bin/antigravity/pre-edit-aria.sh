@@ -87,8 +87,8 @@ if [ -z "$CHECK_OUT" ]; then
   exit 0
 fi
 
-if ! printf '%s' "$CHECK_OUT" | jq -e 'type == "object"' >/dev/null 2>&1; then
-  aria_emit_decision "deny" "Rule 22 pre-edit check printed output that is not a JSON object; denying (fail closed)."
+if ! printf '%s' "$CHECK_OUT" | jq -s -e 'length == 1 and (.[0] | type == "object")' >/dev/null 2>&1; then
+  aria_emit_decision "deny" "Rule 22 pre-edit check printed output that is not a JSON object (exactly one is required); denying (fail closed)."
   exit 0
 fi
 

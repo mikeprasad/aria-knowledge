@@ -1,7 +1,7 @@
 #!/usr/bin/env bats
 # D8 — the Antigravity Rule 22 wrapper decides from the check's stdout (the canonical check always
 # exits 0 and prints the deny JSON), not from the exit code. Fails closed on a non-zero exit or on
-# stdout that is not JSON. Runs a scratch copy of the plugin layout so stand-ins can replace the check.
+# stdout that is not exactly one JSON object. Runs a scratch copy of the plugin layout so stand-ins can replace the check.
 
 setup() {
   export HOME="${BATS_TEST_TMPDIR}/home"
@@ -86,7 +86,21 @@ stand_in() {
   stand_in 'cat >/dev/null; echo "\"x\""; exit 0'
   run_wrapper
   [ "$DECISION" = "deny" ]
+  [[ "$REASON" == *"not a JSON object"* ]]
   stand_in 'cat >/dev/null; echo 42; exit 0'
   run_wrapper
   [ "$DECISION" = "deny" ]
+  [[ "$REASON" == *"not a JSON object"* ]]
+}
+
+@test "D8 (h): more than one JSON value on stdout is denied (fail closed)" {
+  make_transcript "x"
+  stand_in 'cat >/dev/null; echo "\"x\""; echo "{}"; exit 0'
+  run_wrapper
+  [ "$DECISION" = "deny" ]
+  [[ "$REASON" == *"not a JSON object"* ]]
+  stand_in 'cat >/dev/null; echo "{}"; echo "{}"; exit 0'
+  run_wrapper
+  [ "$DECISION" = "deny" ]
+  [[ "$REASON" == *"not a JSON object"* ]]
 }
