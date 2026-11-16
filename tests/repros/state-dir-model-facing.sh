@@ -352,6 +352,26 @@ for line in open(sys.argv[2], encoding="utf-8"):
 SKPY
 check "M8 session_key_parity: python ran every case (instrument)" "14" "$(grep -c . "$R/sk-py")"
 check "M8 session_key_parity: shell == python on every case" "" "$(diff "$R/sk-shell" "$R/sk-py")"
+# M8b: the hook receives RAW BYTES on stdin. A text-mode read translates a bare CR (and CRLF) to LF, which
+# the shell never does (CR is [[:space:]], not a line break): A would read '' and B would fall through to
+# turn_id. Both sides are fed the same bytes through real stdin / a file.
+printf '%s' '{"session_id"' > "$R/skb-A"; printf '\r:"x"}' >> "$R/skb-A"
+printf '%s' '{"session_id":"a' > "$R/skb-B"; printf '\rb","turn_id":"t-1"}' >> "$R/skb-B"
+printf '%s' '{"session_id":"u1"}' > "$R/skb-C"; printf '\r\n' >> "$R/skb-C"
+: > "$R/skb-shell"; : > "$R/skb-py"
+for c in "A	x" "B	" "C	u1"; do
+  lab=${c%%	*}; want=${c#*	}
+  sgot=$(sh -c '. "$1"; kt_session_key "$(cat "$2")" session_id turn_id' _ "$SK_LIB" "$R/skb-$lab" 2>/dev/null)
+  pgot=$(python3 -B -c '
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("codex_hook", sys.argv[1])
+m = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(m)
+raw, _data = m.load_input()
+print(m.session_key_raw(raw))' "$X/codex-hook.py" < "$R/skb-$lab" 2>/dev/null)
+  check "M8b raw_bytes_cr[shell $lab]" "$want" "$sgot"
+  check "M8b raw_bytes_cr[python $lab]: stdin read keeps CR, same key as the shell" "$want" "$pgot"
+done
 # The arm above drives ONE copy of the helper; every port sources its own. (GUARD: identical on fbe7c8e too.)
 check "M8 session_key_parity (GUARD): the four lib-state-key.sh copies are byte-identical" "1" \
   "$(cksum "$SK_LIB" "$DIR/plugin-antigravity/bin/lib-state-key.sh" "$X/lib-state-key.sh" "$U/lib-state-key.sh" \

@@ -1334,8 +1334,9 @@ def test_no_state_dir_skips_surfacing_and_cooldown() -> None:
             )
 
         def codemap(base: Path, key: str) -> object:
+            payload = {"session_id": key, "cwd": str(project)}
             with _StateEnv(base):
-                return hook.maybe_codemap_reminder(json.dumps(payload := {"session_id": key, "cwd": str(project)}), payload, "rg payments")
+                return hook.maybe_codemap_reminder(json.dumps(payload), payload, "rg payments")
 
         # Controls: with a state dir, the same inputs surface and remind -- so the silence below is
         # the missing directory, not a fixture that never fires.

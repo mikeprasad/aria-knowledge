@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import errno
 import hashlib
+import io
 import json
 import os
 import re
@@ -73,8 +74,19 @@ def compact_json(data: dict[str, Any]) -> str:
     return json.dumps(data, separators=(",", ":"))
 
 
+def read_stdin_raw() -> str:
+    """Hook stdin as text WITHOUT newline translation: the session-key rule reads the raw bytes the shell
+    ports read, and a bare CR must stay a CR. POSIX sys.stdin already behaves so; a translating wrapper
+    (Windows, or any replacement stdin) would turn CR/CRLF into LF. Encoding and error handling are
+    the stream's own, unchanged."""
+    buffer = getattr(sys.stdin, "buffer", None)
+    if buffer is None:
+        return sys.stdin.read()
+    return io.TextIOWrapper(buffer, encoding=sys.stdin.encoding, errors=sys.stdin.errors, newline="").read()
+
+
 def load_input() -> tuple[str, dict[str, Any]]:
-    raw = sys.stdin.read()
+    raw = read_stdin_raw()
     if not raw.strip():
         return raw, {}
     try:
