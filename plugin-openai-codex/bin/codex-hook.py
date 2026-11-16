@@ -311,7 +311,8 @@ def cwd_from(data: dict[str, Any]) -> Path:
 # turn_id holding a non-empty string is used UNCHANGED when it is [A-Za-z0-9._-]+; any other value
 # gives "" -- no key, so no state for that family (spec D3) -- and never falls back past it. Never
 # stripped: stripping is not injective (`a+b` and `ab` would share one ledger). A non-string value
-# counts as absent, as the shell extractor (strings only) reads it. tests/repros/state-dir-model-facing.sh
+# counts as absent, as the shell extractor (strings only) reads it. The rule runs on the RAW stdin
+# text, never the decoded JSON (spec D9). tests/repros/state-dir-model-facing.sh
 # M8 pins shell == Python.
 _SESSION_KEY_RE = re.compile(r"[A-Za-z0-9._-]+")
 
@@ -320,12 +321,22 @@ def session_key_check(value: Any) -> str:
     return value if isinstance(value, str) and _SESSION_KEY_RE.fullmatch(value) else ""
 
 
-def session_key(data: dict[str, Any]) -> str:
+def session_key_field_raw(raw: str) -> str | None:
+    """The first of session_id, turn_id holding a non-empty string, read from the RAW stdin text exactly
+    as kt_session_key does: per field, the first textual match of the quoted field name, a colon (blanks
+    allowed around it) and a quoted value running to the next quote, per LINE as grep reads it. None when
+    neither field is present. The decoded JSON is never consulted -- an escaped value reads as the shell
+    reads it (its backslash is not in the accept set)."""
     for field in ("session_id", "turn_id"):
-        value = data.get(field)
-        if isinstance(value, str) and value != "":
-            return session_key_check(value)
-    return ""
+        match = re.search(r'"' + field + r'"[ \t\v\f\r]*:[ \t\v\f\r]*"([^"\n]*)"', raw)
+        if match and match.group(1) != "":
+            return match.group(1)
+    return None
+
+
+def session_key_raw(raw: str) -> str:
+    value = session_key_field_raw(raw)
+    return session_key_check(value) if value is not None else ""
 
 
 def find_codemap(start: Path) -> Path | None:
@@ -594,7 +605,7 @@ def ledger_record(items: list[str], ledger: Path | None) -> None:
     state_write(ledger, "".join(item.split(" — ", 1)[0] + "\n" for item in items), append=True)
 
 
-def user_prompt_submit(data: dict[str, Any]) -> None:
+def user_prompt_submit(raw: str, data: dict[str, Any]) -> None:
     config = read_config()
     knowledge_folder_raw = config_value(config, "knowledge_folder")
     if not knowledge_folder_raw or config_value(config, "auto_capture", "true") == "false":
@@ -615,7 +626,7 @@ def user_prompt_submit(data: dict[str, Any]) -> None:
     state_dir = aria_state_dir()
     if state_dir is None:
         return
-    key = session_key(data)
+    key = session_key_raw(raw)
     if not key:   # no id, or one session_key rejects: no cooldown and no ledger (spec D3)
         return
     cooldown = aria_state_path(state_dir, f"aria-context-{key}")
@@ -670,7 +681,7 @@ def user_prompt_submit(data: dict[str, Any]) -> None:
     emit(hook_event("UserPromptSubmit", " ".join(messages)))
 
 
-def maybe_codemap_reminder(data: dict[str, Any], cmd: str) -> dict[str, Any] | None:
+def maybe_codemap_reminder(raw: str, data: dict[str, Any], cmd: str) -> dict[str, Any] | None:
     first_word = cmd.strip().split(maxsplit=1)[0] if cmd.strip() else ""
     if first_word not in {"rg", "grep", "find"}:
         return None
@@ -684,7 +695,7 @@ def maybe_codemap_reminder(data: dict[str, Any], cmd: str) -> dict[str, Any] | N
     state_dir = aria_state_dir()
     if state_dir is None:
         return None
-    session = session_key(data)
+    session = session_key_raw(raw)
     if not session:
         return None
     digest = hashlib.sha1(str(codemap.parent).encode()).hexdigest()[:12]
@@ -1015,18 +1026,18 @@ def mark_session_inprogress(root: Path, session_id: str, author: str) -> None:
                 fp.write("SESSION.md\n")
 
 
-def maybe_mark_session_state(paths: list[str], data: dict[str, Any], config: dict[str, str]) -> None:
+def maybe_mark_session_state(raw: str, paths: list[str], data: dict[str, Any], config: dict[str, str]) -> None:
     if config_value(config, "session_state", "false") != "true":
         return
     # session_key: the shared rule (lib-state-key.sh kt_session_key). A REJECTED id gives no key and no
     # cache, and the project is still marked (spec D3: "Mark anyway") with an empty session id, so the
     # raw id never reaches SESSION.md's front matter -- the shell post-edit hooks apply the same rule.
     # Only a payload with neither id falls back to the transcript hash, as before.
-    session_id = session_key(data)
+    session_id = session_key_raw(raw)
     author = config_value(config, "author_tag")
     if session_id:
         key = session_id
-    elif any(isinstance(data.get(f), str) and data.get(f) != "" for f in ("session_id", "turn_id")):
+    elif session_key_field_raw(raw) is not None:   # an id is present but REJECTED: no key, mark anyway
         key = ""
     else:
         key = hashlib.sha1(str(data.get("transcript_path") or os.getpid()).encode()).hexdigest()[:12]
@@ -1106,7 +1117,7 @@ def auto_retrospect_message(data: dict[str, Any], inputs: dict[str, Any], config
     return f"AUTO-RETROSPECT (nudge): pushed {count} commits ({range_value}) to {branch}. Offer to run /retrospect range {range_value} and ask the user (do not auto-run)."
 
 
-def pre_tool_use(data: dict[str, Any]) -> None:
+def pre_tool_use(raw: str, data: dict[str, Any]) -> None:
     name = tool_name(data)
     short_name = name.split(".")[-1]
     inputs = tool_input(data)
@@ -1158,7 +1169,7 @@ def pre_tool_use(data: dict[str, Any]) -> None:
 
         # Record + warn on in-place writes to existing non-temp files. Warn-only by design.
         write_payload = {
-            "session_id": session_key(data),
+            "session_id": session_key_raw(raw),
             "cwd": str(cwd_from(data)),
             "tool_input": {"command": cmd},
         }
@@ -1170,7 +1181,7 @@ def pre_tool_use(data: dict[str, Any]) -> None:
         if write_context:
             messages.append(write_context)
 
-        reminder = maybe_codemap_reminder(data, cmd)
+        reminder = maybe_codemap_reminder(raw, data, cmd)
         if reminder is not None:
             context = output_additional_context(reminder)
             if context:
@@ -1206,14 +1217,14 @@ def pre_tool_use(data: dict[str, Any]) -> None:
         return
 
 
-def post_tool_use(data: dict[str, Any]) -> None:
+def post_tool_use(raw: str, data: dict[str, Any]) -> None:
     name = tool_name(data)
     short_name = name.split(".")[-1]
     inputs = tool_input(data)
     config = read_config()
     if is_apply_patch_tool(short_name):
         paths = parse_apply_patch_files(command_from_inputs(inputs))
-        maybe_mark_session_state(paths, data, config)
+        maybe_mark_session_state(raw, paths, data, config)
         messages = [scope_message(paths, config)]
         tautology = tautology_message(paths, data)
         if tautology:
@@ -1242,17 +1253,17 @@ def main() -> int:
     if event == "post-compact":
         return run_legacy("post-compact-check.sh", raw)
     if event == "user-prompt-submit":
-        user_prompt_submit(data)
+        user_prompt_submit(raw, data)
         return 0
     if event == "subagent-start":
         return run_legacy("subagent-start-selfreport.sh", raw)
     if event == "subagent-stop":
         return run_legacy("subagent-stop-capture.sh", raw)
     if event == "pre-tool-use":
-        pre_tool_use(data)
+        pre_tool_use(raw, data)
         return 0
     if event == "post-tool-use":
-        post_tool_use(data)
+        post_tool_use(raw, data)
         return 0
     return 0
 

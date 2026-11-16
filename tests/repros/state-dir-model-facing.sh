@@ -308,7 +308,7 @@ check "M6 skills_name_no_old_location (instrument): files examined > 100|control
   "$([ "$m6_n" -gt 100 ] && echo 1 || echo 0)|$(m6_scan "$R/m6-control.md" | grep -c .)"
 check "M6 skills_name_no_old_location: hits" "" "$(m6_scan $M6_FILES | sed "s|^$DIR/||")"
 
-# --- M8 — one session key rule: shell kt_session_key == Python session_key (fix round 1) ----------------
+# --- M8 — one session key rule: shell kt_session_key == Python session_key_raw (fix round 1; raw text, D9) ----------------
 # An id is accepted only as [A-Za-z0-9._-]+ and used UNCHANGED; anything else is no key (never a stripped
 # one — stripping is not injective). The first of session_id, turn_id holding a string decides.
 SK_LIB="$DIR/plugin-claude-code/scripts/lib-state-key.sh"
@@ -323,6 +323,15 @@ L200=$(awk 'BEGIN { for (i = 0; i < 40; i++) printf "a.b_-" }')
   printf 'long200\t{"session_id":"%s"}\t%s\n' "$L200" "$L200"
   printf 'turn-only\t{"turn_id":"t-1"}\tt-1\n'
   printf 'no-fallback-past-a-reject\t{"session_id":"ab+cd","turn_id":"t-1"}\t\n'
+  # D9 (Task 9b): the rule runs on the RAW text, never the decoded value. The JSON escapes below DECODE to
+  # an accepted id but the shell sees a backslash and rejects; a duplicated key decodes to the LAST value
+  # but the shell takes the FIRST textual match.
+  printf '%s\t%s\t%s\n' 'escape-unicode' '{"session_id":"A\u0062c"}' ''
+  printf '%s\t%s\t%s\n' 'escape-quote' '{"session_id":"ab\"cd"}' ''
+  printf '%s\t%s\t%s\n' 'duplicate-first-wins' '{"session_id":"a","session_id":"b"}' 'a'
+  printf '%s\t%s\t%s\n' 'spacing-colon' '{"session_id" : "x"}' 'x'
+  printf '%s\t%s\t%s\n' 'non-string-is-absent' '{"session_id":123}' ''
+  printf '%s\t%s\t%s\n' 'non-string-then-turn' '{"session_id":123,"turn_id":"t-1"}' 't-1'
 } > "$R/sk-cases"
 check "M8 session_key_parity (instrument): 200-char id is 200 bytes" "200" "$(printf '%s' "$L200" | wc -c | tr -d ' ')"
 : > "$R/sk-shell"
@@ -339,9 +348,9 @@ m = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(m)
 for line in open(sys.argv[2], encoding="utf-8"):
     lab, js, _want = line.rstrip("\n").split("\t")
-    print(lab + "\t" + str(m.session_key(json.loads(js))))
+    print(lab + "\t" + m.session_key_raw(js))
 SKPY
-check "M8 session_key_parity: python ran every case (instrument)" "8" "$(grep -c . "$R/sk-py")"
+check "M8 session_key_parity: python ran every case (instrument)" "14" "$(grep -c . "$R/sk-py")"
 check "M8 session_key_parity: shell == python on every case" "" "$(diff "$R/sk-shell" "$R/sk-py")"
 # The arm above drives ONE copy of the helper; every port sources its own. (GUARD: identical on fbe7c8e too.)
 check "M8 session_key_parity (GUARD): the four lib-state-key.sh copies are byte-identical" "1" \
