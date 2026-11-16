@@ -3,7 +3,8 @@
 #
 # Matched on hooks.json by: write_to_file|replace_file_content|multi_replace_file_content
 # Reads stdin JSON via lib-antigravity-input.sh, sets env vars for the canonical
-# script, then translates exit code + stderr into the Antigravity decision JSON.
+# script, then translates the check's stdout JSON (deny / systemMessage / empty) into the
+# Antigravity decision JSON; a non-zero exit or non-JSON stdout fails closed.
 
 # --- ONE-SHOT PROBE (self-deletes after first successful run) ---
 PROBE_FLAG="$HOME/.gemini/antigravity/.aria-probe-fired"
@@ -51,7 +52,9 @@ source "$LIB_DIR/lib-antigravity-input.sh"
 CANONICAL="$CLAUDE_PLUGIN_ROOT/bin/pre-edit-check.sh"
 
 if [ ! -x "$CANONICAL" ]; then
-  aria_emit_decision "allow" "aria-knowledge canonical pre-edit-check.sh not found at $CANONICAL; allowing without Rule 22 scan."
+  # A missing component still denies (fail closed, like a failing check): allowing here would turn a
+  # broken install into an unenforced Rule 22 with nothing to say so.
+  aria_emit_decision "deny" "aria-knowledge canonical pre-edit-check.sh is missing or not executable at $CANONICAL; denying (fail closed)."
   exit 0
 fi
 
@@ -61,23 +64,42 @@ export CLAUDE_TOOL_NAME="$ARIA_TOOL_NAME"
 export CLAUDE_TARGET_FILE="$ARIA_TOOL_TARGET_FILE"
 export CLAUDE_TRANSCRIPT_PATH="$ARIA_TRANSCRIPT_PATH"
 
-ADVISORY=$(jq -cn \
+errf=$(mktemp)
+trap 'rm -f "$errf"' EXIT
+
+# The canonical check always exits 0: a deny is a JSON object on its STDOUT
+# (hookSpecificOutput.permissionDecision = "deny"), a marked edit prints nothing, and a
+# could-not-verify / degraded run prints a systemMessage. Decide from stdout, with stderr kept apart.
+CHECK_OUT=$(jq -cn \
   --arg fp "$ARIA_TOOL_TARGET_FILE" \
   --arg sid "$ARIA_CONVERSATION_ID" \
   --arg tp "$ARIA_TRANSCRIPT_PATH" \
   --arg tuid "mock-tool-use-id" \
   --argjson sidx "$ARIA_STEP_IDX" \
-  '{file_path: $fp, session_id: $sid, transcript_path: $tp, tool_use_id: $tuid, step_index: $sidx}' | "$CANONICAL" 2>&1)
+  '{file_path: $fp, session_id: $sid, transcript_path: $tp, tool_use_id: $tuid, step_index: $sidx}' | "$CANONICAL" 2>"$errf")
 CANONICAL_EXIT=$?
 
-if [ $CANONICAL_EXIT -eq 0 ]; then
-  # Allow. Pass any advisory text through as the reason so the agent sees it.
-  if [ -n "$ADVISORY" ]; then
-    aria_emit_decision "allow" "$ADVISORY"
-  else
-    aria_emit_decision "allow"
-  fi
+if [ $CANONICAL_EXIT -ne 0 ]; then
+  aria_emit_decision "deny" "Rule 22 pre-edit check failed (exit $CANONICAL_EXIT); denying (fail closed)."
+  exit 0
+fi
+
+if [ -z "$CHECK_OUT" ]; then
+  aria_emit_decision "allow"
+  exit 0
+fi
+
+if ! printf '%s' "$CHECK_OUT" | jq -s -e 'length == 1 and (.[0] | type == "object")' >/dev/null 2>&1; then
+  aria_emit_decision "deny" "Rule 22 pre-edit check printed output that is not a JSON object (exactly one is required); denying (fail closed)."
+  exit 0
+fi
+
+CHECK_DECISION=$(printf '%s' "$CHECK_OUT" | jq -r '.hookSpecificOutput.permissionDecision // ""')
+if [ "$CHECK_DECISION" = "deny" ]; then
+  REASON=$(printf '%s' "$CHECK_OUT" | jq -r '.hookSpecificOutput.permissionDecisionReason // ""')
+  aria_emit_decision "deny" "${REASON:-Rule 22 pre-edit check denied this edit.}"
 else
-  # Non-zero exit from canonical = Rule 22 deny.
-  aria_emit_decision "deny" "${ADVISORY:-Rule 22 pre-edit check denied this edit.}"
+  # No deny: pass any systemMessage through as the reason so the agent sees it.
+  MSG=$(printf '%s' "$CHECK_OUT" | jq -r '.systemMessage // ""')
+  aria_emit_decision "allow" "$MSG"
 fi

@@ -1,7 +1,10 @@
 #!/bin/sh
 # pre-explore-codemap-check.sh — PreToolUse hook for Glob|Grep
 # Reminds to read CODEMAP.md Directory section before exploring a project codebase.
-# Fires once per project per session (cooldown via temp file).
+# Fires once per project per session (cooldown in the private state dir, lib-state-key.sh; with no
+# state dir the reminder is not emitted, spec D3).
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # Read the tool input to get the target path
 INPUT=$(cat)
@@ -46,19 +49,30 @@ if [ -z "$CODEMAP_PATH" ]; then
 fi
 
 # Extract session_id for cooldown scoping
-SESSION_ID=$(echo "$INPUT" | grep -o '"session_id":"[^"]*"' | head -1 | sed 's/"session_id":"//;s/"//')
-if [ -z "$SESSION_ID" ]; then
-  # Fallback: use parent PID as session proxy
-  SESSION_ID="$$"
-fi
+# kt_session_key (lib-state-key.sh): read whitespace-tolerantly, accepted only as [A-Za-z0-9._-]+ and
+# never rewritten — the key every hook in this port names this family's state with. Absent: the PID proxy, as before.
+# Rejected: no key — the reminder is not emitted (spec D3: no cooldown, so it would repeat).
+[ -f "$SCRIPT_DIR/lib-state-key.sh" ] || exit 0
+. "$SCRIPT_DIR/lib-state-key.sh"
+SESSION_ID=$(kt_session_key "$INPUT" session_id)
+case $? in
+  1) SESSION_ID="$$" ;;   # Fallback: use parent PID as session proxy
+  2) exit 0 ;;
+esac
 
 # Per-project cooldown — derive project key from CODEMAP directory
 PROJECT_DIR=$(dirname "$CODEMAP_PATH")
 PROJECT_KEY=$(echo "$PROJECT_DIR" | tr '/' '_')
-COOLDOWN_FILE="/tmp/aria-codemap-${SESSION_ID}-${PROJECT_KEY}"
+# 2.58.0: the cooldown lives in the private per-user state directory (lib-state-key.sh). With no
+# directory (spec D3) the reminder is NOT emitted: without a cooldown it would repeat on every
+# search. The id goes through kt_state_path, which refuses one with a "/".
+. "$SCRIPT_DIR/lib-state-key.sh"
+kt_state_resolve || exit 0
+COOLDOWN_FILE=$(kt_state_path "aria-codemap-${SESSION_ID}-${PROJECT_KEY}") || exit 0
 
-if [ -f "$COOLDOWN_FILE" ]; then
-  # Already reminded for this project in this session
+# Already reminded for this project in this session — or a non-file at the name (no usable state,
+# and a FIFO would block the write below): emit nothing.
+if [ -e "$COOLDOWN_FILE" ] || [ -L "$COOLDOWN_FILE" ]; then
   exit 0
 fi
 
@@ -68,7 +82,6 @@ date +%s > "$COOLDOWN_FILE" 2>/dev/null
 # Make path relative to cwd for cleaner display
 DISPLAY_PATH=$(echo "$CODEMAP_PATH" | sed "s|$PWD/||")
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$SCRIPT_DIR/config.sh"
 
 # Check for sibling STITCH.md (cross-repo stitch artifact)

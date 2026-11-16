@@ -87,7 +87,11 @@ ef_search() {
   printf '{"query":"%s","session_id":"%s"}' "$1" "$2" \
     | KT_CONFIG="${3:-$EF_CFG}" ARIA_EF_MEMDIR="$EF_TMP/nomem" sh "$HOOK" 2>/dev/null || :
 }
-ef_reset() { rm -f "${TMPDIR:-/tmp}"/aria-extfetch-* 2>/dev/null || :; }
+# 2.58.0: the cooldowns and the breaker live in <base>/aria-knowledge-<uid> (lib-state-key.sh);
+# run.sh sets KT_STATE_BASE, so this is the directory every hook below resolves.
+EF_SD="${KT_STATE_BASE:?run.sh sets KT_STATE_BASE}/aria-knowledge-$(id -u)"
+mkdir -p "$KT_STATE_BASE"; [ -d "$EF_SD" ] || mkdir -m 700 "$EF_SD"
+ef_reset() { rm -f "$EF_SD"/aria-extfetch-* 2>/dev/null || :; }
 
 # [AC1] covered host -> denied once, reason names the matched path
 ef_reset
@@ -224,18 +228,31 @@ assert_eq "AC2 rephrased same-domain query shares the cooldown" "1" "$([ -z "$p2
 p3=$(ef_fetch "https://bitbucket.org/some/repo" s21)
 assert_eq "AC2 URL on the same domain shares the prose cooldown" "1" "$([ -z "$p3" ] && echo 1 || echo 0)"
 
-# [AC11] C1 — an unwritable cooldown must ALLOW, never deny
+# [AC11] C1 — an unwritable cooldown must ALLOW, never deny. 2.58.0: the cooldown lives in the
+# private state dir, which is mode 700 and ours, so "unwritable" is a directory planted at the
+# cooldown name (the write fails, the file test fails, the fetch is allowed).
 ef_reset
+mkdir -p "$EF_SD/aria-extfetch-s22-atlassian.com"
 out=$(printf '{"url":"%s","session_id":"%s"}' "https://support.atlassian.com/x" s22 \
-  | KT_CONFIG="$EF_CFG" ARIA_EF_MEMDIR="$EF_TMP/nomem" TMPDIR=/nonexistent-dir-xyz sh "$HOOK" 2>/dev/null || :)
+  | KT_CONFIG="$EF_CFG" ARIA_EF_MEMDIR="$EF_TMP/nomem" sh "$HOOK" 2>/dev/null || :)
 assert_eq "AC11 unwritable cooldown -> empty stdout (allow)" "1" "$([ -z "$out" ] && echo 1 || echo 0)"
+rmdir "$EF_SD/aria-extfetch-s22-atlassian.com" 2>/dev/null || :
+# [AC11b] no private state directory at all (spec D3) -> allow: the gate is advisory.
+out=$(printf '{"url":"%s","session_id":"%s"}' "https://support.atlassian.com/x" s22b \
+  | KT_CONFIG="$EF_CFG" ARIA_EF_MEMDIR="$EF_TMP/nomem" KT_STATE_BASE=/nonexistent-dir-xyz sh "$HOOK" 2>/dev/null || :)
+assert_eq "AC11b no state directory -> empty stdout (allow)" "1" "$([ -z "$out" ] && echo 1 || echo 0)"
+# Control: the same call with the state dir denies, so both arms above allow for their reason.
+ef_reset
+out=$(printf '{"url":"%s","session_id":"%s"}' "https://support.atlassian.com/x" s22c \
+  | KT_CONFIG="$EF_CFG" ARIA_EF_MEMDIR="$EF_TMP/nomem" sh "$HOOK" 2>/dev/null || :)
+assert_eq "AC11 control: same call with a state dir denies" "1" "$(ef_has '"permissionDecision":"deny"' "$out")"
 
 # [AC12] C2 — breaker trips after 3 consecutive denials.
 # Each denial MUST use a distinct registrable domain: support.atlassian.com and
 # atlassian.com collapse to ONE key, so a fixture reusing them reaches only 2
 # denials and the "4th not denied" assertion then passes via the COOLDOWN.
 ef_reset
-rm -f "${TMPDIR:-/tmp}/aria-extfetch-denies-s23" 2>/dev/null || :
+rm -f "$EF_SD/aria-extfetch-denies-s23" 2>/dev/null || :
 d1=$(ef_fetch "https://support.atlassian.com/a" s23)   # atlassian.com
 d2=$(ef_fetch "https://bitbucket.org/b"         s23)   # bitbucket.org
 d3=$(ef_fetch "https://render.com/c"            s23)   # render.com
@@ -245,22 +262,22 @@ assert_eq "AC12 denial 3" "1" "$(ef_has '"permissionDecision":"deny"' "$d3")"
 
 # Assert on the breaker's OWN state — an instrument the cooldown cannot satisfy.
 assert_eq "AC12 counter reached 3" "3" \
-  "$(cat "${TMPDIR:-/tmp}/aria-extfetch-denies-s23" 2>/dev/null || echo MISSING)"
+  "$(cat "$EF_SD/aria-extfetch-denies-s23" 2>/dev/null || echo MISSING)"
 
 # 4th call: clear the per-surface cooldowns but KEEP the counter, so only a
 # tripped breaker can explain an allow. Note the glob excludes the denies file.
-rm -f "${TMPDIR:-/tmp}"/aria-extfetch-s23-* 2>/dev/null || :
+rm -f "$EF_SD"/aria-extfetch-s23-* 2>/dev/null || :
 d4=$(ef_fetch "https://support.atlassian.com/d" s23)
 assert_eq "AC12 4th call NOT denied — breaker, not cooldown" "0" "$(ef_has '"permissionDecision":"deny"' "$d4")"
 
 # an allowed fetch resets the counter, restoring enforcement
 ef_reset
-rm -f "${TMPDIR:-/tmp}/aria-extfetch-denies-s24" 2>/dev/null || :
+rm -f "$EF_SD/aria-extfetch-denies-s24" 2>/dev/null || :
 ef_fetch "https://support.atlassian.com/a" s24 >/dev/null   # deny 1
 ef_fetch "https://bitbucket.org/b"         s24 >/dev/null   # deny 2
 ef_fetch "https://nothing-here.example/z"  s24 >/dev/null   # uncovered -> allow, RESETS
 assert_eq "AC12 allowed fetch cleared the counter" "1" \
-  "$([ ! -f "${TMPDIR:-/tmp}/aria-extfetch-denies-s24" ] && echo 1 || echo 0)"
+  "$([ ! -f "$EF_SD/aria-extfetch-denies-s24" ] && echo 1 || echo 0)"
 r1=$(ef_fetch "https://render.com/c" s24)
 assert_eq "AC12 enforcement restored after reset" "1" "$(ef_has '"permissionDecision":"deny"' "$r1")"
 
@@ -275,8 +292,8 @@ ef_fetch_agent "https://support.atlassian.com/a" sagent1 sub9 >/dev/null
 ef_fetch_agent "https://bitbucket.org/b"         sagent1 sub9 >/dev/null
 ef_fetch_agent "https://render.com/c"            sagent1 sub9 >/dev/null
 assert_eq "AC12b agent counter is the agent's own file" "3" \
-  "$(cat "${TMPDIR:-/tmp}/aria-extfetch-denies-sagent1.agent-sub9" 2>/dev/null || echo MISSING)"
-rm -f "${TMPDIR:-/tmp}"/aria-extfetch-sagent1-* 2>/dev/null || :
+  "$(cat "$EF_SD/aria-extfetch-denies-sagent1.agent-sub9" 2>/dev/null || echo MISSING)"
+rm -f "$EF_SD"/aria-extfetch-sagent1-* 2>/dev/null || :
 p1=$(ef_fetch "https://support.atlassian.com/d" sagent1)
 assert_eq "AC12b parent in same session still denied" "1" "$(ef_has '"permissionDecision":"deny"' "$p1")"
 

@@ -12,18 +12,35 @@
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$SCRIPT_DIR/config.sh"
 
+# Hook input (codex-hook.py passes Codex's SessionStart payload on stdin). Read it here, before any
+# early exit. ⛔ Read stdin only when it is NOT a terminal: a bare `cat` on a terminal blocks, and
+# every caller that pipes must close the pipe. Until 2.58.0 this script never read it, so INPUT was
+# empty and the tracked-artifact block below could never fire (Claude Code fixed the same on
+# 2026-10-25).
+INPUT=""
+[ -t 0 ] || INPUT=$(cat)
+
 # Clear stale batch manifest (>30 min old) left over from crashed sessions.
 # Prevents stale manifests from silently suppressing Rule 22 on subsequent
 # unrelated edits. Safe no-op if no manifest exists or jq is unavailable.
 kt_batch_clear_stale 1800
 
-# Clear stale active-surfacing ledgers (>1 day old) from prior sessions.
-# The ledger is session-scoped (fresh per session per D4), so anything older
-# than ~24h is debris from crashed/abandoned sessions. Safe no-op if none exist.
-find /tmp -maxdepth 1 -name 'aria-active-*' -mtime +1 -delete 2>/dev/null
-# Clear stale session-inprogress ledgers (>1 day) from prior/crashed sessions
-# (written by codex-hook.py's first-edit in-progress marking, v2.24.2-codex.0).
-find /tmp -maxdepth 1 -name 'aria-session-inprogress-*' -mtime +1 -delete 2>/dev/null
+# LEGACY-TMP-SWEEP-2.58 begin — remove in the first release after 2.58.0, together with KT_TMP_SWEEP_ROOT (Rule 37)
+# Before 2.58.0 hook state lived at predictable names in the shared /tmp and $TMPDIR. Since 2.58.0 it
+# lives in the private state dir (swept below, once resolved), so these names are only debris. Each
+# find removes OUR entries older than 24 h, one level deep; find never follows a link it meets, so a
+# link is removed, not its target. Start points end in "/": on macOS /tmp is a symlink and find does
+# not follow a symlinked start point without it (measured 2026-11-12: 0 of 372 seen; 372 with /tmp/).
+# KT_TMP_SWEEP_ROOT is a TEST-ONLY override that replaces BOTH roots, so a suite never sweeps the real
+# /tmp or $TMPDIR.
+find "${KT_TMP_SWEEP_ROOT:-/tmp}/" -maxdepth 1 -user "$(id -u)" -mmin +1440 \( -name 'aria-active-*' \
+  -o -name 'aria-session-inprogress-*' -o -name 'aria-bashcd-*' -o -name 'aria-codemap-*' \
+  -o -name 'aria-codex-codemap-*' -o -name 'aria-context-*' -o -name 'aria-usage-warn-*' \
+  -o -name 'aria-hook-debug.log' -o -name 'aria-digest-*' -o -name '.aria-new.*' \) -exec rm -f {} + 2>/dev/null
+find "${KT_TMP_SWEEP_ROOT:-${TMPDIR:-/tmp}}/" -maxdepth 1 -user "$(id -u)" -mmin +1440 \( -name 'aria-r22-*' \
+  -o -name 'aria-extfetch*' -o -name 'aria-preflight*' -o -name 'aria-surface-*' -o -name 'aria-prompt-config.*' \
+  -o -name 'aria-cursor-*' -o -name 'aria-ag-*' -o -name '.aria-ag-*' -o -name '.aria-new.*' \) -exec rm -f {} + 2>/dev/null
+# LEGACY-TMP-SWEEP-2.58 end
 
 # If config file exists but failed validation, report the specific error
 if [ -n "$KT_CONFIG_ERROR" ]; then
@@ -66,6 +83,50 @@ CONFIG_LOG="$KT_KNOWLEDGE_FOLDER/logs/config-audit-log.md"
 
 MESSAGES=""
 
+# The private per-user state dir (lib-state-key.sh) and this session's surfacing ledger, resolved once
+# and STATED to the model (2.58.0, spec D5, gate amendment G1-1) in its own `ARIA CONFIG` value line —
+# the same name claude-code uses, so one skill sentence ("the file named by `ledger=` in `ARIA CONFIG`")
+# serves every port. The ledger is the path this port's own writer uses for this session (stated =
+# written); `none` when there is no state dir (spec D3) or no id. A SEPARATE append on both paths
+# below: never inside the SESSION STATE line, nor inside ARIA SURFACE (the CLI path and nothing else).
+KT_STATE_DIR=""
+[ -f "$SCRIPT_DIR/lib-state-key.sh" ] && . "$SCRIPT_DIR/lib-state-key.sh" && kt_state_resolve
+# The state dir's own sweep (spec D6, split retention D10): kt_state_sweep in lib-state-key.sh — proof
+# names 30 days, everything else 24 h. Only when it resolved; top level only; never a directory or a link.
+[ -n "$KT_STATE_DIR" ] && kt_state_sweep
+# The ledger key is session_id, as codex's other ledger writers and readers use it (codex-hook.py
+# session_key_raw, bash-cd-check.sh, task-context-check.sh), then turn_id, session_key_raw's own fallback.
+# Whitespace-tolerant: JSON may space it.
+# kt_session_key: accepted only as [A-Za-z0-9._-]+, never rewritten; rejected or absent ⇒ ledger=none.
+SS_LEDGER_ID=$(kt_session_key "$INPUT" session_id turn_id 2>/dev/null) || SS_LEDGER_ID=""
+SS_LEDGER=""
+[ -n "$SS_LEDGER_ID" ] && SS_LEDGER=$(kt_state_path "aria-active-${SS_LEDGER_ID}") || SS_LEDGER=""
+STATE_LINE="ARIA CONFIG — state_dir=${KT_STATE_DIR:-none} ledger=${SS_LEDGER:-none}. "
+
+# v2.16.1: tracked-artifacts active load — fires when active_knowledge_surfacing
+# is enabled AND PWD substring-matches a configured project. Surfaces CODEMAP
+# directory + (if multi-repo) STITCH with staleness annotation. Complementary
+# to the multi-project CODEMAP staleness report further down; for sessions
+# started inside a project, this gives an active-load instruction alongside that
+# report. For sessions started at ~/Projects (no project match), this silently skips.
+# 2.58.0: computed HERE, into TA_MSG, so the first-run welcome below carries it too (it used to
+# exit before reaching this block); the normal path appends it where the block used to sit.
+TA_MSG=""
+if [ "$KT_ACTIVE_SURFACING" = "true" ] && [ "$KT_PROJECTS_ENABLED" = "true" ]; then
+  . "$SCRIPT_DIR/lib-tracked-artifacts.sh"
+  kt_artifact_compute_for_path "$PWD"
+  # The session ledger (resolved above). No state dir (spec D3): no instruction and nothing
+  # recorded — without the ledger it would repeat.
+  TA_LEDGER=$SS_LEDGER
+  if [ -n "$TA_LEDGER" ] && [ "$KT_ARTIFACTS_COUNT" -gt 0 ]; then
+    kt_artifact_filter_ledger "$TA_LEDGER"
+    if [ "$KT_ARTIFACTS_COUNT" -gt 0 ]; then
+      kt_artifact_record_ledger "$TA_LEDGER"
+      TA_MSG=$KT_ARTIFACTS_INSTRUCTION
+    fi
+  fi
+fi
+
 # First-run detection — show welcome instead of audit prompts for new users
 IS_FIRST_RUN=false
 if [ -f "$KNOWLEDGE_LOG" ]; then
@@ -77,7 +138,7 @@ else
 fi
 
 if [ "$IS_FIRST_RUN" = "true" ]; then
-  MESSAGES="ARIA Knowledge Active: Auto insights collection, Rule 22 logic on edits, context surfacing, audit prompts, and precompact capture. Run /help for commands, see QUICKSTART.md for more."
+  MESSAGES="ARIA Knowledge Active: Auto insights collection, Rule 22 logic on edits, context surfacing, audit prompts, and precompact capture. Run /help for commands, see QUICKSTART.md for more.${TA_MSG:+ $TA_MSG} ${STATE_LINE}"
   MESSAGES_ESCAPED=$(kt_json_escape "$MESSAGES")
   echo '{"systemMessage":"'"$MESSAGES_ESCAPED"'"}'
   echo "$(date +%Y-%m-%dT%H:%M:%S) session-start-check: first-run welcome" >> "$KT_KNOWLEDGE_FOLDER/logs/hook-debug.log" 2>/dev/null
@@ -245,14 +306,14 @@ if [ -f "$INDEX_FILE" ]; then
     # read, not $(cat <<...): bash 3.2 (macOS /bin/sh) mis-parses an apostrophe in a heredoc that
     # sits inside a command substitution.
     IFS= read -r _aa_text <<'ARIA_ACTIVE_CONTEXT'
-ARIA ACTIVE CONTEXT — Unasked, read each task's knowledge files before answering; say in one line which you used and why. Source: an `ARIA ACTIVE —` injection, in Codex the only source (none = read nothing); the plugin ranks its files this way: <!-- surfacing-ranking:start -->Rank the candidate files: (1) a file carrying a matched project tag first; (2) then files carrying more of the matched tags; (3) then files whose path or index description contains more of the task's own words (lowercase, length over 2, common words dropped); (4) then authored files before files under `logs/`; (5) then the file whose rarest matched tag has the fewest files; (6) then index order. Fire when 2 or more tags match, or when 1 matched tag is a configured project. Keep the top 5.<!-- surfacing-ranking:end --> Skip files already read this session.
+ARIA ACTIVE CONTEXT — Unasked, read each task's knowledge files before answering; say in one line which you used and why. Source: an `ARIA ACTIVE —` injection from the Codex prompt hook, the only source (none = read nothing); the plugin ranks its files this way: <!-- surfacing-ranking:start -->Rank the candidate files: (1) a file carrying a matched project tag first; (2) then files carrying more of the matched tags; (3) then files whose path or index description contains more of the task's own words (lowercase, length over 2, common words dropped); (4) then authored files before files under `logs/`; (5) then the file whose rarest matched tag has the fewest files; (6) then index order. Fire when 2 or more tags match, or when 1 matched tag is a configured project. Keep the top 5.<!-- surfacing-ranking:end --> Skip files already read this session.
 ARIA_ACTIVE_CONTEXT
     MESSAGES="${MESSAGES}${_aa_text} "
-    # ARIA SURFACE value line, as plugin-claude-code/scripts/session-start-check.sh sends it: the exact
-    # command (absolute, quoted path; task text on stdin through a QUOTED heredoc so nothing in it
-    # expands). Double-quoted shell: keep backticks and dollar signs out of the prose in it.
+    # ARIA SURFACE value line, as plugin-claude-code/scripts/session-start-check.sh sends it: the
+    # absolute, quoted CLI path and nothing else. Skills pass it references (--file, --git-range),
+    # never task text. Double-quoted shell: keep backticks and dollar signs out of it.
     if [ -f "${SCRIPT_DIR}/aria-surface.sh" ]; then
-      MESSAGES="${MESSAGES}ARIA SURFACE — run: sh \"${SCRIPT_DIR}/aria-surface.sh\" - <<'ARIA_TASK' — then the task text on its own lines (drop any line that is exactly ARIA_TASK), then a line holding only ARIA_TASK; never put the text in quotes on the command line, where shell syntax in it would run. "
+      MESSAGES="${MESSAGES}ARIA SURFACE — \"${SCRIPT_DIR}/aria-surface.sh\" "
     fi
   else
     MESSAGES="${MESSAGES}ARIA CONTEXT — Knowledge index available at ${KT_KNOWLEDGE_FOLDER}/index.md. After user states task, check it for relevant tags and suggest a /context with any found relevant tags. Offer once per session and again when changing topics. Do not block. "
@@ -281,27 +342,9 @@ if [ "$KT_PROJECTS_ENABLED" = "true" ] && [ "$KT_SESSION_START_PROJECT_PICKER" =
   fi
 fi
 
-# v2.16.1: tracked-artifacts active load — fires when active_knowledge_surfacing
-# is enabled AND PWD substring-matches a configured project. Surfaces CODEMAP
-# directory + (if multi-repo) STITCH with staleness annotation. Complementary
-# to the existing multi-project CODEMAP staleness report below (line 258+);
-# for sessions started inside a project, this gives an active-load instruction
-# alongside that report. For sessions started at ~/Projects (no project match),
-# this silently skips and the existing block continues unchanged.
-if [ "$KT_ACTIVE_SURFACING" = "true" ] && [ "$KT_PROJECTS_ENABLED" = "true" ]; then
-  # session_id needed for ledger path
-  TA_SESSION_ID=$(echo "$INPUT" | grep -o '"session_id":"[^"]*"' | head -1 | sed 's/"session_id":"//;s/"//' 2>/dev/null)
-  . "$SCRIPT_DIR/lib-tracked-artifacts.sh"
-  kt_artifact_compute_for_path "$PWD"
-  if [ -n "$TA_SESSION_ID" ] && [ "$KT_ARTIFACTS_COUNT" -gt 0 ]; then
-    TA_LEDGER="/tmp/aria-active-${TA_SESSION_ID}"
-    kt_artifact_filter_ledger "$TA_LEDGER"
-    if [ "$KT_ARTIFACTS_COUNT" -gt 0 ]; then
-      kt_artifact_record_ledger "$TA_LEDGER"
-      MESSAGES="${MESSAGES}${KT_ARTIFACTS_INSTRUCTION}"
-    fi
-  fi
-fi
+# Tracked artifacts (computed before first-run detection; see TA_MSG above).
+MESSAGES="${MESSAGES}${TA_MSG}"
+MESSAGES="${MESSAGES}${STATE_LINE}"
 
 # SESSION.md re-entry offer (ported in 2.24.2-codex.0) — flag-gated on
 # session_state. SessionStart fires before the project is always clear, so this
@@ -309,7 +352,7 @@ fi
 # resolves. The in-progress mark is written deterministically by codex-hook.py on
 # the first apply_patch edit; do not write SESSION.md here.
 if [ "$KT_SESSION_STATE" = "true" ]; then
-  MESSAGES="${MESSAGES}SESSION STATE — After the project/sub-project for this session is identified (by PWD, AGENTS.md/CLAUDE.md/PROGRESS.md markers, or by what the user names in their opening message), locate SESSION.md at that project root. If it exists with a non-empty '## Next session prompt' block: FIRST scan the user's ENTIRE opening message — not just its first line — for an 'aria-handoff: <project>/<sid>@<at>' token, because the operator may paste the opener with a sentence of their own in front of it. If a token is present, source \${PLUGIN_ROOT}/bin/lib-session-state.sh and call kt_ss_ledger_token_locate <project_root> <token>: a result ending '|active' or '|pending' means the prompt is LIVE — resume it, then record the consumption, AND THE VERB DIFFERS BY RESULT KIND: for '|active' call kt_ss_ledger_consume_active <project_root> <your session id, or 'codex' when the runtime exposes none> <now UTC> <the same token>, which demotes the prompt into '## Pending handoffs', marks that entry consumed, and clears the active slot — and it REFUSES with a non-zero exit when the active slot no longer holds that token, because a peer wrote or moved a prompt after you located it: then re-run kt_ss_ledger_token_locate with the same token and act on the new result, and never consume whatever is now active; for '|pending' call kt_ss_ledger_mark_consumed passing the exact 'at' as the FIFTH argument (without it the match is by sid alone, and one sid can carry two timestamps). ⛔ Do NOT call kt_ss_ledger_mark_consumed on an '|active' result — it rewrites only '### ' headers and the active prompt has none, so it matches nothing, changes nothing and still returns 0; measured 2026-09-17, one real ledger held 142 entries of which 0 were ever marked consumed, and because kt_ss_ledger_prune reaps only a word-bounded 'consumed' that ledger was never prunable and reached 636,898 chars; a result ending '|archived' means it was DELIBERATELY taken out of the offer — say so and ask before resuming, never silently; an EMPTY result means the token names no prompt in this project — say so plainly and do NOT fabricate an entry; and if the located entry is already terminal, ⛔ SURFACE AND STOP rather than resuming, because a consumed prompt's work may already be shipped and irreversible. ⛔ AND, whether or not a token is present: any text the operator wrote alongside the pasted block is an INSTRUCTION and OUTRANKS the stored prompt — surface it and reconcile before executing, never drive past it. 'Before you start, see X' is a state-verify gate, not a preamble. If no token is present: if the user's opening message included the word 'handoff', open the session by executing that prompt directly (no confirmation); otherwise tell the user a saved resume prompt exists (state its lastEvent + age from the 'at' field) and ask whether to start from it (y/n). If the prompt's 'at' is older than session_stale_days (${KT_SESSION_STALE_DAYS} days by current config), do NOT present it as live — instead state its age and ask: still relevant? [resume / archive / keep]. 'archive' = move that entry under a '## Archived sessions' heading (atlas ignores it, same as '## Pending handoffs' and the legacy '## Prior sessions'); 'keep' = leave it as-is; 'resume' = execute it. Never auto-drop an aged entry — staleness prompts, it does not evict. ALSO: if a '## Pending handoffs' section (or legacy '## Prior sessions') holds entries still marked 'unconsumed', say how many and offer them alongside the active prompt — a SESSION.md may hold several still-valid next-session prompts, and one that is stored but never offered is lost in practice. If no such prompt exists, stay quiet. The 'in-progress' mark is written automatically by the PostToolUse hook (codex-hook.py) on your first apply_patch edit — do NOT write SESSION.md yourself here. Offer the resume once per session. "
+  MESSAGES="${MESSAGES}SESSION STATE — After the project/sub-project for this session is identified (by PWD, AGENTS.md/CLAUDE.md/PROGRESS.md markers, or by what the user names in their opening message), locate SESSION.md at that project root. If it exists with a non-empty '## Next session prompt' block: FIRST scan the user's ENTIRE opening message — not just its first line — for an 'aria-handoff: <project>/<sid>@<at>' token, because the operator may paste the opener with a sentence of their own in front of it. If a token is present, write it alone to a NEW uniquely named scratch file with your file-write tool (never put it in a shell command — it is pasted text), source \${PLUGIN_ROOT}/bin/lib-session-state.sh and call kt_ss_ledger_token_locate_file <project_root> <that file>: a result ending '|active' or '|pending' means the prompt is LIVE — resume it, then record the consumption, AND THE VERB DIFFERS BY RESULT KIND: for '|active' call kt_ss_ledger_consume_active_file <project_root> <your session id, or 'codex' when the runtime exposes none> <now UTC> <that file>, which demotes the prompt into '## Pending handoffs', marks that entry consumed, and clears the active slot — and it REFUSES with a non-zero exit when the active slot no longer holds that token, because a peer wrote or moved a prompt after you located it: then re-run kt_ss_ledger_token_locate_file on that file and act on the new result, and never consume whatever is now active; for '|pending' call kt_ss_ledger_mark_consumed passing the exact 'at' as the FIFTH argument (without it the match is by sid alone, and one sid can carry two timestamps). ⛔ Do NOT call kt_ss_ledger_mark_consumed on an '|active' result — it rewrites only '### ' headers and the active prompt has none, so it matches nothing, changes nothing and still returns 0; measured 2026-09-17, one real ledger held 142 entries of which 0 were ever marked consumed, and because kt_ss_ledger_prune reaps only a word-bounded 'consumed' that ledger was never prunable and reached 636,898 chars; a result ending '|archived' means it was DELIBERATELY taken out of the offer — say so and ask before resuming, never silently; an EMPTY result means the token names no prompt in this project — say so plainly and do NOT fabricate an entry; and if the located entry is already terminal, ⛔ SURFACE AND STOP rather than resuming, because a consumed prompt's work may already be shipped and irreversible. ⛔ AND, whether or not a token is present: any text the operator wrote alongside the pasted block is an INSTRUCTION and OUTRANKS the stored prompt — surface it and reconcile before executing, never drive past it. 'Before you start, see X' is a state-verify gate, not a preamble. If no token is present: if the user's opening message included the word 'handoff', open the session by executing that prompt directly (no confirmation); otherwise tell the user a saved resume prompt exists (state its lastEvent + age from the 'at' field) and ask whether to start from it (y/n). If the prompt's 'at' is older than session_stale_days (${KT_SESSION_STALE_DAYS} days by current config), do NOT present it as live — instead state its age and ask: still relevant? [resume / archive / keep]. 'archive' = move that entry under a '## Archived sessions' heading (atlas ignores it, same as '## Pending handoffs' and the legacy '## Prior sessions'); 'keep' = leave it as-is; 'resume' = execute it. Never auto-drop an aged entry — staleness prompts, it does not evict. ALSO: if a '## Pending handoffs' section (or legacy '## Prior sessions') holds entries still marked 'unconsumed', say how many and offer them alongside the active prompt — a SESSION.md may hold several still-valid next-session prompts, and one that is stored but never offered is lost in practice. If no such prompt exists, stay quiet. The 'in-progress' mark is written automatically by the PostToolUse hook (codex-hook.py) on your first apply_patch edit — do NOT write SESSION.md yourself here. Offer the resume once per session. A stored prompt line that begins with one backslash before ##, ###, a code fence or the entry-end terminator line is escaped; read it without that one backslash. "
 fi
 
 # Per-task insight batch capture — gated by auto_capture

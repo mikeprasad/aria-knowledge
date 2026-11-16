@@ -50,9 +50,13 @@ HCLAUSE=$(awk '/^\*\*Multi-session ledger/,/^THEN write the new active header/' 
   || bad "floor: handoff ledger clause" "slice empty or too short — H1/H2 below would examine no text at all"
 
 # ── A: /wrapup demotes, and demotes BEFORE the rewrite ───────────────────────────────────────────
-printf '%s' "$WSEC" | grep -qF "kt_ss_ledger_add" \
-  && ok "A1 wrapup names kt_ss_ledger_add" \
-  || bad "A1 demote call" "wrapup Step 6.5 never calls kt_ss_ledger_add — a full rewrite will destroy a prior handoff"
+# (2.58.0) The demote is kt_ss_ledger_demote_active, which reads every value from the file itself.
+# The old call passed the stored prompt as a shell argument the model composed -- backticks and `$`
+# in a prompt then executed. The free-text form is kept out by the class guard in
+# surfacing-ranking-verbatim.sh (rule F); this file guards the ORDER of demote and rewrite.
+printf '%s' "$WSEC" | grep -qF "kt_ss_ledger_demote_active" \
+  && ok "A1 wrapup names kt_ss_ledger_demote_active" \
+  || bad "A1 demote call" "wrapup Step 6.5 never calls kt_ss_ledger_demote_active — a full rewrite will destroy a prior handoff"
 
 # Ordering, not mere presence — and the ordering word must sit between the CALL and the WRITE, on
 # the same line as the call.
@@ -62,7 +66,7 @@ printf '%s' "$WSEC" | grep -qF "kt_ss_ledger_add" \
 # version that performed the rewrite FIRST and demoted afterwards PASSED. A heading states intent;
 # only the numbered step states the sequence, and a guard satisfied by either is scoped to the wrong
 # unit — the same defect class this fix exists to close, one level down.
-printf '%s' "$WSEC" | grep -qiE 'ledger_add.*(then|before).*(write|rewrite)' \
+printf '%s' "$WSEC" | grep -qiE 'demote_active.*(then|before).*(write|rewrite)' \
   && ok "A1b demote is ordered BEFORE the rewrite" \
   || bad "A1b ordering" "the demote is mentioned but not ordered before the rewrite — presence is not sequence"
 
@@ -138,7 +142,7 @@ printf '%s' "$WSEC" | grep -qF "Unconsumed handoffs survive at full fidelity —
   || ok "D  unqualified survival claim absent"
 
 # ── E: two-sided — /handoff still carries 3f ─────────────────────────────────────────────────────
-printf '%s' "$HSEC" | grep -qF "kt_ss_ledger_add" \
+printf '%s' "$HSEC" | grep -qF "kt_ss_ledger_demote_active" \
   && ok "E  handoff 3f still demotes" \
   || bad "E  handoff 3f" "the demote was removed from /handoff — same invariant, broken from the other end"
 
@@ -169,8 +173,10 @@ printf '%s' "$HCLAUSE" | grep -qF 'has `lastEvent: handoff` and its' \
   || ok "H2 handoff: gate no longer keys on \`lastEvent: handoff\` alone"
 
 # ── B3/H8: the demoted entry's ATTRIBUTION is annotated when the sid is a hook artifact ─────────
-# kt_ss_ledger_add takes the PRIOR sessionId as an argument, read from the prior file's front-matter
-# -- which post-edit-check.sh may have stamped with the DEMOTING session's id. So a correctly-demoted
+# The demoted entry's sid is read from the prior file's front-matter when its prompt carries no token
+# -- which post-edit-check.sh may have stamped with the DEMOTING session's id. (Since 2.58.0
+# kt_ss_ledger_demote_active writes the annotation itself when told the caller's sid; the skills
+# still state it, so a reader knows what the prefix on a stored focus means.) So a correctly-demoted
 # entry is misattributed to whoever demoted it unless the caller says so. lib-session-state.sh
 # records the same phenomenon for the ledger key ("a HOOK ARTIFACT, not attribution").
 # ⚑ GREPPING PROSE IS CORRECT HERE AND WRONG AT B1/B2, and the distinction is the point: there the
@@ -199,6 +205,16 @@ printf '%s' "$HSEC" | grep -qF "$_B_RETIRED" \
   && bad "H7 handoff 3f conjunct" "3f's summary line still conjoins a sessionId test, so a reader following the summary re-introduces it" \
   || ok "H7 handoff 3f: retired sessionId conjunct absent"
 
+# ── S: the self-demote (incumbent strictly newer) stores the session's own entry FROM A FILE ─────
+# Its free text -- focus, next, and the prompt -- goes into a file the model writes with its
+# file-write tool, and kt_ss_ledger_add_file reads it in-process. Two-sided across both skills.
+printf '%s' "$WSEC" | grep -qF 'kt_ss_ledger_add_file' \
+  && ok "S1 wrapup: self-demote stores its entry with kt_ss_ledger_add_file" \
+  || bad "S1 wrapup self-demote" "Step 6.5's exit-0 branch no longer names kt_ss_ledger_add_file"
+grep -qF 'kt_ss_ledger_add_file' "$HAND" \
+  && ok "S2 handoff: self-demote stores its entry with kt_ss_ledger_add_file" \
+  || bad "S2 handoff self-demote" "3f's exit-0 branch no longer names kt_ss_ledger_add_file"
+
 # ── F: the runtime-drift note is recorded where a reader will see it ─────────────────────────────
 printf '%s' "$WSEC" | grep -qiE 'antigravity|codex' \
   && ok "F  tracked drift named in-file" \
@@ -214,7 +230,9 @@ printf '%s' "$WSEC" | grep -qiE 'antigravity|codex' \
 # trigger fired unnoticed. A stated retirement condition with no assertion is a wish (Rule 37); this
 # block is the assertion. Both directions, because either alone is satisfied by a deletion.
 _R_FALSE='There is no ledger to read any more'
-_R_READ='Read `${TMPDIR'
+# 2.58.0: the ledger lives in the private per-user state dir, so the read goes through the CLI that
+# names it (aria-state.sh path) — the old `${TMPDIR:-/tmp}` spelling is retired (state-dir-model-facing.sh M6).
+_R_READ='path "aria-r22-bypass-'
 _R_SEEN=0
 for _rd in plugin-claude-code plugin-antigravity plugin-openai-codex; do
   for _rs in wrapup handoff; do
@@ -239,7 +257,7 @@ done
 # over six files does not hold. Pattern: comment-is-not-a-guard.
 #
 # ⭐ SCOPE IS KEYED ON A MEASURABLE PROPERTY, NOT ON SECTION STRUCTURE. A port is in scope iff its
-# SKILL.md carries kt_ss_ledger_add. That matters two ways: the ports' section layouts genuinely differ
+# SKILL.md carries kt_ss_ledger_demote_active (kt_ss_ledger_add until 2.58.0). That matters two ways: the ports' section layouts genuinely differ
 # (all six wrapup/handoff files have distinct cksums), so slicing them by heading the way WSEC/HSEC do
 # would silently yield EMPTY and pass having read nothing; and keying on the demote's presence means a
 # port is covered AUTOMATICALLY the moment it gains one -- which is how codex wrapup entered this set.
@@ -251,8 +269,10 @@ for _pd in $_P_PORTS; do
     bad "P $_pd" "SKILL.md does not exist -- a guard with no subject is not a guard"
     continue
   fi
-  grep -qF 'kt_ss_ledger_add' "$_pf" || continue
+  grep -qF 'kt_ss_ledger_demote_active' "$_pf" || continue
   _P_SEEN=$((_P_SEEN + 1))
+  grep -qF 'kt_ss_ledger_add_file' "$_pf" \
+    || bad "P $_pd" "carries the code-only demote but not kt_ss_ledger_add_file for the self-demote"
   # All THREE retired spellings. The first two are the sessionId conjunct's two forms -- censusing one
   # is what produced the "three sites" undercount. The third is D1's FIRST axis, which codex carried
   # two generations after it was fixed elsewhere.

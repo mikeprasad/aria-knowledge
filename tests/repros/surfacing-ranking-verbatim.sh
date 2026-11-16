@@ -38,6 +38,10 @@ ME='<!-- surfacing-''ranking:end -->'
 
 SCRATCH=$(mktemp -d "${TMPDIR:-/tmp}/aria-ranking-verbatim.XXXXXX") || exit 1
 trap 'rm -rf "$SCRATCH"' EXIT
+# Hook and CLI state (the ledger, caches, debug log, Antigravity markers) lives in the private state
+# dir since 2.58.0; resolve it under a scratch base so a standalone run never touches the real one.
+unset XDG_RUNTIME_DIR
+KT_STATE_BASE="$SCRATCH/state-base"; export KT_STATE_BASE; mkdir -p "$KT_STATE_BASE"
 
 # --- canonical text --------------------------------------------------------------------------
 CANON=""
@@ -312,6 +316,17 @@ done
 if [ -n "$_ref" ] && [ -z "$_diffs" ]; then ok "four_libs_identical: the 4 lib-index-match.sh copies are byte-identical"
 else bad "four_libs_identical: the 4 lib-index-match.sh copies are byte-identical" "differ or missing:$_diffs"; fi
 
+# prompt_surface_libs_identical — the shared capture core, canonical + the cursor and antigravity copies.
+PS_CANON="$ROOT/plugin-claude-code/scripts/lib-prompt-surface.sh"
+_ref=$(cksum < "$PS_CANON" 2>/dev/null)
+_diffs=""
+for _f in "$ROOT/plugin-antigravity/bin/lib-prompt-surface.sh" "$ROOT/plugin-cursor-template/scripts/aria/lib-prompt-surface.sh"; do
+  _c=$(cksum < "$_f" 2>/dev/null)
+  [ -n "$_c" ] && [ "$_c" = "$_ref" ] || _diffs="$_diffs ${_f#$ROOT/}"
+done
+if [ -n "$_ref" ] && [ -z "$_diffs" ]; then ok "prompt_surface_libs_identical: the 3 lib-prompt-surface.sh copies are byte-identical"
+else bad "prompt_surface_libs_identical: the 3 lib-prompt-surface.sh copies are byte-identical" "differ or missing:$_diffs"; fi
+
 # Fixture: the surfacing-rank index, a config that turns surfacing on, and a query that fires.
 T7="$SCRATCH/t7"; mkdir -p "$T7/kf/logs" "$T7/home" "$T7/home/.gemini/antigravity"
 cp "$ROOT/tests/repros/fixtures/surfacing/index.md" "$T7/kf/index.md"
@@ -347,29 +362,34 @@ EXPECT_LINE=$(printf '%s' "$CANON_LINE" | KF="$T7/kf" awk '{ i = index($0, "{kno
 if [ -n "$CANON_LINE" ] && [ "$EXPECT_LINE" != "$CANON_LINE" ]; then ok "emitter control: the canonical directive names {knowledge_folder} once and substitutes"
 else bad "emitter control: the canonical directive names {knowledge_folder} once and substitutes" "substitution changed nothing"; fi
 
-# Per-port directive (2.58.0 fix wave, I2). Each port keeps the canonical ranking paragraph byte for
-# byte between its markers; the clauses AROUND it are the port's own: Codex's prompt hook injects
-# `ARIA ACTIVE —`, so that is its only source; Cursor and Antigravity have no prompt hook and run the
-# ARIA SURFACE command once per topic. No port names CLAUDE_CODE_SESSION_ID, which none of them sets.
+# Per-port directive (2.58.0 fix wave, I2; no-text-transport D5). Each port keeps the canonical
+# ranking paragraph byte for byte between its markers; the clauses AROUND it are the port's own.
+# Every hooked runtime now ranks in code (Codex prompt hook, Cursor beforeSubmitPrompt+postToolUse,
+# Antigravity PreInvocation), so its injection is the only source and each emitter names its hook.
+# No port names CLAUDE_CODE_SESSION_ID, which none of them sets.
 PD_HEAD="ARIA ACTIVE CONTEXT — Unasked, read each task's knowledge files before answering; say in one line which you used and why. Source: "
 PD_TAIL=" Skip files already read this session."
 port_directive() { # $1 = port → the exact directive that emitter must send
   case "$1" in
-    codex) printf '%s%s%s%s%s%s' "$PD_HEAD" 'an `ARIA ACTIVE —` injection, in Codex the only source (none = read nothing); the plugin ranks its files this way: ' "$MS" "$CANON" "$ME" "$PD_TAIL" ;;
-    *) printf '%s%s%s%s%s%s' "$PD_HEAD" '(a) an `ARIA ACTIVE —` injection; else (b) with a shell, run the `ARIA SURFACE` command on the task text, once per topic; else (c) `## Tag Index` headers of '"$T7/kf"'/index.md matching task words, ordered: ' "$MS" "$CANON" "$ME" "$PD_TAIL" ;;
+    codex) _pd_src='an `ARIA ACTIVE —` injection from the Codex prompt hook, the only source (none = read nothing); the plugin ranks its files this way: ' ;;
+    cursor) _pd_src='an `ARIA ACTIVE —` injection from the Cursor prompt hooks (it arrives after the first tool call of a turn), the only source (none = read nothing); the plugin ranks its files this way: ' ;;
+    antigravity) _pd_src='an `ARIA ACTIVE —` injection from the Antigravity PreInvocation hook, the only source (none = read nothing); the plugin ranks its files this way: ' ;;
   esac
+  printf '%s%s%s%s%s%s' "$PD_HEAD" "$_pd_src" "$MS" "$CANON" "$ME" "$PD_TAIL"
 }
-# model_run CMD → what the CLI prints for the script a model writes from an ARIA SURFACE line: the
-# command, the task text on its own line, the delimiter line. The text carries a backtick span and a
-# $() span that each create a marker file if anything runs them (C1).
+# model_run PATH → what the CLI prints when a model does what the skills now say: write the text to
+# a scratch file with its file-write tool, then run `sh '<ARIA SURFACE path>' --file '<scratch>'`.
+# The text carries a backtick span, a $() span and a bare ARIA_TASK line followed by a command line,
+# each of which creates a marker file if anything runs it.
 T7_HOSTILE="$T7_QUERY "'`touch '"$T7/mk1"'` $(touch '"$T7/mk2"')'
+printf '%s\nARIA_TASK\ntouch %s\n' "$T7_HOSTILE" "$T7/mk3" > "$T7/task.md"
 model_run() {
-  rm -f "$T7/mk1" "$T7/mk2"
-  { printf '%s\n' "$1"; printf '%s\n' "$T7_HOSTILE"; printf 'ARIA_TASK\n'; } > "$T7/model.sh"
+  rm -f "$T7/mk1" "$T7/mk2" "$T7/mk3"
+  printf "sh '%s' --file '%s'\n" "$1" "$T7/task.md" > "$T7/model.sh"
   ( cd "$T7" && TMPDIR="$T7" HOME="$T7/home" KT_ROOT="$T7" KT_CONFIG="$T7/on.md" sh "$T7/model.sh" </dev/null 2>/dev/null )
 }
-# Reference: the canonical CLI given the same text as ONE argv element (no shell parses it).
-CLI_REF_H=$( cd "$T7" && TMPDIR="$T7" HOME="$T7/home" KT_ROOT="$T7" KT_CONFIG="$T7/on.md" sh "$CLI_CANON" "$T7_HOSTILE" </dev/null 2>/dev/null )
+# Reference: the canonical CLI given the same file as an argv element (no shell parses it).
+CLI_REF_H=$( cd "$T7" && TMPDIR="$T7" HOME="$T7/home" KT_ROOT="$T7" KT_CONFIG="$T7/on.md" sh "$CLI_CANON" --file "$T7/task.md" </dev/null 2>/dev/null )
 
 emit_port() { # $1 = port, $2 = cfg → decoded model text on stdout
   case "$1" in
@@ -415,17 +435,30 @@ for _p in codex cursor antigravity; do
     if printf '%s' "$_m" | grep -qiF -e "$_needle"; then bad "emitter $_p: no retired ordering text ('$_needle')" "still emitted"
     else ok "emitter $_p: no retired ordering text ('$_needle')"; fi
   done
-  _sc=$(printf '%s\n' "$_m" | sed -n "s/^.*ARIA SURFACE — run: \(sh \"[^\"]*\" - <<'ARIA_TASK'\) — then .*$/\1/p" | head -1)
-  _sp=$(printf '%s' "$_sc" | sed 's/^sh "//; s/" - <<.*$//')
-  if [ "$_sp" = "$(port_cli_path "$_p")" ]; then ok "emitter $_p: ARIA SURFACE names this port's own CLI, absolute and quoted, in the heredoc command"
-  else bad "emitter $_p: ARIA SURFACE names this port's own CLI, absolute and quoted, in the heredoc command" "got '${_sp}' from '${_sc}'"; fi
+  # surface_line_path_only (D5): the value line is `ARIA SURFACE — "<abs path>"` and nothing else —
+  # no `run:` template, no heredoc, no instruction to put text anywhere.
+  _sp=$(printf '%s\n' "$_m" | sed -n 's/^.*ARIA SURFACE — "\([^"]*\)".*$/\1/p' | head -1)
+  if [ "$_sp" = "$(port_cli_path "$_p")" ]; then ok "emitter $_p: ARIA SURFACE names this port's own CLI, absolute and quoted"
+  else bad "emitter $_p: ARIA SURFACE names this port's own CLI, absolute and quoted" "got '${_sp}'"; fi
+  # These emitters join their messages with a space on one line, so after the closing quote comes
+  # either the end of the line or the next message, which starts with an UPPERCASE name and ` — `
+  # (e.g. `INSIGHT CAPTURE — `). Anything else — ` - <<…`, ` run: …`, prose — is a command template.
+  _after=$(printf '%s\n' "$_m" | awk '{ i = index($0, "ARIA SURFACE — \""); if (!i) next
+      r = substr($0, i + length("ARIA SURFACE — \"")); j = index(r, "\""); if (!j) { print "UNTERMINATED"; exit }
+      print "[" substr(r, j + 1, 60) "]"; exit }')
+  if [ -n "$_sp" ] && printf '%s' "$_after" | grep -qE '^\[[[:space:]]*(\]|[A-Z][A-Z0-9 ]* — )'; then
+    ok "emitter $_p: surface_line_path_only — the line is the quoted path and nothing else"
+  else bad "emitter $_p: surface_line_path_only — the line is the quoted path and nothing else" "after the path: '$(printf '%s' "$_after" | head -c 160)'"; fi
+  if printf '%s' "$_m" | grep -qE 'ARIA SURFACE — run:|<<'"'"'?ARIA_TASK'; then
+    bad "emitter $_p: no run: template and no heredoc anywhere in the payload" "retired transport still emitted"
+  else ok "emitter $_p: no run: template and no heredoc anywhere in the payload"; fi
   if [ -n "$_sp" ] && [ "$(cli_run "$_sp")" = "$CLI_REF" ] && [ -n "$CLI_REF" ]; then ok "emitter $_p: the ARIA SURFACE path runs and ranks the fixture"
   else bad "emitter $_p: the ARIA SURFACE path runs and ranks the fixture" "path did not produce the canonical ranking"; fi
-  _mr=$(model_run "$_sc")
-  if [ -n "$_sc" ] && [ -n "$CLI_REF_H" ] && [ "$_mr" = "$CLI_REF_H" ]; then ok "emitter $_p: the command a model copies from ARIA SURFACE ranks the literal text"
-  else bad "emitter $_p: the command a model copies from ARIA SURFACE ranks the literal text" "got '$(printf '%s' "$_mr" | head -1)'"; fi
-  if [ -e "$T7/mk1" ] || [ -e "$T7/mk2" ]; then bad "emitter $_p: … and runs nothing in the task text" "a marker file was created"
-  else ok "emitter $_p: … and runs nothing in the task text"; fi
+  _mr=$(model_run "$_sp")
+  if [ -n "$_sp" ] && [ -n "$CLI_REF_H" ] && [ "$_mr" = "$CLI_REF_H" ]; then ok "emitter $_p: sh '<ARIA SURFACE path>' --file '<scratch>' ranks the file's literal words"
+  else bad "emitter $_p: sh '<ARIA SURFACE path>' --file '<scratch>' ranks the file's literal words" "got '$(printf '%s' "$_mr" | head -1)'"; fi
+  if [ -e "$T7/mk1" ] || [ -e "$T7/mk2" ] || [ -e "$T7/mk3" ]; then bad "emitter $_p: … and runs nothing in the file's content" "a marker file was created"
+  else ok "emitter $_p: … and runs nothing in the file's content"; fi
 
   _m0=$(emit_port "$_p" "$T7/off.md")
   if printf '%s' "$_m0" | grep -qF 'ARIA CONTEXT — '; then
@@ -451,7 +484,7 @@ done
 # assign it in the same line, from the port's established ${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}.
 for _s in prospect retrospect; do
   _f="$ROOT/plugin-openai-codex/skills/$_s/SKILL.md"
-  if grep -qF 'ARIA_PLUGIN_ROOT="${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}"; sh "${ARIA_PLUGIN_ROOT}/bin/aria-surface.sh" - <<'"'"'ARIA_TASK'"'"'' "$_f"; then
+  if grep -qF 'ARIA_PLUGIN_ROOT="${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}"; sh "${ARIA_PLUGIN_ROOT}/bin/aria-surface.sh"' "$_f"; then
     ok "codex_skills_call_cli: codex /$_s assigns ARIA_PLUGIN_ROOT and calls bin/aria-surface.sh"
   else
     bad "codex_skills_call_cli: codex /$_s assigns ARIA_PLUGIN_ROOT and calls bin/aria-surface.sh" "CLI invocation absent"
@@ -474,13 +507,13 @@ done
 # unset it turns the command into `sh /bin/aria-surface.sh` (exit 127, empty stdout); and (b) says a
 # not-found or non-zero run is "unavailable", never "0 matches", which would claim the index was
 # searched. Cowork does not run the CLI and is not in this set.
-# 2.58.0 fix wave: (A) the command comes from ARIA SURFACE, (D) an `unavailable:` line is handled, and
-# (E) the query never goes inside quotes on the command line (C1 — backticks and $() would run there).
-F1_A='if an `ARIA SURFACE — run: …` line reached you at session start, use the command it names'
+# 2.58.0 fix wave: (A) the CLI path comes from ARIA SURFACE, (D) an `unavailable:` line is handled, and
+# (E) no free text goes on the command line at all — the CLI takes references (no-text-transport D1/D2).
+F1_A='if an `ARIA SURFACE — "<path>"` line reached you at session start, use that path'
 F1_B='`Active surfacing: unavailable (<the reason or error>)`'
 F1_C='never `Active surfacing: 0 matches`'
 F1_D='If it prints `unavailable: <reason>`'
-F1_E='Never put the query inside quotes on the command line'
+F1_E='Never put task text'
 F1_DEAD='It always exits 0.'
 f1_count() { grep -oF -e "$1" "$2" 2>/dev/null | wc -l | tr -d ' '; }
 for _spec in \
@@ -504,9 +537,374 @@ for _spec in "plugin-claude-code/skills/prospect/SKILL.md:\${CLAUDE_PLUGIN_ROOT}
              "plugin-antigravity/skills/prospect/SKILL.md:\${CLAUDE_PLUGIN_ROOT}/bin/aria-surface.sh" \
              "plugin-cursor-template/.cursor/rules/aria-commands.mdc:scripts/aria/aria-surface.sh"; do
   _n=${_spec%%:*}; _needle=${_spec#*:}
-  if grep -qF -e "otherwise use \`sh \"$_needle\" - <<'ARIA_TASK'\`" "$ROOT/$_n"; then ok "F1 fallback: $_n falls back to $_needle"
+  if grep -qF -e "otherwise use \`sh \"$_needle\"\` with the same arguments" "$ROOT/$_n"; then ok "F1 fallback: $_n falls back to $_needle"
   else bad "F1 fallback: $_n falls back to $_needle" "fallback form absent"; fi
 done
+
+# skills_use_references (D2) — every Step 0.5 copy that runs the CLI passes references: a file
+# (`--file '<path>'`) and a commit range (`--git-range '<a>..<b>'`), single-quoted, and tells the model
+# to write text-only scopes to a scratch file with its file-write tool, never a shell redirect.
+for _spec in \
+  "plugin-claude-code/skills/prospect/SKILL.md:1" "plugin-claude-code/skills/retrospect/SKILL.md:1" \
+  "plugin-antigravity/skills/prospect/SKILL.md:1" "plugin-antigravity/skills/retrospect/SKILL.md:1" \
+  "plugin-openai-codex/skills/prospect/SKILL.md:1" "plugin-openai-codex/skills/retrospect/SKILL.md:1" \
+  "plugin-cursor-template/.cursor/rules/aria-commands.mdc:2"; do
+  _n=${_spec%:*}; _want=${_spec##*:}; _f="$ROOT/$_n"
+  # fix round 1: m1 an unsafe reference (a `'`, backtick or `$` in a path or ref — a cloned remote's
+  # refs are third-party text) is never passed; m3 the scratch file is a new one in the scratchpad.
+  for _needle in "--file '" "--git-range '" 'file-write tool' 'unsafe reference' 'scratchpad directory'; do
+    _got=$(grep -oF -e "$_needle" "$_f" 2>/dev/null | wc -l | tr -d ' ')
+    if [ "${_got:-0}" -ge "$_want" ]; then ok "skills_use_references: $_n carries \"$_needle\" ($_got)"
+    else bad "skills_use_references: $_n carries \"$_needle\"" "want >= $_want, got ${_got:-0}"; fi
+  done
+  # m2: the canonical text must not name Claude Code's tool, or the generated ports name the wrong one.
+  if grep -qF 'in Claude Code, `Write`' "$_f"; then bad "skills_use_references: $_n names no runtime-specific write tool" "'(in Claude Code, \`Write\`)' present"
+  else ok "skills_use_references: $_n names no runtime-specific write tool"; fi
+done
+
+# --- preflight_authz_census_reaches_working_tree (fix round 2) -----------------------------------
+# /preflight runs BEFORE a commit, when the newest consumer is often untracked. The authz census was
+# a working-tree `grep -rn`; round 1 made it a `git grep`, which searches TRACKED files only and so
+# missed exactly that consumer. Each preflight copy's git-grep command is RUN in a fixture repo
+# (placeholders filled in): an untracked consumer must appear, and a `Tests/` path (capital T — the
+# old filter was case-insensitive) and a migration path must not.
+PF="$SCRATCH/pf-repo"; mkdir -p "$PF/src" "$PF/Tests" "$PF/lib"
+(
+  cd "$PF" && git init -q . \
+  && printf 'Widget allow\n' > src/a.py && printf 'Widget allow\n' > Tests/t.py \
+  && printf 'Widget allow\n' > lib/migration_x.py \
+  && git add src/a.py Tests/t.py lib/migration_x.py \
+  && git -c user.email=t@example.invalid -c user.name=t commit -qm init \
+  && printf 'Widget permission\n' > src/untracked.py
+) >/dev/null 2>&1
+for _n in plugin-claude-code/skills/preflight/SKILL.md plugin-antigravity/skills/preflight/SKILL.md \
+          plugin-openai-codex/skills/preflight/SKILL.md plugin-cursor-template/.cursor/rules/aria-commands.mdc; do
+  _cmd=$(awk '/^git grep / { c = $0; if (c ~ /\\$/) { sub(/\\$/, "", c); getline n; c = c n } print c; exit }' "$ROOT/$_n" \
+    | sed 's/<SYMBOL>/Widget/g; s/<ext>/py/g')
+  if [ -z "$_cmd" ]; then bad "preflight_authz_census: $_n carries a git-grep census command" "none found"; continue; fi
+  _out=$( cd "$PF" && sh -c "$_cmd" 2>&1 )
+  case "$_out" in *src/a.py*) ok "preflight_authz_census: $_n — control: the tracked consumer appears" ;;
+    *) bad "preflight_authz_census: $_n — control: the tracked consumer appears" "got: $(printf '%s' "$_out" | head -c 160)" ;; esac
+  case "$_out" in *src/untracked.py*) ok "preflight_authz_census: $_n — an UNTRACKED consumer appears" ;;
+    *) bad "preflight_authz_census: $_n — an UNTRACKED consumer appears" "missing (tracked files only?)" ;; esac
+  case "$_out" in *Tests/*) bad "preflight_authz_census: $_n — a Tests/ path is excluded (case-insensitive)" "Tests/t.py listed" ;;
+    *) ok "preflight_authz_census: $_n — a Tests/ path is excluded (case-insensitive)" ;; esac
+  case "$_out" in *migration*) bad "preflight_authz_census: $_n — a migration path is excluded" "listed" ;;
+    *) ok "preflight_authz_census: $_n — a migration path is excluded" ;; esac
+done
+
+# --- no_text_transport_anywhere (AC1, D6) --------------------------------------------------------
+# No instruction a model loads may tell it to compose a shell command carrying free text. The guard
+# is a CLASS guard over every tracked instruction surface in every port: all Markdown/.mdc under the
+# plugin dirs (skills, rules, workflows, commands, AGENTS/GEMINI/CLAUDE files, templates), the repo's
+# own AGENTS.md/CLAUDE.md, and every hook that emits model-facing text. Programmatic callers that exec
+# the CLI with an argv list (codex-hook.py, tests) are not instructions: codex-hook.py is scanned for
+# its model-facing strings and passes, because a Python argv list matches none of these shapes.
+# fix round 1 (I1): the first version was a DENYLIST anchored on the literal `aria-surface.sh`, and
+# the skills invoke `sh '<path>' …`, so a reviewer's seven plants all passed it. This is an ALLOWLIST:
+#   D  any CLI invocation — `sh`/`bash` followed by a quoted `<…>` placeholder or by a token naming
+#      aria-surface.sh — may carry ONLY `--file '…'` and `--git-range '…'` arguments (single-quoted),
+#      up to the end of the code span / line or a `;` `&` `|` `)` boundary;
+# plus deny rules for free text reaching a shell some other way:
+#   A  a heredoc on the retired ARIA_TASK delimiter;
+#   B  a quoted `<…>` placeholder on the same command as `>`, `>>`, `<(` or `|`;
+#   C  a heredoc together with a redirect (a shell write of text: `cat > f <<'X'`);
+#   E  `printf` carrying a quoted `<…>` placeholder (P1: /preflight's marker took free-text scope);
+#   F  (Task 5b) any shell command carrying a quoted `<…>` placeholder whose NAME is free text —
+#      it contains prompt / focus / next / goal / query / task / scope / rationale / text / body /
+#      message / summary / description (case-insensitive) — unless its LAST word is an identifier
+#      (sid, sessionid, at, token, path, root, ref, hash, file: `<entry file path>` is a path).
+#      This is the shape D cannot see: a helper called by NAME (`kt_ss_ledger_add "<root>" … "<prior
+#      next-session-prompt>"`, the session ledger's old demote line) or a script behind a path prefix
+#      (`sh <path>/x.sh "<goal>"`). A "shell command" is: in code (a fence line or a backtick span)
+#      any command word at the start or after `;` `&` `|` `(` — a span starting `--flag` (a skill
+#      argument) or `key:` (a YAML field) is not one; on a bare prose line, only a line that STARTS
+#      with sh/bash/zsh/dash/source/./python/echo/printf/cat, a snake_case helper or a *.sh/*.py path.
+#      Measured on a82127c: the census finds exactly the four old kt_ss_ledger_add lines; a rule
+#      without the command-start condition also flagged `--decision "<text>"` (a /foundational-review
+#      argument, 4 ports) and a `dismissal-reason: "<text>"` frontmatter row — neither is a shell command.
+#   G  (final fix wave, F2) kt_ss_ledger_token_locate or kt_ss_ledger_consume_active followed by an
+#      argument (`<`, a quote, `$`, `(`, `{`, or "with …") anywhere -- prose included. Both take a
+#      token copied from the user's pasted text; the token-taking call is code-internal now, and a
+#      model reaches it only through the _file forms, which read the token from a file the model wrote
+#      with its file-write tool and check its shape in code. This retires the blanket `token`
+#      identifier exemption for these two helpers (F still exempts `<… token>` placeholders elsewhere).
+# Markdown is checked where a model would copy a command from: whole lines inside a fence, backtick
+# spans elsewhere, and whole prose lines that carry no backtick (a leading `>` quote marker and table
+# rows are skipped there). Scripts are checked whole-line AND span by span (final fix wave, F1): a
+# hook builds its model-facing text in a shell or Python string, where the command it tells the
+# model to run sits in an escaped backtick span (\`bash x.sh <p> \"<rationale>\"\`) that no
+# command-start pattern sees from the whole line. Cursor's pre-edit-check.sh emitted exactly that,
+# and a hand-written emitter list had left the file out; the script scope is now every tracked
+# .sh/.py under plugin-*/scripts and plugin-*/bin (tests excluded), so no new emitter can be missed.
+# RECORDED EXEMPTIONS (each is a decision, kept here so it is not rediscovered as a gap):
+#   E1 the Rule 22 `cat <<'R22'` heredoc (the always-on digest and the change-decision framework tell
+#      the model to emit its [Rule 22] block that way). It is a model-composed shell command carrying
+#      free text, but the text is the model's OWN marker -- no third-party content (no pasted prompt,
+#      ticket, file or web text) reaches it, and the quoted delimiter stops expansion. No rule here
+#      flags it; the must-PASS control below pins that it stays allowed.
+#   E2 rule G skips shell/Python COMMENT lines in scripts: a `#` line documents a function's signature
+#      for maintainers and is never emitted to a model.
+#   E3 rule G skips the repo CLAUDE.md's dated `*Session …` footers: they are history records of what
+#      a release shipped; rewriting them back-dates the record.
+TT_AWK="$SCRATCH/tt-guard.awk"
+cat > "$TT_AWK" <<'AWK'
+function bad(r) { printf "        %s:%d: [%s] %s\n", F, FNR, r, substr($0, 1, 150); hit = 1 }
+# F: does s carry a quoted placeholder whose name is free text? An identifier as the LAST word wins.
+function freeph(s,    t, nm, w, n, i, last) {
+  t = s
+  while (match(t, RE_QPH)) {
+    nm = tolower(substr(t, RSTART + 2, RLENGTH - 4))
+    t = substr(t, RSTART + RLENGTH)
+    n = split(nm, w, /[^a-z0-9]+/); last = ""
+    for (i = n; i >= 1; i--) if (w[i] != "") { last = w[i]; break }
+    if (last in IDW) continue
+    if (nm ~ RE_FREE) return 1
+  }
+  return 0
+}
+function check(s, code,    t, t2, hasq, rest, a, ok, cmd) {
+  if (s ~ RE_A) bad("A retired ARIA_TASK heredoc")
+  cmd = 0                               # no ternary: BSD awk rejects some ternary forms
+  if (code) { if (s ~ RE_CODECMD) cmd = 1 } else if (s ~ RE_BARECMD) cmd = 1
+  if (cmd && freeph(s)) bad("F free-text placeholder in a shell command")
+  # In a script, a quoted shell VARIABLE after the name is the lib's own in-process call (code); a
+  # model-facing hook string always shows a placeholder or prose, so only those count there.
+  if (!EXG && s ~ (MD ? RE_TOKCALL : RE_TOKCALL_SCRIPT)) bad("G token passed as an argument -- use kt_ss_ledger_token_locate_file / kt_ss_ledger_consume_active_file")
+  # B, C and E judge the SHAPE of a command a model is told to write, so they run on instruction
+  # text only. In a hook script the same shapes are the hook's own plumbing (`<<PCC_INPUT …
+  # 2>/dev/null`, a Python list of redirect tokens); its model-facing strings are covered by A and D.
+  if (MD) {
+    t = s
+    gsub(RE_QPH, "QPH", t)
+    hasq = (t != s)
+    gsub(RE_QLIT, "QS", t)              # a | or > INSIDE quotes is data, not a pipe or redirect
+    gsub(/<[A-Za-z][^<>]*>/, "PH", t)
+    if (hasq && (t ~ />/ || t ~ /<\(/ || t ~ /\|/)) bad("B quoted placeholder with > >> <( or |")
+    t2 = t; gsub(/<<<?/, "", t2); gsub(/[0-9&]>+/, "", t2)
+    if (t ~ /<</ && t2 ~ />/) bad("C heredoc with a redirect")
+    if (hasq && s ~ /(^|[^A-Za-z0-9_])printf[ \t]/) bad("E printf with a quoted placeholder")
+  }
+  scan_inv(s, RE_INV_SH)    # sh / bash / zsh / dash, with or without a path prefix (/bin/sh)
+  scan_inv(s, RE_INV_SRC)   # `. script` / `source script` run the CLI in the current shell
+}
+# D: after each invocation, the script token must be the CLI (a placeholder, a whole-variable token,
+# or a token naming aria-surface.sh) for the allowlist to apply; then only --file '…' / --git-range '…'
+# may follow, up to the end of the span or line or a `;` `&` `|` `)` boundary.
+function scan_inv(rest, re,    a, ok, nx) {
+  while (match(rest, re)) {
+    rest = substr(rest, RSTART + RLENGTH)
+    if (!match(rest, RE_SCRIPT)) continue
+    nx = substr(rest, RLENGTH + 1, 1)
+    if (nx != "" && nx !~ /[ \t;&|)`]/) continue   # `<plugin>/scripts/x.sh`: a path PREFIX, not the CLI
+    a = substr(rest, RLENGTH + 1); ok = 1
+    while (1) {
+      sub(/^[ \t]+/, "", a)
+      if (a == "" || a ~ /^[`;)|&]/) break
+      if (match(a, RE_ARG)) { a = substr(a, RLENGTH + 1); continue }
+      ok = 0; break
+    }
+    if (!ok) bad("D CLI argument other than --file '…' / --git-range '…'")
+  }
+}
+# F1: check each backtick span of a script line as code, with the string's own escapes removed, so
+# \`bash x.sh <p> \"<rationale>\"\` is judged as the model will read it.
+function scan_spans(s,    st, ln) {
+  gsub(/\\`/, "`", s); gsub(/\\"/, "\"", s)
+  while (match(s, /`[^`]+`/)) { st = RSTART; ln = RLENGTH; check(substr(s, st + 1, ln - 2), 1); s = substr(s, st + ln) }
+}
+BEGIN {
+  q = sprintf("%c", 39)
+  RE_TOKCALL = "kt_ss_ledger_(token_locate|consume_active)[ \t]+([<\"$({]|" q "|with[ \t])"
+  RE_TOKCALL_SCRIPT = "kt_ss_ledger_(token_locate|consume_active)[ \t]+([\"" q "]?<|with[ \t])"
+  RE_A = "<<-?[ \t]*[\"" q "]?ARIA_TASK"
+  RE_QPH = "(\"<[^<>\"]*>\"|" q "<[^<>" q "]*>" q ")"
+  RE_QLIT = "(\"[^\"]*\"|" q "[^" q "]*" q ")"
+  RE_INV_SH = "(^|[^A-Za-z0-9_.-])([^ \t`\"" q "]*/)?(sh|bash|zsh|dash)[ \t]+"
+  RE_INV_SRC = "(^|[;&|(` \t])(\\.|source)[ \t]+"
+  RE_SCRIPT = "^(\"<[^<>\"]*>\"|" q "<[^<>" q "]*>" q "|<[^<>]+>|\"\\$[A-Za-z_][A-Za-z0-9_]*\"|\"\\$[{][^}\"]*[}]\"|\"[^\"]*aria-surface\\.sh\"|" q "[^" q "]*aria-surface\\.sh" q "|[^ \t`\"" q "]*aria-surface\\.sh)"
+  RE_ARG = "^--(file|git-range)[ \t]+" q "[^" q "]*" q
+  RE_FREE = "(prompt|focus|next|goal|query|task|scope|rationale|text|body|message|summary|description)"
+  RE_CODECMD = "(^|[;&|(])[ \t]*(\\$[ \t]+)?[A-Za-z_./$~{][A-Za-z0-9_./${}~-]*[ \t]"
+  RE_BARECMD = "^[ \t]*(\\$[ \t]+)?(sh|bash|zsh|dash|source|\\.|python3?|echo|printf|cat|[A-Za-z][A-Za-z0-9]*_[A-Za-z0-9_]+|[^ \t]*\\.(sh|py))[ \t]"
+  split("sid sessionid at token path root ref hash file", _idw, " "); for (_i in _idw) IDW[_idw[_i]] = 1
+}
+FNR == 1 { fence = 0 }
+{
+  EXG = 0                                            # recorded exemptions E2 / E3 (rule G only)
+  if (!MD && $0 ~ /^[ \t]*#/) EXG = 1
+  if (MD && F == "CLAUDE.md" && $0 ~ /^\*Session /) EXG = 1
+  if (!MD) { check($0, 1); scan_spans($0); next }
+  if ($0 ~ /^[ \t]*(```|~~~)/) { fence = !fence; next }
+  if (fence) { if ($0 !~ /^[ \t]*\|/) check($0, 1); next }   # a table row in a fence is a listing
+  if (index($0, "`") == 0) {
+    line = $0; sub(/^[ \t]*>+[ \t]?/, "", line)
+    if (line !~ /^[ \t]*\|/) check(line, 0)
+    next
+  }
+  s = $0
+  # Save the span bounds BEFORE check(): its own match() calls overwrite RSTART/RLENGTH.
+  while (match(s, /`[^`]+`/)) { st = RSTART; ln = RLENGTH; check(substr(s, st + 1, ln - 2), 1); s = substr(s, st + ln) }
+}
+END { exit hit }
+AWK
+# F1: the script scope is DERIVED, never hand-listed — every tracked .sh/.py under plugin-*/scripts and
+# plugin-*/bin, tests excluded. The hand list this replaces had omitted cursor's pre-edit-check.sh.
+TT_SCRIPTS="$SCRATCH/tt-scripts"
+git -C "$ROOT" ls-files -- 'plugin-*/scripts/**' 'plugin-*/bin/**' 2>/dev/null \
+  | grep -E '\.(sh|py)$' | grep -vE '(^|/)tests?/' | sort -u > "$TT_SCRIPTS"
+# tt_guard FILE... — prints every matching line as file:line:text; returns 1 if anything matched.
+tt_guard() {
+  _tt_rc=0
+  for _tt_f in "$@"; do
+    case "$_tt_f" in *.md|*.mdc) _tt_md=1 ;; *) _tt_md=0 ;; esac
+    awk -v F="${_tt_f#$ROOT/}" -v MD="$_tt_md" -f "$TT_AWK" "$_tt_f" || _tt_rc=1
+  done
+  return "$_tt_rc"
+}
+TT_SCOPE="$SCRATCH/tt-scope"
+{
+  git -C "$ROOT" ls-files -- 'plugin-*' 'AGENTS.md' 'CLAUDE.md' 2>/dev/null \
+    | grep -E '\.(md|mdc)$' | grep -vE '(^|/)tests?/'
+  cat "$TT_SCRIPTS"
+} | sort -u | sed "s|^|$ROOT/|" > "$TT_SCOPE"
+_tt_missing=""
+while IFS= read -r _f; do [ -f "$_f" ] || _tt_missing="$_tt_missing ${_f#$ROOT/}"; done < "$TT_SCOPE"
+N_TT=$(wc -l < "$TT_SCOPE" | tr -d ' ')
+printf '        no_text_transport census (%s instruction file(s) scanned):\n' "$N_TT"
+sed "s|^$ROOT/|          |" "$TT_SCOPE"
+if [ -z "$_tt_missing" ]; then ok "no_text_transport census: every file in scope exists"
+else bad "no_text_transport census: every file in scope exists" "missing:$_tt_missing"; fi
+for _d in plugin-claude-code plugin-openai-codex plugin-antigravity plugin-cursor-template; do
+  _c=$(grep -c "^$_d/" "$TT_SCRIPTS")
+  if [ "${_c:-0}" -ge 5 ]; then ok "no_text_transport census: $_d contributes $_c script(s) from git ls-files"
+  else bad "no_text_transport census: $_d contributes scripts" "only ${_c:-0} — the derived script scope is near-empty"; fi
+done
+if grep -qx 'plugin-cursor-template/scripts/aria/pre-edit-check.sh' "$TT_SCRIPTS"; then
+  ok "no_text_transport census: the emitter the hand list missed (cursor pre-edit-check.sh) is in scope"
+else bad "no_text_transport census: cursor pre-edit-check.sh is in scope" "absent from the derived list"; fi
+for _d in plugin-claude-code plugin-claude-cowork plugin-openai-codex plugin-antigravity plugin-cursor-template; do
+  _c=$(grep -c "^$ROOT/$_d/" "$TT_SCOPE")
+  if [ "${_c:-0}" -ge 5 ]; then ok "no_text_transport census: $_d contributes $_c file(s)"
+  else bad "no_text_transport census: $_d contributes files" "only ${_c:-0} — the guard would be near-vacuous there"; fi
+done
+# Planted controls. MUST-FAIL: the review's seven plants plus the retired heredoc and the old
+# /preflight marker, each planted three ways — inside a ```sh fence, inside a backtick span on a
+# prose line, and as a bare prose line — so no wrapping hides one. MUST-PASS: the reference forms
+# the skills now use and the skills' own "Never put task text" prose line (it names heredocs and
+# pipes in prose and must not trip the guard).
+cat > "$SCRATCH/tt-must-fail.txt" <<'PLANTS'
+sh '<path>' '<the goal sentence>'
+sh '<path>' - <<'EOF2'
+printf '%s' '<goal>' | sh '<path>'
+sh "<ARIA SURFACE path>" "<your query>"
+sh '<path>' --file <(printf '%s' '<goal>')
+cat > /tmp/q.md <<'Q'
+echo '<goal sentence>' > /tmp/q.md && sh '<path>' --file /tmp/q.md
+cat <<'ARIA_TASK'
+printf '%s\t%s\t%s\n' "$(date +%H:%M)" "<VERDICT>" "<scope>"
+/bin/sh '<path>' '<the goal>'
+sh "$ARIA_SURFACE" '<the goal>'
+sh <path> "<the goal>"
+. '<path>' '<goal>'
+kt_ss_ledger_add "{project_root}" "<prior sessionId>" "<prior at>" "<prior currentFocus>" "<prior nextAction>" "<prior next-session-prompt>"
+sh <path>/x.sh "<goal>"
+call kt_ss_ledger_token_locate <project_root> <token>
+kt_ss_ledger_consume_active "{project_root}" "<your sid>" "<now>" "<the same token>"
+kt_ss_ledger_token_locate "$ROOT" 'aria-handoff: proj-a/s@2026-11-09T00:00:00Z'
+then re-run kt_ss_ledger_token_locate with the same token
+PLANTS
+cat > "$SCRATCH/tt-must-pass.txt" <<'CLEAN'
+sh '<path>' --file '<file path>'
+sh '<path>' --git-range '<a>..<b>'
+sh '<path>' --file '<file path>' --git-range '<a>..<b>'
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/aria-surface.sh" --git-range 'main..HEAD'
+ARIA_PLUGIN_ROOT="${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}"; sh "${ARIA_PLUGIN_ROOT}/bin/aria-surface.sh" --file '/tmp/a.md'
+printf '%s\tREADY\n' "$(date +%H:%M)" >> "${TMPDIR:-/tmp}/aria-preflight-${CLAUDE_SESSION_ID}"
+ARIA SURFACE — "/p/aria-surface.sh"
+"<task-notification"
+kt_ss_ledger_demote_active "{project_root}"
+kt_ss_ledger_demote_active "{project_root}" "<your sid>"
+kt_ss_ledger_add_file "{project_root}" "<your sid>" "<your at>" '<entry file path>'
+--decision "<text>"
+dismissal-reason: "<text>"
+kt_ss_ledger_add_file "{project_root}" "<your sid>" "<your at>" '<prompt file path>'
+call kt_ss_ledger_token_locate_file <project_root> <file>
+kt_ss_ledger_consume_active_file "{project_root}" "<your sid>" "<now>" '<token file path>'
+cat <<'R22'
+[Rule 22] LOW IMPACT — <what>
+CLEAN
+tt_wrap() { # $1 = mode (fence|span|bare), $2 = line → a markdown file on stdout
+  case "$1" in
+    fence) printf 'before\n```sh\n%s\n```\nafter\n' "$2" ;;
+    span)  printf 'Run `%s` now.\n' "$2" ;;
+    bare)  printf '%s\n' "$2" ;;
+  esac
+}
+_i=0
+while IFS= read -r _spec; do
+  _i=$((_i + 1))
+  for _w in fence span bare; do
+    tt_wrap "$_w" "$_spec" > "$SCRATCH/tt-plant-$_i-$_w.md"
+    if tt_guard "$SCRATCH/tt-plant-$_i-$_w.md" >/dev/null; then bad "no_text_transport must-FAIL control $_i ($_w): $_spec" "guard passed it"
+    else ok "no_text_transport must-FAIL control $_i ($_w)"; fi
+  done
+done < "$SCRATCH/tt-must-fail.txt"
+_i=0
+while IFS= read -r _spec; do
+  _i=$((_i + 1))
+  for _w in fence span bare; do
+    tt_wrap "$_w" "$_spec" > "$SCRATCH/tt-clean-$_i-$_w.md"
+    if tt_guard "$SCRATCH/tt-clean-$_i-$_w.md" >/dev/null; then ok "no_text_transport must-PASS control $_i ($_w)"
+    else bad "no_text_transport must-PASS control $_i ($_w): $_spec" "guard over-matches a legitimate form"; fi
+  done
+done < "$SCRATCH/tt-must-pass.txt"
+# The skills' own prose line, taken from the canonical file so the control tracks its real wording.
+_never=$(grep -F 'Never put task text' "$ROOT/plugin-claude-code/skills/prospect/SKILL.md" | head -1)
+if [ -n "$_never" ]; then
+  printf '%s\n' "$_never" > "$SCRATCH/tt-never.md"
+  if tt_guard "$SCRATCH/tt-never.md" >/dev/null; then ok "no_text_transport must-PASS control: the \"Never put task text\" prose line"
+  else bad "no_text_transport must-PASS control: the \"Never put task text\" prose line" "guard flags the prohibition itself"; fi
+else bad "no_text_transport must-PASS control: the \"Never put task text\" prose line" "line not found in canonical prospect"; fi
+# F1 hook-string controls: a SCRIPT that builds model-facing text with an escaped backtick span. The
+# must-FAIL forms are cursor pre-edit-check.sh's old line and the same shape in a Python string; the
+# must-PASS form is the corrected line (path + marker type, no rationale). Planted as real .sh/.py
+# files so tt_guard runs them in script mode, exactly as it runs the census.
+cat > "$SCRATCH/tt-hook-fail.sh" <<'HOOK'
+      INTENT_NOTE=" PROTECTED FILE: run \`bash scripts/aria/record-edit-intent.sh <filePath> rule22-high \"<rationale>\"\` BEFORE this Edit/Write."
+HOOK
+cat > "$SCRATCH/tt-hook-fail.py" <<'HOOK'
+    msg = f"Run `sh {root}/x.sh \"<the goal>\"` first."
+HOOK
+cat > "$SCRATCH/tt-hook-fail-tok.sh" <<'HOOK'
+  MESSAGES="${MESSAGES}... then call kt_ss_ledger_token_locate <project_root> <token> ..."
+HOOK
+cat > "$SCRATCH/tt-hook-pass.sh" <<'HOOK'
+      INTENT_NOTE=" PROTECTED FILE: run \`bash scripts/aria/record-edit-intent.sh '<filePath>' rule22-high\` BEFORE this Edit/Write."
+# kt_ss_ledger_consume_active <root> <by> <now> <token>   (E2: a comment documents a signature)
+  kt_ss_ledger_token_locate "$1" "$_ss_tlf_tok"
+HOOK
+for _hf in tt-hook-fail.sh tt-hook-fail.py tt-hook-fail-tok.sh; do
+  if tt_guard "$SCRATCH/$_hf" >/dev/null; then bad "no_text_transport hook-string must-FAIL control: $_hf" "guard passed it"
+  else ok "no_text_transport hook-string must-FAIL control: $_hf"; fi
+done
+if tt_guard "$SCRATCH/tt-hook-pass.sh" >/dev/null; then ok "no_text_transport hook-string must-PASS control: corrected record-edit-intent line + E2 comment"
+else bad "no_text_transport hook-string must-PASS control" "guard flags the corrected line or a signature comment"; fi
+# shellcheck disable=SC2046
+if tt_guard $(cat "$TT_SCOPE"); then ok "no_text_transport_anywhere: no instruction file composes free text into a shell command ($N_TT files)"
+else bad "no_text_transport_anywhere: no instruction file composes free text into a shell command" "see the file:line hits above"; fi
+
+# --- digest_within_bound (AC5) -------------------------------------------------------------------
+_db=$(wc -c < "$DIGEST" | tr -d ' ')
+if [ "${_db:-99999}" -le 26198 ]; then ok "digest_within_bound: aria-rules.md is $_db bytes (bound 26,198)"
+else bad "digest_within_bound: aria-rules.md is within 26,198 bytes" "$_db bytes"; fi
+# Branch (b) — "run the ARIA SURFACE command on the task text" — is gone from the canonical digest,
+# and the directive names hooks as the source everywhere they run (D5).
+if printf '%s' "$BLOCK" | grep -qF 'run the `ARIA SURFACE` command'; then
+  bad "digest: branch (b) (run ARIA SURFACE on the task text) is gone" "still present"
+else ok "digest: branch (b) (run ARIA SURFACE on the task text) is gone"; fi
+if printf '%s' "$BLOCK" | grep -qF 'injection wherever a hook runs'; then ok "digest: the injection is the source wherever a hook runs"
+else bad "digest: the injection is the source wherever a hook runs" "phrase absent"; fi
 
 # F2: spec AC1 — every port's lib-index-match.sh and aria-surface.sh is a PORT-LEDGER surface and the
 # drift checker reports it. Row must be present AND ok (a missing row is the failure this guards).

@@ -83,9 +83,18 @@ find "$DST/skills" -name 'SKILL.md.bak' -delete
 # gate never fires here — but the prose ("This is the Claude Code variant",
 # "Use /aria-cowork:X instead?") misleads any agent reading the body. Strip
 # the whole section; antigravity skills proceed directly to Step 0.
-PYTHON_BIN="/usr/bin/python3"
-if [ ! -x "$PYTHON_BIN" ]; then
-  PYTHON_BIN="python3"
+# Pick an interpreter that actually RUNS: on macOS /usr/bin/python3 can be an
+# Xcode stub that is executable yet refuses to run (license not agreed).
+PYTHON_BIN=""
+for cand in /usr/bin/python3 python3; do
+  if "$cand" -c 'import re, sys' >/dev/null 2>&1; then
+    PYTHON_BIN="$cand"
+    break
+  fi
+done
+if [ -z "$PYTHON_BIN" ]; then
+  echo "build.sh: no working python3 found (tried /usr/bin/python3, python3); cannot strip Runtime Gate" >&2
+  exit 1
 fi
 find "$DST/skills" -name 'SKILL.md' -exec "$PYTHON_BIN" -c '
 import re, sys

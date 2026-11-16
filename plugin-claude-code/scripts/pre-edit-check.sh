@@ -67,17 +67,29 @@ export STEP_INDEX
 # transcript basename. Sanitized to a safe filename. If neither resolves, the
 # breaker is disabled (BREAKER_STATE empty) and the hook degrades to its prior
 # behavior — never a shared cross-session counter.
-SESSION_ID=$(echo "$INPUT" | grep -o '"session_id":"[^"]*"' | head -1 | sed 's/"session_id":"//;s/"//')
-SESSION_KEY="$SESSION_ID"
-[ -z "$SESSION_KEY" ] && [ -n "$TRANSCRIPT" ] && SESSION_KEY=$(basename "$TRANSCRIPT" .jsonl 2>/dev/null)
-SESSION_KEY=$(printf '%s' "$SESSION_KEY" | tr -cd 'A-Za-z0-9._-')
+# 2.58.0: kt_session_key (lib-state-key.sh) — accepted only as [A-Za-z0-9._-]+, never rewritten (it
+# used to strip every other character, so `a+b` and `ab` shared one breaker). The transcript-basename
+# fallback applies only when there is NO session_id; a rejected one leaves no key, so no breaker,
+# carrier or anchor (spec D3: an unmarked edit is still denied). pre-bash-r22-carrier.sh applies the
+# same rule in Python.
+# A missing lib is "no state" too, and this is the deny gate: never `exit 0` here (that fails OPEN).
+# Without the lib every kt_* call below fails (127, stderr silenced), the key, suffix, breaker,
+# carrier and anchor stay empty, and an unmarked edit is still DENIED (spec D3).
+KT_STATE_DIR=   # an inherited value is never trusted: only the state-dir resolver sets it
+if [ -f "$SCRIPT_DIR/lib-state-key.sh" ]; then . "$SCRIPT_DIR/lib-state-key.sh"; fi
+SESSION_KEY=$(kt_session_key "$INPUT" session_id 2>/dev/null)
+[ "$?" = 1 ] && [ -n "$TRANSCRIPT" ] && SESSION_KEY=$(kt_session_key_check "$(basename "$TRANSCRIPT" .jsonl 2>/dev/null)" 2>/dev/null)
 # v2.54.1: keyed per AGENT as well. A subagent's hooks carry the parent's session_id,
 # so a session-only key let three denials inside a subagent open the PARENT's breaker.
 # The suffix is empty on the main thread, so its key is unchanged.
-. "$SCRIPT_DIR/lib-state-key.sh"
-AGENT_SUFFIX=$(kt_agent_suffix "$INPUT")
+AGENT_SUFFIX=$(kt_agent_suffix "$INPUT" 2>/dev/null)
+# 2.58.0: every state name below lives in the private per-user state directory (lib-state-key.sh),
+# so a name another local user plants in a shared temp dir is never read. With no directory (spec
+# D3) the breaker cannot count and never trips — an unmarked edit is still DENIED — and the carrier
+# and anchor are neither recorded nor read, so the transcript alone decides (tail mode).
+kt_state_resolve 2>/dev/null || :
 BREAKER_STATE=""
-[ -n "$SESSION_KEY" ] && BREAKER_STATE="${TMPDIR:-/tmp}/aria-r22-denies-${SESSION_KEY}${AGENT_SUFFIX}"
+[ -n "$SESSION_KEY" ] && BREAKER_STATE=$(kt_state_path "aria-r22-denies-${SESSION_KEY}${AGENT_SUFFIX}")
 
 # v2.54.1: inside a subagent, read the subagent's OWN transcript. The harness passes
 # the PARENT's transcript_path, which never contains a subagent's calls; those are in
@@ -98,6 +110,7 @@ fi
 # Claude Code branch only; the antigravity step_index branch never records carriers.
 PROMPT_ID=""
 CARRIER_STATE=""
+ANCHOR_STATE=""
 PREV_ANCHOR=""
 if [ -z "$STEP_INDEX" ] && [ -n "$SESSION_KEY" ]; then
   PROMPT_ID=$(printf '%s' "$INPUT" | python3 -c 'import json, sys
@@ -105,15 +118,18 @@ try:
     print(json.load(sys.stdin).get("prompt_id") or "")
 except Exception:
     print("")' 2>/dev/null)
-  CARRIER_STATE="${TMPDIR:-/tmp}/aria-r22-carrier-${SESSION_KEY}${AGENT_SUFFIX}"
+  # Both names are empty when there is no state directory (D3): nothing is recorded or read.
+  CARRIER_STATE=$(kt_state_path "aria-r22-carrier-${SESSION_KEY}${AGENT_SUFFIX}")
   # v2.57.3: previous-edit anchor for tail mode. Read the previous edit's id, then
   # record this one (atomic) — on every check, whatever its outcome (ADR 062 counts edits).
-  ANCHOR_STATE="${TMPDIR:-/tmp}/aria-r22-lastedit-${SESSION_KEY}${AGENT_SUFFIX}"
-  if [ -f "$ANCHOR_STATE" ]; then
-    PREV_ANCHOR=$(tr -cd 'A-Za-z0-9_-' < "$ANCHOR_STATE" 2>/dev/null)
-  fi
-  if [ -n "$TOOL_USE_ID" ]; then
-    printf '%s' "$TOOL_USE_ID" > "$ANCHOR_STATE.$$" 2>/dev/null && mv -f "$ANCHOR_STATE.$$" "$ANCHOR_STATE" 2>/dev/null
+  ANCHOR_STATE=$(kt_state_path "aria-r22-lastedit-${SESSION_KEY}${AGENT_SUFFIX}")
+  if [ -n "$ANCHOR_STATE" ]; then
+    if [ -f "$ANCHOR_STATE" ]; then
+      PREV_ANCHOR=$(tr -cd 'A-Za-z0-9_-' < "$ANCHOR_STATE" 2>/dev/null)
+    fi
+    if [ -n "$TOOL_USE_ID" ]; then
+      printf '%s' "$TOOL_USE_ID" > "$ANCHOR_STATE.$$" 2>/dev/null && mv -f "$ANCHOR_STATE.$$" "$ANCHOR_STATE" 2>/dev/null
+    fi
   fi
 fi
 
@@ -494,8 +510,11 @@ fi
 # fail-open-LOUD philosophy as the "unknown" branch above, extended to cover a
 # transcript-format change that parses cleanly but shifts semantics (the
 # "confident no" deadlock the plain unknown-guard cannot catch). Disabled when
-# no session key resolved (BREAKER_STATE empty) — falls straight through to deny.
-if [ -n "$BREAKER_STATE" ]; then
+# no session key resolved or there is no private state directory (BREAKER_STATE
+# empty) — falls straight through to deny; it never degrades into allowing. A name
+# that exists but is not a regular file (a FIFO would block the write and the
+# killed hook would print nothing, which reads as allow) also counts as no state.
+if [ -n "$BREAKER_STATE" ] && { [ -f "$BREAKER_STATE" ] || { [ ! -e "$BREAKER_STATE" ] && [ ! -L "$BREAKER_STATE" ]; }; }; then
   DENY_COUNT=0
   [ -f "$BREAKER_STATE" ] && DENY_COUNT=$(cat "$BREAKER_STATE" 2>/dev/null)
   case "$DENY_COUNT" in *[!0-9]*|"") DENY_COUNT=0 ;; esac

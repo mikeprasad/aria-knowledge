@@ -70,11 +70,32 @@ TARGETS=$(printf '%s' "$INPUT" | python3 "$RESOLVER" 2>/dev/null)
 # empty id, and the only symptom would be a ledger that quietly stops recording. A guard whose
 # failure mode is silence must not depend on an unstated formatting assumption. AC9 drives the
 # SPACED form deliberately, so this tolerance is proven rather than asserted.
-_bw_sid=$(printf '%s' "$INPUT" | grep -oE '"session_id"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed 's/.*"session_id"[[:space:]]*:[[:space:]]*"//;s/"$//')
+# kt_session_key (lib-state-key.sh): read whitespace-tolerantly, accepted only as [A-Za-z0-9._-]+ and
+# never rewritten — the key every hook in this port names this family's state with. Rejected: no key, nothing recorded.
+_bw_sid=
+KT_STATE_DIR=   # an inherited value is never trusted: only the state-dir resolver sets it
+[ -f "$(dirname "$0")/lib-state-key.sh" ] && . "$(dirname "$0")/lib-state-key.sh" \
+  && _bw_sid=$(kt_session_key "$INPUT" session_id)
+# 2.58.0: the ledger lives in the private per-user state directory (lib-state-key.sh). The id goes
+# through kt_state_path, which refuses one containing "/", so it can never address a path; with no
+# directory (spec D3) nothing is recorded and the warning below is still emitted. Inside the
+# directory it is still created only by kt_create_new and appended to only when it is a regular
+# file of ours that is not a link (a second guard, spec D2; lib-tracked-artifacts.sh only defines
+# functions; without it nothing is recorded).
 if [ -n "$_bw_sid" ]; then
-  printf '%s\n' "$TARGETS" | while IFS= read -r _t; do
-    [ -n "$_t" ] && printf '%s\n' "$_t" >> "${TMPDIR:-/tmp}/aria-r22-bypass-$_bw_sid" 2>/dev/null || true
-  done
+  _bw_rec=$(printf '%s\n' "$TARGETS" | grep -v '^$')
+  _bw_f=
+  if [ -f "$(dirname "$0")/lib-state-key.sh" ]; then
+    . "$(dirname "$0")/lib-state-key.sh"
+    kt_state_resolve && _bw_f=$(kt_state_path "aria-r22-bypass-$_bw_sid")
+  fi
+  . "$(dirname "$0")/lib-tracked-artifacts.sh" 2>/dev/null || true
+  if [ -n "$_bw_rec" ] && [ -n "$_bw_f" ]; then
+    [ -e "$_bw_f" ] || [ -L "$_bw_f" ] || kt_create_new "$_bw_f" 2>/dev/null || :
+    if kt_is_ours "$_bw_f" 2>/dev/null; then
+      printf '%s\n' "$_bw_rec" >> "$_bw_f" 2>/dev/null || true
+    fi
+  fi
 fi
 
 # ---- WARN -----------------------------------------------------------------------------------

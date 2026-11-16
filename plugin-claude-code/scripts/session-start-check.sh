@@ -64,13 +64,22 @@ emit_and_exit() { emit; exit 0; }
 # unrelated edits. Safe no-op if no manifest exists or jq is unavailable.
 kt_batch_clear_stale 1800
 
-# Clear stale active-surfacing ledgers (>1 day old) from prior sessions.
-# The ledger is session-scoped (fresh per session per D4), so anything older
-# than ~24h is debris from crashed/abandoned sessions. Safe no-op if none exist.
-find /tmp -maxdepth 1 -name 'aria-active-*' -mtime +1 -delete 2>/dev/null
-# Clear stale session-inprogress ledgers (>1 day) from prior/crashed sessions
-# (written by post-edit-check.sh's first-edit in-progress marking, v2.23.0).
-find /tmp -maxdepth 1 -name 'aria-session-inprogress-*' -mtime +1 -delete 2>/dev/null
+# LEGACY-TMP-SWEEP-2.58 begin — remove in the first release after 2.58.0, together with KT_TMP_SWEEP_ROOT (Rule 37)
+# Before 2.58.0 hook state lived at predictable names in the shared /tmp and $TMPDIR. Since 2.58.0 it
+# lives in the private state dir (swept below, once resolved), so these names are only debris. Each
+# find removes OUR entries older than 24 h, one level deep; find never follows a link it meets, so a
+# link is removed, not its target. Start points end in "/": on macOS /tmp is a symlink and find does
+# not follow a symlinked start point without it (measured 2026-11-12: 0 of 372 seen; 372 with /tmp/).
+# KT_TMP_SWEEP_ROOT is a TEST-ONLY override that replaces BOTH roots, so a suite never sweeps the real
+# /tmp or $TMPDIR.
+find "${KT_TMP_SWEEP_ROOT:-/tmp}/" -maxdepth 1 -user "$(id -u)" -mmin +1440 \( -name 'aria-active-*' \
+  -o -name 'aria-session-inprogress-*' -o -name 'aria-bashcd-*' -o -name 'aria-codemap-*' \
+  -o -name 'aria-codex-codemap-*' -o -name 'aria-context-*' -o -name 'aria-usage-warn-*' \
+  -o -name 'aria-hook-debug.log' -o -name 'aria-digest-*' -o -name '.aria-new.*' \) -exec rm -f {} + 2>/dev/null
+find "${KT_TMP_SWEEP_ROOT:-${TMPDIR:-/tmp}}/" -maxdepth 1 -user "$(id -u)" -mmin +1440 \( -name 'aria-r22-*' \
+  -o -name 'aria-extfetch*' -o -name 'aria-preflight*' -o -name 'aria-surface-*' -o -name 'aria-prompt-config.*' \
+  -o -name 'aria-cursor-*' -o -name 'aria-ag-*' -o -name '.aria-ag-*' -o -name '.aria-new.*' \) -exec rm -f {} + 2>/dev/null
+# LEGACY-TMP-SWEEP-2.58 end
 
 # If config file exists but failed validation, report the specific error
 if [ -n "$KT_CONFIG_ERROR" ]; then
@@ -236,10 +245,33 @@ PRE_URULES=$(_kt_rules_sum "$INSTALLED_URULES")
 
 kt_ensure_rules_files
 
+# The private per-user state dir (lib-state-key.sh), resolved once, BEFORE the config line: the line
+# names it, and the session ledger below lives there. No state dir (spec D3): no ledger is read or
+# written, so nothing is re-surfaced after compaction and no tracked artifact is surfaced (it would
+# repeat every session start), and the human is told once why (emit() drops it on compact).
+# A missing lib is "no state" too: every value line still goes out, naming none (sourcing a missing
+# file would abort sh and drop the whole session-start output).
+if [ -f "$SCRIPT_DIR/lib-state-key.sh" ]; then . "$SCRIPT_DIR/lib-state-key.sh"
+else KT_STATE_DIR=; KT_STATE_REASON='lib-state-key.sh missing'; fi
+kt_state_resolve 2>/dev/null || USER_MESSAGES="${USER_MESSAGES}ARIA: private state directory unavailable (${KT_STATE_REASON}) — hooks are running without state. "
+# The state dir's own sweep (spec D6, split retention D10): kt_state_sweep in lib-state-key.sh — proof
+# names 30 days, everything else 24 h. Only when it resolved; top level only; never a directory or a link.
+[ -n "$KT_STATE_DIR" ] && kt_state_sweep
+# The ledger id is kt_session_key (lib-state-key.sh): read whitespace-tolerantly, accepted only as
+# [A-Za-z0-9._-]+ and never rewritten — the key prompt-context-check.sh, bash-cd-check.sh and
+# task-context-check.sh write under. The compact re-surface and the tracked-artifact load below use
+# the same SS_LEDGER, so the path the model is told is the path every writer uses (stated =
+# written). Rejected or absent: ledger=none and no ledger (spec D3). (SESSION_ID above stays the
+# raw id: it only matches pre-compact-check.sh's snapshot name.)
+SS_LEDGER=""
+_ss_lsid=$(kt_session_key "$INPUT" session_id 2>/dev/null) && SS_LEDGER=$(kt_state_path "aria-active-${_ss_lsid}" 2>/dev/null) || SS_LEDGER=""
+
 # --- the resolved configuration values --------------------------------------
 # The ONLY thing a byte-identical bundled file cannot carry. Each directive's
-# condition lives in the file, keyed on these names.
-CONFIG_LINE="ARIA CONFIG — knowledge_folder=${KT_KNOWLEDGE_FOLDER} autonomy=${KT_AUTONOMY:-default} session_state=${KT_SESSION_STATE:-false} auto_capture=${KT_AUTO_CAPTURE:-true} active_surfacing=${KT_ACTIVE_SURFACING:-false}. These are the values the standing directives in ~/.claude/rules/aria-rules.md are keyed on."
+# condition lives in the file, keyed on these names. state_dir= and ledger= (2.58.0, spec D5) name
+# the private state directory and this session's surfacing ledger, or `none` (no state dir, or no
+# session id); the digest's ARIA ACTIVE CONTEXT and the skills read the ledger from here.
+CONFIG_LINE="ARIA CONFIG — knowledge_folder=${KT_KNOWLEDGE_FOLDER} autonomy=${KT_AUTONOMY:-default} session_state=${KT_SESSION_STATE:-false} auto_capture=${KT_AUTO_CAPTURE:-true} active_surfacing=${KT_ACTIVE_SURFACING:-false} state_dir=${KT_STATE_DIR:-none} ledger=${SS_LEDGER:-none}. These are the values the standing directives in ~/.claude/rules/aria-rules.md are keyed on."
 
 # --- the rules-file notice --------------------------------------------------
 # One line that carries its own instruction, because the only digest this session holds is the
@@ -291,9 +323,11 @@ if [ "$HOOK_SOURCE" = "compact" ]; then
 "
   fi
   # Active-surfacing ledger: knowledge files surfaced earlier this session.
-  if [ "$KT_ACTIVE_SURFACING" = "true" ] && [ -n "$SESSION_ID" ]; then
-    LEDGER="/tmp/aria-active-${SESSION_ID}"
-    if [ -s "$LEDGER" ]; then
+  if [ "$KT_ACTIVE_SURFACING" = "true" ] && [ -n "$SS_LEDGER" ]; then
+    LEDGER=$SS_LEDGER
+    # F7 (final fix wave): only a regular file this user owns, never a link (a second guard inside
+    # the private state dir, spec D2).
+    if [ -n "$LEDGER" ] && [ -s "$LEDGER" ] && [ ! -L "$LEDGER" ] && [ -f "$LEDGER" ] && [ -O "$LEDGER" ]; then
       LEDGER_COUNT=$(wc -l < "$LEDGER" | tr -d ' ')
       LEDGER_LIST=$(head -5 "$LEDGER" | sed 's/^/  - /' | tr '\n' ';' | sed 's/;$//;s/;/ /g')
       COMPACT_BLOCK="${COMPACT_BLOCK}ARIA ACTIVE — Compaction wiped context. ${LEDGER_COUNT} knowledge file(s) were previously surfaced this session: ${LEDGER_LIST}. Re-Read the relevant ones (prefer recently-active topic; skip if no longer applicable) and summarize what reloaded in 1-2 sentences before continuing. Ledger preserved at ${LEDGER}.
@@ -334,11 +368,10 @@ fi
 # ⚠ Dead until 2026-10-25: it read the session id from "$INPUT", which this script never set,
 # so it never fired from SessionStart. INPUT is now read at the top.
 if [ "$KT_ACTIVE_SURFACING" = "true" ] && [ "$KT_PROJECTS_ENABLED" = "true" ]; then
-  TA_SESSION_ID="$SESSION_ID"
   . "$SCRIPT_DIR/lib-tracked-artifacts.sh"
   kt_artifact_compute_for_path "$PWD"
-  if [ -n "$TA_SESSION_ID" ] && [ "$KT_ARTIFACTS_COUNT" -gt 0 ]; then
-    TA_LEDGER="/tmp/aria-active-${TA_SESSION_ID}"
+  TA_LEDGER=$SS_LEDGER
+  if [ -n "$TA_LEDGER" ] && [ "$KT_ARTIFACTS_COUNT" -gt 0 ]; then
     kt_artifact_filter_ledger "$TA_LEDGER"
     if [ "$KT_ARTIFACTS_COUNT" -gt 0 ]; then
       kt_artifact_record_ledger "$TA_LEDGER"
@@ -468,14 +501,14 @@ if ls "$HOME"/.claude/aria-statusline-state-*.json >/dev/null 2>&1; then
 "
 fi
 
-# Surfacing CLI command. The digest is installed under ~/.claude/rules and cannot know where this
-# plugin lives, so the ARIA ACTIVE CONTEXT directive runs whatever command this line names. The
-# path is quoted (the desktop app installs under a path containing a space). The task text goes on
-# stdin through a QUOTED heredoc: inside double quotes on a command line, backticks and $(...) in
-# untrusted task text would run. ⛔ This string is double-quoted shell: keep backticks and dollar
-# signs out of the prose below, or they run HERE.
+# Surfacing CLI path. Skills (/prospect, /retrospect Step 0.5) cannot know where this plugin lives,
+# so they run whatever path this line names, passing it REFERENCES only (--file, --git-range) —
+# never task text. The line is path-only: no command template, so no instruction anywhere tells a
+# model to put free text on a command line. The path is quoted (the desktop app installs under a
+# path containing a space). ⛔ This string is double-quoted shell: keep backticks and dollar signs
+# out of it, or they run HERE.
 if [ "$KT_ACTIVE_SURFACING" = "true" ] && [ -f "$KT_KNOWLEDGE_FOLDER/index.md" ] && [ -f "$SCRIPT_DIR/aria-surface.sh" ]; then
-  MODEL_MESSAGES="${MODEL_MESSAGES}ARIA SURFACE — run: sh \"${SCRIPT_DIR}/aria-surface.sh\" - <<'ARIA_TASK' — then the task text on its own lines (drop any line that is exactly ARIA_TASK), then a line holding only ARIA_TASK; never put the text in quotes on the command line, where shell syntax in it would run.
+  MODEL_MESSAGES="${MODEL_MESSAGES}ARIA SURFACE — \"${SCRIPT_DIR}/aria-surface.sh\"
 "
 fi
 

@@ -88,7 +88,7 @@ Cursor-native command backed by `scripts/aria/capture-task-boundary.sh`. Writes 
 - git branch + `git status --short` + changed files + `git diff --stat`
 - active batch manifest (if present)
 - config path + knowledge_folder
-- recent `/tmp/aria-hook-debug.log` lines
+- recent hook debug log lines (`aria-hook-debug.log` in the private per-user state directory)
 
 If you need narrative content (decisions made, insights worth keeping), use `/extract` instead — it's the right surface for capture-from-conversation.
 
@@ -104,7 +104,7 @@ Or invoke from the agent: read `.cursor/aria-knowledge.local.md` for `knowledge_
 
 - Pausing mid-task and want a self-describing record of where the working tree is.
 - About to switch branches or run a destructive operation, and want a "what was the state right before" marker.
-- Debugging hook behavior — the capture's `recent /tmp/aria-hook-debug.log` section is the cheapest way to confirm hooks are firing.
+- Debugging hook behavior — the capture's recent hook-debug-log section is the cheapest way to confirm hooks are firing.
 
 ## Limitations
 
@@ -195,7 +195,7 @@ These hooks enforce the framework in Cursor via `.cursor/hooks.json`:
 Cursor does **not** have transcript-based deny (`permissionDecision: deny`). Enforcement is instruction-based + advisory hook wording. See `AGENTS.md` and `audit/ARIA_CURSOR_AUDIT_REPORT.md` §5.
 """
 
-CURSOR_ORDERING_DENY = """**Cursor-native enforcement: record-edit-intent before each edit.** Before invoking Edit/Write, run `bash scripts/aria/record-edit-intent.sh <filePath> rule22-low|rule22-high "<rationale>"`. This writes `.cursor/aria-edit-intent.json`. The `beforeFileEdit` hook checks for a recent (≤10 min) matching marker. Missing / stale / mismatched markers escalate the advisory — protected files get explicit violation wording. `afterFileEdit` consumes the marker on success. Order: emit `[Rule 22]` block → `record-edit-intent.sh` → Edit/Write.
+CURSOR_ORDERING_DENY = """**Cursor-native enforcement: record-edit-intent before each edit.** Before invoking Edit/Write, run `bash scripts/aria/record-edit-intent.sh '<filePath>' rule22-low` (`rule22-high` for a High Impact change; no rationale argument — free text never goes on a command line). This writes `.cursor/aria-edit-intent.json`. The `beforeFileEdit` hook checks for a recent (≤10 min) matching marker. Missing / stale / mismatched markers escalate the advisory — protected files get explicit violation wording. `afterFileEdit` consumes the marker on success. Order: emit `[Rule 22]` block → `record-edit-intent.sh` → Edit/Write.
 
 Every compliance block is marked with a `[Rule 22]` prefix on its header line. The marker is the detection target for instruction discipline; Cursor hooks are **advisory** (no transcript deny)."""
 

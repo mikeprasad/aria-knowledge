@@ -68,7 +68,7 @@ Scans your knowledge folder, builds `index.md` with the tag index, and flags any
 
 Shows your knowledge base health: file counts, intake backlog status, audit dates, codemap status, index health. If `/stats` works, ARIA is configured.
 
-Edit any file in the repo — you should see a `[Rule 22]` reminder in the agent's response (the `beforeFileEdit` hook firing). Check `/tmp/aria-hook-debug.log` to confirm hooks are firing.
+Edit any file in the repo — you should see a `[Rule 22]` reminder in the agent's response (the `beforeFileEdit` hook firing). Check the hook debug log to confirm hooks are firing — `sh scripts/aria/aria-state.sh path aria-hook-debug.log` prints where it is (a private per-user state directory since 2.58.0).
 
 **You're ready.** The rest of this doc explains how to use it well.
 
@@ -128,8 +128,10 @@ Code, write, debug, refactor — normal flow. ARIA stays mostly invisible. Two i
 1. **Rule 22 markers**: before any non-trivial edit, the agent should emit a `[Rule 22]` block declaring impact + the change being made, and run:
 
     ```bash
-    bash scripts/aria/record-edit-intent.sh <filePath> rule22-low|rule22-high "<one-line rationale>"
+    bash scripts/aria/record-edit-intent.sh '<filePath>' rule22-low
     ```
+
+    (`rule22-high` for a High Impact change. No rationale argument: the `[Rule 22]` block is the rationale, and free text never goes on a command line.)
 
     The `beforeFileEdit` hook checks for a recent matching marker. Missing/stale/mismatched markers raise an escalated advisory (especially loud for protected files like `AGENTS.md`, `working-rules.md`, `change-decision-framework.md`, and any file under `critical_paths`). Cursor's hooks plan does not document a stable agent-side deny for `beforeFileEdit`, so this stays advisory; the discipline is instruction-based.
 
@@ -247,8 +249,10 @@ For non-trivial edits, declare:
 Then run:
 
 ```bash
-bash scripts/aria/record-edit-intent.sh <filePath> rule22-low|rule22-high "<rationale>"
+bash scripts/aria/record-edit-intent.sh '<filePath>' rule22-low
 ```
+
+(`rule22-high` for a High Impact change; no rationale argument — free text never goes on a command line.)
 
 The `beforeFileEdit` hook reads this marker to verify you assessed before the edit. The marker is consumed (deleted) by `afterFileEdit` on a matching successful edit, so each edit needs its own fresh marker.
 
@@ -280,7 +284,7 @@ Drop an inline `★ Insight` block in your reply, or run `/intake` with a snippe
 
 - **Hook events** are defined in `.cursor/hooks.json`. Cursor resolves `command` paths relative to the hooks.json file location (`.cursor/`); the port uses paths relative to the repo root, which Cursor resolves correctly when scripts are at `scripts/aria/*.sh`.
 - **Path validation**: at session start, the hook reads `.cursor/aria-knowledge.local.md`. If `knowledge_folder` is not an absolute path or the folder doesn't exist, you'll see a prompt to run `/setup`.
-- **Permissions**: scripts run with the user's permissions. The port avoids destructive operations; the only writes are under the configured `knowledge_folder` and to `/tmp/aria-hook-debug.log`.
+- **Permissions**: scripts run with the user's permissions. The port avoids destructive operations. It writes under the configured `knowledge_folder`; in the private per-user state directory (`sh scripts/aria/aria-state.sh path <name>` prints a file's place there), which holds the hook debug log and the hooks' short-lived state; to `.cursor/aria-edit-intent.json`; to your project's `SESSION.md` when `session_state` is on (and may add one `SESSION.md` line to its `.gitignore`); and, while the tag matcher runs, to a random-named temporary file under `/tmp` that it deletes when done. It deletes files older than 24 hours from the state directory and — in 2.58.0 only — your own old aria files (older than 24 hours) from `/tmp` and `$TMPDIR`.
 - **Fail-open on parse errors**: most hooks fail open. Two exceptions can **deny**: `pre-commit-preflight-check.sh` (when `preflight_gate: deny` or a deny-path/repo matches) and `pre-external-fetch-check.sh` (when `external_fetch_gate: on`). Both still fail open on unparseable input.
 - **Compaction**: there is no compaction lifecycle in Cursor. The port's `stop` hook + `capture-task-boundary.sh` substitute writes a non-transcript snapshot at task end.
 - **`/auto`**: compiled into `aria-commands.mdc`. No CronCreate, no statusline usage figure, no `self-restart` wrapper. Recurring prompts: Cursor `/loop`.

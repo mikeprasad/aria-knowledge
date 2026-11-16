@@ -5,7 +5,7 @@
 # nearest Edit/Write ON DISK. If the previous edit has not landed either, that walk
 # would reach the marker that authorised the previous edit — one marker authorising
 # two edits (ADR 062). pre-edit-check.sh records every checked edit's tool_use_id in
-# ${TMPDIR}/aria-r22-lastedit-<session><agent suffix>; in tail mode, a recorded
+# <state dir>/aria-r22-lastedit-<session><agent suffix>; in tail mode, a recorded
 # anchor that is not on disk yields the loud "could not verify" instead of a verdict.
 #
 # Fixtures derive from tests/fixtures/transcript-cc21280-real-base.jsonl (real
@@ -21,6 +21,10 @@ BASE="$REPO_ROOT/tests/fixtures/transcript-cc21280-real-base.jsonl"
 
 export TMPDIR=$(mktemp -d)
 trap 'rm -rf "$TMPDIR"' EXIT
+# 2.58.0: hook state lives in <base>/aria-knowledge-<uid> (lib-state-key.sh). This suite pins the
+# base inside its own scratch TMPDIR, so the state names below are read in SD, never in TMPDIR.
+export KT_STATE_BASE="$TMPDIR/state-base"; SD="$KT_STATE_BASE/aria-knowledge-$(id -u)"
+mkdir -p "$KT_STATE_BASE"; mkdir -m 700 "$SD"
 export ARIA_R22_FLUSH_WAIT_MS=300
 W="$TMPDIR/work"; mkdir -p "$W"
 
@@ -47,7 +51,7 @@ PY
 head -n $(($(wc -l < "$W/carrier.jsonl") - 1)) "$W/carrier.jsonl" > "$W/carrier_tail.jsonl"
 head -n $(($(wc -l < "$BASE") - 1)) "$BASE" > "$W/plain_tail.jsonl"
 
-anchor() { printf '%s' "$2" > "$TMPDIR/aria-r22-lastedit-$1"; }   # anchor <key> <id>
+anchor() { printf '%s' "$2" > "$SD/aria-r22-lastedit-$1"; }   # anchor <key> <id>
 run() {  # run <session> <fixture> [agent_id]
   if [ -n "${3:-}" ]; then
     printf '{"session_id":"%s","agent_id":"%s","file_path":"/tmp/t.txt","transcript_path":"%s","tool_use_id":"toolu_fx_3"}' "$1" "$3" "$2"
@@ -63,7 +67,7 @@ verdict() {
 
 # T1: every check records its own tool_use_id as the next edit's anchor.
 run t1 "$W/plain_tail.jsonl" >/dev/null
-a=$(cat "$TMPDIR/aria-r22-lastedit-t1" 2>/dev/null || true)
+a=$(cat "$SD/aria-r22-lastedit-t1" 2>/dev/null || true)
 [ "$a" = "toolu_fx_3" ] && ok "T1-anchor-written" || bad "T1-anchor-written" "anchor=[$a]"
 
 # T2: anchor on disk -> the normal tail verdict (no marker after fx_1 -> deny).

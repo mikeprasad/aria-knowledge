@@ -28,6 +28,10 @@ TARGET="toolu_fx_3"
 
 export TMPDIR=$(mktemp -d)
 trap 'rm -rf "$TMPDIR"' EXIT
+# 2.58.0: hook state lives in <base>/aria-knowledge-<uid> (lib-state-key.sh). This suite pins the
+# base inside its own scratch TMPDIR, so the state names below are read in SD, never in TMPDIR.
+export KT_STATE_BASE="$TMPDIR/state-base"; SD="$KT_STATE_BASE/aria-knowledge-$(id -u)"
+mkdir -p "$KT_STATE_BASE"; mkdir -m 700 "$SD"
 W="$TMPDIR/work"; mkdir -p "$W"
 PASS=0; FAIL=0
 ok()  { printf "PASS  %s\n" "$1"; PASS=$((PASS + 1)); }
@@ -82,7 +86,7 @@ verdict() {  # verdict <edit stdin> -> allow|deny|unknown|degraded
   elif printf '%s' "$out" | grep -q 'DEGRADED'; then echo degraded
   else echo allow; fi
 }
-state() { echo "$TMPDIR/aria-r22-carrier-$1"; }
+state() { echo "$SD/aria-r22-carrier-$1"; }
 CARRIER="cat <<'R22'
 [Rule 22] Low Impact — probe change (test only)
 R22"
@@ -96,7 +100,7 @@ record S8 P8 - "grep -n '[Rule 22] Low Impact' notes.md"
 record S9 P9 - "ls /tmp"
 [ ! -e "$(state S9)" ] && ok "C3-no-marker-not-recorded" || bad "C3-no-marker-not-recorded" "state written"
 record S10 P10 "a-b/c" "$CARRIER"
-if [ -f "$(state S10).agent-a-bc" ] && [ ! -e "$(state S10)" ]; then ok "C4-agent-scoped-key"; else bad "C4-agent-scoped-key" "expected $(basename "$(state S10)").agent-a-bc only; have: $(ls "$TMPDIR" | grep S10 | tr '\n' ' ')"; fi
+if [ -f "$(state S10).agent-a-bc" ] && [ ! -e "$(state S10)" ]; then ok "C4-agent-scoped-key"; else bad "C4-agent-scoped-key" "expected $(basename "$(state S10)").agent-a-bc only; have: $(ls "$SD" | grep S10 | tr '\n' ' ')"; fi
 # `set +e` inside: bash in POSIX mode inherits errexit into $(...), which would kill
 # the substitution before `echo rc=$?` can report the recorder's exit code.
 o1=$(set +e; printf 'not json at all [Rule 22' | sh "$REC" 2>&1; echo "rc=$?")
@@ -125,7 +129,7 @@ if [ "$v" = "deny" ] && [ -f "$(state S13)" ]; then ok "C8b-parent-carrier-not-s
 # if they do, the carrier file is written under one name and looked for under another.
 record S14 P1 "a/b..c" "$CARRIER"
 v=$(verdict "$(edit_in S14 P1 "a/b..c" "$W/plain.jsonl")")
-if [ "$v" = "allow" ] && [ ! -e "$(state S14).agent-ab..c" ]; then ok "C12-hostile-agent-id-recorder-reader-parity"; else bad "C12-hostile-agent-id-recorder-reader-parity" "got $v; files: $(ls "$TMPDIR" | grep S14 | tr '\n' ' ')"; fi
+if [ "$v" = "allow" ] && [ ! -e "$(state S14).agent-ab..c" ]; then ok "C12-hostile-agent-id-recorder-reader-parity"; else bad "C12-hostile-agent-id-recorder-reader-parity" "got $v; files: $(ls "$SD" | grep S14 | tr '\n' ' ')"; fi
 record S4 P1 - "$CARRIER"
 v=$(verdict "$(edit_in S5 P1 - "$W/plain.jsonl")")
 if [ "$v" = "deny" ] && [ -f "$(state S4)" ]; then ok "C9-session-isolation"; else bad "C9-session-isolation" "got $v"; fi

@@ -44,13 +44,14 @@
 #                          match vocabulary as PROJECT tags (config.sh sets it)
 #   KT_PROJECTS_ENABLED  — project tags apply only when this is "true"; unset
 #                          or any other value means no project tags
-#   KT_SURFACE_CACHE_DIR — optional dir for the parsed-index cache (default
-#                          $TMPDIR, else /tmp); see kt_index_cache_path
+#   KT_STATE_DIR         — set by the caller's kt_state_resolve (lib-state-key.sh);
+#                          the parsed-index cache lives there (kt_index_cache_path).
+#                          Unresolved or no state directory: no cache, same answer.
 #
 # What this does NOT cover (caller's responsibility):
 #   - Cooldowns / throttling — per-trigger policy, not shared mechanism.
 #   - Output formatting — each caller formats matched paths its own way.
-#   - Per-session dedup ledger (/tmp/aria-active-{session_id}) — added in
+#   - Per-session dedup ledger (<state dir>/aria-active-{session_id}) — added in
 #     checkpoint 2 across active-mode hooks.
 #   - Active vs passive wording — caller branches on KT_ACTIVE_SURFACING.
 
@@ -68,12 +69,15 @@ kt_index_tokens() {
 }
 
 # Path of the parsed-index cache for "$KT_KNOWLEDGE_FOLDER/index.md":
-#   ${KT_SURFACE_CACHE_DIR:-${TMPDIR:-/tmp}}/aria-surface-<cksum of the index PATH>.tsv
-# Returns 1 (prints nothing) when KT_KNOWLEDGE_FOLDER is unset.
+#   <state dir>/aria-surface-<cksum of the index PATH>.tsv
+# The state dir is the caller's: it sources lib-state-key.sh and runs kt_state_resolve first.
+# Returns 1 (prints nothing) when KT_KNOWLEDGE_FOLDER is unset, or when kt_state_path cannot name
+# the file (no state directory, or the caller never resolved one) — kt_index_match then ranks
+# without a cache: the same answer, slower.
 kt_index_cache_path() {
   [ -z "$KT_KNOWLEDGE_FOLDER" ] && return 1
   _kt_pk=$(printf '%s' "$KT_KNOWLEDGE_FOLDER/index.md" | cksum) || return 1
-  printf '%s/aria-surface-%s.tsv\n' "${KT_SURFACE_CACHE_DIR:-${TMPDIR:-/tmp}}" "${_kt_pk%% *}"
+  kt_state_path "aria-surface-${_kt_pk%% *}.tsv" 2>/dev/null
 }
 
 # One awk pass over index.md → the cache, on stdout. $1 index path, $2 the
@@ -403,6 +407,10 @@ kt_index_match() {
 '
   _kt_arc=2
   _kt_cache=$(kt_index_cache_path 2>/dev/null) || _kt_cache=""
+  # Something at the name that is not a regular file is no cache: a FIFO would block the read,
+  # and `mv -f` onto a directory moves the temp INTO it. In the private state dir only our own
+  # mistake can put one there; rank uncached rather than touch it.
+  if [ -n "$_kt_cache" ] && [ -e "$_kt_cache" ] && [ ! -f "$_kt_cache" ]; then _kt_cache=""; fi
   if [ -n "$_kt_cache" ] && [ -f "$_kt_cache" ] && [ -O "$_kt_cache" ] 2>/dev/null; then
     _kt_index_cache_answer "$_kt_cache" _kt_index_cache_select_sed; _kt_arc=$?
   fi
@@ -481,6 +489,12 @@ kt_match_filter_ledger() {
   _kt_ledger="$1"
   [ -z "$_kt_ledger" ] && return 0
   [ ! -f "$_kt_ledger" ] && return 0
+  # A link, a non-regular file or a file this user does not own at the ledger's name is not ours
+  # (final fix wave F7): never read it, never write through it. The ledger lives in the private
+  # state dir (lib-state-key.sh), where only our own mistake can put one there; kept as a second
+  # guard (spec D2).
+  [ -L "$_kt_ledger" ] && return 0
+  [ ! -O "$_kt_ledger" ] && return 0
   [ ! -s "$_kt_ledger" ] && return 0
   [ -z "$KT_MATCH_FILES_TMP" ] && return 0
   [ ! -f "$KT_MATCH_FILES_TMP" ] && return 0
@@ -505,13 +519,47 @@ kt_match_filter_ledger() {
   fi
 }
 
-# Append currently-matched paths (before " — ") to the session ledger. Creates
-# parent directory if needed. Used by active-mode hooks after a successful
-# surfacing, so subsequent triggers in the same session can dedup against it.
+# --- safe create (spec §5) -----------------------------------------------------
+# kt_create_new NAME — make NAME a new, empty regular file of ours (status 0), or fail (status 1)
+# because something already exists there in any form, mktemp failed, or `link` is missing or
+# failed. A temp file is made in NAME's directory and hard-linked to NAME with the POSIX `link`
+# utility (link(2)), which fails on ANY existing name — file, directory, symlink (dangling or
+# not), FIFO — and never opens or follows it. Not `ln`: given a symlink to a directory, `ln`
+# creates the file INSIDE that directory. Not `set -C`: noclobber opens an existing FIFO without
+# O_EXCL and blocks. The temp is removed either way; one left by a killed run is swept after 24 h
+# (session-start-check.sh; Antigravity's housekeeping).
+# kt_is_ours NAME — true iff NAME is not a link, is a regular file, and is owned by the caller.
+# Every writer of a predictable name: compute the content, then
+#   [ -e "$N" ] || [ -L "$N" ] || kt_create_new "$N" || :
+#   kt_is_ours "$N" || return 0
+#   <append to "$N">        (the very next line: no command in between)
+# The existence test keeps steady state fork-free; a name planted after it only makes `link`
+# fail. Bound: once created the file is ours, and in a sticky (/tmp) or private directory no
+# other user can replace it before the append; in a non-sticky world-writable directory nothing
+# at this layer helps. Identical in lib-prompt-surface.sh, lib-index-match.sh and
+# lib-tracked-artifacts.sh (11 copies), pinned by tests/repros/safe-create-census.sh CC1.
+kt_create_new() {
+  if [ -e "$1" ] || [ -L "$1" ]; then return 1; fi
+  case $1 in */*) _kt_cn_d=${1%/*}; [ -n "$_kt_cn_d" ] || _kt_cn_d=/ ;; *) _kt_cn_d=. ;; esac
+  _kt_cn_t=$(mktemp "$_kt_cn_d/.aria-new.XXXXXX" 2>/dev/null) || return 1
+  _kt_cn_rc=0; link "$_kt_cn_t" "$1" 2>/dev/null || _kt_cn_rc=1
+  rm -f "$_kt_cn_t" 2>/dev/null
+  return $_kt_cn_rc
+}
+kt_is_ours() { [ ! -L "$1" ] && [ -f "$1" ] && [ -O "$1" ]; }
+
+# Append currently-matched paths (before " — ") to the session ledger. Used by
+# active-mode hooks after a successful surfacing, so subsequent triggers in the
+# same session can dedup against it.
 kt_match_record_ledger() {
   _kt_ledger="$1"
   [ -z "$_kt_ledger" ] && return 0
   [ -z "$KT_MATCH_FILES_TMP" ] && return 0
   [ ! -f "$KT_MATCH_FILES_TMP" ] && return 0
+  # The ledger (in the private state dir) is created only by kt_create_new, and appended to only
+  # when it is a regular file of ours that is not a link (final fix wave residual, spec §5; kept as
+  # a second guard, spec D2).
+  [ -e "$_kt_ledger" ] || [ -L "$_kt_ledger" ] || kt_create_new "$_kt_ledger" || :
+  kt_is_ours "$_kt_ledger" || return 0
   awk -F ' — ' '{print $1}' "$KT_MATCH_FILES_TMP" >> "$_kt_ledger" 2>/dev/null
 }

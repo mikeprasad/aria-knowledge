@@ -10,10 +10,54 @@
 #      and inject as ephemeralMessage. Restores PostToolUse → agent
 #      feedback channel that Antigravity's PostToolUse {} return
 #      cannot deliver inline.
+#   4. Rank the newest USER_INPUT from the transcript in code and inject
+#      the result once per user turn (spec D4). Antigravity's PreInvocation
+#      input carries no prompt, so the transcript is the only source; the
+#      text reaches the matcher through jq and argv, never a shell string.
 
 set -uo pipefail
 
 LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# The shared safe create (kt_create_new / kt_is_ours, spec §5) — one body in every library that
+# writes a predictable name. lib-tracked-artifacts.sh has no top-level statement, so sourcing it
+# only defines functions (tests/repros/safe-create-census.sh CC3); it is loaded here, before the
+# first debug-log write below. If it is missing, every create and write here is refused.
+# shellcheck source=../lib-tracked-artifacts.sh
+. "$LIB_DIR/../lib-tracked-artifacts.sh" 2>/dev/null || true
+# The private per-user state dir (2.58.0, lib-state-key.sh): the session ledger, the debug log and
+# the surfaced / logged / model markers live there. Resolved once per run. With none (spec D3)
+# responsibility 4 and the tracked-artifacts load inject nothing and nothing is logged; the other
+# responsibilities are unaffected. Without the lib, kt_state_path is undefined and every name is
+# refused, which is the same "no state" outcome.
+KT_STATE_DIR=   # an inherited value is never trusted: only the state-dir resolver sets it
+if [ -f "$LIB_DIR/../lib-state-key.sh" ]; then
+  # shellcheck source=../lib-state-key.sh
+  . "$LIB_DIR/../lib-state-key.sh"
+  set +u; kt_state_resolve; set -u
+fi
+
+# ag_debug_log STEP REASON — one `<UTC> antigravity <step> <reason>` line in the surfacing
+# debug log, for the two failures that happen before lib-prompt-surface.sh (and its
+# kt_ps_log) is loaded. The line is built first; an absent log is then created with
+# kt_create_new, and the line is appended only to a regular file of ours that is not a link.
+# Never stdout. No state dir: nothing is written.
+ag_debug_log() {
+  local lf line
+  lf=$(kt_state_path aria-surface-hook.log 2>/dev/null) || return 0
+  line="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown-time) antigravity $1 $2"
+  [ -e "$lf" ] || [ -L "$lf" ] || kt_create_new "$lf" 2>/dev/null || :
+  kt_is_ours "$lf" 2>/dev/null || return 0
+  printf '%s\n' "$line" >> "$lf" 2>/dev/null
+  return 0
+}
+
+# C3: lib-antigravity-input.sh denies and exits when jq is missing, before
+# responsibility 4 can say why. Record it in the surfacing debug log first.
+# Output and exit status stay the lib's.
+if ! command -v jq >/dev/null 2>&1; then
+  ag_debug_log input jq-missing
+fi
+
 # shellcheck source=./lib-antigravity-input.sh
 source "$LIB_DIR/lib-antigravity-input.sh"
 
@@ -49,11 +93,41 @@ if [ "$INVOCATION_NUM" = "0" ]; then
   if command -v kt_batch_clear_stale >/dev/null 2>&1; then
     kt_batch_clear_stale 1800
   fi
-  find /tmp -maxdepth 1 -name 'aria-active-*' -mtime +1 -delete 2>/dev/null || true
-  find /tmp -maxdepth 1 -name 'aria-session-inprogress-*' -mtime +1 -delete 2>/dev/null || true
+  # LEGACY-TMP-SWEEP-2.58 begin — remove in the first release after 2.58.0, together with KT_TMP_SWEEP_ROOT (Rule 37)
+  # Before 2.58.0 hook state lived at predictable names in the shared /tmp and $TMPDIR. Since 2.58.0
+  # it lives in the private state dir (swept just below), so these names are only debris. Each find
+  # removes OUR entries older than 24 h, one level deep; find never follows a link it meets, so a link
+  # is removed, not its target. Start points end in "/": on macOS /tmp is a symlink and find does not
+  # follow a symlinked start point without it (measured 2026-11-12). KT_TMP_SWEEP_ROOT is a TEST-ONLY
+  # override that replaces BOTH roots, so a suite never sweeps the real /tmp or $TMPDIR.
+  find "${KT_TMP_SWEEP_ROOT:-/tmp}/" -maxdepth 1 -user "$(id -u)" -mmin +1440 \( -name 'aria-active-*' \
+    -o -name 'aria-session-inprogress-*' -o -name 'aria-bashcd-*' -o -name 'aria-codemap-*' \
+    -o -name 'aria-codex-codemap-*' -o -name 'aria-context-*' -o -name 'aria-usage-warn-*' \
+    -o -name 'aria-hook-debug.log' -o -name 'aria-digest-*' -o -name '.aria-new.*' \) -exec rm -f {} + 2>/dev/null
+  find "${KT_TMP_SWEEP_ROOT:-${TMPDIR:-/tmp}}/" -maxdepth 1 -user "$(id -u)" -mmin +1440 \( -name 'aria-r22-*' \
+    -o -name 'aria-extfetch*' -o -name 'aria-preflight*' -o -name 'aria-surface-*' -o -name 'aria-prompt-config.*' \
+    -o -name 'aria-cursor-*' -o -name 'aria-ag-*' -o -name '.aria-ag-*' -o -name '.aria-new.*' \) -exec rm -f {} + 2>/dev/null
+  # LEGACY-TMP-SWEEP-2.58 end
+  # The state dir's own sweep (spec D6, split retention D10): kt_state_sweep in lib-state-key.sh —
+  # proof names (the ledger, the surfaced marker) 30 days, the rest (logged / model markers, caches,
+  # a killed writer's create temps) 24 h. Only when it resolved; top level only; never a directory or a link.
+  if [ -n "${KT_STATE_DIR:-}" ]; then
+    kt_state_sweep
+  fi
 
   # 2. Dynamic message building
   MESSAGES=""
+
+  # The session ledger is the one responsibility 4 writes: <state dir>/aria-active-<conversationId>, the
+  # id as kt_session_key_check (lib-state-key.sh) accepts it — [A-Za-z0-9._-]+, never rewritten; any other
+  # id names no ledger (spec D3), the rule every canonical hook applies to the session_id this
+  # port's wrappers pass them (the same conversationId). The tracked-artifact load below records
+  # into the same file, and the `ARIA CONFIG` line at the end of this block STATES it to the model
+  # (2.58.0, spec D5, gate amendment G1-1): stated = written. `none` with no state dir (spec D3) or no
+  # conversationId.
+  AG_SS_LEDGER=""
+  _ag_lsid=$(kt_session_key_check "${ARIA_CONVERSATION_ID:-}" 2>/dev/null) || _ag_lsid=""
+  [ -n "$_ag_lsid" ] && AG_SS_LEDGER=$(kt_state_path "aria-active-${_ag_lsid}" 2>/dev/null) || AG_SS_LEDGER=""
 
   if [ "${KT_CONFIGURED:-false}" = "false" ]; then
     MESSAGES="aria-knowledge is installed but not configured. Run /setup to configure your knowledge folder and start capturing knowledge automatically. "
@@ -221,26 +295,26 @@ if [ "$INVOCATION_NUM" = "0" ]; then
     # Knowledge surfacing
     if [ -f "${KT_KNOWLEDGE_FOLDER:-}/index.md" ]; then
       if [ "${KT_ACTIVE_SURFACING:-}" = "true" ]; then
-        # This port's ARIA ACTIVE CONTEXT directive, with {knowledge_folder} substituted below. The ranking
-        # paragraph between the surfacing-ranking markers is plugin-claude-code/scripts/surfacing-ranking.txt
-        # byte for byte; the clauses around it are this port's: no prompt hook here, so (b) runs the
-        # ARIA SURFACE command once per topic, and the model skips files it already read (this runtime
-        # never sets the CLAUDE_CODE_SESSION_ID the Claude Code directive keys its ledger on). It sits in a QUOTED heredoc because it carries
+        # This port's ARIA ACTIVE CONTEXT directive. The ranking paragraph between the surfacing-ranking
+        # markers is plugin-claude-code/scripts/surfacing-ranking.txt byte for byte; the clauses around it
+        # are this port's: this hook's own responsibility 4 ranks the newest user turn in code and injects
+        # `ARIA ACTIVE —`, so that injection is the only source and no instruction asks the model to run
+        # anything on the task text. The model skips files it already read (this runtime never sets the
+        # CLAUDE_CODE_SESSION_ID the Claude Code directive keys its ledger on). It sits in a QUOTED heredoc because it carries
         # backticks and apostrophes: inside a double-quoted string a backtick is command substitution and
         # deletes text silently. Do NOT escape it or move it into a double-quoted string —
         # tests/repros/surfacing-ranking-verbatim.sh runs this emitter and compares the text byte for byte.
         # read, not $(cat <<...): bash 3.2 (macOS /bin/sh) mis-parses an apostrophe in a heredoc that
         # sits inside a command substitution.
         IFS= read -r _aa_text <<'ARIA_ACTIVE_CONTEXT'
-ARIA ACTIVE CONTEXT — Unasked, read each task's knowledge files before answering; say in one line which you used and why. Source: (a) an `ARIA ACTIVE —` injection; else (b) with a shell, run the `ARIA SURFACE` command on the task text, once per topic; else (c) `## Tag Index` headers of {knowledge_folder}/index.md matching task words, ordered: <!-- surfacing-ranking:start -->Rank the candidate files: (1) a file carrying a matched project tag first; (2) then files carrying more of the matched tags; (3) then files whose path or index description contains more of the task's own words (lowercase, length over 2, common words dropped); (4) then authored files before files under `logs/`; (5) then the file whose rarest matched tag has the fewest files; (6) then index order. Fire when 2 or more tags match, or when 1 matched tag is a configured project. Keep the top 5.<!-- surfacing-ranking:end --> Skip files already read this session.
+ARIA ACTIVE CONTEXT — Unasked, read each task's knowledge files before answering; say in one line which you used and why. Source: an `ARIA ACTIVE —` injection from the Antigravity PreInvocation hook, the only source (none = read nothing); the plugin ranks its files this way: <!-- surfacing-ranking:start -->Rank the candidate files: (1) a file carrying a matched project tag first; (2) then files carrying more of the matched tags; (3) then files whose path or index description contains more of the task's own words (lowercase, length over 2, common words dropped); (4) then authored files before files under `logs/`; (5) then the file whose rarest matched tag has the fewest files; (6) then index order. Fire when 2 or more tags match, or when 1 matched tag is a configured project. Keep the top 5.<!-- surfacing-ranking:end --> Skip files already read this session.
 ARIA_ACTIVE_CONTEXT
-        _aa_tok='{knowledge_folder}'
-        MESSAGES="${MESSAGES}${_aa_text%%"$_aa_tok"*}${KT_KNOWLEDGE_FOLDER}${_aa_text#*"$_aa_tok"} "
-        # ARIA SURFACE value line, as plugin-claude-code/scripts/session-start-check.sh sends it: the exact
-        # command (absolute, quoted path; task text on stdin through a QUOTED heredoc so nothing in it
-        # expands). Double-quoted shell: keep backticks and dollar signs out of the prose in it.
+        MESSAGES="${MESSAGES}${_aa_text} "
+        # ARIA SURFACE value line, as plugin-claude-code/scripts/session-start-check.sh sends it: the
+        # absolute, quoted CLI path and nothing else. Skills pass it references (--file, --git-range),
+        # never task text. Double-quoted shell: keep backticks and dollar signs out of it.
         if [ -f "${CLAUDE_PLUGIN_ROOT}/bin/aria-surface.sh" ]; then
-          MESSAGES="${MESSAGES}ARIA SURFACE — run: sh \"${CLAUDE_PLUGIN_ROOT}/bin/aria-surface.sh\" - <<'ARIA_TASK' — then the task text on its own lines (drop any line that is exactly ARIA_TASK), then a line holding only ARIA_TASK; never put the text in quotes on the command line, where shell syntax in it would run. "
+          MESSAGES="${MESSAGES}ARIA SURFACE — \"${CLAUDE_PLUGIN_ROOT}/bin/aria-surface.sh\" "
         fi
       else
         MESSAGES="${MESSAGES}ARIA CONTEXT — Knowledge index available at ${KT_KNOWLEDGE_FOLDER}/index.md. After user states task, check it for relevant tags and suggest a /context with any found relevant tags. Offer once per session and again when changing topics. Do not block. "
@@ -270,13 +344,16 @@ ARIA_ACTIVE_CONTEXT
 
     # Tracked artifacts active load
     if [ "${KT_ACTIVE_SURFACING:-}" = "true" ] && [ "${KT_PROJECTS_ENABLED:-}" = "true" ]; then
-      TA_SESSION_ID=$(echo "$ARIA_HOOK_INPUT" | grep -o '"session_id":"[^"]*"' | head -1 | sed 's/"session_id":"//;s/"//' 2>/dev/null)
       if [ -f "$CLAUDE_PLUGIN_ROOT/bin/lib-tracked-artifacts.sh" ]; then
         # shellcheck source=../lib-tracked-artifacts.sh
         source "$CLAUDE_PLUGIN_ROOT/bin/lib-tracked-artifacts.sh"
         kt_artifact_compute_for_path "$PWD"
-        if [ -n "$TA_SESSION_ID" ] && [ "${KT_ARTIFACTS_COUNT:-0}" -gt 0 ]; then
-          TA_LEDGER="/tmp/aria-active-${TA_SESSION_ID}"
+        # The ledger is in the private state dir; with none (spec D3) nothing is surfaced, since
+        # without the ledger the same instruction would repeat. Keyed on the conversationId, as
+        # responsibility 4 is: until 2.58.0 this read a session_id Antigravity payloads do not carry,
+        # so the load could never fire.
+        TA_LEDGER=$AG_SS_LEDGER
+        if [ -n "$TA_LEDGER" ] && [ "${KT_ARTIFACTS_COUNT:-0}" -gt 0 ]; then
           kt_artifact_filter_ledger "$TA_LEDGER"
           if [ "$KT_ARTIFACTS_COUNT" -gt 0 ]; then
             kt_artifact_record_ledger "$TA_LEDGER"
@@ -389,6 +466,10 @@ ARIA_ACTIVE_CONTEXT
         fi
       fi
     fi
+
+    # The private state dir and this conversation's ledger — a separate value line, named as in every
+    # port so one skill sentence serves all ("the file named by `ledger=` in `ARIA CONFIG`").
+    MESSAGES="${MESSAGES}ARIA CONFIG — state_dir=${KT_STATE_DIR:-none} ledger=${AG_SS_LEDGER:-none}. "
   fi
 
   if [ -n "$MESSAGES" ]; then
@@ -412,7 +493,223 @@ $SCOPE_CONTENT
   fi
 fi
 
+# --- Responsibility 4: rank the newest user input in code (spec D4) ---
+# The ranking, ledger filter and "ARIA ACTIVE —" text are the shared capture core,
+# bin/lib-prompt-surface.sh (byte-identical with the Claude Code and Cursor copies;
+# build.sh copies it here). This block is only the Antigravity I/O adapter:
+#   - text:  the newest USER_INPUT record in the LAST 400 lines of transcriptPath
+#            (measured schema: type, content, source, status, step_index, created_at;
+#            a user turn is type "USER_INPUT" with string content). Read by jq one line
+#            at a time; a malformed line is skipped. The content is untrusted text: it
+#            reaches the matcher only as a jq output and an argv item.
+#   - state: every name below lives in the private per-user state dir (lib-state-key.sh,
+#            spec D4), named with kt_state_path. With no state dir (spec D3) this injects
+#            nothing and logs nothing: without the ledger and the step record it would
+#            re-inject the same files on every model call.
+#   - once:  per conversation, per step_index — state file
+#            <state dir>/aria-ag-surfaced-<conversationId, validated by kt_session_key_check>,
+#            one PROCESSED step_index per line: recorded on every decided outcome
+#            (delivered, nothing-new, nofire), so a user turn is ranked at most once. An
+#            error records nothing, so it is retried. A symlinked or foreign state file
+#            is refused (and nothing is injected, since it could not be recorded).
+#            The file is append-only: a lost race between writers only re-ranks a turn.
+#   - ledger: <state dir>/aria-active-<conversationId, validated by kt_session_key_check>, the same ledger as the
+#            other hosts. It records delivered paths only, and only after the hook
+#            output carrying the step was written (the lib's ledger contract); the
+#            delivered step is marked processed at the same point. A failure before
+#            delivery records nothing, so the next model call retries.
+#   - timing: if Antigravity logs the user turn only after this hook fires, the
+#            injection lands one model call later (still once).
+# Failures go to the debug log (spec C3) as `<UTC> antigravity <step> <reason>`, never to
+# model context. A missing or unreadable transcript is logged once per conversation and
+# reason (marker aria-ag-logged-<id>.<reason>), since it persists across every model
+# call. The model name is logged there when it changes (spec C2). Disabled or
+# unconfigured surfacing does nothing and logs nothing. Responsibilities 1-3 never see
+# any of this: it only appends one step to INJECT_STEPS_JSON.
+AG_SURFACE_STEP=""
+ag_surface() {
+  # No state dir (spec D3): inject nothing, log nothing. The directory itself (for find and
+  # mktemp) is taken from one name kt_state_path builds; every file is named with kt_state_path.
+  local mf dir
+  mf=$(kt_state_path aria-ag-model.last 2>/dev/null) || return 0
+  dir=${mf%/*}
+  if [ ! -f "$CLAUDE_PLUGIN_ROOT/bin/lib-prompt-surface.sh" ]; then
+    ag_debug_log surface lib-missing
+    return 0
+  fi
+  KT_PS_SCRIPT_DIR="$CLAUDE_PLUGIN_ROOT/bin"
+  KT_PS_RUNTIME=antigravity
+  # Same expression as config.sh's first assignment, so the lib's config cache keys on
+  # the file without sourcing config.sh (~150 ms) on every model call.
+  KT_CONFIG="${KT_CONFIG:-$HOME/.gemini/antigravity/aria-knowledge.local.md}"
+  # shellcheck source=../lib-prompt-surface.sh
+  . "$CLAUDE_PLUGIN_ROOT/bin/lib-prompt-surface.sh"
+
+  # Housekeeping (state files, markers, create temps older than 24 h) runs once per conversation in
+  # responsibility 2: the state-dir sweep and, for 2.58.0 only, the legacy /tmp and $TMPDIR sweep.
+
+  # C2: the model name, logged when it differs from the last one logged. The last value is
+  # read only from a regular file of ours that is not a link; the new one is written to a
+  # temp file in the same directory and renamed over the name ($mf, named at the top). ⚠ The
+  # rename is not a safe replace of whatever sits there: `mv -f` onto a directory (or a link to
+  # one) moves the temp INTO it (measured), so a name that exists and is not a regular file is
+  # not written. Inside the private state dir only our own mistake can put one there.
+  local model last=""
+  model=$(jq -r '(.modelName // "") | tostring | gsub("[^A-Za-z0-9._+:/-]"; "") | .[0:60]' \
+    <<<"$ARIA_HOOK_INPUT" 2>/dev/null) || model=""
+  if [ -n "$model" ]; then
+    if [ -f "$mf" ] && [ -O "$mf" ] && [ ! -L "$mf" ]; then
+      IFS= read -r last < "$mf" 2>/dev/null || :
+    fi
+    if [ "$model" != "$last" ]; then
+      kt_ps_log antigravity capture "modelName=$model"
+      local mt
+      if { [ ! -e "$mf" ] || [ -f "$mf" ]; } && mt=$(mktemp "$dir/.aria-ag-model.XXXXXX" 2>/dev/null); then
+        { printf '%s\n' "$model" > "$mt" && mv -f "$mt" "$mf"; } 2>/dev/null || rm -f "$mt" 2>/dev/null
+      fi
+    fi
+  fi
+
+  kt_ps_load_config
+  if [ -z "$KT_CONFIG_ERROR" ] \
+     && { [ "$KT_CONFIGURED" != "true" ] || [ "$KT_ACTIVE_SURFACING" != "true" ]; }; then
+    return 0
+  fi
+
+  local sid
+  [ -n "$ARIA_CONVERSATION_ID" ] || { kt_ps_log antigravity input no-conversation-id; return 0; }
+  # kt_session_key_check (lib-state-key.sh): the id unchanged, or no key at all (never stripped).
+  sid=$(kt_session_key_check "$ARIA_CONVERSATION_ID" 2>/dev/null) || { kt_ps_log antigravity input conversation-id-rejected; return 0; }
+  # m1: an invalid config persists across every model call — logged once per
+  # conversation, and nothing is ranked.
+  if [ -n "$KT_CONFIG_ERROR" ]; then ag_log_once "$sid" surface config; return 0; fi
+  local tp="$ARIA_TRANSCRIPT_PATH"
+  [ -n "$tp" ] || { ag_log_once "$sid" transcript no-transcript-path; return 0; }
+  if [ ! -f "$tp" ] || [ ! -r "$tp" ]; then
+    ag_log_once "$sid" transcript unreadable; return 0
+  fi
+
+  # One jq call over the last 400 lines (gate-2 G3). Line 1 is a status; on "ok", line 2
+  # is the step_index reduced to a filename-safe charset and the rest is the content plus
+  # a closing "." ($( ) strips trailing newlines, which would change the text).
+  local parsed status
+  parsed=$(tail -n 400 -- "$tp" 2>/dev/null | jq -Rnr '
+    [inputs] as $lines
+    | [$lines[] | fromjson? | select(type == "object")] as $r
+    | ([$r[] | select((.type | type) == "string")] | length) as $typed
+    | ([$r[] | select(.type == "USER_INPUT" and ((.content | type) == "string"))] | last) as $u
+    | if ($lines | length) == 0 then "empty"
+      elif $typed == 0 then "schema-miss"
+      elif $u == null then "none"
+      else (($u.step_index // "") | tostring | gsub("[^A-Za-z0-9._-]"; "")) as $s
+        | if $s == "" then "no-step-index" else "ok", $s, ($u.content + ".") end
+      end
+  ' 2>/dev/null) || { kt_ps_log antigravity transcript jq-failed; return 0; }
+  local nl='
+'
+  status=${parsed%%"$nl"*}
+  case $status in
+    ok) ;;
+    empty|none) return 0 ;;
+    schema-miss|no-step-index) kt_ps_log antigravity transcript "$status"; return 0 ;;
+    *) kt_ps_log antigravity transcript unexpected-parse; return 0 ;;
+  esac
+  local rest step content
+  rest=${parsed#*"$nl"}
+  step=${rest%%"$nl"*}
+  content=""
+  case $rest in *"$nl"*) content=${rest#*"$nl"} ;; esac
+  content=${content%.}
+
+  local state
+  state=$(kt_state_path "aria-ag-surfaced-$sid" 2>/dev/null) || return 0
+  if [ -L "$state" ] || { [ -e "$state" ] && { [ ! -f "$state" ] || [ ! -O "$state" ]; }; }; then
+    kt_ps_log antigravity state refused; return 0
+  fi
+  if [ -f "$state" ]; then
+    local seen
+    while IFS= read -r seen || [ -n "$seen" ]; do
+      [ "$seen" = "$step" ] && return 0
+    done < "$state"
+  fi
+
+  # The user's own words: pasted blocks removed (the strip runs only when there is one).
+  # The state file marks a step PROCESSED on every decided outcome — delivered (after the
+  # output is written, in ag_surface_commit), nothing-new and nofire — so a user turn is
+  # ranked at most once. The session LEDGER records delivered paths only. An error records
+  # nothing, so a transient failure is retried on the next model call.
+  local text
+  case $content in
+    *'<pasted_content'*) text=$(printf '%s' "$content" | kt_ps_strip_pasted) ;;
+    *) text=$content ;;
+  esac
+  [ -n "$text" ] || { ag_record_step "$state" "$step"; return 0; }   # nofire: nothing typed
+  AG_SURFACE_LEDGER=$(kt_state_path "aria-active-$sid" 2>/dev/null) || return 0
+  kt_ps_surface "$text" "$AG_SURFACE_LEDGER" >/dev/null
+  if [ -z "$KT_PS_TEXT" ]; then
+    case $KT_PS_STATUS in
+      nofire|nothing-new) ag_record_step "$state" "$step" ;;
+    esac
+    return 0
+  fi
+  # The whole hook output, built in one jq call: steps 1-3 unchanged, this one appended.
+  AG_OUT=$(jq -cn --argjson s "$INJECT_STEPS_JSON" --arg m "$KT_PS_TEXT" \
+    '{injectSteps: ($s + [{"ephemeralMessage": $m}])}' 2>/dev/null)
+  [ -n "$AG_OUT" ] || { kt_ps_log antigravity emit jq-failed; return 0; }
+  AG_SURFACE_STEP=$step
+  AG_SURFACE_STATE=$state
+}
+
+# ag_record_step STATE STEP — append STEP as processed. An absent state file is created
+# with kt_create_new (fails harmlessly when anything exists there). The line is then appended
+# only to a regular file of ours that is not a link; anything else is logged and the step is
+# not recorded (fail safe: the turn may be ranked again). Append, never rewrite, so concurrent
+# writers lose no lines.
+ag_record_step() {
+  [ -e "$1" ] || [ -L "$1" ] || kt_create_new "$1" || :
+  if ! kt_is_ours "$1"; then kt_ps_log antigravity state refused; return 0; fi
+  printf '%s\n' "$2" >> "$1" 2>/dev/null || kt_ps_log antigravity state write-failed
+}
+
+# ag_log_once SID STEP REASON — a failure that persists for the whole conversation
+# (missing transcript, invalid config) would otherwise be logged before every model call,
+# so it is logged once per (conversation, reason): marker
+# <state dir>/aria-ag-logged-<SID>.<REASON>, named with kt_state_path.
+# Only a regular marker file of ours that is not a link counts as "already logged"; any
+# other file at that name (a link, a directory, someone else's file) logs the line again
+# and nothing is written. The marker is created with kt_create_new.
+ag_log_once() {
+  local m
+  m=$(kt_state_path "aria-ag-logged-$1.$3" 2>/dev/null) || { kt_ps_log antigravity "$2" "$3"; return 0; }
+  if kt_is_ours "$m"; then return 0; fi
+  kt_ps_log antigravity "$2" "$3"
+  [ -e "$m" ] || [ -L "$m" ] || kt_create_new "$m" || :
+  return 0
+}
+
+# After the output was written: record what was delivered, then the step as processed.
+ag_surface_commit() {
+  kt_ps_commit "$AG_SURFACE_LEDGER"
+  ag_record_step "$AG_SURFACE_STATE" "$AG_SURFACE_STEP"
+}
+
+# The shared core is POSIX sh written for unset-tolerant shells; run it without -u.
+set +u
+ag_surface
+set -u
+
 # --- Emit response ---
+if [ -n "$AG_SURFACE_STEP" ]; then
+  # Responsibility 4 added a step: write, and only then record it. Written from a
+  # subshell — a failed write in this shell stays in its stdout buffer and is flushed into
+  # the next file opened on fd 1 (measured in the Cursor hook).
+  if ( printf '%s\n' "$AG_OUT" ) 2>/dev/null; then
+    set +u; ag_surface_commit; set -u
+  else
+    set +u; kt_ps_log antigravity emit write-failed; set -u
+  fi
+  exit 0
+fi
 STEP_COUNT=$(jq -r 'length' <<<"$INJECT_STEPS_JSON")
 if [ "$STEP_COUNT" -gt 0 ]; then
   jq -cn --argjson steps "$INJECT_STEPS_JSON" '{injectSteps: $steps}'

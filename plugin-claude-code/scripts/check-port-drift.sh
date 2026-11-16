@@ -124,13 +124,14 @@ port_manifest_version() {
 # line for every file that currently exists. Unknown ports emit nothing (the
 # --update fallback then re-hashes whatever the ledger already lists).
 # The shared knowledge-surfacing matcher and its CLI. Each shell port carries byte-identical copies
-# of the canonical lib-index-match.sh and aria-surface.sh (surfacing spec 2026-11-08, D1/AC1).
+# of the canonical lib-index-match.sh and aria-surface.sh, plus lib-prompt-surface.sh (the shared
+# prompt-capture core; cursor and antigravity only) (surfacing spec 2026-11-08, D1/AC1).
 # Tracking them here reports a port copy that CHANGES after its baseline as `drifted`. It does NOT
 # catch a copy that LAGS canonical: STATUS compares each port file with its own recorded hash, so an
 # unchanged-but-stale copy reads `ok`. Lag is caught by the four_libs_identical and port_cli arms
 # of the surfacing-ranking-verbatim repro test.
 port_surfacing_paths() {
-  for _n in lib-index-match.sh aria-surface.sh; do
+  for _n in lib-index-match.sh aria-surface.sh lib-prompt-surface.sh; do
     [ -f "$ROOT/$1/$_n" ] && printf '%s\n' "$1/$_n"
   done
   return 0

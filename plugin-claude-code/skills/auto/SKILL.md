@@ -401,7 +401,7 @@ Each task = **one atomic commit**. Gate BEFORE committing: run the FULL suite + 
 
 Three ways to get this wrong, all forbidden:
 
-- **Never write the marker file** (`${TMPDIR}/aria-preflight-<session_id>`) or otherwise fake a recorded run. That is bypassing a gate, not passing one, and it is exactly the ungranted-authorization case `/auto` must never self-issue.
+- **Never write the marker file** (`aria-preflight-<session_id>` in the private state directory) or otherwise fake a recorded run. That is bypassing a gate, not passing one, and it is exactly the ungranted-authorization case `/auto` must never self-issue.
 - **Never flip `preflight_gate` to `off`, and never edit the user's config to widen your own permissions.** `/setup` is the sole writer of those keys.
 - **Never let the circuit breaker do the work.** Three consecutive denials degrade the gate to allow-with-warning for the whole session — so "just keep retrying" doesn't stall the arc, it silently *disables the user's gate* and then proceeds. A degraded gate is a worse outcome than a stopped arc.
 

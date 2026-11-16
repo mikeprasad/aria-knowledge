@@ -3,7 +3,7 @@
 # Proves D1: 3 consecutive denials with no intervening compliant edit trip the
 # breaker (allow + loud systemMessage); a compliant edit resets it; the unknown
 # path never touches the counter; distinct session keys don't share state.
-# Hermetic — the breaker counter lives in a per-run scratch TMPDIR.
+# Hermetic — the breaker counter lives in a per-run scratch state dir (2.58.0).
 set -u
 HERE=$(cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(cd "$HERE/../.." && pwd)
@@ -11,6 +11,10 @@ HOOK="$REPO_ROOT/plugin-claude-code/scripts/pre-edit-check.sh"
 FIXTURES="$REPO_ROOT/tests/fixtures"
 fail() { echo "FAIL: $1"; exit 1; }
 export TMPDIR=$(mktemp -d); trap 'rm -rf "$TMPDIR"' EXIT
+# 2.58.0: hook state lives in <base>/aria-knowledge-<uid> (lib-state-key.sh). This suite pins the
+# base inside its own scratch TMPDIR, so the state names below are read in SD, never in TMPDIR.
+export KT_STATE_BASE="$TMPDIR/state-base"; SD="$KT_STATE_BASE/aria-knowledge-$(id -u)"
+mkdir -p "$KT_STATE_BASE"; mkdir -m 700 "$SD"
 # v2.54.0 raised the default transcript wait to 40 s; this suite tests the breaker,
 # not the wait (measured 4.0 s -> 42.4 s without an override).
 export ARIA_R22_FLUSH_WAIT_MS=${ARIA_R22_FLUSH_WAIT_MS:-300}
@@ -27,7 +31,7 @@ CP="transcript-split-compliant.jsonl";    CPID="toolu_test_compliant"
 
 # --- 1) three denials, then trip on the 4th -------------------------------
 SK="sess-breaker-A"
-SF="$TMPDIR/aria-r22-denies-$SK"
+SF="$SD/aria-r22-denies-$SK"
 is_deny "$(invoke "$SK" "$NC" "$NCID")" || fail "deny 1 expected"
 is_deny "$(invoke "$SK" "$NC" "$NCID")" || fail "deny 2 expected"
 is_deny "$(invoke "$SK" "$NC" "$NCID")" || fail "deny 3 expected"
@@ -49,7 +53,7 @@ is_deny "$(invoke "$SK" "$NC" "$NCID")" || fail "post-reset noncompliant must de
 
 # --- 3) unknown path never touches the counter ----------------------------
 SK_U="sess-unknown"
-SF_U="$TMPDIR/aria-r22-denies-$SK_U"
+SF_U="$SD/aria-r22-denies-$SK_U"
 # v2.57.3: a missing transcript reaches `unknown`; an absent id in a readable one gets a verdict.
 o=$(invoke "$SK_U" "does-not-exist.jsonl" "toolu_absent_xyz")
 is_sysmsg "$o" || fail "missing transcript should fail-open LOUD (systemMessage)"
@@ -58,7 +62,7 @@ is_deny "$o" && fail "missing transcript should allow, not deny"
 
 # --- 4) distinct session keys are independent -----------------------------
 SK_B="sess-breaker-B"
-SF_B="$TMPDIR/aria-r22-denies-$SK_B"
+SF_B="$SD/aria-r22-denies-$SK_B"
 is_deny "$(invoke "$SK_B" "$NC" "$NCID")" || fail "B deny 1 expected"
 [ "$(cat "$SF_B")" = "1" ] || fail "B counter should be 1, got $(cat "$SF_B" 2>/dev/null)"
 [ "$(cat "$SF")"   = "1" ] || fail "A counter must be unchanged by B (independent), got $(cat "$SF" 2>/dev/null)"

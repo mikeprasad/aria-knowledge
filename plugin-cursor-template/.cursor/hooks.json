@@ -4,6 +4,12 @@
     "sessionStart": [
       { "command": "bash scripts/aria/session-start-check.sh" }
     ],
+    "beforeSubmitPrompt": [
+      { "command": "bash scripts/aria/prompt-capture-check.sh" }
+    ],
+    "postToolUse": [
+      { "command": "bash scripts/aria/prompt-context-inject.sh" }
+    ],
     "beforeFileEdit": [
       { "command": "bash scripts/aria/pre-edit-check.sh" }
     ],

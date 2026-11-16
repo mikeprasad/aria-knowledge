@@ -37,7 +37,11 @@ pf_run() { # CFG SESSION_ID COMMAND
 }
 
 pf_has() { case "$2" in *"$1"*) echo 1 ;; *) echo 0 ;; esac; }
-pf_fresh() { rm -f "${TMPDIR:-/tmp}/aria-preflight-$1" "${TMPDIR:-/tmp}/aria-preflight-denies-$1"; }
+# 2.58.0: the breaker and the markers live in <base>/aria-knowledge-<uid> (lib-state-key.sh); run.sh
+# sets KT_STATE_BASE, so this is the directory every hook below resolves.
+PF_SD="${KT_STATE_BASE:?run.sh sets KT_STATE_BASE}/aria-knowledge-$(id -u)"
+mkdir -p "$KT_STATE_BASE"; [ -d "$PF_SD" ] || mkdir -m 700 "$PF_SD"
+pf_fresh() { rm -f "$PF_SD/aria-preflight-$1" "$PF_SD/aria-preflight-denies-$1"; }
 
 CFG_WARN=$(pf_cfg warn "")
 
@@ -59,10 +63,10 @@ assert_eq "docs excluded from changed-file count" "1" "$(pf_has '1 changed file(
 # Recording a FAIL and committing anyway is a visible choice; not running the
 # checks at all is the failure being guarded against.
 pf_fresh pf4
-printf '12:00\tNOT READY\tapp.py\n' > "${TMPDIR:-/tmp}/aria-preflight-pf4"
+printf '12:00\tNOT READY\tapp.py\n' > "$PF_SD/aria-preflight-pf4"
 out=$(pf_run "$CFG_WARN" pf4 "cd $PF_CODE && git commit -m x")
 assert_eq "recorded NOT READY still satisfies the gate" "" "$out"
-rm -f "${TMPDIR:-/tmp}/aria-preflight-pf4"
+rm -f "$PF_SD/aria-preflight-pf4"
 
 # [5] docs-only commit is silent even under the strictest configuration
 pf_fresh pf5
@@ -124,7 +128,7 @@ assert_eq "breaker: degraded state says so loudly" "1" "$(pf_has 'DEGRADED' "$d4
 # [10b] the breaker is keyed per AGENT (v2.54.1). A subagent shares its parent's
 # session_id, so a session-keyed counter let a subagent's three denials switch off
 # the PARENT's commit gate. The agent degrades; the parent, same session, still denies.
-pf_fresh pfagent1; rm -f "${TMPDIR:-/tmp}/aria-preflight-denies-pfagent1.agent-sub9"
+pf_fresh pfagent1; rm -f "$PF_SD/aria-preflight-denies-pfagent1.agent-sub9"
 pf_agent() { printf '{"session_id":"%s","agent_id":"%s","tool_input":{"command":"%s"}}' "$2" "$3" "$4" | KT_CONFIG="$1" sh "$HOOK" 2>/dev/null; }
 for n in 1 2 3; do pf_agent "$CFG_DENY" pfagent1 sub9 "cd $PF_CODE && git commit -m x" >/dev/null; done
 a4=$(pf_agent "$CFG_DENY" pfagent1 sub9 "cd $PF_CODE && git commit -m x")
@@ -151,10 +155,10 @@ for pf_h in plugin-claude-code/scripts plugin-antigravity/bin plugin-openai-code
   assert_eq "breaker reset [$pf_h]: hook exists (non-vacuity)" "yes" "$([ -f "$pf_hook" ] && echo yes || echo no)"
   pf_run_h "$pf_hook" "$CFG_DENY" "$pf_sid" "cd $PF_CODE && git commit -m x" >/dev/null   # deny 1
   pf_run_h "$pf_hook" "$CFG_DENY" "$pf_sid" "cd $PF_CODE && git commit -m x" >/dev/null   # deny 2
-  printf 't\tSKIP\tfixture\n' > "${TMPDIR:-/tmp}/aria-preflight-$pf_sid"
+  printf 't\tSKIP\tfixture\n' > "$PF_SD/aria-preflight-$pf_sid"
   out=$(pf_run_h "$pf_hook" "$CFG_DENY" "$pf_sid" "cd $PF_CODE && git commit -m x")      # compliant
   assert_eq "breaker reset [$pf_h]: compliant commit is allowed" "0" "$(pf_has '"deny"' "$out")"
-  rm -f "${TMPDIR:-/tmp}/aria-preflight-$pf_sid"                                          # marker lost
+  rm -f "$PF_SD/aria-preflight-$pf_sid"                                          # marker lost
   r1=$(pf_run_h "$pf_hook" "$CFG_DENY" "$pf_sid" "cd $PF_CODE && git commit -m x")
   r2=$(pf_run_h "$pf_hook" "$CFG_DENY" "$pf_sid" "cd $PF_CODE && git commit -m x")
   r3=$(pf_run_h "$pf_hook" "$CFG_DENY" "$pf_sid" "cd $PF_CODE && git commit -m x")
@@ -170,7 +174,7 @@ done
 pf_hook="$PF_REPO_ROOT/plugin-openai-codex/bin/pre-commit-preflight-check.sh"; pf_sid=pfresetrepo
 pf_fresh "$pf_sid"
 pf_top=$(git -C "$PF_CODE" rev-parse --show-toplevel)
-pf_rmk="${TMPDIR:-/tmp}/aria-preflight-repo-$(printf '%s' "$pf_top" | cksum | cut -d' ' -f1)"
+pf_rmk="$PF_SD/aria-preflight-repo-$(printf '%s' "$pf_top" | cksum | cut -d' ' -f1)"
 assert_eq "codex repo marker absent before [10d] (non-vacuity)" "no" "$([ -e "$pf_rmk" ] && echo yes || echo no)"
 pf_run_h "$pf_hook" "$CFG_DENY" "$pf_sid" "cd $PF_CODE && git commit -m x" >/dev/null
 pf_run_h "$pf_hook" "$CFG_DENY" "$pf_sid" "cd $PF_CODE && git commit -m x" >/dev/null

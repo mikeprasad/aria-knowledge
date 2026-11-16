@@ -97,6 +97,14 @@ kt_ss_mark_inprogress() {
     # slot, and the next first edit marks the project as before. See
     # docs/superpowers/plans/2026-10-29-inprogress-mark-respects-live-handoff.md (bound C2).
     :
+  elif [ -f "$_ss_file" ] && IFS= read -r _ss_first < "$_ss_file" && [ "$_ss_first" = "---" ] \
+       && ! awk 'NR > 1 && $0 == "---" { f = 1; exit } END { if (f) { exit 0 } else { exit 1 } }' "$_ss_file" 2>/dev/null; then
+    # ⛔ REFUSED (2.58.0): the front matter opens on line 1 and NEVER closes. Every reader (the region
+    # walker) treats such a file as all front matter, so kt_ss_read_live_prompt reports no prompt and
+    # control used to fall into the rewrite below -- whose `infm == 1` state then never ends, so it
+    # rewrote the FIRST lastEvent:/at:/branch:/headCommit:/sessionId: line ANYWHERE in the file, body
+    # included. Nothing is written; the return code is unchanged (0, like every path here). Arm AI.
+    :
   elif [ -f "$_ss_file" ] && IFS= read -r _ss_first < "$_ss_file" && [ "$_ss_first" = "---" ]; then
     # Existing parseable header: refresh keys in the first frontmatter block,
     # append any missing override keys before the closing fence, preserve body.
@@ -196,19 +204,46 @@ kt_ss_mark_inprogress() {
 # which the atlas parser ignores (it stops at the first "## " after the prompt).
 # All three helpers write via temp-file + mv and swallow errors (return 0).
 
+# Build ONE ledger entry block on STDOUT -- the only place its format is written (2.58.0, spec §3).
+#   _kt_ss_entry_block <sid> <at> <focus> <next> <prompt>
+# Output, exactly: the header, `- focus:`, `- next:`, `- prompt:`, the ENCODED prompt (one line per
+# prompt line, newline-terminated), then the terminator line and its newline.
+# ⛔ REDIRECT IT TO A FILE AND SPLICE WITH `cat`; NEVER CAPTURE IT WITH $( ) -- command substitution strips
+# the trailing newline and the block would then fuse with the next line. kt_ss_ledger_add and
+# kt_ss_ledger_add_verified both call this, so the block they compare is the block that is written.
+#
+# ENCODE: a prompt line matching ^\\*(## |### |```|<!-- aria:entry-end -->$) at column 0 gets ONE leading
+# backslash. That is mbox `>From ` quoting, so it is injective: a line already starting `\## ` becomes
+# `\\## ` and decodes back. The decoder (remove one leading backslash from a line matching ^\\+(…)) ships
+# nowhere -- no code path returns a stored body -- and lives in tests/repros/session-state.sh as the
+# reference that proves the round trip. Why: a stored prompt line that LOOKS structural (a heading, an
+# entry header, a fence, the terminator) was structural to some reader, and a terminator written inside a
+# body is forgeable. After encoding, no column-0 prompt line can start with any of them.
+# NOT encoded: focus/next (always behind `- focus: ` / `- next: `), `aria-handoff:` token lines (found by
+# substring), indented lines, `#### ` and deeper, `~~~`. `\` is the CommonMark escape, so a raw read of
+# SESSION.md (a model resuming, a human) still shows the original text.
+# LC_ALL=C keeps the pass byte-exact whatever bytes the prompt holds. The empty prompt stores one empty
+# line, exactly the pre-2.58.0 format.
+_kt_ss_entry_block() {
+  printf '### %s · %s · handoff · unconsumed\n- focus: %s\n- next: %s\n- prompt:\n' "$1" "$2" "$3" "$4"
+  printf '%s\n' "$5" | LC_ALL=C awk '/^\\*(## |### |```|<!-- aria:entry-end -->$)/ { printf "\\" } { print }'
+  printf '<!-- aria:entry-end -->\n'
+}
+
 # Prepend a ### block under "## Prior sessions" (created if absent). Newest-first.
 kt_ss_ledger_add() {
   _ss_f="$1/SESSION.md"; _ss_sid="$2"; _ss_at="$3"; _ss_focus="$4"; _ss_next="$5"; _ss_prompt="$6"
   [ -f "$_ss_f" ] || return 0
-  _ss_blk="### $_ss_sid · $_ss_at · handoff · unconsumed
-- focus: $_ss_focus
-- next: $_ss_next
-- prompt:
-$_ss_prompt
-<!-- aria:entry-end -->
-"
   _ss_tmp="$_ss_f.$$.tmp"
   _ss_blkf="$_ss_f.$$.blk"
+  # (2.58.0) The block is built ONCE, by the shared builder, into a FILE that serves the RC-3 compare and
+  # the splice below -- never a string and never $( ) (that strips its trailing newline). A block always
+  # has its header, so an empty file means it could not be written: write nothing.
+  _kt_ss_entry_block "$_ss_sid" "$_ss_at" "$_ss_focus" "$_ss_next" "$_ss_prompt" > "$_ss_blkf" 2>/dev/null
+  if [ ! -s "$_ss_blkf" ]; then
+    rm -f "$_ss_blkf" 2>/dev/null
+    return 0
+  fi
 
   # RC-3: skip ONLY a byte-identical block. There was no idempotency guard at all before this.
   #
@@ -229,12 +264,18 @@ $_ss_prompt
   # proving such a branch changes nothing.
   #
   # The block reaches awk as a FILE, never via `awk -v` — POSIX awk errors on "newline in string".
-  printf '%s' "$_ss_blk" > "$_ss_blkf" 2>/dev/null
-  if [ -s "$_ss_blkf" ] && awk '
+  #
+  # ⛔ (2.58.0) THE WINDOW MUST START AT A REGION-WALKER ENTRY HEADER IN LEDGER. A byte-identical copy
+  # under `## Archived …`, quoted inside the active fence, or inside another entry's body is NOT this
+  # ledger entry -- a whole-file window skipped the write on such a copy and the caller then reported
+  # it landed (spec §1 F4, arm AF). kt_region is called only on the TARGET (the block file `next`s
+  # first), and resets itself on the target's first record.
+  if [ -s "$_ss_blkf" ] && awk "$(_kt_ss_awk_regions)"'
       NR == FNR { b[++bn] = $0; next }
-                { L[FNR] = $0; tn = FNR }
+                { L[FNR] = $0; tn = FNR; k = kt_region($0); if (k == "entry_header" && R_SEC == "LEDGER") S[FNR] = 1 }
       END {
         for (i = 1; i <= tn - bn + 1; i++) {
+          if (!(i in S)) continue
           ok = 1
           for (j = 1; j <= bn; j++) if (L[i + j - 1] != b[j]) { ok = 0; break }
           if (ok) exit 0
@@ -244,7 +285,6 @@ $_ss_prompt
     rm -f "$_ss_blkf" 2>/dev/null
     return 0
   fi
-  rm -f "$_ss_blkf" 2>/dev/null
   # Grandfathering: an existing legacy '## Prior sessions' heading keeps receiving entries
   # so old files are never orphaned; anything new lands under '## Pending handoffs'.
   # RC-2: resolve the anchor ONCE, tolerantly, to a LINE NUMBER + canonical family name.
@@ -268,13 +308,25 @@ $_ss_prompt
   # precedence. A single first-match scan would let a '## Prior sessions' high in the file beat a
   # '## Pending handoffs' lower down. Measured latent (0 of 18 ledgers carry both spellings), but
   # an unmeasured behaviour change riding inside a fix for a different defect is its own defect.
-  _ss_anchor=$(awk '
-    function norm(s) { gsub(/^[[:space:]]+|[[:space:]]+$/, "", s); gsub(/[*]/, "", s); return tolower(s) }
-    { L[NR] = $0 }
-    END {
-      for (i = 1; i <= NR; i++) { s = norm(L[i]); if (s == "## pending handoffs" || s == "### pending handoffs") { print i "|Pending handoffs"; exit } }
-      for (i = 1; i <= NR; i++) { s = norm(L[i]); if (s == "## prior sessions"   || s == "### prior sessions")   { print i "|Prior sessions";   exit } }
-    }' "$_ss_f" 2>/dev/null)
+  #
+  # ⛔ (2.58.0) ONLY WHERE THE READERS LOOK. A candidate line must be unfenced, outside every entry,
+  # and outside the front matter and the ACTIVE slot, per the region walker (a heading line counts
+  # with the section it opens). The old scan was whole-file and fence-blind, so an active prompt that
+  # QUOTED `## Pending handoffs` became the anchor: the entry was spliced inside the active fence and
+  # consume_active's clear then deleted it -- rc 0, handoff destroyed (spec §1 F3, arm AD).
+  # ⛔ COLUMN 0 IS REQUIRED: norm() strips `*` and TRAILING whitespace only. An indented heading is not
+  # a heading to any reader, so add appends a fresh section instead (0 real anchors were indented).
+  _ss_anchor=$(awk "$(_kt_ss_awk_regions)"'
+    function norm(s) { gsub(/[*]/, "", s); gsub(/[[:space:]]+$/, "", s); return tolower(s) }
+    {
+      k = kt_region($0)
+      if (R_FENCED == 0 && R_ENTRY == 0 && R_SEC != "FM" && R_SEC != "ACTIVE") {
+        s = norm($0)
+        if (pend == 0 && (s == "## pending handoffs" || s == "### pending handoffs")) pend = FNR
+        if (prior == 0 && (s == "## prior sessions" || s == "### prior sessions")) prior = FNR
+      }
+    }
+    END { if (pend > 0) { print pend "|Pending handoffs" } else if (prior > 0) { print prior "|Prior sessions" } }' "$_ss_f" 2>/dev/null)
   _ss_ln=${_ss_anchor%%|*}
   _ss_can=${_ss_anchor#*|}
   if [ -n "$_ss_ln" ]; then
@@ -312,21 +364,21 @@ $_ss_prompt
       FNR == n { print can > h; print "" > h; next }
                { print     > t }
     ' h="$_ss_head" t="$_ss_tail" "$_ss_f" 2>/dev/null
-    { cat "$_ss_head" 2>/dev/null; printf '%s' "$_ss_blk"; cat "$_ss_tail" 2>/dev/null; } > "$_ss_tmp" 2>/dev/null && mv "$_ss_tmp" "$_ss_f" 2>/dev/null
+    { cat "$_ss_head" 2>/dev/null; cat "$_ss_blkf"; cat "$_ss_tail" 2>/dev/null; } > "$_ss_tmp" 2>/dev/null && mv "$_ss_tmp" "$_ss_f" 2>/dev/null
     rm -f "$_ss_head" "$_ss_tail" 2>/dev/null
   else
     # append a new heading + block at EOF. '## Pending handoffs' is deliberate: these are
     # still-valid prompts awaiting use, not history -- naming them "prior" is what made a
     # writer read demotion as a downgrade and skip rather than demote.
-    { cat "$_ss_f"; printf '\n## Pending handoffs\n\n%s' "$_ss_blk"; } > "$_ss_tmp" 2>/dev/null && mv "$_ss_tmp" "$_ss_f" 2>/dev/null
+    { cat "$_ss_f"; printf '\n## Pending handoffs\n\n'; cat "$_ss_blkf"; } > "$_ss_tmp" 2>/dev/null && mv "$_ss_tmp" "$_ss_f" 2>/dev/null
   fi
-  rm -f "$_ss_tmp" 2>/dev/null
+  rm -f "$_ss_tmp" "$_ss_blkf" 2>/dev/null
   return 0
 }
 
 # Flip "### <SID> … · unconsumed" to "· consumed <TS> by <BY>" for the named session only.
 kt_ss_ledger_mark_consumed() {
-  _ss_f="$1/SESSION.md"; _ss_sid="$2"; _ss_ts="$3"; _ss_by="$4"; _ss_want_at="$5"
+  _ss_f="$1/SESSION.md"; _ss_sid="$2"; _ss_ts="$3"; _ss_by="$4"; _ss_want_at="$5"; _ss_scope="$6"
   [ -f "$_ss_f" ] || return 0
   _ss_tmp="$_ss_f.$$.tmp"
   # THREE things matter here and they are interlocking; changing one alone reintroduces the bug.
@@ -365,13 +417,21 @@ kt_ss_ledger_mark_consumed() {
   # guarded by S4, because making it mandatory-in-effect would silently change the recall of
   # post-edit-check.sh, whose entry was demoted with whatever `at` was current THEN. Supplied => an
   # exact (sid, at) match, which is what one sid under two timestamps needs.
-  awk -v sid="$_ss_sid" -v ts="$_ss_ts" -v by="$_ss_by" -v want_at="$_ss_want_at" '
-    /^### / {
+  #
+  # ⛔ (2.58.0) ONLY REAL ENTRY HEADERS -- region-walker entry_header lines in LEDGER ∪ ARCH. A header
+  # quoted inside a stored prompt, the active fence or a notes section is content, and rewriting it
+  # changed a quotation and left the real entry alone (arm AG(3)). ARCH stays in scope: token_locate
+  # reports `|archived` and a human may resume one. The optional 6th argument `ledger` narrows the
+  # scope to LEDGER: kt_ss_ledger_consume_active consumes the entry IT just demoted, never an archived
+  # copy of the same handoff (arm AF).
+  awk -v sid="$_ss_sid" -v ts="$_ss_ts" -v by="$_ss_by" -v want_at="$_ss_want_at" -v scope="$_ss_scope" "$(_kt_ss_awk_regions)"'
+    { k = kt_region($0) }
+    k == "entry_header" && (R_SEC == "LEDGER" || (R_SEC == "ARCH" && scope != "ledger")) {
       _nf = split(substr($0, 5), _f, " · ")
-      _hsid = _f[1]; _hat = (_nf >= 2 ? _f[2] : "")
-    }
-    /^### / && index(_hsid, sid) > 0 && (want_at == "" || _hat == want_at) && /(^|[^a-z])unconsumed([^a-z]|$)/ {
-      sub(/unconsumed/, "consumed " ts " by " by); print; next
+      _hsid = _f[1]; _hat = ""; if (_nf >= 2) _hat = _f[2]
+      if (index(_hsid, sid) > 0 && (want_at == "" || _hat == want_at) && $0 ~ /(^|[^a-z])unconsumed([^a-z]|$)/) {
+        sub(/unconsumed/, "consumed " ts " by " by); print; next
+      }
     }
     { print }
   ' "$_ss_f" > "$_ss_tmp" 2>/dev/null && mv "$_ss_tmp" "$_ss_f" 2>/dev/null
@@ -426,13 +486,16 @@ kt_ss_ledger_mark_superseded() {
   # (sid, at) match. It is REQUIRED whenever one sid carries two timestamps: measured
   # 2026-09-17 on a real ledger, 12 sids appeared more than once and 8 of those mixed a
   # retirable entry with a LIVE one, so a sid-only call would have retired live handoffs.
-  awk -v sid="$_ss_sid" -v ts="$_ss_ts" -v by="$_ss_by" -v want_at="$_ss_want_at" '
-    /^### / {
+  #
+  # ⛔ (2.58.0) Same scope as mark_consumed: region-walker entry headers in LEDGER ∪ ARCH only.
+  awk -v sid="$_ss_sid" -v ts="$_ss_ts" -v by="$_ss_by" -v want_at="$_ss_want_at" "$(_kt_ss_awk_regions)"'
+    { k = kt_region($0) }
+    k == "entry_header" && (R_SEC == "LEDGER" || R_SEC == "ARCH") {
       _nf = split(substr($0, 5), _f, " · ")
-      _hsid = _f[1]; _hat = (_nf >= 2 ? _f[2] : "")
-    }
-    /^### / && index(_hsid, sid) > 0 && (want_at == "" || _hat == want_at) && /(^|[^a-z])unconsumed([^a-z]|$)/ {
-      sub(/unconsumed/, "consumed " ts " by " by " (superseded)"); print; next
+      _hsid = _f[1]; _hat = ""; if (_nf >= 2) _hat = _f[2]
+      if (index(_hsid, sid) > 0 && (want_at == "" || _hat == want_at) && $0 ~ /(^|[^a-z])unconsumed([^a-z]|$)/) {
+        sub(/unconsumed/, "consumed " ts " by " by " (superseded)"); print; next
+      }
     }
     { print }
   ' "$_ss_f" > "$_ss_tmp" 2>/dev/null && mv "$_ss_tmp" "$_ss_f" 2>/dev/null
@@ -502,48 +565,106 @@ kt_ss_ledger_prune() {
   # The status test is word-bounded for the same reason as mark_consumed's, and this is where that
   # matters most: a naive /consumed/ ALSO matches `unconsumed`, which would make prune delete live
   # handoffs. `unconsumed` fails /(^|[^a-z])consumed([^a-z]|$)/ because the `c` is preceded by `n`.
-  awk '
-    function is_entry_header(s, n) { n = gsub(/ · /, " · ", s); return (n >= 2) }
-
-    # pass 1: does this file use explicit terminators, and which entries actually HAVE one?
-    # hasterm[] is keyed on the line number of the entry header, so pass 2 can tell a block with
-    # a declared end from a block without one. The span closes only at a WELL-FORMED entry header,
-    # never at a bare column-0 "## " -- closing at any heading is fence-blind, so a "## " inside a
-    # stored prompt would mark a TERMINATED entry as unterminated and re-arm the recovery branch
-    # below inside the prompt. Measured 2026-09-09 on fixtures: that form LEAKS.
-    NR == FNR {
-      if ($0 ~ /^### / && is_entry_header($0)) cur = FNR
-      else if ($0 == "<!-- aria:entry-end -->") { term = 1; if (cur) hasterm[cur] = 1; cur = 0 }
-      next
-    }
-
-    # pass 2 — terminator format: boundaries are an entry header and the terminator only.
-    term {
-      if ($0 ~ /^### / && is_entry_header($0)) {
-        drop = ($0 ~ /(^|[^a-z])consumed([^a-z]|$)/) ? 1 : 0
-        opened = FNR
-        if (drop) next
-        print; next
+  #
+  # ⛔ (2.58.0) PRUNE ACTS ONLY WHERE THE READERS LOOK -- the region walker (_kt_ss_awk_regions). An
+  # entry is reaped only if it opened in LEDGER ∪ ARCH; front matter, the ACTIVE slot and every other
+  # section pass through byte-identical. Before, prune was whole-file and fence-blind: a consumed-looking
+  # header QUOTED in the active prompt was reaped with the prompt tail and its closing fence (spec §1 F1),
+  # and a consumed entry whose prompt held fenced headers/terminators was reaped only to the first inner
+  # terminator, resurrecting the rest as phantom live entries (F2, census: 6 files x 6 phantoms).
+  #
+  # Pass 1 keeps the old boundary model, now fence-aware INSIDE entries: an entry closes only at its
+  # terminator or the next well-formed header, never at a "## " (each header is put in KT_HASTERM while
+  # pass 1 walks it, so the walker reads an inner "## " as body). It records which entries close on a
+  # terminator; pass 2 runs with exactly those in KT_HASTERM, which is the M9c/M9d rule: a "## " inside
+  # a terminated entry is body, inside an unterminated one it closes the entry and is a heading.
+  # ⛔ FALLBACK, so this can never delete more than the old prune -- for an entry still OPEN at EOF in
+  # pass 1 (KT_ENT, the walker's own open entry):
+  #   EVEN fence parity (the legacy format's last entry, an unterminated last entry): from its header to
+  #     EOF every line gets the OLD fence-blind decision (old_keep, which runs on every pass-2 line so
+  #     its state is current at the hand-over). Arm M7.
+  #   ODD fence parity: nothing can say where it ends, so it is LEFT IN PLACE, header to EOF (FBODD).
+  #     The old rule ended it at the first fence-blind terminator and re-exposed the entries its prompt
+  #     quotes inside that open fence -- measured on the real corpus: 36 phantom candidates in 6 files.
+  #     Leaving it deletes less than the old prune, never more. Arm AE2.
+  # ⛔ AMBIGUOUS (fix round 3, the parity rule): a CONSUMED entry is reaped only where its walker end is
+  # the old prune's end too. For each one, pass 1 finds where the OLD prune would end it -- its first
+  # fence-blind terminator or well-formed header (any "### " in a file with no terminator at all), or a
+  # "## " before that unless the first boundary is a terminator -- and the in-entry fence count there.
+  # ODD there means the walker's end lies further on, past lines the old prune kept: a later entry whose
+  # prompt also opens a fence returns the count to even and ITS terminator closes this one (arms AK, AK2,
+  # AM, AO -- including a malformed or non-consumed middle entry, which header-hunting missed). The old
+  # prune ending it at a heading while the walker sees it TERMINATED is the same mismatch at even parity.
+  # In a file with no terminator, an old boundary that is a plain "### " sub-heading (not a well-formed
+  # entry header) is the same mismatch: the old prune stops there, the walker does not (arms AQ, AQ2).
+  # Such an entry is LEFT IN PLACE, like the odd-at-EOF case. An entry whose fences balance before its own
+  # "## " boundary is still reaped (arm AN).
+  # ⚠ The cost: a consumed entry whose prompt quotes a header or a terminator inside a fence is never
+  # reaped by this function, even when its fences balance (arms AC, AE).
+  # ⛔ The even-parity fallback applies the old rule only while pass 2 is in LEDGER or ARCH; front
+  # matter, ACTIVE and other sections print unconditionally (arm AL) -- the old rule reaped a consumed
+  # header quoted in the active prompt when the ledger sat above it, which is F1 again.
+  awk "$(_kt_ss_awk_regions)"'
+    function old_hdr(s,    n) { n = gsub(/ · /, " · ", s); return (n >= 2) }
+    function is_consumed(s) { return (s ~ /(^|[^a-z])consumed([^a-z]|$)/) }
+    function old_keep(line) {
+      if (oterm) {
+        if (line ~ /^### / && old_hdr(line)) { odrop = is_consumed(line); oopened = FNR; return !odrop }
+        if (line == "<!-- aria:entry-end -->") { if (odrop) { odrop = 0; return 0 } return 1 }
+        if (odrop && !(oopened in ohasterm) && line ~ /^## /) { odrop = 0; return 1 }
+        return !odrop
       }
-      if ($0 == "<!-- aria:entry-end -->") { if (drop) { drop = 0; next } print; next }
-      # RECOVERY, and it is SCOPED ON PURPOSE. An unterminated consumed block has no declared
-      # end, so a section heading is the only boundary left; without this, such a block swallows
-      # the next "## " heading and everything under it -- measured, 16 lines to 9 on a fixture,
-      # and this is the class that deleted two unconsumed handoffs on 2026-09-04.
-      # !hasterm[opened] is what keeps this from being the old unconditional reset that LEAKED:
-      # a block that HAS a terminator keeps declared boundaries, so a "## " inside its stored
-      # prompt cannot close it early. Removing that one clause makes the leak fixture leak.
-      if (drop && !hasterm[opened] && $0 ~ /^## / && $0 !~ /^### /) { drop = 0; print; next }
-      if (!drop) print
+      if (line ~ /^### /) { odrop = is_consumed(line); if (odrop) return 0 }
+      if (line ~ /^## /) odrop = 0
+      return !odrop
+    }
+
+    NR == FNR {
+      if ($0 ~ /^### / && old_hdr($0)) ocur = FNR
+      else if ($0 == "<!-- aria:entry-end -->") { oterm = 1; if (ocur) ohasterm[ocur] = 1; ocur = 0 }
+      pent = KT_ENT; pe = KT_EFENCE
+      if (pent > 0) {
+        if (!(pent in TL)) {
+          if ($0 == "<!-- aria:entry-end -->") { TL[pent] = FNR; TP[pent] = pe; TT[pent] = 1 }
+          else if ($0 ~ /^### / && old_hdr($0)) { TL[pent] = FNR; TP[pent] = pe }
+        }
+        if (!(pent in TL3) && $0 ~ /^### /) { TL3[pent] = FNR; TP3[pent] = pe; if (!kt_is_entry_header($0)) TN3[pent] = 1 }
+        if (!(pent in HL) && $0 ~ /^## /) { HL[pent] = FNR; HP[pent] = pe }
+      }
+      k = kt_region($0)
+      if (k == "entry_header") { KT_HASTERM[FNR] = 1; if (is_consumed($0)) CONS[FNR] = 1 }
+      else if (k == "terminator") HT[R_ENTRY] = 1
       next
     }
 
-    # pass 2 — legacy format: prompts are single-line, so "## " inference is safe. The header
-    # inference stays as-is here (the only boundary mechanism this format has); only the status test
-    # gains the word boundary, so a legacy bold `**consumed**` entry prunes too.
-    /^### / { drop = ($0 ~ /(^|[^a-z])consumed([^a-z]|$)/) ? 1 : 0; if (drop) next }
-    /^## / && $0 !~ /^### / { drop = 0 }
-    { if (!drop) print }
+    p2 == 0 {
+      p2 = 1
+      if (KT_ENT > 0) { FB[KT_ENT] = 1; if (KT_EFENCE == 1) FBODD = 1 }
+      for (x in KT_HASTERM) delete KT_HASTERM[x]
+      for (x in HT) KT_HASTERM[x] = 1
+      for (x in CONS) {
+        pt = 0; pp = 0; tt = 0
+        if (oterm) { if (x in TL) { pt = TL[x]; pp = TP[x]; if (x in TT) tt = 1 } }
+        else if (x in TL3) { pt = TL3[x]; pp = TP3[x]; if (x in TN3) pp = 1 }
+        if (!tt && (x in HL) && (pt == 0 || HL[x] < pt)) { pt = HL[x]; pp = HP[x]; if ((x in HT) && pp == 0) pp = 1 }
+        if (pt > 0 && pp == 1) AMB[x] = 1
+      }
+    }
+
+    {
+      keep = old_keep($0)
+      k = kt_region($0)
+      if (fb) { if (keep || fbkeep || (R_SEC != "LEDGER" && R_SEC != "ARCH")) print; next }
+      if (k == "entry_header") {
+        if (FNR in FB) { fb = 1; fbkeep = 0; if (FBODD || (FNR in AMB)) fbkeep = 1; if (keep || fbkeep) print; next }
+        drop = is_consumed($0)
+        if (FNR in AMB) drop = 0
+        if (!drop) print
+        next
+      }
+      if (R_ENTRY > 0) { if (!drop) print; next }
+      print
+    }
   ' "$_ss_f" "$_ss_f" > "$_ss_tmp" 2>/dev/null && mv "$_ss_tmp" "$_ss_f" 2>/dev/null
   rm -f "$_ss_tmp" 2>/dev/null
 
@@ -602,7 +723,7 @@ kt_ss_read_active_at() {
 # Is the SESSION.md at $1 owned by a session whose state is STRICTLY NEWER than $2?
 #
 #   exit 0  -> incumbent IS newer   => the caller MUST NOT rewrite the front matter.
-#                                      Self-demote instead: kt_ss_ledger_add your own prompt into
+#                                      Self-demote instead: kt_ss_ledger_add_file your own entry into
 #                                      `## Pending handoffs` and leave the active slot alone.
 #   exit 1  -> anything else        => the caller rewrites exactly as it does today.
 #
@@ -633,6 +754,88 @@ kt_ss_active_is_newer() {
   awk -v a="$_ss_inc" -v b="$_ss_mine" 'BEGIN { exit (a > b) ? 0 : 1 }'
 }
 
+# The ONE region walker (2.58.0, spec §4 Decision B). Prints awk source -- concatenated in front of a
+# program as  awk "$(_kt_ss_awk_regions)"'<program>'  -- defining:
+#   kt_region(line)   classify the current record; returns R_KIND and sets the R_* globals:
+#     R_KIND   fm | heading | content | entry_header | body | terminator
+#     R_SEC    "" (before any heading) | FM | ACTIVE | LEDGER | ARCH | OTHER -- for a heading line,
+#              the section it OPENS
+#     R_ENTRY  FNR of the open entry's header (0 outside an entry; the closed entry on a terminator)
+#     R_FENCED 1 when the line is inside a fence at its scope (fence delimiter lines included)
+#     R_TOGGLE 1 when the line is itself a fence delimiter
+#   kt_region_reset() runs automatically on FNR == 1, so a two-pass program over the same file starts
+#   each pass clean.
+#   Optional input array KT_HASTERM[hdr_fnr] (prune only): a column-0 "## " inside an entry that HAS a
+#   terminator is body, not a heading. Empty for every reader.
+#
+# ⛔ WHY ONE WALKER. Every ledger function used to carry its own section/fence walk, and they disagreed
+# about where the ACTIVE slot ends and what an entry header is -- a writer then acted on lines no reader
+# treats as structure (spec §1 F1-F3). The kt_ss_ledger_mark_superseded false-parity incident is the
+# precedent for hand-mirrored copies drifting. One definition, used by every reader (Task 1a) and every
+# writer (Task 1b).
+#
+# Rules (spec §4, exact):
+#   1. Front matter: line 1 `---` through the next `---`.
+#   2. Outside an entry a column-0 ``` toggles the fence; fenced lines are content. An unfenced column-0
+#      "## " is a heading: Next session prompt -> ACTIVE; Pending handoffs / Prior sessions (trailing
+#      whitespace tolerated) -> LEDGER; Archived... -> ARCH; anything else -> OTHER.
+#   3. In LEDGER/ARCH, unfenced and outside an entry, "### " with >= 2 " · " opens an entry (the same
+#      threshold prune measured: is_entry_header). Inside an entry a SEPARATE fence counter applies:
+#      odd -> body; even -> the terminator closes, a well-formed header closes and opens the next, and a
+#      "## " closes the entry and is a heading -- unless KT_HASTERM[entry] is set (prune M9c/M9d).
+#   4. In ACTIVE and OTHER every "### " line is content.
+#
+# ⛔ THE SOURCE MUST STAY SINGLE-QUOTE-FREE AND NO LINE MAY BE A BARE "}" AT COLUMN 0: it is spliced
+# into single-quoted awk programs, and tests/repros/session-state.sh block N extracts each function up
+# to its first column-0 "}". ⛔ NO TERNARIES (BSD awk) -- if/else throughout.
+_kt_ss_awk_regions() {
+  cat <<'KT_SS_AWK_REGIONS'
+  function kt_region_reset() {
+    KT_FM = 0; KT_SEC = ""; KT_FENCE = 0; KT_ENT = 0; KT_EFENCE = 0
+    R_KIND = ""; R_SEC = ""; R_ENTRY = 0; R_FENCED = 0; R_TOGGLE = 0
+  }
+  function kt_is_entry_header(s,    n) {
+    if (s !~ /^### /) return 0
+    n = gsub(/ · /, " · ", s)
+    return (n >= 2)
+  }
+  function kt_heading_sec(s) {
+    if (s ~ /^## Next session prompt[[:space:]]*$/) return "ACTIVE"
+    if (s ~ /^## Pending handoffs[[:space:]]*$/) return "LEDGER"
+    if (s ~ /^## Prior sessions[[:space:]]*$/) return "LEDGER"
+    if (s ~ /^## Archived/) return "ARCH"
+    return "OTHER"
+  }
+  function kt_region(line) {
+    if (FNR == 1) kt_region_reset()
+    R_FENCED = 0; R_TOGGLE = 0
+    if (FNR == 1 && line == "---") { KT_FM = 1; R_SEC = "FM"; R_ENTRY = 0; R_KIND = "fm"; return R_KIND }
+    if (KT_FM == 1) {
+      if (line == "---") KT_FM = 0
+      R_SEC = "FM"; R_ENTRY = 0; R_KIND = "fm"; return R_KIND
+    }
+    if (KT_ENT > 0) {
+      R_SEC = KT_SEC; R_ENTRY = KT_ENT
+      if (line ~ /^```/) { KT_EFENCE = 1 - KT_EFENCE; R_FENCED = 1; R_TOGGLE = 1; R_KIND = "body"; return R_KIND }
+      if (KT_EFENCE == 1) { R_FENCED = 1; R_KIND = "body"; return R_KIND }
+      if (line == "<!-- aria:entry-end -->") { KT_ENT = 0; R_KIND = "terminator"; return R_KIND }
+      if (kt_is_entry_header(line)) { KT_ENT = FNR; KT_EFENCE = 0; R_ENTRY = FNR; R_KIND = "entry_header"; return R_KIND }
+      if (line !~ /^## / || (KT_ENT in KT_HASTERM)) { R_KIND = "body"; return R_KIND }
+      KT_ENT = 0
+    }
+    R_ENTRY = 0
+    if (line ~ /^```/) { KT_FENCE = 1 - KT_FENCE; R_FENCED = 1; R_TOGGLE = 1; R_SEC = KT_SEC; R_KIND = "content"; return R_KIND }
+    if (KT_FENCE == 1) { R_FENCED = 1; R_SEC = KT_SEC; R_KIND = "content"; return R_KIND }
+    if (line ~ /^## /) { KT_SEC = kt_heading_sec(line); R_SEC = KT_SEC; R_KIND = "heading"; return R_KIND }
+    R_SEC = KT_SEC
+    if ((KT_SEC == "LEDGER" || KT_SEC == "ARCH") && kt_is_entry_header(line)) {
+      KT_ENT = FNR; KT_EFENCE = 0; R_ENTRY = FNR; R_KIND = "entry_header"; return R_KIND
+    }
+    R_KIND = "content"; return R_KIND
+  }
+KT_SS_AWK_REGIONS
+}
+
 # Emit every RESUMABLE candidate in a SESSION.md, one per line: `<sid>|<at>|<status>|<source>`
 # where source is `active` (the `## Next session prompt` block) or `pending` (an unconsumed entry
 # under `## Pending handoffs` or the legacy `## Prior sessions`). Read-only; never writes.
@@ -655,17 +858,19 @@ kt_ss_active_is_newer() {
 # were archived out of one ledger on 2026-09-15 specifically so they would stop being offered. Only
 # the two LEDGER headings qualify; everything else -- archives included -- is skipped.
 #
-# ⛔ FENCE-AWARE, AND THE RULE ORDER IS THE MECHANISM. The fence toggle is tested BEFORE the heading
-# rule, so a column-0 `## ` or `### ` inside a STORED PROMPT cannot move the current section or be
-# counted as an entry. Stored prompts routinely contain both -- that is why full-fidelity demotion
-# exists -- and a parse without this reads one entry's prompt as a new section.
+# ⛔ FENCE-AWARE THROUGH THE REGION WALKER (2.58.0). A column-0 `## ` or `### ` inside a STORED PROMPT
+# must not move the current section or be counted as an entry. Stored prompts routinely contain both --
+# that is why full-fidelity demotion exists -- and a parse without fence state reads one entry's prompt
+# as a new section. _kt_ss_awk_regions owns that rule now, for every reader and writer at once.
+# A fence DELIMITER line in ACTIVE is not content for actseen (R_TOGGLE): an empty fence pair is no
+# active prompt, exactly as before.
 #
 # ⛔ NO TERNARIES. BSD awk rejects `print (c > 0) ? x : y`, and this library is plain `sh` on BSD
 # userland. if/else throughout, deliberately.
 kt_ss_ledger_candidates() {
   _ss_f="$1/SESSION.md"
   [ -f "$_ss_f" ] || return 0
-  awk '
+  awk "$(_kt_ss_awk_regions)"'
     # Active identity from the prompt own token (first one wins), front matter as the fallback --
     # the same rule kt_ss_ledger_token_locate and kt_ss_ledger_consume_active follow.
     function grab_token(line,    sl, r, ai, ts, ta) {
@@ -677,28 +882,19 @@ kt_ss_ledger_candidates() {
       gsub(/^[ \t]+/, "", ta); gsub(/[ \t]+$/, "", ta)
       if (sl > 0 && ai > 0 && ts != "" && ta != "") { tsid = ts; tat = ta }
     }
-    BEGIN { fm = 0; infence = 0; sec = ""; actseen = 0; fsid = ""; fat = ""; tsid = ""; tat = "" }
-    NR == 1 && $0 == "---" { fm = 1; next }
-    fm == 1 && $0 == "---" { fm = 0; next }
-    fm == 1 {
+    BEGIN { actseen = 0; fsid = ""; fat = ""; tsid = ""; tat = "" }
+    { k = kt_region($0) }
+    k == "fm" {
       if ($0 ~ /^sessionId:[[:space:]]*/) { s = $0; sub(/^sessionId:[[:space:]]*/, "", s); fsid = s }
       if ($0 ~ /^at:[[:space:]]*/)        { s = $0; sub(/^at:[[:space:]]*/, "", s);        fat  = s }
       next
     }
-    /^```/ { if (infence == 1) { infence = 0 } else { infence = 1 } next }
-    infence == 1 {
-      if (sec == "ACTIVE" && $0 ~ /[^[:space:]]/) { actseen = 1; grab_token($0) }
+    k == "heading" { next }
+    R_SEC == "ACTIVE" {
+      if (R_TOGGLE == 0 && $0 ~ /[^[:space:]]/) { actseen = 1; grab_token($0) }
       next
     }
-    /^## / {
-      if ($0 ~ /^## Next session prompt[[:space:]]*$/) { sec = "ACTIVE" }
-      else if ($0 ~ /^## Pending handoffs[[:space:]]*$/) { sec = "LEDGER" }
-      else if ($0 ~ /^## Prior sessions[[:space:]]*$/)   { sec = "LEDGER" }
-      else { sec = "OTHER" }
-      next
-    }
-    sec == "ACTIVE" && $0 ~ /[^[:space:]]/ { actseen = 1; grab_token($0); next }
-    sec == "LEDGER" && /^### / {
+    R_SEC == "LEDGER" && k == "entry_header" {
       if ($0 ~ /(^|[^a-z])unconsumed([^a-z]|$)/) {
         n = split(substr($0, 5), f, " · ")
         if (n >= 2) {
@@ -734,21 +930,21 @@ kt_ss_ledger_candidates() {
 # to treat the prompt as lost and resurrect it; reporting it offerable undoes the archiving. It is
 # LOCATED BUT NOT OFFERED, and the caller decides.
 #
-# ⛔ THE TOKEN TEST RUNS BEFORE THE FENCE SKIP, and that ordering is the whole mechanism. The token
-# lives INSIDE the opener fence, so a fence-skipping walk never sees it -- while headings and entry
-# headers must stay OUTSIDE the fence, or a column-0 marker inside a stored prompt is read as
-# structure. Both requirements are satisfied by rule order alone: token first, then the fence toggle,
-# then the skip, then headings and headers.
+# ⛔ THE TOKEN TEST RUNS ON EVERY LINE, FENCED OR NOT, BEFORE THE SECTION OR HEADER STATE MOVES, and
+# that ordering is the whole mechanism. The token lives INSIDE the opener fence, so a fence-skipping
+# walk never sees it -- while headings and entry headers must stay OUTSIDE the fence, or a column-0
+# marker inside a stored prompt is read as structure. Since 2.58.0 _kt_ss_awk_regions decides what is
+# structure; this program only keeps the order: token first (against the section and entry as they
+# stood BEFORE this line), then a heading moves `sec`, then an entry header moves hsid/hat/hst.
 #
 # ⛔ index(), not a regex: the token contains `/` and `@` and is caller-supplied.
 kt_ss_ledger_token_locate() {
   _ss_f="$1/SESSION.md"
   [ -f "$_ss_f" ] || return 0
-  awk -v tok="$2" '
-    BEGIN { fm = 0; infence = 0; sec = ""; hsid = ""; hat = ""; hst = "unconsumed" }
-    NR == 1 && $0 == "---" { fm = 1; next }
-    fm == 1 && $0 == "---" { fm = 0; next }
-    fm == 1 {
+  awk -v tok="$2" "$(_kt_ss_awk_regions)"'
+    BEGIN { sec = ""; hsid = ""; hat = ""; hst = "unconsumed" }
+    { k = kt_region($0) }
+    k == "fm" {
       if ($0 ~ /^sessionId:[[:space:]]*/) { s = $0; sub(/^sessionId:[[:space:]]*/, "", s); fsid = s }
       if ($0 ~ /^at:[[:space:]]*/)        { s = $0; sub(/^at:[[:space:]]*/, "", s);        fat  = s }
       next
@@ -771,22 +967,16 @@ kt_ss_ledger_token_locate() {
         }
         print isid "|" iat "|unconsumed|active"; exit
       }
-      if (sec == "LEDGER" && hsid != "")   { print hsid "|" hat "|" hst "|pending";  exit }
-      if (sec == "ARCHIVED" && hsid != "") { print hsid "|" hat "|" hst "|archived"; exit }
+      if (sec == "LEDGER" && hsid != "") { print hsid "|" hat "|" hst "|pending";  exit }
+      if (sec == "ARCH" && hsid != "")   { print hsid "|" hat "|" hst "|archived"; exit }
       next
     }
-    /^```/ { if (infence == 1) { infence = 0 } else { infence = 1 } next }
-    infence == 1 { next }
-    /^## / {
-      if ($0 ~ /^## Next session prompt[[:space:]]*$/)   { sec = "ACTIVE" }
-      else if ($0 ~ /^## Pending handoffs[[:space:]]*$/) { sec = "LEDGER" }
-      else if ($0 ~ /^## Prior sessions[[:space:]]*$/)   { sec = "LEDGER" }
-      else if ($0 ~ /^## Archived/)                      { sec = "ARCHIVED" }
-      else { sec = "OTHER" }
+    k == "heading" {
+      sec = R_SEC
       hsid = ""; hat = ""; hst = "unconsumed"
       next
     }
-    /^### / {
+    k == "entry_header" {
       n = split(substr($0, 5), f, " · ")
       if (n >= 2) {
         hsid = f[1]; hat = f[2]
@@ -810,12 +1000,17 @@ kt_ss_ledger_token_locate() {
 # a later session's identity. The token travels in the body,
 # which no rewrite path touches. Measured 2026-09-17 on a real ledger: token said
 # 10cf229b@11:00:01Z, front matter said 4c3e190c@11:06:37Z.
+#
+# ⚑ (2.58.0) ACTIVE is the region walker's ACTIVE. Before, this was the one reader with NO fence
+# state: a fenced `## ` inside the prompt ended its ACTIVE early, and a fenced `## Next session prompt`
+# quoted inside a stored entry started one. It now agrees with kt_ss_read_live_prompt and with the
+# token check in kt_ss_ledger_consume_active's clear, which were already fence-aware.
 kt_ss_read_active_token() {
   _ss_f="$1/SESSION.md"
   [ -f "$_ss_f" ] || return 0
-  awk '
-    /^## / { sec = ($0 ~ /^## Next session prompt[[:space:]]*$/) ? "ACTIVE" : "OTHER"; next }
-    sec == "ACTIVE" && /^aria-handoff:[[:space:]]*/ {
+  awk "$(_kt_ss_awk_regions)"'
+    { k = kt_region($0) }
+    R_SEC == "ACTIVE" && k != "heading" && /^aria-handoff:[[:space:]]*/ {
       line = $0
       sub(/^aria-handoff:[[:space:]]*/, "", line)
       slash = index(line, "/");  if (slash == 0) next
@@ -845,21 +1040,19 @@ kt_ss_read_live_prompt() {
   _ss_lp_f="$1/SESSION.md"
   [ -f "$_ss_lp_f" ] || return 0
 
-  # Boundary: from the heading to the next column-0 "## " that is NOT inside a fence.
-  # Fence parity is tracked exactly as kt_ss_ledger_token_locate does -- mirrored on
-  # purpose, so the two readers can never disagree about where the active block ends.
-  _ss_lp_body=$(awk '
-    BEGIN { sec = ""; infence = 0; buf = ""; done = 0 }
-    /^```/      { if (sec == "ACTIVE") buf = buf $0 "\n"; infence = 1 - infence; next }
-    infence == 1 { if (sec == "ACTIVE") buf = buf $0 "\n"; next }
-    /^## /      { if (sec == "ACTIVE") { printf "%s", buf; done = 1; exit }
-                  sec = ($0 ~ /^## Next session prompt[[:space:]]*$/) ? "ACTIVE" : "OTHER"; next }
-    sec == "ACTIVE" { buf = buf $0 "\n" }
-    # ⛔ `done` is load-bearing: in awk, `exit` RUNS THE END BLOCK. Without the flag the
-    # buffer is printed twice whenever the active section is followed by another "## "
-    # heading -- which is the normal case. Measured 2026-09-17: the body came back
-    # duplicated verbatim.
-    END { if (sec == "ACTIVE" && !done) printf "%s", buf }
+  # Boundary: the region walker's ACTIVE (_kt_ss_awk_regions) -- from the heading to the next
+  # heading the walker recognises, i.e. the next column-0 "## " that is NOT inside a fence. Every
+  # reader and writer shares that one definition (2.58.0), so none can disagree about where the
+  # active block ends. Only the FIRST active section is read: the next heading of any kind exits.
+  _ss_lp_body=$(awk "$(_kt_ss_awk_regions)"'
+    BEGIN { seen = 0; buf = "" }
+    { k = kt_region($0) }
+    k == "heading" { if (seen == 1) exit; if (R_SEC == "ACTIVE") seen = 1; next }
+    seen == 1 { buf = buf $0 "\n" }
+    # ⛔ END IS THE ONLY PRINTER. In awk, `exit` RUNS THE END BLOCK; a version that also printed in
+    # the main rule returned the body twice whenever another "## " followed the active section --
+    # the normal case. Measured 2026-09-17: the body came back duplicated verbatim.
+    END { printf "%s", buf }
   ' "$_ss_lp_f" 2>/dev/null)
 
   # Trim surrounding blank lines, then print nothing for the empty states. A no-op must be
@@ -875,6 +1068,183 @@ kt_ss_read_live_prompt() {
     ''|'(sessioninprogress)') return 0 ;;
   esac
   printf '%s' "$_ss_lp_trim"
+  return 0
+}
+
+# Call kt_ss_ledger_add and report whether ITS entry is on disk: 0 yes, 1 no. Shared by
+# kt_ss_ledger_demote_active and kt_ss_ledger_add_file; same arguments as kt_ss_ledger_add.
+#
+# ⛔ THE CHECK IS A COUNT, NOT A PRESENCE TEST (fix round 1). Lines starting `### <sid> · <at> · ` are
+# counted before and after the add, and the count must RISE BY the number of such lines in the entry
+# being written -- one (its header) plus any prompt line that starts the same way. A presence test was a data-loss
+# path: a prompt that quotes its own header at column 0 sits in the active slot, so the header is
+# "present" before anything is written -- with the add failing silently, demote_active returned 0 and
+# consume_active cleared the slot, leaving the prompt in neither place (measured by review).
+# ⛔ A LEVEL COUNT IS ACCEPTED ONLY WHEN THE IDENTICAL BLOCK WAS ON DISK BEFORE THE ADD. That is
+# kt_ss_ledger_add's RC-3 skip, by design, and it is how a re-run looks: a /handoff whose rewrite was
+# aborted, or a consume_active retried after exit 2. Refusing it would answer "did not land -- stop"
+# to every retry. The block comes from _kt_ss_entry_block, the builder kt_ss_ledger_add writes with, so the
+# two cannot drift (the re-run arm, tests/repros/session-state.sh Y9, still pins it). Since 2.58.0 a prompt
+# line quoting a header is stored escaped, so the expected rise is 1 in practice -- it is still MEASURED
+# from the built block rather than assumed. A prompt cannot contain its own full block
+# (the block contains the prompt), so the pre-check cannot be satisfied from inside the active slot.
+kt_ss_ledger_add_verified() {
+  _ss_av_f="$1/SESSION.md"; _ss_av_h="### $2 · $3 · "
+  [ -f "$_ss_av_f" ] || return 1
+  # The compare block is a private temp file (final fix wave, F6). It used to be $root/SESSION.md.$$.vblk:
+  # a predictable name inside the user's project tree, often a tracked one, left behind by a crash.
+  # No temp file -> nothing was added, which IS "did not land": the caller keeps the active slot.
+  _ss_av_blkf=$(mktemp "${TMPDIR:-/tmp}/aria-ss-vblk.XXXXXX" 2>/dev/null) || return 1
+  # (2.58.0) The SAME builder kt_ss_ledger_add writes with -- no second, hand-typed format to drift. The
+  # expected rise below is walked over this exact output, escaped prompt lines included.
+  _kt_ss_entry_block "$2" "$3" "$4" "$5" "$6" > "$_ss_av_blkf" 2>/dev/null
+  # ⛔ AN EMPTY BUILD IS "DID NOT LAND", NEVER "LANDED". A block always has its header; empty means the
+  # build failed, and then the expected rise below walks to 0, so `n1 == n0 + 0` reported landed while
+  # nothing was written (arm AA8). Same shell [ -s ] guard kt_ss_ledger_add uses.
+  [ -s "$_ss_av_blkf" ] || { rm -f "$_ss_av_blkf" 2>/dev/null; return 1; }
+  # ⛔ (2.58.0) BOTH THE WINDOW AND THE COUNTS ARE THE REGION WALKER'S LEDGER ENTRY HEADERS, the same
+  # scope kt_ss_ledger_add uses. A whole-file count and window let a copy under `## Archived …` or in
+  # the active fence satisfy "landed" while nothing was written to the ledger (spec §1 F4, arm AF).
+  # The expected rise k is measured the same way, by walking the block under a `## Pending handoffs`
+  # line: a prompt line that quotes the header inside a fence is body there and does not count.
+  _ss_av_cnt="$(_kt_ss_awk_regions)"'
+    { k = kt_region($0) }
+    k == "entry_header" && R_SEC == "LEDGER" && index($0, h) == 1 { n++ }
+    END { print n + 0 }'
+  _ss_av_had=1
+  if [ -s "$_ss_av_blkf" ] && awk "$(_kt_ss_awk_regions)"'
+      NR == FNR { b[++bn] = $0; next }
+                { L[FNR] = $0; tn = FNR; k = kt_region($0); if (k == "entry_header" && R_SEC == "LEDGER") S[FNR] = 1 }
+      END {
+        for (i = 1; i <= tn - bn + 1; i++) {
+          if (!(i in S)) continue
+          ok = 1
+          for (j = 1; j <= bn; j++) if (L[i + j - 1] != b[j]) { ok = 0; break }
+          if (ok) exit 0
+        }
+        exit 1
+      }' "$_ss_av_blkf" "$_ss_av_f" 2>/dev/null; then
+    _ss_av_had=0
+  fi
+  # The rise to expect is the number of block lines carrying the prefix -- the entry's own header, plus
+  # any line of the PROMPT that starts the same way (a prompt quoting its own header). "+1" reported a
+  # landed self-quoting demote as not landed (fix round 2).
+  _ss_av_k=$({ printf '## Pending handoffs\n'; cat "$_ss_av_blkf"; } | awk -v h="$_ss_av_h" "$_ss_av_cnt" 2>/dev/null)
+  rm -f "$_ss_av_blkf" 2>/dev/null
+  _ss_av_n0=$(awk -v h="$_ss_av_h" "$_ss_av_cnt" "$_ss_av_f" 2>/dev/null)
+  kt_ss_ledger_add "$@"
+  _ss_av_n1=$(awk -v h="$_ss_av_h" "$_ss_av_cnt" "$_ss_av_f" 2>/dev/null)
+  [ "${_ss_av_n1:-0}" -eq $(( ${_ss_av_n0:-0} + ${_ss_av_k:-1} )) ] && return 0
+  [ "$_ss_av_had" -eq 0 ] && [ "${_ss_av_n1:-0}" -eq "${_ss_av_n0:-0}" ] && return 0
+  return 1
+}
+
+# Demote the ACTIVE prompt into `## Pending handoffs` as `unconsumed`, reading EVERY value from the
+# file itself. Called by /handoff 3f and /wrapup Step 6.5 before their full rewrite, and by
+# kt_ss_ledger_consume_active.
+#
+# ⛔ WHY CODE-ONLY (2.58.0). The skills used to tell the model to run
+#   kt_ss_ledger_add "<root>" "<sid>" "<at>" "<focus>" "<next>" "<the stored prompt>"
+# and a stored prompt routinely carries backtick code spans and `$`: inside double quotes the shell
+# EXECUTES them. No argument here is free text -- the root is a path, the optional caller sid an id.
+#
+#   kt_ss_ledger_demote_active <root> [<caller sid>]
+#   0  demoted, and the entry's header is on disk; prints <sid>@<at> on stdout
+#   1  nothing live to demote: no SESSION.md, an empty slot, an empty fence, or a fresh
+#      `(session in progress)` marker (kt_ss_read_live_prompt's predicate); file untouched
+#   3  the demote did not land; file untouched
+# It does NOT clear the active slot: /handoff and /wrapup rewrite it next, and
+# kt_ss_ledger_consume_active clears it under its own token check.
+#
+# Identity: the slot's own `aria-handoff:` token wins over the front matter, which a hook may have
+# re-stamped (see kt_ss_read_active_token). A tokenless prompt falls back to the front matter's
+# sessionId / at, and a missing one is written as `unknown` -- the placeholder /handoff already writes
+# for an unresolvable sessionId -- so the header stays parseable. focus/next come from the front matter.
+#
+# Hook-artifact annotation: when the prompt carries NO token and the front matter's sessionId equals
+# <caller sid>, that id was most likely stamped by post-edit-check.sh before v2.57.5, and the true
+# author is not recoverable from the file. The stored focus is then prefixed with
+#   ⚠ sid is a post-edit-check.sh HOOK ARTIFACT, not attribution —
+# It goes in focus, never in the sid: the sid is what kt_ss_ledger_mark_consumed and is_entry_header
+# key on. A token-bearing prompt is never annotated -- its token names its author.
+#
+# ⛔ VERIFY THE DEMOTE LANDED. kt_ss_ledger_add returns 0 whether or not it wrote -- every failure path
+# in it ends `return 0` -- so its exit code carries no information about the entry being on disk.
+# kt_ss_ledger_add_verified decides it by COUNTING headers that start `### <sid> · <at> · ` before
+# and after the add (see its comment): a presence test is fooled by a header the prompt quotes inside
+# the active slot, and by an older entry of the same session.
+kt_ss_ledger_demote_active() {
+  _ss_dm_root="$1"; _ss_dm_caller="$2"
+  _ss_dm_f="$_ss_dm_root/SESSION.md"
+  [ -f "$_ss_dm_f" ] || return 1
+  _ss_dm_body=$(kt_ss_read_live_prompt "$_ss_dm_root")
+  [ -n "$_ss_dm_body" ] || return 1
+  _ss_dm_tok=$(kt_ss_read_active_token "$_ss_dm_root")
+  if [ -n "$_ss_dm_tok" ]; then
+    _ss_dm_sid=${_ss_dm_tok%%|*}; _ss_dm_at=${_ss_dm_tok#*|}
+  else
+    _ss_dm_sid=$(kt_ss_read_active_sid "$_ss_dm_root"); _ss_dm_at=$(kt_ss_read_active_at "$_ss_dm_root")
+  fi
+  [ -n "$_ss_dm_sid" ] || _ss_dm_sid=unknown
+  [ -n "$_ss_dm_at" ] || _ss_dm_at=unknown
+  _ss_dm_focus=$(awk 'NR==1 && $0!="---"{exit} /^---$/ && NR>1{exit} /^currentFocus:[[:space:]]*/{sub(/^currentFocus:[[:space:]]*/,""); print; exit}' "$_ss_dm_f" 2>/dev/null)
+  _ss_dm_next=$(awk 'NR==1 && $0!="---"{exit} /^---$/ && NR>1{exit} /^nextAction:[[:space:]]*/{sub(/^nextAction:[[:space:]]*/,""); print; exit}' "$_ss_dm_f" 2>/dev/null)
+  if [ -z "$_ss_dm_tok" ] && [ -n "$_ss_dm_caller" ] && [ "$_ss_dm_sid" = "$_ss_dm_caller" ]; then
+    _ss_dm_focus="⚠ sid is a post-edit-check.sh HOOK ARTIFACT, not attribution — $_ss_dm_focus"
+  fi
+
+  if ! kt_ss_ledger_add_verified "$_ss_dm_root" "$_ss_dm_sid" "$_ss_dm_at" "$_ss_dm_focus" "$_ss_dm_next" "$_ss_dm_body"; then
+    printf 'kt_ss_ledger_demote_active: the demote of %s@%s did not land; the active slot was left in place.\n' "$_ss_dm_sid" "$_ss_dm_at" >&2
+    return 3
+  fi
+  printf '%s@%s\n' "$_ss_dm_sid" "$_ss_dm_at"
+  return 0
+}
+
+# Store THIS session's own entry in `## Pending handoffs`, reading its free text from a FILE. Used by
+# the self-demote branch of /handoff and /wrapup (the incumbent is strictly newer, so the active slot
+# is left alone).
+#   kt_ss_ledger_add_file <root> <sid> <at> <entry file>
+# The entry file, line by line:
+#   focus: <one line>
+#   next: <one line>
+#   prompt:
+#   <the prompt body, verbatim, to end of file>
+# ⛔ WHY A FILE (2.58.0). The model writes the file with its file-write tool, so the free text never
+# passes through a shell argument -- a prompt with backticks or `$` inside a double-quoted argument is
+# executed by the shell. The values are parsed here and handed to kt_ss_ledger_add in-process;
+# nothing is re-composed into a command.
+#   0  stored, and the entry's header is on disk; prints <sid>@<at>
+#   1  refused, nothing written: an empty sid or at, or the entry file is missing, a symlink, not a
+#      regular file, not owned by the caller, or its first three lines are not `focus:`, `next:`,
+#      `prompt:` in that order
+#   3  the entry did not land (kt_ss_ledger_add returns 0 either way; kt_ss_ledger_add_verified counts
+#      the header before and after), or there is no SESSION.md
+# ⛔ A SYMLINK, AND A FILE THE CALLER DOES NOT OWN, ARE REFUSED: the path comes from a model, and either
+# would let content the session never wrote (a planted file in a shared temp dir) become a stored prompt.
+# The body keeps every byte after line 3 except trailing newlines, which command substitution strips;
+# kt_ss_ledger_add supplies the line end before its terminator, exactly as for a demoted prompt.
+kt_ss_ledger_add_file() {
+  _ss_af_root="$1"; _ss_af_sid="$2"; _ss_af_at="$3"; _ss_af_e="$4"
+  if [ -z "$_ss_af_sid" ] || [ -z "$_ss_af_at" ] || [ -z "$_ss_af_e" ] || [ -L "$_ss_af_e" ] \
+     || [ ! -f "$_ss_af_e" ] || [ ! -O "$_ss_af_e" ]; then
+    printf 'kt_ss_ledger_add_file: refused — pass a non-empty sid and at, and an entry file you own that is a regular file, not a symlink (got "%s").\n' "$_ss_af_e" >&2
+    return 1
+  fi
+  if ! awk 'NR == 1 { a = /^focus:/ } NR == 2 { b = /^next:/ } NR == 3 { c = /^prompt:[[:space:]]*$/; exit }
+            END { exit((a && b && c) ? 0 : 1) }' "$_ss_af_e" 2>/dev/null; then
+    printf 'kt_ss_ledger_add_file: refused — %s must start with the lines "focus: ...", "next: ...", "prompt:" in that order.\n' "$_ss_af_e" >&2
+    return 1
+  fi
+  _ss_af_focus=$(sed -n '1s/^focus:[[:space:]]*//p' "$_ss_af_e")
+  _ss_af_next=$(sed -n '2s/^next:[[:space:]]*//p' "$_ss_af_e")
+  _ss_af_body=$(sed '1,3d' "$_ss_af_e")
+
+  if ! kt_ss_ledger_add_verified "$_ss_af_root" "$_ss_af_sid" "$_ss_af_at" "$_ss_af_focus" "$_ss_af_next" "$_ss_af_body"; then
+    printf 'kt_ss_ledger_add_file: the entry for %s@%s did not land in %s/SESSION.md.\n' "$_ss_af_sid" "$_ss_af_at" "$_ss_af_root" >&2
+    return 3
+  fi
+  printf '%s@%s\n' "$_ss_af_sid" "$_ss_af_at"
   return 0
 }
 
@@ -948,52 +1318,59 @@ kt_ss_ledger_consume_active() {
   _ss_trim=""
   [ "$_ss_tok" = "$_ss_exp" ] && _ss_trim=$(kt_ss_read_live_prompt "$_ss_root")
   if [ -z "$_ss_trim" ]; then
-    printf 'kt_ss_ledger_consume_active: refused — the active slot does not hold %s@%s (it holds %s). A peer wrote or moved a prompt after you located it: re-run kt_ss_ledger_token_locate with the same token.\n' \
+    printf 'kt_ss_ledger_consume_active: refused — the active slot does not hold %s@%s (it holds %s). A peer wrote or moved a prompt after you located it: locate it again and act on the new result.\n' \
       "$_ss_sid" "$_ss_at" "$(if [ -n "$_ss_tok" ]; then printf '%s' "$_ss_tok" | tr '|' '@'; else printf '(no token)'; fi)" >&2
     return 2
   fi
 
-  _ss_focus=$(awk 'NR==1 && $0!="---"{exit} /^---$/ && NR>1{exit} /^currentFocus:[[:space:]]*/{sub(/^currentFocus:[[:space:]]*/,""); print; exit}' "$_ss_f" 2>/dev/null)
-  _ss_next=$(awk 'NR==1 && $0!="---"{exit} /^---$/ && NR>1{exit} /^nextAction:[[:space:]]*/{sub(/^nextAction:[[:space:]]*/,""); print; exit}' "$_ss_f" 2>/dev/null)
-
-  kt_ss_ledger_add "$_ss_root" "$_ss_sid" "$_ss_at" "$_ss_focus" "$_ss_next" "$_ss_trim"
-
+  # The demote itself is kt_ss_ledger_demote_active (2.58.0), the one code path /handoff and /wrapup
+  # also use. Its stderr is discarded so this function's messages stay exactly as they were.
   # ⛔ VERIFY THE DEMOTE LANDED BEFORE CLEARING ANYTHING. kt_ss_ledger_add returns 0
   # whether or not it wrote -- every failure path in it ends `return 0` by design, so its
   # exit code carries NO information about whether the entry is on disk. Clearing the
   # active slot on the strength of that return is how a handoff gets destroyed: measured
   # 2026-09-17, an add silently discarded by the heading-last defect left the fixture with
   # the prompt gone from both places. Bind the irreversible step to the load-bearing
-  # result -- the entry actually being present -- never to the proxy.
-  if ! awk -v sid="$_ss_sid" '/^### / && index($0, sid) > 0 { found = 1 }
-                              END { exit(found ? 0 : 1) }' "$_ss_f" 2>/dev/null; then
+  # result -- the entry actually being present -- never to the proxy. demote_active does
+  # that check (exit 3) against the entry's own header.
+  # Its printed identity must be the one this call located: demote_active re-reads the slot, so a
+  # peer write between the check above and the demote shows up here as a different sid@at (or as
+  # exit 1). That copy is stored `unconsumed` -- nothing is destroyed -- and nothing is cleared.
+  _ss_drc=0
+  _ss_dout=$(kt_ss_ledger_demote_active "$_ss_root" 2>/dev/null) || _ss_drc=$?
+  if [ "$_ss_drc" -eq 3 ]; then
     printf 'kt_ss_ledger_consume_active: the demote of %s@%s did not land; the active slot was left in place.\n' "$_ss_sid" "$_ss_at" >&2
     return 3
   fi
+  if [ "$_ss_drc" -ne 0 ] || [ "$_ss_dout" != "$_ss_sid@$_ss_at" ]; then
+    printf 'kt_ss_ledger_consume_active: the active slot changed before it could be demoted (expected %s@%s, demoted "%s"); it was left in place. Locate it again and act on the new result.\n' "$_ss_sid" "$_ss_at" "$_ss_dout" >&2
+    return 2
+  fi
 
-  kt_ss_ledger_mark_consumed "$_ss_root" "$_ss_sid" "$_ss_now" "$_ss_by" "$_ss_at"
+  kt_ss_ledger_mark_consumed "$_ss_root" "$_ss_sid" "$_ss_now" "$_ss_by" "$_ss_at" ledger
 
   # Clear the active slot, leaving the heading present and empty — but only if the slot STILL holds
   # the expected token. The check sits in the same pass that writes the new file, so a peer write
   # since the check above makes this awk exit 3 and the mv never runs.
   _ss_tmp="$_ss_f.$$.tmp"
   _ss_rc=0
-  awk -v esid="$_ss_sid" -v eat="$_ss_at" '
-    BEGIN { sec = ""; infence = 0; seen = 0; ok = 0 }
-    sec == "ACTIVE" && seen == 0 && /^aria-handoff:[[:space:]]*/ {
-      seen = 1; l = $0; sub(/^aria-handoff:[[:space:]]*/, "", l)
-      sl = index(l, "/"); r = substr(l, sl + 1); ai = index(r, "@")
-      ts = substr(r, 1, ai - 1); ta = substr(r, ai + 1)
-      gsub(/^[ \t]+/, "", ts); gsub(/[ \t]+$/, "", ts)
-      gsub(/^[ \t]+/, "", ta); gsub(/[ \t]+$/, "", ta)
-      if (sl > 0 && ai > 0 && ts == esid && ta == eat) ok = 1
+  # ⛔ (2.58.0) ACTIVE is the region walker's ACTIVE -- the same lines kt_ss_read_live_prompt and
+  # kt_ss_read_active_token read, so the clear removes exactly what was demoted.
+  awk -v esid="$_ss_sid" -v eat="$_ss_at" "$(_kt_ss_awk_regions)"'
+    BEGIN { cur = ""; seen = 0; ok = 0 }
+    { k = kt_region($0) }
+    k == "heading" { if (cur == "ACTIVE") print ""; cur = R_SEC; print; next }
+    R_SEC == "ACTIVE" {
+      if (seen == 0 && $0 ~ /^aria-handoff:[[:space:]]*/) {
+        seen = 1; l = $0; sub(/^aria-handoff:[[:space:]]*/, "", l)
+        sl = index(l, "/"); r = substr(l, sl + 1); ai = index(r, "@")
+        ts = substr(r, 1, ai - 1); ta = substr(r, ai + 1)
+        gsub(/^[ \t]+/, "", ts); gsub(/[ \t]+$/, "", ts)
+        gsub(/^[ \t]+/, "", ta); gsub(/[ \t]+$/, "", ta)
+        if (sl > 0 && ai > 0 && ts == esid && ta == eat) ok = 1
+      }
+      next
     }
-    /^```/       { if (sec != "ACTIVE") print; infence = 1 - infence; next }
-    infence == 1 { if (sec != "ACTIVE") print; next }
-    /^## /       { if (sec == "ACTIVE") print ""
-                   sec = ($0 ~ /^## Next session prompt[[:space:]]*$/) ? "ACTIVE" : "OTHER"
-                   print; next }
-    sec == "ACTIVE" { next }
     { print }
     END { if (!ok) exit 3 }
   ' "$_ss_f" > "$_ss_tmp" 2>/dev/null || _ss_rc=$?
@@ -1006,4 +1383,47 @@ kt_ss_ledger_consume_active() {
   fi
   rm -f "$_ss_tmp" 2>/dev/null
   return 0
+}
+
+# The resume token, read from a FILE (2.58.0, final fix wave F2). The SESSION STATE directive used to
+# tell the model to run kt_ss_ledger_token_locate / kt_ss_ledger_consume_active with the token as a
+# shell argument -- and the token is copied from the user's PASTED opener, so third-party text was
+# composed into a command (`$(…)` or a backtick after the at would RUN). Now the model writes the token
+# alone to a NEW file with its file-write tool and passes the path:
+#   kt_ss_ledger_token_locate_file   <root> <token file>
+#   kt_ss_ledger_consume_active_file <root> <by> <now> <token file>
+# <by> and <now> are id-shaped (a session id, a UTC timestamp) and stay arguments.
+# The file must be a regular file the caller owns, not a symlink, and hold exactly ONE line:
+#   aria-handoff: <project>/<sid>@<at>     project, sid: [A-Za-z0-9._-]+     at: [0-9TZ:.+-]+
+# The shape is checked here, in code, before the token reaches anything else; the old functions are
+# then called in-process, so nothing is re-composed into a command.
+#   1  refused, nothing read beyond the check and nothing written: no path, a missing path, a symlink,
+#      not a regular file, not owned by the caller, not exactly one line, or any other token shape
+#   otherwise the wrapped function's own result (locate: 0 with its line or nothing; consume: 0-3)
+# ⛔ A SYMLINK AND A FILE THE CALLER DOES NOT OWN ARE REFUSED, as in kt_ss_ledger_add_file: the path
+# comes from a model, and a planted file in a shared temp dir must not choose which prompt is consumed.
+_kt_ss_token_from_file() {  # <caller name> <token file> -> the token line on stdout, or exit 1
+  _ss_tf="$2"
+  if [ -z "$_ss_tf" ] || [ -L "$_ss_tf" ] || [ ! -f "$_ss_tf" ] || [ ! -O "$_ss_tf" ] \
+     || [ "$(awk 'END { print NR }' "$_ss_tf" 2>/dev/null)" != 1 ] \
+     || ! grep -Eqx 'aria-handoff: [A-Za-z0-9._-]+/[A-Za-z0-9._-]+@[0-9TZ:.+-]+' "$_ss_tf" 2>/dev/null; then
+    printf '%s: refused — pass a regular file you own (not a symlink) holding exactly one line, aria-handoff: <project>/<sid>@<at> (got "%s").\n' "$1" "$_ss_tf" >&2
+    return 1
+  fi
+  sed -n '1p' "$_ss_tf"
+}
+
+kt_ss_ledger_token_locate_file() {
+  _ss_tlf_tok=$(_kt_ss_token_from_file kt_ss_ledger_token_locate_file "$2") || return 1
+  kt_ss_ledger_token_locate "$1" "$_ss_tlf_tok"
+}
+
+kt_ss_ledger_consume_active_file() {
+  _ss_caf_tok=$(_kt_ss_token_from_file kt_ss_ledger_consume_active_file "$4") || return 1
+  _ss_caf_rc=0
+  kt_ss_ledger_consume_active "$1" "$2" "$3" "$_ss_caf_tok" || _ss_caf_rc=$?
+  if [ "$_ss_caf_rc" -eq 2 ]; then
+    printf 'kt_ss_ledger_consume_active_file: locate again with kt_ss_ledger_token_locate_file on the same token file, then act on the new result.\n' >&2
+  fi
+  return "$_ss_caf_rc"
 }

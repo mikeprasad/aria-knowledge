@@ -15,7 +15,7 @@ This file tracks divergence between `plugin-claude-code/` (canonical Claude Code
 | Hook events supported | SessionStart, PreToolUse, PostToolUse, PreCompact, PostCompact, TaskCreated, Stop, Notification, etc. | **PreToolUse, PostToolUse, PreInvocation, PostInvocation, Stop** (only) |
 | Hook I/O contract | Env vars (`CLAUDE_PLUGIN_ROOT`, `CLAUDE_TRANSCRIPT_PATH`, etc.) | **stdin JSON in, stdout JSON out**; no env vars; context fields are `workspacePaths`, `transcriptPath`, `artifactDirectoryPath`, `toolCall.{name,args}`, `stepIdx` |
 | Hook tool matchers | Claude Code tool names (`Edit`, `Write`, `Glob`, `Grep`, `Bash`) | **Antigravity tool names** (`write_to_file`, `replace_file_content`, `multi_replace_file_content`, `grep_search`, `find_by_name`, `run_command`) |
-| Hook deny semantic | Fail-open on hook error; deny is advisory | **Documented + fail-closed**: `{"decision":"allow"|"deny"|"ask"|"force_ask"}` |
+| Hook deny semantic | Fail-open on hook error; deny is advisory | **Documented + fail-closed**: `{"decision":"allow"|"deny"|"ask"|"force_ask"}`. Aria's wrapper honours the check's deny since 2.58.0; detection in a live session is unverified. |
 | MCP config path | `.mcp.json` at plugin root | **`mcp_config.json`** at plugin root |
 | MCP HTTP URL key | `"url"` | **`"serverUrl"`** |
 | MCP OAuth shape | `oauth.clientId` + `oauth.callbackPort` | **`oauth.clientId` + `oauth.clientSecret`** (or UI flow for DCR servers; redirect URI `https://antigravity.google/oauth-callback`) |
@@ -110,6 +110,7 @@ _(none as of v2.24.1 — synced to canonical v2.24.1)_
 ## Platform Gaps
 
 - **Subagent Hooks (`SubagentStart`, `SubagentStop`):** Antigravity lacks subagent lifecycle hooks. Automated capture of subagent knowledge during subagent runs is not supported natively. As a workaround, the files under `intake/subagent-captures/` can still be audited and extracted manually using `/audit-knowledge` (Step 2e), but automatic hook-driven capture is a platform gap.
+- **`ARIA CONFIG` carries only `state_dir=` and `ledger=` (2.58.0).** The PreInvocation session-start message ends with `ARIA CONFIG — state_dir=<dir|none> ledger=<file|none>`, naming where this port's hooks keep state and this conversation's surfacing ledger. It carries no other setting (`autonomy`, `session_state`, `active_surfacing`, …). **A setting absent from the line is OFF** — the same rule the bundled rules file gives for a missing line — so the rules file's configuration-gated directives do not apply on Antigravity. Claude Code's own `ARIA CONFIG` line carries every setting; this port does not emit them.
 - **Statusline and Prompt Submission Hooks:** Claude Code-only hooks/scripts (`/statusline`, `UserPromptSubmit` hooks) are skipped entirely as they have no Antigravity-equivalent surfaces.
 - **PostToolUse context injection:** Antigravity's `PostToolUse` hooks return `{}` and cannot inject context (like nudges/reminders) directly. This port handles `auto_prospect` and `auto_retrospect` via wrappers (`post-plan-prospect-aria.sh` and `post-push-retrospect-aria.sh`) that log findings to `~/.gemini/antigravity/aria-knowledge-scope-check.log`. The `pre-invocation-aria.sh` hook then drains this log and injects the context as an `ephemeralMessage` on the next turn.
 

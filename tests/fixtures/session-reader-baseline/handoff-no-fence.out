@@ -1,0 +1,8 @@
+== kt_ss_ledger_candidates
+== kt_ss_read_live_prompt
+Resume the hardening work. There is no surrounding fence here, so the reader
+takes the block verbatim with no fence-stripping applied.== kt_ss_read_active_token
+== kt_ss_read_active_sid
+== kt_ss_read_active_at
+2026-06-11T16:30:00Z
+== kt_ss_ledger_token_locate

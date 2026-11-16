@@ -1,0 +1,8 @@
+== kt_ss_ledger_candidates
+== kt_ss_read_live_prompt
+Unknown header keys (experimentalFlag, producerVersion) above must be ignored
+by the reader — the file still parses as a valid handoff.== kt_ss_read_active_token
+== kt_ss_read_active_sid
+== kt_ss_read_active_at
+2026-06-11T18:00:00Z
+== kt_ss_ledger_token_locate

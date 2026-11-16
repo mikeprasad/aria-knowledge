@@ -8,7 +8,9 @@ HOOK="$HERE/../../plugin-claude-code/scripts/usage-threshold-inject.sh"
 fail() { echo "FAIL: $1"; exit 1; }
 TMP=$(mktemp -d)
 SP="injtest-$$"
-trap 'rm -rf "$TMP"; rm -f /tmp/aria-usage-warn-${SP}-* 2>/dev/null' EXIT
+trap 'rm -rf "$TMP"' EXIT
+# The hook keeps its band file in the private state dir (2.58.0): resolve it under the scratch dir.
+export KT_STATE_BASE="$TMP/state-base"; mkdir -p "$KT_STATE_BASE"
 export HOME="$TMP"; mkdir -p "$HOME/.claude"
 cat > "$HOME/.claude.json" <<'JSON'
 {"oauthAccount":{"accountUuid":"cli-uuid-1","emailAddress":"a@example.com"}}

@@ -145,7 +145,7 @@ If `jq` was missing, append the install hint and note the line will show model-o
 1. Read `~/.claude/settings.json`. If it has no `statusLine` key, report "No status-line meter is configured." and stop.
 2. If the `statusLine.command` does **not** reference `aria-statusline-meter.sh`, it's not ours — **stop and ask** before removing: *"The configured status line isn't the aria-knowledge meter (`<command>`). Remove it anyway? (y/n)"*.
 3. Back up (`cp settings.json settings.json.aria-bak`), then rewrite settings.json with the `statusLine` key removed, preserving all other keys. Validate the result is valid JSON (restore backup on failure).
-4. Offer to delete the staged script + snapshots: *"Also delete the meter script (`~/.claude/aria-statusline-meter.sh`) and its per-account usage snapshots (`~/.claude/aria-statusline-state-*.json`)? (y/n)"* — on `y`, `rm -f` the script plus the `aria-statusline-state-*.json` glob (and the legacy `aria-statusline-state.json` if present), plus any `/tmp/aria-usage-warn-*` band-state files.
+4. Offer to delete the staged script + snapshots: *"Also delete the meter script (`~/.claude/aria-statusline-meter.sh`) and its per-account usage snapshots (`~/.claude/aria-statusline-state-*.json`)? (y/n)"* — on `y`, `rm -f` the script plus the `aria-statusline-state-*.json` glob (and the legacy `aria-statusline-state.json` if present), plus any `aria-usage-warn-*` band-state files in the state directory (the directory named by `state_dir=` in `ARIA CONFIG`; skip this part when it reads `none`).
 5. Confirm: "Status-line meter removed. Backup at ~/.claude/settings.json.aria-bak." (The usage-alert hook stays registered but is now a silent no-op with no snapshot to read.)
 
 ---

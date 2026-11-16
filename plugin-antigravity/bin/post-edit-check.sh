@@ -74,7 +74,7 @@ fi
 # the project from the EDITED FILE PATH (works even when cwd is the ~/Projects
 # root) and writes lastEvent: in-progress itself, rather than asking Claude to.
 # Runs AFTER the scope-check response is emitted, gated on session_state, guarded
-# once per (session, project) via a /tmp ledger. The write is idempotent and
+# once per (session, project) via a cache in the private state dir (see below). The write is
 # fail-safe (|| true everywhere), so it never blocks or delays an edit, and a
 # missing session_id degrades to a transcript-path key — never corrupts output.
 if [ "$KT_SESSION_STATE" = "true" ] && [ -n "$FILE_PATH" ] && [ "$(basename "$FILE_PATH" 2>/dev/null)" != "SESSION.md" ]; then
@@ -84,15 +84,46 @@ if [ "$KT_SESSION_STATE" = "true" ] && [ -n "$FILE_PATH" ] && [ "$(basename "$FI
   . "$SCRIPT_DIR/lib-session-state.sh" 2>/dev/null || true
   SS_ROOT=$(kt_ss_find_root "$FILE_PATH" 2>/dev/null) || SS_ROOT=""
   if [ -n "$SS_ROOT" ]; then
-    SS_SID=$(echo "$INPUT" | grep -o '"session_id":"[^"]*"' | head -1 | sed 's/"session_id":"//;s/"//')
+    # kt_session_key (lib-state-key.sh): accepted only as [A-Za-z0-9._-]+, never rewritten. Absent:
+    # the transcript-path hash keys the cache, as before. Rejected: no key and no cache, and the
+    # project is still marked (spec D3: "Mark anyway") with an EMPTY session id, so the mark keeps
+    # SESSION.md's existing sessionId line and the raw id never reaches its front matter
+    # (codex-hook.py maybe_mark_session_state applies the same rule).
+    KT_STATE_DIR=   # an inherited value is never trusted: only the state-dir resolver sets it
+    if [ -f "$SCRIPT_DIR/lib-state-key.sh" ]; then . "$SCRIPT_DIR/lib-state-key.sh"; fi
+    SS_SID=$(kt_session_key "$INPUT" session_id 2>/dev/null); _ss_rc=$?
     if [ -n "$SS_SID" ]; then
       SS_KEY="$SS_SID"
+    elif [ "$_ss_rc" = 2 ]; then
+      SS_KEY=""
     else
       SS_TP=$(echo "$INPUT" | grep -o '"transcript_path":"[^"]*"' | head -1 | sed 's/"transcript_path":"//;s/"//')
       SS_KEY=$(printf '%s' "${SS_TP:-nosession}" | cksum | cut -d' ' -f1)
     fi
-    SS_LEDGER="/tmp/aria-session-inprogress-${SS_KEY}"
-    if ! { [ -f "$SS_LEDGER" ] && grep -qxF "$SS_ROOT" "$SS_LEDGER" 2>/dev/null; }; then
+    # 2.58.0: the once-per-(session, project) cache lives in the private per-user state directory
+    # (lib-state-key.sh); the id goes through kt_state_path, which refuses one with a "/". It is read
+    # and appended to only when it is a regular file of ours that is not a link, and created only by
+    # kt_create_new, from lib-tracked-artifacts.sh (which only defines functions).
+    # With no usable cache — no state directory (spec D3), a refused id, or that lib missing — the
+    # project is marked ANYWAY, guarded by one read of SESSION.md: when its front matter already
+    # reads lastEvent: in-progress under THIS session id the mark is skipped, so the file is written
+    # once, not on every edit (the mark refreshes `at:`, so re-running it is not byte-idempotent).
+    SS_LEDGER=
+    if [ -f "$SCRIPT_DIR/lib-state-key.sh" ]; then . "$SCRIPT_DIR/lib-state-key.sh"; fi
+    if kt_state_resolve 2>/dev/null; then
+      [ -n "$SS_KEY" ] && SS_LEDGER=$(kt_state_path "aria-session-inprogress-${SS_KEY}") || SS_LEDGER=
+    fi
+    . "$SCRIPT_DIR/lib-tracked-artifacts.sh" 2>/dev/null || true
+    if [ -n "$SS_LEDGER" ] && kt_is_ours "$SS_LEDGER" 2>/dev/null && grep -qxF "$SS_ROOT" "$SS_LEDGER" 2>/dev/null; then
+      :   # this session already marked this project
+    elif [ -z "$SS_LEDGER" ] && [ -n "$SS_SID" ] && [ -f "$SS_ROOT/SESSION.md" ] && awk -v sid="$SS_SID" '
+        NR == 1 { if ($0 != "---") exit 1; next }
+        $0 == "---" { ok = (le == "in-progress" && si == sid); done = 1; exit }
+        !gle && /^lastEvent:/ { le = $0; sub(/^lastEvent:[ ]*/, "", le); gle = 1 }
+        !gsi && /^sessionId:/ { si = $0; sub(/^sessionId:[ ]*/, "", si); gsi = 1 }
+        END { exit (done && ok) ? 0 : 1 }' "$SS_ROOT/SESSION.md" 2>/dev/null; then
+      :   # no cache, and SESSION.md already carries this session's mark
+    else
       # ⛔ THE EDIT-TIME AUTO-CONSUME WAS REMOVED 2026-09-17 (Mike's ruling: "no new post
       # or pre edit hook checks; the only hooks for this should be on session start").
       # DO NOT REINSTATE IT, in any narrowed form. It called
@@ -112,7 +143,12 @@ if [ "$KT_SESSION_STATE" = "true" ] && [ -n "$FILE_PATH" ] && [ "$(basename "$FI
       # bin/session-start-check.sh and rules/aria-rules.md (SESSION STATE).
       SS_AUTHOR=$(sed -n '/^---$/,/^---$/p' "$KT_CONFIG" 2>/dev/null | grep '^author_tag:' | sed 's/^author_tag: *//')
       kt_ss_mark_inprogress "$SS_ROOT" "$SS_SID" "$SS_AUTHOR" 2>/dev/null || true
-      printf '%s\n' "$SS_ROOT" >> "$SS_LEDGER" 2>/dev/null || true
+      if [ -n "$SS_LEDGER" ]; then
+        [ -e "$SS_LEDGER" ] || [ -L "$SS_LEDGER" ] || kt_create_new "$SS_LEDGER" 2>/dev/null || :
+        if kt_is_ours "$SS_LEDGER" 2>/dev/null; then
+          printf '%s\n' "$SS_ROOT" >> "$SS_LEDGER" 2>/dev/null || true
+        fi
+      fi
     fi
   fi
 fi

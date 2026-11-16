@@ -81,11 +81,12 @@ second, and nothing in the model, the migration or your endpoint will mention it
 
 ```bash
 # every consumer, minus vendored code and migrations
-grep -rn "<SYMBOL>" --include='*.<ext>' . | grep -v "/<vendor_dir>/\|/migrations/"
+grep -rn --include='*.<ext>' --exclude-dir='<vendor_dir>' --exclude-dir=migrations -e '<SYMBOL>' .
 
-# of those, which sit inside an authorization decision?
-grep -rn "<SYMBOL>" --include='*.<ext>' . | grep -viE "test|migration" \
-  | grep -iE "allow|permission|access|authoriz|can_view|visibility|entitle"
+# of those, which sit inside an authorization decision? (same line holds both; tests and migrations
+# out; --untracked so new, not-yet-committed code is searched too)
+git grep --untracked -niE -e '<SYMBOL>' --and -e 'allow|permission|access|authoriz|can_view|visibility|entitle' \
+  -- '*.<ext>' ':(exclude,icase)*test*' ':(exclude,icase)*migration*'
 ```
 
 1. Run it **before** writing the endpoint, not after.
@@ -112,7 +113,7 @@ out: it compiles, it deploys, and it is not in the product.
 
 ```bash
 # does anything import it? zero here = the feature does not exist
-grep -rn "<COMPONENT>" src --include='*.js' | grep -v "<COMPONENT>/"
+grep -rn --include='*.js' --exclude-dir='<COMPONENT>' -e '<COMPONENT>' src
 ```
 
 After deploy, read the **source map's module list**, not the bundle's strings — a string search
@@ -213,12 +214,36 @@ not.
 ## Recording
 
 **Always write the session marker — this is what the commit gate reads.** One line per run,
-appended:
+appended, in the private per-user state directory, named by `aria-state.sh` so it is the file the
+gate reads. Run the block unchanged, keeping exactly one of its last two lines — the `READY` line
+when the verdict is READY, the `NOT READY` line otherwise:
 
 ```bash
-printf '%s\t%s\t%s\n' "$(date +%H:%M)" "<VERDICT>" "<scope>" \
-  >> "${TMPDIR:-/tmp}/aria-preflight-${CLAUDE_SESSION_ID}"
+_pf_sid=${CLAUDE_CODE_SESSION_ID:-${CODEX_THREAD_ID:-}}
+_pf_m=""
+if [ -z "$_pf_sid" ]; then
+  echo 'preflight: no session id — marker not written'
+elif ! sh "${CLAUDE_PLUGIN_ROOT}/scripts/aria-state.sh" key "$_pf_sid" > /dev/null; then
+  echo 'preflight: the session id is not one the commit gate can read — marker not written'
+elif _pf_m=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/aria-state.sh" path "aria-preflight-$_pf_sid"); then
+  echo "preflight marker: $_pf_m"
+else
+  _pf_m=""
+fi
+[ -n "$_pf_m" ] && printf '%s\tREADY\n' "$(date +%H:%M)" >> "$_pf_m"
+[ -n "$_pf_m" ] && printf '%s\tNOT READY\n' "$(date +%H:%M)" >> "$_pf_m"
 ```
+
+If it prints `preflight: no session id`, `preflight: the session id is not one the commit gate can
+read` (the id holds a character outside `A-Za-z0-9._-`, so the gate keys no state for it) or an
+`aria-state:` reason (the private state directory is unavailable, and why), the marker was **not**
+written: say so with the verdict, and never write it
+anywhere else — the gate reads only this path. When your `ARIA CONFIG` line carries `state_dir=`,
+compare it with the directory of the printed marker path; if they differ (a sandboxed shell can see a
+different temp directory from the hooks), say so — the commit gate will not see this marker.
+
+⛔ The marker carries the verdict token only. The scope is user-supplied text and never goes into a
+shell command — it lives in the PREFLIGHT table and in the log file below.
 
 `pre-commit-preflight-check.sh` fires on `git commit` and warns when no marker exists for the
 session. **Any recorded verdict satisfies it, including NOT READY** — recording a FAIL and

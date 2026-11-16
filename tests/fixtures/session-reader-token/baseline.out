@@ -1,0 +1,19 @@
+== kt_ss_ledger_candidates
+pend-sid|2026-06-30T00:00:00Z|unconsumed|pending
+act-sid|2026-07-02T00:00:00Z|unconsumed|active
+== kt_ss_read_active_token
+act-sid|2026-07-02T00:00:00Z
+== kt_ss_read_live_prompt
+```
+aria-handoff: proj-a/act-sid@2026-07-02T00:00:00Z
+resume the active work
+```
+== kt_ss_ledger_token_locate aria-handoff: proj-a/act-sid@2026-07-02T00:00:00Z
+act-sid|2026-07-02T00:00:00Z|unconsumed|active
+== kt_ss_ledger_token_locate aria-handoff: proj-a/pend-sid@2026-06-30T00:00:00Z
+pend-sid|2026-06-30T00:00:00Z|unconsumed|pending
+== kt_ss_ledger_token_locate aria-handoff: proj-a/done-sid@2026-06-29T00:00:00Z
+done-sid|2026-06-29T00:00:00Z|terminal|pending
+== kt_ss_ledger_token_locate aria-handoff: proj-b/arch-sid@2026-06-01T00:00:00Z
+arch-sid|2026-06-01T00:00:00Z|unconsumed|archived
+== kt_ss_ledger_token_locate aria-handoff: proj-a/none@none

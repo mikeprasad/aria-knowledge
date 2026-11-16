@@ -8,12 +8,13 @@
 # the path. Returns silently (exit 0, no output) on any unfit input —
 # non-cd commands, paths we can't parse, no index, threshold not met.
 #
-# Cooldown: per-project-per-session via /tmp/aria-bashcd-{session_id}-{key}
-# so repeated cd into the same project doesn't re-prompt.
+# Cooldown: per-project-per-session via <state dir>/aria-bashcd-{session_id}-{key}
+# so repeated cd into the same project doesn't re-prompt. The state dir is the private per-user
+# directory from lib-state-key.sh; with none (spec D3) the hook emits nothing.
 #
-# Ledger: in active mode, surfaced paths get appended to /tmp/aria-active-
+# Ledger: in active mode, surfaced paths get appended to <state dir>/aria-active-
 # {session_id} for cross-trigger dedup (read by post-compact, filtered by
-# task-context).
+# task-context). No state dir: nothing is surfaced (the cooldown above exits first).
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$SCRIPT_DIR/config.sh"
@@ -71,13 +72,25 @@ QUERY=$(printf '%s' "$QUERY" | sed 's/^ *//;s/ *$//')
 [ -z "$QUERY" ] && exit 0
 
 # Session id for cooldown + ledger
-SESSION_ID=$(echo "$INPUT" | grep -o '"session_id":"[^"]*"' | head -1 | sed 's/"session_id":"//;s/"//')
-[ -z "$SESSION_ID" ] && exit 0
+# kt_session_key (lib-state-key.sh): read whitespace-tolerantly, accepted only as [A-Za-z0-9._-]+ and
+# never rewritten — the key every hook in this port names this family's state with. Absent or rejected: no key, nothing
+# surfaced (spec D3).
+[ -f "$SCRIPT_DIR/lib-state-key.sh" ] || exit 0
+. "$SCRIPT_DIR/lib-state-key.sh"
+SESSION_ID=$(kt_session_key "$INPUT" session_id turn_id) || exit 0
 
 # Per-project-per-session cooldown — same project shouldn't re-prompt.
 PROJECT_KEY=$(printf '%s' "$CD_PATH" | tr '/' '_')
-COOLDOWN_FILE="/tmp/aria-bashcd-${SESSION_ID}-${PROJECT_KEY}"
-[ -f "$COOLDOWN_FILE" ] && exit 0
+# 2.58.0: the cooldown lives in the private per-user state directory (lib-state-key.sh). With no
+# directory (spec D3) the reminder is NOT emitted: without a cooldown it would repeat on every cd.
+# The id goes through kt_state_path, which refuses one with a "/". Any entry at the name — the
+# cooldown, or a non-file a FIFO write would block on — means emit nothing.
+. "$SCRIPT_DIR/lib-state-key.sh"
+kt_state_resolve || exit 0
+COOLDOWN_FILE=$(kt_state_path "aria-bashcd-${SESSION_ID}-${PROJECT_KEY}") || exit 0
+{ [ -e "$COOLDOWN_FILE" ] || [ -L "$COOLDOWN_FILE" ]; } && exit 0
+# The session ledger (active mode) lives in the same directory.
+LEDGER=$(kt_state_path "aria-active-${SESSION_ID}") || exit 0
 
 # Match
 INDEX_FILE="$KT_KNOWLEDGE_FOLDER/index.md"
@@ -92,7 +105,6 @@ kt_index_match "$QUERY"
 kt_artifact_compute_for_path "$CD_PATH"
 
 # Ledger filter (active mode) — applied to BOTH knowledge files and artifacts
-LEDGER="/tmp/aria-active-${SESSION_ID}"
 if [ "$KT_ACTIVE_SURFACING" = "true" ]; then
   if [ "$KT_MATCH_COUNT" -gt 0 ]; then
     kt_match_filter_ledger "$LEDGER"

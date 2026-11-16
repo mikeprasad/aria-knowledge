@@ -25,9 +25,31 @@
 INPUT=$(cat)
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$SCRIPT_DIR/config.sh"
+# Hook debug log (spec §5; 2.58.0 D4): <state dir>/aria-hook-debug.log, in the private per-user state
+# directory from lib-state-key.sh. With no state directory nothing is logged (spec D3) and the
+# path is empty. aria_hook_dbg builds the line first, creates the log only with kt_create_new,
+# and appends only when it is a regular file of ours that is not a link (lib-tracked-artifacts.sh
+# only defines functions; without it nothing is logged). KT_HOOK_DEBUG_LOG is a TEST-ONLY override
+# of the path. Identical in pre-edit-check.sh, post-edit-check.sh, capture-task-boundary.sh and
+# record-edit-intent.sh (tests/repros/safe-create-census.sh CC1b).
+. "$SCRIPT_DIR/lib-tracked-artifacts.sh" 2>/dev/null || true
+KT_STATE_DIR=   # an inherited value is never trusted: only the state-dir resolver sets it
+if [ -f "$SCRIPT_DIR/lib-state-key.sh" ]; then . "$SCRIPT_DIR/lib-state-key.sh"; fi
+ARIA_HOOK_DEBUG_LOG=${KT_HOOK_DEBUG_LOG:-}
+if [ -z "$ARIA_HOOK_DEBUG_LOG" ] && kt_state_resolve 2>/dev/null; then
+  ARIA_HOOK_DEBUG_LOG=$(kt_state_path aria-hook-debug.log) || ARIA_HOOK_DEBUG_LOG=
+fi
+aria_hook_dbg() {
+  [ -n "$ARIA_HOOK_DEBUG_LOG" ] || return 0
+  _ahd_l="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null) $*"
+  [ -e "$ARIA_HOOK_DEBUG_LOG" ] || [ -L "$ARIA_HOOK_DEBUG_LOG" ] || kt_create_new "$ARIA_HOOK_DEBUG_LOG" 2>/dev/null || :
+  kt_is_ours "$ARIA_HOOK_DEBUG_LOG" 2>/dev/null || return 0
+  printf '%s\n' "$_ahd_l" >> "$ARIA_HOOK_DEBUG_LOG" 2>/dev/null
+  return 0
+}
 
 # Debug log: confirms hook fires (Cursor port verification)
-echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) $0 fired" >> /tmp/aria-hook-debug.log 2>/dev/null
+aria_hook_dbg "$0 fired"
 
 # Cursor uses camelCase; fallback to snake_case during testing
 FILE_PATH=$(echo "$INPUT" | grep -o '"filePath":"[^"]*"' | head -1 | sed 's/"filePath":"//;s/"//')
@@ -178,16 +200,16 @@ INTENT_NOTE=""
 case "$INTENT_STATUS" in
   missing)
     if [ "$IS_PROTECTED" = "true" ]; then
-      INTENT_NOTE=" PROTECTED FILE + NO EDIT-INTENT MARKER: run \`bash scripts/aria/record-edit-intent.sh <filePath> rule22-high \"<rationale>\"\` BEFORE this Edit/Write, emit the [Rule 22] block above the tool call, then proceed. Skipping is a Rule 22 violation."
+      INTENT_NOTE=" PROTECTED FILE + NO EDIT-INTENT MARKER: run \`bash scripts/aria/record-edit-intent.sh '<filePath>' rule22-high\` BEFORE this Edit/Write, emit the [Rule 22] block above the tool call, then proceed. Skipping is a Rule 22 violation."
     else
-      INTENT_NOTE=" No recent edit-intent marker found. Before invoking Edit/Write, run \`bash scripts/aria/record-edit-intent.sh <filePath> rule22-low|rule22-high \"<rationale>\"\` and emit the [Rule 22] block in the same turn above the tool call."
+      INTENT_NOTE=" No recent edit-intent marker found. Before invoking Edit/Write, run \`bash scripts/aria/record-edit-intent.sh '<filePath>' rule22-low|rule22-high\` (no rationale argument — free text never goes in a shell command) and emit the [Rule 22] block in the same turn above the tool call."
     fi
     ;;
   stale)
     INTENT_NOTE=" Edit-intent marker is stale (>10 min old). Re-record via \`bash scripts/aria/record-edit-intent.sh\` for this specific edit before proceeding — a stale marker means the Rule 22 reasoning may not match the current change."
     ;;
   mismatch)
-    INTENT_NOTE=" Edit-intent marker does not match this file or session. Re-record via \`bash scripts/aria/record-edit-intent.sh <filePath>\` for the file you are about to edit."
+    INTENT_NOTE=" Edit-intent marker does not match this file or session. Re-record via \`bash scripts/aria/record-edit-intent.sh '<filePath>'\` for the file you are about to edit."
     ;;
   ok)
     : # silent on success

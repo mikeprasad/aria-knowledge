@@ -1,0 +1,13 @@
+== kt_ss_ledger_candidates
+sess-old|2026-06-19T22:00:00Z|unconsumed|pending
+sess-current|2026-06-21T10:00:00Z|unconsumed|pending
+sess-active|2026-06-20T18:30:00Z|unconsumed|active
+== kt_ss_read_live_prompt
+```
+ACTIVE-OPENER resume the active session
+```== kt_ss_read_active_token
+== kt_ss_read_active_sid
+sess-active
+== kt_ss_read_active_at
+2026-06-20T18:30:00Z
+== kt_ss_ledger_token_locate

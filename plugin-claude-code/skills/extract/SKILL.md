@@ -112,8 +112,10 @@ Scan `{knowledge_folder}/intake/subagent-captures/` for **all** pending `.md` ca
 For each capture, digest it for cheap review:
 
 ```
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/digest-transcript.sh" "{capture_path}" "/tmp/aria-digest-{filename}"
+d=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/aria-state.sh" path "aria-digest-{filename}") && bash "${CLAUDE_PLUGIN_ROOT}/scripts/digest-transcript.sh" "{capture_path}" "$d" && printf '%s\n' "$d"
 ```
+
+Read the digest at the path it prints. If it prints an `aria-state:` reason instead, the private state directory is unavailable: say so and why, write the digest nowhere else, and read the capture directly.
 
 Fold any findings from the digest into the SAME six buckets from Step 2 (insights, decisions, feedback, project context, references, ideas). They then flow through Step 3 (dedup) and Step 4 (append) with the conversation's own findings.
 

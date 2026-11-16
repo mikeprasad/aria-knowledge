@@ -26,7 +26,8 @@ DELIVERABLE="/tmp/proj/templates/deliverables/security-review/index.html"
 
 # run_pre <file_path> <transcript> <tool_use_id> <session_id> [KT_CONFIG] -> stdout
 pp_run_pre() {
-  rm -f "${TMPDIR:-/tmp}/aria-r22-denies-$4" 2>/dev/null
+  # 2.58.0: the breaker counter lives in the state dir resolved from run.sh's KT_STATE_BASE.
+  rm -f "${KT_STATE_BASE:?run.sh sets KT_STATE_BASE}/aria-knowledge-$(id -u)/aria-r22-denies-$4" 2>/dev/null
   printf '{"file_path":"%s","transcript_path":"%s","tool_use_id":"%s","session_id":"%s"}' "$1" "$2" "$3" "$4" \
     | KT_CONFIG="${5:-/nonexistent}" sh "$PRE"
 }

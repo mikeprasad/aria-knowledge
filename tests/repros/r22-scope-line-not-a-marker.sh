@@ -21,6 +21,10 @@ BASE="$REPO_ROOT/tests/fixtures/transcript-cc21280-real-base.jsonl"
 
 export TMPDIR=$(mktemp -d)
 trap 'rm -rf "$TMPDIR"' EXIT
+# 2.58.0: hook state lives in <base>/aria-knowledge-<uid> (lib-state-key.sh). This suite pins the
+# base inside its own scratch TMPDIR, so the state names below are read in SD, never in TMPDIR.
+export KT_STATE_BASE="$TMPDIR/state-base"; SD="$KT_STATE_BASE/aria-knowledge-$(id -u)"
+mkdir -p "$KT_STATE_BASE"; mkdir -m 700 "$SD"
 W="$TMPDIR/work"; mkdir -p "$W"
 PASS=0; FAIL=0
 ok()  { printf "PASS  %s\n" "$1"; PASS=$((PASS + 1)); }
@@ -60,7 +64,7 @@ print(json.dumps({"session_id": "sc-sess", "transcript_path": sys.argv[1], "cwd"
   separators=(",", ":")))' "$1"
 }
 verdict() {
-  rm -f "$TMPDIR"/aria-r22-denies-* 2>/dev/null
+  rm -f "$SD"/aria-r22-denies-* 2>/dev/null
   out=$(edit_in "$1" | sh "$HOOK" 2>&1)
   if printf '%s' "$out" | grep -q '"permissionDecision":"deny"'; then echo deny
   elif printf '%s' "$out" | grep -q 'could not verify'; then echo unknown
@@ -107,11 +111,11 @@ print(json.dumps({"session_id": sys.argv[1], "prompt_id": "P1", "transcript_path
 rec SC4a "cat <<'R22'
 [Rule 22 · Scope] PASS — x
 R22"
-[ ! -e "$TMPDIR/aria-r22-carrier-SC4a" ] && ok "SC4-scope-heredoc-records-no-carrier" || bad "SC4-scope-heredoc-records-no-carrier" "carrier written"
+[ ! -e "$SD/aria-r22-carrier-SC4a" ] && ok "SC4-scope-heredoc-records-no-carrier" || bad "SC4-scope-heredoc-records-no-carrier" "carrier written"
 rec SC4b "cat <<'R22'
 [Rule 22] Low Impact — x
 R22"
-[ -f "$TMPDIR/aria-r22-carrier-SC4b" ] && ok "SC4-assessment-heredoc-records-carrier" || bad "SC4-assessment-heredoc-records-carrier" "no carrier"
+[ -f "$SD/aria-r22-carrier-SC4b" ] && ok "SC4-assessment-heredoc-records-carrier" || bad "SC4-assessment-heredoc-records-carrier" "no carrier"
 
 printf "\n%d passed, %d failed\n" "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

@@ -163,8 +163,13 @@ digest_has() { grep -qF "$1" "$DIGEST" && echo yes || echo no; }
 # user-facing banner, which never reaches the model.
 for _vl_needle in 'PROJECT PICKER —' '`ARIA PROJECTS`' 'PROJECT CONTEXT —' '`ARIA PROJECT`' \
                   'CODEMAP FIRST —' '`ARIA CODEMAPS`' '`ARIA USAGE`' 'ARIA CONTEXT —' \
-                  'aria-active-$CLAUDE_CODE_SESSION_ID' 'never use `ls -t`'; do
+                  'Skip paths in the file named by `ledger=` in `ARIA CONFIG`.'; do
   assert_eq "digest carries: $_vl_needle" "yes" "$(digest_has "$_vl_needle")"
+done
+# 2.58.0 (spec D5): the ledger lives in the private state dir and the session-start hook names it in
+# `ARIA CONFIG`, so the digest no longer spells a /tmp path (or the glob warning that went with it).
+for _vl_gone in 'aria-active-$CLAUDE_CODE_SESSION_ID' 'never use `ls -t`'; do
+  assert_eq "digest no longer carries: $_vl_gone" "no" "$(digest_has "$_vl_gone")"
 done
 
 # ⛔ THE GATING GUARANTEE CHANGED SHAPE, AND THAT IS A REAL TRADE, NOT A BUG.
@@ -260,7 +265,11 @@ CMP_CFG="$APM_TMP/cmp-cfg.md"
 printf -- '---\nknowledge_folder: %s\nactive_knowledge_surfacing: true\n---\n' "$CMP_KF" > "$CMP_CFG"
 CMP_SNAP="$CMP_KF/intake/pre-compact-captures/2026-01-01_${CMP_SID8}.md"
 printf 'transcript\n' > "$CMP_SNAP"
-CMP_LEDGER="/tmp/aria-active-${CMP_SID}"
+# The ledger lives in the private state dir (2.58.0), here under the runner's scratch KT_STATE_BASE
+# (tests/run.sh); made mode 700, as the resolver requires, so it can be planted before the hook runs.
+CMP_SD="${KT_STATE_BASE:?tests/run.sh sets a scratch KT_STATE_BASE}/aria-knowledge-$(id -u)"
+[ -d "$CMP_SD" ] || mkdir -m 700 "$CMP_SD"
+CMP_LEDGER="$CMP_SD/aria-active-${CMP_SID}"
 printf '%s\n' "$CMP_KF/approaches/example-approach.md" > "$CMP_LEDGER"
 # Fixture HOME with the digest installed, because the pointer is emitted only when
 # there is something to point AT.

@@ -4,11 +4,22 @@ DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$DIR/helpers.sh"
 TMP="$(mktemp -d)"; export APM_TMP="$TMP"
 trap 'rm -rf "$TMP"' EXIT
+# 2.58.0: an ACL inherited from the caller's TMPDIR would pass down to every dir made below, and the
+# state-dir resolver refuses a dir with an ACL (spec G2-1), silencing every hook. Strip it here, once.
+chmod -N "$TMP" 2>/dev/null || :
+if command -v setfacl >/dev/null 2>&1; then setfacl -b "$TMP" 2>/dev/null || :; fi
 # v2.54.2: isolate TMPDIR for every test. Tests write hook state under
 # ${TMPDIR:-/tmp}, and test-external-fetch-gate.sh's ef_reset removes aria-extfetch-*
 # there — against the REAL TMPDIR that deleted every live session's fetch cooldowns and
 # breaker counters on each run. Guarded by tests/repros/plugin-suite-leaves-real-tmpdir-alone.sh.
 export TMPDIR="$TMP/tmpdir"; mkdir -p "$TMPDIR"
+# 2.58.0: the session-start sweeps now reach the real /tmp (they start at "/tmp/"), so every hook a
+# test runs sweeps a scratch dir instead (KT_TMP_SWEEP_ROOT is the test-only override).
+export KT_TMP_SWEEP_ROOT="$TMP/sweep-tmp"; mkdir -p "$KT_TMP_SWEEP_ROOT"
+# 2.58.0: hook state lives in <base>/aria-knowledge-<uid> (lib-state-key.sh). Every hook a test runs
+# resolves it under this scratch base (KT_STATE_BASE is the test-only override), never in the user's
+# real state directory. The base sits in $TMP, a unique mktemp dir under $TMPDIR removed by the trap.
+export KT_STATE_BASE="$TMP/state-base"; mkdir -p "$KT_STATE_BASE"
 # Real-rules guard (2026-10-25): session-start-check.sh writes $HOME/.claude/rules/,
 # so a test that does not isolate HOME overwrites the developer's live rules files.
 # Compare both files' bytes before and after the whole run.

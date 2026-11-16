@@ -35,14 +35,29 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 EF_BUDGET_S="${ARIA_EF_BUDGET_S:-4}"
 EF_START=$(date +%s)
 
-SESSION_ID=$(printf '%s' "$INPUT" | grep -o '"sessionId":"[^"]*"' | head -1 | sed 's/.*"sessionId":"//;s/"$//')
-[ -z "$SESSION_ID" ] && SESSION_ID=$(printf '%s' "$INPUT" | grep -o '"session_id":"[^"]*"' | head -1 | sed 's/.*"session_id":"//;s/"$//')
-[ -z "$SESSION_ID" ] && SESSION_ID="$$"
+# kt_session_key (lib-state-key.sh): read whitespace-tolerantly, accepted only as [A-Za-z0-9._-]+ and
+# never rewritten — the key every hook in this port names this family's state with. Absent: the PID proxy, as before.
+# Rejected: no key — the gate allows (spec D3: advisory, and with no cooldown it would deny forever).
+[ -f "$SCRIPT_DIR/lib-state-key.sh" ] || exit 0
+. "$SCRIPT_DIR/lib-state-key.sh"
+SESSION_ID=$(kt_session_key "$INPUT" sessionId session_id)
+case $? in
+  1) SESSION_ID="$$" ;;
+  2) exit 0 ;;
+esac
 # Keyed per agent (v2.54.1): a subagent carries the parent's session_id, so a
 # session-only counter let three subagent denials trip the PARENT's breaker. The
 # per-surface cooldown below stays session-level on purpose ("already asked").
 . "$SCRIPT_DIR/lib-state-key.sh"
-EF_DENY_FILE="${TMPDIR:-/tmp}/aria-extfetch-denies-${SESSION_ID}$(kt_agent_suffix "$INPUT")"
+# 2.58.0: the cooldown and the breaker live in the private per-user state directory
+# (lib-state-key.sh), so a name another local user plants in a shared temp dir is never read. With
+# no directory (spec D3) the gate ALLOWS: it is advisory, and without a cooldown it would deny the
+# same site forever. The session id goes through kt_state_path, which refuses one with a "/".
+kt_state_resolve || exit 0
+EF_DENY_FILE=$(kt_state_path "aria-extfetch-denies-${SESSION_ID}$(kt_agent_suffix "$INPUT")") || exit 0
+# A name that exists but is not a regular file is no usable state (a FIFO would block the write):
+# allow, as with no state directory.
+{ [ -f "$EF_DENY_FILE" ] || { [ ! -e "$EF_DENY_FILE" ] && [ ! -L "$EF_DENY_FILE" ]; }; } || exit 0
 
 # Every path that lets a fetch through clears the breaker counter, so three
 # consecutive denials means three with nothing allowed in between.
@@ -188,8 +203,10 @@ case "$KT_EXTERNAL_FETCH_MAX_HITS" in ''|*[!0-9]*) KT_EXTERNAL_FETCH_MAX_HITS=8 
 [ "$EF_COUNT" -gt "$KT_EXTERNAL_FETCH_MAX_HITS" ] && ef_allow
 
 # --- one-shot gate ----------------------------------------------------------
-COOLDOWN_FILE="${TMPDIR:-/tmp}/aria-extfetch-${SESSION_ID}-${EF_KEY}"
-[ -f "$COOLDOWN_FILE" ] && exit 0
+COOLDOWN_FILE=$(kt_state_path "aria-extfetch-${SESSION_ID}-${EF_KEY}") || exit 0
+# Already asked this session — or a name there that is not a regular file (no usable state, and a
+# FIFO would block the write below): allow.
+{ [ -e "$COOLDOWN_FILE" ] || [ -L "$COOLDOWN_FILE" ]; } && exit 0
 
 # C2 — deny-rate circuit breaker, mirroring pre-edit-check.sh's v2.30.0
 # mechanism. Three consecutive denials with no intervening allowed fetch

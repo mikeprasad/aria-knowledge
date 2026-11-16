@@ -76,15 +76,33 @@ for f in $STAGED; do
 done
 [ -z "$CODE_FILES" ] && exit 0
 
-SESSION_ID=$(printf '%s' "$INPUT" | grep -o '"sessionId":"[^"]*"' | head -1 | sed 's/"sessionId":"//;s/"$//')
-[ -z "$SESSION_ID" ] && SESSION_ID=$(printf '%s' "$INPUT" | grep -o '"session_id":"[^"]*"' | head -1 | sed 's/"session_id":"//;s/"$//')
-[ -z "$SESSION_ID" ] && exit 0
+# kt_session_key (lib-state-key.sh): read whitespace-tolerantly, accepted only as [A-Za-z0-9._-]+ and
+# never rewritten — the key every hook in this port names this family's state with. No id at all:
+# abstain, as before. Rejected: no key, so no marker and no breaker (spec D3) — the commit gets the
+# no-marker response. A missing lib is the same "no state", NOT an abstain: this is a deny gate, so
+# `exit 0` here would fail OPEN. Without the lib kt_session_key fails with 127 (not 1), and the
+# commit gets the no-marker response.
+KT_STATE_DIR=   # an inherited value is never trusted: only the state-dir resolver sets it
+if [ -f "$SCRIPT_DIR/lib-state-key.sh" ]; then . "$SCRIPT_DIR/lib-state-key.sh"; fi
+SESSION_ID=$(kt_session_key "$INPUT" sessionId session_id 2>/dev/null)
+[ "$?" = 1 ] && exit 0
 
-BREAKER="${TMPDIR:-/tmp}/aria-preflight-denies-$SESSION_ID"
-MARKER="${TMPDIR:-/tmp}/aria-preflight-$SESSION_ID"
+# 2.58.0: the breaker and the marker live in the private per-user state directory (lib-state-key.sh),
+# so a counter or a FIFO another local user plants in a shared temp dir is never read. With no
+# directory (spec D3) the marker reads as absent and the breaker never trips: every code commit gets
+# the no-marker response. The session id goes through kt_state_path, which refuses one with a "/".
+BREAKER=""
+MARKER=""
+if [ -f "$SCRIPT_DIR/lib-state-key.sh" ]; then
+  . "$SCRIPT_DIR/lib-state-key.sh"
+  if [ -n "$SESSION_ID" ] && kt_state_resolve; then
+    BREAKER=$(kt_state_path "aria-preflight-denies-$SESSION_ID")
+    MARKER=$(kt_state_path "aria-preflight-$SESSION_ID")
+  fi
+fi
 # A compliant commit also resets the breaker (v2.57.9): the contract is three CONSECUTIVE
 # denials with no compliant commit between them; before, nothing removed the counter.
-[ -s "$MARKER" ] && { rm -f "$BREAKER" 2>/dev/null; exit 0; }
+[ -n "$MARKER" ] && [ -s "$MARKER" ] && { [ -n "$BREAKER" ] && rm -f "$BREAKER" 2>/dev/null; exit 0; }
 
 UNCHECKED=$(printf '%s' "$CODE_FILES" | tr ' ' '\n' | grep -v '^$' | head -5 | tr '\n' ' ')
 N=$(printf '%s' "$CODE_FILES" | tr ' ' '\n' | grep -cv '^$')
@@ -119,12 +137,23 @@ if [ -n "$MATCHED" ]; then
     *)     WHY="This commit touches a path listed in your preflight_deny_paths." ;;
   esac
 
-  COUNT=$(cat "$BREAKER" 2>/dev/null || echo 0)
-  COUNT=$((COUNT + 1))
-  printf '%s' "$COUNT" > "$BREAKER" 2>/dev/null || true
+  # A name that exists but is not a regular file counts as no state: a FIFO would block the read,
+  # and a killed hook prints nothing, which reads as allow.
+  if [ -n "$BREAKER" ] && { [ -f "$BREAKER" ] || { [ ! -e "$BREAKER" ] && [ ! -L "$BREAKER" ]; }; }; then
+    COUNT=0
+    [ -f "$BREAKER" ] && COUNT=$(cat "$BREAKER" 2>/dev/null || echo 0)
+    COUNT=$((COUNT + 1))
+    printf '%s' "$COUNT" > "$BREAKER" 2>/dev/null || true
+    TALLY="(Denial $COUNT of 3 before this gate degrades to a warning.)"
+  else
+    # No usable state (D3): no state directory, or a non-file at the breaker name. The breaker
+    # cannot count, so it never trips.
+    COUNT=1
+    TALLY="(The private state directory is unavailable or unusable, so this gate cannot count denials and will not degrade.)"
+  fi
 
   if [ "$COUNT" -le 3 ]; then
-    REASON="PREFLIGHT REQUIRED — no preflight recorded this session for $N changed file(s): $UNCHECKED. Run /preflight, or record an explicit skip with a reason. $WHY (Denial $COUNT of 3 before this gate degrades to a warning.)"
+    REASON="PREFLIGHT REQUIRED — no preflight recorded this session for $N changed file(s): $UNCHECKED. Run /preflight, or record an explicit skip with a reason. $WHY $TALLY"
     REASON_ESC=$(kt_json_escape "$REASON")
     printf '{"permission":"deny","user_message":"%s","agent_message":"%s","agentMessage":"%s"}\n' "$REASON_ESC" "$REASON_ESC" "$REASON_ESC"
     exit 0
@@ -135,8 +164,21 @@ if [ -n "$MATCHED" ]; then
   exit 0
 fi
 
-printf '%s\t%s\n' "$(date +%H:%M 2>/dev/null || echo '?')" "$UNCHECKED" \
-  >> "${TMPDIR:-/tmp}/aria-preflight-skipped-$SESSION_ID" 2>/dev/null || true
+# 2.58.0: the record lives in the private per-user state directory (lib-state-key.sh); with no
+# directory (spec D3) nothing is recorded and the warning below is still emitted. Inside the
+# directory the line is built first, the file is created only by kt_create_new, and appended to
+# only when it is a regular file of ours that is not a link (a second guard, spec D2;
+# lib-tracked-artifacts.sh only defines functions; without it nothing is recorded).
+_pf_line=$(printf '%s\t%s' "$(date +%H:%M 2>/dev/null || echo '?')" "$UNCHECKED")
+_pf_f=
+[ -n "${KT_STATE_DIR:-}" ] && [ -n "$SESSION_ID" ] && _pf_f=$(kt_state_path "aria-preflight-skipped-$SESSION_ID" 2>/dev/null)
+. "$SCRIPT_DIR/lib-tracked-artifacts.sh" 2>/dev/null || true
+if [ -n "$_pf_f" ]; then
+  [ -e "$_pf_f" ] || [ -L "$_pf_f" ] || kt_create_new "$_pf_f" 2>/dev/null || :
+  if kt_is_ours "$_pf_f" 2>/dev/null; then
+    printf '%s\n' "$_pf_line" >> "$_pf_f" 2>/dev/null || true
+  fi
+fi
 
 MSG="PREFLIGHT: no preflight recorded this session for $N changed file(s): $UNCHECKED. Before reporting this as done, consider /preflight — P1 requirements diff, P2 consumer census, P3 reachability, P4 census bound, P5 non-vacuity, P6 mutation. If a check does not apply, say which and why; skipping silently is the failure mode."
 MSG_ESC=$(kt_json_escape "$MSG")

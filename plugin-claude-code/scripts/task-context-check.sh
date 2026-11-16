@@ -24,13 +24,26 @@ fi
 INPUT=$(cat)
 
 # Extract session_id for cooldown
-SESSION_ID=$(echo "$INPUT" | grep -o '"session_id":"[^"]*"' | head -1 | sed 's/"session_id":"//;s/"//')
-if [ -z "$SESSION_ID" ]; then
+# kt_session_key (lib-state-key.sh): read whitespace-tolerantly, accepted only as [A-Za-z0-9._-]+ and
+# never rewritten — the key every hook in this port names this family's state with. Absent or rejected: no key, nothing
+# surfaced (spec D3).
+[ -f "$SCRIPT_DIR/lib-state-key.sh" ] || exit 0
+. "$SCRIPT_DIR/lib-state-key.sh"
+SESSION_ID=$(kt_session_key "$INPUT" session_id) || exit 0
+
+# Check cooldown — skip if last fire was less than 30 seconds ago.
+# 2.58.0: the cooldown lives in the private per-user state directory (lib-state-key.sh). With no
+# directory (spec D3) nothing is surfaced: without a cooldown every task dispatch would repeat it.
+# The id goes through kt_state_path, which refuses one with a "/". Only a regular file that is not
+# a link is read (a FIFO would block the read); anything else at the name is no state: emit nothing.
+. "$SCRIPT_DIR/lib-state-key.sh"
+kt_state_resolve || exit 0
+COOLDOWN_FILE=$(kt_state_path "aria-context-${SESSION_ID}") || exit 0
+# The session ledger (active mode) lives in the same directory.
+LEDGER=$(kt_state_path "aria-active-${SESSION_ID}") || exit 0
+if [ -L "$COOLDOWN_FILE" ] || { [ -e "$COOLDOWN_FILE" ] && [ ! -f "$COOLDOWN_FILE" ]; }; then
   exit 0
 fi
-
-# Check cooldown — skip if last fire was less than 30 seconds ago
-COOLDOWN_FILE="/tmp/aria-context-${SESSION_ID}"
 if [ -f "$COOLDOWN_FILE" ]; then
   LAST_FIRE=$(cat "$COOLDOWN_FILE" 2>/dev/null)
   NOW=$(date +%s)
@@ -69,8 +82,7 @@ kt_artifact_compute_for_path "$PWD"
 
 # Active-mode session ledger: filter out files/artifacts already surfaced
 # earlier in this session, so we don't re-emit the same paths on every task
-# dispatch. Passive mode skips the ledger entirely.
-LEDGER="/tmp/aria-active-${SESSION_ID}"
+# dispatch. Passive mode skips the ledger entirely. LEDGER is set beside the cooldown above.
 if [ "$KT_ACTIVE_SURFACING" = "true" ]; then
   if [ "$KT_MATCH_COUNT" -gt 0 ]; then
     kt_match_filter_ledger "$LEDGER"
