@@ -107,6 +107,16 @@ _(none as of v2.24.1 — synced to canonical v2.24.1)_
 
 ---
 
+## Cold read (`/prospect --cold`, 2.59.0)
+
+- **Can this runtime start the reader? Yes — `invoke_subagent`.** Source: the Subagent dispatch row in this file's port overview (per Antigravity's docs/hooks; the date that source was read is unrecorded).
+- **What the reader loads at startup: unrecorded.** The Cold read block says "startup context unrecorded" rather than guessing.
+- **Behaviour:** runs. This port's `prospect` is generated from canonical with no overlay, so canonical's runtime-conditional Step 3.6 text applies here unchanged.
+- **The `aria-knowledge:cold-reader` agent does not ship here, correctly.** `build.sh` copies canonical `skills/` and `template/` only, so canonical's `agents/` never reaches this port; the reader is whatever `invoke_subagent` starts.
+- Recorded 2026-11-14/15 while planning 2.59.0. `PORT-LEDGER.json` is re-baselined for this port in 2.59.0 because it is fully regenerated and `tests/repros/port-generation-idempotence.sh` proves the regeneration.
+
+---
+
 ## Platform Gaps
 
 - **Subagent Hooks (`SubagentStart`, `SubagentStop`):** Antigravity lacks subagent lifecycle hooks. Automated capture of subagent knowledge during subagent runs is not supported natively. As a workaround, the files under `intake/subagent-captures/` can still be audited and extracted manually using `/audit-knowledge` (Step 2e), but automatic hook-driven capture is a platform gap.

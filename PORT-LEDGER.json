@@ -106,8 +106,8 @@
     }
   },
   "antigravity": {
-    "version": "2.58.0",
-    "parity_target": "2.58.0",
+    "version": "2.59.0",
+    "parity_target": "2.59.0",
     "last_parity_pass": "2026-11-16",
     "sla": "undeclared",
     "surfaces": {
@@ -120,7 +120,7 @@
       "plugin-antigravity/skills/audit-style/SKILL.md": "3a88d2e13045e2fda402e32c0bc886560a3686edad0cc690408ff692a323b64a",
       "plugin-antigravity/skills/audit-usage/SKILL.md": "e605a7e88ca3942060d0d7322769bdeb01f4ef287e55fcaf7f75fae3790bdb28",
       "plugin-antigravity/skills/audit/SKILL.md": "81941098c3c34593fdeb93c22551c9995bfab57416d1326fdf00bf205b9630e4",
-      "plugin-antigravity/skills/auto/SKILL.md": "f9202fb5531eac4cc3dec60ccbfb5d858942b16c11b643893d8c0d7b8b2e4857",
+      "plugin-antigravity/skills/auto/SKILL.md": "7dfd91e9e19b70cbee833ee7dd4b5b536221e95f6d04dfb559ea86d602acf87a",
       "plugin-antigravity/skills/backlog/SKILL.md": "f6ad22a7a32355e08b04ce96257665324953260f0309eb0b8aab4876c80b5490",
       "plugin-antigravity/skills/codemap/SKILL.md": "139b8331b5246bd0615ad9f05417d46568bc5c872c1b8fffab8424df9264d715",
       "plugin-antigravity/skills/context/SKILL.md": "02844240b8cb66f678d6374b8a25a2e13c114c21cff039a941aac407e3c1a69a",
@@ -135,10 +135,10 @@
       "plugin-antigravity/skills/interview/SKILL.md": "ac5ac16dc85489f0109bd7d8d72f9745b7ee2fbe525d2ec305de9854d30b5505",
       "plugin-antigravity/skills/meeting-notes/SKILL.md": "8cd999afa99fbf77365e2d6c86377cfb2933b095a78d52de630c8e175a208bac",
       "plugin-antigravity/skills/preflight/SKILL.md": "ff8743fb3363ff725206e3ce4625fbbfd42cf2f1973ecd24e32978714d40fd54",
-      "plugin-antigravity/skills/prospect/SKILL.md": "4c22b75d51f872887d9c49dfb4c445a02f030f131e51db398c50bb22ed4f4234",
+      "plugin-antigravity/skills/prospect/SKILL.md": "7055992597603ef676d22ec9affd419be8eb7c5b341104d0090520e81531ec5f",
       "plugin-antigravity/skills/readiness-audit/SKILL.md": "46115523a7dd9235dfb646c7d467280939c1ac3dda1f9897bc0991eb179ea397",
       "plugin-antigravity/skills/recap/SKILL.md": "3dbda42864a20fa2b117a522e8ba2074b662bb554ea0a9df8b2eb56f959a4160",
-      "plugin-antigravity/skills/retrospect/SKILL.md": "83dc5bde1740e6b60a9c218ac728a970fd4b27d87ed13c30ec051214803f043c",
+      "plugin-antigravity/skills/retrospect/SKILL.md": "116ebe792916596f6bac9fe003f186f159aca11dd2723d0130bc190eebcdcb19",
       "plugin-antigravity/skills/roadmap/SKILL.md": "ad737023308196849ebd5ff6d3ea3f0e6f303c7bcf677676809113e451ec547a",
       "plugin-antigravity/skills/rules/SKILL.md": "d45fd10ca433f7f90473d33df54c7a36bc5be5c2209c2c44c373f143454a4d7d",
       "plugin-antigravity/skills/setup/SKILL.md": "b5f95d780227cb9a2244f9e276ae55b05a5de8b0405f01d67044e25f3d3b21b2",

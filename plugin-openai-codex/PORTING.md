@@ -78,6 +78,20 @@ unless the user explicitly overrides `KT_CONFIG` or `ARIA_KNOWLEDGE_CONFIG`.
   existing function before adding any `bin/` script here.** Canonical retains the
   `.sh` files, which remain the reference implementation.
 
+## 2.59.0-codex.0 update (2026-11-16) — cold read (`/prospect --cold`, `/auto cold`)
+
+- **Can this runtime start the reader? Yes — `spawn_agent`.** `/prospect` Step 3.6 dispatches it with the
+  filled cold-read template as its whole prompt. The canonical `aria-knowledge:cold-reader` agent file is
+  Claude Code only and is not shipped here.
+- **What the reader loads at startup:** `AGENTS.md` files from the project root down to its working
+  directory. Source: openai/codex docs, `main`, read 2026-11-14. The skill's Cold read block says so.
+- **Cold read behaviour:** runs; the block states that the reader loaded `AGENTS.md`. A round stopped by a
+  cap, a budget gate or an error prints `Cold read: not run — <reason>`.
+- `/auto`'s `argument-hint` here lacked `workflow`, `fanout=` and `agents=` before 2.59.0 (measured while
+  building it); 2.59.0 added only `[cold|cold=<N>]`. The skill body documents all of them.
+- `PORT-LEDGER.json` is not re-baselined for this port in 2.59.0: only `prospect`, `auto`, `retrospect` and
+  the pattern template were synced and checked; the other hand-synced surfaces were not re-verified.
+
 ## 2.57.4-codex.1 update (2026-10-25) — Codex transcript locator; parity re-verified
 
 - **`/snapshot` reads Codex's own session store.** `bin/save-transcript.sh` finds this thread's rollout
