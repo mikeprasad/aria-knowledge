@@ -295,7 +295,7 @@ Rank every finding in 2–4 as BLOCKER (would cause lost work, a wrong change, o
 
 1. **Where the reader reads.** Scope `file` → that file, read in place. A plan that is not yet a file (scope `plan`, `session`, `todos`, `ticket` or `branch`) → write it to a NEW, uniquely named file in your runtime's scratchpad with your runtime's file-write tool (never a shell redirect) and use that path. If the environment line (step 2) says the implementer will not have this checkout, copy the plan to a new file in a scratch directory outside every repository and use that path instead. Record which, and why.
 2. **Fill the template.** Replace only `<what the implementer will have, or "none">` and `<path>`. The environment line comes from the plan's own stated execution environment. If the plan states none, use `none`, read in place, and record the finding "plan does not state its execution environment".
-3. **Dispatch one subagent whose prompt is exactly the filled template.** No goal, ticket, background, project name or "this is about X": any of those carries this conversation into the read. Record the prompt's character count.
+3. **Dispatch one subagent whose prompt is exactly the filled template.** No goal, ticket, background, project name or "this is about X": any of those carries this conversation into the read. Count the prompt with a tool, never by eye: write the filled template to a NEW, uniquely named scratch file with your runtime's file-write tool (never a shell redirect), count its characters — in Claude Code `wc -m < <file>` under a UTF-8 locale (under `LC_ALL=C`, `wc -m` counts bytes, and the template contains an en dash) — then dispatch exactly that file's text. Record the number and the command that produced it. Never estimate.
    - **Claude Code** (the `Agent` tool is available): dispatch subagent type `aria-knowledge:cold-reader` (shipped with this plugin; tools Read, Grep, Glob, Bash). If that type is not among the available agent types, dispatch `general-purpose` and say so in the block. `general-purpose` has Edit and Write, so the `git status` check (step 4) is the only guard on that path.
    - **Another runtime with a subagent tool** (Codex `spawn_agent`, Antigravity `invoke_subagent`): use it, and the block states what that reader loads at startup. Codex: `AGENTS.md` from the project root down to the working directory. A runtime whose subagent startup is not recorded here: "startup context unrecorded".
    - **No subagent tool:** print `Cold read: not run — this runtime cannot start a subagent` and continue to Step 4.
@@ -309,7 +309,7 @@ Rank every finding in 2–4 as BLOCKER (would cause lost work, a wrong change, o
    - (e) SessionStart hook output (the `ARIA CONFIG` line, rules notices) reaches the main session only. It is named here, never pasted into the prompt.
 4. **Capability, not intent.** "Read only" in a prompt constrains nothing; the reader has a shell. Run `git status --porcelain` in the repository before the dispatch and after it returns. Any difference is a finding and flags the round. `git status` cannot see writes outside the repository; say so in the block.
 5. **Findings are leads.** Check each finding against the plan before it counts, and mark it confirmed or refuted (with the refutation). A confirmed BLOCKER sets that step's §4.3 Action to something other than PROCEED, and §4.8's overall verdict cannot be PROCEED while one stands. Compare the reader's item-5 list with what the implementer would load and name any difference.
-6. **Report.** §4.8 prints the Cold read block: round number; subagent type (and why, if the fallback was used); where the plan was read (in place, or a scratch copy and why); the environment line used; findings by rank, each confirmed or refuted; the `git status` before/after result; the item-5 list compared with the implementer's expected set; the five known gaps; the dispatched prompt's character count.
+6. **Report.** §4.8 prints the Cold read block: round number; subagent type (and why, if the fallback was used); where the plan was read (in place, or a scratch copy and why); the environment line used; findings by rank, each confirmed or refuted; the `git status` before/after result; the item-5 list compared with the implementer's expected set; the five known gaps; the dispatched prompt's character count — the number counted in step 3 plus the command that produced it, never an estimate.
 
 ## Step 4: Produce the 10-Section Pre-Mortem Report
 
@@ -479,7 +479,7 @@ Cold read (round <N>):
   Subagent type:     <type, and why if the fallback was used | not run — <reason>>
   Plan read:         <in place: <path> | scratch copy: <path> — <why>>
   Environment line:  <as filled>
-  Prompt chars:      <N>  (the filled template only)
+  Prompt chars:      <N>  (<the count command, e.g. wc -m < <file>>; the filled template only)
   git status:        <unchanged | changed: <paths>>  (cannot see writes outside the repository)
   Findings:          BLOCKER <n> · FRICTION <n> · COSMETIC <n>
     - <rank> <finding> — confirmed | refuted: <why>

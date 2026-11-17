@@ -24,6 +24,8 @@
 #   P9  guard: Step 3.6 never says "instruction-free", "context-free" or "Plan agent"
 #   P10 guard: each port's prospect description is byte-unchanged from the pre-change tree (11041cd);
 #       the pinned values are SHA-256 of the whole "description:" line
+#   P11 Step 3.6 counts the reader prompt with a tool, never an estimate: it names `wc -m` and says
+#       "never estimate" (2.59.1; a live 2.59.0 run reported "~790" for a prompt measured at 732)
 set -u
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -31,7 +33,7 @@ PASS=0; FAIL=0
 ok()  { printf "PASS  %s\n" "$1"; PASS=$((PASS + 1)); }
 bad() { printf "FAIL  %s — %s\n" "$1" "$2"; FAIL=$((FAIL + 1)); }
 
-ARMS="P1 P2 P3 P4 P5 P6 P7 P8 P9 P10"
+ARMS="P1 P2 P3 P4 P5 P6 P7 P8 P9 P10 P11"
 OUT=$(python3 -I - "$REPO_ROOT" <<'PY'
 import hashlib, os, re, sys
 root = sys.argv[1]
@@ -45,7 +47,7 @@ PINNED_DESC = {
     "plugin-antigravity": "f971f4995883f57747bbdfb2898fa3f8ed70dc121ecf8dd31c7e052b61803a76",
 }
 NOT_RUN = "cold read: not run — this runtime cannot start a subagent"
-fails = {a: [] for a in ["P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8", "P9", "P10"]}
+fails = {a: [] for a in ["P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8", "P9", "P10", "P11"]}
 
 def read(rel):
     p = os.path.join(root, rel)
@@ -124,10 +126,11 @@ for name, t in docs.items():
         if nums != [1, 2, 3, 4, 5]:
             fails["P3"].append(f"{name}: template numbered items are {nums}, not 1-5")
 
-    # P4, P8, P9 — inside Step 3.6 only
+    # P4, P8, P9, P11 — inside Step 3.6 only
     if s36l is None:
         fails["P4"].append(f"{name}: no Step 3.6")
         fails["P8"].append(f"{name}: no Step 3.6")
+        fails["P11"].append(f"{name}: no Step 3.6")
     else:
         need = {
             "agent type": "aria-knowledge:cold-reader",
@@ -154,6 +157,9 @@ for name, t in docs.items():
         hits = [w for w in ("instruction-free", "context-free", "plan agent") if w in s36l]
         if hits:
             fails["P9"].append(f"{name}: Step 3.6 says {', '.join(hits)}")
+        cmiss = [w for w in ("wc -m", "never estimate") if w not in s36l]
+        if cmiss:
+            fails["P11"].append(f"{name}: Step 3.6 lacks {', '.join(cmiss)}")
 
     # P5
     if s46 is None or "four questions" not in s46.lower() or "in-flight work" not in s46.lower():
