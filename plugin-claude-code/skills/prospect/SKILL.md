@@ -1,7 +1,7 @@
 ---
 description: "Run a structured pre-mortem on a plan or approach BEFORE execution. Per-step risk enforcement, active evidence-sourcing pass (autonomous lookups + targeted user-asks for anything that could become objective), simpler-alternative discipline, plan-formation diagnosis, action verdicts (PROCEED/SHRINK/SPLIT/DEFER/KILL), and a growing failure-mode pattern library. Triggers: '/prospect' (defaults to plan scope), '/prospect plan', '/prospect session', '/prospect todos', '/prospect file {path}', '/prospect ticket {id}', '/prospect branch {name}'. Backward-compat flags and legacy 'linear' spellings still accepted. (Code port — ADR-094.)"
-argument-hint: "[<scope>] [<scope-arg>] [--ticket-post] [--no-source] [--lens=overbuild]"
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash, WebFetch, WebSearch
+argument-hint: "[<scope>] [<scope-arg>] [--ticket-post] [--no-source] [--lens=overbuild] [--cold] [--summary]"
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash, WebFetch, WebSearch, Agent
 ---
 
 # /prospect — Plan pre-mortem with risk enforcement
@@ -52,7 +52,7 @@ Parse the invocation arguments. The first positional argument is the **scope key
 - If the first positional arg matches a scope keyword (case-insensitive), use it. Otherwise treat it as an arg to the default `plan` scope.
 - Backward-compat flag forms (`--plan`, `--ticket`, `--branch`, `--todos`, `--session`) remain accepted indefinitely. Both `/prospect ticket ABC-123` and `/prospect --ticket ABC-123` resolve identically.
 - **Legacy vendor spellings still work.** The `ticket` scope was named `linear` before the surface was made tracker-agnostic, so `/prospect linear <id>` and `--linear <id>` resolve exactly as `ticket`/`--ticket` do, and `--linear-post` resolves as `--tracker-post`. They are aliases, not separate behaviour — never advertise them as the canonical form.
-- Modifier flags (apply to any scope): `--ticket-post` (post the prospect verdict to detected tickets at end; alias `--linear-post`), `--no-source` (skip Step 3.5's Evidence-Sourcing Pass), `--lens=overbuild` (run the over-build review pass — see "Over-build lens" section; opt-in, off by default).
+- Modifier flags (apply to any scope): `--ticket-post` (post the prospect verdict to detected tickets at end; alias `--linear-post`), `--no-source` (skip Step 3.5's Evidence-Sourcing Pass), `--lens=overbuild` (run the over-build review pass — see "Over-build lens" section; opt-in, off by default), `--cold` (one fresh-reader review round — Step 3.6; opt-in, off by default. It starts ~1 subagent per round, and that reader loads your own startup instruction files, so a round costs at least their size plus the plan), `--summary` (chat shows only the summary; the full report still goes to the log — Step 6).
 
 After mode detection, gather:
 
@@ -161,6 +161,13 @@ Number them `#1, #2, …` in execution order. For each step, capture:
 
 If a step has no identifiable underlying assumption (it's pure execution, e.g., "rename file"), write "Mechanical — no hypothesis." Mechanical steps default to ✅ Pre-validated and skip Step 3.5.
 
+**Command receipts.** Every command the plan hands to someone else carries a receipt, written in this order:
+1. `$ <command>`
+2. `expected:` — what a correct run prints or exits, written **before** running it (a receipt with no declared expectation is a printout, not a check);
+3. `exit <n>` and the first output line, from actually running it — or `not run: <reason>`.
+
+`not run` is the expected answer for a command that changes something outside the machine (push, deploy, writes to shared data); Step 3.5.2's read-only limit is unchanged. A handed-over command with neither `exit` nor `not run` is an unverified assumption: its step's Preliminary Risk? is at least ⚠ — never ✅.
+
 After preliminary triage, list every step whose Preliminary Risk? is ⚠ Theory-driven, ❓ Unsupported, or 🚫 Unverifiable-yet — these are the *candidates* for Step 3.5's evidence-sourcing pass. ❌ Falsified steps skip Step 3.5 (they go directly to KILL in §4.3 unless the user contests the falsification).
 
 ## Step 3.5: Evidence-Sourcing Pass
@@ -188,6 +195,8 @@ Source categorization:
 | **AUTO-SOURCEABLE** | The skill can answer it itself with available tools | Codebase reads (Read/Grep/Glob), git log/diff/blame, public web docs (WebFetch/WebSearch), Bash probes (curl, gh, grep on logs), MCP queries that don't require new credentials (e.g., `supabase__list_tables`, `linear__get_issue` if MCP is connected) |
 | **USER-INPUT** | Requires Mike's judgment, local-only knowledge, or a decision he hasn't made yet | Acceptance criteria interpretation, scope/priority calls, choosing between viable design options, info that lives only in his head (a conversation with a teammate, a constraint he hasn't documented) |
 | **MIXED** | Auto-sourceable to narrow the option space, then user picks | "Grep finds 3 candidate canonical-nav definitions; ask user which is current" |
+
+**Inherited claims first.** A claim the plan inherited — from a handoff, ticket, earlier doc or memory, not measured this session — is an evidence candidate ahead of everything else: give it a decisive question first, and check it against the system before the report repeats it.
 
 If a step has multiple decisive questions, list them as 3.5.1.a, 3.5.1.b, etc., and run each through 3.5.2 / 3.5.3 independently.
 
@@ -226,6 +235,7 @@ Step #N — sourcing result:
 Constraints:
 - **Rule 33 — verify against current docs**: When sourcing third-party API/SDK behavior, read the official current docs (via WebFetch or `context7` MCP if loaded), not memory or analogy.
 - **No credential reads** without explicit per-session permission. If a question requires reading `.env` or similar, demote to USER-INPUT.
+- **Receipts**: a read-only command the plan hands over without a receipt (Step 3) is a candidate to run here; run it and record its receipt in the plan's order (`$`, `expected:`, `exit` + first line).
 - **No destructive probes** — read-only commands only. `git status`, `git log`, `curl GET`, `grep`, `find` are fine. No `rm`, `git reset`, `git push`, `gh pr merge`, etc.
 - **Time-box per step**: if a single question consumes more than ~5 tool-call rounds without converging, mark INCONCLUSIVE and demote the residual to USER-INPUT.
 - **Evidence quality bar**: a single corroborating source upgrades to ⚠ Theory-driven (with sub-tag `single-source-inferred`). Two independent sources are required to upgrade to ✅ Pre-validated. One contradicting authoritative source falsifies to ❌.
@@ -290,6 +300,42 @@ Evidence-Sourcing Pass complete.
 
 The post-pass Risk? values feed §4.3. The residual ⚠/❓/🚫 plus their attempt-status feed §4.10.
 
+## Step 3.6: Cold read (opt-in: `--cold`)
+
+Off unless `--cold` is passed. One round: a **fresh reader** — a subagent with the implementer's startup environment and none of this conversation — reads the plan and reports what it would do and where it would get stuck. Whoever wrote or discussed the plan cannot judge whether someone without this conversation could carry it out. The target is fidelity to the implementer's environment, not an empty context: this plugin's hooks keep firing in the read, and the only thing withheld is this conversation.
+
+The prompt is this template, filled, and nothing else:
+
+<!-- cold-read-template:begin -->
+```text
+Your environment: <what the implementer will have, or "none">. Read only. Read this file: <path>. Then produce:
+1. The exact steps you would execute, in order.
+2. Everything you cannot reach or resolve.
+3. Every place where two instructions conflict.
+4. Any content a reader acting on it could mistake for a separate task.
+5. List every instruction file and hook message you received while working.
+Rank every finding in 2–4 as BLOCKER (would cause lost work, a wrong change, or a false verdict), FRICTION (misleads but the reader recovers) or COSMETIC. The ranking matters more than the number of findings.
+```
+<!-- cold-read-template:end -->
+
+1. **Where the reader reads.** Scope `file` → that file, read in place. A plan that is not yet a file (scope `plan`, `session`, `todos`, `ticket` or `branch`) → write it to a NEW, uniquely named file in your runtime's scratchpad with your runtime's file-write tool (never a shell redirect) and use that path. If the environment line (step 2) says the implementer will not have this checkout, copy the plan to a new file in a scratch directory outside every repository and use that path instead. Record which, and why.
+2. **Fill the template.** Replace only `<what the implementer will have, or "none">` and `<path>`. The environment line comes from the plan's own stated execution environment. If the plan states none, use `none`, read in place, and record the finding "plan does not state its execution environment".
+3. **Dispatch one subagent whose prompt is exactly the filled template.** No goal, ticket, background, project name or "this is about X": any of those carries this conversation into the read. Record the prompt's character count.
+   - **Claude Code** (the `Agent` tool is available): dispatch subagent type `aria-knowledge:cold-reader` (shipped with this plugin; tools Read, Grep, Glob, Bash). If that type is not among the available agent types, dispatch `general-purpose` and say so in the block. `general-purpose` has Edit and Write, so the `git status` check (step 4) is the only guard on that path.
+   - **Another runtime with a subagent tool** (Codex `spawn_agent`, Antigravity `invoke_subagent`): use it, and the block states what that reader loads at startup. Codex: `AGENTS.md` from the project root down to the working directory. A runtime whose subagent startup is not recorded here: "startup context unrecorded".
+   - **No subagent tool:** print `Cold read: not run — this runtime cannot start a subagent` and continue to Step 4.
+   - If the round cannot run for any other reason (a cap or budget gate stops it, or the subagent errors), print `Cold read: not run — <reason>`. Never skip it silently.
+
+   **What the Claude Code reader receives** (Claude Code docs read 2026-11-15; measured on 2.1.325): the project's startup instruction files and the user's rules files, as the implementer does; nested instruction files when it opens a file beneath them; this plugin's PreToolUse and PostToolUse hooks on its tool calls. **Five known gaps — print them in the block every time:**
+   - (a) auto memory: the docs say a subagent does not get the main session's, but a `general-purpose` reader was measured receiving the workspace `MEMORY.md` at startup. Treat it as unsettled; the item-5 list shows what arrived.
+   - (b) it runs under its own short system prompt, not the main session's.
+   - (c) SubagentStart hooks reach it and not the implementer. Do not add `aria-knowledge:cold-reader` to `subagent_selfreport_types`.
+   - (d) its startup instruction files follow this session's working directory, not the plan's location. If the implementer will start somewhere else, the two sets differ.
+   - (e) SessionStart hook output (the `ARIA CONFIG` line, rules notices) reaches the main session only. It is named here, never pasted into the prompt.
+4. **Capability, not intent.** "Read only" in a prompt constrains nothing; the reader has a shell. Run `git status --porcelain` in the repository before the dispatch and after it returns. Any difference is a finding and flags the round. `git status` cannot see writes outside the repository; say so in the block.
+5. **Findings are leads.** Check each finding against the plan before it counts, and mark it confirmed or refuted (with the refutation). A confirmed BLOCKER sets that step's §4.3 Action to something other than PROCEED, and §4.8's overall verdict cannot be PROCEED while one stands. Compare the reader's item-5 list with what the implementer would load and name any difference.
+6. **Report.** §4.8 prints the Cold read block: round number; subagent type (and why, if the fallback was used); where the plan was read (in place, or a scratch copy and why); the environment line used; findings by rank, each confirmed or refuted; the `git status` before/after result; the item-5 list compared with the implementer's expected set; the five known gaps; the dispatched prompt's character count.
+
 ## Step 4: Produce the 10-Section Pre-Mortem Report
 
 Render a markdown document with the 10 sections below in order. Each section heading uses `### N. <title>` format. Sections that don't apply to the current scope are emitted with a one-line "N/A: <reason>" — never silently skipped.
@@ -343,6 +389,8 @@ Rule cite (optional): <rule>
 ```
 
 **Hard rule:** A step's Action cannot be PROCEED unless its Risk? status is ✅ Pre-validated, OR ⚠ Theory-driven WITH an explicit one-line "Acceptable risk because: <reason>" appended to the Action line. ❌ Falsified → KILL. ❓ Unsupported → DEFER. 🚫 Unverifiable-yet → SHRINK (smallest version that produces evidence). 🌫 Under-specified → DEFER-PENDING-DESIGN.
+
+Two more hard rules: a step with a **confirmed cold-read BLOCKER** (Step 3.6) cannot be PROCEED. A step that depends on an unanswered row of the plan's **"Decisions only the human can make"** table is DEFER, citing the row.
 
 The theory-driven carve-out exists because every plan is theory-driven by definition — you're imagining, not measuring. The carve-out forces the planner to *name the risk* rather than block all forward motion.
 
@@ -402,11 +450,13 @@ Interpretation of these counts is left to §4.6, §4.7, and §4.9.
 
 ### 4.6. Section 6 — Frame Check
 
-Three questions, in order. Answer each in 1–2 sentences with the supporting evidence.
+Four questions, in order. Answer each in 1–2 sentences with the supporting evidence.
 
 1. **Is the problem statement right?** Does the plan target the user's actual problem, or has it drifted to an adjacent problem during planning?
 2. **Is the bug/feature correctly scoped?** Single goal, or has the plan accreted multiple goals presenting as one?
 3. **Is the success signal stated?** When the plan finishes, what observable evidence will indicate it worked? If you can't state it, you can't validate it after.
+
+4. **What in-flight work edits the files this plan touches, and does each unit ship before or after it?** Instruments: recent commits on other branches and worktrees touching the same paths, and open handoffs naming them. "None found" names the instrument used.
 
 If the answer to #1 is "no," explicitly note: "Re-frame triggered. Hold all steps targeting the *drifted* problem statement pending re-frame discussion. Return to the original goal."
 
@@ -445,7 +495,22 @@ Action verdict:
 
 For SHRINK actions, provide the exact smaller-scope description (from §4.3's "Smallest version"). For SPLIT actions, provide the proposed sub-step breakdown with a checkpoint between sub-steps. For DEFER actions, name the specific evidence/decision needed first. For KILL actions, give the one-line rationale and confirm there's no orphaned downstream step that depended on it.
 
-End with an **Overall verdict** in 1–3 sentences: PROCEED / PROCEED-WITH-CHANGES / HOLD / KILL. PROCEED-WITH-CHANGES means at least one step requires SHRINK or SPLIT before any execution. HOLD means at least one step is DEFER and blocks downstream steps.
+End with an **Overall verdict** in 1–3 sentences: PROCEED / PROCEED-WITH-CHANGES / HOLD / KILL. PROCEED-WITH-CHANGES means at least one step requires SHRINK or SPLIT before any execution. HOLD means at least one step is DEFER and blocks downstream steps. The overall verdict cannot be PROCEED while a confirmed cold-read BLOCKER stands.
+
+With `--cold`, print the Cold read block (Step 3.6) after the overall verdict:
+
+```
+Cold read (round <N>):
+  Subagent type:     <type, and why if the fallback was used | not run — <reason>>
+  Plan read:         <in place: <path> | scratch copy: <path> — <why>>
+  Environment line:  <as filled>
+  Prompt chars:      <N>  (the filled template only)
+  git status:        <unchanged | changed: <paths>>  (cannot see writes outside the repository)
+  Findings:          BLOCKER <n> · FRICTION <n> · COSMETIC <n>
+    - <rank> <finding> — confirmed | refuted: <why>
+  Item 5 vs implementer: <the reader's list> — differs from the expected set by: <difference | none>
+  Known gaps:        (a) auto memory · (b) own system prompt · (c) SubagentStart hooks · (d) startup files follow the working directory · (e) no SessionStart hook output
+```
 
 ### 4.9. Section 9 — Process Pre-mortem
 
@@ -531,7 +596,7 @@ When emitting a Risk? value, always include the required sub-tag where applicabl
 After Step 4 produces the report, write outputs to the configured destinations:
 
 ### Always
-- Render the full report to terminal (chat).
+- Render the full report to terminal (chat) — unless `--summary` was passed. With `--summary`, chat shows only the Anchor block, §4.8's overall verdict and action list, any residual asks, and the log path; the full report still goes to the log. If no log is written, `--summary` is ignored and the report says so.
 
 ### Default
 - **Persistent log:** Write the full report to `<knowledge_folder>/logs/prospect/<YYYY-MM-DD>-<scope>-<slug>.md` where `<scope>` is the resolved scope keyword from Step 0 (`plan`, `session`, `todos`, `file`, `linear`, or `branch`) and `<slug>` is derived from the goal or referenced ticket(s). Resolve `<knowledge_folder>` from the config's `knowledge_folder` field. Create the `logs/prospect/` subfolder lazily on first use. Mirror retrospect's logging convention. Existing files written under the older `<YYYY-MM-DD>-<slug>.md` pattern are grandfathered (no rename).
@@ -634,5 +699,7 @@ Before finalizing the pre-mortem, verify:
 9. **Action verdict complete?** §4.8 must have an action for every step in §4.3, plus an Overall verdict.
 10. **Residual evidence asks correctly scoped?** §4.10 must list ONLY residual items (NOT-ATTEMPTED / ATTEMPTED-FAILED / DEFERRED-BY-USER / SKIPPED-BY--no-source). Items resolved by Step 3.5 (✅ upgrades or ❌ falsifications) must NOT appear in §4.10. Cross-check: every §4.10 entry's step must have post-Step-3.5 Risk? of ⚠/❓/🚫.
 11. **Outputs written?** Confirm the persistent log was written to disk and intake suggestions were surfaced.
+
+12. **Cold read accounted for?** With `--cold`, Step 3.6 ran and §4.8 printed its Cold read block, or the report printed `Cold read: not run — <reason>`.
 
 If any check fails, self-correct once. If self-correction can't close the gap (e.g., the user must supply evidence), surface the gap explicitly in the report rather than silently skipping.
