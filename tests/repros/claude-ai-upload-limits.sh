@@ -15,6 +15,9 @@
 # a skill whose description contains [name] — no error at all, which is worse than a
 # rejection. Bound: this checks the rules we have seen enforced or documented; claude.ai's
 # validator is not public, so a rule it adds later will only show at upload.
+#
+# Since 2.59.0 the same description rules apply to agents/*.md (the plugin ships the
+# cold-reader agent). Agent rules are not published; the skill rules are the precaution.
 set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -50,15 +53,39 @@ for p in skills:
     if bad_chars: print(f"{sk}: description contains {' '.join(bad_chars)}")
     nm = re.search(r"^name:\s*(\S+)\s*$", front, re.M)
     if nm and nm.group(1).strip('"') != sk: print(f"{sk}: name {nm.group(1)} != directory")
+# Agents (2.59.0): a plugin-shipped agent carries a frontmatter description too. Hold it to
+# the same description rules as a skill; claude.ai's rules for agents are unpublished, so the
+# skill rules are the precaution.
+agents = sorted(glob.glob(os.path.join(port, "agents", "*.md")))
+print(f"#agents {len(agents)}")
+for p in agents:
+    t = open(p, encoding="utf-8").read()
+    m = re.match(r"^---\n(.*?)\n---\n", t, re.S)
+    front = m.group(1) if m else ""
+    ag = "agent " + os.path.splitext(os.path.basename(p))[0]
+    dm = re.search(r'^description:\s*"(.*)"\s*$', front, re.M) or re.search(r"^description:\s*(.*)$", front, re.M)
+    if not dm or not dm.group(1).strip():
+        print(f"{ag}: description missing or not a single line"); continue
+    desc = dm.group(1).replace('\\"', '"')
+    if len(desc) > 1024: print(f"{ag}: description {len(desc)} chars > 1024")
+    if len(desc.encode()) > 1024: print(f"{ag}: description {len(desc.encode())} bytes > 1024")
+    bad_chars = sorted(set(c for c in desc if c in "<>[]"))
+    if bad_chars: print(f"{ag}: description contains {' '.join(bad_chars)}")
 PY
 }
 
 for port in plugin-claude-code plugin-claude-cowork; do
   out=$(check_port "$REPO_ROOT/$port")
   parsed=$(printf '%s\n' "$out" | sed -n 's/^#parsed //p')
-  findings=$(printf '%s\n' "$out" | grep -v '^#parsed' || true)
+  nagents=$(printf '%s\n' "$out" | sed -n 's/^#agents //p')
+  findings=$(printf '%s\n' "$out" | grep -v '^#parsed' | grep -v '^#agents' || true)
   [ "${parsed:-0}" -ge 20 ] && ok "$port: positive control — $parsed skills parsed" \
                             || bad "$port parse" "only ${parsed:-0} skills parsed — the checker is not reading the port"
+  # claude-code ships agents/ (cold-reader); cowork ships none, so only claude-code is held to it.
+  if [ "$port" = plugin-claude-code ]; then
+    [ "${nagents:-0}" -ge 1 ] && ok "$port: positive control — $nagents agent(s) parsed" \
+                              || bad "$port agents" "0 agents parsed — the checker is not reading agents/"
+  fi
   [ -z "$findings" ] && ok "$port: passes the claude.ai upload limits" \
                      || bad "$port limits" "$(printf '%s' "$findings" | tr '\n' ';')"
 done
@@ -73,11 +100,15 @@ printf -- '---\ndescription: "run /x file <path>"\n---\n' > "$TMP/p/skills/tag/S
 python3 -I -c "open('$TMP/p/skills/long/SKILL.md','w').write('---\ndescription: \"' + 'a'*1025 + '\"\n---\n')"
 printf -- '---\ndescription: "opts [auto|snap]"\n---\n' > "$TMP/p/skills/sq/SKILL.md"
 printf -- '---\nname: other\ndescription: "fine"\n---\n' > "$TMP/p/skills/nm/SKILL.md"
+mkdir -p "$TMP/p/agents"
+printf -- '---\nname: good\ndescription: fine\ntools: Read\n---\nbody\n' > "$TMP/p/agents/good.md"
+printf -- '---\nname: tagged\ndescription: reads <path> and answers\ntools: Read\n---\nbody\n' > "$TMP/p/agents/tagged.md"
 ctl=$(check_port "$TMP/p")
-for want in "plugin.json description 501" "top-level bin/" "tag: description contains <" "long: description 1025 chars" "sq: description contains [" "nm: name other"; do
+for want in "plugin.json description 501" "top-level bin/" "tag: description contains <" "long: description 1025 chars" "sq: description contains [" "nm: name other" "agent tagged: description contains <"; do
   printf '%s\n' "$ctl" | grep -qF "$want" && ok "control fires: $want" || bad "control dead" "no finding for: $want"
 done
 printf '%s\n' "$ctl" | grep -q '^good:' && bad "control false positive" "a clean skill was flagged" || ok "control: a clean skill is not flagged"
+printf '%s\n' "$ctl" | grep -q '^agent good:' && bad "control false positive" "a clean agent was flagged" || ok "control: a clean agent is not flagged"
 
 printf "\n%d passed, %d failed\n" "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
