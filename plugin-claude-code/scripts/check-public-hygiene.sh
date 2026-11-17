@@ -145,6 +145,15 @@ printf 'cd /Users/you/Projects\n'   | _kt_home_leak | grep -q . && st_fail=1   #
 printf 'Resolved path: /Users/.../aria\n' | _kt_home_leak | grep -q . && st_fail=1  # must STAY SILENT
 printf 'mkdir -p "$SC/home/Library/x"\n'   | _kt_home_leak | grep -q . && st_fail=1  # must STAY SILENT
 
+# memory-file names (added 2.59.0): the pattern and its path scope, used by the scan below.
+# A real name is assembled at runtime so this file never carries one literally (a literal one
+# would make the plain grep that verifies the class find this gate).
+MEM_RE='feedback_[a-z0-9_]+'
+MEM_SCOPE_RE='^plugin-'
+_kt_mem_tok="feedback""_example_rule"
+printf 'per `%s`\n' "$_kt_mem_tok" | grep -qE "$MEM_RE" || st_fail=1          # must FIRE
+printf 'a feedback loop; a bare %s prefix\n' "feedback""_" | grep -qE "$MEM_RE" && st_fail=1  # must STAY SILENT
+
 if [ "$st_fail" -ne 0 ]; then
     printf 'gate D SELF-TEST FAILED — the hygiene matcher is broken.\n' >&2
     printf 'This is NOT a clean result. Fix the matcher before releasing.\n' >&2
@@ -372,6 +381,29 @@ if [ -n "$code_hits" ]; then
     FOUND=$((FOUND + 1))
 fi
 
+# --- memory-file names in shipped plugin files (added 2.59.0) ----------------
+# Shipped skills once cited rules by the maintainer's private memory-file names. Such a name
+# means nothing to another user and exposes the shape of a private memory corpus, so a tracked
+# file under a `plugin-` path fails here; the rule must be stated in plain words instead. Files
+# outside those paths (design docs, notes) are out of scope. Output: one "path (count)" per file.
+if [ -n "$TRACKED_OK" ]; then
+    mem_hits=$( ( cd "$ROOT" && git ls-files -z 2>/dev/null \
+        | grep -zE "$MEM_SCOPE_RE" \
+        | grep -zv "$SELF_NAME" \
+        | xargs -0 grep -oHE "$MEM_RE" 2>/dev/null ) \
+        | cut -d: -f1 | sort | uniq -c | awk '{ print $2 " (" $1 ")" }' ) || mem_hits=""
+else
+    mem_hits=$( ( cd "$ROOT" && grep -roHE "$MEM_RE" plugin-* --exclude="$SELF_NAME" 2>/dev/null ) \
+        | cut -d: -f1 | sort | uniq -c | awk '{ print $2 " (" $1 ")" }' ) || mem_hits=""
+fi
+if [ -n "$mem_hits" ]; then
+    printf 'memory-file name in a shipped plugin file (state the rule in plain words instead):\n'
+    echo "$mem_hits" | while IFS= read -r line; do
+        printf '  %s\n' "$line"
+    done
+    FOUND=$((FOUND + 1))
+fi
+
 # FOUND is incremented inside pipelines in some shells, so re-derive the verdict
 # from a direct test rather than trusting the counter across a subshell boundary.
 any=$(
@@ -389,6 +421,7 @@ any=$(
       printf '%s' "$home_hits"
       printf '%s' "$msg_hits"
       printf '%s' "$priv_hits"
+      printf '%s' "$mem_hits"
     } | head -1
 )
 

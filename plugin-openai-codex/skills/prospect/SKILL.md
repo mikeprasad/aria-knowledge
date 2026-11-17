@@ -212,14 +212,14 @@ Step #N — sourcing result:
 
 Constraints:
 - **Rule 33 — verify against current docs**: When sourcing third-party API/SDK behavior, read the official current docs (via WebFetch or `context7` MCP if loaded), not memory or analogy.
-- **No credential reads** without explicit per-session permission (per `feedback_ask_before_credentials`). If a question requires reading `.env` or similar, demote to USER-INPUT.
+- **No credential reads** without explicit per-session permission. If a question requires reading `.env` or similar, demote to USER-INPUT.
 - **No destructive probes** — read-only commands only. `git status`, `git log`, `curl GET`, `grep`, `find` are fine. No `rm`, `git reset`, `git push`, `gh pr merge`, etc.
 - **Time-box per step**: if a single question consumes more than ~5 tool-call rounds without converging, mark INCONCLUSIVE and demote the residual to USER-INPUT.
 - **Evidence quality bar**: a single corroborating source upgrades to ⚠ Theory-driven (with sub-tag `single-source-inferred`). Two independent sources are required to upgrade to ✅ Pre-validated. One contradicting authoritative source falsifies to ❌.
 
 ### 3.5.3: Surface USER-INPUT Asks
 
-For each USER-INPUT question (and the user-portion of MIXED), pause the pre-mortem and surface the ask using the format below. Per `feedback_per_item_review_cadence`, default to ONE ask at a time unless the user requests batch. Per `feedback_hold_gate_steps`, this is a synchronous barrier — do not proceed until the user responds or explicitly chooses Skip.
+For each USER-INPUT question (and the user-portion of MIXED), pause the pre-mortem and surface the ask using the format below. Default to ONE ask at a time unless the user requests a batch. This is a synchronous barrier — do not proceed until the user responds or explicitly chooses Skip.
 
 Standard ask format:
 
@@ -243,10 +243,10 @@ Options:
 ```
 
 Rules for the ask:
-- Frame neutrally. No baked recommendation in the framing (per `feedback_neutral_option_framing`). A separate "Recommendation: <N> — <reason>" line is acceptable AFTER the options block, but not required, and never inside an option's text.
-- Each ask requires its own explicit pick (per `feedback_per_question_explicit_pick`). Don't combine multiple decisive questions into one ask.
-- "Skip" is always available and always defaults the step to DEFER. Per `feedback_no_self_fabricated_go_signals`, the skill never invents a decision the user didn't make.
-- Bare-number replies pick that option (per `feedback_terse_numeric_answers`). "1" = option 1.
+- Frame neutrally. No baked recommendation in the framing. A separate "Recommendation: <N> — <reason>" line is acceptable AFTER the options block, but not required, and never inside an option's text.
+- Each ask requires its own explicit pick. Don't combine multiple decisive questions into one ask.
+- "Skip" is always available and always defaults the step to DEFER. The skill never invents a decision the user didn't make.
+- Bare-number replies pick that option. "1" = option 1.
 
 After the user responds, record:
 

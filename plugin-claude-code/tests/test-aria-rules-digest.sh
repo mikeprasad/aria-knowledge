@@ -776,7 +776,7 @@ assert_eq "worst-case fixture fires the LONG U-rule variant" "no" \
 # Sibling of the line above, and it was missing. A maximality proof must cover EVERY branch
 # that changes size, or the ceiling bounds a payload never shown to be maximal — the U-rule
 # branch was proven and the TASK BUDGET branch was not, which is
-# `feedback_guard_scoped_to_the_wrong_unit` inside the guard written to prevent that class.
+# a guard scoped to the wrong unit, inside the guard written to prevent that class.
 # The SHORT variant's opening phrase must be ABSENT; the block-presence loop below proves the
 # block is there at all, so absence-of-short plus presence-of-block pins the LONG variant.
 # ⛔ RETIRED — and the reason is worth keeping, because it looks like a regression.

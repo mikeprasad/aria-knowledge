@@ -153,7 +153,7 @@ Two sub-passes that run in order before the report is rendered. Goal: convert as
 
 This step can be skipped with the `--no-source` flag for a quick structural review. When skipped, all preliminary statuses pass through to §4.2 and §4.3 unchanged and §4.10 lists every gap as NOT-ATTEMPTED.
 
-The synchronous-barrier discipline applies: if a sub-pass surfaces a USER-INPUT ask, hold for response (per `feedback_hold_gate_steps`). Default to one ask at a time (per `feedback_per_item_review_cadence`).
+The synchronous-barrier discipline applies: if a sub-pass surfaces a USER-INPUT ask, hold for response. Default to one ask at a time unless the user asks for a batch.
 
 ### 3.5.1: Bundle-Marker Sub-Pass (resolves 🤷)
 
@@ -257,7 +257,7 @@ Fix #N — outcome result:
 ### 3.5.3: Constraints (apply to both sub-passes)
 
 - **Rule 33 — verify against current docs**: When sourcing third-party API/SDK behavior post-deploy, read the official current docs.
-- **No credential reads** without explicit per-session permission (per `feedback_ask_before_credentials`).
+- **No credential reads** without explicit per-session permission.
 - **No destructive probes** — read-only commands only. No `rm`, `git reset`, `git push`, `gh pr merge`, no migration runs, no PROD writes of any kind.
 - **No PROD-mutating repro tests** — if a repro requires writing to production data, demote to USER-INPUT.
 - **Time-box per fix**: ~5 tool-call rounds maximum per decisive question. INCONCLUSIVE after that; demote residual to USER-INPUT.
