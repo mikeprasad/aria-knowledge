@@ -4,6 +4,15 @@ All notable changes to aria-cowork are documented here. Format follows [Keep a C
 
 Cross-plugin parity callouts (per ADR-006) note when changes coordinate with aria-knowledge releases.
 
+## [1.8.5] — 2026-11-16
+
+**`prospect` states how to count the cold-read prompt.** Coordinated with aria-knowledge v2.59.1.
+
+### Changed
+
+- `prospect` Step 3.6, Step 6 and the Cold read block: the prompt's character count is counted with a tool from a scratch file and recorded with the command that produced it, never estimated (a live 2.59.0 run reported "~790" for a prompt measured at 732). Cowork cannot start a subagent, so here the round still prints `Cold read: not run — this runtime cannot start a subagent`; the text is kept identical to the other ports.
+- No skill's frontmatter description changed.
+
 ## [1.8.4] — 2026-11-16
 
 **`prospect` gains `--cold` and `--summary`, command receipts and two new checks; two forward patterns ship.** Coordinated with aria-knowledge v2.59.0.

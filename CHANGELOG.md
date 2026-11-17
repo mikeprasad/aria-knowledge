@@ -2,6 +2,10 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.59.1 — 2026-11-16
+
+**`/prospect --cold` counts the reader prompt with a tool, never an estimate.** Step 3.6 asked to "record the prompt's character count" without naming an instrument, so a live 2.59.0 run reported "~790" for a prompt measured at 732. Step 3 now writes the filled template to a new scratch file with the runtime's file-write tool (never a shell redirect), counts it with a tool — in Claude Code `wc -m < <file>` under a UTF-8 locale, because under `LC_ALL=C` `wc -m` counts bytes and the template contains an en dash — dispatches exactly that file's text, and records the number with the command. Step 6 and the §4.8 Cold read block report the counted number plus the command that produced it. Same text in Claude Code, Codex and Cowork; Antigravity and Cursor regenerated. No skill's frontmatter description changed. Ports: Codex `2.59.1-codex.0`, Cursor `2.59.1-cursor.0`, Antigravity `2.59.1`, Cowork 1.8.5. `tests/repros/prospect-adoptions.sh` gains arm P11.
+
 ## 2.59.0 — 2026-11-16
 
 **`/prospect` and `/auto` adopt the findings of a field report** that compared an `/auto plan` + `/prospect` run against a plan built by hand over many sessions. The hand-built plan caught problems the gates missed for one main reason: someone who had not been in the conversation read it. Every change below is opt-in or additive; no skill's frontmatter description changed.
