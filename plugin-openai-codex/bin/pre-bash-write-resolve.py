@@ -83,6 +83,62 @@ def _statements(body):
     return stmts
 
 
+#: Option grammar, MEASURED on real files (GitHub #3). A token test (`startswith("-i")`, or the
+#: `^-[A-Za-z]*i` suggested on the issue) cannot work: `perl -pi` bundles the flag, and in
+#: `perl -Mstrict` / `perl -Ilib` the `i` belongs to the option's argument. So each tool's options
+#: are read a character at a time, and an option that takes an argument ends the cluster.
+SED_ARG_LONG = ("expression", "file", "line-length")   # `--file X` takes the next token
+PERL_ARG_REST = frozenset("CdDFImMxV")                 # the rest of the token is the argument
+
+
+def _sed_perl_options(base, rest):
+    """(in_place, operands) for one sed or perl invocation.
+
+    Operands are the tokens that are neither options nor option arguments: the files, plus a sed
+    script given without -e, which the existence filter drops. A script FILE given to -f is an
+    option argument, so it is never reported as edited.
+    """
+    in_place, operands, i, n = False, [], 0, len(rest)
+    while i < n:
+        t = rest[i]
+        i += 1
+        if t == "--":
+            operands.extend(rest[i:])
+            break
+        if base == "sed" and t.startswith("--"):
+            # GNU long options; getopt accepts any unambiguous prefix, so `--in` is --in-place.
+            name, eq, _ = t[2:].partition("=")
+            if name and "in-place".startswith(name):
+                in_place = True
+            elif name and not eq and any(o.startswith(name) for o in SED_ARG_LONG):
+                i += 1
+            continue
+        if not t.startswith("-") or t == "-":
+            if base == "perl":
+                # perl stops reading switches at its first argument: in `perl -pe … f -i`
+                # the -i is a filename and nothing is edited (measured).
+                operands.extend(rest[i - 1:])
+                break
+            operands.append(t)                        # GNU sed reads options anywhere
+            continue
+        j = 1
+        while j < len(t):
+            c = t[j]
+            j += 1
+            if c == "i" or (base == "sed" and c == "I"):   # BSD sed -I also edits in place
+                in_place = True
+                break                                 # the rest of the token is a backup suffix
+            if c in ("ef" if base == "sed" else "eE"):
+                if j == len(t):
+                    i += 1                            # the script is the next token
+                break
+            if base == "perl" and c in PERL_ARG_REST:
+                # Also covers `-0x1e`: the `x` ends the cluster before the hex `e` could be read
+                # as -e. Digits (-l0pi, -0777) need no rule, since no digit is a switch.
+                break
+    return in_place, operands
+
+
 def _in_place_targets(toks):
     """Files a single statement mutates in place."""
     out, n = [], len(toks)
@@ -90,9 +146,10 @@ def _in_place_targets(toks):
         base = os.path.basename(t)
         rest = toks[i + 1:]
         if base in ("sed", "perl"):
-            # A real -i flag, not a mention. `sed -n` reads and must record nothing.
-            if any(u == "-i" or u.startswith("-i") for u in rest):
-                out.extend(u for u in rest if u and not u.startswith("-"))
+            # A real in-place flag, not a mention. `sed -n` reads and must record nothing.
+            in_place, operands = _sed_perl_options(base, rest)
+            if in_place:
+                out.extend(u for u in operands if u)
         elif base == "awk":
             if "inplace" in rest:
                 out.extend(u for u in rest if u and not u.startswith("-") and u != "inplace")
