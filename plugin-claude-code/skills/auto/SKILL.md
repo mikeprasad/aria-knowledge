@@ -1,6 +1,6 @@
 ---
 description: "Drive an autonomous execution arc end-to-end: brainstorm, spec, /prospect, plan, /prospect, TDD, /retrospect under the Rule 35 posture. Decide objectively-validatable forks yourself; stop only on a load-bearing fork or an ungranted approval. Modes: `arc` (default), `execute {plan|spec|ticket-id}` (skip ideation), `plan` (stop at a prospected plan), `config` (knob picker). Stackable, six axes: `full` (authority: all except push and deploy), `attended`|`unattended` (presence), `continue`|`stop` (duration), `tickets` (work source), `self-restart` (context recovery), `workflow`/`fanout={pct}`/`agents={N}` (fan-out). A bare invocation opens `config`. Overrides `autonomy` for this arc only. Use when the user hands off a goal, plan, ticket or SESSION.md with latitude to execute WITHOUT per-step approval: 'combined go', 'run overnight', 'just build it', 'do as much as you can'. For a multi-step arc, not a single change; distinct from /prospect, /retrospect, /handoff, /wrapup. (Code port — ADR-094.)"
-argument-hint: "[arc|execute|plan|config] [<goal | plan-path | ticket-id>] [full] [attended|unattended] [tickets] [workflow] [fanout=<pct>] [agents=<N>] [continue|stop] [self-restart]"
+argument-hint: "[arc|execute|plan|config] [<goal | plan-path | ticket-id>] [full] [attended|unattended] [tickets] [workflow] [fanout=<pct>] [agents=<N>] [cold|cold=<N>] [continue|stop] [self-restart]"
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash, WebFetch, WebSearch
 ---
 
@@ -165,7 +165,7 @@ These bind every `/auto` run in every mode. They are not modifiers and cannot be
 
 ## Step 0: Parse mode, posture, and the queue-complete toggle
 
-`/auto` is an **explicit, in-the-moment grant of autonomous latitude** — invoking it *means* "drive this autonomously, now." It overrides the standing `autonomy` config for the duration of the arc and never changes that config. Four modes, four stackable modifier groups (seven tokens), a toggle, and a flag — ten tokens across six orthogonal axes:
+`/auto` is an **explicit, in-the-moment grant of autonomous latitude** — invoking it *means* "drive this autonomously, now." It overrides the standing `autonomy` config for the duration of the arc and never changes that config. Four modes, four stackable modifier groups (seven tokens), a toggle, and a flag — ten tokens across six orthogonal axes — plus one gate option, `cold` / `cold=<N>`:
 
 | Mode | Trigger | What it does |
 |---|---|---|
@@ -259,11 +259,23 @@ one word per axis, no special cases.)*
   config key, and a persistent default would belong in `/setup`, not here. `full` raises the
   same three stopgaps as a set; these name one each, so they compose with `full` and also work
   without it.
+- **`cold` · `cold=<N>`** — opt-in **cold review rounds** at every `/prospect` the arc runs (Step 1
+  arc steps 3 and 5). Each round passes `--cold`, so `/prospect` Step 3.6 has a fresh reader — one
+  subagent with the implementer's startup environment and none of this conversation — read the
+  artifact. After applying that round's amendments, run another round, until a round finds **no
+  confirmed BLOCKER** or `N` rounds have run: `cold` caps at **4** (the default), `cold=<N>` sets the
+  cap. Once a round is BLOCKER-free, fix any FRICTION left with one clause each, without another
+  round. Cost: ~1 subagent per round, up to N rounds per prospect, each counted toward the `agents=`
+  cap (Step 5). **Opt-in only** — no mode and no other modifier turns it on, `full` included.
+  **Never silent:** when `cold` is on and a round cannot run (this runtime cannot start a subagent,
+  or the `agents=` cap or the budget gate stops it), the report says `Cold read: not run — <reason>`.
+  The gates win.
 
 **Six orthogonal axes — set each independently.** `full` sets *how much latitude*;
 `continue`/`stop` set *how long*; `attended`/`unattended` set *whether a human is reachable*;
 `tickets` sets *where work comes from*; `self-restart` sets *how a context wall is handled*;
-the fan-out trio sets *how wide delegation may go*.
+the fan-out trio sets *how wide delegation may go*. (`cold` is not a seventh axis: it is a gate
+option — it changes what each `/prospect` does, not how the run is configured.)
 Keeping them separate is what makes every combination expressible:
 
 - `/auto full` — max authority, scoped: stops when the queue clears
@@ -290,8 +302,10 @@ Keeping them separate is what makes every combination expressible:
 - `/auto ship the CSV exporter continue self-restart` → goal "ship the CSV exporter", toggle `continue`, flag `self-restart`
 - `/auto full workflow audit the payments surface` → modifiers `{full, workflow}`, goal "audit the payments surface"
 - `/auto ship the exporter fanout=40% agents=20` → goal "ship the exporter", `fanout=40%`, `agents=20`. **A `=`-bearing token cannot collide with goal prose**, so the fan-out knobs need no rule of their own — they ride the same ENDS scan as every other modifier. Deliberately NOT recognised anywhere-in-args: a general `<word>=<value>` scan would eat a legitimate goal like "fix the assertion that checks count=20", which is the mis-parse this whole paragraph exists to prevent.
+- `/auto plan migrate the billing exporter cold=2` → mode `plan`, goal "migrate the billing exporter", `cold=2` (at most two cold review rounds per `/prospect`). `cold` rides the same ENDS scan as every other modifier, so it is parsed here and nowhere else.
+- `/auto make cold starts faster` → mode `arc`, **no modifiers**, goal "make cold starts faster": once goal prose has begun, a mid-prose `cold` is goal text.
 
-⚠ **The ENDS rule protects mid-prose only — a bare modifier at the very END of a goal IS consumed.** `/auto rewrite the deploy workflow` parses as goal "rewrite the deploy" + modifier `{workflow}`, and `/auto close the open tickets` as goal "close the open" + modifier `{tickets}`; `continue` and `stop` carry the same exposure. This is a known, accepted cost of a bare-word vocabulary, not a defect to fix by widening the scan (an anywhere scan is strictly worse — see the `render loop` case above). **Put the modifiers first when the goal could end in one of these words.** An earlier draft of this paragraph cited "close the tickets" as a case the ENDS rule handles; it does not, and that example has been corrected.
+⚠ **The ENDS rule protects mid-prose only — a bare modifier at the very END of a goal IS consumed.** `/auto rewrite the deploy workflow` parses as goal "rewrite the deploy" + modifier `{workflow}`, and `/auto close the open tickets` as goal "close the open" + modifier `{tickets}`; `continue`, `stop` and `cold` carry the same exposure. This is a known, accepted cost of a bare-word vocabulary, not a defect to fix by widening the scan (an anywhere scan is strictly worse — see the `render loop` case above). **Put the modifiers first when the goal could end in one of these words.** An earlier draft of this paragraph cited "close the tickets" as a case the ENDS rule handles; it does not, and that example has been corrected.
 
 A trailing `continue`/`stop` sets the on-queue-complete toggle; a trailing `self-restart` sets the context-restart flag (honored only alongside `continue`).
 
@@ -307,7 +321,7 @@ A trailing `continue`/`stop` sets the on-queue-complete toggle; a trailing `self
 
 Runs ONLY when invoked as `/auto config`. Skip entirely for `arc`/`execute`. Purpose: let the user set each run setting deliberately **without having to remember any of them** — present each as a picker, one at a time, with the safe default pre-marked. Use the platform's question/picker affordance (one question per knob); accept a bare-number/keyword reply; "skip" on any knob takes its default.
 
-Walk these in order, **one at a time** (do not dump all seven at once — the point is recognition-not-recall, one decision per step):
+Walk these in order, **one at a time** (do not dump all eight at once — the point is recognition-not-recall, one decision per step):
 
 1. **Goal / source** — this prompt's goal · continue from `SESSION.md`/latest handoff · a plan path · a ticket ID from your connected tracker. (If a goal was passed as `/auto config <goal>`, pre-seed it and confirm.)
 2. **On-queue-complete** — `stop` (scoped: checkpoint + /handoff when the queue's clear — *default*) · `continue` (keep finding new work; for unattended/overnight).
@@ -316,6 +330,7 @@ Walk these in order, **one at a time** (do not dump all seven at once — the po
 5. **Budget ceiling** — default 25%-of-remaining-window per fan-out burst (*default*) · a different fraction · a hard "stop the arc at X% usage." (Maps to the Step 5 budget-fraction gate + a live abort floor.)
 6. **Resume at the usage wall** — arm (*default when the goal is non-trivial*) · off. If the 5-hour window runs out with the goal unfinished, a resume fires **+5 min after** the reset and picks the work back up (Step 6). **Not gated on #2 or #7** — an unfinished goal warrants a resume whether or not you asked for new work afterwards, and whether or not anyone is watching; presence only decides if it announces itself.
 7. **Presence** — `attended` (*default*: you are reachable, so a non-blocking residual is surfaced immediately rather than batched to the handoff) · `unattended` (nobody is reachable; residuals are carried to the handoff, and the resume — armed on its own condition per knob 6, never by this knob — uses the **durable** mechanism rather than a session-only one). **Always ask this one** — it is cheap to answer and it changes what happens to every question the arc produces, so a run should never proceed without knowing it. Pre-seeded from the invocation when `attended` or `unattended` was passed.
+8. **Cold review rounds** — off (*default*) · `cold` (up to 4 rounds per `/prospect`) · `cold=<N>` (up to N). Each round is one fresh-reader subagent at every `/prospect` the arc runs, repeated until a round finds no confirmed BLOCKER or the cap is reached; each round counts toward the subagent cap (knob 4). Pre-seeded from the invocation when `cold` or `cold=<N>` was passed.
 
 After the walkthrough, assemble the picks into the run-config and proceed to Step 0.5 — the **arc contract is then a confirmation of what you just chose**, not a fresh set of defaults. **Nothing persists**: these picks configure THIS arc only; the standing `autonomy` posture and any saved defaults are untouched (changing standing defaults is `/setup`'s job — `/auto` never writes config, in any mode).
 
@@ -341,6 +356,8 @@ Before the first action, post a short **arc contract** so the autonomy is legibl
 > **I'll stop and ask on:** product/UX taste with no objective answer · an irreversible/outward-facing action not covered by policy *that blocks the task* · a true no-visibility fact only you have · a genuine costly fork empirical investigation can't decide.
 > **Gates that run but don't count as stopping:** /prospect (pre-code), /retrospect (post-build).
 > **Presence:** <attended — non-blocking residuals come to you as they arise | unattended — residuals batched to the handoff, resume armed>. Always stated; never inferred silently.
+> **Cold review:** <off | on — ~1 subagent per round, up to N rounds per prospect (N = <n>), each counted toward the `agents=` cap>. Stated so a mis-parse of `cold` is visible before any work.
+> **Peers:** <what was measured: live peer sessions, if this runtime can list them · `SESSION.md` entries marked in-progress · other worktrees/branches with commits in the last few hours on paths this arc will touch | none found, by <instrument>>. This shows activity, not ownership — no instrument measures which session owns a file, so do not claim one. Any overlap is named here, and a shared file it names is edited only by targeted edits after a fresh re-read.
 > **Usage:** gating on 5h only; 7d ignored · arm at 90% · pause at 95% (D1).
 > **Durable resume:** <ARMED via `<mechanism>` | UNAVAILABLE (patterns not allowlisted — run `/setup`)>. Report availability, not merely that a resume is armed — a resume whose patterns are unallowlisted **stalls silently** (Step 6).
 > **Push / deploy:** <local commits only (*default*) | push granted | push + deploy granted> — never pre-authorized by any modifier, including `full`; granted only by explicit direction (D4).
@@ -354,6 +371,8 @@ This contract is the operative form of Rule 35's routing table for *this* arc. Y
 ## Verify before you trust (the #1 rule — most friction traces here)
 
 Before acting on **any** assertion — a resume prompt, a handoff, a stale doc, your own memory, a cached metric, a `SESSION.md` "next" line — **verify it empirically against the live source.** Run `git log`/`git status`, read the live state file, grep the real code. A resume prompt may be stale (the work is already shipped — don't redo it); a cached usage % may be stale (window reset → trust the reset *timestamp* vs now, not the number). For backend behavior, API contracts, or field shapes, read the source-of-truth repos FIRST (backend + the shipped client) — never assume, and don't file a "backend gap" until the repos genuinely don't answer it. This is the discipline that earns the right to self-decide: "validated" means checked against ground truth, not asserted.
+
+The same holds for other sessions: measure peer activity (the contract's **Peers** line) rather than assume the tree is yours. What you can measure is activity, not ownership. Before editing a file another session has touched recently, re-read it and make a targeted edit, never a whole-file rewrite.
 
 ## Pre-answered — handle and keep going (do NOT stop for these)
 
@@ -376,11 +395,14 @@ Run the chain by **invoking the real skills** via the `Skill` tool, not by summa
 ### arc mode — full chain
 
 1. **Brainstorm** (`superpowers:brainstorming`) — only if the *shape* of the solution is a real open question. A concrete plan or tightly-scoped goal skips straight to spec (Rule 35: don't deliberate what's already answered).
-2. **Spec** (`superpowers:writing-plans` or `/distill`) — surface every autonomous design decision as an explicit `[DECISION]` line so the next gate can ratify it; that's how self-approval stays auditable.
-3. **/prospect** the spec/plan. Apply PROCEED-WITH-CHANGES amendments **in place, now**. A KILL/DEFER verdict on a load-bearing step *is* a stop — surface it.
-4. **Plan** — if the spec isn't already a cold-executable plan, write one.
-5. **/prospect** the plan only if it materially differs from the spec you already pre-mortemed (re-prospecting an unchanged artifact is ceremony, not a check).
-6. **Execute** (`superpowers:test-driven-development`, or `subagent-driven-development` for independent multi-task plans). Per-edit Rule 22 still fires — that's the execution-time scope check, separate from the plan-level gates.
+2. **Spec** (`superpowers:writing-plans` or `/distill`) — surface every autonomous design decision as an explicit `[DECISION]` line so the next gate can ratify it; that's how self-approval stays auditable. Before any build step, the Spec also carries one table, **"Decisions only the human can make"** — columns: id · question · steps that depend on it · answer · date. Collect every such decision early and in this one place; asking still goes one question at a time. A step that depends on an unanswered row does not proceed (`/prospect` marks it DEFER, citing the row). This is not the judgment ledger (D7): the ledger records decisions you made but could not validate; this table lists decisions you must not make at all.
+3. **/prospect** the spec/plan — with `--cold` when `cold` is on. For the first two amendment rounds on an artifact, apply PROCEED-WITH-CHANGES amendments **in place, now**. A KILL/DEFER verdict on a load-bearing step *is* a stop — surface it.
+   - **Cold rounds (`cold` on).** After applying a round's amendments, run `/prospect --cold` again, until a round finds **no confirmed BLOCKER** or `N` rounds have run (default 4; `cold=<N>` sets N). Once a round is BLOCKER-free, fix any FRICTION left with one clause each, without another round. Say which ended the loop: a BLOCKER-free round, or the cap. A round that could not run is reported as `Cold read: not run — <reason>`, never skipped silently.
+   - **Cut a step whose own checks keep failing review.** When findings in **two consecutive rounds** (cold rounds, or repeated `/prospect` passes on the same artifact) land in the same step's *own verification machinery* — a check whose only job is to prove another part of the plan worked (a pin, a count, a probe) — rather than in its substance, offer SHRINK or KILL for that step, with what removing it costs, before another fix round.
+   - **From the third amendment round, regenerate.** Do not patch in place again: rewrite the artifact whole from current evidence, then produce an **identifier diff** against the previous version — the artifact's own ids (ticket, criterion, row, step, decision ids), dropped and added. Every drop carries a reason. This applies to the spec and the plan alike.
+4. **Plan** — if the spec isn't already a cold-executable plan, write one. **Every command the plan hands to someone else carries a receipt**, written in this order: (1) `$ <command>`; (2) `expected:` — what a correct run prints or exits, written **before** running it (a receipt with no declared expectation is a printout, not a check); (3) `exit <n>` and the first output line, from actually running it — or `not run: <reason>`. `not run` is the expected answer for a command that changes something outside the machine (push, deploy, writes to shared data). A handed-over command with neither `exit` nor `not run` is an unverified assumption, and `/prospect` triages its step as at least ⚠.
+5. **/prospect** the plan — with `--cold` when `cold` is on, under step 3's round rules — only if it materially differs from the spec you already pre-mortemed (re-prospecting an unchanged artifact is ceremony, not a check).
+6. **Execute** (`superpowers:test-driven-development`, or `subagent-driven-development` for independent multi-task plans). Per-edit Rule 22 still fires — that's the execution-time scope check, separate from the plan-level gates. Before the first unit, **re-run the plan's pre-execution checks** and compare the files changed upstream since planning against the files the plan touches; a changed overlap is re-planned, not executed on.
 7. **/retrospect** the shipped range. Fix what it surfaces if objectively-validatable; surface what it can't resolve.
 
 **Mechanical / contract-driven change** (no design judgment) → skip brainstorm/spec and just build it — still test + gate.
@@ -476,7 +498,7 @@ The NEED-IT gate is a *per-spawn quality check* — it is NOT a cumulative budge
 
 - **Workflow is opt-in only — hard OFF by default** (caps one-shot *count*). The Workflow tool (multi-agent orchestration; fans out dozens at once) does NOT fire unless the user's invocation explicitly opted into it (`/auto … workflow`, or a clear "use a workflow / fan out agents / orchestrate this with subagents" in the request). A bare `/auto` — even an unattended `continue` run — runs inline + bounded individual subagents ONLY. The 90-agent sweep cannot happen unbidden. Non-negotiable invariant, not a judgment call.
 - **Budget-fraction pre-flight gate** (caps one-shot *spend*). Before launching ANY fan-out (a `parallel()`/`pipeline()` over many items, an N-way audit/research sweep, or an opted-in Workflow), read the **live** remaining usage (the statusline state file — never a stale number, per Step 3) and *estimate* the fan-out's cost. If one shot would spend more than **~25% of the remaining usage window** (default; overridable via `fanout=<pct>`), STOP and surface it: the planned fan-out width, the estimated spend, the remaining window, and options (proceed · shrink to a smaller batch · serialize · skip). This is the direct fix for the "a single wide task drains the budget *between* the between-task checks" hole — the gate fires *before* the spend, sized to what's actually left, so it tightens as the window depletes. A fresh window may permit a wide sweep; the same sweep at 70%-used is refused.
-- **Cumulative per-arc subagent cap** (caps *count-over-time* — the drip case). Maintain a running count of total subagents spawned this arc. After **~10 total** (default; overridable via `agents=<N>`), STOP and re-confirm before delegating more — report the count, what they accomplished, and the remaining work, then let the user raise the cap or switch to inline. This catches the slow drip the budget-fraction gate misses: many small individually-justified spawns over a long `continue` run, none of which trips the per-burst gate but which sum to a real drain. The counter is per-arc and resets only on a new `/auto` invocation.
+- **Cumulative per-arc subagent cap** (caps *count-over-time* — the drip case). Maintain a running count of total subagents spawned this arc. After **~10 total** (default; overridable via `agents=<N>`), STOP and re-confirm before delegating more — report the count, what they accomplished, and the remaining work, then let the user raise the cap or switch to inline. This catches the slow drip the budget-fraction gate misses: many small individually-justified spawns over a long `continue` run, none of which trips the per-burst gate but which sum to a real drain. The counter is per-arc and resets only on a new `/auto` invocation. Each `cold` review round is one subagent and counts toward this cap (`agents=`); when the cap or the budget gate stops a round, `/prospect` reports `Cold read: not run — <reason>` instead of skipping it silently.
 
 These three are orthogonal — Workflow-opt-in bounds a single huge swarm, the budget gate bounds one expensive burst, the cumulative cap bounds slow accumulation. A run can pass any two and still be caught by the third.
 

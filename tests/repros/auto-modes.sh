@@ -488,5 +488,167 @@ done
   && ok "FG5 stop branch routes to all four real Cowork gates" \
   || bad "FG5 manual-route" "stop branch omits:$FG5_MISSING"
 
+# A1–A9 (2.59.0 spec R1 `/auto … cold`, R2, R3, R4, R5, R6 arc-step-6 half, R7; plan Task 4).
+# Ports: plugin-claude-code, plugin-openai-codex, plugin-antigravity skills/auto/SKILL.md; A9 adds the
+# /auto section of the Cursor aria-commands.mdc (its "## /auto" line up to the next line starting "## /").
+# Every arm cuts its section first and asserts case-insensitively inside it, so a phrase elsewhere in the
+# file cannot satisfy it.
+#   A1  Step 0 lists `cold` and `cold=<N>` with a worked ENDS case; argument-hint holds [cold|cold=<N>]
+#       (claude-code + codex; build.sh strips argument-hint from Antigravity)
+#   A2  Step 0¾ has a cold-review knob; Step 0.5's contract states "~1 subagent per round, up to N"
+#   A3  arc steps 3 AND 5 pass --cold; step 3 carries the round rule (no confirmed BLOCKER or N, default 4),
+#       the R3 cut-the-check trigger and the R4 regenerate + identifier-diff rule
+#   A4  arc step 2 carries the "Decisions only the human can make" table; arc step 4 the receipt rule
+#   A5  arc step 6 re-runs the plan's pre-execution checks and compares upstream-changed files
+#   A6  Step 0.5 lists peer activity and says "activity, not ownership"
+#   A7  Step 5 says cold rounds count toward agents=
+#   A8  guard: each port's auto description is byte-unchanged from the pre-change tree (c76bb0d);
+#       pinned values are SHA-256 of the whole "description:" line
+#   A9  Cursor's /auto section lists `cold` and `cold=<N>` in its Step 0 modifiers
+A_ARMS="A1 A2 A3 A4 A5 A6 A7 A8 A9"
+A_EX=0
+A_OUT=$(python3 -I - "$REPO_ROOT" <<'PY'
+import hashlib, os, re, sys
+root = sys.argv[1]
+PORTS = ["plugin-claude-code", "plugin-openai-codex", "plugin-antigravity"]
+HINT_PORTS = {"plugin-claude-code", "plugin-openai-codex"}
+PINNED_DESC = {
+    "plugin-claude-code": "6cce2794187c036c2afb79fcb9f5163705c0e0e010b3f681e06e0efcd00ecb97",
+    "plugin-openai-codex": "5ef82be973447aedb70475e6c7799c88a0fc81ce3ea52d529ab0f1a576c0e416",
+    "plugin-antigravity": "6cce2794187c036c2afb79fcb9f5163705c0e0e010b3f681e06e0efcd00ecb97",
+}
+ARMS = ["A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8", "A9"]
+fails = {a: [] for a in ARMS}
+
+def read(rel):
+    p = os.path.join(root, rel)
+    return open(p, encoding="utf-8").read() if os.path.isfile(p) else None
+
+def cut(t, start_re, end_re):
+    """From the first line matching start_re up to (not including) the next line matching end_re."""
+    out, on = [], False
+    for ln in t.split("\n"):
+        if not on:
+            if re.match(start_re, ln):
+                on = True
+                out.append(ln)
+            continue
+        if re.match(end_re, ln):
+            break
+        out.append(ln)
+    return "\n".join(out) if on else None
+
+def low(s):
+    return s.lower() if s is not None else ""
+
+def missing(text, needles):
+    l = low(text)
+    return [n for n in needles if n.lower() not in l]
+
+def step0_cold(name, step0, arm):
+    if step0 is None:
+        fails[arm].append(f"{name}: no Step 0")
+        return
+    miss = [n for n in ("`cold`", "`cold=<N>`") if n not in step0]
+    if miss:
+        fails[arm].append(f"{name}: Step 0 lacks {', '.join(miss)}")
+    # A worked ENDS case: a "- `/auto …`" line whose invocation ENDS in cold / cold=<n>.
+    if not re.search(r"^- `/auto [^`]*\bcold(=\d+)?` *→", step0, re.M):
+        fails[arm].append(f"{name}: Step 0 has no worked case ending in cold/cold=<n>")
+
+for name in PORTS:
+    t = read(f"{name}/skills/auto/SKILL.md")
+    if t is None:
+        for a in ARMS[:8]:
+            fails[a].append(f"{name}: auto/SKILL.md not found")
+        continue
+    m = re.match(r"^---\n(.*?)\n---\n", t, re.S)
+    fm = m.group(1) if m else ""
+    step0 = cut(t, r"^## Step 0:", r"^## Step 0¾")
+    s034 = cut(t, r"^## Step 0¾", r"^## Step 0\.4")
+    s05 = cut(t, r"^## Step 0\.5", r"^## Verify before you trust")
+    arc = cut(t, r"^### arc mode", r"^### execute mode")
+    s5 = cut(t, r"^## Step 5:", r"^## Step 6")
+    steps = {}
+    if arc is not None:
+        for n in range(1, 8):
+            steps[n] = cut(arc, rf"^{n}\. ", r"^(\d+\. |\*\*Mechanical)")
+
+    # A1
+    step0_cold(name, step0, "A1")
+    if name in HINT_PORTS:
+        hint = [l for l in fm.split("\n") if l.startswith("argument-hint:")]
+        if not hint or "[cold|cold=<N>]" not in hint[0]:
+            fails["A1"].append(f"{name}: argument-hint lacks [cold|cold=<N>]")
+
+    # A2
+    if not re.search(r"^\d+\. \*\*[^*\n]*cold[^*\n]*\*\*", s034 or "", re.M | re.I):
+        fails["A2"].append(f"{name}: Step 0¾ has no cold-review knob")
+    if "~1 subagent per round, up to n" not in low(s05):
+        fails["A2"].append(f"{name}: Step 0.5 contract lacks '~1 subagent per round, up to N'")
+
+    # A3
+    for n in (3, 5):
+        if "--cold" not in (steps.get(n) or ""):
+            fails["A3"].append(f"{name}: arc step {n} does not pass --cold")
+    miss = missing(steps.get(3), [
+        "no confirmed blocker", "default 4",                                   # R1 round rule
+        "two consecutive rounds", "verification machinery", "shrink or kill",  # R3
+        "third amendment round", "rewrite the artifact whole", "identifier diff",
+        "every drop carries a reason",                                          # R4
+    ])
+    if miss:
+        fails["A3"].append(f"{name}: arc step 3 lacks {', '.join(miss)}")
+
+    # A4
+    if missing(steps.get(2), ["decisions only the human can make"]):
+        fails["A4"].append(f"{name}: arc step 2 lacks the 'Decisions only the human can make' table")
+    miss = missing(steps.get(4), ["receipt", "expected:", "not run"])
+    if miss:
+        fails["A4"].append(f"{name}: arc step 4 lacks {', '.join(miss)}")
+
+    # A5
+    miss = missing(steps.get(6), ["re-run the plan's pre-execution checks", "changed upstream", "re-planned"])
+    if miss:
+        fails["A5"].append(f"{name}: arc step 6 lacks {', '.join(miss)}")
+
+    # A6
+    miss = missing(s05, ["peer", "activity, not ownership"])
+    if miss:
+        fails["A6"].append(f"{name}: Step 0.5 lacks {', '.join(miss)}")
+
+    # A7
+    if not re.search(r"cold[^\n]*counts? toward[^\n]*`agents=", s5 or "", re.I):
+        fails["A7"].append(f"{name}: Step 5 does not say cold rounds count toward agents=")
+
+    # A8
+    d = [l for l in fm.split("\n") if l.startswith("description:")]
+    h = hashlib.sha256(d[0].encode("utf-8")).hexdigest() if len(d) == 1 else None
+    if h != PINNED_DESC[name]:
+        fails["A8"].append(f"{name}: description changed (sha256 {h})")
+
+# A9 — Cursor: cut the /auto section first, then its Step 0.
+mdc = read("plugin-cursor-template/.cursor/rules/aria-commands.mdc")
+sec = cut(mdc, r"^## /auto\s*$", r"^## /") if mdc is not None else None
+if sec is None:
+    fails["A9"].append("cursor: no /auto section in aria-commands.mdc")
+else:
+    step0_cold("cursor", cut(sec, r"^## Step 0:", r"^## Step 0¾"), "A9")
+
+for a in ARMS:
+    print(f"{a} ok" if not fails[a] else f"{a} fail " + " | ".join(fails[a]))
+PY
+) || A_EX=$?
+[ "$A_EX" -eq 0 ] || bad "A parser" "python exited $A_EX: $A_OUT"
+
+for arm in $A_ARMS; do
+  line=$(printf '%s\n' "$A_OUT" | grep "^$arm " || true)
+  case "$line" in
+    "$arm ok") ok "$arm" ;;
+    "$arm fail "*) bad "$arm" "${line#"$arm fail "}" ;;
+    *) bad "$arm" "no result line from the parser" ;;
+  esac
+done
+
 printf "\n%d passed, %d failed\n" "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
