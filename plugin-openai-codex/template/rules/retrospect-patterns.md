@@ -285,3 +285,50 @@ Before claiming a new artifact complete, identify its consumer and grep the cons
 
 ### References
 - *(seeded — first canonical reference is a 2026-05-05 close-out cycle in the plugin author's environment, new-artifact-vs-registry instance)*
+
+---
+
+## contract-restated-anywhere-is-a-divergence-already-scheduled
+
+**Tier:** canonical
+**First identified:** 2026-11-12, shipped in 2.59.0 on a user field report's recommendation, from a pattern the plugin author had seen in a cross-repository specification review.
+**One-line summary:** The same contract kept in several copies (prose spec, machine schema, implementation, a downstream design) drifts, even within one file; keep one normative source and cite it.
+
+### Detection cues
+- The same contract (a status enum, a tool count, a list of types) appears in three or more artifacts — prose spec, machine schema, reference implementation, a downstream design — and the copies disagree
+- A "reconciled" pass edited one section but not its sibling in the same file, on the same day
+- The only test that compares the artifacts has never run (for example, its plan names a package that does not exist)
+- A plan step reads "update X to match Y" with no step making either one the source the other is checked against
+
+### Why it's a problem
+Hand-sync fails even within one file. Every copy reads as authoritative to whoever is reading it, so the divergence stays invisible until two consumers act on different copies. The first calibration instance was one contract held in four divergent copies: the specification's own machine schema disagreed with its prose, and the suite meant to check the implementation against it had never run.
+
+### Counter-discipline
+Keep one normative source, have every other artifact cite it by section instead of restating it, and add a check that drives the real implementation against that source. Treat any restated contract as a divergence already scheduled: when a plan touches a contract, name the normative copy first and make the others derive from it or cite it. Never rely on hand-sync, even within one file.
+
+### References
+- *(seeded — first canonical reference is a cross-repository specification review in the plugin author's environment, where one contract existed in four divergent copies and the only cross-artifact test had never run)*
+
+---
+
+## re-run-pre-execution-checks-empirically-at-execution-start
+
+**Tier:** canonical
+**First identified:** 2026-11-12, shipped in 2.59.0 on a user field report's recommendation, from a pattern the plugin author had seen when executing a plan days after writing it.
+**One-line summary:** A pre-execution check run only when the plan was written goes stale across the gap before execution; re-run it, empirically, when execution starts.
+
+### Detection cues
+- A plan pins a third-party dependency with a version range, and days separate writing the plan from executing it
+- A pre-execution check that ran once, at plan time, is cited at execution as still valid
+- The plan relies on exports, flags, deprecation status or API shapes that can change in a minor release
+- Execution begins by trusting the plan's recorded verification instead of re-running it
+- Files the plan touches changed upstream after the plan was written
+
+### Why it's a problem
+A check run at plan time verifies the world as it was when the plan was written. Across the gap, ranged pins resolve to newer versions, exports are deprecated, recommended APIs move and other work lands on the same files. Trusting the plan-time result at execution lets that drift through silently: the check ran at the wrong moment, which defeats its purpose.
+
+### Counter-discipline
+Treat the plan's pre-execution checks as hypotheses and re-run them when execution starts, not only when the plan is written. For a dependency, read what actually resolves and confirm the exports the plan needs still exist and are not newly deprecated. For the codebase, compare what changed upstream since planning against the files the plan touches; a changed overlap is re-planned, not executed on. Rule 33 (verify third-party surfaces against current docs) applies at the execution boundary too. `/auto` runs this check before its first unit.
+
+### References
+- *(seeded — first canonical reference is a plan in the plugin author's environment that pinned an SDK with a version range; by execution the range resolved to a newer minor release, and re-running the plan's check at execution start confirmed the needed exports still existed and surfaced options that had become deprecated)*
