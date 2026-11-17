@@ -41,10 +41,10 @@ All notable changes to ARIA will be documented in this file.
 
 **Known limits in 2.59.0.**
 
-- **The reader is fresh, never instruction-free, in every runtime.** Claude Code: it loads your startup CLAUDE.md, rules and hooks like the implementer, and auto memory per Task 8's measurement, but not SessionStart hook output, it has its own system prompt, and its startup files follow the session's working directory, not the plan's location. Codex: `AGENTS.md` from the project root down to the working directory. Antigravity: unrecorded.
+- **The reader is fresh, never instruction-free, in every runtime.** Claude Code: it loads your startup CLAUDE.md, rules and hooks like the implementer, and the project's auto memory (`MEMORY.md`, measured on 2.1.326), but not SessionStart hook output, it has its own system prompt, and its startup files follow the session's working directory, not the plan's location. Codex: `AGENTS.md` from the project root down to the working directory. Antigravity: unrecorded.
 - **Why not the built-in Plan agent.** It skips startup CLAUDE.md and the rules files (measured 2026-11-15 on Claude Code 2.1.325), so it does not read the plan the way the implementer will.
 - **No `model` key.** The agent runs on the default subagent model, and a small one can fail under a large instruction load.
-- Cost per round: measured in Task 8.
+- **Cost per round.** One real round in the author's workspace measured a 169,432-token startup load and 293,865 subagent tokens in total (Claude Code 2.1.326, this plugin's hooks removed for the measurement, so a floor). The load is your own startup instruction files, so a smaller setup costs less.
 - **`git status` cannot see writes outside the repository.** It is the only guard when the `general-purpose` fallback (which has Edit and Write) runs.
 - **A plugin with an `agents/` directory has not yet been installed on claude.ai.** The upload-limits check applies the published skill rules to the agent as a precaution; claude.ai's rules for agents are unpublished.
 - **Descriptions deliberately unchanged** (claude.ai per-skill cap), so `/auto`'s discovery text does not mention `cold` and `/prospect`'s does not mention `--cold` or `--summary`.

@@ -327,7 +327,7 @@ Rank every finding in 2–4 as BLOCKER (would cause lost work, a wrong change, o
    - If the round cannot run for any other reason (a cap or budget gate stops it, or the subagent errors), print `Cold read: not run — <reason>`. Never skip it silently.
 
    **What the Claude Code reader receives** (Claude Code docs read 2026-11-15; measured on 2.1.325): the project's startup instruction files and the user's rules files, as the implementer does; nested instruction files when it opens a file beneath them; this plugin's PreToolUse and PostToolUse hooks on its tool calls. **Five known gaps — print them in the block every time:**
-   - (a) auto memory: the docs say a subagent does not get the main session's, but a `general-purpose` reader was measured receiving the workspace `MEMORY.md` at startup. Treat it as unsettled; the item-5 list shows what arrived.
+   - (a) auto memory: the docs say a subagent does not get the main session's, but this reader was measured receiving the project's `MEMORY.md` at startup (Claude Code 2.1.326, 2026-11-16), as the implementer does. On another host version the item-5 list shows what arrived.
    - (b) it runs under its own short system prompt, not the main session's.
    - (c) SubagentStart hooks reach it and not the implementer. Do not add `aria-knowledge:cold-reader` to `subagent_selfreport_types`.
    - (d) its startup instruction files follow this session's working directory, not the plan's location. If the implementer will start somewhere else, the two sets differ.
