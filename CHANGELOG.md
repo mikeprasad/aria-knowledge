@@ -2,6 +2,56 @@
 
 All notable changes to ARIA will be documented in this file.
 
+## 2.59.0 — 2026-11-16
+
+**`/prospect` and `/auto` adopt the findings of a field report** that compared an `/auto plan` + `/prospect` run against a plan built by hand over many sessions. The hand-built plan caught problems the gates missed for one main reason: someone who had not been in the conversation read it. Every change below is opt-in or additive; no skill's frontmatter description changed.
+
+**`/prospect --cold`: a fresh-reader review round (Step 3.6).** Off unless `--cold` is passed. One subagent with the implementer's startup environment and none of this conversation reads the plan and reports, in a fixed five-item template (byte-identical in every port), the steps it would run, what it cannot reach, where instructions conflict, what it could mistake for a separate task, and every instruction file and hook message it received. Findings are ranked BLOCKER / FRICTION / COSMETIC.
+
+- **Who reads.** Claude Code dispatches the new `aria-knowledge:cold-reader` agent, or `general-purpose` when that type is not available (said in the report). Codex uses `spawn_agent` and Antigravity `invoke_subagent`. Cowork and Cursor cannot start a subagent and print `Cold read: not run — this runtime cannot start a subagent`; a round stopped by a cap, a budget gate or an error prints `Cold read: not run — <reason>`. A round is never skipped silently.
+- **What it reads.** A `file` scope is read in place. A plan that is not yet a file is written to a new scratch file with the file-write tool. The prompt is the filled template and nothing else: no goal, ticket or background. The environment line comes from the plan's own stated execution environment; a plan that states none is a finding.
+- **Capability, not intent.** "Read only" in a prompt constrains nothing, so `git status --porcelain` is recorded before and after the dispatch and any difference flags the round.
+- **Findings are leads.** Each is checked against the plan and marked confirmed or refuted. A confirmed BLOCKER sets that step's action to something other than PROCEED, and the overall verdict cannot be PROCEED while one stands. §4.8 prints a Cold read block (subagent type, where the plan was read, environment line, prompt length, `git status` result, findings, the reader's instruction list compared with the implementer's, five known gaps); gate 12 checks it was printed.
+
+**New agent: `aria-knowledge:cold-reader`** (Claude Code; `plugin-claude-code/agents/cold-reader.md`). Tools Read, Grep, Glob, Bash. Its whole body: follow the prompt, do not create, edit or delete any file. It is a plugin-shipped agent rather than the built-in Plan agent because it loads the same startup instruction files as the implementer (see Known limits). `tests/repros/cold-reader-agent.sh` pins the file exactly, and `tests/repros/claude-ai-upload-limits.sh` now holds `agents/*.md` descriptions to the same rules as skill descriptions, with a positive control and a planted bad agent.
+
+**`/prospect`: command receipts, inherited claims first, human-only decisions, in-flight work, `--summary`.**
+
+- **Command receipts.** Every command a plan hands to someone else carries `$ <command>`, an `expected:` line written before running it, then `exit <n>` and the first output line, or `not run: <reason>` (the expected answer for a push, deploy or shared-data write). A handed-over command with neither is at least ⚠, never ✅. A read-only command handed over without one is a candidate for the evidence pass to run and record.
+- **Inherited claims first.** A claim the plan took from a handoff, ticket, earlier doc or memory is checked against the system before the report repeats it.
+- **DEFER on an unanswered human-only decision.** A step that depends on an unanswered row of the plan's "Decisions only the human can make" table is DEFER, citing the row.
+- **A fourth frame question:** what in-flight work edits the files this plan touches, and does each unit ship before or after it. "None found" names the instrument.
+- **`--summary`.** Chat shows only the anchor block, the overall verdict and action list, open asks and the log path; the full report still goes to the log.
+- `argument-hint` gains `[--cold] [--summary]` (Claude Code, Codex, Cowork); Claude Code's `allowed-tools` gains `Agent`.
+
+**`/auto`.**
+
+- **`cold` · `cold=<N>`**, a gate option rather than a seventh axis. Every `/prospect` the arc runs (arc steps 3 and 5) passes `--cold`, and rounds repeat until one finds no confirmed BLOCKER or N rounds have run (default cap 4). Leftover FRICTION is fixed with one clause each, without another round. Opt-in only: no mode or modifier turns it on, `full` included. Each round counts toward the `agents=` cap. It rides the same ends-of-arguments scan as every other modifier, so a mid-goal "cold" stays goal text. `/auto config` gains an eighth knob for it, and the arc contract states it.
+- **Peers line in the arc contract.** What was measured of other sessions' activity (live peers where the runtime lists them, in-progress `SESSION.md` entries, recent commits in other worktrees on the same paths), stated as activity, never ownership. A shared file it names is edited only by targeted edits after a fresh re-read.
+- **Cut a step whose own checks keep failing review.** When two consecutive rounds find problems in one step's verification machinery rather than its substance, offer SHRINK or KILL for that step, with what removing it costs, before another fix round.
+- **From the third amendment round, regenerate.** Rewrite the spec or plan whole from current evidence and produce an identifier diff against the previous version; every dropped id carries a reason.
+- **"Decisions only the human can make".** The spec carries one table of them (id, question, dependent steps, answer, date) before any build step; a dependent step does not proceed while its row is unanswered. Distinct from the judgment ledger, which records decisions you made but could not validate.
+- **Receipts in the plan** (as in `/prospect`), and **execute re-runs the plan's pre-execution checks** before the first unit, comparing files changed upstream since planning with the files the plan touches.
+
+**Public hygiene: shipped skills no longer cite rules by private memory-file names.** `/prospect` and `/retrospect` in every port cited working rules by the maintainer's own memory-file names, which mean nothing to anyone else and expose the shape of a private memory corpus. Each is now stated in plain words. Gate D (`check-public-hygiene.sh`, Claude Code and Antigravity) fails a release when a tracked file under a `plugin-` path contains such a name, with a self-test arm that must fire and one that must stay silent; `tests/repros/public-hygiene-memory-names.sh` covers it.
+
+**Two shipped patterns** in `template/rules/retrospect-patterns.md` (all five ports): `contract-restated-anywhere-is-a-divergence-already-scheduled` (keep one normative copy of a contract and cite it) and `re-run-pre-execution-checks-empirically-at-execution-start`.
+
+**Ports.** Codex `2.59.0-codex.0` and Cowork 1.8.4 were edited by hand with the same text; Antigravity was regenerated by `build.sh`; Cursor's `.mdc` rules were regenerated and its `knowledge/` pattern file was copied by hand. Cowork has no `/auto`. Repros: `tests/repros/prospect-adoptions.sh`, `tests/repros/auto-modes.sh` (extended), `tests/repros/shipped-patterns-2590.sh`.
+
+**Known limits in 2.59.0.**
+
+- **The reader is fresh, never instruction-free, in every runtime.** Claude Code: it loads your startup CLAUDE.md, rules and hooks like the implementer, and auto memory per Task 8's measurement, but not SessionStart hook output, it has its own system prompt, and its startup files follow the session's working directory, not the plan's location. Codex: `AGENTS.md` from the project root down to the working directory. Antigravity: unrecorded.
+- **Why not the built-in Plan agent.** It skips startup CLAUDE.md and the rules files (measured 2026-11-15 on Claude Code 2.1.325), so it does not read the plan the way the implementer will.
+- **No `model` key.** The agent runs on the default subagent model, and a small one can fail under a large instruction load.
+- Cost per round: measured in Task 8.
+- **`git status` cannot see writes outside the repository.** It is the only guard when the `general-purpose` fallback (which has Edit and Write) runs.
+- **A plugin with an `agents/` directory has not yet been installed on claude.ai.** The upload-limits check applies the published skill rules to the agent as a precaution; claude.ai's rules for agents are unpublished.
+- **Descriptions deliberately unchanged** (claude.ai per-skill cap), so `/auto`'s discovery text does not mention `cold` and `/prospect`'s does not mention `--cold` or `--summary`.
+- **Codex `/auto` `argument-hint`** lacked `workflow`, `fanout=` and `agents=` before this release; 2.59.0 added only `[cold|cold=<N>]` there.
+- **`PORT-LEDGER.json`** is re-baselined for Antigravity only (fully regenerated). Codex, Cowork and Cursor stay at their previous baseline: their hand-synced or generated surfaces beyond `prospect`, `auto` and the pattern template were not re-verified line by line for this release.
+- **Not yet verified live:** `/prospect file <plan> --cold` in Claude Code (dispatch, template-only prompt, `git status` unchanged, the reader's instruction list compared); `/auto plan <goal> cold=2` stopping at a BLOCKER-free round or the cap; Cowork printing the not-run line; the plugin zip with `agents/` installing on claude.ai.
+
 ## 2.58.0 — 2026-11-16
 
 **Active surfacing ranks project-first, fires on a single named project, and runs on every prompt in Claude Code.** Before this, the hooks ordered matched tags by the *length of the tag name*, the skills used first-appearance order, and the always-on directive left the order unspecified, so each session improvised one. A short project tag lost to any longer generic tag: a task naming a project and "payments" surfaced another project's payments logs.

@@ -4,6 +4,22 @@ All notable changes to aria-cowork are documented here. Format follows [Keep a C
 
 Cross-plugin parity callouts (per ADR-006) note when changes coordinate with aria-knowledge releases.
 
+## [1.8.4] — 2026-11-16
+
+**`prospect` gains `--cold` and `--summary`, command receipts and two new checks; two forward patterns ship.** Coordinated with aria-knowledge v2.59.0.
+
+### Added
+
+- `prospect --cold`: one fresh-reader review round (Step 3.6), with the same cold-read template as every other port. Cowork cannot start a subagent, so here the round prints `Cold read: not run — this runtime cannot start a subagent` and the report continues; it is never skipped silently.
+- `prospect --summary`: chat shows only the anchor block, the overall verdict and action list, any open asks and the log path; the full report still goes to the log.
+- `template/rules/retrospect-patterns.md`: two patterns, `contract-restated-anywhere-is-a-divergence-already-scheduled` and `re-run-pre-execution-checks-empirically-at-execution-start`.
+
+### Changed
+
+- `prospect`: every command a plan hands to someone else carries a receipt (`$ <command>`, `expected:` written before running, then `exit` and the first output line, or `not run: <reason>`); a handed-over command without one is at least ⚠. Claims the plan inherited are checked first in the evidence pass. A step that depends on an unanswered row of the plan's "Decisions only the human can make" table is DEFER. The frame section asks a fourth question, about in-flight work on the same files. Gate 12 checks the cold read was accounted for. `argument-hint` gains `[--cold] [--summary]`.
+- `prospect`, `retrospect`: rules are stated in plain words instead of being cited by private memory-file names.
+- No skill's frontmatter description changed.
+
 ## [1.8.3] — 2026-11-16
 
 **`prospect` and `retrospect` surface knowledge the way aria-knowledge 2.58.0 does.** Coordinated with aria-knowledge v2.58.0.
